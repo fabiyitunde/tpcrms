@@ -3,6 +3,7 @@ using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
+using SA = CRMS.Domain.Aggregates.StatementAnalysis;
 
 namespace CRMS.Infrastructure.Persistence;
 
@@ -31,6 +32,10 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<LA.LoanApplicationParty> LoanApplicationParties => Set<LA.LoanApplicationParty>();
     public DbSet<LA.LoanApplicationComment> LoanApplicationComments => Set<LA.LoanApplicationComment>();
     public DbSet<LA.LoanApplicationStatusHistory> LoanApplicationStatusHistory => Set<LA.LoanApplicationStatusHistory>();
+
+    // StatementAnalysis
+    public DbSet<SA.BankStatement> BankStatements => Set<SA.BankStatement>();
+    public DbSet<SA.StatementTransaction> StatementTransactions => Set<SA.StatementTransaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

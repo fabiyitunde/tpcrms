@@ -37,6 +37,9 @@ public static class DependencyInjection
         // LoanApplication
         services.AddScoped<ILoanApplicationRepository, LoanApplicationRepository>();
 
+        // StatementAnalysis
+        services.AddScoped<IBankStatementRepository, BankStatementRepository>();
+
         return services;
     }
 }

@@ -247,7 +247,7 @@ This glossary defines the **official terms** used throughout the codebase, docum
 | 3 | **CoreBankingAdapter** | 🟢 | P1 | [CoreBankingAdapter.md](modules/CoreBankingAdapter.md) | None |
 | 4 | **CorporateLoanInitiation** | 🟢 | P1 | [CorporateLoanInitiation.md](modules/CorporateLoanInitiation.md) | ProductCatalog, CoreBankingAdapter |
 | 5 | **CreditBureauIntegration** | 🔴 | P1 | [CreditBureauIntegration.md](modules/CreditBureauIntegration.md) | None |
-| 6 | **StatementAnalyzer** | 🔴 | P1 | [StatementAnalyzer.md](modules/StatementAnalyzer.md) | None |
+| 6 | **StatementAnalyzer** | 🟢 | P1 | [StatementAnalyzer.md](modules/StatementAnalyzer.md) | None |
 | 7 | **FinancialDocumentAnalyzer** | 🔴 | P2 | [FinancialDocumentAnalyzer.md](modules/FinancialDocumentAnalyzer.md) | None |
 | 8 | **AIAdvisoryEngine** | 🔴 | P1 | [AIAdvisoryEngine.md](modules/AIAdvisoryEngine.md) | CreditBureauIntegration, StatementAnalyzer, FinancialDocumentAnalyzer |
 | 9 | **WorkflowEngine** | 🔴 | P1 | [WorkflowEngine.md](modules/WorkflowEngine.md) | None |
