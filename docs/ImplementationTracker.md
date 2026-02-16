@@ -114,14 +114,16 @@ CRMS/
 │   │   ├── FileStorage/
 │   │   └── Messaging/
 │   │
-│   ├── CRMS.Web/                    # Presentation Layer (Blazor)
-│   │   ├── Pages/
+│   ├── CRMS.API/                    # API Layer (required, between UI and Application)
+│   │   └── Controllers/
+│   │
+│   ├── CRMS.Web.Intranet/           # Intranet Portal (Corporate Loans - Staff)
 │   │   ├── Components/
-│   │   ├── ViewModels/
 │   │   └── wwwroot/
 │   │
-│   └── CRMS.API/                    # API Layer (optional, for external consumers)
-│       └── Controllers/
+│   └── CRMS.Web.Portal/             # Internet Portal (Retail Loans - Customers)
+│       ├── Components/
+│       └── wwwroot/
 │
 ├── tests/
 │   ├── CRMS.Domain.Tests/
@@ -140,10 +142,10 @@ CRMS/
 
 | Layer | Technology |
 |-------|------------|
-| Language | C# (.NET 8+) |
+| Language | C# (.NET 9) |
 | UI Framework | Blazor Server |
 | ORM | Entity Framework Core |
-| Database | PostgreSQL (primary) or MySQL |
+| Database | MySQL (Pomelo.EntityFrameworkCore.MySql) |
 | Caching | Redis (optional) |
 | Message Queue | RabbitMQ or Azure Service Bus |
 | File Storage | S3-compatible (MinIO for dev, AWS S3/Azure Blob for prod) |

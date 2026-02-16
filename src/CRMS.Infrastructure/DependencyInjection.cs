@@ -10,8 +10,10 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
     {
+        var serverVersion = ServerVersion.AutoDetect(connectionString);
+        
         services.AddDbContext<CRMSDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options.UseMySql(connectionString, serverVersion));
 
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<CRMSDbContext>());
         services.AddScoped<ILoanProductRepository, LoanProductRepository>();

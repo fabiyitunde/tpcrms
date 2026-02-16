@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/CRMS.API/CRMS.API.csproj" />
     <Project Path="src/CRMS.Application/CRMS.Application.csproj" />
     <Project Path="src/CRMS.Domain/CRMS.Domain.csproj" />
     <Project Path="src/CRMS.Infrastructure/CRMS.Infrastructure.csproj" />
