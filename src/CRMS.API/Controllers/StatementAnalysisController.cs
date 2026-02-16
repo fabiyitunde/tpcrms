@@ -73,9 +73,9 @@ public class StatementAnalysisController : ControllerBase
     }
 
     [HttpPost("{id}/analyze")]
-    public async Task<IActionResult> AnalyzeStatement(Guid id, CancellationToken ct)
+    public async Task<IActionResult> AnalyzeStatement(Guid id, [FromQuery] bool useLLM = false, CancellationToken ct = default)
     {
-        var result = await _analyzeHandler.Handle(new AnalyzeStatementCommand(id), ct);
+        var result = await _analyzeHandler.Handle(new AnalyzeStatementCommand(id, useLLM), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 

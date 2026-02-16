@@ -36,7 +36,7 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-builder.Services.AddInfrastructure(connectionString);
+builder.Services.AddInfrastructure(connectionString, builder.Configuration);
 builder.Services.AddApplicationServices();
 
 builder.Services.AddControllers();

@@ -188,12 +188,51 @@ Calculates:
 
 ---
 
-## 10. Future Enhancements
+## 10. LLM-Enhanced Categorization
+
+The module supports optional LLM-based transaction categorization using OpenAI GPT models.
+
+### Enabling LLM Categorization
+
+1. Configure OpenAI in appsettings.json:
+```json
+{
+  "OpenAI": {
+    "ApiKey": "sk-...",
+    "Model": "gpt-4o-mini",
+    "MaxTokens": 4096,
+    "Temperature": 0.1
+  }
+}
+```
+
+2. Call the analyze endpoint with `useLLM=true`:
+```
+POST /api/v1/statements/{id}/analyze?useLLM=true
+```
+
+### How It Works
+
+1. Transactions are batched (50 per request) to stay within token limits
+2. LLM receives Nigerian-context system prompt with all category definitions
+3. Returns JSON array with category, confidence (0-1), and reason
+4. Falls back to keyword-based categorization if LLM fails
+
+### Benefits Over Keyword Matching
+
+- Understands context and variations (e.g., "SALARY FROM ACME LTD" vs "SAL/ACME")
+- Handles abbreviations and typos
+- Better at ambiguous transactions
+- Nigerian-specific context (Bet9ja, PHCN, etc.)
+
+---
+
+## 11. Future Enhancements
 
 - [ ] PDF statement parsing (OCR integration)
 - [ ] CSV/Excel import
 - [ ] Open Banking integration (Mono, Okra)
-- [ ] ML-based transaction categorization
+- [ ] ML-based transaction categorization (fine-tuned model)
 - [ ] Recurring pattern detection
 - [ ] Multi-account aggregation
 

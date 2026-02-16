@@ -7,25 +7,28 @@ using CRMS.Domain.Services;
 
 namespace CRMS.Application.StatementAnalysis.Commands;
 
-public record AnalyzeStatementCommand(Guid StatementId) : IRequest<ApplicationResult<StatementAnalysisResultDto>>;
+public record AnalyzeStatementCommand(Guid StatementId, bool UseLLM = false) : IRequest<ApplicationResult<StatementAnalysisResultDto>>;
 
 public class AnalyzeStatementHandler : IRequestHandler<AnalyzeStatementCommand, ApplicationResult<StatementAnalysisResultDto>>
 {
     private readonly IBankStatementRepository _repository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly TransactionCategorizationService _categorizationService;
+    private readonly LLMTransactionCategorizationService? _llmCategorizationService;
     private readonly CashflowAnalysisService _cashflowService;
 
     public AnalyzeStatementHandler(
         IBankStatementRepository repository,
         IUnitOfWork unitOfWork,
         TransactionCategorizationService categorizationService,
-        CashflowAnalysisService cashflowService)
+        CashflowAnalysisService cashflowService,
+        LLMTransactionCategorizationService? llmCategorizationService = null)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
         _categorizationService = categorizationService;
         _cashflowService = cashflowService;
+        _llmCategorizationService = llmCategorizationService;
     }
 
     public async Task<ApplicationResult<StatementAnalysisResultDto>> Handle(AnalyzeStatementCommand request, CancellationToken ct = default)
@@ -39,8 +42,15 @@ public class AnalyzeStatementHandler : IRequestHandler<AnalyzeStatementCommand, 
 
         statement.MarkProcessing();
 
-        // Step 1: Categorize all transactions
-        _categorizationService.CategorizeAllTransactions(statement);
+        // Step 1: Categorize all transactions (LLM or keyword-based)
+        if (request.UseLLM && _llmCategorizationService != null)
+        {
+            await _llmCategorizationService.CategorizeWithLLMAsync(statement, ct);
+        }
+        else
+        {
+            _categorizationService.CategorizeAllTransactions(statement);
+        }
 
         // Step 2: Generate cashflow summary
         var cashflowSummary = _cashflowService.AnalyzeStatement(statement);
