@@ -243,7 +243,7 @@ This glossary defines the **official terms** used throughout the codebase, docum
 | # | Module | Status | Priority | Documentation | Dependencies |
 |---|--------|--------|----------|---------------|--------------|
 | 1 | **ProductCatalog** | 🟢 | P1 | [ProductCatalog.md](modules/ProductCatalog.md) | None |
-| 2 | **IdentityService** | 🔴 | P1 | [IdentityService.md](modules/IdentityService.md) | None |
+| 2 | **IdentityService** | 🟢 | P1 | [IdentityService.md](modules/IdentityService.md) | None |
 | 3 | **CoreBankingAdapter** | 🔴 | P1 | [CoreBankingAdapter.md](modules/CoreBankingAdapter.md) | None |
 | 4 | **CorporateLoanInitiation** | 🔴 | P1 | [CorporateLoanInitiation.md](modules/CorporateLoanInitiation.md) | ProductCatalog, CoreBankingAdapter |
 | 5 | **CreditBureauIntegration** | 🔴 | P1 | [CreditBureauIntegration.md](modules/CreditBureauIntegration.md) | None |

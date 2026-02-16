@@ -1,4 +1,5 @@
 using CRMS.Domain.Aggregates.ProductCatalog;
+using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,10 +11,18 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     {
     }
 
+    // ProductCatalog
     public DbSet<LoanProduct> LoanProducts => Set<LoanProduct>();
     public DbSet<PricingTier> PricingTiers => Set<PricingTier>();
     public DbSet<EligibilityRule> EligibilityRules => Set<EligibilityRule>();
     public DbSet<DocumentRequirement> DocumentRequirements => Set<DocumentRequirement>();
+
+    // Identity
+    public DbSet<ApplicationUser> Users => Set<ApplicationUser>();
+    public DbSet<ApplicationRole> Roles => Set<ApplicationRole>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<ApplicationUserRole> UserRoles => Set<ApplicationUserRole>();
+    public DbSet<ApplicationRolePermission> RolePermissions => Set<ApplicationRolePermission>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
