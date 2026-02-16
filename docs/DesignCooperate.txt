@@ -1,0 +1,316 @@
+This is **very good thinking** 👍 — and it actually *fits perfectly* with the BRD/FDD we produced.
+What you’ve added is mainly:
+
+* **Corporate / Commercial Lending focus**
+* **Officer-driven initiation (not only self-service)**
+* **Human-in-the-loop AI**
+* **Committee workflow + PDF pack generation**
+* **Director / Signatory credit vetting**
+* **Audited financials ingestion**
+
+So instead of replacing the earlier design, we **extend and sync it**.
+Below is the **synchronized architecture and process flow** that merges both ideas cleanly.
+
+---
+
+# 1. System Modes (Two Entry Paths)
+
+The platform now supports **two primary modes**:
+
+## Mode A – Retail / Self-Service (Earlier Design)
+
+* Customer applies online.
+* Mostly automated decisioning.
+* Smaller ticket loans.
+
+## Mode B – Corporate / Officer-Driven (Your New Flow)
+
+* Loan Officer initiates.
+* Heavy documentation.
+* Committee approval.
+* AI is **Decision Support**, not final authority.
+
+This is actually ideal — one platform, two lending paradigms.
+
+---
+
+# 2. Updated High-Level Workflow (Corporate Lending)
+
+## Step 1 – Loan Officer Initiation (Intranet Portal)
+
+**New Module:** `CorporateLoanInitiation`
+
+Inputs:
+
+* Corporate Account Number
+* Loan Amount
+* Interest Rate Type (Per Annum / Monthly / Flat / Reducing)
+* Tenor
+* Loan Product
+
+System Actions:
+
+* Validate account existence via Core Banking API
+* Create `LoanApplicationCase` with status = `Draft`
+
+---
+
+## Step 2 – Automatic Core Banking Data Pull
+
+**Integration:** Fineract / Core Banking Adapter
+
+Pulled Data Stored in Portal DB:
+
+### 2.1 Corporate Profile
+
+* Company Name
+* Registration Number
+* Industry
+* Incorporation Date
+
+### 2.2 Directors
+
+* Full Name
+* BVN
+* Address
+* Contact Info
+
+### 2.3 Signatories
+
+* Same fields as directors
+* Mandate Types
+
+### 2.4 Account Statement (6 Months)
+
+* Transactions
+* Inflows / Outflows
+* Average Balance
+* Turnover Ratio
+
+**Design Update:**
+Create entity `CorporateParty` with sub-types:
+
+* Director
+* Signatory
+* Beneficial Owner (optional later)
+
+---
+
+## Step 3 – External Document Uploads
+
+Loan Officer Uploads:
+
+### 3.1 Other Bank Statements
+
+* PDF / CSV
+* Parser + Cashflow analytics
+
+### 3.2 Audited Financials (3 Years)
+
+* Balance Sheet
+* Income Statement
+* Cash Flow Statement
+
+**New Module:** `FinancialDocumentAnalyzer`
+
+* OCR + Table Extraction
+* Financial Ratios:
+
+  * Current Ratio
+  * Debt-Equity
+  * Net Profit Margin
+  * EBITDA Margin
+
+---
+
+## Step 4 – Branch Level Approval
+
+Workflow State: `BranchReview`
+
+Branch Officer Options:
+
+* Approve for Processing
+* Return for Editing
+* Reject
+
+Audit Log Required.
+
+---
+
+## Step 5 – Credit Bureau Checks (After Branch Approval)
+
+### External Integrations
+
+* FirstCentral
+* CreditRegistry
+* (Optional Aggregator)
+
+Checks Run On:
+
+* Each Director
+* Each Signatory
+
+Output:
+
+* Bureau Score
+* Delinquency Records
+* Active Loans
+* Legal Flags
+
+Stored as `IndividualCreditReport`.
+
+---
+
+## Step 6 – AI Decision Support (Not Auto Approval)
+
+**Important Alignment:**
+AI is **Advisory**, not authoritative.
+
+### AI Responsibilities
+
+1. Generate Score Matrix:
+
+   * Corporate Financial Ratios
+   * Cashflow Stability
+   * Bureau Risk of Directors
+   * Existing Bank Exposure
+2. Suggest:
+
+   * Recommended Loan Amount
+   * Interest Tier
+   * Repayment Schedule
+   * Debt Service Coverage Ratio (DSCR)
+3. Generate:
+
+   * Risk Commentary
+   * Strengths / Weaknesses
+   * Red Flags
+
+### Output Format
+
+* Dashboard View
+* Exportable PDF
+* Versioned Snapshot
+
+**New Module:** `AIAdvisoryEngine`
+
+---
+
+## Step 7 – Head Office / Committee Workflow
+
+Workflow States:
+
+* `HOReview`
+* `CommitteeCirculation`
+* `FinalDecision`
+
+Features:
+
+* Comment Threads
+* Voting (Approve / Decline / Modify)
+* Document Attachment
+* Digital Signatures
+
+---
+
+## Step 8 – Consolidated PDF Generation
+
+**New Module:** `LoanPackGenerator`
+
+Includes:
+
+* Application Summary
+* Financial Ratios
+* Credit Bureau Reports
+* AI Score Matrix
+* Committee Comments
+* Final Decision Page
+
+Export to PDF → Print → Management Sign-off.
+
+---
+
+## Step 9 – Final Approval Trigger
+
+Once final authority approves:
+
+System Triggers:
+
+* Notification to Branch
+* Core Banking Loan Booking
+* Disbursement
+* Repayment Schedule Sync
+
+Workflow State → `Disbursed`
+
+---
+
+# 3. Architecture Additions to Original FDD
+
+## New Services
+
+| Service                  | Purpose                          |
+| ------------------------ | -------------------------------- |
+| CorporateLoanService     | Handles corporate loan lifecycle |
+| FinancialAnalyzerService | Parses financial statements      |
+| AIAdvisoryService        | Generates decision support       |
+| LoanPackService          | Builds PDF loan packs            |
+| CommitteeWorkflowService | Multi-user approval routing      |
+
+---
+
+## Updated Decision Engine Philosophy
+
+| Retail       | Corporate        |
+| ------------ | ---------------- |
+| Automated    | Advisory         |
+| Score-Driven | Committee-Driven |
+| Real-Time    | Multi-Stage      |
+| Small Loans  | Large Loans      |
+
+---
+
+# 4. Data Model Additions
+
+New Entities:
+
+* CorporateProfile
+* Director
+* Signatory
+* FinancialStatement
+* BureauReport
+* AIScoreMatrix
+* CommitteeComment
+* LoanPackDocument
+
+---
+
+# 5. Compliance & Risk Strength
+
+Your design **greatly improves**:
+
+* Fraud detection
+* Director accountability
+* Multi-bank exposure awareness
+* Financial statement validation
+* Governance and auditability
+
+This is **exactly how Tier-1 commercial banks structure corporate credit**.
+
+---
+
+# 6. Resulting System Character
+
+The merged design becomes:
+
+**“An AI-Augmented Credit Governance Platform”**
+
+Not just a loan portal, but a **full credit decision ecosystem**.
+
+It now supports:
+
+* Retail Automation
+* SME Semi-Automation
+* Corporate Committee Lending
+
+Which means your platform scales from ₦50,000 microloans to ₦5B corporate facilities without redesign.

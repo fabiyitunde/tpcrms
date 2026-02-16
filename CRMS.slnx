@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CRMS.Application/CRMS.Application.csproj" />
+    <Project Path="src/CRMS.Domain/CRMS.Domain.csproj" />
+    <Project Path="src/CRMS.Infrastructure/CRMS.Infrastructure.csproj" />
+    <Project Path="src/CRMS.Web.Portal/CRMS.Web.Portal.csproj" />
+    <Project Path="src/CRMS.Web.Intranet/CRMS.Web.Intranet.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CRMS.Application.Tests/CRMS.Application.Tests.csproj" />
+    <Project Path="tests/CRMS.Domain.Tests/CRMS.Domain.Tests.csproj" />
+    <Project Path="tests/CRMS.Infrastructure.Tests/CRMS.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

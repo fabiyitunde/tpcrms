@@ -1,0 +1,488 @@
+Below are two ready-to-share documents (BRD + Functional Design) written for a **Nigeria-focused, AI-driven credit portal** integrated to a **Fineract-based core banking** (your setup). They’re also formatted so you can paste them into **Factory AI** as a high-quality “spec prompt”.
+
+---
+
+# 1) Business Requirements Document (BRD)
+
+## 1.1 Purpose
+
+Build a **standalone Credit Management Portal** that enables prospective and existing customers to apply for credit online, while making lending decisions **as objective and automated as possible** using:
+
+* Customer-provided data + bank onboarding/KYC
+* Credit bureau checks (Nigeria)
+* Bank statement / transaction analytics (where available)
+* AI/scorecard-based decisioning
+* A controlled workflow for exceptions and auditability
+
+## 1.2 Background & Problem Statement
+
+Many Nigerian lending processes remain slow and subjective due to manual checks, incomplete data, inconsistent risk rules, and non-standard documentation. This system aims to:
+
+* Reduce manual intervention
+* Standardize risk rules
+* Improve turnaround time (TAT)
+* Increase compliance/audit readiness
+* Scale lending volumes safely
+
+## 1.3 Goals and Success Metrics
+
+**Business goals**
+
+* Self-service application + automated eligibility checks
+* Lower cost per loan booked
+* Faster TAT and improved customer experience
+* Strong audit trails and regulatory alignment
+
+**Success metrics**
+
+* % of loans fully automated (no manual review)
+* Average decision time (minutes/hours not days)
+* Default rate vs baseline
+* Fraud/identity mismatch detection rate
+* Ops workload reduction (cases per officer per day)
+
+## 1.4 Scope
+
+### In scope
+
+* Public web portal for loan applications (mobile-friendly)
+* Customer onboarding / account opening workflow (where required)
+* Consent capture for data access (credit bureau + statements)
+* Credit bureau checks (Nigeria-focused)
+* Bank statement ingestion (upload and/or open-banking aggregators)
+* AI/scorecard decisioning + explainable reasons
+* Workflow: auto-approve/decline + manual exception queue
+* Integration to core banking (Fineract) for:
+
+  * Customer/account creation (if needed)
+  * Loan creation/disbursement
+  * Repayment schedule posting + status sync
+* Notifications (email/SMS/WhatsApp optional)
+* Admin portal (products, rules, users, overrides, reports)
+
+### Out of scope (phase 1 suggestions)
+
+* Full collections platform (field collections, litigation tracking)
+* Credit card / overdraft engines (separate products)
+* Merchant lending with POS integrations (phase 2/3)
+
+## 1.5 Stakeholders
+
+* Business sponsor (Head of Retail/SME)
+* Credit/Risk team
+* Operations/Loan officers
+* Compliance & Legal
+* IT/Security
+* Customer support/contact center
+* Data/ML team (or vendor)
+
+## 1.6 Assumptions and Constraints (Nigeria-specific)
+
+* **Data protection compliance**: Nigeria Data Protection Act (NDPA) applies; you must process personal data lawfully with appropriate safeguards and governance. ([placng.org][1])
+* **Credit bureau access** typically requires:
+
+  * A permissible purpose + customer consent
+  * Commercial agreement with bureau/aggregator
+* Credit bureau connectivity options include:
+
+  * Direct bureau APIs (e.g., FirstCentral describes a REST flow: login → matching → report). ([FirstCentral Credit Bureau][2])
+  * Bureau/credit-data aggregators that expose BVN-based credit history endpoints pulling from major bureaus (examples exist in the ecosystem). ([docs.mono.co][3])
+  * CreditRegistry’s AutoCred API exists for authorized subscribers to order reports/scores. ([CreditRegistry Nigeria][4])
+* Not all applicants will have strong bureau footprints; support “thin-file” decisioning using alternative data (statements, inflows, behavior).
+
+## 1.7 Business Rules (high-level)
+
+* The bank defines **loan products** (tenor, amount, interest/fees, required documents, eligibility).
+* Minimum KYC requirements per product (tiered).
+* Consent is mandatory before any external checks.
+* Automated decisioning produces:
+
+  * Decision: Approve / Decline / Refer
+  * Limit recommendation + tenor recommendation
+  * Reason codes (explainable)
+* Manual review allowed only for “Refer” cases and controlled override with justification.
+
+## 1.8 Functional Requirements (BRD level)
+
+### A) Customer Journey
+
+1. Apply for loan (guest or logged-in)
+2. Provide identity/KYC fields
+3. Provide employment/business + income details
+4. Provide consent
+5. Link bank statements (via open banking) OR upload statements
+6. System runs checks + scores
+7. Real-time decision or “pending review”
+8. If approved: customer opens/links account and signs offer digitally
+9. Disbursement to core banking account
+
+### B) Credit/Risk Journey
+
+* View pipeline (new → scored → referred → approved/declined → disbursed)
+* See score breakdown and reasons
+* Request additional documents
+* Approve/decline with reason codes
+* Track overrides and audit trails
+
+### C) Admin Journey
+
+* Configure products and eligibility rules
+* Configure scoring policies and thresholds
+* Configure integrations (bureaus, statement providers)
+* Configure workflows, users, roles
+* Reporting dashboard + exports
+
+## 1.9 Non-Functional Requirements (NFR)
+
+* Security: encryption in transit/at rest, secrets management, least privilege
+* Audit: immutable audit logs for decisions, overrides, data access
+* Availability: target 99.9% for portal; graceful degradation if bureau down
+* Performance: decisions under X minutes where external APIs respond
+* Compliance: NDPA governance (retention, access controls, breach response, DPIA practices) ([placng.org][1])
+* Explainability: decision reasons must be understandable to business users
+
+## 1.10 Risks & Mitigations
+
+* **API downtime** (bureau/aggregator): retry + queue + fallback to manual
+* **Fraud/identity risk**: stronger KYC, duplicate detection, device fingerprinting (phase 2)
+* **Model bias**: use policy constraints, monitoring, periodic recalibration
+* **Data privacy**: explicit consent + tight retention + access controls
+
+## 1.11 Phasing (recommended)
+
+* Phase 1: MVP portal + workflow + rules-based scorecard + one bureau integration + statement upload
+* Phase 2: Add statement aggregation + more bureaus + ML model + limit optimization
+* Phase 3: Collections automation + fraud signals + employer verification integrations
+
+---
+
+# 2) Functional Design Document (FDD)
+
+## 2.1 Solution Overview
+
+A modular system with:
+
+1. **Customer Credit Portal (Web)**: application capture, document upload, consent, status tracking
+2. **Credit Workflow & Case Management**: queues, tasks, SLA, manual review tools
+3. **Decision Engine** (Rules + AI): scorecard + ML augmentation + reason codes
+4. **Integration Layer**:
+
+   * Core banking (Fineract APIs)
+   * Credit bureaus (Nigeria)
+   * Statement ingestion (upload + aggregator)
+   * Notifications
+5. **Admin & Configuration**: products, policies, scoring thresholds, users/roles
+
+## 2.2 Key Integrations (Nigeria ecosystem)
+
+### A) Credit Bureau Checks
+
+Support multiple connectors:
+
+* **FirstCentral**: API flow typically involves login → consumer matching → report generation. ([FirstCentral Credit Bureau][2])
+* **CreditRegistry**: AutoCred API for authorized subscribers to order reports/scores and related services. ([CreditRegistry Nigeria][4])
+* **Aggregator option** (recommended for speed-to-market): BVN-based credit history retrieval that can connect to major bureaus, subject to consent and commercial terms. ([docs.mono.co][3])
+
+**Design requirement:** abstract these as `ICreditBureauProvider` so you can swap vendors without rewriting decision logic.
+
+### B) Bank Statement / Transaction Analytics
+
+Two modes:
+
+1. **Upload mode (MVP)**: PDF/CSV upload → parsing pipeline → cashflow features
+2. **Connected mode (Phase 2)**: integrate an open-banking/statement provider for verified transaction history
+
+## 2.3 User Roles & Permissions
+
+* Applicant (customer)
+* Credit Officer
+* Risk Manager (approver/override)
+* Operations (disbursement support)
+* Admin (configuration)
+* Auditor/Compliance (read-only + audit views)
+
+## 2.4 Detailed Functional Modules
+
+### Module 1: Product Catalogue & Eligibility
+
+* Create loan products:
+
+  * Name, segment, min/max amount, tenor range
+  * Pricing (interest/fees), repayment frequency
+  * Required KYC level + required docs
+  * Decision policy selection (scorecard/model version)
+* Eligibility rules:
+
+  * Age range, geography (optional), minimum income
+  * Existing exposure limits (internal + bureau)
+  * DTI (debt-to-income) thresholds
+  * Sector restrictions (SME categories)
+
+### Module 2: Application Intake (Customer)
+
+Pages:
+
+* Start application (choose product)
+* Personal details + identity (BVN/NIN optional fields as per policy)
+* Employment/business details
+* Income & obligations
+* Consent screen (credit bureau + data processing)
+* Statement upload / connect bank
+* Review + submit
+* Status tracking (timeline)
+
+Captured data:
+
+* Applicant profile
+* Address history
+* Employment/business metadata
+* Next-of-kin/guarantor (optional)
+* Uploaded documents
+* Consent artifacts (timestamp, text version, IP/device metadata)
+
+### Module 3: KYC & Duplicate Detection
+
+* Validate required fields completeness
+* Duplicate checks:
+
+  * Same BVN/phone/email
+  * Similar name + DOB combinations
+* Flag suspicious patterns for “Refer”
+
+### Module 4: Credit Bureau Orchestration
+
+Workflow:
+
+1. Verify consent exists for bureau check
+2. Call configured provider(s)
+3. Normalize response into internal `CreditBureauReport`
+4. Store:
+
+   * Summary (scores, delinquency counts, outstanding)
+   * Raw response (encrypted + restricted access)
+5. Produce features for decision engine
+
+### Module 5: Statement Ingestion & Cashflow Features
+
+Upload pipeline:
+
+* Virus scan / file validation
+* Extract transactions (format-specific parsers)
+* Categorize transactions (salary, transfers, bills) using rules + ML classifier
+* Generate cashflow features:
+
+  * Avg monthly inflow/outflow
+  * Inflow volatility
+  * Net cashflow
+  * Salary detection confidence
+  * Recurring obligations
+  * Gambling/high-risk merchant flags (optional policy)
+
+### Module 6: Decision Engine (Rules + AI)
+
+**Decisioning stages**
+
+1. Hard rules (fail-fast)
+
+   * KYC incomplete
+   * Bureau shows severe delinquency above threshold
+   * Fraud flags
+2. Scorecard (explainable points-based)
+
+   * Bureau score bands
+   * Cashflow stability
+   * DTI estimate
+   * Existing internal repayment behavior (if customer exists)
+3. ML augmentation (phase 2+)
+
+   * Probability of default (PD)
+   * Recommended limit/tenor
+4. Policy thresholding
+
+   * Approve if score ≥ A
+   * Decline if score ≤ D
+   * Refer otherwise
+
+**Outputs**
+
+* Decision: Approve / Decline / Refer
+* Recommended amount + tenor
+* Pricing tier (optional)
+* Reason codes (top 3–7)
+* Model/scorecard version + audit hash
+
+### Module 7: Workflow & Case Management
+
+States:
+
+* Draft → Submitted → Data Gathering → Scored → Refer Queue → Approved/Declined → Offer Accepted → Disbursed → Active → Closed
+
+Features:
+
+* Work queues by role
+* SLA timers and escalations
+* Notes, attachments, internal comments
+* Override flow:
+
+  * Only certain roles
+  * Mandatory justification + approval trail
+
+### Module 8: Offer, Acceptance & Disbursement (Core Banking)
+
+* Generate offer letter (PDF) + e-sign acceptance
+* Create/ensure core banking customer + account
+* Create loan in Fineract
+* Disburse to core banking account
+* Sync repayment schedule + status back to portal
+
+### Module 9: Notifications
+
+* Email/SMS for:
+
+  * Application submitted
+  * Approved/declined
+  * Document request
+  * Offer ready
+  * Disbursed
+  * Repayment reminders (phase 2)
+
+### Module 10: Reporting & Audit
+
+* Funnel metrics: submitted → approved → disbursed
+* Portfolio early warning:
+
+  * Missed payments, arrears buckets (phase 2)
+* Audit logs:
+
+  * Who accessed what data and when
+  * Decision inputs/outputs
+  * Override logs
+
+## 2.5 Data Model (high level entities)
+
+* Applicant
+* CustomerProfile (linked to core banking customer)
+* LoanProduct
+* LoanApplication
+* ConsentRecord
+* Document (encrypted metadata)
+* BureauRequest / BureauResponse (restricted)
+* StatementTransaction / StatementSummary
+* DecisionResult
+* WorkflowCase / CaseActivity
+* DisbursementRecord
+* NotificationLog
+* AuditLog
+
+## 2.6 Architecture (C# / Clean Architecture friendly)
+
+**Recommended services**
+
+* `CreditPortal.Web` (Blazor)
+* `IdentityService` (auth, MFA optional)
+* `ApplicationService` (loan applications)
+* `DecisioningService` (rules + ML inference)
+* `IntegrationsService` (bureaus, statements, notifications)
+* `WorkflowService` (queues, tasks, SLAs)
+* `CoreBankingAdapter` (Fineract integration)
+* `ReportingService`
+
+**Data stores**
+
+* Relational DB (PostgreSQL/MySQL) for core entities
+* Object storage (S3) for documents
+* Message bus (SQS/RabbitMQ/Kafka) for async orchestration
+
+**Why event-driven**
+
+* External calls can be slow/unreliable
+* Enables retries, idempotency, observability
+
+## 2.7 Security & Compliance Design Notes (Nigeria)
+
+* NDPA-aligned privacy controls: consent, purpose limitation, minimization, retention controls, role-based access. ([placng.org][1])
+* Encrypt sensitive fields (BVN, bureau payloads)
+* Separate “raw bureau payload” access to Compliance/Audit only
+* Full audit trail for every decision and data access
+
+---
+
+# 3) Factory AI “Spec Prompt” (paste this as-is)
+
+Copy everything below into Factory AI:
+
+```text
+Build a Nigeria-focused AI-driven Credit Management Portal integrated to a Fineract-based core banking system.
+
+TECH STACK
+- Language: C# (.NET 8+)
+- UI: Blazor Server (or Blazor WASM + API if you prefer)
+- Architecture: Clean Architecture + DDD (Domain, Application, Infrastructure, Web)
+- Persistence: PostgreSQL or MySQL (choose one, include EF Core migrations)
+- Background processing: Hosted services + message queue abstraction
+- Storage: S3-compatible object storage abstraction for documents
+- Observability: structured logging, correlation IDs, audit logs
+
+BUSINESS GOAL
+A standalone web portal where customers apply for loans; the system uses objective decisioning (rules + AI) with Nigerian credit bureau checks (BVN-based) and bank statement analytics, then runs an approval workflow and disburses via Fineract.
+
+CORE MODULES TO IMPLEMENT
+1) Product & Policy Admin
+- CRUD loan products (amount/tenor/pricing, eligibility rules, required docs)
+- Configure decision thresholds and scorecard versions
+- Configure integration providers (credit bureaus, statement providers)
+
+2) Customer Application Portal
+- Multi-step application form
+- Consent capture (credit bureau + data processing)
+- Statement upload (PDF/CSV) MVP
+- Application status tracking timeline
+
+3) Decision Engine (Rules + Scorecard + ML-ready)
+- Hard rules first (fail-fast)
+- Points-based scorecard with explainable reason codes
+- Produce: Approve/Decline/Refer + recommended limit/tenor + top reason codes
+- Store decision with versioning and audit hash
+- ML inference should be a pluggable interface (stub implementation in MVP)
+
+4) Credit Bureau Integration Layer (pluggable)
+- Define ICreditBureauProvider
+- Implement at least one provider stub + a mock provider for tests
+- Store normalized bureau report + restricted raw response (encrypted)
+
+5) Workflow / Case Management
+- States: Draft, Submitted, DataGathering, Scored, ReferQueue, Approved, Declined, OfferAccepted, Disbursed
+- Role-based queues for Credit Officer and Risk Manager
+- Manual override requires justification and is fully audited
+
+6) Core Banking Adapter (Fineract)
+- Abstraction IFineractClient
+- Endpoints: create customer (if needed), create account, create loan, disburse loan, fetch loan status/schedule
+- Ensure idempotency keys for disbursement calls
+
+7) Reporting & Audit
+- Dashboards: funnel metrics and decision distributions
+- Immutable audit log for: data access, decisions, overrides, integration calls
+
+NON-FUNCTIONAL REQUIREMENTS
+- Strong security: encryption in transit/at rest, secrets management
+- NDPA-aligned privacy: consent stored with timestamp and consent text version
+- Resilience: retries, timeouts, circuit breaker patterns for external calls
+- Test coverage: unit tests for decisioning, workflow, and adapters; integration tests with in-memory DB where possible
+
+DELIVERABLES
+- Full solution with projects: Domain, Application, Infrastructure, Web, Tests
+- EF Core migrations
+- Seed data for 2 loan products and a sample scorecard
+- Mock bureau provider + mock statement parser for deterministic tests
+- README with local run steps and configuration keys
+```
+
+---
+
+If you want, I can also turn these into **a Word (.docx) pack** (BRD + FDD with a title page, revision history, and signature page) so you can send to stakeholders—but the content above is already “stakeholder-ready” and “Factory-ready.”
+
+[1]: https://placng.org/i/wp-content/uploads/2023/06/Nigeria-Data-Protection-Act-2023.pdf?utm_source=chatgpt.com "Nigeria Data Protection Act, 2023"
+[2]: https://firstcentralcreditbureau.com/api/?utm_source=chatgpt.com "API"
+[3]: https://docs.mono.co/docs/lookup/credit-history-lookup?utm_source=chatgpt.com "Credit History Lookup Integration Guide"
+[4]: https://www.creditregistry.ng/api/?utm_source=chatgpt.com "AutoCred API Introduction"
