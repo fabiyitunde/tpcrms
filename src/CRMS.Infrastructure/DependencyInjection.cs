@@ -34,6 +34,9 @@ public static class DependencyInjection
         // Core Banking (Mock for now - will be replaced with real Fineract client)
         services.AddScoped<ICoreBankingService, MockCoreBankingService>();
 
+        // LoanApplication
+        services.AddScoped<ILoanApplicationRepository, LoanApplicationRepository>();
+
         return services;
     }
 }
