@@ -1,4 +1,6 @@
 using CRMS.Application.Common;
+using CRMS.Application.CoreBanking.DTOs;
+using CRMS.Application.CoreBanking.Queries;
 using CRMS.Application.Identity.Commands;
 using CRMS.Application.Identity.DTOs;
 using CRMS.Application.Identity.Queries;
@@ -27,6 +29,11 @@ public static class DependencyInjection
         services.AddScoped<IRequestHandler<RegisterUserCommand, ApplicationResult<UserDto>>, RegisterUserHandler>();
         services.AddScoped<IRequestHandler<GetUserByIdQuery, ApplicationResult<UserDto>>, GetUserByIdHandler>();
         services.AddScoped<IRequestHandler<GetAllUsersQuery, ApplicationResult<List<UserSummaryDto>>>, GetAllUsersHandler>();
+
+        // CoreBanking handlers
+        services.AddScoped<IRequestHandler<GetCorporateAccountDataQuery, ApplicationResult<CorporateAccountDataDto>>, GetCorporateAccountDataHandler>();
+        services.AddScoped<IRequestHandler<GetAccountInfoQuery, ApplicationResult<AccountInfoDto>>, GetAccountInfoHandler>();
+        services.AddScoped<IRequestHandler<GetAccountStatementQuery, ApplicationResult<AccountStatementDto>>, GetAccountStatementHandler>();
 
         return services;
     }

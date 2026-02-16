@@ -1,5 +1,6 @@
 using CRMS.Application.Identity.Interfaces;
 using CRMS.Domain.Interfaces;
+using CRMS.Infrastructure.ExternalServices.CoreBanking;
 using CRMS.Infrastructure.Identity;
 using CRMS.Infrastructure.Persistence;
 using CRMS.Infrastructure.Persistence.Repositories;
@@ -29,6 +30,9 @@ public static class DependencyInjection
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IAuthService, AuthService>();
+
+        // Core Banking (Mock for now - will be replaced with real Fineract client)
+        services.AddScoped<ICoreBankingService, MockCoreBankingService>();
 
         return services;
     }
