@@ -4,6 +4,7 @@ using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using CL = CRMS.Domain.Aggregates.Collateral;
+using FS = CRMS.Domain.Aggregates.FinancialStatement;
 using GR = CRMS.Domain.Aggregates.Guarantor;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
@@ -53,6 +54,12 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     // Guarantor
     public DbSet<GR.Guarantor> Guarantors => Set<GR.Guarantor>();
     public DbSet<GR.GuarantorDocument> GuarantorDocuments => Set<GR.GuarantorDocument>();
+
+    // FinancialStatement
+    public DbSet<FS.FinancialStatement> FinancialStatements => Set<FS.FinancialStatement>();
+    public DbSet<FS.BalanceSheet> BalanceSheets => Set<FS.BalanceSheet>();
+    public DbSet<FS.IncomeStatement> IncomeStatements => Set<FS.IncomeStatement>();
+    public DbSet<FS.CashFlowStatement> CashFlowStatements => Set<FS.CashFlowStatement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

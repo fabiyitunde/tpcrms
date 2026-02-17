@@ -4,6 +4,8 @@ using CRMS.Application.Common;
 using CRMS.Application.CoreBanking.Queries;
 using CRMS.Application.CreditBureau.Commands;
 using CRMS.Application.CreditBureau.Queries;
+using CRMS.Application.FinancialAnalysis.Commands;
+using CRMS.Application.FinancialAnalysis.Queries;
 using CRMS.Application.Guarantor.Commands;
 using CRMS.Application.Guarantor.Queries;
 using CRMS.Application.Identity.Commands;
@@ -18,6 +20,7 @@ using CRMS.Domain.Services;
 using BureauDtos = CRMS.Application.CreditBureau.DTOs;
 using CollateralDtos = CRMS.Application.Collateral.DTOs;
 using CoreBankingDtos = CRMS.Application.CoreBanking.DTOs;
+using FinancialDtos = CRMS.Application.FinancialAnalysis.DTOs;
 using GuarantorDtos = CRMS.Application.Guarantor.DTOs;
 using IdentityDtos = CRMS.Application.Identity.DTOs;
 using LoanAppDtos = CRMS.Application.LoanApplication.DTOs;
@@ -98,6 +101,17 @@ public static class DependencyInjection
         services.AddScoped<IRequestHandler<GetGuarantorByIdQuery, ApplicationResult<GuarantorDtos.GuarantorDto>>, GetGuarantorByIdHandler>();
         services.AddScoped<IRequestHandler<GetGuarantorsByLoanApplicationQuery, ApplicationResult<List<GuarantorDtos.GuarantorSummaryDto>>>, GetGuarantorsByLoanApplicationHandler>();
         services.AddScoped<IRequestHandler<GetGuarantorsByBVNQuery, ApplicationResult<List<GuarantorDtos.GuarantorSummaryDto>>>, GetGuarantorsByBVNHandler>();
+
+        // FinancialAnalysis handlers
+        services.AddScoped<IRequestHandler<CreateFinancialStatementCommand, ApplicationResult<FinancialDtos.FinancialStatementDto>>, CreateFinancialStatementHandler>();
+        services.AddScoped<IRequestHandler<SetBalanceSheetCommand, ApplicationResult<FinancialDtos.FinancialStatementDto>>, SetBalanceSheetHandler>();
+        services.AddScoped<IRequestHandler<SetIncomeStatementCommand, ApplicationResult<FinancialDtos.FinancialStatementDto>>, SetIncomeStatementHandler>();
+        services.AddScoped<IRequestHandler<SetCashFlowStatementCommand, ApplicationResult<FinancialDtos.FinancialStatementDto>>, SetCashFlowStatementHandler>();
+        services.AddScoped<IRequestHandler<SubmitFinancialStatementCommand, ApplicationResult<FinancialDtos.FinancialStatementDto>>, SubmitFinancialStatementHandler>();
+        services.AddScoped<IRequestHandler<VerifyFinancialStatementCommand, ApplicationResult<FinancialDtos.FinancialStatementDto>>, VerifyFinancialStatementHandler>();
+        services.AddScoped<IRequestHandler<GetFinancialStatementByIdQuery, ApplicationResult<FinancialDtos.FinancialStatementDto>>, GetFinancialStatementByIdHandler>();
+        services.AddScoped<IRequestHandler<GetFinancialStatementsByLoanApplicationQuery, ApplicationResult<List<FinancialDtos.FinancialStatementSummaryDto>>>, GetFinancialStatementsByLoanApplicationHandler>();
+        services.AddScoped<IRequestHandler<GetFinancialRatiosTrendQuery, ApplicationResult<FinancialRatiosTrendDto>>, GetFinancialRatiosTrendHandler>();
 
         return services;
     }

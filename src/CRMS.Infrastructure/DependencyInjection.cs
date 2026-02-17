@@ -63,6 +63,9 @@ public static class DependencyInjection
         services.AddScoped<ICollateralRepository, CollateralRepository>();
         services.AddScoped<IGuarantorRepository, GuarantorRepository>();
 
+        // FinancialStatement
+        services.AddScoped<IFinancialStatementRepository, FinancialStatementRepository>();
+
         // Background Services - Credit Check Queue
         var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions
         {
