@@ -1,30 +1,150 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">CRMS.Web.Intranet</a>
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+
+<nav class="sidebar-nav">
+    <div class="nav-section">
+        @if (!Collapsed)
+        {
+            <div class="nav-section-title">Main</div>
+        }
+        <NavLink href="/" class="nav-item" Match="NavLinkMatch.All">
+            <span class="material-symbols-outlined nav-item-icon">dashboard</span>
+            @if (!Collapsed) { <span class="nav-item-text">Dashboard</span> }
+        </NavLink>
+        <NavLink href="/applications" class="nav-item">
+            <span class="material-symbols-outlined nav-item-icon">description</span>
+            @if (!Collapsed) { <span class="nav-item-text">Applications</span> }
+        </NavLink>
+        @if (CanInitiateLoan)
+        {
+            <NavLink href="/applications/new" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">add_circle</span>
+                @if (!Collapsed) { <span class="nav-item-text">New Application</span> }
+            </NavLink>
+        }
     </div>
-</div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+    <div class="nav-section">
+        @if (!Collapsed)
+        {
+            <div class="nav-section-title">Workflow</div>
+        }
+        <NavLink href="/queues/my" class="nav-item">
+            <span class="material-symbols-outlined nav-item-icon">inbox</span>
+            @if (!Collapsed) { <span class="nav-item-text">My Queue</span> }
+            @if (MyQueueCount > 0 && !Collapsed)
+            {
+                <span class="nav-badge">@MyQueueCount</span>
+            }
+        </NavLink>
+        @if (CanViewRoleQueues)
+        {
+            <NavLink href="/queues/all" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">view_list</span>
+                @if (!Collapsed) { <span class="nav-item-text">All Queues</span> }
+            </NavLink>
+        }
+        @if (CanViewOverdue)
+        {
+            <NavLink href="/queues/overdue" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">schedule</span>
+                @if (!Collapsed) { <span class="nav-item-text">Overdue</span> }
+                @if (OverdueCount > 0 && !Collapsed)
+                {
+                    <span class="nav-badge" style="background: var(--danger-500);">@OverdueCount</span>
+                }
+            </NavLink>
+        }
+    </div>
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+    @if (CanViewCommittee)
+    {
+        <div class="nav-section">
+            @if (!Collapsed)
+            {
+                <div class="nav-section-title">Committee</div>
+            }
+            @if (IsCommitteeMember)
+            {
+                <NavLink href="/committee/my-votes" class="nav-item">
+                    <span class="material-symbols-outlined nav-item-icon">how_to_vote</span>
+                    @if (!Collapsed) { <span class="nav-item-text">My Pending Votes</span> }
+                    @if (PendingVotesCount > 0 && !Collapsed)
+                    {
+                        <span class="nav-badge">@PendingVotesCount</span>
+                    }
+                </NavLink>
+            }
+            <NavLink href="/committee/reviews" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">groups</span>
+                @if (!Collapsed) { <span class="nav-item-text">Reviews</span> }
             </NavLink>
         </div>
+    }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
+    @if (CanViewReports)
+    {
+        <div class="nav-section">
+            @if (!Collapsed)
+            {
+                <div class="nav-section-title">Analytics</div>
+            }
+            <NavLink href="/reports" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">bar_chart</span>
+                @if (!Collapsed) { <span class="nav-item-text">Reports</span> }
+            </NavLink>
+            @if (CanViewAudit)
+            {
+                <NavLink href="/reports/audit" class="nav-item">
+                    <span class="material-symbols-outlined nav-item-icon">history</span>
+                    @if (!Collapsed) { <span class="nav-item-text">Audit Trail</span> }
+                </NavLink>
+            }
+        </div>
+    }
+
+    @if (IsAdmin)
+    {
+        <div class="nav-section">
+            @if (!Collapsed)
+            {
+                <div class="nav-section-title">Administration</div>
+            }
+            <NavLink href="/admin/users" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">people</span>
+                @if (!Collapsed) { <span class="nav-item-text">Users</span> }
+            </NavLink>
+            <NavLink href="/admin/products" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">inventory_2</span>
+                @if (!Collapsed) { <span class="nav-item-text">Products</span> }
+            </NavLink>
+            <NavLink href="/admin/scoring" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">tune</span>
+                @if (!Collapsed) { <span class="nav-item-text">Scoring Config</span> }
+            </NavLink>
+            <NavLink href="/admin/templates" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">mail</span>
+                @if (!Collapsed) { <span class="nav-item-text">Templates</span> }
             </NavLink>
         </div>
+    }
+</nav>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
-    </nav>
-</div>
+@code {
+    [Parameter] public bool Collapsed { get; set; }
+    
+    private int MyQueueCount { get; set; } = 5;
+    private int OverdueCount { get; set; } = 2;
+    private int PendingVotesCount { get; set; } = 1;
 
+    private UserInfo? User => AuthService.CurrentUser;
+    
+    private bool CanInitiateLoan => User?.HasAnyRole("SystemAdmin", "LoanOfficer") ?? false;
+    private bool CanViewRoleQueues => User?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer", "HOReviewer") ?? false;
+    private bool CanViewOverdue => User?.HasAnyRole("SystemAdmin", "RiskManager") ?? false;
+    private bool CanViewCommittee => User?.HasAnyRole("SystemAdmin", "CommitteeMember", "CreditOfficer", "RiskManager") ?? false;
+    private bool IsCommitteeMember => User?.HasRole("CommitteeMember") ?? false;
+    private bool CanViewReports => User?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer", "HOReviewer", "Auditor") ?? false;
+    private bool CanViewAudit => User?.HasAnyRole("SystemAdmin", "RiskManager", "Auditor") ?? false;
+    private bool IsAdmin => User?.HasRole("SystemAdmin") ?? false;
+}

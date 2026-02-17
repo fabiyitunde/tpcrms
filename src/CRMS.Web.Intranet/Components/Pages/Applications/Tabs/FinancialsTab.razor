@@ -1,0 +1,117 @@
+
+
+@if (Analysis == null || !Analysis.Ratios.Any())
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <span class="material-symbols-outlined">analytics</span>
+            </div>
+            <div class="empty-state-title">No financial analysis available</div>
+            <div class="empty-state-text">Upload audited financial statements to generate analysis.</div>
+            <button class="btn btn-primary">
+                <span class="material-symbols-outlined" style="font-size: 18px;">upload</span>
+                Upload Financials
+            </button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="grid grid-cols-2 gap-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Key Financial Ratios</h3>
+            </div>
+            <div class="card-body">
+                @foreach (var ratio in Analysis.Ratios)
+                {
+                    <div style="margin-bottom: var(--space-4); padding-bottom: var(--space-4); border-bottom: 1px solid var(--gray-100);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2);">
+                            <span style="font-weight: 500;">@ratio.Name</span>
+                            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                <span style="font-size: var(--text-lg); font-weight: 600; color: @GetRatioColor(ratio.Status);">
+                                    @ratio.Value.ToString("0.##")
+                                </span>
+                                @if (ratio.Benchmark.HasValue)
+                                {
+                                    <span style="font-size: var(--text-xs); color: var(--gray-500);">
+                                        (Benchmark: @ratio.Benchmark.Value.ToString("0.##"))
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: var(--space-2);">
+                            <span class="badge @GetStatusBadgeClass(ratio.Status)" style="font-size: 10px;">@ratio.Status</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Financial Trend</h3>
+            </div>
+            <div class="card-body">
+                @if (Analysis.YearlyData.Any())
+                {
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>Revenue</th>
+                                <th>Net Income</th>
+                                <th>Total Assets</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var year in Analysis.YearlyData.OrderByDescending(y => y.Year))
+                            {
+                                <tr>
+                                    <td style="font-weight: 500;">@year.Year</td>
+                                    <td>₦@FormatAmount(year.Revenue)</td>
+                                    <td style="color: @(year.NetIncome >= 0 ? "var(--success-600)" : "var(--danger-600)")">
+                                        ₦@FormatAmount(year.NetIncome)
+                                    </td>
+                                    <td>₦@FormatAmount(year.TotalAssets)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <div class="text-center text-muted p-4">No yearly data available</div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public FinancialAnalysisInfo? Analysis { get; set; }
+
+    private static string GetRatioColor(string status) => status switch
+    {
+        "Good" or "Excellent" => "var(--success-600)",
+        "Fair" or "Acceptable" => "var(--warning-600)",
+        "Poor" => "var(--danger-600)",
+        _ => "var(--gray-700)"
+    };
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Good" or "Excellent" => "badge-success",
+        "Fair" or "Acceptable" => "badge-warning",
+        "Poor" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+}

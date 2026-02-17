@@ -1,0 +1,474 @@
+@page "/applications/{Id:guid}"
+@inject ApiClient Api
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>@(application?.ApplicationNumber ?? "Application") - CRMS</PageTitle>
+
+@if (isLoading)
+{
+    <div class="card p-6 text-center">
+        <div class="spinner" style="margin: 0 auto;"></div>
+        <p class="text-muted mt-4">Loading application...</p>
+    </div>
+}
+else if (application == null)
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <span class="material-symbols-outlined">error</span>
+            </div>
+            <div class="empty-state-title">Application not found</div>
+            <div class="empty-state-text">The application you're looking for doesn't exist or you don't have permission to view it.</div>
+            <a href="/applications" class="btn btn-primary">Back to Applications</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <div style="display: flex; align-items: center; gap: var(--space-4);">
+            <button class="btn btn-ghost" @onclick="GoBack">
+                <span class="material-symbols-outlined">arrow_back</span>
+            </button>
+            <div>
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                    <h1 class="page-title">@application.ApplicationNumber</h1>
+                    <span class="badge @GetStatusBadgeClass(application.Status)" style="font-size: var(--text-sm);">
+                        @FormatStatus(application.Status)
+                    </span>
+                </div>
+                <p class="page-subtitle">@application.Customer.CompanyName</p>
+            </div>
+        </div>
+        <div style="display: flex; gap: var(--space-3);">
+            @if (CanGeneratePack)
+            {
+                <button class="btn btn-outline" @onclick="GenerateLoanPack" disabled="@isGeneratingPack">
+                    @if (isGeneratingPack)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">picture_as_pdf</span>
+                    }
+                    Loan Pack
+                </button>
+            }
+            @if (ShowApproveButton)
+            {
+                <button class="btn btn-success" @onclick="() => ShowActionModal(ActionType.Approve)">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">check</span>
+                    Approve
+                </button>
+            }
+            @if (ShowReturnButton)
+            {
+                <button class="btn btn-secondary" @onclick="() => ShowActionModal(ActionType.Return)">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">undo</span>
+                    Return
+                </button>
+            }
+            @if (ShowRejectButton)
+            {
+                <button class="btn btn-danger" @onclick="() => ShowActionModal(ActionType.Reject)">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">close</span>
+                    Reject
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="card mb-6">
+        <div class="card-body" style="padding: var(--space-4) var(--space-6);">
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-6);">
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Product</div>
+                    <div style="font-weight: 500; margin-top: var(--space-1);">@application.Loan.ProductName</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Requested Amount</div>
+                    <div style="font-weight: 600; margin-top: var(--space-1); color: var(--primary-600);">@FormatCurrency(application.Loan.RequestedAmount)</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Tenor</div>
+                    <div style="font-weight: 500; margin-top: var(--space-1);">@application.Loan.TenorMonths months</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Interest Rate</div>
+                    <div style="font-weight: 500; margin-top: var(--space-1);">@application.Loan.InterestRate% @application.Loan.InterestRateType</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Created</div>
+                    <div style="font-weight: 500; margin-top: var(--space-1);">@application.CreatedAt.ToString("MMM dd, yyyy")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <div class="tab @(activeTab == "overview" ? "active" : "")" @onclick='() => activeTab = "overview"'>Overview</div>
+        <div class="tab @(activeTab == "parties" ? "active" : "")" @onclick='() => activeTab = "parties"'>Directors & Signatories</div>
+        <div class="tab @(activeTab == "documents" ? "active" : "")" @onclick='() => activeTab = "documents"'>Documents</div>
+        <div class="tab @(activeTab == "financials" ? "active" : "")" @onclick='() => activeTab = "financials"'>Financial Analysis</div>
+        <div class="tab @(activeTab == "bureau" ? "active" : "")" @onclick='() => activeTab = "bureau"'>Credit Bureau</div>
+        <div class="tab @(activeTab == "collateral" ? "active" : "")" @onclick='() => activeTab = "collateral"'>Collateral</div>
+        <div class="tab @(activeTab == "guarantors" ? "active" : "")" @onclick='() => activeTab = "guarantors"'>Guarantors</div>
+        <div class="tab @(activeTab == "advisory" ? "active" : "")" @onclick='() => activeTab = "advisory"'>AI Advisory</div>
+        <div class="tab @(activeTab == "workflow" ? "active" : "")" @onclick='() => activeTab = "workflow"'>Workflow</div>
+        <div class="tab @(activeTab == "committee" ? "active" : "")" @onclick='() => activeTab = "committee"'>Committee</div>
+        <div class="tab @(activeTab == "comments" ? "active" : "")" @onclick='() => activeTab = "comments"'>Comments</div>
+    </div>
+
+    @switch (activeTab)
+    {
+        case "overview":
+            <OverviewTab Application="application" />
+            break;
+        case "parties":
+            <PartiesTab Directors="application.Directors" Signatories="application.Signatories" OnRequestBureauCheck="RequestBureauCheck" />
+            break;
+        case "documents":
+            <DocumentsTab Documents="application.Documents" />
+            break;
+        case "financials":
+            <FinancialsTab Analysis="application.FinancialAnalysis" />
+            break;
+        case "bureau":
+            <BureauTab Reports="application.BureauReports" />
+            break;
+        case "collateral":
+            <CollateralTab Collaterals="application.Collaterals" />
+            break;
+        case "guarantors":
+            <GuarantorsTab Guarantors="application.Guarantors" />
+            break;
+        case "advisory":
+            <AdvisoryTab Advisory="application.Advisory" OnGenerateAdvisory="GenerateAdvisory" />
+            break;
+        case "workflow":
+            <WorkflowTab History="application.WorkflowHistory" CurrentStatus="application.Status" />
+            break;
+        case "committee":
+            <CommitteeTab Committee="application.Committee" OnCastVote="CastVote" />
+            break;
+        case "comments":
+            <CommentsTab Comments="application.Comments" OnAddComment="AddComment" />
+            break;
+    }
+}
+
+@if (showActionModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseActionModal">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@GetActionTitle()</h3>
+                <button class="modal-close" @onclick="CloseActionModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Comments @(currentAction == ActionType.Approve ? "(Optional)" : "(Required)")</label>
+                    <textarea class="form-control" rows="4" @bind="actionComments" placeholder="Enter your comments..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseActionModal">Cancel</button>
+                <button class="btn @GetActionButtonClass()" @onclick="ExecuteAction" disabled="@isExecutingAction">
+                    @if (isExecutingAction)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    @GetActionButtonText()
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private LoanApplicationDetail? application;
+    private string activeTab = "overview";
+    private bool isLoading = true;
+    private bool isGeneratingPack;
+
+    private bool showActionModal;
+    private ActionType currentAction;
+    private string actionComments = string.Empty;
+    private bool isExecutingAction;
+
+    private enum ActionType { Approve, Return, Reject }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadApplication();
+    }
+
+    private async Task LoadApplication()
+    {
+        isLoading = true;
+        application = await Api.GetApplicationDetailAsync(Id);
+        
+        // Mock data for demo
+        if (application == null)
+        {
+            application = GenerateMockApplication();
+        }
+        
+        isLoading = false;
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/applications");
+
+    private bool CanGeneratePack => application?.Status is "Approved" or "CommitteeApproved" or "Disbursed";
+    
+    private bool ShowApproveButton => application?.Status switch
+    {
+        "BranchReview" => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        "HOReview" => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
+        "FinalApproval" => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
+        _ => false
+    };
+
+    private bool ShowReturnButton => application?.Status switch
+    {
+        "BranchReview" or "HOReview" or "CreditAnalysis" => true,
+        _ => false
+    };
+
+    private bool ShowRejectButton => application?.Status switch
+    {
+        "BranchReview" or "HOReview" or "FinalApproval" => true,
+        _ => false
+    };
+
+    private void ShowActionModal(ActionType action)
+    {
+        currentAction = action;
+        actionComments = string.Empty;
+        showActionModal = true;
+    }
+
+    private void CloseActionModal()
+    {
+        showActionModal = false;
+        actionComments = string.Empty;
+    }
+
+    private string GetActionTitle() => currentAction switch
+    {
+        ActionType.Approve => "Approve Application",
+        ActionType.Return => "Return for Correction",
+        ActionType.Reject => "Reject Application",
+        _ => "Action"
+    };
+
+    private string GetActionButtonClass() => currentAction switch
+    {
+        ActionType.Approve => "btn-success",
+        ActionType.Return => "btn-warning",
+        ActionType.Reject => "btn-danger",
+        _ => "btn-primary"
+    };
+
+    private string GetActionButtonText() => currentAction switch
+    {
+        ActionType.Approve => "Confirm Approval",
+        ActionType.Return => "Return Application",
+        ActionType.Reject => "Confirm Rejection",
+        _ => "Submit"
+    };
+
+    private async Task ExecuteAction()
+    {
+        if (currentAction != ActionType.Approve && string.IsNullOrWhiteSpace(actionComments))
+        {
+            return;
+        }
+
+        isExecutingAction = true;
+        
+        var result = currentAction switch
+        {
+            ActionType.Approve => await Api.ApproveApplicationAsync(Id, actionComments),
+            ActionType.Return => await Api.ReturnApplicationAsync(Id, actionComments),
+            ActionType.Reject => await Api.RejectApplicationAsync(Id, actionComments),
+            _ => ApiResponse.Fail("Unknown action")
+        };
+
+        isExecutingAction = false;
+        
+        if (result.Success)
+        {
+            CloseActionModal();
+            await LoadApplication();
+        }
+    }
+
+    private async Task GenerateLoanPack()
+    {
+        isGeneratingPack = true;
+        var pdfBytes = await Api.GenerateLoanPackAsync(Id);
+        isGeneratingPack = false;
+        
+        if (pdfBytes != null)
+        {
+            var base64 = Convert.ToBase64String(pdfBytes);
+            await JS.InvokeVoidAsync("downloadFile", $"LoanPack_{application?.ApplicationNumber}.pdf", base64);
+        }
+    }
+
+    private async Task RequestBureauCheck(Guid partyId)
+    {
+        await Api.RequestBureauCheckAsync(Id, partyId);
+        await LoadApplication();
+    }
+
+    private async Task GenerateAdvisory()
+    {
+        await Api.GenerateAdvisoryAsync(Id);
+        await LoadApplication();
+    }
+
+    private async Task CastVote((string vote, string? comments) args)
+    {
+        if (application?.Committee != null)
+        {
+            await Api.CastVoteAsync(application.Committee.ReviewId, args.vote, args.comments);
+            await LoadApplication();
+        }
+    }
+
+    private async Task AddComment(string content)
+    {
+        await Api.AddCommentAsync(Id, content);
+        await LoadApplication();
+    }
+
+    private static string FormatStatus(string status) => status switch
+    {
+        "BranchReview" => "Branch Review",
+        "HOReview" => "HO Review",
+        "CommitteeCirculation" => "Committee Review",
+        "CreditAnalysis" => "Credit Analysis",
+        _ => status
+    };
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Draft" => "badge-gray",
+        "Approved" or "Disbursed" => "badge-success",
+        "Rejected" => "badge-danger",
+        _ => "badge-primary"
+    };
+
+    private static string FormatCurrency(decimal amount) => $"₦{amount:N0}";
+
+    private LoanApplicationDetail GenerateMockApplication() => new()
+    {
+        Id = Id,
+        ApplicationNumber = "CL-2026-0156",
+        Status = "HOReview",
+        Customer = new()
+        {
+            AccountNumber = "0012345678",
+            CompanyName = "Acme Corporation Limited",
+            RegistrationNumber = "RC123456",
+            Industry = "Manufacturing",
+            IncorporationDate = new DateTime(2010, 5, 15),
+            Address = "123 Industrial Estate, Lagos",
+            Email = "info@acmecorp.com",
+            Phone = "+234 1 234 5678"
+        },
+        Loan = new()
+        {
+            ProductName = "Corporate Term Loan",
+            RequestedAmount = 250_000_000m,
+            InterestRate = 18.5m,
+            InterestRateType = "Per Annum",
+            TenorMonths = 36,
+            Purpose = "Working capital and equipment purchase"
+        },
+        Directors =
+        [
+            new() { Id = Guid.NewGuid(), Name = "John Adebayo", BvnMasked = "****1234", Position = "Managing Director", ShareholdingPercentage = 35, HasBureauReport = true, BureauStatus = "Good" },
+            new() { Id = Guid.NewGuid(), Name = "Sarah Okonkwo", BvnMasked = "****5678", Position = "Executive Director", ShareholdingPercentage = 25, HasBureauReport = true, BureauStatus = "Fair" },
+            new() { Id = Guid.NewGuid(), Name = "Michael Eze", BvnMasked = "****9012", Position = "Non-Executive Director", ShareholdingPercentage = 20, HasBureauReport = false }
+        ],
+        Signatories =
+        [
+            new() { Id = Guid.NewGuid(), Name = "John Adebayo", BvnMasked = "****1234", MandateType = "A", HasBureauReport = true },
+            new() { Id = Guid.NewGuid(), Name = "Sarah Okonkwo", BvnMasked = "****5678", MandateType = "A", HasBureauReport = true }
+        ],
+        Documents =
+        [
+            new() { Id = Guid.NewGuid(), Name = "Audited Financials 2025", Category = "AuditedFinancials", Status = "Verified", UploadedAt = DateTime.Now.AddDays(-5), SizeBytes = 2_500_000 },
+            new() { Id = Guid.NewGuid(), Name = "Board Resolution", Category = "BoardResolution", Status = "Verified", UploadedAt = DateTime.Now.AddDays(-5), SizeBytes = 500_000 },
+            new() { Id = Guid.NewGuid(), Name = "Bank Statement - GTB", Category = "BankStatement", Status = "Pending", UploadedAt = DateTime.Now.AddDays(-3), SizeBytes = 1_200_000 }
+        ],
+        Collaterals =
+        [
+            new() { Id = Guid.NewGuid(), Type = "Property", Description = "Commercial property at Victoria Island", MarketValue = 500_000_000m, ForcedSaleValue = 350_000_000m, LoanToValue = 50m, Status = "Verified", LastValuationDate = DateTime.Now.AddMonths(-1) }
+        ],
+        Guarantors =
+        [
+            new() { Id = Guid.NewGuid(), Name = "Delta Holdings Ltd", Relationship = "Parent Company", GuaranteeAmount = 250_000_000m, Status = "Active", HasBureauReport = true }
+        ],
+        BureauReports =
+        [
+            new() { Id = Guid.NewGuid(), SubjectName = "John Adebayo", SubjectType = "Director", CreditScore = 720, Rating = "Good", ActiveLoans = 2, TotalExposure = 15_000_000m, DelinquencyCount = 0, HasLegalIssues = false, ReportDate = DateTime.Now.AddDays(-3) },
+            new() { Id = Guid.NewGuid(), SubjectName = "Sarah Okonkwo", SubjectType = "Director", CreditScore = 680, Rating = "Fair", ActiveLoans = 3, TotalExposure = 25_000_000m, DelinquencyCount = 1, HasLegalIssues = false, ReportDate = DateTime.Now.AddDays(-3) }
+        ],
+        Advisory = new()
+        {
+            OverallScore = 72.5m,
+            RiskRating = "Medium",
+            ScoreBreakdown =
+            [
+                new() { Category = "Financial Health", Score = 78, MaxScore = 100, Weight = 30 },
+                new() { Category = "Credit History", Score = 70, MaxScore = 100, Weight = 25 },
+                new() { Category = "Collateral Coverage", Score = 85, MaxScore = 100, Weight = 20 },
+                new() { Category = "Industry Risk", Score = 65, MaxScore = 100, Weight = 15 },
+                new() { Category = "Management Quality", Score = 68, MaxScore = 100, Weight = 10 }
+            ],
+            Recommendations = ["Consider reducing loan amount to ₦200M for better debt coverage", "Request additional collateral or guarantee"],
+            RedFlags = ["One director has minor delinquency history", "Industry sector facing headwinds"],
+            Strengths = ["Strong cash flow from operations", "Established customer with good banking history", "Adequate collateral coverage"],
+            GeneratedAt = DateTime.Now.AddDays(-2)
+        },
+        WorkflowHistory =
+        [
+            new() { FromStage = "", ToStage = "Draft", Action = "Created", PerformedBy = "Michael Obi", Timestamp = DateTime.Now.AddDays(-7) },
+            new() { FromStage = "Draft", ToStage = "Submitted", Action = "Submitted", PerformedBy = "Michael Obi", Timestamp = DateTime.Now.AddDays(-6) },
+            new() { FromStage = "Submitted", ToStage = "BranchReview", Action = "Assigned", PerformedBy = "System", Timestamp = DateTime.Now.AddDays(-6) },
+            new() { FromStage = "BranchReview", ToStage = "CreditAnalysis", Action = "Approved", PerformedBy = "John Adeyemi", Timestamp = DateTime.Now.AddDays(-4), Comments = "Good application, proceed" },
+            new() { FromStage = "CreditAnalysis", ToStage = "HOReview", Action = "Completed", PerformedBy = "Credit Team", Timestamp = DateTime.Now.AddDays(-2) }
+        ],
+        Committee = new()
+        {
+            ReviewId = Guid.NewGuid(),
+            CommitteeType = "Credit Committee",
+            Status = "Pending",
+            Members =
+            [
+                new() { UserId = Guid.NewGuid(), Name = "Dr. Amina Ibrahim", Role = "Chairperson" },
+                new() { UserId = Guid.NewGuid(), Name = "Chief Risk Officer", Role = "Member", Vote = "Approve", VotedAt = DateTime.Now.AddHours(-5) },
+                new() { UserId = Guid.NewGuid(), Name = "Head of Credit", Role = "Member" }
+            ]
+        },
+        Comments =
+        [
+            new() { Id = Guid.NewGuid(), Author = "John Adeyemi", Content = "Customer has good track record. Recommend approval.", CreatedAt = DateTime.Now.AddDays(-4) },
+            new() { Id = Guid.NewGuid(), Author = "Credit Team", Content = "Bureau checks completed. Minor concern on one director but overall acceptable.", CreatedAt = DateTime.Now.AddDays(-2) }
+        ],
+        CreatedAt = DateTime.Now.AddDays(-7),
+        CreatedBy = "Michael Obi"
+    };
+}

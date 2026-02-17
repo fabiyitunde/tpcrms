@@ -1,0 +1,155 @@
+
+
+<div class="grid grid-cols-2 gap-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Directors</h3>
+            <span class="badge badge-primary">@Directors.Count</span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            @if (!Directors.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-state-text">No directors found</div>
+                </div>
+            }
+            else
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Position</th>
+                            <th>Shareholding</th>
+                            <th>Bureau</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var director in Directors)
+                        {
+                            <tr>
+                                <td>
+                                    <div style="font-weight: 500;">@director.Name</div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">BVN: @director.BvnMasked</div>
+                                </td>
+                                <td>@director.Position</td>
+                                <td>@(director.ShareholdingPercentage?.ToString("0.#") ?? "-")%</td>
+                                <td>
+                                    @if (director.HasBureauReport)
+                                    {
+                                        <span class="badge @GetBureauBadgeClass(director.BureauStatus)">
+                                            @director.BureauStatus
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-gray">Pending</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!director.HasBureauReport)
+                                    {
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => OnRequestBureauCheck.InvokeAsync(director.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">search</span>
+                                            Check
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-ghost btn-sm">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Signatories</h3>
+            <span class="badge badge-primary">@Signatories.Count</span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            @if (!Signatories.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-state-text">No signatories found</div>
+                </div>
+            }
+            else
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Mandate</th>
+                            <th>Bureau</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var signatory in Signatories)
+                        {
+                            <tr>
+                                <td>
+                                    <div style="font-weight: 500;">@signatory.Name</div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">BVN: @signatory.BvnMasked</div>
+                                </td>
+                                <td>
+                                    <span class="badge badge-gray">Class @signatory.MandateType</span>
+                                </td>
+                                <td>
+                                    @if (signatory.HasBureauReport)
+                                    {
+                                        <span class="badge @GetBureauBadgeClass(signatory.BureauStatus)">
+                                            @(signatory.BureauStatus ?? "Complete")
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-gray">Pending</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!signatory.HasBureauReport)
+                                    {
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => OnRequestBureauCheck.InvokeAsync(signatory.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">search</span>
+                                            Check
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-ghost btn-sm">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<PartyInfo> Directors { get; set; } = [];
+    [Parameter] public List<PartyInfo> Signatories { get; set; } = [];
+    [Parameter] public EventCallback<Guid> OnRequestBureauCheck { get; set; }
+
+    private static string GetBureauBadgeClass(string? status) => status switch
+    {
+        "Good" or "Excellent" => "badge-success",
+        "Fair" => "badge-warning",
+        "Poor" => "badge-danger",
+        _ => "badge-primary"
+    };
+}

@@ -1,0 +1,147 @@
+
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Comments</h3>
+        <span class="badge badge-gray">@Comments.Count</span>
+    </div>
+    <div class="card-body">
+        <div class="form-group">
+            <textarea class="form-control" rows="3" @bind="newComment" placeholder="Add a comment..."></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end;">
+            <button class="btn btn-primary" @onclick="AddComment" disabled="@(string.IsNullOrWhiteSpace(newComment))">
+                <span class="material-symbols-outlined" style="font-size: 18px;">send</span>
+                Add Comment
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-6">
+    <div class="card-body" style="padding: 0;">
+        @if (!Comments.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">chat_bubble_outline</span>
+                </div>
+                <div class="empty-state-title">No comments yet</div>
+                <div class="empty-state-text">Be the first to add a comment.</div>
+            </div>
+        }
+        else
+        {
+            <div class="comments-list">
+                @foreach (var comment in Comments.OrderByDescending(c => c.CreatedAt))
+                {
+                    <div class="comment-item">
+                        <div class="comment-avatar">
+                            @GetInitials(comment.Author)
+                        </div>
+                        <div class="comment-content">
+                            <div class="comment-header">
+                                <span class="comment-author">@comment.Author</span>
+                                <span class="comment-date">@FormatRelativeTime(comment.CreatedAt)</span>
+                            </div>
+                            <p class="comment-text">@comment.Content</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .comments-list {
+        padding: var(--space-4);
+    }
+    
+    .comment-item {
+        display: flex;
+        gap: var(--space-3);
+        padding: var(--space-4);
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .comment-item:last-child {
+        border-bottom: none;
+    }
+    
+    .comment-avatar {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
+        border-radius: var(--radius-full);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: var(--text-sm);
+        flex-shrink: 0;
+    }
+    
+    .comment-content {
+        flex: 1;
+    }
+    
+    .comment-header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-1);
+    }
+    
+    .comment-author {
+        font-weight: 600;
+        font-size: var(--text-sm);
+    }
+    
+    .comment-date {
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+    }
+    
+    .comment-text {
+        font-size: var(--text-sm);
+        color: var(--gray-700);
+        margin: 0;
+        line-height: 1.5;
+    }
+</style>
+
+@code {
+    [Parameter] public List<CommentInfo> Comments { get; set; } = [];
+    [Parameter] public EventCallback<string> OnAddComment { get; set; }
+
+    private string newComment = string.Empty;
+
+    private async Task AddComment()
+    {
+        if (!string.IsNullOrWhiteSpace(newComment))
+        {
+            await OnAddComment.InvokeAsync(newComment);
+            newComment = string.Empty;
+        }
+    }
+
+    private static string GetInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[^1][0]}";
+        return name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
+    }
+
+    private static string FormatRelativeTime(DateTime timestamp)
+    {
+        var diff = DateTime.UtcNow - timestamp;
+        if (diff.TotalMinutes < 1) return "Just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        return timestamp.ToString("MMM dd, yyyy");
+    }
+}

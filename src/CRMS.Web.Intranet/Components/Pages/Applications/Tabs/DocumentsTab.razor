@@ -1,0 +1,133 @@
+
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Documents</h3>
+        <button class="btn btn-primary btn-sm">
+            <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+            Upload Document
+        </button>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        @if (!Documents.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">folder_open</span>
+                </div>
+                <div class="empty-state-title">No documents uploaded</div>
+                <div class="empty-state-text">Upload required documents to proceed with the application.</div>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Document</th>
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>Uploaded</th>
+                        <th>Size</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var doc in Documents)
+                    {
+                        <tr>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                    <div style="width: 40px; height: 40px; background: var(--gray-100); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+                                        <span class="material-symbols-outlined" style="color: var(--gray-500);">@GetDocIcon(doc.Name)</span>
+                                    </div>
+                                    <span style="font-weight: 500;">@doc.Name</span>
+                                </div>
+                            </td>
+                            <td>@FormatCategory(doc.Category)</td>
+                            <td>
+                                <span class="badge @GetStatusBadgeClass(doc.Status)">
+                                    <span class="status-dot @GetStatusDotClass(doc.Status)"></span>
+                                    @doc.Status
+                                </span>
+                            </td>
+                            <td>
+                                <div style="font-size: var(--text-sm);">@doc.UploadedAt.ToString("MMM dd, yyyy")</div>
+                                @if (!string.IsNullOrEmpty(doc.UploadedBy))
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">by @doc.UploadedBy</div>
+                                }
+                            </td>
+                            <td style="font-size: var(--text-sm); color: var(--gray-500);">@FormatSize(doc.SizeBytes)</td>
+                            <td>
+                                <div style="display: flex; gap: var(--space-2);">
+                                    <button class="btn btn-ghost btn-sm" title="Download">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                                    </button>
+                                    <button class="btn btn-ghost btn-sm" title="View">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                    </button>
+                                    @if (doc.Status == "Pending")
+                                    {
+                                        <button class="btn btn-ghost btn-sm text-success" title="Verify">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+                                        </button>
+                                        <button class="btn btn-ghost btn-sm text-danger" title="Reject">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">cancel</span>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<DocumentInfo> Documents { get; set; } = [];
+
+    private static string GetDocIcon(string name)
+    {
+        if (name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return "picture_as_pdf";
+        if (name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)) return "table_chart";
+        if (name.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".doc", StringComparison.OrdinalIgnoreCase)) return "description";
+        return "insert_drive_file";
+    }
+
+    private static string FormatCategory(string category) => category switch
+    {
+        "AuditedFinancials" => "Audited Financials",
+        "BankStatement" => "Bank Statement",
+        "BoardResolution" => "Board Resolution",
+        "CompanyRegistration" => "Company Registration",
+        "TaxClearance" => "Tax Clearance",
+        "CollateralDocument" => "Collateral Document",
+        _ => category
+    };
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Verified" => "badge-success",
+        "Pending" => "badge-warning",
+        "Rejected" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private static string GetStatusDotClass(string status) => status switch
+    {
+        "Verified" => "success",
+        "Pending" => "warning",
+        "Rejected" => "danger",
+        _ => "gray"
+    };
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes >= 1_000_000) return $"{bytes / 1_000_000.0:0.#} MB";
+        if (bytes >= 1_000) return $"{bytes / 1_000.0:0.#} KB";
+        return $"{bytes} B";
+    }
+}

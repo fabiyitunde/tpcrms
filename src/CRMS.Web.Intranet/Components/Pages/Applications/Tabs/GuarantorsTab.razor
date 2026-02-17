@@ -1,0 +1,96 @@
+
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Guarantors</h3>
+        <button class="btn btn-primary btn-sm">
+            <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+            Add Guarantor
+        </button>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        @if (!Guarantors.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">people</span>
+                </div>
+                <div class="empty-state-title">No guarantors registered</div>
+                <div class="empty-state-text">Add guarantors to provide additional security for the loan.</div>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Relationship</th>
+                        <th>Guarantee Amount</th>
+                        <th>Status</th>
+                        <th>Bureau</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var guarantor in Guarantors)
+                    {
+                        <tr>
+                            <td style="font-weight: 500;">@guarantor.Name</td>
+                            <td>@guarantor.Relationship</td>
+                            <td style="font-weight: 500;">₦@FormatAmount(guarantor.GuaranteeAmount)</td>
+                            <td>
+                                <span class="badge @GetStatusBadgeClass(guarantor.Status)">
+                                    @guarantor.Status
+                                </span>
+                            </td>
+                            <td>
+                                @if (guarantor.HasBureauReport)
+                                {
+                                    <span class="badge badge-success">Checked</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-warning">Pending</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-ghost btn-sm">
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            
+            <div style="padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100);">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="font-weight: 500;">Total Guarantee Coverage</span>
+                    <span style="font-weight: 600; color: var(--primary-600);">
+                        ₦@FormatAmount(Guarantors.Sum(g => g.GuaranteeAmount))
+                    </span>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<GuarantorInfo> Guarantors { get; set; } = [];
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Active" => "badge-success",
+        "Pending" => "badge-warning",
+        "Inactive" => "badge-gray",
+        _ => "badge-gray"
+    };
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+}

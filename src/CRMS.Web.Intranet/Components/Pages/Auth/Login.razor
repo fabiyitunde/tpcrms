@@ -1,0 +1,135 @@
+@page "/login"
+@layout EmptyLayout
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="login-page">
+    <div class="login-left">
+        <div class="login-brand">
+            <div class="login-brand-icon">C</div>
+            <span class="login-brand-text">CRMS</span>
+        </div>
+        <h1 class="login-tagline">
+            Credit Risk<br />
+            Management<br />
+            System
+        </h1>
+        <p class="login-description">
+            AI-augmented credit governance platform for corporate and retail lending operations.
+        </p>
+    </div>
+    <div class="login-right">
+        <div class="login-form">
+            <h2>Welcome back</h2>
+            <p>Sign in to continue to CRMS</p>
+
+            <EditForm Model="@loginModel" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger" style="background: var(--danger-50); color: var(--danger-600); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); margin-bottom: var(--space-4); font-size: var(--text-sm);">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: var(--space-2);">error</span>
+                        @errorMessage
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <InputText @bind-Value="loginModel.Email" class="form-control" placeholder="name@company.com" disabled="@isLoading" />
+                    <ValidationMessage For="@(() => loginModel.Email)" class="form-error" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <InputText @bind-Value="loginModel.Password" type="password" class="form-control" placeholder="Enter your password" disabled="@isLoading" />
+                    <ValidationMessage For="@(() => loginModel.Password)" class="form-error" />
+                </div>
+
+                <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+                    <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                        <InputCheckbox @bind-Value="loginModel.RememberMe" disabled="@isLoading" />
+                        <span style="font-size: var(--text-sm); color: var(--gray-600);">Remember me</span>
+                    </label>
+                    <a href="/forgot-password" style="font-size: var(--text-sm);">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner"></span>
+                        <span>Signing in...</span>
+                    }
+                    else
+                    {
+                        <span>Sign in</span>
+                    }
+                </button>
+            </EditForm>
+
+            <p style="margin-top: var(--space-8); text-align: center; font-size: var(--text-sm); color: var(--gray-500);">
+                Having trouble signing in? <a href="mailto:support@company.com">Contact IT Support</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginModel loginModel = new();
+    private string? errorMessage;
+    private bool isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        isLoading = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var response = await AuthService.LoginAsync(new LoginRequest
+            {
+                Email = loginModel.Email,
+                Password = loginModel.Password,
+                RememberMe = loginModel.RememberMe
+            });
+
+            if (response.Success)
+            {
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Invalid credentials. Please try again.";
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to connect to server. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Email is required")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Invalid email format")]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Password is required")]
+        public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; }
+    }
+}

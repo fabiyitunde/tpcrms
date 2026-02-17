@@ -1,23 +1,134 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject AuthService AuthService
+@inject NavigationManager Navigation
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<div class="app-layout">
+    <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "")">
+        <div class="sidebar-header">
+            <a href="/" class="sidebar-logo">
+                <div class="sidebar-logo-icon">C</div>
+                @if (!SidebarCollapsed)
+                {
+                    <span>CRMS</span>
+                }
+            </a>
         </div>
+        <NavMenu Collapsed="@SidebarCollapsed" />
+    </aside>
 
-        <article class="content px-4">
+    <div class="main-wrapper">
+        <header class="topbar">
+            <div class="topbar-left">
+                <button class="topbar-toggle" @onclick="ToggleSidebar">
+                    <span class="material-symbols-outlined">menu</span>
+                </button>
+                <nav class="breadcrumb">
+                    <a href="/" class="breadcrumb-item">Home</a>
+                    @if (!string.IsNullOrEmpty(CurrentSection))
+                    {
+                        <span class="breadcrumb-separator">/</span>
+                        <span class="breadcrumb-item active">@CurrentSection</span>
+                    }
+                </nav>
+            </div>
+            <div class="topbar-right">
+                <div class="topbar-search">
+                    <span class="material-symbols-outlined topbar-search-icon">search</span>
+                    <input type="text" placeholder="Search applications..." @bind="SearchTerm" @bind:event="oninput" @onkeyup="HandleSearch" />
+                </div>
+                <button class="notification-btn">
+                    <span class="material-symbols-outlined">notifications</span>
+                    @if (NotificationCount > 0)
+                    {
+                        <span class="notification-badge">@(NotificationCount > 9 ? "9+" : NotificationCount.ToString())</span>
+                    }
+                </button>
+                <div class="user-menu" @onclick="ToggleUserMenu">
+                    <div class="user-avatar">@UserInitials</div>
+                    <div class="user-info">
+                        <span class="user-name">@UserName</span>
+                        <span class="user-role">@UserRole</span>
+                    </div>
+                    <span class="material-symbols-outlined">expand_more</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
             @Body
-        </article>
-    </main>
+        </main>
+    </div>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
+@if (ShowUserMenu)
+{
+    <div class="modal-backdrop show" @onclick="CloseUserMenu">
+        <div class="modal" style="position: fixed; top: 70px; right: 20px; max-width: 200px;" @onclick:stopPropagation>
+            <div class="modal-body p-4">
+                <a href="/profile" class="nav-item" style="color: var(--gray-700);">
+                    <span class="material-symbols-outlined nav-item-icon">person</span>
+                    <span class="nav-item-text">My Profile</span>
+                </a>
+                <a href="/settings" class="nav-item" style="color: var(--gray-700);">
+                    <span class="material-symbols-outlined nav-item-icon">settings</span>
+                    <span class="nav-item-text">Settings</span>
+                </a>
+                <hr style="margin: var(--space-2) 0; border-color: var(--gray-200);" />
+                <a @onclick="Logout" class="nav-item" style="color: var(--danger-600); cursor: pointer;">
+                    <span class="material-symbols-outlined nav-item-icon">logout</span>
+                    <span class="nav-item-text">Logout</span>
+                </a>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool SidebarCollapsed { get; set; }
+    private bool ShowUserMenu { get; set; }
+    private string SearchTerm { get; set; } = string.Empty;
+    private int NotificationCount { get; set; } = 3;
+    
+    private string UserName => AuthService.CurrentUser?.FullName ?? "User";
+    private string UserInitials => AuthService.CurrentUser?.Initials ?? "U";
+    private string UserRole => AuthService.CurrentUser?.Roles.FirstOrDefault() ?? "Staff";
+    
+    private string CurrentSection
+    {
+        get
+        {
+            var uri = Navigation.ToBaseRelativePath(Navigation.Uri);
+            if (string.IsNullOrEmpty(uri) || uri == "/") return string.Empty;
+            
+            var firstSegment = uri.Split('/')[0];
+            return firstSegment switch
+            {
+                "applications" => "Applications",
+                "queues" => "Workflow Queues",
+                "committee" => "Committee",
+                "reports" => "Reports",
+                "admin" => "Administration",
+                "profile" => "Profile",
+                _ => firstSegment
+            };
+        }
+    }
+
+    private void ToggleSidebar() => SidebarCollapsed = !SidebarCollapsed;
+    private void ToggleUserMenu() => ShowUserMenu = !ShowUserMenu;
+    private void CloseUserMenu() => ShowUserMenu = false;
+
+    private void HandleSearch(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            Navigation.NavigateTo($"/applications?search={Uri.EscapeDataString(SearchTerm)}");
+        }
+    }
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login");
+    }
+}

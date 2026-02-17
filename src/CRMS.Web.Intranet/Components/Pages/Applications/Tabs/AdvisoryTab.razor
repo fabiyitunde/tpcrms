@@ -1,0 +1,175 @@
+
+
+@if (Advisory == null)
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <span class="material-symbols-outlined">psychology</span>
+            </div>
+            <div class="empty-state-title">AI Advisory not generated</div>
+            <div class="empty-state-text">Generate an AI-powered risk assessment and recommendations.</div>
+            <button class="btn btn-primary" @onclick="OnGenerateAdvisory">
+                <span class="material-symbols-outlined" style="font-size: 18px;">auto_awesome</span>
+                Generate Advisory
+            </button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="grid grid-cols-3 gap-6">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="risk-score @GetRiskClass(Advisory.RiskRating)">
+                    @Advisory.OverallScore.ToString("0")
+                </div>
+                <div style="font-size: var(--text-lg); font-weight: 600; margin-top: var(--space-2);">
+                    @Advisory.RiskRating Risk
+                </div>
+                <div style="font-size: var(--text-sm); color: var(--gray-500); margin-top: var(--space-1);">
+                    Overall Score
+                </div>
+                <div style="font-size: var(--text-xs); color: var(--gray-400); margin-top: var(--space-4);">
+                    Generated: @Advisory.GeneratedAt.ToString("MMM dd, yyyy HH:mm")
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="grid-column: span 2;">
+            <div class="card-header">
+                <h3 class="card-title">Score Breakdown</h3>
+            </div>
+            <div class="card-body">
+                @foreach (var category in Advisory.ScoreBreakdown)
+                {
+                    <div style="margin-bottom: var(--space-4);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-1);">
+                            <span style="font-size: var(--text-sm); font-weight: 500;">@category.Category</span>
+                            <span style="font-size: var(--text-sm); color: var(--gray-500);">
+                                @category.Score/@category.MaxScore 
+                                <span style="font-size: var(--text-xs);">(@(category.Weight)% weight)</span>
+                            </span>
+                        </div>
+                        <div style="height: 8px; background: var(--gray-100); border-radius: var(--radius-full); overflow: hidden;">
+                            <div style="height: 100%; width: @(category.Score)%; background: @GetScoreColor(category.Score); border-radius: var(--radius-full);"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-6 mt-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title" style="color: var(--success-600);">
+                    <span class="material-symbols-outlined" style="font-size: 20px; vertical-align: middle;">thumb_up</span>
+                    Strengths
+                </h3>
+            </div>
+            <div class="card-body">
+                @if (!Advisory.Strengths.Any())
+                {
+                    <div class="text-muted">No strengths identified</div>
+                }
+                else
+                {
+                    <ul style="margin: 0; padding-left: var(--space-5);">
+                        @foreach (var strength in Advisory.Strengths)
+                        {
+                            <li style="margin-bottom: var(--space-2); font-size: var(--text-sm);">@strength</li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title" style="color: var(--danger-600);">
+                    <span class="material-symbols-outlined" style="font-size: 20px; vertical-align: middle;">flag</span>
+                    Red Flags
+                </h3>
+            </div>
+            <div class="card-body">
+                @if (!Advisory.RedFlags.Any())
+                {
+                    <div class="text-muted">No red flags identified</div>
+                }
+                else
+                {
+                    <ul style="margin: 0; padding-left: var(--space-5);">
+                        @foreach (var flag in Advisory.RedFlags)
+                        {
+                            <li style="margin-bottom: var(--space-2); font-size: var(--text-sm); color: var(--danger-600);">@flag</li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title" style="color: var(--primary-600);">
+                    <span class="material-symbols-outlined" style="font-size: 20px; vertical-align: middle;">lightbulb</span>
+                    Recommendations
+                </h3>
+            </div>
+            <div class="card-body">
+                @if (!Advisory.Recommendations.Any())
+                {
+                    <div class="text-muted">No recommendations</div>
+                }
+                else
+                {
+                    <ul style="margin: 0; padding-left: var(--space-5);">
+                        @foreach (var rec in Advisory.Recommendations)
+                        {
+                            <li style="margin-bottom: var(--space-2); font-size: var(--text-sm);">@rec</li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .risk-score {
+        width: 100px;
+        height: 100px;
+        border-radius: var(--radius-full);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--text-3xl);
+        font-weight: 700;
+        color: white;
+        margin: 0 auto;
+    }
+    
+    .risk-score.low { background: var(--success-500); }
+    .risk-score.medium { background: var(--warning-500); }
+    .risk-score.high { background: var(--danger-500); }
+</style>
+
+@code {
+    [Parameter] public AdvisoryInfo? Advisory { get; set; }
+    [Parameter] public EventCallback OnGenerateAdvisory { get; set; }
+
+    private static string GetRiskClass(string rating) => rating.ToLower() switch
+    {
+        "low" => "low",
+        "medium" => "medium",
+        "high" => "high",
+        _ => "medium"
+    };
+
+    private static string GetScoreColor(decimal score) => score switch
+    {
+        >= 80 => "var(--success-500)",
+        >= 60 => "var(--warning-500)",
+        _ => "var(--danger-500)"
+    };
+}

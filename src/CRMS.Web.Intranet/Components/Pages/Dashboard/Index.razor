@@ -1,0 +1,356 @@
+@page "/"
+@inject ApiClient Api
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Dashboard - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle">Welcome back, @(AuthService.CurrentUser?.FirstName ?? "User")</p>
+    </div>
+    @if (CanInitiateLoan)
+    {
+        <a href="/applications/new" class="btn btn-primary">
+            <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+            New Application
+        </a>
+    }
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <span class="material-symbols-outlined">description</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Total Applications</div>
+            <div class="stat-value">@summary.TotalApplications</div>
+            <div class="stat-change positive">
+                <span class="material-symbols-outlined" style="font-size: 16px;">trending_up</span>
+                +12% from last month
+            </div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">
+            <span class="material-symbols-outlined">pending_actions</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Pending Review</div>
+            <div class="stat-value">@summary.PendingApplications</div>
+            <div class="stat-change">
+                Requires attention
+            </div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">
+            <span class="material-symbols-outlined">check_circle</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Approved This Month</div>
+            <div class="stat-value">@summary.ApprovedThisMonth</div>
+            <div class="stat-change positive">
+                <span class="material-symbols-outlined" style="font-size: 16px;">trending_up</span>
+                +8% approval rate
+            </div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <span class="material-symbols-outlined">payments</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Disbursed Amount</div>
+            <div class="stat-value">@FormatCurrency(summary.TotalDisbursedAmount)</div>
+            <div class="stat-change">
+                This month
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-3 gap-6">
+    <div class="card" style="grid-column: span 2;">
+        <div class="card-header">
+            <h3 class="card-title">My Pending Tasks</h3>
+            <a href="/queues/my" class="btn btn-ghost btn-sm">View All</a>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            @if (isLoading)
+            {
+                <div class="p-6 text-center">
+                    <div class="spinner" style="margin: 0 auto;"></div>
+                </div>
+            }
+            else if (!pendingTasks.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <span class="material-symbols-outlined">task_alt</span>
+                    </div>
+                    <div class="empty-state-title">All caught up!</div>
+                    <div class="empty-state-text">You have no pending tasks at the moment.</div>
+                </div>
+            }
+            else
+            {
+                <div class="table-wrapper">
+                    <table class="table table-clickable">
+                        <thead>
+                            <tr>
+                                <th>Application</th>
+                                <th>Customer</th>
+                                <th>Amount</th>
+                                <th>Stage</th>
+                                <th>Due</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var task in pendingTasks.Take(5))
+                            {
+                                <tr @onclick="() => ViewApplication(task.ApplicationId)">
+                                    <td>
+                                        <span style="font-weight: 500;">@task.ApplicationNumber</span>
+                                    </td>
+                                    <td>@task.CustomerName</td>
+                                    <td>@FormatCurrency(task.Amount)</td>
+                                    <td>
+                                        <span class="badge @GetStageBadgeClass(task.Stage)">@task.Stage</span>
+                                    </td>
+                                    <td>
+                                        @if (task.IsOverdue)
+                                        {
+                                            <span class="text-danger" style="font-weight: 500;">
+                                                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">warning</span>
+                                                Overdue
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span>@task.DueDate.ToString("MMM dd")</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Recent Activity</h3>
+        </div>
+        <div class="card-body" style="padding: var(--space-4);">
+            @if (!summary.RecentActivities.Any())
+            {
+                <div class="text-muted text-center p-4">No recent activity</div>
+            }
+            else
+            {
+                <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+                    @foreach (var activity in summary.RecentActivities.Take(6))
+                    {
+                        <div style="display: flex; gap: var(--space-3);">
+                            <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--primary-500); margin-top: 6px; flex-shrink: 0;"></div>
+                            <div style="flex: 1; min-width: 0;">
+                                <p style="font-size: var(--text-sm); margin: 0;">
+                                    <span style="font-weight: 500;">@activity.PerformedBy</span>
+                                    @activity.Action
+                                    <a href="/applications/@activity.ApplicationId" style="font-weight: 500;">@activity.ApplicationNumber</a>
+                                </p>
+                                <span style="font-size: var(--text-xs); color: var(--gray-500);">@FormatRelativeTime(activity.Timestamp)</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-2 gap-6 mt-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Applications by Status</h3>
+        </div>
+        <div class="card-body">
+            @foreach (var status in summary.ApplicationsByStatus)
+            {
+                <div style="margin-bottom: var(--space-4);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-1);">
+                        <span style="font-size: var(--text-sm); font-weight: 500;">@status.Status</span>
+                        <span style="font-size: var(--text-sm); color: var(--gray-500);">@status.Count (@status.Percentage.ToString("0")%)</span>
+                    </div>
+                    <div style="height: 8px; background: var(--gray-100); border-radius: var(--radius-full); overflow: hidden;">
+                        <div style="height: 100%; width: @(status.Percentage)%; background: var(--primary-500); border-radius: var(--radius-full);"></div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Quick Actions</h3>
+        </div>
+        <div class="card-body">
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4);">
+                @if (CanInitiateLoan)
+                {
+                    <a href="/applications/new" class="quick-action-btn">
+                        <span class="material-symbols-outlined">add_circle</span>
+                        <span>New Application</span>
+                    </a>
+                }
+                <a href="/queues/my" class="quick-action-btn">
+                    <span class="material-symbols-outlined">inbox</span>
+                    <span>My Queue</span>
+                </a>
+                <a href="/applications" class="quick-action-btn">
+                    <span class="material-symbols-outlined">search</span>
+                    <span>Search Apps</span>
+                </a>
+                @if (CanViewReports)
+                {
+                    <a href="/reports" class="quick-action-btn">
+                        <span class="material-symbols-outlined">bar_chart</span>
+                        <span>View Reports</span>
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .quick-action-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        padding: var(--space-4);
+        background: var(--gray-50);
+        border-radius: var(--radius-lg);
+        color: var(--gray-700);
+        text-decoration: none;
+        transition: all var(--transition-fast);
+    }
+    
+    .quick-action-btn:hover {
+        background: var(--primary-50);
+        color: var(--primary-600);
+    }
+    
+    .quick-action-btn .material-symbols-outlined {
+        font-size: 28px;
+    }
+    
+    .quick-action-btn span:last-child {
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+</style>
+
+@code {
+    private DashboardSummary summary = new();
+    private List<PendingTask> pendingTasks = [];
+    private bool isLoading = true;
+
+    private bool CanInitiateLoan => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "LoanOfficer") ?? false;
+    private bool CanViewReports => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer") ?? false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        isLoading = true;
+        
+        var summaryTask = Api.GetDashboardSummaryAsync();
+        var tasksTask = Api.GetMyPendingTasksAsync();
+        
+        await Task.WhenAll(summaryTask, tasksTask);
+        
+        summary = await summaryTask;
+        pendingTasks = await tasksTask;
+        
+        // Mock data for demo
+        if (summary.TotalApplications == 0)
+        {
+            summary = new DashboardSummary
+            {
+                TotalApplications = 156,
+                PendingApplications = 23,
+                ApprovedThisMonth = 42,
+                RejectedThisMonth = 8,
+                TotalDisbursedAmount = 2_450_000_000m,
+                MyPendingTasks = 5,
+                ApplicationsByStatus =
+                [
+                    new() { Status = "In Progress", Count = 45, Percentage = 29 },
+                    new() { Status = "Pending Review", Count = 23, Percentage = 15 },
+                    new() { Status = "Approved", Count = 68, Percentage = 44 },
+                    new() { Status = "Rejected", Count = 20, Percentage = 12 }
+                ],
+                RecentActivities =
+                [
+                    new() { ApplicationNumber = "CL-2026-0156", CustomerName = "Acme Corp", Action = "approved", PerformedBy = "John Doe", Timestamp = DateTime.UtcNow.AddMinutes(-15) },
+                    new() { ApplicationNumber = "CL-2026-0155", CustomerName = "Beta Industries", Action = "submitted for review", PerformedBy = "Jane Smith", Timestamp = DateTime.UtcNow.AddHours(-2) },
+                    new() { ApplicationNumber = "CL-2026-0154", CustomerName = "Gamma Ltd", Action = "returned for correction", PerformedBy = "Mike Johnson", Timestamp = DateTime.UtcNow.AddHours(-4) }
+                ]
+            };
+        }
+
+        if (!pendingTasks.Any())
+        {
+            pendingTasks =
+            [
+                new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0152", CustomerName = "Delta Corp", Stage = "Branch Review", DueDate = DateTime.UtcNow.AddDays(1), Amount = 150_000_000m },
+                new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0148", CustomerName = "Epsilon Ltd", Stage = "Credit Analysis", DueDate = DateTime.UtcNow.AddDays(-1), Amount = 75_000_000m },
+                new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0145", CustomerName = "Zeta Industries", Stage = "Committee", DueDate = DateTime.UtcNow.AddDays(3), Amount = 500_000_000m }
+            ];
+        }
+        
+        isLoading = false;
+    }
+
+    private void ViewApplication(Guid id) => Navigation.NavigateTo($"/applications/{id}");
+
+    private static string FormatCurrency(decimal amount)
+    {
+        if (amount >= 1_000_000_000)
+            return $"₦{amount / 1_000_000_000:0.#}B";
+        if (amount >= 1_000_000)
+            return $"₦{amount / 1_000_000:0.#}M";
+        return $"₦{amount:N0}";
+    }
+
+    private static string FormatRelativeTime(DateTime timestamp)
+    {
+        var diff = DateTime.UtcNow - timestamp;
+        if (diff.TotalMinutes < 1) return "Just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        return $"{(int)diff.TotalDays}d ago";
+    }
+
+    private static string GetStageBadgeClass(string stage) => stage switch
+    {
+        "Draft" => "badge-gray",
+        "Branch Review" => "badge-warning",
+        "Credit Analysis" => "badge-primary",
+        "Committee" => "badge-primary",
+        "Approved" => "badge-success",
+        "Rejected" => "badge-danger",
+        _ => "badge-gray"
+    };
+}

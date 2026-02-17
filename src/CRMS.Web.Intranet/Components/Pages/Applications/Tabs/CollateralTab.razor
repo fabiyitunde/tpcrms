@@ -1,0 +1,113 @@
+
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Collateral</h3>
+        <button class="btn btn-primary btn-sm">
+            <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+            Add Collateral
+        </button>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        @if (!Collaterals.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">account_balance</span>
+                </div>
+                <div class="empty-state-title">No collateral registered</div>
+                <div class="empty-state-text">Add collateral to secure the loan facility.</div>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Market Value</th>
+                        <th>FSV</th>
+                        <th>LTV</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var collateral in Collaterals)
+                    {
+                        <tr>
+                            <td>
+                                <span class="badge badge-gray">@collateral.Type</span>
+                            </td>
+                            <td style="max-width: 250px;">
+                                <div style="font-weight: 500;">@collateral.Description</div>
+                                @if (collateral.LastValuationDate.HasValue)
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                                        Valued: @collateral.LastValuationDate.Value.ToString("MMM dd, yyyy")
+                                    </div>
+                                }
+                            </td>
+                            <td style="font-weight: 500;">₦@FormatAmount(collateral.MarketValue)</td>
+                            <td>₦@FormatAmount(collateral.ForcedSaleValue)</td>
+                            <td>
+                                <span class="badge @GetLtvBadgeClass(collateral.LoanToValue)">
+                                    @collateral.LoanToValue.ToString("0")%
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge @GetStatusBadgeClass(collateral.Status)">
+                                    @collateral.Status
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn btn-ghost btn-sm">
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            
+            <div style="padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100);">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="font-weight: 500;">Total Collateral Coverage</span>
+                    <div>
+                        <span style="font-weight: 600; color: var(--primary-600);">
+                            ₦@FormatAmount(Collaterals.Sum(c => c.ForcedSaleValue))
+                        </span>
+                        <span style="color: var(--gray-500);"> FSV</span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<CollateralInfo> Collaterals { get; set; } = [];
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Verified" => "badge-success",
+        "Pending" => "badge-warning",
+        "Rejected" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private static string GetLtvBadgeClass(decimal ltv) => ltv switch
+    {
+        <= 50 => "badge-success",
+        <= 70 => "badge-warning",
+        _ => "badge-danger"
+    };
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+}

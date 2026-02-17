@@ -1,0 +1,165 @@
+
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Workflow History</h3>
+        <span class="badge badge-primary">Current: @FormatStatus(CurrentStatus)</span>
+    </div>
+    <div class="card-body">
+        @if (!History.Any())
+        {
+            <div class="text-center text-muted p-4">No workflow history available</div>
+        }
+        else
+        {
+            <div class="timeline">
+                @foreach (var (item, index) in History.OrderByDescending(h => h.Timestamp).Select((h, i) => (h, i)))
+                {
+                    <div class="timeline-item @(index == 0 ? "current" : "")">
+                        <div class="timeline-marker">
+                            <span class="material-symbols-outlined">@GetActionIcon(item.Action)</span>
+                        </div>
+                        <div class="timeline-content">
+                            <div class="timeline-header">
+                                <span class="timeline-action">@item.Action</span>
+                                @if (!string.IsNullOrEmpty(item.ToStage))
+                                {
+                                    <span class="badge badge-gray" style="font-size: 10px;">@FormatStatus(item.ToStage)</span>
+                                }
+                            </div>
+                            <div class="timeline-meta">
+                                <span>@item.PerformedBy</span>
+                                <span>•</span>
+                                <span>@item.Timestamp.ToString("MMM dd, yyyy HH:mm")</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(item.Comments))
+                            {
+                                <div class="timeline-comments">
+                                    "@item.Comments"
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .timeline {
+        position: relative;
+        padding-left: var(--space-8);
+    }
+    
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--gray-200);
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-bottom: var(--space-6);
+    }
+    
+    .timeline-item:last-child {
+        padding-bottom: 0;
+    }
+    
+    .timeline-marker {
+        position: absolute;
+        left: calc(-1 * var(--space-8) + 4px);
+        width: 24px;
+        height: 24px;
+        background: white;
+        border: 2px solid var(--gray-300);
+        border-radius: var(--radius-full);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .timeline-marker .material-symbols-outlined {
+        font-size: 14px;
+        color: var(--gray-500);
+    }
+    
+    .timeline-item.current .timeline-marker {
+        background: var(--primary-500);
+        border-color: var(--primary-500);
+    }
+    
+    .timeline-item.current .timeline-marker .material-symbols-outlined {
+        color: white;
+    }
+    
+    .timeline-content {
+        background: var(--gray-50);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+    }
+    
+    .timeline-item.current .timeline-content {
+        background: var(--primary-50);
+        border: 1px solid var(--primary-100);
+    }
+    
+    .timeline-header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-1);
+    }
+    
+    .timeline-action {
+        font-weight: 600;
+    }
+    
+    .timeline-meta {
+        font-size: var(--text-sm);
+        color: var(--gray-500);
+        display: flex;
+        gap: var(--space-2);
+    }
+    
+    .timeline-comments {
+        margin-top: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        background: white;
+        border-radius: var(--radius-md);
+        font-size: var(--text-sm);
+        font-style: italic;
+        color: var(--gray-600);
+    }
+</style>
+
+@code {
+    [Parameter] public List<WorkflowHistoryItem> History { get; set; } = [];
+    [Parameter] public string CurrentStatus { get; set; } = string.Empty;
+
+    private static string GetActionIcon(string action) => action.ToLower() switch
+    {
+        "created" => "add_circle",
+        "submitted" => "send",
+        "assigned" => "person_add",
+        "approved" => "check_circle",
+        "rejected" => "cancel",
+        "returned" => "undo",
+        "completed" => "task_alt",
+        _ => "radio_button_checked"
+    };
+
+    private static string FormatStatus(string status) => status switch
+    {
+        "BranchReview" => "Branch Review",
+        "HOReview" => "HO Review",
+        "CommitteeCirculation" => "Committee",
+        "CreditAnalysis" => "Credit Analysis",
+        _ => status
+    };
+}

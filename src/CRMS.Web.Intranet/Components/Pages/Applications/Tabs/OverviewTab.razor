@@ -1,0 +1,161 @@
+
+
+<div class="grid grid-cols-2 gap-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Customer Information</h3>
+        </div>
+        <div class="card-body">
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Company Name</span>
+                    <span class="info-value">@Application.Customer.CompanyName</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Account Number</span>
+                    <span class="info-value">@Application.Customer.AccountNumber</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Registration Number</span>
+                    <span class="info-value">@Application.Customer.RegistrationNumber</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Industry</span>
+                    <span class="info-value">@Application.Customer.Industry</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Incorporation Date</span>
+                    <span class="info-value">@(Application.Customer.IncorporationDate?.ToString("MMM dd, yyyy") ?? "N/A")</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Address</span>
+                    <span class="info-value">@Application.Customer.Address</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Email</span>
+                    <span class="info-value">@Application.Customer.Email</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Phone</span>
+                    <span class="info-value">@Application.Customer.Phone</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Loan Details</h3>
+        </div>
+        <div class="card-body">
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Product</span>
+                    <span class="info-value">@Application.Loan.ProductName</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Requested Amount</span>
+                    <span class="info-value" style="color: var(--primary-600); font-weight: 600;">₦@Application.Loan.RequestedAmount.ToString("N0")</span>
+                </div>
+                @if (Application.Loan.ApprovedAmount.HasValue)
+                {
+                    <div class="info-item">
+                        <span class="info-label">Approved Amount</span>
+                        <span class="info-value" style="color: var(--success-600); font-weight: 600;">₦@Application.Loan.ApprovedAmount.Value.ToString("N0")</span>
+                    </div>
+                }
+                <div class="info-item">
+                    <span class="info-label">Tenor</span>
+                    <span class="info-value">@Application.Loan.TenorMonths months</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Interest Rate</span>
+                    <span class="info-value">@Application.Loan.InterestRate% @Application.Loan.InterestRateType</span>
+                </div>
+                <div class="info-item full-width">
+                    <span class="info-label">Purpose</span>
+                    <span class="info-value">@Application.Loan.Purpose</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="grid-column: span 2;">
+        <div class="card-header">
+            <h3 class="card-title">Application Summary</h3>
+        </div>
+        <div class="card-body">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-6);">
+                <div class="summary-stat">
+                    <div class="summary-stat-value">@Application.Directors.Count</div>
+                    <div class="summary-stat-label">Directors</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-stat-value">@Application.Documents.Count</div>
+                    <div class="summary-stat-label">Documents</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-stat-value">@Application.Collaterals.Count</div>
+                    <div class="summary-stat-label">Collaterals</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-stat-value">@Application.BureauReports.Count</div>
+                    <div class="summary-stat-label">Bureau Reports</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-4);
+    }
+    
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+    }
+    
+    .info-item.full-width {
+        grid-column: span 2;
+    }
+    
+    .info-label {
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .info-value {
+        font-size: var(--text-sm);
+        color: var(--gray-800);
+    }
+    
+    .summary-stat {
+        text-align: center;
+        padding: var(--space-4);
+        background: var(--gray-50);
+        border-radius: var(--radius-lg);
+    }
+    
+    .summary-stat-value {
+        font-size: var(--text-3xl);
+        font-weight: 700;
+        color: var(--primary-600);
+    }
+    
+    .summary-stat-label {
+        font-size: var(--text-sm);
+        color: var(--gray-500);
+        margin-top: var(--space-1);
+    }
+</style>
+
+@code {
+    [Parameter] public required LoanApplicationDetail Application { get; set; }
+}

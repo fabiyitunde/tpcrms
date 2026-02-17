@@ -1,0 +1,165 @@
+
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Credit Bureau Reports</h3>
+        <span class="badge badge-primary">@Reports.Count reports</span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        @if (!Reports.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">fact_check</span>
+                </div>
+                <div class="empty-state-title">No bureau reports available</div>
+                <div class="empty-state-text">Request credit bureau checks from the Directors & Signatories tab.</div>
+            </div>
+        }
+        else
+        {
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: var(--space-4); padding: var(--space-4);">
+                @foreach (var report in Reports)
+                {
+                    <div class="bureau-card">
+                        <div class="bureau-card-header">
+                            <div>
+                                <div style="font-weight: 600;">@report.SubjectName</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">@report.SubjectType</div>
+                            </div>
+                            <div class="bureau-score @GetScoreClass(report.CreditScore)">
+                                @(report.CreditScore?.ToString() ?? "N/A")
+                            </div>
+                        </div>
+                        <div class="bureau-card-body">
+                            <div class="bureau-stat">
+                                <span class="bureau-stat-label">Rating</span>
+                                <span class="badge @GetRatingBadgeClass(report.Rating)">@report.Rating</span>
+                            </div>
+                            <div class="bureau-stat">
+                                <span class="bureau-stat-label">Active Loans</span>
+                                <span class="bureau-stat-value">@report.ActiveLoans</span>
+                            </div>
+                            <div class="bureau-stat">
+                                <span class="bureau-stat-label">Total Exposure</span>
+                                <span class="bureau-stat-value">₦@FormatAmount(report.TotalExposure)</span>
+                            </div>
+                            <div class="bureau-stat">
+                                <span class="bureau-stat-label">Delinquencies</span>
+                                <span class="bureau-stat-value @(report.DelinquencyCount > 0 ? "text-danger" : "")">@report.DelinquencyCount</span>
+                            </div>
+                        </div>
+                        <div class="bureau-card-footer">
+                            @if (report.HasLegalIssues)
+                            {
+                                <span class="badge badge-danger">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;">warning</span>
+                                    Legal Issues
+                                </span>
+                            }
+                            <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: auto;">
+                                Report date: @report.ReportDate.ToString("MMM dd, yyyy")
+                            </span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .bureau-card {
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+    }
+    
+    .bureau-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-4);
+        background: var(--gray-50);
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .bureau-score {
+        width: 56px;
+        height: 56px;
+        border-radius: var(--radius-full);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--text-lg);
+        font-weight: 700;
+        color: white;
+    }
+    
+    .bureau-score.excellent { background: var(--success-500); }
+    .bureau-score.good { background: #22c55e; }
+    .bureau-score.fair { background: var(--warning-500); }
+    .bureau-score.poor { background: var(--danger-500); }
+    
+    .bureau-card-body {
+        padding: var(--space-4);
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-3);
+    }
+    
+    .bureau-stat {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+    }
+    
+    .bureau-stat-label {
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+    }
+    
+    .bureau-stat-value {
+        font-weight: 500;
+    }
+    
+    .bureau-card-footer {
+        display: flex;
+        align-items: center;
+        padding: var(--space-3) var(--space-4);
+        background: var(--gray-50);
+        border-top: 1px solid var(--gray-100);
+    }
+</style>
+
+@code {
+    [Parameter] public List<BureauReportInfo> Reports { get; set; } = [];
+
+    private static string GetScoreClass(int? score)
+    {
+        if (!score.HasValue) return "";
+        return score.Value switch
+        {
+            >= 750 => "excellent",
+            >= 700 => "good",
+            >= 650 => "fair",
+            _ => "poor"
+        };
+    }
+
+    private static string GetRatingBadgeClass(string rating) => rating switch
+    {
+        "Excellent" => "badge-success",
+        "Good" => "badge-success",
+        "Fair" => "badge-warning",
+        "Poor" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        if (amount >= 1_000) return $"{amount / 1_000:0.#}K";
+        return $"{amount:N0}";
+    }
+}

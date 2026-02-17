@@ -1,0 +1,301 @@
+@page "/applications"
+@inject ApiClient Api
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+
+<PageTitle>Applications - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Loan Applications</h1>
+        <p class="page-subtitle">@totalCount applications found</p>
+    </div>
+    @if (CanInitiateLoan)
+    {
+        <a href="/applications/new" class="btn btn-primary">
+            <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
+            New Application
+        </a>
+    }
+</div>
+
+<div class="card mb-6">
+    <div class="card-body" style="padding: var(--space-4);">
+        <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 200px;">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" placeholder="App #, Customer, Account..." 
+                       @bind="filter.SearchTerm" @bind:event="oninput" @onkeyup="HandleSearchKeyup" />
+            </div>
+            <div style="width: 180px;">
+                <label class="form-label">Status</label>
+                <select class="form-control" @bind="filter.Status">
+                    <option value="">All Statuses</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Submitted">Submitted</option>
+                    <option value="BranchReview">Branch Review</option>
+                    <option value="CreditAnalysis">Credit Analysis</option>
+                    <option value="HOReview">HO Review</option>
+                    <option value="CommitteeCirculation">Committee</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Disbursed">Disbursed</option>
+                </select>
+            </div>
+            <div style="width: 160px;">
+                <label class="form-label">From Date</label>
+                <input type="date" class="form-control" @bind="filter.DateFrom" />
+            </div>
+            <div style="width: 160px;">
+                <label class="form-label">To Date</label>
+                <input type="date" class="form-control" @bind="filter.DateTo" />
+            </div>
+            <button class="btn btn-primary" @onclick="Search">
+                <span class="material-symbols-outlined" style="font-size: 18px;">search</span>
+                Search
+            </button>
+            <button class="btn btn-secondary" @onclick="ClearFilters">
+                Clear
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        @if (isLoading)
+        {
+            <div class="p-6 text-center">
+                <div class="spinner" style="margin: 0 auto;"></div>
+                <p class="text-muted mt-4">Loading applications...</p>
+            </div>
+        }
+        else if (!applications.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">folder_open</span>
+                </div>
+                <div class="empty-state-title">No applications found</div>
+                <div class="empty-state-text">Try adjusting your filters or create a new application.</div>
+                @if (CanInitiateLoan)
+                {
+                    <a href="/applications/new" class="btn btn-primary">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+                        New Application
+                    </a>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table class="table table-clickable">
+                    <thead>
+                        <tr>
+                            <th>Application #</th>
+                            <th>Customer</th>
+                            <th>Product</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Assigned To</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var app in applications)
+                        {
+                            <tr @onclick="() => ViewApplication(app.Id)">
+                                <td>
+                                    <span style="font-weight: 600; color: var(--primary-600);">@app.ApplicationNumber</span>
+                                </td>
+                                <td>
+                                    <div>
+                                        <div style="font-weight: 500;">@app.CustomerName</div>
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">@app.AccountNumber</div>
+                                    </div>
+                                </td>
+                                <td>@app.ProductName</td>
+                                <td style="font-weight: 500;">@FormatCurrency(app.RequestedAmount)</td>
+                                <td>
+                                    <span class="badge @GetStatusBadgeClass(app.Status)">
+                                        <span class="status-dot @GetStatusDotClass(app.Status)"></span>
+                                        @app.StatusDisplay
+                                    </span>
+                                </td>
+                                <td>
+                                    <div style="font-size: var(--text-sm);">@app.CreatedAt.ToString("MMM dd, yyyy")</div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">@app.CreatedAt.ToString("HH:mm")</div>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(app.AssignedTo))
+                                    {
+                                        <span style="font-size: var(--text-sm);">@app.AssignedTo</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Unassigned</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm" @onclick:stopPropagation @onclick="() => ViewApplication(app.Id)">
+                                        <span class="material-symbols-outlined">chevron_right</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (totalPages > 1)
+            {
+                <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: var(--text-sm); color: var(--gray-500);">
+                        Showing @((filter.Page - 1) * filter.PageSize + 1) - @Math.Min(filter.Page * filter.PageSize, totalCount) of @totalCount
+                    </span>
+                    <div style="display: flex; gap: var(--space-2);">
+                        <button class="btn btn-outline btn-sm" disabled="@(filter.Page <= 1)" @onclick="PreviousPage">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>
+                            Previous
+                        </button>
+                        <button class="btn btn-outline btn-sm" disabled="@(filter.Page >= totalPages)" @onclick="NextPage">
+                            Next
+                            <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private List<LoanApplicationSummary> applications = [];
+    private ApplicationFilter filter = new();
+    private int totalCount;
+    private int totalPages;
+    private bool isLoading = true;
+
+    private bool CanInitiateLoan => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "LoanOfficer") ?? false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("search", out var search))
+        {
+            filter.SearchTerm = search;
+        }
+        
+        await LoadApplications();
+    }
+
+    private async Task LoadApplications()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        var (items, count) = await Api.GetApplicationsAsync(filter);
+        applications = items;
+        totalCount = count;
+        totalPages = (int)Math.Ceiling(totalCount / (double)filter.PageSize);
+
+        // Mock data for demo
+        if (!applications.Any() && string.IsNullOrEmpty(filter.SearchTerm) && string.IsNullOrEmpty(filter.Status))
+        {
+            applications = GenerateMockApplications();
+            totalCount = applications.Count;
+            totalPages = 1;
+        }
+
+        isLoading = false;
+    }
+
+    private async Task Search()
+    {
+        filter.Page = 1;
+        await LoadApplications();
+    }
+
+    private async Task ClearFilters()
+    {
+        filter = new ApplicationFilter();
+        await LoadApplications();
+    }
+
+    private async Task HandleSearchKeyup(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Search();
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        if (filter.Page > 1)
+        {
+            filter.Page--;
+            await LoadApplications();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (filter.Page < totalPages)
+        {
+            filter.Page++;
+            await LoadApplications();
+        }
+    }
+
+    private void ViewApplication(Guid id)
+    {
+        Navigation.NavigateTo($"/applications/{id}");
+    }
+
+    private static string FormatCurrency(decimal amount)
+    {
+        if (amount >= 1_000_000_000)
+            return $"₦{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000)
+            return $"₦{amount / 1_000_000:0.##}M";
+        return $"₦{amount:N0}";
+    }
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Draft" => "badge-gray",
+        "Submitted" or "DataGathering" => "badge-primary",
+        "BranchReview" or "HOReview" or "CreditAnalysis" => "badge-warning",
+        "CommitteeCirculation" => "badge-primary",
+        "BranchApproved" or "CommitteeApproved" or "Approved" => "badge-success",
+        "BranchRejected" or "CommitteeRejected" or "Rejected" => "badge-danger",
+        "Disbursed" => "badge-success",
+        _ => "badge-gray"
+    };
+
+    private static string GetStatusDotClass(string status) => status switch
+    {
+        "Draft" => "gray",
+        "Approved" or "Disbursed" or "BranchApproved" or "CommitteeApproved" => "success",
+        "Rejected" or "BranchRejected" or "CommitteeRejected" => "danger",
+        _ => "info"
+    };
+
+    private static List<LoanApplicationSummary> GenerateMockApplications()
+    {
+        return
+        [
+            new() { Id = Guid.NewGuid(), ApplicationNumber = "CL-2026-0156", CustomerName = "Acme Corporation Ltd", AccountNumber = "0012345678", ProductName = "Corporate Term Loan", RequestedAmount = 250_000_000m, Status = "CommitteeCirculation", CreatedAt = DateTime.Now.AddDays(-2), AssignedTo = "Risk Committee" },
+            new() { Id = Guid.NewGuid(), ApplicationNumber = "CL-2026-0155", CustomerName = "Beta Industries Nigeria", AccountNumber = "0098765432", ProductName = "Working Capital", RequestedAmount = 75_000_000m, Status = "HOReview", CreatedAt = DateTime.Now.AddDays(-3), AssignedTo = "Sarah Johnson" },
+            new() { Id = Guid.NewGuid(), ApplicationNumber = "CL-2026-0154", CustomerName = "Gamma Trading Co", AccountNumber = "0011223344", ProductName = "Corporate Term Loan", RequestedAmount = 150_000_000m, Status = "CreditAnalysis", CreatedAt = DateTime.Now.AddDays(-4), AssignedTo = "Credit Team" },
+            new() { Id = Guid.NewGuid(), ApplicationNumber = "CL-2026-0153", CustomerName = "Delta Manufacturing", AccountNumber = "0055667788", ProductName = "Asset Finance", RequestedAmount = 500_000_000m, Status = "Approved", CreatedAt = DateTime.Now.AddDays(-7), AssignedTo = "Operations" },
+            new() { Id = Guid.NewGuid(), ApplicationNumber = "CL-2026-0152", CustomerName = "Epsilon Services Ltd", AccountNumber = "0099887766", ProductName = "Working Capital", RequestedAmount = 45_000_000m, Status = "BranchReview", CreatedAt = DateTime.Now.AddDays(-1), AssignedTo = "John Adeyemi" },
+            new() { Id = Guid.NewGuid(), ApplicationNumber = "CL-2026-0151", CustomerName = "Zeta Holdings Plc", AccountNumber = "0033445566", ProductName = "Corporate Term Loan", RequestedAmount = 1_000_000_000m, Status = "Disbursed", CreatedAt = DateTime.Now.AddDays(-14), AssignedTo = "" },
+            new() { Id = Guid.NewGuid(), ApplicationNumber = "CL-2026-0150", CustomerName = "Eta Logistics", AccountNumber = "0077889900", ProductName = "Vehicle Finance", RequestedAmount = 35_000_000m, Status = "Draft", CreatedAt = DateTime.Now, AssignedTo = "Michael Obi" },
+            new() { Id = Guid.NewGuid(), ApplicationNumber = "CL-2026-0149", CustomerName = "Theta Agro Limited", AccountNumber = "0022334455", ProductName = "Agricultural Loan", RequestedAmount = 200_000_000m, Status = "Rejected", CreatedAt = DateTime.Now.AddDays(-10), AssignedTo = "" }
+        ];
+    }
+}

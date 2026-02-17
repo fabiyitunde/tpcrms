@@ -1,0 +1,181 @@
+
+
+@if (Committee == null)
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <span class="material-symbols-outlined">groups</span>
+            </div>
+            <div class="empty-state-title">No committee review</div>
+            <div class="empty-state-text">Committee review has not been initiated for this application.</div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="grid grid-cols-3 gap-6">
+        <div class="card" style="grid-column: span 2;">
+            <div class="card-header">
+                <h3 class="card-title">@Committee.CommitteeType</h3>
+                <span class="badge @GetStatusBadgeClass(Committee.Status)">@Committee.Status</span>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Member</th>
+                            <th>Role</th>
+                            <th>Vote</th>
+                            <th>Voted At</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var member in Committee.Members)
+                        {
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                        <div class="user-avatar" style="width: 32px; height: 32px; font-size: var(--text-xs);">
+                                            @GetInitials(member.Name)
+                                        </div>
+                                        <span style="font-weight: 500;">@member.Name</span>
+                                    </div>
+                                </td>
+                                <td>@member.Role</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(member.Vote))
+                                    {
+                                        <span class="badge @GetVoteBadgeClass(member.Vote)">
+                                            <span class="material-symbols-outlined" style="font-size: 14px;">@GetVoteIcon(member.Vote)</span>
+                                            @member.Vote
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-gray">Pending</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (member.VotedAt.HasValue)
+                                    {
+                                        <span style="font-size: var(--text-sm);">@member.VotedAt.Value.ToString("MMM dd, HH:mm")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            
+            @if (!string.IsNullOrEmpty(Committee.Decision))
+            {
+                <div class="card-footer">
+                    <div style="display: flex; align-items: center; gap: var(--space-3);">
+                        <span class="badge @GetVoteBadgeClass(Committee.Decision)" style="font-size: var(--text-sm);">
+                            Final Decision: @Committee.Decision
+                        </span>
+                        @if (Committee.DecisionDate.HasValue)
+                        {
+                            <span style="font-size: var(--text-sm); color: var(--gray-500);">
+                                on @Committee.DecisionDate.Value.ToString("MMM dd, yyyy")
+                            </span>
+                        }
+                    </div>
+                    @if (!string.IsNullOrEmpty(Committee.DecisionComments))
+                    {
+                        <p style="margin-top: var(--space-2); font-size: var(--text-sm); color: var(--gray-600);">
+                            "@Committee.DecisionComments"
+                        </p>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Cast Your Vote</h3>
+            </div>
+            <div class="card-body">
+                @if (Committee.Status == "Completed")
+                {
+                    <div class="text-center text-muted p-4">
+                        Voting is closed
+                    </div>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label class="form-label">Your Decision</label>
+                        <select class="form-control" @bind="selectedVote">
+                            <option value="">Select your vote</option>
+                            <option value="Approve">Approve</option>
+                            <option value="Reject">Reject</option>
+                            <option value="Abstain">Abstain</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Comments (Optional)</label>
+                        <textarea class="form-control" rows="3" @bind="voteComments" placeholder="Add your comments..."></textarea>
+                    </div>
+                    <button class="btn btn-primary" style="width: 100%;" @onclick="CastVote" disabled="@(string.IsNullOrEmpty(selectedVote))">
+                        Submit Vote
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public CommitteeInfo? Committee { get; set; }
+    [Parameter] public EventCallback<(string vote, string? comments)> OnCastVote { get; set; }
+
+    private string selectedVote = string.Empty;
+    private string voteComments = string.Empty;
+
+    private async Task CastVote()
+    {
+        if (!string.IsNullOrEmpty(selectedVote))
+        {
+            await OnCastVote.InvokeAsync((selectedVote, string.IsNullOrEmpty(voteComments) ? null : voteComments));
+            selectedVote = string.Empty;
+            voteComments = string.Empty;
+        }
+    }
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Completed" => "badge-success",
+        "Pending" or "Voting" => "badge-warning",
+        _ => "badge-gray"
+    };
+
+    private static string GetVoteBadgeClass(string vote) => vote switch
+    {
+        "Approve" or "Approved" => "badge-success",
+        "Reject" or "Rejected" => "badge-danger",
+        "Abstain" => "badge-gray",
+        _ => "badge-gray"
+    };
+
+    private static string GetVoteIcon(string vote) => vote switch
+    {
+        "Approve" or "Approved" => "check",
+        "Reject" or "Rejected" => "close",
+        "Abstain" => "remove",
+        _ => "radio_button_unchecked"
+    };
+
+    private static string GetInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[^1][0]}";
+        return name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
+    }
+}
