@@ -485,14 +485,23 @@ This glossary defines the **official terms** used throughout the codebase, docum
 ---
 
 ### 4.12 NotificationService
-**Purpose:** Send notifications via multiple channels.
+**Purpose:** Send notifications via multiple channels with event-driven triggering.
 
 **Key Responsibilities:**
-- Email notifications (SMTP/SendGrid)
-- SMS notifications (Africa's Talking/Termii)
-- WhatsApp Business API (optional)
-- Notification templates management
-- Delivery tracking
+- Multi-channel delivery: Email, SMS, WhatsApp, InApp, Push
+- Template-based messaging with {{variable}} substitution
+- Delivery tracking (Pending → Sending → Sent → Delivered → Read)
+- Retry logic (max 3 retries for failed notifications)
+- Scheduled notifications support
+- Event-driven: Consumes WorkflowAssigned, WorkflowSLABreached, CommitteeVotingStarted events
+- Background processing via NotificationProcessingService (30-second intervals)
+
+**Domain Entities:** Notification (with lifecycle management), NotificationTemplate
+**Key Features:**
+- Mock senders for development (Email, SMS, WhatsApp)
+- User notification inbox with unread count
+- Admin template CRUD operations
+- Context linking to LoanApplication
 
 **Bounded Context:** Notifications
 
