@@ -79,6 +79,7 @@ public static class DependencyInjection
         services.AddScoped<IRequestHandler<GetBureauReportByIdQuery, ApplicationResult<BureauDtos.BureauReportDto>>, GetBureauReportByIdHandler>();
         services.AddScoped<IRequestHandler<GetBureauReportsByLoanApplicationQuery, ApplicationResult<List<BureauDtos.BureauReportSummaryDto>>>, GetBureauReportsByLoanApplicationHandler>();
         services.AddScoped<IRequestHandler<SearchBureauByBVNQuery, ApplicationResult<BureauDtos.BureauSearchResultDto>>, SearchBureauByBVNHandler>();
+        services.AddScoped<IRequestHandler<ProcessLoanCreditChecksCommand, ApplicationResult<CreditCheckBatchResultDto>>, ProcessLoanCreditChecksHandler>();
 
         // Collateral handlers
         services.AddScoped<IRequestHandler<AddCollateralCommand, ApplicationResult<CollateralDtos.CollateralDto>>, AddCollateralHandler>();

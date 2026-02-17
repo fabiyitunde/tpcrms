@@ -1,4 +1,5 @@
 using CRMS.Application.Common;
+using CRMS.Application.CreditBureau.Interfaces;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.LoanApplication.Commands;
@@ -39,11 +40,16 @@ public class ApproveBranchHandler : IRequestHandler<ApproveBranchCommand, Applic
 {
     private readonly ILoanApplicationRepository _repository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICreditCheckQueue _creditCheckQueue;
 
-    public ApproveBranchHandler(ILoanApplicationRepository repository, IUnitOfWork unitOfWork)
+    public ApproveBranchHandler(
+        ILoanApplicationRepository repository, 
+        IUnitOfWork unitOfWork,
+        ICreditCheckQueue creditCheckQueue)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
+        _creditCheckQueue = creditCheckQueue;
     }
 
     public async Task<ApplicationResult> Handle(ApproveBranchCommand request, CancellationToken ct = default)
@@ -58,6 +64,9 @@ public class ApproveBranchHandler : IRequestHandler<ApproveBranchCommand, Applic
 
         _repository.Update(application);
         await _unitOfWork.SaveChangesAsync(ct);
+
+        // Queue credit checks for background processing
+        await _creditCheckQueue.QueueCreditCheckAsync(request.ApplicationId, request.UserId, ct);
 
         return ApplicationResult.Success();
     }

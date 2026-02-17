@@ -6,6 +6,7 @@ namespace CRMS.Domain.Interfaces;
 public interface ILoanApplicationRepository
 {
     Task<LoanApplication?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<LoanApplication?> GetByIdWithPartiesAsync(Guid id, CancellationToken ct = default);
     Task<LoanApplication?> GetByApplicationNumberAsync(string applicationNumber, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetByStatusAsync(LoanApplicationStatus status, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetByInitiatorAsync(Guid userId, CancellationToken ct = default);

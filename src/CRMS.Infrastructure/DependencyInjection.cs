@@ -1,6 +1,8 @@
+using System.Threading.Channels;
 using CRMS.Application.Identity.Interfaces;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
+using CRMS.Infrastructure.BackgroundServices;
 using CRMS.Infrastructure.ExternalServices.AI;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
 using CRMS.Infrastructure.ExternalServices.CreditBureau;
@@ -60,6 +62,16 @@ public static class DependencyInjection
         // Collateral & Guarantor
         services.AddScoped<ICollateralRepository, CollateralRepository>();
         services.AddScoped<IGuarantorRepository, GuarantorRepository>();
+
+        // Background Services - Credit Check Queue
+        var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
+        services.AddSingleton(creditCheckChannel);
+        services.AddSingleton<Application.CreditBureau.Interfaces.ICreditCheckQueue, CreditCheckQueue>();
+        services.AddHostedService<CreditCheckBackgroundService>();
 
         // AI/LLM Services
         var openAISection = configuration.GetSection(OpenAISettings.SectionName);

@@ -102,6 +102,8 @@ Score factors explaining credit score:
 | GET | /api/v1/credit-bureau/reports/{id} | Get report by ID |
 | GET | /api/v1/credit-bureau/reports/by-loan-application/{id} | Get reports for loan |
 | GET | /api/v1/credit-bureau/search?bvn={bvn} | Search bureau by BVN |
+| POST | /api/v1/credit-bureau/loan-applications/{id}/process | Process all checks synchronously (manual) |
+| POST | /api/v1/credit-bureau/loan-applications/{id}/queue | Queue checks for background processing |
 
 ---
 
@@ -170,9 +172,40 @@ Example: `000000111222` = Current for 6 months, then late
 ## 10. Integration with LoanApplication
 
 Bureau reports are linked via `LoanApplicationId`:
-1. During loan initiation, request reports for all directors/signatories
-2. Store results with loan application reference
-3. Query all reports for a loan: `GET /reports/by-loan-application/{id}`
+1. When branch approves a loan, credit checks are **automatically queued**
+2. Background service processes all directors/signatories/guarantors in parallel
+3. Loan status moves to `CreditAnalysis` during processing
+4. When all checks complete, loan is ready for `HOReview`
+5. Query all reports for a loan: `GET /reports/by-loan-application/{id}`
+
+### Automatic Credit Check Workflow
+
+```
+Branch Approves Loan
+        │
+        ▼
+┌───────────────────┐
+│ Queue Credit      │  ← Happens automatically
+│ Checks (Async)    │
+└───────────────────┘
+        │
+        ▼
+┌───────────────────┐
+│ Background        │
+│ Service Processes │
+│ All Parties       │
+└───────────────────┘
+        │
+        ▼
+┌───────────────────┐
+│ Update Loan       │
+│ Status & Track    │
+│ Completion        │
+└───────────────────┘
+        │
+        ▼
+Ready for HOReview
+```
 
 ---
 

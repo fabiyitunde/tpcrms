@@ -24,6 +24,13 @@ public class LoanApplicationRepository : ILoanApplicationRepository
             .FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
+    public async Task<LA.LoanApplication?> GetByIdWithPartiesAsync(Guid id, CancellationToken ct = default)
+    {
+        return await _context.LoanApplications
+            .Include(x => x.Parties)
+            .FirstOrDefaultAsync(x => x.Id == id, ct);
+    }
+
     public async Task<LA.LoanApplication?> GetByApplicationNumberAsync(string applicationNumber, CancellationToken ct = default)
     {
         return await _context.LoanApplications

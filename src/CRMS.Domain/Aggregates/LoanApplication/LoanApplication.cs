@@ -46,6 +46,13 @@ public class LoanApplication : AggregateRoot
     // Core Banking Reference
     public string? CoreBankingLoanId { get; private set; }
 
+    // Credit Check Tracking
+    public int TotalCreditChecksRequired { get; private set; }
+    public int CreditChecksCompleted { get; private set; }
+    public bool AllCreditChecksCompleted => TotalCreditChecksRequired > 0 && CreditChecksCompleted >= TotalCreditChecksRequired;
+    public DateTime? CreditCheckStartedAt { get; private set; }
+    public DateTime? CreditCheckCompletedAt { get; private set; }
+
     // Related Entities
     private readonly List<LoanApplicationDocument> _documents = [];
     private readonly List<LoanApplicationParty> _parties = [];
@@ -197,10 +204,48 @@ public class LoanApplication : AggregateRoot
         return Result.Success();
     }
 
+    public Result StartCreditAnalysis(int totalChecksRequired, Guid userId)
+    {
+        if (Status != LoanApplicationStatus.BranchApproved)
+            return Result.Failure("Application must be BranchApproved to start credit analysis");
+
+        if (totalChecksRequired <= 0)
+            return Result.Failure("At least one credit check is required");
+
+        Status = LoanApplicationStatus.CreditAnalysis;
+        TotalCreditChecksRequired = totalChecksRequired;
+        CreditChecksCompleted = 0;
+        CreditCheckStartedAt = DateTime.UtcNow;
+        AddStatusHistory(Status, userId, $"Credit analysis started for {totalChecksRequired} parties");
+        AddDomainEvent(new CreditAnalysisStartedEvent(Id, ApplicationNumber, totalChecksRequired));
+
+        return Result.Success();
+    }
+
+    public Result RecordCreditCheckCompleted(Guid userId)
+    {
+        if (Status != LoanApplicationStatus.CreditAnalysis)
+            return Result.Failure("Application must be in CreditAnalysis status");
+
+        CreditChecksCompleted++;
+
+        if (AllCreditChecksCompleted)
+        {
+            CreditCheckCompletedAt = DateTime.UtcNow;
+            AddStatusHistory(Status, userId, $"All {TotalCreditChecksRequired} credit checks completed");
+            AddDomainEvent(new AllCreditChecksCompletedEvent(Id, ApplicationNumber));
+        }
+
+        return Result.Success();
+    }
+
     public Result MoveToHOReview(Guid userId)
     {
-        if (Status != LoanApplicationStatus.BranchApproved && Status != LoanApplicationStatus.CreditAnalysis)
-            return Result.Failure("Application must be BranchApproved or in CreditAnalysis");
+        if (Status != LoanApplicationStatus.CreditAnalysis)
+            return Result.Failure("Application must be in CreditAnalysis status with all checks completed");
+
+        if (!AllCreditChecksCompleted)
+            return Result.Failure($"All credit checks must be completed. {CreditChecksCompleted}/{TotalCreditChecksRequired} done.");
 
         Status = LoanApplicationStatus.HOReview;
         AddStatusHistory(Status, userId, "Moved to Head Office review");
@@ -340,5 +385,7 @@ public class LoanApplication : AggregateRoot
 public record LoanApplicationCreatedEvent(Guid ApplicationId, string ApplicationNumber, LoanApplicationType Type) : DomainEvent;
 public record LoanApplicationSubmittedEvent(Guid ApplicationId, string ApplicationNumber) : DomainEvent;
 public record LoanApplicationBranchApprovedEvent(Guid ApplicationId, string ApplicationNumber) : DomainEvent;
+public record CreditAnalysisStartedEvent(Guid ApplicationId, string ApplicationNumber, int TotalChecks) : DomainEvent;
+public record AllCreditChecksCompletedEvent(Guid ApplicationId, string ApplicationNumber) : DomainEvent;
 public record LoanApplicationApprovedEvent(Guid ApplicationId, string ApplicationNumber, decimal ApprovedAmount) : DomainEvent;
 public record LoanApplicationDisbursedEvent(Guid ApplicationId, string ApplicationNumber, string CoreBankingLoanId) : DomainEvent;
