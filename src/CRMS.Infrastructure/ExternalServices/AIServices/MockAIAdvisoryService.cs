@@ -1,14 +1,26 @@
 using CRMS.Application.Advisory.Interfaces;
+using CRMS.Domain.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace CRMS.Infrastructure.ExternalServices.AIServices;
 
 /// <summary>
 /// Mock implementation of AI Advisory Service for development and testing.
 /// Returns realistic-looking advisory data based on input metrics.
+/// Scoring parameters are configurable via ScoringConfiguration.
 /// </summary>
 public class MockAIAdvisoryService : IAIAdvisoryService
 {
-    private const string ModelVersion = "mock-v1.0";
+    private const string ModelVersion = "mock-v1.1-configurable";
+    private readonly ScoringConfiguration _config;
+
+    public MockAIAdvisoryService(IOptions<ScoringConfiguration> config)
+    {
+        _config = config.Value;
+    }
+
+    // Constructor for backward compatibility / testing without DI
+    public MockAIAdvisoryService() : this(Options.Create(new ScoringConfiguration())) { }
 
     public string GetModelVersion() => ModelVersion;
 
@@ -89,11 +101,14 @@ public class MockAIAdvisoryService : IAIAdvisoryService
 
     private RiskScoreOutput CalculateCreditHistoryScore(List<BureauDataInput> bureauReports, List<string> redFlags)
     {
+        var cfg = _config.CreditHistory;
+        var weight = _config.Weights.CreditHistory;
+
         if (!bureauReports.Any())
         {
             redFlags.Add("No credit bureau data available for assessment");
             return new RiskScoreOutput(
-                "CreditHistory", 50, 0.25m, "Medium",
+                "CreditHistory", 50, weight, "Medium",
                 "Unable to assess credit history due to missing bureau data",
                 new List<string> { "No bureau data" },
                 new List<string>()
@@ -111,40 +126,41 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         var totalDelinquent = bureauReports.Sum(b => b.DelinquentLoansCount);
         var totalPerforming = bureauReports.Sum(b => b.PerformingLoansCount);
 
-        decimal score = 70;
+        decimal score = cfg.BaseScore;
 
-        if (avgScore >= 700)
+        if (avgScore >= cfg.ExcellentCreditScoreThreshold)
         {
-            score += 20;
+            score += cfg.ExcellentCreditScoreBonus;
             positiveIndicators.Add($"Strong average credit score of {avgScore:N0}");
         }
-        else if (avgScore >= 650)
+        else if (avgScore >= cfg.GoodCreditScoreThreshold)
         {
-            score += 10;
+            score += cfg.GoodCreditScoreBonus;
             positiveIndicators.Add($"Good average credit score of {avgScore:N0}");
         }
-        else if (avgScore < 600)
+        else if (avgScore < cfg.PoorCreditScoreThreshold)
         {
-            score -= 20;
+            score -= cfg.PoorCreditScorePenalty;
             scoreRedFlags.Add($"Low average credit score of {avgScore:N0}");
             redFlags.Add($"Low credit scores detected (avg: {avgScore:N0})");
         }
 
         if (totalDefaults > 0)
         {
-            score -= 30;
+            score -= cfg.DefaultPenalty;
             scoreRedFlags.Add($"{totalDefaults} defaulted loans on record");
             redFlags.Add($"Credit defaults detected: {totalDefaults} across related parties");
         }
 
         if (totalDelinquent > 0)
         {
-            score -= 15;
+            score -= cfg.DelinquencyPenalty;
             scoreRedFlags.Add($"{totalDelinquent} delinquent loans");
         }
 
-        if (totalPerforming > 3)
+        if (totalPerforming >= cfg.MinPerformingLoansForBonus)
         {
+            score += cfg.PerformingLoansBonus;
             positiveIndicators.Add($"{totalPerforming} performing loan facilities indicate good repayment history");
         }
 
@@ -153,7 +169,7 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         return new RiskScoreOutput(
             "CreditHistory",
             score,
-            0.25m,
+            weight,
             DetermineRating(score),
             $"Credit history assessment based on {bureauReports.Count} bureau reports. " +
             $"Average credit score: {avgScore:N0}. Performing: {totalPerforming}, Delinquent: {totalDelinquent}, Defaulted: {totalDefaults}.",
@@ -524,43 +540,52 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         _ => "VeryHigh"
     };
 
-    private static string DetermineRecommendation(decimal score, int redFlagCount)
+    private string DetermineRecommendation(decimal score, int redFlagCount)
     {
-        if (redFlagCount >= 3 || score < 35) return "Decline";
-        if (score >= 75 && redFlagCount == 0) return "StrongApprove";
-        if (score >= 65 && redFlagCount <= 1) return "Approve";
-        if (score >= 50) return "ApproveWithConditions";
+        var cfg = _config.Recommendations;
+        
+        if (redFlagCount >= cfg.CriticalRedFlagsThreshold || score < cfg.ReferMinScore) 
+            return "Decline";
+        if (score >= cfg.StrongApproveMinScore && redFlagCount <= cfg.StrongApproveMaxRedFlags) 
+            return "StrongApprove";
+        if (score >= cfg.ApproveMinScore && redFlagCount <= cfg.ApproveMaxRedFlags) 
+            return "Approve";
+        if (score >= cfg.ApproveWithConditionsMinScore) 
+            return "ApproveWithConditions";
         return "Refer";
     }
 
-    private static (decimal? amount, int? tenor, decimal? rate, decimal? maxExposure) GenerateLoanRecommendations(
+    private (decimal? amount, int? tenor, decimal? rate, decimal? maxExposure) GenerateLoanRecommendations(
         decimal requestedAmount, int requestedTenor, decimal score, string recommendation)
     {
         if (recommendation == "Decline")
             return (null, null, null, null);
 
+        var cfg = _config.LoanAdjustments;
+
         decimal amountMultiplier = score switch
         {
-            >= 80 => 1.0m,
-            >= 70 => 0.9m,
-            >= 60 => 0.75m,
-            >= 50 => 0.6m,
-            _ => 0.5m
+            >= 80 => cfg.Score80PlusMultiplier,
+            >= 70 => cfg.Score70PlusMultiplier,
+            >= 60 => cfg.Score60PlusMultiplier,
+            >= 50 => cfg.Score50PlusMultiplier,
+            _ => cfg.BelowScore50Multiplier
         };
 
         var recAmount = Math.Round(requestedAmount * amountMultiplier, -3); // Round to thousands
-        var recTenor = score >= 70 ? requestedTenor : Math.Min(requestedTenor, 36);
+        var recTenor = score >= cfg.LowScoreThresholdForTenorRestriction 
+            ? requestedTenor 
+            : Math.Min(requestedTenor, cfg.MaxTenorForLowScores);
         
-        decimal baseRate = 18.0m; // Base rate for Nigeria
         var rateAdjustment = score switch
         {
-            >= 80 => -2.0m,
-            >= 70 => -1.0m,
-            >= 60 => 0m,
-            >= 50 => 2.0m,
-            _ => 4.0m
+            >= 80 => cfg.Score80PlusRateAdjustment,
+            >= 70 => cfg.Score70PlusRateAdjustment,
+            >= 60 => cfg.Score60PlusRateAdjustment,
+            >= 50 => cfg.Score50PlusRateAdjustment,
+            _ => cfg.BelowScore50RateAdjustment
         };
-        var recRate = baseRate + rateAdjustment;
+        var recRate = cfg.BaseInterestRate + rateAdjustment;
 
         var maxExposure = recAmount * 1.2m;
 

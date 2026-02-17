@@ -2,7 +2,12 @@
 
 ## Overview
 
-The AIAdvisoryEngine module generates AI-powered credit risk assessments for corporate loan applications. It aggregates data from CreditBureauIntegration, StatementAnalyzer, FinancialDocumentAnalyzer, CollateralManagement, and GuarantorManagement to produce a comprehensive risk score matrix with recommendations.
+The AIAdvisoryEngine module generates AI-powered credit risk assessments for corporate loan applications. It aggregates data from CreditBureauIntegration, StatementAnalyzer (bank statement cashflow), FinancialDocumentAnalyzer (audited financials), CollateralManagement, and GuarantorManagement to produce a comprehensive risk score matrix with recommendations.
+
+**Key Features:**
+- Fully parameterized scoring (weights, thresholds, penalties configurable via appsettings.json)
+- Trust-weighted bank statement analysis (internal vs external sources)
+- Multi-source data aggregation for comprehensive assessment
 
 ## Domain Model
 
@@ -278,6 +283,87 @@ public interface IAIAdvisoryService
 
 ### API
 - `Controllers/AdvisoryController.cs`
+
+## Configuration (appsettings.json)
+
+All scoring parameters are configurable via the `Scoring` section in appsettings.json:
+
+```json
+{
+  "Scoring": {
+    "Weights": {
+      "CreditHistory": 0.25,
+      "FinancialHealth": 0.25,
+      "CashflowStability": 0.15,
+      "DebtServiceCapacity": 0.20,
+      "CollateralCoverage": 0.15
+    },
+    "CreditHistory": {
+      "BaseScore": 70,
+      "ExcellentCreditScoreThreshold": 700,
+      "GoodCreditScoreThreshold": 650,
+      "PoorCreditScoreThreshold": 600,
+      "DefaultPenalty": 30,
+      "DelinquencyPenalty": 15
+    },
+    "Cashflow": {
+      "BaseScore": 60,
+      "InternalStatementBonus": 10,
+      "MissingInternalPenalty": 15,
+      "GamblingPenalty": 15,
+      "BouncedTransactionPenalty": 20
+    },
+    "Recommendations": {
+      "StrongApproveMinScore": 75,
+      "ApproveMinScore": 65,
+      "ApproveWithConditionsMinScore": 50,
+      "ReferMinScore": 35,
+      "CriticalRedFlagsThreshold": 3
+    },
+    "LoanAdjustments": {
+      "BaseInterestRate": 18.0,
+      "Score80PlusRateAdjustment": -2.0,
+      "Score70PlusRateAdjustment": -1.0,
+      "MaxTenorForLowScores": 36
+    },
+    "StatementTrust": {
+      "CoreBanking": 1.0,
+      "ManualUploadVerified": 0.85,
+      "ManualUploadPending": 0.70
+    }
+  }
+}
+```
+
+See `ScoringConfiguration.cs` for full list of configurable parameters.
+
+## Bank Statement Integration
+
+The AI Advisory Engine now fully integrates bank statement cashflow analysis:
+
+### Data Sources
+1. **Internal Statements** (CoreBanking) - 100% trust weight
+2. **External Statements** (ManualUpload) - 85% trust (verified) / 70% (pending)
+
+### Cashflow Metrics Used
+- Net monthly cashflow (positive/negative)
+- Cashflow volatility
+- Salary detection and verification
+- Gambling transaction detection (red flag)
+- Bounced/failed transactions (red flag)
+- Days with negative balance
+- Statement period coverage
+
+### Scoring Impact
+| Factor | Score Impact |
+|--------|--------------|
+| Has internal statement | +10 |
+| Missing internal statement | -15 |
+| Positive net cashflow | +15 |
+| Negative net cashflow | -20 |
+| Gambling detected | -15 |
+| Bounced transactions | -20 |
+| >10 days negative balance | -15 |
 
 ## Future Enhancements
 

@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using CRMS.Application.Identity.Interfaces;
+using CRMS.Domain.Configuration;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
 using CRMS.Infrastructure.BackgroundServices;
@@ -22,6 +23,10 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString, IConfiguration configuration)
     {
         var serverVersion = ServerVersion.AutoDetect(connectionString);
+
+        // Scoring Configuration (parameterized AI scoring)
+        services.Configure<ScoringConfiguration>(
+            configuration.GetSection(ScoringConfiguration.SectionName));
         
         services.AddDbContext<CRMSDbContext>(options =>
             options.UseMySql(connectionString, serverVersion));
