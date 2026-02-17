@@ -57,3 +57,10 @@ public enum AnalysisStatus
     Completed,
     Failed
 }
+
+public enum StatementVerificationStatus
+{
+    Pending,      // External statement awaiting verification
+    Verified,     // Verified by loan officer / auto-verified for internal
+    Rejected      // Failed verification (suspected manipulation, etc.)
+}

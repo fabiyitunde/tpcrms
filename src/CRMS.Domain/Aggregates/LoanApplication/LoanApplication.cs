@@ -138,6 +138,57 @@ public class LoanApplication : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>
+    /// Validates that statement requirements are met for credit analysis.
+    /// Corporate loans require: 1 internal statement (mandatory) + external statements (recommended).
+    /// </summary>
+    public StatementRequirementResult ValidateStatementRequirements(
+        bool hasInternalStatement, 
+        bool hasExternalStatements,
+        bool allExternalVerified,
+        int totalMonthsCovered)
+    {
+        var warnings = new List<string>();
+        var errors = new List<string>();
+
+        // Internal statement is mandatory for corporate loans
+        if (Type == LoanApplicationType.Corporate && !hasInternalStatement)
+        {
+            errors.Add("Internal bank statement (from our core banking) is required for corporate loan assessment");
+        }
+
+        // Check period coverage
+        if (totalMonthsCovered < 6)
+        {
+            errors.Add($"Insufficient statement coverage: {totalMonthsCovered} months provided, minimum 6 months required");
+        }
+        else if (totalMonthsCovered < 12)
+        {
+            warnings.Add($"Statement coverage of {totalMonthsCovered} months is acceptable but 12 months is recommended for thorough analysis");
+        }
+
+        // External statement recommendations
+        if (!hasExternalStatements)
+        {
+            warnings.Add("No external bank statements provided. For complete cashflow picture, consider adding statements from other banks where customer holds accounts");
+        }
+        else if (!allExternalVerified)
+        {
+            warnings.Add("Some external bank statements are pending verification");
+        }
+
+        return new StatementRequirementResult
+        {
+            MeetsMinimumRequirements = errors.Count == 0,
+            HasInternalStatement = hasInternalStatement,
+            HasExternalStatements = hasExternalStatements,
+            AllExternalVerified = allExternalVerified,
+            TotalMonthsCovered = totalMonthsCovered,
+            Errors = errors,
+            Warnings = warnings
+        };
+    }
+
     public Result StartDataGathering(Guid userId)
     {
         if (Status != LoanApplicationStatus.Submitted)

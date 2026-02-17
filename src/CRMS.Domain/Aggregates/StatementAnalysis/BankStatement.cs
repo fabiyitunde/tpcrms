@@ -22,10 +22,53 @@ public class BankStatement : AggregateRoot
     public string? FilePath { get; private set; }
     public Guid UploadedByUserId { get; private set; }
 
+    // Verification status for external statements
+    public StatementVerificationStatus VerificationStatus { get; private set; }
+    public DateTime? VerifiedAt { get; private set; }
+    public Guid? VerifiedByUserId { get; private set; }
+    public string? VerificationNotes { get; private set; }
+    
+    // Data integrity validation results
+    public bool? BalanceReconciled { get; private set; }
+    public decimal? CalculatedClosingBalance { get; private set; }
+    public decimal? BalanceDiscrepancy { get; private set; }
+
     private readonly List<StatementTransaction> _transactions = [];
     public IReadOnlyCollection<StatementTransaction> Transactions => _transactions.AsReadOnly();
 
     public CashflowSummary? CashflowSummary { get; private set; }
+
+    /// <summary>
+    /// Trust weight for cashflow analysis (0.0 to 1.0).
+    /// Internal statements: 1.0 (100%)
+    /// External statements: 0.85 (85%) - slight discount for external source
+    /// </summary>
+    public decimal TrustWeight => Source switch
+    {
+        StatementSource.CoreBanking => 1.0m,
+        StatementSource.OpenBanking => 0.95m,
+        StatementSource.MonoConnect => 0.90m,
+        StatementSource.ManualUpload => VerificationStatus == StatementVerificationStatus.Verified ? 0.85m : 0.70m,
+        _ => 0.70m
+    };
+
+    /// <summary>
+    /// Whether this is an internal (own bank) statement
+    /// </summary>
+    public bool IsInternal => Source == StatementSource.CoreBanking;
+
+    /// <summary>
+    /// Whether this is an external (other bank) statement
+    /// </summary>
+    public bool IsExternal => Source != StatementSource.CoreBanking;
+
+    /// <summary>
+    /// Whether the statement can be used for analysis
+    /// Internal: Always ready
+    /// External: Ready after basic data integrity check passes
+    /// </summary>
+    public bool IsReadyForAnalysis => IsInternal || 
+        (VerificationStatus != StatementVerificationStatus.Rejected && BalanceReconciled == true);
 
     private BankStatement() { }
 
@@ -67,10 +110,14 @@ public class BankStatement : AggregateRoot
             OriginalFileName = originalFileName,
             FilePath = filePath,
             UploadedByUserId = uploadedByUserId,
-            LoanApplicationId = loanApplicationId
+            LoanApplicationId = loanApplicationId,
+            // Internal statements are auto-verified; external need verification
+            VerificationStatus = source == StatementSource.CoreBanking 
+                ? StatementVerificationStatus.Verified 
+                : StatementVerificationStatus.Pending
         };
 
-        statement.AddDomainEvent(new BankStatementUploadedEvent(statement.Id, accountNumber, periodStart, periodEnd));
+        statement.AddDomainEvent(new BankStatementUploadedEvent(statement.Id, accountNumber, periodStart, periodEnd, source));
 
         return Result.Success(statement);
     }
@@ -119,12 +166,88 @@ public class BankStatement : AggregateRoot
         AnalysisStatus = AnalysisStatus.Failed;
     }
 
+    /// <summary>
+    /// Perform data integrity validation on the statement.
+    /// Checks that opening balance + sum of transactions = closing balance.
+    /// </summary>
+    public Result ValidateDataIntegrity()
+    {
+        var totalCredits = _transactions.Where(t => t.Type == StatementTransactionType.Credit).Sum(t => t.Amount);
+        var totalDebits = _transactions.Where(t => t.Type == StatementTransactionType.Debit).Sum(t => t.Amount);
+        
+        CalculatedClosingBalance = OpeningBalance + totalCredits - totalDebits;
+        BalanceDiscrepancy = Math.Abs(ClosingBalance - CalculatedClosingBalance.Value);
+        
+        // Allow tolerance of 1 NGN for rounding
+        BalanceReconciled = BalanceDiscrepancy <= 1.0m;
+
+        if (!BalanceReconciled.Value)
+        {
+            return Result.Failure($"Balance discrepancy of {BalanceDiscrepancy:N2} detected. " +
+                $"Expected closing: {CalculatedClosingBalance:N2}, Actual: {ClosingBalance:N2}");
+        }
+
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Verify an external statement after data integrity check passes.
+    /// </summary>
+    public Result Verify(Guid verifiedByUserId, string? notes = null)
+    {
+        if (IsInternal)
+            return Result.Failure("Internal statements do not require manual verification");
+
+        if (VerificationStatus == StatementVerificationStatus.Verified)
+            return Result.Failure("Statement is already verified");
+
+        if (BalanceReconciled != true)
+            return Result.Failure("Statement must pass data integrity validation before verification");
+
+        VerificationStatus = StatementVerificationStatus.Verified;
+        VerifiedAt = DateTime.UtcNow;
+        VerifiedByUserId = verifiedByUserId;
+        VerificationNotes = notes;
+
+        AddDomainEvent(new BankStatementVerifiedEvent(Id, LoanApplicationId, Source));
+
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Reject an external statement that fails verification.
+    /// </summary>
+    public Result Reject(Guid rejectedByUserId, string reason)
+    {
+        if (IsInternal)
+            return Result.Failure("Internal statements cannot be rejected");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Rejection reason is required");
+
+        VerificationStatus = StatementVerificationStatus.Rejected;
+        VerifiedAt = DateTime.UtcNow;
+        VerifiedByUserId = rejectedByUserId;
+        VerificationNotes = reason;
+
+        return Result.Success();
+    }
+
     public int GetStatementMonths()
     {
         return (int)Math.Ceiling((PeriodEnd - PeriodStart).TotalDays / 30.0);
     }
+
+    /// <summary>
+    /// Check if the statement covers the required period (typically 6+ months).
+    /// </summary>
+    public bool MeetsMinimumPeriod(int requiredMonths = 6)
+    {
+        return GetStatementMonths() >= requiredMonths;
+    }
 }
 
 // Domain Events
-public record BankStatementUploadedEvent(Guid StatementId, string AccountNumber, DateTime PeriodStart, DateTime PeriodEnd) : DomainEvent;
+public record BankStatementUploadedEvent(Guid StatementId, string AccountNumber, DateTime PeriodStart, DateTime PeriodEnd, StatementSource Source) : DomainEvent;
 public record StatementAnalysisCompletedEvent(Guid StatementId, Guid? LoanApplicationId) : DomainEvent;
+public record BankStatementVerifiedEvent(Guid StatementId, Guid? LoanApplicationId, StatementSource Source) : DomainEvent;
