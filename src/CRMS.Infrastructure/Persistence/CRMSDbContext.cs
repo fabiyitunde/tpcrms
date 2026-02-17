@@ -10,6 +10,7 @@ using FS = CRMS.Domain.Aggregates.FinancialStatement;
 using GR = CRMS.Domain.Aggregates.Guarantor;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
+using WF = CRMS.Domain.Aggregates.Workflow;
 
 namespace CRMS.Infrastructure.Persistence;
 
@@ -69,6 +70,13 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     // Configuration
     public DbSet<CF.ScoringParameter> ScoringParameters => Set<CF.ScoringParameter>();
     public DbSet<CF.ScoringParameterHistory> ScoringParameterHistory => Set<CF.ScoringParameterHistory>();
+
+    // Workflow
+    public DbSet<WF.WorkflowDefinition> WorkflowDefinitions => Set<WF.WorkflowDefinition>();
+    public DbSet<WF.WorkflowStage> WorkflowStages => Set<WF.WorkflowStage>();
+    public DbSet<WF.WorkflowTransition> WorkflowTransitions => Set<WF.WorkflowTransition>();
+    public DbSet<WF.WorkflowInstance> WorkflowInstances => Set<WF.WorkflowInstance>();
+    public DbSet<WF.WorkflowTransitionLog> WorkflowTransitionLogs => Set<WF.WorkflowTransitionLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

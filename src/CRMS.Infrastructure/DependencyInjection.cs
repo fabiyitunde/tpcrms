@@ -3,6 +3,7 @@ using CRMS.Application.Identity.Interfaces;
 using CRMS.Domain.Configuration;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
+using CRMS.Domain.Aggregates.Workflow;
 using CRMS.Infrastructure.BackgroundServices;
 using CRMS.Application.Advisory.Interfaces;
 using CRMS.Infrastructure.ExternalServices.AI;
@@ -79,6 +80,11 @@ public static class DependencyInjection
 
         // Scoring Configuration
         services.AddScoped<IScoringParameterRepository, ScoringParameterRepository>();
+
+        // Workflow
+        services.AddScoped<IWorkflowDefinitionRepository, WorkflowDefinitionRepository>();
+        services.AddScoped<IWorkflowInstanceRepository, WorkflowInstanceRepository>();
+        services.AddScoped<WorkflowService>();
 
         // Background Services - Credit Check Queue
         var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions

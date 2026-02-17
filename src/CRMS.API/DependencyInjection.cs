@@ -7,6 +7,9 @@ using CRMS.Application.Common;
 using CRMS.Application.Configuration.Commands;
 using CRMS.Application.Configuration.DTOs;
 using CRMS.Application.Configuration.Queries;
+using CRMS.Application.Workflow.Commands;
+using CRMS.Application.Workflow.DTOs;
+using CRMS.Application.Workflow.Queries;
 using CRMS.Application.CoreBanking.Queries;
 using CRMS.Application.CreditBureau.Commands;
 using CRMS.Application.CreditBureau.Queries;
@@ -139,6 +142,22 @@ public static class DependencyInjection
         services.AddScoped<RejectParameterChangeHandler>();
         services.AddScoped<CancelParameterChangeHandler>();
         services.AddScoped<SeedDefaultParametersHandler>();
+
+        // Workflow handlers
+        services.AddScoped<InitializeWorkflowHandler>();
+        services.AddScoped<TransitionWorkflowHandler>();
+        services.AddScoped<AssignWorkflowHandler>();
+        services.AddScoped<UnassignWorkflowHandler>();
+        services.AddScoped<EscalateWorkflowHandler>();
+        services.AddScoped<SeedCorporateLoanWorkflowHandler>();
+        services.AddScoped<GetWorkflowInstanceByIdHandler>();
+        services.AddScoped<GetWorkflowByLoanApplicationHandler>();
+        services.AddScoped<GetAvailableActionsHandler>();
+        services.AddScoped<GetWorkflowQueueByRoleHandler>();
+        services.AddScoped<GetMyWorkflowQueueHandler>();
+        services.AddScoped<GetOverdueWorkflowsHandler>();
+        services.AddScoped<GetWorkflowDefinitionHandler>();
+        services.AddScoped<GetQueueSummaryHandler>();
 
         return services;
     }
