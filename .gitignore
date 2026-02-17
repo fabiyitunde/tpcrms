@@ -35,7 +35,6 @@ coverage/
 # Secrets
 appsettings.*.json
 !appsettings.json
-!appsettings.Development.json
 *.pfx
 *.key
 secrets.json
