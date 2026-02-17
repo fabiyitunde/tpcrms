@@ -322,10 +322,14 @@ This glossary defines the **official terms** used throughout the codebase, docum
 - Director and signatory information capture
 - Document upload management (statements, audited accounts)
 - Submission for branch approval
+- **Automatic credit check triggering** after branch approval (via background service)
+- Credit check progress tracking
 
 **Domain Entities:** LoanApplication, CorporateProfile, Director, Signatory
 
 **Bounded Context:** Lending
+
+**Integration:** CreditBureauIntegration (automatic trigger on BranchApproved)
 
 ---
 

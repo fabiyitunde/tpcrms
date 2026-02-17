@@ -4,7 +4,7 @@
 **Status:** 🟢 Completed  
 **Priority:** P1  
 **Bounded Context:** LoanApplication  
-**Last Updated:** 2026-02-16
+**Last Updated:** 2026-02-17
 
 ---
 
@@ -49,14 +49,32 @@ Draft → Submitted → DataGathering → BranchReview
                                   ↓
                     BranchApproved / BranchReturned / BranchRejected
                           ↓
-                    CreditAnalysis → HOReview → CommitteeCirculation
-                                                       ↓
-                                    CommitteeApproved / CommitteeRejected
-                                           ↓
-                                    FinalApproval → Approved
-                                                      ↓
-                                    OfferGenerated → OfferAccepted → Disbursed → Closed
+                    ┌─────────────────────────────────────────┐
+                    │ CreditAnalysis (AUTOMATIC)              │
+                    │ - Background service runs credit checks │
+                    │ - Checks all directors/signatories/     │
+                    │   guarantors in parallel                │
+                    │ - Tracks completion progress            │
+                    └─────────────────────────────────────────┘
+                          ↓ (when all checks complete)
+                    HOReview → CommitteeCirculation
+                                       ↓
+                    CommitteeApproved / CommitteeRejected
+                           ↓
+                    FinalApproval → Approved
+                                      ↓
+                    OfferGenerated → OfferAccepted → Disbursed → Closed
 ```
+
+### Credit Check Tracking
+
+| Property | Type | Description |
+|----------|------|-------------|
+| TotalCreditChecksRequired | int | Count of parties requiring checks |
+| CreditChecksCompleted | int | Checks completed so far |
+| AllCreditChecksCompleted | bool | True when all done |
+| CreditCheckStartedAt | DateTime? | When analysis started |
+| CreditCheckCompletedAt | DateTime? | When all checks finished |
 
 ---
 
@@ -142,18 +160,34 @@ On loan initiation:
 |-------|----------------|
 | LoanApplicationCreated | New application created |
 | LoanApplicationSubmitted | Application submitted |
-| LoanApplicationBranchApproved | Branch approval granted |
+| LoanApplicationBranchApproved | Branch approval granted → **triggers credit checks** |
+| CreditAnalysisStartedEvent | Credit checks begin processing |
+| AllCreditChecksCompletedEvent | All credit checks finished |
 | LoanApplicationApproved | Final approval |
 | LoanApplicationDisbursed | Loan disbursed |
 
 ---
 
-## 10. Pending Enhancements
+## 10. Integration with Credit Bureau
+
+When branch approves a loan:
+1. `ApproveBranchCommand` automatically queues credit checks
+2. Background service picks up the request
+3. Runs credit checks on all parties with BVN (directors, signatories, guarantors)
+4. Loan status moves to `CreditAnalysis`
+5. Progress tracked via `CreditChecksCompleted/TotalCreditChecksRequired`
+6. When all complete, loan is ready for `MoveToHOReview()`
+
+See [CreditBureauIntegration.md](CreditBureauIntegration.md) for details.
+
+---
+
+## 11. Pending Enhancements
 
 - [ ] Add HO review and committee approval commands
 - [ ] Add offer generation and acceptance
 - [ ] Add disbursement integration with core banking
-- [ ] Add BVN verification for parties
+- [x] ~~Add BVN verification for parties~~ (via automatic credit checks)
 - [ ] Add file storage integration (Azure Blob/S3)
 - [ ] Add AI advisory integration
 
@@ -164,3 +198,4 @@ On loan initiation:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-02-16 | Initial implementation with branch workflow |
+| 1.1 | 2026-02-17 | Added automatic credit check integration after branch approval |
