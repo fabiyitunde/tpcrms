@@ -37,3 +37,20 @@ public enum RiskCategory
     IndustryRisk,
     ConcentrationRisk
 }
+
+public enum ParameterDataType
+{
+    Decimal,
+    Percentage,
+    Integer,
+    Score,
+    Currency
+}
+
+public enum ParameterChangeStatus
+{
+    None,
+    Pending,
+    Approved,
+    Rejected
+}
