@@ -1,8 +1,8 @@
 # CRMS - Implementation Tracker
 
-**Version:** 2.0  
+**Version:** 2.1  
 **Last Updated:** 2026-02-17  
-**Status:** Implementation Phase (15/18 modules complete - 83%)
+**Status:** Implementation Phase (16/18 modules complete - 89%)
 
 ---
 
@@ -264,7 +264,7 @@ This glossary defines the **official terms** used throughout the codebase, docum
 | 13 | **LoanPackGenerator** | 🟢 | P2 | [LoanPackGenerator.md](modules/LoanPackGenerator.md) | AIAdvisoryEngine, WorkflowEngine |
 | 14 | **NotificationService** | 🟢 | P2 | [NotificationService.md](modules/NotificationService.md) | None |
 | 15 | **AuditService** | 🟢 | P1 | [AuditService.md](modules/AuditService.md) | None |
-| 16 | **ReportingService** | 🔴 | P3 | [ReportingService.md](modules/ReportingService.md) | All modules |
+| 16 | **ReportingService** | 🟢 | P3 | [ReportingService.md](modules/ReportingService.md) | All modules |
 | 17 | **CustomerPortal** | 🔴 | P3 | [CustomerPortal.md](modules/CustomerPortal.md) | ProductCatalog, CreditBureauIntegration, StatementAnalyzer |
 | 18 | **DecisionEngine** | 🔴 | P3 | [DecisionEngine.md](modules/DecisionEngine.md) | CreditBureauIntegration, StatementAnalyzer |
 
@@ -535,10 +535,20 @@ This glossary defines the **official terms** used throughout the codebase, docum
 **Purpose:** Dashboards and analytics for business insights.
 
 **Key Responsibilities:**
-- Funnel metrics (submitted → approved → disbursed)
-- Portfolio analytics
-- Decision distribution reports
-- Performance dashboards
+- Dashboard summary with key metrics at-a-glance
+- Loan funnel metrics (Submitted → In Review → Approved → Disbursed)
+- Portfolio analytics (by product, type, risk rating, aging)
+- Performance metrics (processing times, SLA compliance, user productivity)
+- Decision distribution (approval rates, rejection reasons)
+- Committee analytics (activity, voting patterns, member participation)
+- SLA compliance tracking
+
+**Domain Entities:** ReportDefinition (optional saved report configs)
+**Key Features:**
+- Date range filtering on all reports
+- Role-based access control (sensitive reports restricted)
+- Aggregates data from LoanApplications, Workflows, Committees
+- Ready for export enhancement (Excel/PDF)
 
 **Bounded Context:** Reporting
 

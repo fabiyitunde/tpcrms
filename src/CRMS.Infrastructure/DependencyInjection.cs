@@ -20,6 +20,8 @@ using CRMS.Infrastructure.ExternalServices.AIServices;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
 using CRMS.Infrastructure.ExternalServices.CreditBureau;
 using CRMS.Infrastructure.ExternalServices.Notifications;
+using CRMS.Application.Reporting.Interfaces;
+using CRMS.Infrastructure.Services;
 using CRMS.Infrastructure.Identity;
 using CRMS.Infrastructure.Persistence;
 using CRMS.Infrastructure.Persistence.Repositories;
@@ -133,6 +135,9 @@ public static class DependencyInjection
         services.AddScoped<INotificationSender, MockWhatsAppSender>();
         services.AddHostedService<NotificationProcessingService>();
         
+        // Reporting
+        services.AddScoped<IReportingService, ReportingService>();
+
         // Notification Event Handlers
         services.AddScoped<IDomainEventHandler<WorkflowSLABreachedEvent>, WorkflowSLABreachedNotificationHandler>();
         services.AddScoped<IDomainEventHandler<WorkflowEscalatedEvent>, WorkflowEscalatedNotificationHandler>();
