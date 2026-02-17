@@ -12,6 +12,34 @@ The AuditService module provides immutable audit logging for compliance with Nig
 - **Loan Application Timeline**: Complete audit trail per application
 - **Failed Action Tracking**: Monitor and investigate failures
 - **Compliance Ready**: Designed for Nigerian banking audit requirements
+- **Event-Driven Integration**: Automatically receives domain events from other modules
+
+## Domain Event Integration
+
+The AuditService is a **consumer of domain events** from other bounded contexts. This provides loose coupling while ensuring all critical actions are audited.
+
+### Event Handlers
+
+| Event | Source Module | Audit Action Created |
+|-------|---------------|---------------------|
+| `WorkflowTransitionedEvent` | WorkflowEngine | StatusChange in Workflow category |
+| `CommitteeVoteCastEvent` | CommitteeWorkflow | Vote in Committee category |
+| `CommitteeDecisionRecordedEvent` | CommitteeWorkflow | Decision in Committee category |
+| `ScoringParameterChangeApprovedEvent` | Configuration | ConfigApprove in Configuration category |
+| `LoanApplicationCreatedEvent` | CorporateLoanInitiation | Create in LoanApplication category |
+| `LoanApplicationApprovedEvent` | CorporateLoanInitiation | Approve in LoanApplication category |
+
+### How It Works
+
+```
+1. Other module's aggregate raises domain event
+2. SaveChangesAsync() commits the transaction
+3. DomainEventPublishingInterceptor dispatches events
+4. AuditEventHandler receives event
+5. Handler calls AuditService.LogAsync() to create audit record
+```
+
+This ensures audit logs are created automatically without tight coupling between modules.
 
 ## Domain Model
 

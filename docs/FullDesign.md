@@ -1,9 +1,9 @@
 # CRMS - Credit Risk Management System
 ## Full Design Specification Document
 
-**Version:** 1.0  
-**Last Updated:** 2026-02-16  
-**Status:** Design Phase
+**Version:** 1.1  
+**Last Updated:** 2026-02-17  
+**Status:** Implementation Phase
 
 ---
 
@@ -171,6 +171,23 @@ Nigerian lending processes remain slow and subjective due to:
 - Immutable audit logs
 - Decision explainability (reason codes)
 
+### 5.5 Cross-Context Communication (Domain Events)
+
+The system uses **domain events** for communication between bounded contexts where loose coupling is critical:
+
+**Event-Driven Flows (Critical):**
+- Workflow transitions → Audit logging
+- Committee votes/decisions → Audit logging
+- Configuration changes → Audit logging
+- Loan application lifecycle → Audit logging
+
+**Infrastructure:**
+- `DomainEventPublishingInterceptor` dispatches events after EF Core SaveChanges
+- `DomainEventDispatcher` routes events to registered handlers
+- Handlers execute in new DI scope for isolation
+
+**Design Decision:** Only critical cross-context flows use events. Other integrations use direct service calls for simplicity (MVP pragmatism).
+
 ---
 
 ## 6. External Integrations
@@ -316,3 +333,4 @@ Nigerian lending processes remain slow and subjective due to:
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-02-16 | Factory AI | Initial design specification |
+| 1.1 | 2026-02-17 | Factory AI | Added domain events for cross-context communication |

@@ -13,6 +13,24 @@ The CommitteeWorkflow module manages the multi-user committee approval process f
 - **Document Attachments**: Supporting documents with visibility controls
 - **Decision Recording**: Final decision with approved terms and conditions
 - **Deadline Tracking**: Configurable deadlines with overdue monitoring
+- **Domain Event Publishing**: Publishes events for cross-context integration (Audit)
+
+## Domain Events Published
+
+The CommitteeWorkflow module publishes domain events that other modules subscribe to:
+
+| Event | When Published | Consumers |
+|-------|----------------|-----------|
+| `CommitteeReviewCreatedEvent` | New committee review created | AuditService |
+| `CommitteeMemberAddedEvent` | Member added to committee | AuditService |
+| `CommitteeVotingStartedEvent` | Voting phase begins | AuditService, NotificationService |
+| `CommitteeVoteCastEvent` | Member casts vote | AuditService |
+| `CommitteeVotingCompletedEvent` | All votes received | AuditService |
+| `CommitteeCommentAddedEvent` | Comment added | AuditService |
+| `CommitteeDecisionRecordedEvent` | Final decision recorded | AuditService, WorkflowEngine |
+| `CommitteeReviewClosedEvent` | Review closed | AuditService |
+
+These events enable loose coupling - committee actions are automatically logged to AuditService without direct service calls.
 
 ## Domain Model
 

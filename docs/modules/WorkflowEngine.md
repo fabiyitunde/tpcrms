@@ -11,6 +11,22 @@ The WorkflowEngine module manages the state machine for loan application approva
 - **SLA Tracking**: Monitor overdue items with escalation capability
 - **User Assignment**: Assign specific items to individual users
 - **Full Audit Trail**: Track all transitions with timestamps and comments
+- **Domain Event Publishing**: Publishes events for cross-context integration (Audit)
+
+## Domain Events Published
+
+The WorkflowEngine publishes domain events that other modules can subscribe to:
+
+| Event | When Published | Consumers |
+|-------|----------------|-----------|
+| `WorkflowInstanceCreatedEvent` | New workflow created | AuditService |
+| `WorkflowTransitionedEvent` | State transition occurs | AuditService |
+| `WorkflowInstanceCompletedEvent` | Workflow reaches terminal state | AuditService |
+| `WorkflowAssignedEvent` | User assigned to workflow | AuditService |
+| `WorkflowSLABreachedEvent` | SLA deadline exceeded | AuditService, NotificationService |
+| `WorkflowEscalatedEvent` | Workflow escalated to higher authority | AuditService, NotificationService |
+
+These events enable loose coupling with the AuditService - workflow transitions are automatically logged without direct service calls.
 
 ## Domain Model
 

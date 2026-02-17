@@ -1,6 +1,6 @@
 # CRMS - Implementation Tracker
 
-**Version:** 1.7  
+**Version:** 1.8  
 **Last Updated:** 2026-02-17  
 **Status:** Implementation Phase (13/18 modules complete - 72%)
 
@@ -21,7 +21,8 @@ This system follows **Domain-Driven Design** principles with **Clean Architectur
 | **Aggregates** | LoanApplication, CorporateProfile, DecisionResult, WorkflowCase |
 | **Entities** | Director, Signatory, BureauReport, FinancialStatement |
 | **Value Objects** | Money, InterestRate, BVN, AccountNumber, Score |
-| **Domain Events** | LoanApplicationSubmitted, BureauCheckCompleted, DecisionMade, LoanDisbursed |
+| **Domain Events** | LoanApplicationCreated, WorkflowTransitioned, CommitteeVoteCast, CommitteeDecisionRecorded, etc. |
+| **Event-Driven Communication** | Critical cross-context flows use domain events (Workflow→Audit, Committee→Audit, Config→Audit) |
 | **Domain Services** | CreditAssessmentService, DecisionService, DisbursementService |
 | **Repositories** | ILoanApplicationRepository, ICorporateProfileRepository, etc. |
 
@@ -576,6 +577,57 @@ This glossary defines the **official terms** used throughout the codebase, docum
 - Circuit breaker for external APIs
 - Timeout handling
 
+### 5.6 Domain Events (Cross-Context Communication)
+
+The system uses **domain events** for critical cross-bounded-context communication, providing loose coupling while maintaining audit compliance.
+
+#### Infrastructure Components
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `IDomainEventDispatcher` | Domain | Interface for event dispatch |
+| `IDomainEventHandler<T>` | Domain | Interface for event handlers |
+| `DomainEventDispatcher` | Infrastructure | Reflection-based handler resolution |
+| `DomainEventPublishingInterceptor` | Infrastructure | EF Core interceptor, dispatches after SaveChanges |
+
+#### Event Flow
+
+```
+1. Command handler modifies aggregate
+2. Aggregate raises event: AddDomainEvent(new XyzEvent(...))
+3. UnitOfWork.SaveChangesAsync() called
+4. EF Core persists changes to database
+5. Interceptor fires AFTER successful commit
+6. Interceptor collects all events from tracked aggregates
+7. Events dispatched to registered handlers (new scope)
+8. Handlers perform cross-context actions (e.g., create audit log)
+```
+
+#### Critical Flow Event Handlers
+
+| Event | Handler | Action |
+|-------|---------|--------|
+| `WorkflowTransitionedEvent` | `WorkflowTransitionAuditHandler` | Creates audit log for workflow state changes |
+| `CommitteeVoteCastEvent` | `CommitteeVoteAuditHandler` | Creates audit log for committee votes |
+| `CommitteeDecisionRecordedEvent` | `CommitteeDecisionAuditHandler` | Creates audit log for committee decisions |
+| `ScoringParameterChangeApprovedEvent` | `ScoringParameterChangeAuditHandler` | Creates audit log for config changes |
+| `LoanApplicationCreatedEvent` | `LoanApplicationCreatedAuditHandler` | Creates audit log for new applications |
+| `LoanApplicationApprovedEvent` | `LoanApplicationApprovedAuditHandler` | Creates audit log for approvals |
+
+#### Design Decisions
+
+1. **Eventual Consistency**: Events dispatched after commit, not within transaction
+2. **Fault Tolerance**: Handler errors logged but don't rollback the original operation
+3. **Scoped Resolution**: New DI scope per dispatch avoids DbContext conflicts
+4. **Critical Flows Only**: Only important cross-context flows use events; other flows use direct service calls for simplicity
+
+#### Adding New Event Handlers
+
+1. Create event record in Domain aggregate (e.g., `public record MyEvent(...) : DomainEvent;`)
+2. Aggregate raises event: `AddDomainEvent(new MyEvent(...));`
+3. Create handler in Infrastructure: `public class MyEventHandler : IDomainEventHandler<MyEvent>`
+4. Register in `DependencyInjection.cs`: `services.AddScoped<IDomainEventHandler<MyEvent>, MyEventHandler>();`
+
 ---
 
 ## 6. Database Schema Conventions
@@ -687,3 +739,4 @@ When starting a new Factory AI session for this project:
 | 1.5 | 2026-02-17 | Factory AI | Added WorkflowEngine module (11) with state machine, SLA tracking, queues |
 | 1.6 | 2026-02-17 | Factory AI | Added CommitteeWorkflow module (12) with multi-user voting and decision recording |
 | 1.7 | 2026-02-17 | Factory AI | Added AuditService module (15) with immutable logging and sensitive data tracking |
+| 1.8 | 2026-02-17 | Factory AI | Added domain event infrastructure for critical cross-context flows (Option 3) |
