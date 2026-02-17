@@ -1,11 +1,17 @@
 using System.Threading.Channels;
 using CRMS.Application.Identity.Interfaces;
+using CRMS.Domain.Aggregates.Committee;
+using CRMS.Domain.Aggregates.Configuration;
+using CRMS.Domain.Aggregates.LoanApplication;
+using CRMS.Domain.Aggregates.Workflow;
+using CRMS.Domain.Common;
 using CRMS.Domain.Configuration;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
-using CRMS.Domain.Aggregates.Workflow;
 using CRMS.Infrastructure.BackgroundServices;
 using CRMS.Application.Advisory.Interfaces;
+using CRMS.Infrastructure.Events;
+using CRMS.Infrastructure.Events.Handlers;
 using CRMS.Infrastructure.ExternalServices.AI;
 using CRMS.Infrastructure.ExternalServices.AIServices;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
@@ -29,10 +35,26 @@ public static class DependencyInjection
         services.Configure<ScoringConfiguration>(
             configuration.GetSection(ScoringConfiguration.SectionName));
         
-        services.AddDbContext<CRMSDbContext>(options =>
-            options.UseMySql(connectionString, serverVersion));
+        // Domain Event Infrastructure (registered before DbContext to break circular dependency)
+        services.AddSingleton<DomainEventPublishingInterceptor>();
+        services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
+
+        services.AddDbContext<CRMSDbContext>((serviceProvider, options) =>
+        {
+            var interceptor = serviceProvider.GetRequiredService<DomainEventPublishingInterceptor>();
+            options.UseMySql(connectionString, serverVersion)
+                   .AddInterceptors(interceptor);
+        });
 
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<CRMSDbContext>());
+
+        // Domain Event Handlers - Critical Flows to Audit
+        services.AddScoped<IDomainEventHandler<WorkflowTransitionedEvent>, WorkflowTransitionAuditHandler>();
+        services.AddScoped<IDomainEventHandler<CommitteeVoteCastEvent>, CommitteeVoteAuditHandler>();
+        services.AddScoped<IDomainEventHandler<CommitteeDecisionRecordedEvent>, CommitteeDecisionAuditHandler>();
+        services.AddScoped<IDomainEventHandler<ScoringParameterChangeApprovedEvent>, ScoringParameterChangeAuditHandler>();
+        services.AddScoped<IDomainEventHandler<LoanApplicationCreatedEvent>, LoanApplicationCreatedAuditHandler>();
+        services.AddScoped<IDomainEventHandler<LoanApplicationApprovedEvent>, LoanApplicationApprovedAuditHandler>();
         
         // ProductCatalog
         services.AddScoped<ILoanProductRepository, LoanProductRepository>();
