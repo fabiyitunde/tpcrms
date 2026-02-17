@@ -1,0 +1,412 @@
+@page "/reports"
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Reports - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Reports & Analytics</h1>
+        <p class="page-subtitle">Portfolio performance and insights</p>
+    </div>
+    <div style="display: flex; gap: var(--space-3);">
+        <select class="form-control" style="width: 150px;" @bind="selectedPeriod">
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+        </select>
+        <button class="btn btn-secondary">
+            <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+            Export
+        </button>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <span class="material-symbols-outlined">description</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Applications Received</div>
+            <div class="stat-value">@metrics.ApplicationsReceived</div>
+            <div class="stat-change positive">+@metrics.ApplicationsGrowth% vs prev period</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">
+            <span class="material-symbols-outlined">check_circle</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Approved</div>
+            <div class="stat-value">@metrics.Approved</div>
+            <div class="stat-change">@metrics.ApprovalRate% approval rate</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">
+            <span class="material-symbols-outlined">schedule</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Avg. Processing Time</div>
+            <div class="stat-value">@metrics.AvgProcessingDays days</div>
+            <div class="stat-change @(metrics.ProcessingImprovement > 0 ? "positive" : "negative")">
+                @(metrics.ProcessingImprovement > 0 ? "-" : "+")@Math.Abs(metrics.ProcessingImprovement) days vs target
+            </div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <span class="material-symbols-outlined">payments</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Disbursed Amount</div>
+            <div class="stat-value">₦@FormatAmount(metrics.DisbursedAmount)</div>
+            <div class="stat-change positive">+@metrics.DisbursementGrowth% vs prev period</div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-2 gap-6 mt-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Application Funnel</h3>
+        </div>
+        <div class="card-body">
+            @foreach (var stage in funnelData)
+            {
+                <div class="funnel-row">
+                    <div class="funnel-label">
+                        <span>@stage.Stage</span>
+                        <span style="color: var(--gray-500);">@stage.Count</span>
+                    </div>
+                    <div class="funnel-bar-container">
+                        <div class="funnel-bar" style="width: @stage.Percentage%"></div>
+                    </div>
+                    <span class="funnel-percentage">@stage.Percentage%</span>
+                </div>
+            }
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Portfolio by Product</h3>
+        </div>
+        <div class="card-body">
+            @foreach (var product in portfolioByProduct)
+            {
+                <div class="portfolio-row">
+                    <div class="portfolio-info">
+                        <div style="font-weight: 500;">@product.ProductName</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">@product.Count applications</div>
+                    </div>
+                    <div class="portfolio-amount">
+                        ₦@FormatAmount(product.Amount)
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-3 gap-6 mt-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Decision Distribution</h3>
+        </div>
+        <div class="card-body">
+            <div class="decision-chart">
+                <div class="decision-item">
+                    <div class="decision-bar approved" style="height: @(decisionDistribution.ApprovedPercent)%"></div>
+                    <div class="decision-label">Approved</div>
+                    <div class="decision-value">@decisionDistribution.Approved (@decisionDistribution.ApprovedPercent%)</div>
+                </div>
+                <div class="decision-item">
+                    <div class="decision-bar rejected" style="height: @(decisionDistribution.RejectedPercent)%"></div>
+                    <div class="decision-label">Rejected</div>
+                    <div class="decision-value">@decisionDistribution.Rejected (@decisionDistribution.RejectedPercent%)</div>
+                </div>
+                <div class="decision-item">
+                    <div class="decision-bar pending" style="height: @(decisionDistribution.PendingPercent)%"></div>
+                    <div class="decision-label">Pending</div>
+                    <div class="decision-value">@decisionDistribution.Pending (@decisionDistribution.PendingPercent%)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">SLA Compliance</h3>
+        </div>
+        <div class="card-body text-center">
+            <div class="sla-gauge">
+                <svg viewBox="0 0 100 50">
+                    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#e5e7eb" stroke-width="8" />
+                    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#10b981" stroke-width="8" 
+                          stroke-dasharray="@(slaCompliance * 1.26) 126" />
+                </svg>
+                <div class="sla-value">@slaCompliance%</div>
+            </div>
+            <div style="margin-top: var(--space-4);">
+                <span class="badge badge-success">@withinSla within SLA</span>
+                <span class="badge badge-danger" style="margin-left: var(--space-2);">@breachedSla breached</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Quick Links</h3>
+        </div>
+        <div class="card-body">
+            <a href="/reports/audit" class="report-link">
+                <span class="material-symbols-outlined">history</span>
+                <div>
+                    <div style="font-weight: 500;">Audit Trail</div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500);">View all system activities</div>
+                </div>
+                <span class="material-symbols-outlined" style="margin-left: auto; color: var(--gray-400);">chevron_right</span>
+            </a>
+            <a href="/reports/performance" class="report-link">
+                <span class="material-symbols-outlined">speed</span>
+                <div>
+                    <div style="font-weight: 500;">Performance Report</div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500);">Staff and team performance</div>
+                </div>
+                <span class="material-symbols-outlined" style="margin-left: auto; color: var(--gray-400);">chevron_right</span>
+            </a>
+            <a href="/reports/committee" class="report-link">
+                <span class="material-symbols-outlined">groups</span>
+                <div>
+                    <div style="font-weight: 500;">Committee Report</div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500);">Committee activity summary</div>
+                </div>
+                <span class="material-symbols-outlined" style="margin-left: auto; color: var(--gray-400);">chevron_right</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .funnel-row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+        margin-bottom: var(--space-3);
+    }
+    
+    .funnel-label {
+        width: 140px;
+        display: flex;
+        justify-content: space-between;
+        font-size: var(--text-sm);
+    }
+    
+    .funnel-bar-container {
+        flex: 1;
+        height: 24px;
+        background: var(--gray-100);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+    }
+    
+    .funnel-bar {
+        height: 100%;
+        background: linear-gradient(90deg, var(--primary-500), var(--primary-400));
+        border-radius: var(--radius-md);
+    }
+    
+    .funnel-percentage {
+        width: 50px;
+        text-align: right;
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+    
+    .portfolio-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-3) 0;
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .portfolio-row:last-child {
+        border-bottom: none;
+    }
+    
+    .portfolio-amount {
+        font-weight: 600;
+        color: var(--primary-600);
+    }
+    
+    .decision-chart {
+        display: flex;
+        justify-content: space-around;
+        align-items: flex-end;
+        height: 150px;
+        padding-top: var(--space-4);
+    }
+    
+    .decision-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-2);
+    }
+    
+    .decision-bar {
+        width: 40px;
+        border-radius: var(--radius-md) var(--radius-md) 0 0;
+        min-height: 20px;
+    }
+    
+    .decision-bar.approved { background: var(--success-500); }
+    .decision-bar.rejected { background: var(--danger-500); }
+    .decision-bar.pending { background: var(--warning-500); }
+    
+    .decision-label {
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+    }
+    
+    .decision-value {
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+    
+    .sla-gauge {
+        position: relative;
+        width: 150px;
+        margin: 0 auto;
+    }
+    
+    .sla-value {
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: var(--text-2xl);
+        font-weight: 700;
+        color: var(--success-600);
+    }
+    
+    .report-link {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-3);
+        border-radius: var(--radius-lg);
+        color: var(--gray-700);
+        text-decoration: none;
+        transition: background var(--transition-fast);
+    }
+    
+    .report-link:hover {
+        background: var(--gray-50);
+    }
+    
+    .report-link .material-symbols-outlined:first-child {
+        color: var(--primary-500);
+    }
+</style>
+
+@code {
+    private int selectedPeriod = 30;
+    private Metrics metrics = new();
+    private List<FunnelStage> funnelData = [];
+    private List<ProductPortfolio> portfolioByProduct = [];
+    private DecisionDistribution decisionDistribution = new();
+    private int slaCompliance = 87;
+    private int withinSla = 145;
+    private int breachedSla = 22;
+
+    protected override void OnInitialized()
+    {
+        metrics = new()
+        {
+            ApplicationsReceived = 156,
+            ApplicationsGrowth = 12,
+            Approved = 68,
+            ApprovalRate = 78,
+            AvgProcessingDays = 4.2m,
+            ProcessingImprovement = 1,
+            DisbursedAmount = 2_450_000_000m,
+            DisbursementGrowth = 18
+        };
+
+        funnelData =
+        [
+            new() { Stage = "Received", Count = 156, Percentage = 100 },
+            new() { Stage = "Branch Review", Count = 142, Percentage = 91 },
+            new() { Stage = "Credit Analysis", Count = 125, Percentage = 80 },
+            new() { Stage = "Committee", Count = 98, Percentage = 63 },
+            new() { Stage = "Approved", Count = 68, Percentage = 44 },
+            new() { Stage = "Disbursed", Count = 52, Percentage = 33 }
+        ];
+
+        portfolioByProduct =
+        [
+            new() { ProductName = "Corporate Term Loan", Count = 45, Amount = 1_250_000_000m },
+            new() { ProductName = "Working Capital", Count = 62, Amount = 680_000_000m },
+            new() { ProductName = "Asset Finance", Count = 28, Amount = 420_000_000m },
+            new() { ProductName = "Trade Finance", Count = 21, Amount = 100_000_000m }
+        ];
+
+        decisionDistribution = new()
+        {
+            Approved = 68,
+            Rejected = 20,
+            Pending = 68,
+            ApprovedPercent = 44,
+            RejectedPercent = 13,
+            PendingPercent = 43
+        };
+    }
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+
+    private class Metrics
+    {
+        public int ApplicationsReceived { get; set; }
+        public int ApplicationsGrowth { get; set; }
+        public int Approved { get; set; }
+        public int ApprovalRate { get; set; }
+        public decimal AvgProcessingDays { get; set; }
+        public int ProcessingImprovement { get; set; }
+        public decimal DisbursedAmount { get; set; }
+        public int DisbursementGrowth { get; set; }
+    }
+
+    private class FunnelStage
+    {
+        public string Stage { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public int Percentage { get; set; }
+    }
+
+    private class ProductPortfolio
+    {
+        public string ProductName { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal Amount { get; set; }
+    }
+
+    private class DecisionDistribution
+    {
+        public int Approved { get; set; }
+        public int Rejected { get; set; }
+        public int Pending { get; set; }
+        public int ApprovedPercent { get; set; }
+        public int RejectedPercent { get; set; }
+        public int PendingPercent { get; set; }
+    }
+}

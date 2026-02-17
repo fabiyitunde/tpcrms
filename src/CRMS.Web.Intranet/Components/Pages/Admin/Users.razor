@@ -1,0 +1,300 @@
+@page "/admin/users"
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>User Management - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">User Management</h1>
+        <p class="page-subtitle">Manage system users and access</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal">
+        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+        Add User
+    </button>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body" style="padding: var(--space-4);">
+        <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 200px;">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" placeholder="Name, email..." @bind="searchTerm" />
+            </div>
+            <div style="width: 180px;">
+                <label class="form-label">Role</label>
+                <select class="form-control" @bind="selectedRole">
+                    <option value="">All Roles</option>
+                    <option value="SystemAdmin">System Admin</option>
+                    <option value="LoanOfficer">Loan Officer</option>
+                    <option value="CreditOfficer">Credit Officer</option>
+                    <option value="BranchApprover">Branch Approver</option>
+                    <option value="HOReviewer">HO Reviewer</option>
+                    <option value="CommitteeMember">Committee Member</option>
+                    <option value="RiskManager">Risk Manager</option>
+                    <option value="Auditor">Auditor</option>
+                </select>
+            </div>
+            <div style="width: 140px;">
+                <label class="form-label">Status</label>
+                <select class="form-control" @bind="selectedStatus">
+                    <option value="">All</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" @onclick="Search">Search</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        @if (isLoading)
+        {
+            <div class="p-6 text-center">
+                <div class="spinner" style="margin: 0 auto;"></div>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Branch</th>
+                        <th>Status</th>
+                        <th>Last Login</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in users)
+                    {
+                        <tr>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                    <div class="user-avatar">@user.Initials</div>
+                                    <div>
+                                        <div style="font-weight: 500;">@user.FullName</div>
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">@user.Email</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge @GetRoleBadgeClass(user.Role)">@user.Role</span>
+                            </td>
+                            <td>@(user.Branch ?? "-")</td>
+                            <td>
+                                <span class="badge @(user.IsActive ? "badge-success" : "badge-gray")">
+                                    <span class="status-dot @(user.IsActive ? "success" : "gray")"></span>
+                                    @(user.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td>
+                                @if (user.LastLogin.HasValue)
+                                {
+                                    <span style="font-size: var(--text-sm);">@user.LastLogin.Value.ToString("MMM dd, HH:mm")</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Never</span>
+                                }
+                            </td>
+                            <td>
+                                <div style="display: flex; gap: var(--space-2);">
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => EditUser(user)" title="Edit">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                                    </button>
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => ToggleUserStatus(user)" title="@(user.IsActive ? "Deactivate" : "Activate")">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">@(user.IsActive ? "block" : "check_circle")</span>
+                                    </button>
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => ResetPassword(user)" title="Reset Password">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">lock_reset</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@if (showUserModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseModal">
+        <div class="modal" style="max-width: 500px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@(isEditing ? "Edit User" : "Add New User")</h3>
+                <button class="modal-close" @onclick="CloseModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">First Name *</label>
+                    <input type="text" class="form-control" @bind="editingUser.FirstName" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Last Name *</label>
+                    <input type="text" class="form-control" @bind="editingUser.LastName" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email *</label>
+                    <input type="email" class="form-control" @bind="editingUser.Email" disabled="@isEditing" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role *</label>
+                    <select class="form-control" @bind="editingUser.Role">
+                        <option value="">Select Role</option>
+                        <option value="SystemAdmin">System Admin</option>
+                        <option value="LoanOfficer">Loan Officer</option>
+                        <option value="CreditOfficer">Credit Officer</option>
+                        <option value="BranchApprover">Branch Approver</option>
+                        <option value="HOReviewer">HO Reviewer</option>
+                        <option value="CommitteeMember">Committee Member</option>
+                        <option value="FinalApprover">Final Approver</option>
+                        <option value="RiskManager">Risk Manager</option>
+                        <option value="Operations">Operations</option>
+                        <option value="Auditor">Auditor</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Branch</label>
+                    <select class="form-control" @bind="editingUser.Branch">
+                        <option value="">Head Office</option>
+                        <option value="Lagos Main">Lagos Main</option>
+                        <option value="Victoria Island">Victoria Island</option>
+                        <option value="Ikeja">Ikeja</option>
+                        <option value="Abuja">Abuja</option>
+                        <option value="Port Harcourt">Port Harcourt</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveUser" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    @(isEditing ? "Update" : "Create") User
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UserModel> users = [];
+    private string searchTerm = string.Empty;
+    private string selectedRole = string.Empty;
+    private string selectedStatus = string.Empty;
+    private bool isLoading = true;
+    private bool showUserModal;
+    private bool isEditing;
+    private bool isSaving;
+    private UserModel editingUser = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        isLoading = true;
+        await Task.Delay(300);
+        
+        users =
+        [
+            new() { Id = Guid.NewGuid(), FirstName = "John", LastName = "Adeyemi", Email = "john.adeyemi@bank.com", Role = "BranchApprover", Branch = "Lagos Main", IsActive = true, LastLogin = DateTime.Now.AddHours(-2) },
+            new() { Id = Guid.NewGuid(), FirstName = "Sarah", LastName = "Okonkwo", Email = "sarah.okonkwo@bank.com", Role = "HOReviewer", Branch = null, IsActive = true, LastLogin = DateTime.Now.AddHours(-5) },
+            new() { Id = Guid.NewGuid(), FirstName = "Michael", LastName = "Eze", Email = "michael.eze@bank.com", Role = "LoanOfficer", Branch = "Victoria Island", IsActive = true, LastLogin = DateTime.Now.AddDays(-1) },
+            new() { Id = Guid.NewGuid(), FirstName = "Amina", LastName = "Ibrahim", Email = "amina.ibrahim@bank.com", Role = "CommitteeMember", Branch = null, IsActive = true, LastLogin = DateTime.Now.AddHours(-8) },
+            new() { Id = Guid.NewGuid(), FirstName = "David", LastName = "Okafor", Email = "david.okafor@bank.com", Role = "CreditOfficer", Branch = null, IsActive = true, LastLogin = DateTime.Now.AddDays(-2) },
+            new() { Id = Guid.NewGuid(), FirstName = "Grace", LastName = "Adekunle", Email = "grace.adekunle@bank.com", Role = "RiskManager", Branch = null, IsActive = true, LastLogin = DateTime.Now.AddHours(-1) },
+            new() { Id = Guid.NewGuid(), FirstName = "Peter", LastName = "Uche", Email = "peter.uche@bank.com", Role = "Auditor", Branch = null, IsActive = false, LastLogin = DateTime.Now.AddDays(-30) },
+            new() { Id = Guid.NewGuid(), FirstName = "Admin", LastName = "User", Email = "admin@bank.com", Role = "SystemAdmin", Branch = null, IsActive = true, LastLogin = DateTime.Now.AddMinutes(-30) }
+        ];
+        
+        isLoading = false;
+    }
+
+    private async Task Search() => await LoadUsers();
+
+    private void OpenCreateModal()
+    {
+        editingUser = new();
+        isEditing = false;
+        showUserModal = true;
+    }
+
+    private void EditUser(UserModel user)
+    {
+        editingUser = new()
+        {
+            Id = user.Id,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Email = user.Email,
+            Role = user.Role,
+            Branch = user.Branch
+        };
+        isEditing = true;
+        showUserModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showUserModal = false;
+        editingUser = new();
+    }
+
+    private async Task SaveUser()
+    {
+        isSaving = true;
+        await Task.Delay(500);
+        isSaving = false;
+        CloseModal();
+        await LoadUsers();
+    }
+
+    private async Task ToggleUserStatus(UserModel user)
+    {
+        user.IsActive = !user.IsActive;
+        await Task.Delay(200);
+    }
+
+    private async Task ResetPassword(UserModel user)
+    {
+        await Task.Delay(200);
+    }
+
+    private static string GetRoleBadgeClass(string role) => role switch
+    {
+        "SystemAdmin" => "badge-danger",
+        "RiskManager" => "badge-warning",
+        "CommitteeMember" => "badge-primary",
+        "Auditor" => "badge-gray",
+        _ => "badge-primary"
+    };
+
+    private class UserModel
+    {
+        public Guid Id { get; set; }
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public string? Branch { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime? LastLogin { get; set; }
+        public string FullName => $"{FirstName} {LastName}";
+        public string Initials => $"{FirstName?.FirstOrDefault()}{LastName?.FirstOrDefault()}";
+    }
+}

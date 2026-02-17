@@ -1,0 +1,333 @@
+@page "/committee/my-votes"
+@inject ApiClient Api
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>My Pending Votes - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">My Pending Votes</h1>
+        <p class="page-subtitle">Applications awaiting your committee vote</p>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="card p-6 text-center">
+        <div class="spinner" style="margin: 0 auto;"></div>
+        <p class="text-muted mt-4">Loading pending votes...</p>
+    </div>
+}
+else if (!pendingVotes.Any())
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <span class="material-symbols-outlined">how_to_vote</span>
+            </div>
+            <div class="empty-state-title">No pending votes</div>
+            <div class="empty-state-text">You have no committee reviews awaiting your vote.</div>
+            <a href="/committee/reviews" class="btn btn-primary">View All Reviews</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="votes-grid">
+        @foreach (var vote in pendingVotes)
+        {
+            <div class="vote-card">
+                <div class="vote-card-header">
+                    <div>
+                        <div style="font-size: var(--text-lg); font-weight: 600;">@vote.ApplicationNumber</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">@vote.CustomerName</div>
+                    </div>
+                    <span class="badge @GetCommitteeBadgeClass(vote.CommitteeType)">@vote.CommitteeType</span>
+                </div>
+                <div class="vote-card-body">
+                    <div class="vote-info-row">
+                        <span class="vote-info-label">Requested Amount</span>
+                        <span class="vote-info-value" style="color: var(--primary-600); font-weight: 600;">₦@FormatAmount(vote.Amount)</span>
+                    </div>
+                    <div class="vote-info-row">
+                        <span class="vote-info-label">AI Risk Rating</span>
+                        <span class="badge @GetRiskBadgeClass(vote.RiskRating)">@vote.RiskRating</span>
+                    </div>
+                    <div class="vote-info-row">
+                        <span class="vote-info-label">Votes Cast</span>
+                        <span class="vote-info-value">@vote.VotesCast / @vote.TotalMembers</span>
+                    </div>
+                    <div class="vote-info-row">
+                        <span class="vote-info-label">Deadline</span>
+                        <span class="vote-info-value @(vote.IsOverdue ? "text-danger" : "")">
+                            @if (vote.IsOverdue)
+                            {
+                                <span>Overdue</span>
+                            }
+                            else
+                            {
+                                @vote.Deadline.ToString("MMM dd, HH:mm")
+                            }
+                        </span>
+                    </div>
+                </div>
+                <div class="vote-card-footer">
+                    <button class="btn btn-outline btn-sm" @onclick="() => ViewApplication(vote.ApplicationId)">
+                        View Details
+                    </button>
+                    <button class="btn btn-primary btn-sm" @onclick="() => OpenVoteModal(vote)">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">how_to_vote</span>
+                        Cast Vote
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (showVoteModal && selectedReview != null)
+{
+    <div class="modal-backdrop show" @onclick="CloseVoteModal">
+        <div class="modal" style="max-width: 500px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Cast Your Vote</h3>
+                <button class="modal-close" @onclick="CloseVoteModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: var(--space-4); padding: var(--space-4); background: var(--gray-50); border-radius: var(--radius-lg);">
+                    <div style="font-weight: 600;">@selectedReview.ApplicationNumber</div>
+                    <div style="font-size: var(--text-sm); color: var(--gray-500);">@selectedReview.CustomerName</div>
+                    <div style="font-size: var(--text-lg); font-weight: 600; color: var(--primary-600); margin-top: var(--space-2);">
+                        ₦@FormatAmount(selectedReview.Amount)
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Your Decision *</label>
+                    <div style="display: flex; gap: var(--space-3);">
+                        <button class="vote-option @(selectedVote == "Approve" ? "selected approve" : "")" @onclick='() => selectedVote = "Approve"'>
+                            <span class="material-symbols-outlined">thumb_up</span>
+                            Approve
+                        </button>
+                        <button class="vote-option @(selectedVote == "Reject" ? "selected reject" : "")" @onclick='() => selectedVote = "Reject"'>
+                            <span class="material-symbols-outlined">thumb_down</span>
+                            Reject
+                        </button>
+                        <button class="vote-option @(selectedVote == "Abstain" ? "selected abstain" : "")" @onclick='() => selectedVote = "Abstain"'>
+                            <span class="material-symbols-outlined">remove</span>
+                            Abstain
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Comments</label>
+                    <textarea class="form-control" rows="3" @bind="voteComments" placeholder="Add your comments (optional)..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseVoteModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SubmitVote" disabled="@(string.IsNullOrEmpty(selectedVote) || isSubmitting)">
+                    @if (isSubmitting)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    Submit Vote
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .votes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: var(--space-6);
+    }
+    
+    .vote-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-xl);
+        overflow: hidden;
+    }
+    
+    .vote-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: var(--space-4);
+        background: var(--gray-50);
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .vote-card-body {
+        padding: var(--space-4);
+    }
+    
+    .vote-info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .vote-info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .vote-info-label {
+        font-size: var(--text-sm);
+        color: var(--gray-500);
+    }
+    
+    .vote-info-value {
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+    
+    .vote-card-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: var(--space-3);
+        padding: var(--space-4);
+        background: var(--gray-50);
+        border-top: 1px solid var(--gray-100);
+    }
+    
+    .vote-option {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-4);
+        border: 2px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        background: white;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+    
+    .vote-option:hover {
+        border-color: var(--gray-300);
+    }
+    
+    .vote-option.selected.approve {
+        border-color: var(--success-500);
+        background: var(--success-50);
+        color: var(--success-700);
+    }
+    
+    .vote-option.selected.reject {
+        border-color: var(--danger-500);
+        background: var(--danger-50);
+        color: var(--danger-700);
+    }
+    
+    .vote-option.selected.abstain {
+        border-color: var(--gray-500);
+        background: var(--gray-100);
+        color: var(--gray-700);
+    }
+</style>
+
+@code {
+    private List<PendingVote> pendingVotes = [];
+    private bool isLoading = true;
+    private bool showVoteModal;
+    private PendingVote? selectedReview;
+    private string selectedVote = string.Empty;
+    private string voteComments = string.Empty;
+    private bool isSubmitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPendingVotes();
+    }
+
+    private async Task LoadPendingVotes()
+    {
+        isLoading = true;
+        await Task.Delay(300); // Simulate API call
+        
+        pendingVotes =
+        [
+            new() { ApplicationId = Guid.NewGuid(), ReviewId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0156", CustomerName = "Acme Corporation Ltd", Amount = 250_000_000m, CommitteeType = "Credit Committee", RiskRating = "Medium", VotesCast = 2, TotalMembers = 5, Deadline = DateTime.Now.AddDays(1) },
+            new() { ApplicationId = Guid.NewGuid(), ReviewId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0150", CustomerName = "Delta Holdings Plc", Amount = 1_000_000_000m, CommitteeType = "Management Committee", RiskRating = "Low", VotesCast = 1, TotalMembers = 3, Deadline = DateTime.Now.AddDays(2) },
+            new() { ApplicationId = Guid.NewGuid(), ReviewId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0148", CustomerName = "Epsilon Industries", Amount = 500_000_000m, CommitteeType = "Credit Committee", RiskRating = "High", VotesCast = 3, TotalMembers = 5, Deadline = DateTime.Now.AddHours(-5) }
+        ];
+        
+        isLoading = false;
+    }
+
+    private void ViewApplication(Guid id) => Navigation.NavigateTo($"/applications/{id}");
+
+    private void OpenVoteModal(PendingVote review)
+    {
+        selectedReview = review;
+        selectedVote = string.Empty;
+        voteComments = string.Empty;
+        showVoteModal = true;
+    }
+
+    private void CloseVoteModal()
+    {
+        showVoteModal = false;
+        selectedReview = null;
+    }
+
+    private async Task SubmitVote()
+    {
+        if (string.IsNullOrEmpty(selectedVote) || selectedReview == null) return;
+        
+        isSubmitting = true;
+        await Api.CastVoteAsync(selectedReview.ReviewId, selectedVote, string.IsNullOrEmpty(voteComments) ? null : voteComments);
+        isSubmitting = false;
+        
+        CloseVoteModal();
+        await LoadPendingVotes();
+    }
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+
+    private static string GetCommitteeBadgeClass(string type) => type switch
+    {
+        "Credit Committee" => "badge-primary",
+        "Management Committee" => "badge-warning",
+        "Board Committee" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private static string GetRiskBadgeClass(string rating) => rating switch
+    {
+        "Low" => "badge-success",
+        "Medium" => "badge-warning",
+        "High" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private class PendingVote
+    {
+        public Guid ApplicationId { get; set; }
+        public Guid ReviewId { get; set; }
+        public string ApplicationNumber { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string CommitteeType { get; set; } = string.Empty;
+        public string RiskRating { get; set; } = string.Empty;
+        public int VotesCast { get; set; }
+        public int TotalMembers { get; set; }
+        public DateTime Deadline { get; set; }
+        public bool IsOverdue => Deadline < DateTime.Now;
+    }
+}

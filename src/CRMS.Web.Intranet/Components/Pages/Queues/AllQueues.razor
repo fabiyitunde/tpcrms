@@ -1,0 +1,232 @@
+@page "/queues/all"
+@inject ApiClient Api
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>All Queues - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Workflow Queues</h1>
+        <p class="page-subtitle">Overview of all application queues</p>
+    </div>
+</div>
+
+<div class="queue-summary-grid">
+    @foreach (var queue in queueSummary)
+    {
+        <div class="queue-summary-card @(selectedQueue == queue.Stage ? "active" : "")" @onclick="() => SelectQueue(queue.Stage)">
+            <div class="queue-summary-count">@queue.Count</div>
+            <div class="queue-summary-label">@queue.Stage</div>
+            @if (queue.OverdueCount > 0)
+            {
+                <div class="queue-summary-overdue">
+                    <span class="material-symbols-outlined" style="font-size: 14px;">warning</span>
+                    @queue.OverdueCount overdue
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(selectedQueue))
+{
+    <div class="card mt-6">
+        <div class="card-header">
+            <h3 class="card-title">@selectedQueue Queue</h3>
+            <button class="btn btn-ghost btn-sm" @onclick="() => selectedQueue = string.Empty">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            @if (isLoading)
+            {
+                <div class="p-6 text-center">
+                    <div class="spinner" style="margin: 0 auto;"></div>
+                </div>
+            }
+            else if (!queueItems.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-state-text">No applications in this queue</div>
+                </div>
+            }
+            else
+            {
+                <table class="table table-clickable">
+                    <thead>
+                        <tr>
+                            <th>Application</th>
+                            <th>Customer</th>
+                            <th>Amount</th>
+                            <th>Assigned To</th>
+                            <th>Entered Queue</th>
+                            <th>SLA Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in queueItems)
+                        {
+                            <tr @onclick="() => ViewApplication(item.ApplicationId)">
+                                <td>
+                                    <span style="font-weight: 600; color: var(--primary-600);">@item.ApplicationNumber</span>
+                                </td>
+                                <td>@item.CustomerName</td>
+                                <td style="font-weight: 500;">₦@FormatAmount(item.Amount)</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(item.AssignedTo))
+                                    {
+                                        <span>@item.AssignedTo</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Unassigned</span>
+                                    }
+                                </td>
+                                <td>@item.EnteredQueueAt.ToString("MMM dd, HH:mm")</td>
+                                <td>
+                                    @if (item.IsOverdue)
+                                    {
+                                        <span class="badge badge-danger">Overdue</span>
+                                    }
+                                    else if (item.HoursRemaining < 8)
+                                    {
+                                        <span class="badge badge-warning">@item.HoursRemaining hrs left</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-success">On Track</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">
+                                        <span class="material-symbols-outlined">chevron_right</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .queue-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: var(--space-4);
+    }
+    
+    .queue-summary-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-xl);
+        padding: var(--space-5);
+        text-align: center;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+    
+    .queue-summary-card:hover {
+        border-color: var(--primary-300);
+        box-shadow: var(--shadow-md);
+    }
+    
+    .queue-summary-card.active {
+        border-color: var(--primary-500);
+        background: var(--primary-50);
+    }
+    
+    .queue-summary-count {
+        font-size: var(--text-3xl);
+        font-weight: 700;
+        color: var(--gray-900);
+    }
+    
+    .queue-summary-label {
+        font-size: var(--text-sm);
+        color: var(--gray-500);
+        margin-top: var(--space-1);
+    }
+    
+    .queue-summary-overdue {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-1);
+        margin-top: var(--space-2);
+        font-size: var(--text-xs);
+        color: var(--danger-600);
+    }
+</style>
+
+@code {
+    private List<QueueSummary> queueSummary = [];
+    private string selectedQueue = string.Empty;
+    private List<QueueItem> queueItems = [];
+    private bool isLoading;
+
+    protected override void OnInitialized()
+    {
+        queueSummary =
+        [
+            new() { Stage = "Branch Review", Count = 12, OverdueCount = 2 },
+            new() { Stage = "Credit Analysis", Count = 8, OverdueCount = 1 },
+            new() { Stage = "HO Review", Count = 5, OverdueCount = 0 },
+            new() { Stage = "Committee", Count = 3, OverdueCount = 0 },
+            new() { Stage = "Final Approval", Count = 2, OverdueCount = 0 },
+            new() { Stage = "Documentation", Count = 4, OverdueCount = 1 }
+        ];
+    }
+
+    private async Task SelectQueue(string stage)
+    {
+        selectedQueue = stage;
+        isLoading = true;
+        StateHasChanged();
+        
+        // Simulate API call
+        await Task.Delay(300);
+        
+        queueItems = GenerateMockQueueItems(stage);
+        isLoading = false;
+    }
+
+    private void ViewApplication(Guid id) => Navigation.NavigateTo($"/applications/{id}");
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+
+    private List<QueueItem> GenerateMockQueueItems(string stage) =>
+    [
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0160", CustomerName = "Alpha Corp", Amount = 150_000_000m, AssignedTo = "John Adeyemi", EnteredQueueAt = DateTime.Now.AddHours(-20), HoursRemaining = 4, IsOverdue = false },
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0158", CustomerName = "Beta Ltd", Amount = 75_000_000m, AssignedTo = "", EnteredQueueAt = DateTime.Now.AddHours(-30), HoursRemaining = 0, IsOverdue = true },
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0155", CustomerName = "Gamma Inc", Amount = 200_000_000m, AssignedTo = "Sarah Johnson", EnteredQueueAt = DateTime.Now.AddHours(-8), HoursRemaining = 16, IsOverdue = false }
+    ];
+
+    private class QueueSummary
+    {
+        public string Stage { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public int OverdueCount { get; set; }
+    }
+
+    private class QueueItem
+    {
+        public Guid ApplicationId { get; set; }
+        public string ApplicationNumber { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string AssignedTo { get; set; } = string.Empty;
+        public DateTime EnteredQueueAt { get; set; }
+        public int HoursRemaining { get; set; }
+        public bool IsOverdue { get; set; }
+    }
+}

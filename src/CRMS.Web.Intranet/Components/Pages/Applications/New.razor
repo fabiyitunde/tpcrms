@@ -1,0 +1,536 @@
+@page "/applications/new"
+@inject ApiClient Api
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>New Application - CRMS</PageTitle>
+
+<div class="page-header">
+    <div style="display: flex; align-items: center; gap: var(--space-4);">
+        <button class="btn btn-ghost" @onclick="GoBack">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <div>
+            <h1 class="page-title">New Loan Application</h1>
+            <p class="page-subtitle">Corporate loan initiation</p>
+        </div>
+    </div>
+</div>
+
+<div class="wizard-container">
+    <div class="wizard-steps">
+        <div class="wizard-step @(currentStep >= 1 ? "active" : "") @(currentStep > 1 ? "completed" : "")">
+            <div class="wizard-step-number">@(currentStep > 1 ? "✓" : "1")</div>
+            <div class="wizard-step-label">Customer</div>
+        </div>
+        <div class="wizard-step-line @(currentStep > 1 ? "active" : "")"></div>
+        <div class="wizard-step @(currentStep >= 2 ? "active" : "") @(currentStep > 2 ? "completed" : "")">
+            <div class="wizard-step-number">@(currentStep > 2 ? "✓" : "2")</div>
+            <div class="wizard-step-label">Loan Details</div>
+        </div>
+        <div class="wizard-step-line @(currentStep > 2 ? "active" : "")"></div>
+        <div class="wizard-step @(currentStep >= 3 ? "active" : "")">
+            <div class="wizard-step-number">3</div>
+            <div class="wizard-step-label">Review</div>
+        </div>
+    </div>
+
+    <div class="card mt-6">
+        <div class="card-body">
+            @if (currentStep == 1)
+            {
+                <h3 style="margin-bottom: var(--space-6);">Customer Selection</h3>
+                
+                <div class="form-group">
+                    <label class="form-label">Corporate Account Number *</label>
+                    <div style="display: flex; gap: var(--space-3);">
+                        <input type="text" class="form-control" style="flex: 1;" 
+                               @bind="accountNumber" placeholder="Enter account number" 
+                               disabled="@isLoadingCustomer" />
+                        <button class="btn btn-primary" @onclick="FetchCustomer" disabled="@(isLoadingCustomer || string.IsNullOrWhiteSpace(accountNumber))">
+                            @if (isLoadingCustomer)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size: 18px;">search</span>
+                            }
+                            Fetch
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(customerError))
+                    {
+                        <div class="form-error">@customerError</div>
+                    }
+                </div>
+
+                @if (customer != null)
+                {
+                    <div class="customer-card">
+                        <div class="customer-card-header">
+                            <span class="material-symbols-outlined" style="font-size: 32px; color: var(--primary-500);">business</span>
+                            <div>
+                                <div style="font-size: var(--text-lg); font-weight: 600;">@customer.CompanyName</div>
+                                <div style="font-size: var(--text-sm); color: var(--gray-500);">@customer.AccountNumber</div>
+                            </div>
+                            <span class="badge badge-success" style="margin-left: auto;">Verified</span>
+                        </div>
+                        <div class="customer-card-body">
+                            <div class="customer-info-grid">
+                                <div>
+                                    <span class="info-label">Registration Number</span>
+                                    <span class="info-value">@customer.RegistrationNumber</span>
+                                </div>
+                                <div>
+                                    <span class="info-label">Industry</span>
+                                    <span class="info-value">@customer.Industry</span>
+                                </div>
+                                <div>
+                                    <span class="info-label">Incorporation Date</span>
+                                    <span class="info-value">@(customer.IncorporationDate?.ToString("MMM dd, yyyy") ?? "N/A")</span>
+                                </div>
+                                <div>
+                                    <span class="info-label">Address</span>
+                                    <span class="info-value">@customer.Address</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            else if (currentStep == 2)
+            {
+                <h3 style="margin-bottom: var(--space-6);">Loan Details</h3>
+                
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="form-group">
+                        <label class="form-label">Loan Product *</label>
+                        <select class="form-control" @bind="request.ProductId">
+                            <option value="@Guid.Empty">Select a product</option>
+                            @foreach (var product in products)
+                            {
+                                <option value="@product.Id">@product.Name (@product.Code)</option>
+                            }
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Requested Amount (₦) *</label>
+                        <input type="number" class="form-control" @bind="request.RequestedAmount" 
+                               min="@selectedProduct?.MinAmount" max="@selectedProduct?.MaxAmount" />
+                        @if (selectedProduct != null)
+                        {
+                            <div class="form-hint">
+                                Range: ₦@selectedProduct.MinAmount.ToString("N0") - ₦@selectedProduct.MaxAmount.ToString("N0")
+                            </div>
+                        }
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Tenor (Months) *</label>
+                        <input type="number" class="form-control" @bind="request.TenorMonths" 
+                               min="@selectedProduct?.MinTenorMonths" max="@selectedProduct?.MaxTenorMonths" />
+                        @if (selectedProduct != null)
+                        {
+                            <div class="form-hint">
+                                Range: @selectedProduct.MinTenorMonths - @selectedProduct.MaxTenorMonths months
+                            </div>
+                        }
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Interest Rate (%) *</label>
+                        <input type="number" class="form-control" @bind="request.InterestRate" step="0.01" />
+                        @if (selectedProduct != null)
+                        {
+                            <div class="form-hint">
+                                Base rate: @selectedProduct.BaseInterestRate%
+                            </div>
+                        }
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Interest Rate Type *</label>
+                        <select class="form-control" @bind="request.InterestRateType">
+                            <option value="">Select type</option>
+                            <option value="PerAnnum">Per Annum</option>
+                            <option value="Flat">Flat</option>
+                            <option value="Reducing">Reducing Balance</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">Purpose *</label>
+                        <textarea class="form-control" rows="3" @bind="request.Purpose" 
+                                  placeholder="Describe the purpose of this loan..."></textarea>
+                    </div>
+                </div>
+            }
+            else if (currentStep == 3)
+            {
+                <h3 style="margin-bottom: var(--space-6);">Review Application</h3>
+                
+                <div class="review-section">
+                    <h4>Customer Information</h4>
+                    <div class="review-grid">
+                        <div>
+                            <span class="review-label">Company Name</span>
+                            <span class="review-value">@customer?.CompanyName</span>
+                        </div>
+                        <div>
+                            <span class="review-label">Account Number</span>
+                            <span class="review-value">@customer?.AccountNumber</span>
+                        </div>
+                        <div>
+                            <span class="review-label">Industry</span>
+                            <span class="review-value">@customer?.Industry</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="review-section">
+                    <h4>Loan Details</h4>
+                    <div class="review-grid">
+                        <div>
+                            <span class="review-label">Product</span>
+                            <span class="review-value">@selectedProduct?.Name</span>
+                        </div>
+                        <div>
+                            <span class="review-label">Requested Amount</span>
+                            <span class="review-value" style="font-weight: 600; color: var(--primary-600);">₦@request.RequestedAmount.ToString("N0")</span>
+                        </div>
+                        <div>
+                            <span class="review-label">Tenor</span>
+                            <span class="review-value">@request.TenorMonths months</span>
+                        </div>
+                        <div>
+                            <span class="review-label">Interest Rate</span>
+                            <span class="review-value">@request.InterestRate% @request.InterestRateType</span>
+                        </div>
+                        <div style="grid-column: span 2;">
+                            <span class="review-label">Purpose</span>
+                            <span class="review-value">@request.Purpose</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group" style="margin-top: var(--space-6);">
+                    <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                        <input type="checkbox" @bind="termsAccepted" />
+                        <span style="font-size: var(--text-sm);">
+                            I confirm that all information provided is accurate and complete. 
+                            I understand that this application will be submitted for review.
+                        </span>
+                    </label>
+                </div>
+            }
+        </div>
+        
+        <div class="card-footer" style="display: flex; justify-content: space-between;">
+            <button class="btn btn-secondary" @onclick="PreviousStep" disabled="@(currentStep == 1)">
+                <span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>
+                Previous
+            </button>
+            
+            <div style="display: flex; gap: var(--space-3);">
+                @if (currentStep < 3)
+                {
+                    <button class="btn btn-primary" @onclick="NextStep" disabled="@(!CanProceed)">
+                        Next
+                        <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-secondary" @onclick="SaveDraft" disabled="@isSubmitting">
+                        Save as Draft
+                    </button>
+                    <button class="btn btn-primary" @onclick="SubmitApplication" disabled="@(!termsAccepted || isSubmitting)">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        Submit Application
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .wizard-container {
+        max-width: 900px;
+    }
+    
+    .wizard-steps {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+    }
+    
+    .wizard-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-2);
+    }
+    
+    .wizard-step-number {
+        width: 40px;
+        height: 40px;
+        border-radius: var(--radius-full);
+        background: var(--gray-200);
+        color: var(--gray-500);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        transition: all var(--transition-fast);
+    }
+    
+    .wizard-step.active .wizard-step-number {
+        background: var(--primary-500);
+        color: white;
+    }
+    
+    .wizard-step.completed .wizard-step-number {
+        background: var(--success-500);
+        color: white;
+    }
+    
+    .wizard-step-label {
+        font-size: var(--text-sm);
+        font-weight: 500;
+        color: var(--gray-500);
+    }
+    
+    .wizard-step.active .wizard-step-label {
+        color: var(--gray-800);
+    }
+    
+    .wizard-step-line {
+        width: 80px;
+        height: 2px;
+        background: var(--gray-200);
+        margin-bottom: 28px;
+    }
+    
+    .wizard-step-line.active {
+        background: var(--primary-500);
+    }
+    
+    .customer-card {
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        margin-top: var(--space-4);
+        overflow: hidden;
+    }
+    
+    .customer-card-header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+        padding: var(--space-4);
+        background: var(--gray-50);
+        border-bottom: 1px solid var(--gray-200);
+    }
+    
+    .customer-card-body {
+        padding: var(--space-4);
+    }
+    
+    .customer-info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-4);
+    }
+    
+    .customer-info-grid .info-label {
+        display: block;
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .customer-info-grid .info-value {
+        display: block;
+        font-size: var(--text-sm);
+        color: var(--gray-800);
+        margin-top: var(--space-1);
+    }
+    
+    .review-section {
+        margin-bottom: var(--space-6);
+        padding-bottom: var(--space-6);
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .review-section:last-of-type {
+        border-bottom: none;
+    }
+    
+    .review-section h4 {
+        font-size: var(--text-sm);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--gray-500);
+        margin-bottom: var(--space-4);
+    }
+    
+    .review-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-4);
+    }
+    
+    .review-label {
+        display: block;
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+        margin-bottom: var(--space-1);
+    }
+    
+    .review-value {
+        display: block;
+        font-size: var(--text-sm);
+        color: var(--gray-800);
+    }
+</style>
+
+@code {
+    private int currentStep = 1;
+    private string accountNumber = string.Empty;
+    private CustomerInfo? customer;
+    private string? customerError;
+    private bool isLoadingCustomer;
+    private bool isSubmitting;
+    private bool termsAccepted;
+    
+    private List<LoanProduct> products = [];
+    private CreateApplicationRequest request = new();
+    
+    private LoanProduct? selectedProduct => products.FirstOrDefault(p => p.Id == request.ProductId);
+
+    private bool CanProceed => currentStep switch
+    {
+        1 => customer != null,
+        2 => request.ProductId != Guid.Empty 
+             && request.RequestedAmount > 0 
+             && request.TenorMonths > 0 
+             && request.InterestRate > 0 
+             && !string.IsNullOrWhiteSpace(request.InterestRateType)
+             && !string.IsNullOrWhiteSpace(request.Purpose),
+        _ => true
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        products = await Api.GetLoanProductsAsync();
+        
+        // Mock products if empty
+        if (!products.Any())
+        {
+            products = 
+            [
+                new() { Id = Guid.NewGuid(), Name = "Corporate Term Loan", Code = "CTL", MinAmount = 10_000_000, MaxAmount = 5_000_000_000, MinTenorMonths = 12, MaxTenorMonths = 60, BaseInterestRate = 18.5m, IsActive = true },
+                new() { Id = Guid.NewGuid(), Name = "Working Capital Finance", Code = "WCF", MinAmount = 5_000_000, MaxAmount = 500_000_000, MinTenorMonths = 3, MaxTenorMonths = 12, BaseInterestRate = 20m, IsActive = true },
+                new() { Id = Guid.NewGuid(), Name = "Asset Finance", Code = "ASF", MinAmount = 20_000_000, MaxAmount = 2_000_000_000, MinTenorMonths = 24, MaxTenorMonths = 84, BaseInterestRate = 17m, IsActive = true }
+            ];
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/applications");
+
+    private async Task FetchCustomer()
+    {
+        if (string.IsNullOrWhiteSpace(accountNumber)) return;
+        
+        isLoadingCustomer = true;
+        customerError = null;
+        customer = null;
+        StateHasChanged();
+        
+        customer = await Api.FetchCustomerFromCoreBankingAsync(accountNumber);
+        
+        // Mock customer if not found
+        if (customer == null)
+        {
+            // Simulate found customer for demo
+            customer = new CustomerInfo
+            {
+                AccountNumber = accountNumber,
+                CompanyName = "Demo Corporation Ltd",
+                RegistrationNumber = "RC" + accountNumber[^6..],
+                Industry = "Manufacturing",
+                IncorporationDate = DateTime.Now.AddYears(-10),
+                Address = "123 Business District, Lagos",
+                Email = "info@democorp.com",
+                Phone = "+234 1 234 5678"
+            };
+        }
+        
+        request.AccountNumber = accountNumber;
+        isLoadingCustomer = false;
+    }
+
+    private void NextStep()
+    {
+        if (CanProceed && currentStep < 3)
+        {
+            currentStep++;
+            
+            // Set default interest rate from product
+            if (currentStep == 2 && selectedProduct != null && request.InterestRate == 0)
+            {
+                request.InterestRate = selectedProduct.BaseInterestRate;
+            }
+        }
+    }
+
+    private void PreviousStep()
+    {
+        if (currentStep > 1)
+        {
+            currentStep--;
+        }
+    }
+
+    private async Task SaveDraft()
+    {
+        isSubmitting = true;
+        var result = await Api.CreateApplicationAsync(request);
+        isSubmitting = false;
+        
+        if (result.Success)
+        {
+            Navigation.NavigateTo($"/applications/{result.Data}");
+        }
+    }
+
+    private async Task SubmitApplication()
+    {
+        if (!termsAccepted) return;
+        
+        isSubmitting = true;
+        
+        // First create the application
+        var createResult = await Api.CreateApplicationAsync(request);
+        
+        if (createResult.Success && createResult.Data != Guid.Empty)
+        {
+            // Then submit it
+            var submitResult = await Api.SubmitApplicationAsync(createResult.Data);
+            
+            if (submitResult.Success)
+            {
+                Navigation.NavigateTo($"/applications/{createResult.Data}");
+            }
+        }
+        
+        isSubmitting = false;
+    }
+}

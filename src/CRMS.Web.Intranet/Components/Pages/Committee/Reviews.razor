@@ -1,0 +1,228 @@
+@page "/committee/reviews"
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Committee Reviews - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Committee Reviews</h1>
+        <p class="page-subtitle">All committee review sessions</p>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body" style="padding: var(--space-4);">
+        <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 200px;">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" placeholder="Application #, Customer..." @bind="searchTerm" />
+            </div>
+            <div style="width: 180px;">
+                <label class="form-label">Status</label>
+                <select class="form-control" @bind="selectedStatus">
+                    <option value="">All Statuses</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Voting">Voting</option>
+                    <option value="Completed">Completed</option>
+                </select>
+            </div>
+            <div style="width: 180px;">
+                <label class="form-label">Committee</label>
+                <select class="form-control" @bind="selectedCommittee">
+                    <option value="">All Committees</option>
+                    <option value="Credit Committee">Credit Committee</option>
+                    <option value="Management Committee">Management Committee</option>
+                    <option value="Board Committee">Board Committee</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" @onclick="Search">Search</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        @if (isLoading)
+        {
+            <div class="p-6 text-center">
+                <div class="spinner" style="margin: 0 auto;"></div>
+            </div>
+        }
+        else if (!reviews.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">groups</span>
+                </div>
+                <div class="empty-state-title">No reviews found</div>
+                <div class="empty-state-text">Try adjusting your filters.</div>
+            </div>
+        }
+        else
+        {
+            <table class="table table-clickable">
+                <thead>
+                    <tr>
+                        <th>Application</th>
+                        <th>Customer</th>
+                        <th>Amount</th>
+                        <th>Committee</th>
+                        <th>Status</th>
+                        <th>Votes</th>
+                        <th>Decision</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var review in reviews)
+                    {
+                        <tr @onclick="() => ViewApplication(review.ApplicationId)">
+                            <td>
+                                <span style="font-weight: 600; color: var(--primary-600);">@review.ApplicationNumber</span>
+                            </td>
+                            <td>@review.CustomerName</td>
+                            <td style="font-weight: 500;">₦@FormatAmount(review.Amount)</td>
+                            <td>
+                                <span class="badge @GetCommitteeBadgeClass(review.CommitteeType)">@review.CommitteeType</span>
+                            </td>
+                            <td>
+                                <span class="badge @GetStatusBadgeClass(review.Status)">
+                                    <span class="status-dot @GetStatusDotClass(review.Status)"></span>
+                                    @review.Status
+                                </span>
+                            </td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                    <div class="vote-progress">
+                                        <div class="vote-progress-bar" style="width: @(review.VotesCast * 100 / review.TotalMembers)%"></div>
+                                    </div>
+                                    <span style="font-size: var(--text-sm);">@review.VotesCast/@review.TotalMembers</span>
+                                </div>
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(review.Decision))
+                                {
+                                    <span class="badge @GetDecisionBadgeClass(review.Decision)">@review.Decision</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-ghost btn-sm">
+                                    <span class="material-symbols-outlined">chevron_right</span>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<style>
+    .vote-progress {
+        width: 60px;
+        height: 6px;
+        background: var(--gray-200);
+        border-radius: var(--radius-full);
+        overflow: hidden;
+    }
+    
+    .vote-progress-bar {
+        height: 100%;
+        background: var(--primary-500);
+        border-radius: var(--radius-full);
+    }
+</style>
+
+@code {
+    private List<CommitteeReview> reviews = [];
+    private string searchTerm = string.Empty;
+    private string selectedStatus = string.Empty;
+    private string selectedCommittee = string.Empty;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReviews();
+    }
+
+    private async Task LoadReviews()
+    {
+        isLoading = true;
+        await Task.Delay(300);
+        
+        reviews =
+        [
+            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0156", CustomerName = "Acme Corporation", Amount = 250_000_000m, CommitteeType = "Credit Committee", Status = "Voting", VotesCast = 3, TotalMembers = 5, Decision = "" },
+            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0150", CustomerName = "Delta Holdings", Amount = 1_000_000_000m, CommitteeType = "Management Committee", Status = "Pending", VotesCast = 0, TotalMembers = 3, Decision = "" },
+            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0145", CustomerName = "Gamma Industries", Amount = 500_000_000m, CommitteeType = "Credit Committee", Status = "Completed", VotesCast = 5, TotalMembers = 5, Decision = "Approved" },
+            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0140", CustomerName = "Beta Manufacturing", Amount = 300_000_000m, CommitteeType = "Credit Committee", Status = "Completed", VotesCast = 5, TotalMembers = 5, Decision = "Rejected" },
+            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0135", CustomerName = "Alpha Services", Amount = 750_000_000m, CommitteeType = "Board Committee", Status = "Voting", VotesCast = 2, TotalMembers = 7, Decision = "" }
+        ];
+        
+        isLoading = false;
+    }
+
+    private async Task Search()
+    {
+        await LoadReviews();
+    }
+
+    private void ViewApplication(Guid id) => Navigation.NavigateTo($"/applications/{id}");
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+
+    private static string GetCommitteeBadgeClass(string type) => type switch
+    {
+        "Credit Committee" => "badge-primary",
+        "Management Committee" => "badge-warning",
+        "Board Committee" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Completed" => "badge-success",
+        "Voting" => "badge-primary",
+        "Pending" => "badge-warning",
+        _ => "badge-gray"
+    };
+
+    private static string GetStatusDotClass(string status) => status switch
+    {
+        "Completed" => "success",
+        "Voting" => "info",
+        "Pending" => "warning",
+        _ => "gray"
+    };
+
+    private static string GetDecisionBadgeClass(string decision) => decision switch
+    {
+        "Approved" => "badge-success",
+        "Rejected" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private class CommitteeReview
+    {
+        public Guid ApplicationId { get; set; }
+        public string ApplicationNumber { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string CommitteeType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public int VotesCast { get; set; }
+        public int TotalMembers { get; set; }
+        public string Decision { get; set; } = string.Empty;
+    }
+}

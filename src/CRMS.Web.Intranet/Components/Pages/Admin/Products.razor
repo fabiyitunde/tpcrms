@@ -1,0 +1,284 @@
+@page "/admin/products"
+@inject ApiClient Api
+
+<PageTitle>Loan Products - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Loan Products</h1>
+        <p class="page-subtitle">Configure loan products and pricing</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal">
+        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+        Add Product
+    </button>
+</div>
+
+<div class="products-grid">
+    @foreach (var product in products)
+    {
+        <div class="product-card @(!product.IsActive ? "inactive" : "")">
+            <div class="product-card-header">
+                <div>
+                    <div style="font-size: var(--text-lg); font-weight: 600;">@product.Name</div>
+                    <div style="font-size: var(--text-sm); color: var(--gray-500);">@product.Code</div>
+                </div>
+                <span class="badge @(product.IsActive ? "badge-success" : "badge-gray")">
+                    @(product.IsActive ? "Active" : "Inactive")
+                </span>
+            </div>
+            <div class="product-card-body">
+                <div class="product-stat">
+                    <span class="product-stat-label">Amount Range</span>
+                    <span class="product-stat-value">₦@FormatAmount(product.MinAmount) - ₦@FormatAmount(product.MaxAmount)</span>
+                </div>
+                <div class="product-stat">
+                    <span class="product-stat-label">Tenor</span>
+                    <span class="product-stat-value">@product.MinTenorMonths - @product.MaxTenorMonths months</span>
+                </div>
+                <div class="product-stat">
+                    <span class="product-stat-label">Base Rate</span>
+                    <span class="product-stat-value">@product.BaseInterestRate% p.a.</span>
+                </div>
+                <div class="product-stat">
+                    <span class="product-stat-label">Applications</span>
+                    <span class="product-stat-value">@product.ApplicationCount active</span>
+                </div>
+            </div>
+            <div class="product-card-footer">
+                <button class="btn btn-outline btn-sm" @onclick="() => EditProduct(product)">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+                    Edit
+                </button>
+                <button class="btn btn-ghost btn-sm" @onclick="() => ToggleProduct(product)">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">@(product.IsActive ? "pause" : "play_arrow")</span>
+                    @(product.IsActive ? "Disable" : "Enable")
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@if (showProductModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseModal">
+        <div class="modal" style="max-width: 600px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@(isEditing ? "Edit Product" : "Add New Product")</h3>
+                <button class="modal-close" @onclick="CloseModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Product Name *</label>
+                        <input type="text" class="form-control" @bind="editingProduct.Name" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Product Code *</label>
+                        <input type="text" class="form-control" @bind="editingProduct.Code" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Min Amount (₦) *</label>
+                        <input type="number" class="form-control" @bind="editingProduct.MinAmount" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Max Amount (₦) *</label>
+                        <input type="number" class="form-control" @bind="editingProduct.MaxAmount" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Min Tenor (Months) *</label>
+                        <input type="number" class="form-control" @bind="editingProduct.MinTenorMonths" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Max Tenor (Months) *</label>
+                        <input type="number" class="form-control" @bind="editingProduct.MaxTenorMonths" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Base Interest Rate (%) *</label>
+                        <input type="number" step="0.01" class="form-control" @bind="editingProduct.BaseInterestRate" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Product Type</label>
+                        <select class="form-control" @bind="editingProduct.ProductType">
+                            <option value="TermLoan">Term Loan</option>
+                            <option value="WorkingCapital">Working Capital</option>
+                            <option value="AssetFinance">Asset Finance</option>
+                            <option value="TradeFinance">Trade Finance</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" rows="2" @bind="editingProduct.Description"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveProduct" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    @(isEditing ? "Update" : "Create") Product
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .products-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: var(--space-6);
+    }
+    
+    .product-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-xl);
+        overflow: hidden;
+        transition: all var(--transition-fast);
+    }
+    
+    .product-card:hover {
+        box-shadow: var(--shadow-md);
+    }
+    
+    .product-card.inactive {
+        opacity: 0.7;
+    }
+    
+    .product-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: var(--space-5);
+        background: var(--gray-50);
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .product-card-body {
+        padding: var(--space-5);
+    }
+    
+    .product-stat {
+        display: flex;
+        justify-content: space-between;
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .product-stat:last-child {
+        border-bottom: none;
+    }
+    
+    .product-stat-label {
+        font-size: var(--text-sm);
+        color: var(--gray-500);
+    }
+    
+    .product-stat-value {
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+    
+    .product-card-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: var(--space-2);
+        padding: var(--space-4);
+        background: var(--gray-50);
+        border-top: 1px solid var(--gray-100);
+    }
+</style>
+
+@code {
+    private List<ProductModel> products = [];
+    private bool showProductModal;
+    private bool isEditing;
+    private bool isSaving;
+    private ProductModel editingProduct = new();
+
+    protected override void OnInitialized()
+    {
+        products =
+        [
+            new() { Id = Guid.NewGuid(), Name = "Corporate Term Loan", Code = "CTL", MinAmount = 10_000_000, MaxAmount = 5_000_000_000, MinTenorMonths = 12, MaxTenorMonths = 60, BaseInterestRate = 18.5m, ProductType = "TermLoan", IsActive = true, ApplicationCount = 45 },
+            new() { Id = Guid.NewGuid(), Name = "Working Capital Finance", Code = "WCF", MinAmount = 5_000_000, MaxAmount = 500_000_000, MinTenorMonths = 3, MaxTenorMonths = 12, BaseInterestRate = 20m, ProductType = "WorkingCapital", IsActive = true, ApplicationCount = 62 },
+            new() { Id = Guid.NewGuid(), Name = "Asset Finance", Code = "ASF", MinAmount = 20_000_000, MaxAmount = 2_000_000_000, MinTenorMonths = 24, MaxTenorMonths = 84, BaseInterestRate = 17m, ProductType = "AssetFinance", IsActive = true, ApplicationCount = 28 },
+            new() { Id = Guid.NewGuid(), Name = "Trade Finance", Code = "TRF", MinAmount = 10_000_000, MaxAmount = 1_000_000_000, MinTenorMonths = 1, MaxTenorMonths = 6, BaseInterestRate = 22m, ProductType = "TradeFinance", IsActive = true, ApplicationCount = 21 },
+            new() { Id = Guid.NewGuid(), Name = "Agricultural Loan", Code = "AGL", MinAmount = 5_000_000, MaxAmount = 500_000_000, MinTenorMonths = 12, MaxTenorMonths = 36, BaseInterestRate = 12m, ProductType = "TermLoan", IsActive = false, ApplicationCount = 8 }
+        ];
+    }
+
+    private void OpenCreateModal()
+    {
+        editingProduct = new();
+        isEditing = false;
+        showProductModal = true;
+    }
+
+    private void EditProduct(ProductModel product)
+    {
+        editingProduct = new()
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Code = product.Code,
+            MinAmount = product.MinAmount,
+            MaxAmount = product.MaxAmount,
+            MinTenorMonths = product.MinTenorMonths,
+            MaxTenorMonths = product.MaxTenorMonths,
+            BaseInterestRate = product.BaseInterestRate,
+            ProductType = product.ProductType,
+            Description = product.Description
+        };
+        isEditing = true;
+        showProductModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showProductModal = false;
+        editingProduct = new();
+    }
+
+    private async Task SaveProduct()
+    {
+        isSaving = true;
+        await Task.Delay(500);
+        isSaving = false;
+        CloseModal();
+    }
+
+    private void ToggleProduct(ProductModel product)
+    {
+        product.IsActive = !product.IsActive;
+    }
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+
+    private class ProductModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public decimal MinAmount { get; set; }
+        public decimal MaxAmount { get; set; }
+        public int MinTenorMonths { get; set; }
+        public int MaxTenorMonths { get; set; }
+        public decimal BaseInterestRate { get; set; }
+        public string ProductType { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public bool IsActive { get; set; }
+        public int ApplicationCount { get; set; }
+    }
+}

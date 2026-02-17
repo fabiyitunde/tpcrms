@@ -1,0 +1,200 @@
+@page "/reports/audit"
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Audit Trail - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Audit Trail</h1>
+        <p class="page-subtitle">System activity log</p>
+    </div>
+    <button class="btn btn-secondary">
+        <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+        Export
+    </button>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body" style="padding: var(--space-4);">
+        <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 200px;">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" placeholder="User, action, entity..." @bind="searchTerm" />
+            </div>
+            <div style="width: 180px;">
+                <label class="form-label">Action Type</label>
+                <select class="form-control" @bind="selectedAction">
+                    <option value="">All Actions</option>
+                    <option value="Create">Create</option>
+                    <option value="Update">Update</option>
+                    <option value="Delete">Delete</option>
+                    <option value="Approve">Approve</option>
+                    <option value="Reject">Reject</option>
+                    <option value="Login">Login</option>
+                </select>
+            </div>
+            <div style="width: 160px;">
+                <label class="form-label">From Date</label>
+                <input type="date" class="form-control" @bind="dateFrom" />
+            </div>
+            <div style="width: 160px;">
+                <label class="form-label">To Date</label>
+                <input type="date" class="form-control" @bind="dateTo" />
+            </div>
+            <button class="btn btn-primary" @onclick="Search">Search</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        @if (isLoading)
+        {
+            <div class="p-6 text-center">
+                <div class="spinner" style="margin: 0 auto;"></div>
+            </div>
+        }
+        else if (!auditLogs.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">history</span>
+                </div>
+                <div class="empty-state-title">No audit logs found</div>
+                <div class="empty-state-text">Try adjusting your filters.</div>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Entity</th>
+                        <th>Details</th>
+                        <th>IP Address</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var log in auditLogs)
+                    {
+                        <tr>
+                            <td>
+                                <div style="font-size: var(--text-sm);">@log.Timestamp.ToString("MMM dd, yyyy")</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">@log.Timestamp.ToString("HH:mm:ss")</div>
+                            </td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                    <div class="user-avatar" style="width: 28px; height: 28px; font-size: 10px;">@GetInitials(log.UserName)</div>
+                                    <span>@log.UserName</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge @GetActionBadgeClass(log.Action)">@log.Action</span>
+                            </td>
+                            <td>
+                                <div style="font-weight: 500;">@log.EntityType</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">@log.EntityId</div>
+                            </td>
+                            <td style="max-width: 300px;">
+                                <span style="font-size: var(--text-sm); color: var(--gray-600);">@log.Details</span>
+                            </td>
+                            <td style="font-size: var(--text-sm); color: var(--gray-500);">@log.IpAddress</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            
+            <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: var(--text-sm); color: var(--gray-500);">
+                    Showing 1-@auditLogs.Count of @totalCount entries
+                </span>
+                <div style="display: flex; gap: var(--space-2);">
+                    <button class="btn btn-outline btn-sm" disabled="@(currentPage <= 1)">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>
+                        Previous
+                    </button>
+                    <button class="btn btn-outline btn-sm" disabled="@(currentPage >= totalPages)">
+                        Next
+                        <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<AuditLog> auditLogs = [];
+    private string searchTerm = string.Empty;
+    private string selectedAction = string.Empty;
+    private DateTime? dateFrom;
+    private DateTime? dateTo;
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int totalCount = 150;
+    private int totalPages = 8;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAuditLogs();
+    }
+
+    private async Task LoadAuditLogs()
+    {
+        isLoading = true;
+        await Task.Delay(300);
+        
+        auditLogs =
+        [
+            new() { Timestamp = DateTime.Now.AddMinutes(-5), UserName = "John Adeyemi", Action = "Approve", EntityType = "LoanApplication", EntityId = "CL-2026-0156", Details = "Application approved at branch level", IpAddress = "192.168.1.100" },
+            new() { Timestamp = DateTime.Now.AddMinutes(-15), UserName = "Sarah Okonkwo", Action = "Update", EntityType = "LoanApplication", EntityId = "CL-2026-0155", Details = "Updated loan amount from N200M to N180M", IpAddress = "192.168.1.102" },
+            new() { Timestamp = DateTime.Now.AddMinutes(-30), UserName = "Michael Eze", Action = "Create", EntityType = "LoanApplication", EntityId = "CL-2026-0160", Details = "New corporate loan application created", IpAddress = "192.168.1.105" },
+            new() { Timestamp = DateTime.Now.AddHours(-1), UserName = "System", Action = "Update", EntityType = "BureauReport", EntityId = "BR-2026-0892", Details = "Credit bureau report received for John Adebayo", IpAddress = "localhost" },
+            new() { Timestamp = DateTime.Now.AddHours(-2), UserName = "Credit Team", Action = "Update", EntityType = "Advisory", EntityId = "ADV-2026-0445", Details = "AI Advisory generated with score 72.5", IpAddress = "192.168.1.108" },
+            new() { Timestamp = DateTime.Now.AddHours(-3), UserName = "Admin User", Action = "Login", EntityType = "User", EntityId = "USR-0001", Details = "Successful login", IpAddress = "192.168.1.1" },
+            new() { Timestamp = DateTime.Now.AddHours(-4), UserName = "Risk Committee", Action = "Approve", EntityType = "CommitteeReview", EntityId = "CR-2026-0088", Details = "Committee approved application CL-2026-0145", IpAddress = "192.168.1.120" },
+            new() { Timestamp = DateTime.Now.AddHours(-5), UserName = "Operations", Action = "Update", EntityType = "LoanApplication", EntityId = "CL-2026-0140", Details = "Marked as disbursed", IpAddress = "192.168.1.115" }
+        ];
+        
+        isLoading = false;
+    }
+
+    private async Task Search()
+    {
+        await LoadAuditLogs();
+    }
+
+    private static string GetInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[^1][0]}";
+        return name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
+    }
+
+    private static string GetActionBadgeClass(string action) => action switch
+    {
+        "Create" => "badge-success",
+        "Update" => "badge-primary",
+        "Delete" => "badge-danger",
+        "Approve" => "badge-success",
+        "Reject" => "badge-danger",
+        "Login" => "badge-gray",
+        _ => "badge-gray"
+    };
+
+    private class AuditLog
+    {
+        public DateTime Timestamp { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string Action { get; set; } = string.Empty;
+        public string EntityType { get; set; } = string.Empty;
+        public string EntityId { get; set; } = string.Empty;
+        public string Details { get; set; } = string.Empty;
+        public string IpAddress { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,158 @@
+@page "/queues/my"
+@inject ApiClient Api
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>My Queue - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">My Queue</h1>
+        <p class="page-subtitle">@tasks.Count applications awaiting your action</p>
+    </div>
+    <button class="btn btn-secondary" @onclick="RefreshQueue">
+        <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span>
+        Refresh
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div class="card p-6 text-center">
+        <div class="spinner" style="margin: 0 auto;"></div>
+        <p class="text-muted mt-4">Loading your queue...</p>
+    </div>
+}
+else if (!tasks.Any())
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <span class="material-symbols-outlined">task_alt</span>
+            </div>
+            <div class="empty-state-title">All caught up!</div>
+            <div class="empty-state-text">You have no pending tasks in your queue.</div>
+            <a href="/applications" class="btn btn-primary">Browse Applications</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="queue-groups">
+        @foreach (var group in tasks.GroupBy(t => t.Stage))
+        {
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3 class="card-title" style="display: flex; align-items: center; gap: var(--space-2);">
+                        <span class="badge @GetStageBadgeClass(group.Key)">@group.Key</span>
+                        <span style="font-size: var(--text-sm); color: var(--gray-500);">(@group.Count())</span>
+                    </h3>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <table class="table table-clickable">
+                        <thead>
+                            <tr>
+                                <th>Application</th>
+                                <th>Customer</th>
+                                <th>Product</th>
+                                <th>Amount</th>
+                                <th>Due Date</th>
+                                <th>Action Required</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var task in group.OrderBy(t => t.DueDate))
+                            {
+                                <tr @onclick="() => ViewApplication(task.ApplicationId)">
+                                    <td>
+                                        <span style="font-weight: 600; color: var(--primary-600);">@task.ApplicationNumber</span>
+                                    </td>
+                                    <td>@task.CustomerName</td>
+                                    <td>@task.ProductName</td>
+                                    <td style="font-weight: 500;">₦@FormatAmount(task.Amount)</td>
+                                    <td>
+                                        @if (task.IsOverdue)
+                                        {
+                                            <span class="badge badge-danger">
+                                                <span class="material-symbols-outlined" style="font-size: 14px;">warning</span>
+                                                Overdue
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span>@task.DueDate.ToString("MMM dd, yyyy")</span>
+                                        }
+                                    </td>
+                                    <td>@task.RequiredAction</td>
+                                    <td>
+                                        <button class="btn btn-primary btn-sm" @onclick:stopPropagation @onclick="() => ViewApplication(task.ApplicationId)">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">open_in_new</span>
+                                            Open
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<PendingTask> tasks = [];
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadQueue();
+    }
+
+    private async Task LoadQueue()
+    {
+        isLoading = true;
+        tasks = await Api.GetMyPendingTasksAsync();
+        
+        // Mock data
+        if (!tasks.Any())
+        {
+            tasks = GenerateMockTasks();
+        }
+        
+        isLoading = false;
+    }
+
+    private async Task RefreshQueue()
+    {
+        await LoadQueue();
+    }
+
+    private void ViewApplication(Guid id) => Navigation.NavigateTo($"/applications/{id}");
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+
+    private static string GetStageBadgeClass(string stage) => stage switch
+    {
+        "Branch Review" => "badge-warning",
+        "Credit Analysis" => "badge-primary",
+        "HO Review" => "badge-primary",
+        "Committee" => "badge-primary",
+        "Final Approval" => "badge-success",
+        _ => "badge-gray"
+    };
+
+    private List<PendingTask> GenerateMockTasks() =>
+    [
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0160", CustomerName = "Alpha Industries Ltd", Stage = "Branch Review", RequiredAction = "Review and Approve", DueDate = DateTime.Now.AddDays(1), Amount = 120_000_000m, ProductName = "Corporate Term Loan" },
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0158", CustomerName = "Beta Manufacturing", Stage = "Branch Review", RequiredAction = "Review and Approve", DueDate = DateTime.Now.AddDays(-1), Amount = 85_000_000m, ProductName = "Working Capital" },
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0155", CustomerName = "Gamma Trading Co", Stage = "Credit Analysis", RequiredAction = "Complete Analysis", DueDate = DateTime.Now.AddDays(2), Amount = 200_000_000m, ProductName = "Corporate Term Loan" },
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0152", CustomerName = "Delta Holdings", Stage = "HO Review", RequiredAction = "Review and Forward", DueDate = DateTime.Now.AddDays(3), Amount = 500_000_000m, ProductName = "Asset Finance" }
+    ];
+}
