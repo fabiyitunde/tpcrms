@@ -1,3 +1,6 @@
+using CRMS.Application.Advisory.Commands;
+using CRMS.Application.Advisory.DTOs;
+using CRMS.Application.Advisory.Queries;
 using CRMS.Application.Collateral.Commands;
 using CRMS.Application.Collateral.Queries;
 using CRMS.Application.Common;
@@ -112,6 +115,13 @@ public static class DependencyInjection
         services.AddScoped<IRequestHandler<GetFinancialStatementByIdQuery, ApplicationResult<FinancialDtos.FinancialStatementDto>>, GetFinancialStatementByIdHandler>();
         services.AddScoped<IRequestHandler<GetFinancialStatementsByLoanApplicationQuery, ApplicationResult<List<FinancialDtos.FinancialStatementSummaryDto>>>, GetFinancialStatementsByLoanApplicationHandler>();
         services.AddScoped<IRequestHandler<GetFinancialRatiosTrendQuery, ApplicationResult<FinancialRatiosTrendDto>>, GetFinancialRatiosTrendHandler>();
+
+        // Advisory handlers
+        services.AddScoped<IRequestHandler<GenerateCreditAdvisoryCommand, ApplicationResult<CreditAdvisoryDto>>, GenerateCreditAdvisoryHandler>();
+        services.AddScoped<IRequestHandler<GetCreditAdvisoryByIdQuery, ApplicationResult<CreditAdvisoryDto>>, GetCreditAdvisoryByIdHandler>();
+        services.AddScoped<IRequestHandler<GetLatestAdvisoryByLoanApplicationQuery, ApplicationResult<CreditAdvisoryDto>>, GetLatestAdvisoryByLoanApplicationHandler>();
+        services.AddScoped<IRequestHandler<GetAdvisoryHistoryByLoanApplicationQuery, ApplicationResult<List<CreditAdvisorySummaryDto>>>, GetAdvisoryHistoryByLoanApplicationHandler>();
+        services.AddScoped<IRequestHandler<GetScoreMatrixQuery, ApplicationResult<ScoreMatrixDto>>, GetScoreMatrixHandler>();
 
         return services;
     }

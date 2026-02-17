@@ -3,6 +3,7 @@ using CRMS.Domain.Aggregates.ProductCatalog;
 using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using AD = CRMS.Domain.Aggregates.Advisory;
 using CL = CRMS.Domain.Aggregates.Collateral;
 using FS = CRMS.Domain.Aggregates.FinancialStatement;
 using GR = CRMS.Domain.Aggregates.Guarantor;
@@ -60,6 +61,9 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<FS.BalanceSheet> BalanceSheets => Set<FS.BalanceSheet>();
     public DbSet<FS.IncomeStatement> IncomeStatements => Set<FS.IncomeStatement>();
     public DbSet<FS.CashFlowStatement> CashFlowStatements => Set<FS.CashFlowStatement>();
+
+    // Advisory
+    public DbSet<AD.CreditAdvisory> CreditAdvisories => Set<AD.CreditAdvisory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -3,7 +3,9 @@ using CRMS.Application.Identity.Interfaces;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
 using CRMS.Infrastructure.BackgroundServices;
+using CRMS.Application.Advisory.Interfaces;
 using CRMS.Infrastructure.ExternalServices.AI;
+using CRMS.Infrastructure.ExternalServices.AIServices;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
 using CRMS.Infrastructure.ExternalServices.CreditBureau;
 using CRMS.Infrastructure.Identity;
@@ -65,6 +67,10 @@ public static class DependencyInjection
 
         // FinancialStatement
         services.AddScoped<IFinancialStatementRepository, FinancialStatementRepository>();
+
+        // Advisory
+        services.AddScoped<ICreditAdvisoryRepository, CreditAdvisoryRepository>();
+        services.AddScoped<IAIAdvisoryService, MockAIAdvisoryService>();
 
         // Background Services - Credit Check Queue
         var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions
