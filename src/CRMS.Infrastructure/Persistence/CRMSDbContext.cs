@@ -4,13 +4,14 @@ using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using AD = CRMS.Domain.Aggregates.Advisory;
+using AU = CRMS.Domain.Aggregates.Audit;
 using CF = CRMS.Domain.Aggregates.Configuration;
 using CL = CRMS.Domain.Aggregates.Collateral;
+using CM = CRMS.Domain.Aggregates.Committee;
 using FS = CRMS.Domain.Aggregates.FinancialStatement;
 using GR = CRMS.Domain.Aggregates.Guarantor;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
-using CM = CRMS.Domain.Aggregates.Committee;
 using WF = CRMS.Domain.Aggregates.Workflow;
 
 namespace CRMS.Infrastructure.Persistence;
@@ -84,6 +85,10 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<CM.CommitteeMember> CommitteeMembers => Set<CM.CommitteeMember>();
     public DbSet<CM.CommitteeComment> CommitteeComments => Set<CM.CommitteeComment>();
     public DbSet<CM.CommitteeDocument> CommitteeDocuments => Set<CM.CommitteeDocument>();
+
+    // Audit
+    public DbSet<AU.AuditLog> AuditLogs => Set<AU.AuditLog>();
+    public DbSet<AU.DataAccessLog> DataAccessLogs => Set<AU.DataAccessLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

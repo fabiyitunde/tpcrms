@@ -89,6 +89,11 @@ public static class DependencyInjection
         // Committee
         services.AddScoped<ICommitteeReviewRepository, CommitteeReviewRepository>();
 
+        // Audit
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+        services.AddScoped<IDataAccessLogRepository, DataAccessLogRepository>();
+        services.AddScoped<AuditService>();
+
         // Background Services - Credit Check Queue
         var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions
         {

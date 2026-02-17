@@ -1,6 +1,8 @@
 using CRMS.Application.Advisory.Commands;
 using CRMS.Application.Advisory.DTOs;
 using CRMS.Application.Advisory.Queries;
+using CRMS.Application.Audit.DTOs;
+using CRMS.Application.Audit.Queries;
 using CRMS.Application.Collateral.Commands;
 using CRMS.Application.Collateral.Queries;
 using CRMS.Application.Common;
@@ -145,6 +147,17 @@ public static class DependencyInjection
         services.AddScoped<RejectParameterChangeHandler>();
         services.AddScoped<CancelParameterChangeHandler>();
         services.AddScoped<SeedDefaultParametersHandler>();
+
+        // Audit handlers
+        services.AddScoped<GetAuditLogByIdHandler>();
+        services.AddScoped<GetAuditLogsByLoanApplicationHandler>();
+        services.AddScoped<GetAuditLogsByEntityHandler>();
+        services.AddScoped<GetAuditLogsByUserHandler>();
+        services.AddScoped<GetRecentAuditLogsHandler>();
+        services.AddScoped<GetFailedActionsHandler>();
+        services.AddScoped<SearchAuditLogsHandler>();
+        services.AddScoped<GetDataAccessLogsByUserHandler>();
+        services.AddScoped<GetDataAccessLogsByLoanApplicationHandler>();
 
         // Committee handlers
         services.AddScoped<CreateCommitteeReviewHandler>();
