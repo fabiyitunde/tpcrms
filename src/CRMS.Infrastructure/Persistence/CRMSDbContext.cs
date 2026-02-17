@@ -4,6 +4,7 @@ using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using AD = CRMS.Domain.Aggregates.Advisory;
+using CF = CRMS.Domain.Aggregates.Configuration;
 using CL = CRMS.Domain.Aggregates.Collateral;
 using FS = CRMS.Domain.Aggregates.FinancialStatement;
 using GR = CRMS.Domain.Aggregates.Guarantor;
@@ -64,6 +65,10 @@ public class CRMSDbContext : DbContext, IUnitOfWork
 
     // Advisory
     public DbSet<AD.CreditAdvisory> CreditAdvisories => Set<AD.CreditAdvisory>();
+
+    // Configuration
+    public DbSet<CF.ScoringParameter> ScoringParameters => Set<CF.ScoringParameter>();
+    public DbSet<CF.ScoringParameterHistory> ScoringParameterHistory => Set<CF.ScoringParameterHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

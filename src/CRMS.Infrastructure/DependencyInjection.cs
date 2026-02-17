@@ -77,6 +77,9 @@ public static class DependencyInjection
         services.AddScoped<ICreditAdvisoryRepository, CreditAdvisoryRepository>();
         services.AddScoped<IAIAdvisoryService, MockAIAdvisoryService>();
 
+        // Scoring Configuration
+        services.AddScoped<IScoringParameterRepository, ScoringParameterRepository>();
+
         // Background Services - Credit Check Queue
         var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions
         {

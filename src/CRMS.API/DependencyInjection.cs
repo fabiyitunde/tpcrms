@@ -4,6 +4,9 @@ using CRMS.Application.Advisory.Queries;
 using CRMS.Application.Collateral.Commands;
 using CRMS.Application.Collateral.Queries;
 using CRMS.Application.Common;
+using CRMS.Application.Configuration.Commands;
+using CRMS.Application.Configuration.DTOs;
+using CRMS.Application.Configuration.Queries;
 using CRMS.Application.CoreBanking.Queries;
 using CRMS.Application.CreditBureau.Commands;
 using CRMS.Application.CreditBureau.Queries;
@@ -122,6 +125,20 @@ public static class DependencyInjection
         services.AddScoped<IRequestHandler<GetLatestAdvisoryByLoanApplicationQuery, ApplicationResult<CreditAdvisoryDto>>, GetLatestAdvisoryByLoanApplicationHandler>();
         services.AddScoped<IRequestHandler<GetAdvisoryHistoryByLoanApplicationQuery, ApplicationResult<List<CreditAdvisorySummaryDto>>>, GetAdvisoryHistoryByLoanApplicationHandler>();
         services.AddScoped<IRequestHandler<GetScoreMatrixQuery, ApplicationResult<ScoreMatrixDto>>, GetScoreMatrixHandler>();
+
+        // Scoring Configuration handlers (maker-checker workflow)
+        services.AddScoped<GetAllScoringParametersHandler>();
+        services.AddScoped<GetScoringParameterByIdHandler>();
+        services.AddScoped<GetScoringParametersByCategoryHandler>();
+        services.AddScoped<GetPendingChangesHandler>();
+        services.AddScoped<GetCategorySummariesHandler>();
+        services.AddScoped<GetParameterHistoryHandler>();
+        services.AddScoped<GetRecentHistoryHandler>();
+        services.AddScoped<RequestParameterChangeHandler>();
+        services.AddScoped<ApproveParameterChangeHandler>();
+        services.AddScoped<RejectParameterChangeHandler>();
+        services.AddScoped<CancelParameterChangeHandler>();
+        services.AddScoped<SeedDefaultParametersHandler>();
 
         return services;
     }
