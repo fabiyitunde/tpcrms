@@ -12,6 +12,7 @@ using FS = CRMS.Domain.Aggregates.FinancialStatement;
 using GR = CRMS.Domain.Aggregates.Guarantor;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
 using LP = CRMS.Domain.Aggregates.LoanPack;
+using NF = CRMS.Domain.Aggregates.Notification;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
 using WF = CRMS.Domain.Aggregates.Workflow;
 
@@ -93,6 +94,10 @@ public class CRMSDbContext : DbContext, IUnitOfWork
 
     // LoanPack
     public DbSet<LP.LoanPack> LoanPacks => Set<LP.LoanPack>();
+
+    // Notification
+    public DbSet<NF.Notification> Notifications => Set<NF.Notification>();
+    public DbSet<NF.NotificationTemplate> NotificationTemplates => Set<NF.NotificationTemplate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

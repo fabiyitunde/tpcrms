@@ -1,8 +1,11 @@
 using System.Threading.Channels;
 using CRMS.Application.Identity.Interfaces;
+using CRMS.Application.Notification.Interfaces;
+using CRMS.Application.Notification.Services;
 using CRMS.Domain.Aggregates.Committee;
 using CRMS.Domain.Aggregates.Configuration;
 using CRMS.Domain.Aggregates.LoanApplication;
+using CRMS.Domain.Aggregates.Notification;
 using CRMS.Domain.Aggregates.Workflow;
 using CRMS.Domain.Common;
 using CRMS.Domain.Configuration;
@@ -16,6 +19,7 @@ using CRMS.Infrastructure.ExternalServices.AI;
 using CRMS.Infrastructure.ExternalServices.AIServices;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
 using CRMS.Infrastructure.ExternalServices.CreditBureau;
+using CRMS.Infrastructure.ExternalServices.Notifications;
 using CRMS.Infrastructure.Identity;
 using CRMS.Infrastructure.Persistence;
 using CRMS.Infrastructure.Persistence.Repositories;
@@ -119,6 +123,21 @@ public static class DependencyInjection
         // LoanPack
         services.AddScoped<ILoanPackRepository, LoanPackRepository>();
         services.AddScoped<Application.LoanPack.Interfaces.ILoanPackGenerator, Documents.LoanPackPdfGenerator>();
+
+        // Notification
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<INotificationTemplateRepository, NotificationTemplateRepository>();
+        services.AddScoped<INotificationService, NotificationOrchestrator>();
+        services.AddScoped<INotificationSender, MockEmailSender>();
+        services.AddScoped<INotificationSender, MockSmsSender>();
+        services.AddScoped<INotificationSender, MockWhatsAppSender>();
+        services.AddHostedService<NotificationProcessingService>();
+        
+        // Notification Event Handlers
+        services.AddScoped<IDomainEventHandler<WorkflowSLABreachedEvent>, WorkflowSLABreachedNotificationHandler>();
+        services.AddScoped<IDomainEventHandler<WorkflowEscalatedEvent>, WorkflowEscalatedNotificationHandler>();
+        services.AddScoped<IDomainEventHandler<WorkflowAssignedEvent>, WorkflowAssignedNotificationHandler>();
+        services.AddScoped<IDomainEventHandler<CommitteeVotingStartedEvent>, CommitteeVotingStartedNotificationHandler>();
 
         // Background Services - Credit Check Queue
         var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions
