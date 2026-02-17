@@ -86,6 +86,9 @@ public static class DependencyInjection
         services.AddScoped<IWorkflowInstanceRepository, WorkflowInstanceRepository>();
         services.AddScoped<WorkflowService>();
 
+        // Committee
+        services.AddScoped<ICommitteeReviewRepository, CommitteeReviewRepository>();
+
         // Background Services - Credit Check Queue
         var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions
         {

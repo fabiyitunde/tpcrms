@@ -10,6 +10,7 @@ using FS = CRMS.Domain.Aggregates.FinancialStatement;
 using GR = CRMS.Domain.Aggregates.Guarantor;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
+using CM = CRMS.Domain.Aggregates.Committee;
 using WF = CRMS.Domain.Aggregates.Workflow;
 
 namespace CRMS.Infrastructure.Persistence;
@@ -77,6 +78,12 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<WF.WorkflowTransition> WorkflowTransitions => Set<WF.WorkflowTransition>();
     public DbSet<WF.WorkflowInstance> WorkflowInstances => Set<WF.WorkflowInstance>();
     public DbSet<WF.WorkflowTransitionLog> WorkflowTransitionLogs => Set<WF.WorkflowTransitionLog>();
+
+    // Committee
+    public DbSet<CM.CommitteeReview> CommitteeReviews => Set<CM.CommitteeReview>();
+    public DbSet<CM.CommitteeMember> CommitteeMembers => Set<CM.CommitteeMember>();
+    public DbSet<CM.CommitteeComment> CommitteeComments => Set<CM.CommitteeComment>();
+    public DbSet<CM.CommitteeDocument> CommitteeDocuments => Set<CM.CommitteeDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

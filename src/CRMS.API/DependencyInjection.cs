@@ -7,6 +7,9 @@ using CRMS.Application.Common;
 using CRMS.Application.Configuration.Commands;
 using CRMS.Application.Configuration.DTOs;
 using CRMS.Application.Configuration.Queries;
+using CRMS.Application.Committee.Commands;
+using CRMS.Application.Committee.DTOs;
+using CRMS.Application.Committee.Queries;
 using CRMS.Application.Workflow.Commands;
 using CRMS.Application.Workflow.DTOs;
 using CRMS.Application.Workflow.Queries;
@@ -142,6 +145,22 @@ public static class DependencyInjection
         services.AddScoped<RejectParameterChangeHandler>();
         services.AddScoped<CancelParameterChangeHandler>();
         services.AddScoped<SeedDefaultParametersHandler>();
+
+        // Committee handlers
+        services.AddScoped<CreateCommitteeReviewHandler>();
+        services.AddScoped<AddCommitteeMemberHandler>();
+        services.AddScoped<StartVotingHandler>();
+        services.AddScoped<CastVoteHandler>();
+        services.AddScoped<AddCommitteeCommentHandler>();
+        services.AddScoped<RecordCommitteeDecisionHandler>();
+        services.AddScoped<CloseCommitteeReviewHandler>();
+        services.AddScoped<GetCommitteeReviewByIdHandler>();
+        services.AddScoped<GetCommitteeReviewByLoanApplicationHandler>();
+        services.AddScoped<GetMyPendingVotesHandler>();
+        services.AddScoped<GetMyCommitteeReviewsHandler>();
+        services.AddScoped<GetCommitteeReviewsByStatusHandler>();
+        services.AddScoped<GetOverdueCommitteeReviewsHandler>();
+        services.AddScoped<GetVotingSummaryHandler>();
 
         // Workflow handlers
         services.AddScoped<InitializeWorkflowHandler>();

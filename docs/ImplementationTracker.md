@@ -1,8 +1,8 @@
 # CRMS - Implementation Tracker
 
-**Version:** 1.5  
+**Version:** 1.6  
 **Last Updated:** 2026-02-17  
-**Status:** Implementation Phase (11/18 modules complete - 61%)
+**Status:** Implementation Phase (12/18 modules complete - 67%)
 
 ---
 
@@ -259,7 +259,7 @@ This glossary defines the **official terms** used throughout the codebase, docum
 | 9 | **FinancialDocumentAnalyzer** | 🟢 | P1 | [FinancialDocumentAnalyzer.md](modules/FinancialDocumentAnalyzer.md) | None |
 | 10 | **AIAdvisoryEngine** | 🟢 | P1 | [AIAdvisoryEngine.md](modules/AIAdvisoryEngine.md) | CreditBureauIntegration, StatementAnalyzer, FinancialDocumentAnalyzer |
 | 11 | **WorkflowEngine** | 🟢 | P1 | [WorkflowEngine.md](modules/WorkflowEngine.md) | None |
-| 12 | **CommitteeWorkflow** | 🔴 | P2 | [CommitteeWorkflow.md](modules/CommitteeWorkflow.md) | WorkflowEngine |
+| 12 | **CommitteeWorkflow** | 🟢 | P2 | [CommitteeWorkflow.md](modules/CommitteeWorkflow.md) | WorkflowEngine |
 | 13 | **LoanPackGenerator** | 🔴 | P2 | [LoanPackGenerator.md](modules/LoanPackGenerator.md) | AIAdvisoryEngine, WorkflowEngine |
 | 14 | **NotificationService** | 🔴 | P2 | [NotificationService.md](modules/NotificationService.md) | None |
 | 15 | **AuditService** | 🔴 | P1 | [AuditService.md](modules/AuditService.md) | None |
@@ -438,13 +438,21 @@ This glossary defines the **official terms** used throughout the codebase, docum
 **Purpose:** Multi-user committee approval process for corporate loans.
 
 **Key Responsibilities:**
-- Committee member assignment
-- Comment and voting management
-- Document attachment to cases
-- Circulation tracking
-- Final decision aggregation
+- **Multi-committee support** (Branch, Regional, HO, Management, Board)
+- **Member management** with role assignments and chairperson designation
+- **Voting system** with Approve/Reject/Abstain and quorum tracking
+- **Comment threads** with visibility controls (Committee/Internal/Applicant)
+- **Document attachments** with visibility controls
+- **Decision recording** with approved terms and conditions
+- **Deadline tracking** with overdue monitoring
 
-**Domain Entities:** CommitteeReview, CommitteeComment, Vote
+**Domain Entities:** CommitteeReview, CommitteeMember, CommitteeComment, CommitteeDocument
+
+**Key Features:**
+- Configurable required votes and minimum approval threshold
+- Chairperson can record final decision
+- Voting summary with quorum and majority tracking
+- Integration with WorkflowEngine for status transitions
 
 **Bounded Context:** Workflow
 
@@ -667,3 +675,4 @@ When starting a new Factory AI session for this project:
 | 1.3 | 2026-02-17 | Factory AI | Added modules 7-10 (Collateral, Guarantor, FinancialAnalyzer, AIAdvisory) |
 | 1.4 | 2026-02-17 | Factory AI | Added database-driven scoring configuration with maker-checker workflow |
 | 1.5 | 2026-02-17 | Factory AI | Added WorkflowEngine module (11) with state machine, SLA tracking, queues |
+| 1.6 | 2026-02-17 | Factory AI | Added CommitteeWorkflow module (12) with multi-user voting and decision recording |
