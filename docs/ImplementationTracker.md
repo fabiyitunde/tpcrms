@@ -210,11 +210,17 @@ This glossary defines the **official terms** used throughout the codebase, docum
 
 | Term | Definition |
 |------|------------|
-| **WorkflowCase** | The stateful progression of a loan application through approval stages |
+| **WorkflowDefinition** | Configuration defining valid stages, transitions, and SLAs for a loan type |
+| **WorkflowStage** | A state in the workflow with assigned role and SLA |
+| **WorkflowTransition** | A valid movement between stages with required role and action |
+| **WorkflowInstance** | Runtime tracking of a loan application's workflow state |
+| **WorkflowAction** | An action that triggers transition (Submit, Approve, Reject, Return, Escalate) |
 | **BranchApproval** | First-level approval by the branch loan approving officer |
 | **HOReview** | Head Office review stage for corporate loans |
 | **CommitteeCirculation** | Stage where committee members review and comment |
 | **FinalApproval** | The ultimate approval authority's decision |
+| **SLA** | Service Level Agreement - maximum time allowed in a workflow stage |
+| **Escalation** | Raising a workflow item to higher authority due to SLA breach or complexity |
 
 ### System Actors
 
@@ -407,13 +413,22 @@ This glossary defines the **official terms** used throughout the codebase, docum
 **Purpose:** Manage loan application state transitions and approval routing.
 
 **Key Responsibilities:**
-- State machine implementation
-- Role-based queue management
-- SLA tracking and escalations
-- State transition validation
-- Audit trail for all transitions
+- **Configurable workflow definitions** per loan type (Corporate/Retail)
+- **State machine** with 17 stages from Draft to Disbursed
+- **Role-based queue management** (LoanOfficer, BranchApprover, CreditOfficer, CommitteeMember, FinalApprover, Operations)
+- **SLA tracking** with configurable hours per stage and breach detection
+- **User assignment** within role queues
+- **Escalation support** with multi-level escalation
+- **Full audit trail** of all transitions with timestamps and comments
 
-**Domain Entities:** WorkflowCase, WorkflowState, StateTransition
+**Domain Entities:** WorkflowDefinition, WorkflowStage, WorkflowTransition, WorkflowInstance, WorkflowTransitionLog
+
+**Key Features:**
+- Workflow definitions seeded via API (`POST /api/Workflow/seed-corporate-workflow`)
+- Available actions dynamically determined by current state and user role
+- Queue views by role and by user assignment
+- Overdue workflow monitoring for managers
+- Integrates with LoanApplication status
 
 **Bounded Context:** Workflow
 
