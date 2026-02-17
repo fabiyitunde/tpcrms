@@ -1,6 +1,6 @@
 # CRMS - Implementation Tracker
 
-**Version:** 1.3  
+**Version:** 1.4  
 **Last Updated:** 2026-02-17  
 **Status:** Implementation Phase (10/18 modules complete - 56%)
 
@@ -384,13 +384,20 @@ This glossary defines the **official terms** used throughout the codebase, docum
 **Purpose:** Generate AI-powered decision support for corporate loans.
 
 **Key Responsibilities:**
-- Aggregate all assessment data (bureau, cashflow, financials)
-- Generate score matrix
+- Aggregate all assessment data (bureau, cashflow, financials, collateral, guarantors)
+- Generate score matrix with 8 risk categories
 - Produce recommendations (amount, tenor, interest tier)
 - Generate risk commentary and red flags
 - Create exportable decision support report
+- **UI-manageable scoring configuration** with maker-checker workflow
 
-**AI Integration:** OpenAI/Azure OpenAI for analysis and commentary
+**Scoring Configuration:**
+- All scoring parameters stored in database (not config files)
+- System Administrator role only can modify
+- Maker-checker approval required for changes
+- Full audit history for compliance
+
+**AI Integration:** OpenAI/Azure OpenAI for analysis and commentary (MockAIAdvisoryService for development)
 
 **Bounded Context:** CreditAssessment
 
@@ -642,3 +649,5 @@ When starting a new Factory AI session for this project:
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-02-16 | Factory AI | Initial implementation tracker |
+| 1.3 | 2026-02-17 | Factory AI | Added modules 7-10 (Collateral, Guarantor, FinancialAnalyzer, AIAdvisory) |
+| 1.4 | 2026-02-17 | Factory AI | Added database-driven scoring configuration with maker-checker workflow |

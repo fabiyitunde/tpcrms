@@ -284,58 +284,111 @@ public interface IAIAdvisoryService
 ### API
 - `Controllers/AdvisoryController.cs`
 
-## Configuration (appsettings.json)
+## Scoring Configuration Management
 
-All scoring parameters are configurable via the `Scoring` section in appsettings.json:
+Scoring parameters are **business configuration**, not technical configuration. They are managed through the application UI by System Administrators with a **maker-checker workflow**.
 
-```json
-{
-  "Scoring": {
-    "Weights": {
-      "CreditHistory": 0.25,
-      "FinancialHealth": 0.25,
-      "CashflowStability": 0.15,
-      "DebtServiceCapacity": 0.20,
-      "CollateralCoverage": 0.15
-    },
-    "CreditHistory": {
-      "BaseScore": 70,
-      "ExcellentCreditScoreThreshold": 700,
-      "GoodCreditScoreThreshold": 650,
-      "PoorCreditScoreThreshold": 600,
-      "DefaultPenalty": 30,
-      "DelinquencyPenalty": 15
-    },
-    "Cashflow": {
-      "BaseScore": 60,
-      "InternalStatementBonus": 10,
-      "MissingInternalPenalty": 15,
-      "GamblingPenalty": 15,
-      "BouncedTransactionPenalty": 20
-    },
-    "Recommendations": {
-      "StrongApproveMinScore": 75,
-      "ApproveMinScore": 65,
-      "ApproveWithConditionsMinScore": 50,
-      "ReferMinScore": 35,
-      "CriticalRedFlagsThreshold": 3
-    },
-    "LoanAdjustments": {
-      "BaseInterestRate": 18.0,
-      "Score80PlusRateAdjustment": -2.0,
-      "Score70PlusRateAdjustment": -1.0,
-      "MaxTenorForLowScores": 36
-    },
-    "StatementTrust": {
-      "CoreBanking": 1.0,
-      "ManualUploadVerified": 0.85,
-      "ManualUploadPending": 0.70
-    }
-  }
-}
+### Database-Driven Configuration
+
+All scoring parameters are stored in the database and can be modified through the Scoring Configuration API:
+
+| Category | Parameters |
+|----------|------------|
+| **Weights** | CreditHistory, FinancialHealth, CashflowStability, DebtServiceCapacity, CollateralCoverage |
+| **CreditHistory** | BaseScore, ExcellentCreditScoreThreshold, GoodCreditScoreThreshold, PoorCreditScoreThreshold, DefaultPenalty, DelinquencyPenalty |
+| **Cashflow** | BaseScore, InternalStatementBonus, MissingInternalPenalty, GamblingPenalty, BouncedTransactionPenalty |
+| **Recommendations** | StrongApproveMinScore, ApproveMinScore, ApproveWithConditionsMinScore, ReferMinScore, CriticalRedFlagsThreshold |
+| **LoanAdjustments** | BaseInterestRate, Score80PlusRateAdjustment, Score70PlusRateAdjustment, MaxTenorForLowScores |
+| **StatementTrust** | CoreBanking, ManualUploadVerified, ManualUploadPending |
+
+### Maker-Checker Workflow
+
+Changes to scoring parameters require approval:
+
+```
+System Admin (Maker)              System Admin (Checker)
+       │                                   │
+       ▼                                   │
+ RequestChange()                           │
+ - New value                               │
+ - Change reason                           │
+       │                                   │
+       ▼                                   ▼
+  [Pending] ─────────────────────► ApproveChange()
+       │                                │
+       │                                ▼
+       │                           [Approved]
+       │                           Value updated
+       │                           History recorded
+       │
+       └────────────────────────► RejectChange()
+                                       │
+                                       ▼
+                                  [Rejected]
+                                  Reason recorded
 ```
 
-See `ScoringConfiguration.cs` for full list of configurable parameters.
+**Key Rules:**
+- Only **System Administrator** role can modify parameters
+- A **different user** must approve changes (maker-checker)
+- All changes require a **reason** for audit
+- Full **history** is maintained for compliance
+
+### Scoring Configuration API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/ScoringConfiguration | List all parameters |
+| GET | /api/ScoringConfiguration/categories | Category summaries with pending counts |
+| GET | /api/ScoringConfiguration/category/{name} | Parameters by category |
+| GET | /api/ScoringConfiguration/{id} | Single parameter by ID |
+| GET | /api/ScoringConfiguration/pending | Pending changes awaiting approval |
+| GET | /api/ScoringConfiguration/{id}/history | Change history for a parameter |
+| GET | /api/ScoringConfiguration/history | Recent changes across all parameters |
+| POST | /api/ScoringConfiguration/{id}/request-change | Maker step - request change |
+| POST | /api/ScoringConfiguration/{id}/approve | Checker step - approve change |
+| POST | /api/ScoringConfiguration/{id}/reject | Reject pending change |
+| POST | /api/ScoringConfiguration/{id}/cancel | Cancel own pending change |
+| POST | /api/ScoringConfiguration/seed | Seed default parameters (initial setup) |
+
+### Domain Model
+
+```
+ScoringParameter (Aggregate Root)
+├── Category, ParameterKey (unique)
+├── CurrentValue (active value)
+├── PendingValue (awaiting approval)
+├── Min/Max validation
+├── Maker-checker state
+└── Version tracking
+
+ScoringParameterHistory (Audit Trail)
+├── Before/After values
+├── Who requested, who approved
+├── Change reason, approval notes
+└── Version number
+```
+
+### Files
+
+**Domain:**
+- `Aggregates/Configuration/ScoringParameter.cs` - Aggregate with maker-checker workflow
+- `Aggregates/Configuration/ScoringParameterHistory.cs` - Immutable audit trail
+- `Services/ScoringConfigurationService.cs` - Load config from database
+- `Configuration/ScoringConfiguration.cs` - Configuration POCO with defaults
+- `Interfaces/IScoringParameterRepository.cs`
+
+**Application:**
+- `Configuration/Commands/ScoringParameterCommands.cs` - RequestChange, Approve, Reject, Cancel, Seed
+- `Configuration/Queries/ScoringParameterQueries.cs` - GetAll, GetByCategory, GetPending, GetHistory
+- `Configuration/DTOs/ScoringParameterDtos.cs`
+
+**Infrastructure:**
+- `Persistence/Configurations/Configuration/ScoringParameterConfiguration.cs` - EF Core mappings
+- `Persistence/Repositories/ScoringParameterRepository.cs`
+
+**API:**
+- `Controllers/ScoringConfigurationController.cs` - All endpoints (SystemAdministrator only)
 
 ## Bank Statement Integration
 
