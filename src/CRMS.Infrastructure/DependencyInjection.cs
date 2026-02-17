@@ -3,6 +3,7 @@ using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
 using CRMS.Infrastructure.ExternalServices.AI;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
+using CRMS.Infrastructure.ExternalServices.CreditBureau;
 using CRMS.Infrastructure.Identity;
 using CRMS.Infrastructure.Persistence;
 using CRMS.Infrastructure.Persistence.Repositories;
@@ -42,6 +43,19 @@ public static class DependencyInjection
 
         // StatementAnalysis
         services.AddScoped<IBankStatementRepository, BankStatementRepository>();
+
+        // CreditBureau
+        services.AddScoped<IBureauReportRepository, BureauReportRepository>();
+        var creditRegistrySection = configuration.GetSection(CreditRegistrySettings.SectionName);
+        if (creditRegistrySection.Exists() && !creditRegistrySection.GetValue<bool>("UseMock"))
+        {
+            services.Configure<CreditRegistrySettings>(creditRegistrySection);
+            services.AddHttpClient<ICreditBureauProvider, CreditRegistryProvider>();
+        }
+        else
+        {
+            services.AddScoped<ICreditBureauProvider, MockCreditBureauProvider>();
+        }
 
         // AI/LLM Services
         var openAISection = configuration.GetSection(OpenAISettings.SectionName);

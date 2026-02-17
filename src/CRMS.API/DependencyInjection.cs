@@ -1,5 +1,7 @@
 using CRMS.Application.Common;
 using CRMS.Application.CoreBanking.Queries;
+using CRMS.Application.CreditBureau.Commands;
+using CRMS.Application.CreditBureau.Queries;
 using CRMS.Application.Identity.Commands;
 using CRMS.Application.Identity.Queries;
 using CRMS.Application.LoanApplication.Commands;
@@ -9,6 +11,7 @@ using CRMS.Application.ProductCatalog.Queries;
 using CRMS.Application.StatementAnalysis.Commands;
 using CRMS.Application.StatementAnalysis.Queries;
 using CRMS.Domain.Services;
+using BureauDtos = CRMS.Application.CreditBureau.DTOs;
 using CoreBankingDtos = CRMS.Application.CoreBanking.DTOs;
 using IdentityDtos = CRMS.Application.Identity.DTOs;
 using LoanAppDtos = CRMS.Application.LoanApplication.DTOs;
@@ -64,6 +67,12 @@ public static class DependencyInjection
         services.AddScoped<IRequestHandler<GetStatementByIdQuery, ApplicationResult<StatementDtos.BankStatementDto>>, GetStatementByIdHandler>();
         services.AddScoped<IRequestHandler<GetStatementTransactionsQuery, ApplicationResult<List<StatementDtos.StatementTransactionDto>>>, GetStatementTransactionsHandler>();
         services.AddScoped<IRequestHandler<GetStatementsByLoanApplicationQuery, ApplicationResult<List<StatementDtos.BankStatementSummaryDto>>>, GetStatementsByLoanApplicationHandler>();
+
+        // CreditBureau handlers
+        services.AddScoped<IRequestHandler<RequestBureauReportCommand, ApplicationResult<BureauDtos.BureauReportDto>>, RequestBureauReportHandler>();
+        services.AddScoped<IRequestHandler<GetBureauReportByIdQuery, ApplicationResult<BureauDtos.BureauReportDto>>, GetBureauReportByIdHandler>();
+        services.AddScoped<IRequestHandler<GetBureauReportsByLoanApplicationQuery, ApplicationResult<List<BureauDtos.BureauReportSummaryDto>>>, GetBureauReportsByLoanApplicationHandler>();
+        services.AddScoped<IRequestHandler<SearchBureauByBVNQuery, ApplicationResult<BureauDtos.BureauSearchResultDto>>, SearchBureauByBVNHandler>();
 
         return services;
     }

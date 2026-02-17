@@ -1,3 +1,4 @@
+using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Aggregates.ProductCatalog;
 using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Interfaces;
@@ -36,6 +37,11 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     // StatementAnalysis
     public DbSet<SA.BankStatement> BankStatements => Set<SA.BankStatement>();
     public DbSet<SA.StatementTransaction> StatementTransactions => Set<SA.StatementTransaction>();
+
+    // CreditBureau
+    public DbSet<BureauReport> BureauReports => Set<BureauReport>();
+    public DbSet<BureauAccount> BureauAccounts => Set<BureauAccount>();
+    public DbSet<BureauScoreFactor> BureauScoreFactors => Set<BureauScoreFactor>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
