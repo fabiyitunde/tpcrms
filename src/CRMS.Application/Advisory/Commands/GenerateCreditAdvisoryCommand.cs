@@ -4,6 +4,7 @@ using CRMS.Application.Common;
 using CRMS.Domain.Aggregates.Advisory;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
+using CRMS.Domain.Services;
 
 namespace CRMS.Application.Advisory.Commands;
 
@@ -19,6 +20,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
     private readonly IFinancialStatementRepository _financialRepository;
     private readonly ICollateralRepository _collateralRepository;
     private readonly IGuarantorRepository _guarantorRepository;
+    private readonly IBankStatementRepository _bankStatementRepository;
     private readonly IAIAdvisoryService _aiService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -28,6 +30,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
         IFinancialStatementRepository financialRepository,
         ICollateralRepository collateralRepository,
         IGuarantorRepository guarantorRepository,
+        IBankStatementRepository bankStatementRepository,
         IAIAdvisoryService aiService,
         IUnitOfWork unitOfWork)
     {
@@ -36,6 +39,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
         _financialRepository = financialRepository;
         _collateralRepository = collateralRepository;
         _guarantorRepository = guarantorRepository;
+        _bankStatementRepository = bankStatementRepository;
         _aiService = aiService;
         _unitOfWork = unitOfWork;
     }
@@ -233,6 +237,47 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
             ));
         }
 
+        // Get bank statements and perform aggregated cashflow analysis
+        var bankStatements = await _bankStatementRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
+        CashflowDataInput? cashflowInput = null;
+        
+        if (bankStatements.Any())
+        {
+            var aggregatedAnalysisService = new AggregatedCashflowAnalysisService();
+            var aggregatedResult = aggregatedAnalysisService.AnalyzeMultipleStatements(bankStatements);
+            
+            if (aggregatedResult.IsSuccess)
+            {
+                cashflowInput = new CashflowDataInput(
+                    aggregatedResult.StatementSummaries.FirstOrDefault()?.StatementId ?? Guid.Empty,
+                    aggregatedResult.TotalMonthsCovered,
+                    aggregatedResult.WeightedTotalCredits / Math.Max(1, aggregatedResult.TotalMonthsCovered),
+                    aggregatedResult.WeightedTotalDebits / Math.Max(1, aggregatedResult.TotalMonthsCovered),
+                    aggregatedResult.WeightedNetMonthlyCashflow,
+                    aggregatedResult.WeightedBalanceVolatility,
+                    0, // RecurringCreditsCount - would need to aggregate from individual summaries
+                    0, // RecurringDebitsCount
+                    aggregatedResult.WeightedMonthlyObligations > 0 
+                        ? aggregatedResult.WeightedMonthlyObligations / (aggregatedResult.DetectedMonthlySalary ?? aggregatedResult.WeightedTotalCredits / Math.Max(1, aggregatedResult.TotalMonthsCovered))
+                        : 0,
+                    aggregatedResult.HasRegularSalary,
+                    aggregatedResult.CashflowHealthAssessment,
+                    // Additional fields for AI analysis
+                    aggregatedResult.HasInternalStatement,
+                    aggregatedResult.ExternalStatementsCount,
+                    aggregatedResult.AllExternalStatementsVerified,
+                    aggregatedResult.OverallTrustScore,
+                    aggregatedResult.TotalGamblingTransactions,
+                    aggregatedResult.TotalGamblingAmount,
+                    aggregatedResult.TotalBouncedTransactions,
+                    aggregatedResult.MaxDaysWithNegativeBalance,
+                    aggregatedResult.DetectedMonthlySalary,
+                    aggregatedResult.SalarySource,
+                    aggregatedResult.GetWarnings()
+                );
+            }
+        }
+
         return new AIAdvisoryRequest(
             loanApp.Id,
             loanApp.RequestedAmount.Amount,
@@ -241,7 +286,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
             loanApp.Purpose ?? "General Business",
             bureauInputs,
             financialInputs,
-            null, // CashflowAnalysis - to be integrated with StatementAnalyzer
+            cashflowInput,
             collateralInput,
             guarantorInputs,
             0, // ExistingExposure - to be fetched from CoreBanking

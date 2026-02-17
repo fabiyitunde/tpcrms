@@ -93,7 +93,22 @@ public record CashflowDataInput(
     int RecurringDebitsCount,
     decimal LoanRepaymentRatio,
     bool HasSalaryCredits,
-    string CashflowHealthAssessment
+    string CashflowHealthAssessment,
+    // Statement source trust indicators
+    bool HasInternalStatement,
+    int ExternalStatementsCount,
+    bool AllExternalStatementsVerified,
+    decimal OverallTrustScore,
+    // Risk indicators from bank statements
+    int GamblingTransactionCount,
+    decimal GamblingTransactionTotal,
+    int BouncedTransactionCount,
+    int DaysWithNegativeBalance,
+    // Salary detection
+    decimal? DetectedMonthlySalary,
+    string? SalarySource,
+    // Warnings from analysis
+    List<string> AnalysisWarnings
 );
 
 public record CollateralDataInput(

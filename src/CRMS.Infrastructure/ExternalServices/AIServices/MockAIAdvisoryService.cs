@@ -246,18 +246,43 @@ public class MockAIAdvisoryService : IAIAdvisoryService
     {
         if (cashflow == null)
         {
+            redFlags.Add("No bank statement analysis available");
             return new RiskScoreOutput(
-                "CashflowStability", 60, 0.15m, "Medium",
-                "Cashflow analysis not available - using default assessment",
-                new List<string>(),
+                "CashflowStability", 50, 0.15m, "Medium",
+                "Cashflow analysis not available - bank statements required for complete assessment",
+                new List<string> { "No bank statements analyzed" },
                 new List<string>()
             );
         }
 
         var positiveIndicators = new List<string>();
         var scoreRedFlags = new List<string>();
-        decimal score = 65;
+        decimal score = 60;
 
+        // Statement source trust assessment
+        if (cashflow.HasInternalStatement)
+        {
+            score += 10;
+            positiveIndicators.Add("Internal bank statement (from our core banking) provided");
+        }
+        else
+        {
+            score -= 15;
+            scoreRedFlags.Add("No internal bank statement - analysis based on external statements only");
+            redFlags.Add("Missing internal bank statement reduces reliability of cashflow analysis");
+        }
+
+        if (cashflow.ExternalStatementsCount > 0 && cashflow.AllExternalStatementsVerified)
+        {
+            score += 5;
+            positiveIndicators.Add($"{cashflow.ExternalStatementsCount} external statement(s) verified");
+        }
+        else if (cashflow.ExternalStatementsCount > 0 && !cashflow.AllExternalStatementsVerified)
+        {
+            scoreRedFlags.Add("Some external statements pending verification");
+        }
+
+        // Net cashflow assessment
         if (cashflow.NetMonthlyCashflow > 0)
         {
             score += 15;
@@ -266,10 +291,11 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         else
         {
             score -= 20;
-            scoreRedFlags.Add("Negative net monthly cashflow");
-            redFlags.Add("Negative monthly cashflow detected");
+            scoreRedFlags.Add($"Negative net monthly cashflow of {cashflow.NetMonthlyCashflow:N0}");
+            redFlags.Add("Negative monthly cashflow detected in bank statements");
         }
 
+        // Volatility assessment
         if (cashflow.CashflowVolatility < 0.3m)
         {
             score += 10;
@@ -278,19 +304,78 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         else if (cashflow.CashflowVolatility > 0.5m)
         {
             score -= 10;
-            scoreRedFlags.Add("High cashflow volatility");
+            scoreRedFlags.Add($"High cashflow volatility ({cashflow.CashflowVolatility:P0})");
+        }
+
+        // Salary detection
+        if (cashflow.HasSalaryCredits && cashflow.DetectedMonthlySalary.HasValue)
+        {
+            positiveIndicators.Add($"Regular salary credits detected: {cashflow.DetectedMonthlySalary:N0}/month from {cashflow.SalarySource ?? "employer"}");
+        }
+
+        // Risk indicators - Gambling
+        if (cashflow.GamblingTransactionCount > 0)
+        {
+            score -= 15;
+            scoreRedFlags.Add($"Gambling transactions detected: {cashflow.GamblingTransactionCount} transactions totaling {cashflow.GamblingTransactionTotal:N0}");
+            redFlags.Add($"Gambling activity: {cashflow.GamblingTransactionCount} transactions worth {cashflow.GamblingTransactionTotal:N0}");
+        }
+
+        // Risk indicators - Bounced transactions
+        if (cashflow.BouncedTransactionCount > 0)
+        {
+            score -= 20;
+            scoreRedFlags.Add($"{cashflow.BouncedTransactionCount} bounced/failed transactions detected");
+            redFlags.Add($"Bounced transactions indicate cash management issues ({cashflow.BouncedTransactionCount} occurrences)");
+        }
+
+        // Risk indicators - Negative balance days
+        if (cashflow.DaysWithNegativeBalance > 10)
+        {
+            score -= 15;
+            scoreRedFlags.Add($"Account in negative balance for {cashflow.DaysWithNegativeBalance} days");
+            redFlags.Add($"Frequent negative balance: {cashflow.DaysWithNegativeBalance} days");
+        }
+        else if (cashflow.DaysWithNegativeBalance > 5)
+        {
+            score -= 5;
+            scoreRedFlags.Add($"Account in negative balance for {cashflow.DaysWithNegativeBalance} days");
+        }
+
+        // Period coverage
+        if (cashflow.MonthsAnalyzed < 6)
+        {
+            score -= 10;
+            scoreRedFlags.Add($"Insufficient statement coverage: only {cashflow.MonthsAnalyzed} months");
+        }
+        else if (cashflow.MonthsAnalyzed >= 12)
+        {
+            score += 5;
+            positiveIndicators.Add($"Comprehensive {cashflow.MonthsAnalyzed}-month statement history");
+        }
+
+        // Add any analysis warnings as red flags
+        foreach (var warning in cashflow.AnalysisWarnings ?? new List<string>())
+        {
+            if (!scoreRedFlags.Contains(warning))
+                scoreRedFlags.Add(warning);
         }
 
         score = Math.Clamp(score, 0, 100);
+
+        var trustNote = cashflow.OverallTrustScore >= 80 ? "High confidence" :
+                        cashflow.OverallTrustScore >= 60 ? "Moderate confidence" : "Low confidence";
 
         return new RiskScoreOutput(
             "CashflowStability",
             score,
             0.15m,
             DetermineRating(score),
-            $"Cashflow analysis over {cashflow.MonthsAnalyzed} months. " +
+            $"Cashflow analysis over {cashflow.MonthsAnalyzed} months ({trustNote}, trust score: {cashflow.OverallTrustScore:N0}/100). " +
             $"Avg inflow: {cashflow.AverageMonthlyInflow:N0}, Avg outflow: {cashflow.AverageMonthlyOutflow:N0}. " +
-            $"Health: {cashflow.CashflowHealthAssessment}.",
+            $"Health: {cashflow.CashflowHealthAssessment}. " +
+            $"Sources: {(cashflow.HasInternalStatement ? "Internal" : "No internal")}" +
+            $"{(cashflow.ExternalStatementsCount > 0 ? $" + {cashflow.ExternalStatementsCount} external" : "")}.",
             scoreRedFlags,
             positiveIndicators
         );
