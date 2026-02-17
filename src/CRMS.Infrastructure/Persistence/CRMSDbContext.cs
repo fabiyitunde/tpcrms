@@ -3,6 +3,8 @@ using CRMS.Domain.Aggregates.ProductCatalog;
 using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using CL = CRMS.Domain.Aggregates.Collateral;
+using GR = CRMS.Domain.Aggregates.Guarantor;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
 
@@ -42,6 +44,15 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<BureauReport> BureauReports => Set<BureauReport>();
     public DbSet<BureauAccount> BureauAccounts => Set<BureauAccount>();
     public DbSet<BureauScoreFactor> BureauScoreFactors => Set<BureauScoreFactor>();
+
+    // Collateral
+    public DbSet<CL.Collateral> Collaterals => Set<CL.Collateral>();
+    public DbSet<CL.CollateralValuation> CollateralValuations => Set<CL.CollateralValuation>();
+    public DbSet<CL.CollateralDocument> CollateralDocuments => Set<CL.CollateralDocument>();
+
+    // Guarantor
+    public DbSet<GR.Guarantor> Guarantors => Set<GR.Guarantor>();
+    public DbSet<GR.GuarantorDocument> GuarantorDocuments => Set<GR.GuarantorDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

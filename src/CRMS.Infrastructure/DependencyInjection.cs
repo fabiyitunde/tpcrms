@@ -57,6 +57,10 @@ public static class DependencyInjection
             services.AddScoped<ICreditBureauProvider, MockCreditBureauProvider>();
         }
 
+        // Collateral & Guarantor
+        services.AddScoped<ICollateralRepository, CollateralRepository>();
+        services.AddScoped<IGuarantorRepository, GuarantorRepository>();
+
         // AI/LLM Services
         var openAISection = configuration.GetSection(OpenAISettings.SectionName);
         if (openAISection.Exists() && !string.IsNullOrEmpty(openAISection["ApiKey"]))

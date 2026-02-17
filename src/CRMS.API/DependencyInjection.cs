@@ -1,7 +1,11 @@
+using CRMS.Application.Collateral.Commands;
+using CRMS.Application.Collateral.Queries;
 using CRMS.Application.Common;
 using CRMS.Application.CoreBanking.Queries;
 using CRMS.Application.CreditBureau.Commands;
 using CRMS.Application.CreditBureau.Queries;
+using CRMS.Application.Guarantor.Commands;
+using CRMS.Application.Guarantor.Queries;
 using CRMS.Application.Identity.Commands;
 using CRMS.Application.Identity.Queries;
 using CRMS.Application.LoanApplication.Commands;
@@ -12,7 +16,9 @@ using CRMS.Application.StatementAnalysis.Commands;
 using CRMS.Application.StatementAnalysis.Queries;
 using CRMS.Domain.Services;
 using BureauDtos = CRMS.Application.CreditBureau.DTOs;
+using CollateralDtos = CRMS.Application.Collateral.DTOs;
 using CoreBankingDtos = CRMS.Application.CoreBanking.DTOs;
+using GuarantorDtos = CRMS.Application.Guarantor.DTOs;
 using IdentityDtos = CRMS.Application.Identity.DTOs;
 using LoanAppDtos = CRMS.Application.LoanApplication.DTOs;
 using ProductDtos = CRMS.Application.ProductCatalog.DTOs;
@@ -73,6 +79,24 @@ public static class DependencyInjection
         services.AddScoped<IRequestHandler<GetBureauReportByIdQuery, ApplicationResult<BureauDtos.BureauReportDto>>, GetBureauReportByIdHandler>();
         services.AddScoped<IRequestHandler<GetBureauReportsByLoanApplicationQuery, ApplicationResult<List<BureauDtos.BureauReportSummaryDto>>>, GetBureauReportsByLoanApplicationHandler>();
         services.AddScoped<IRequestHandler<SearchBureauByBVNQuery, ApplicationResult<BureauDtos.BureauSearchResultDto>>, SearchBureauByBVNHandler>();
+
+        // Collateral handlers
+        services.AddScoped<IRequestHandler<AddCollateralCommand, ApplicationResult<CollateralDtos.CollateralDto>>, AddCollateralHandler>();
+        services.AddScoped<IRequestHandler<SetCollateralValuationCommand, ApplicationResult<CollateralDtos.CollateralDto>>, SetCollateralValuationHandler>();
+        services.AddScoped<IRequestHandler<ApproveCollateralCommand, ApplicationResult<CollateralDtos.CollateralDto>>, ApproveCollateralHandler>();
+        services.AddScoped<IRequestHandler<RecordPerfectionCommand, ApplicationResult<CollateralDtos.CollateralDto>>, RecordPerfectionHandler>();
+        services.AddScoped<IRequestHandler<GetCollateralByIdQuery, ApplicationResult<CollateralDtos.CollateralDto>>, GetCollateralByIdHandler>();
+        services.AddScoped<IRequestHandler<GetCollateralByLoanApplicationQuery, ApplicationResult<List<CollateralDtos.CollateralSummaryDto>>>, GetCollateralByLoanApplicationHandler>();
+        services.AddScoped<IRequestHandler<CalculateLTVQuery, ApplicationResult<LTVCalculationDto>>, CalculateLTVHandler>();
+
+        // Guarantor handlers
+        services.AddScoped<IRequestHandler<AddIndividualGuarantorCommand, ApplicationResult<GuarantorDtos.GuarantorDto>>, AddIndividualGuarantorHandler>();
+        services.AddScoped<IRequestHandler<RunGuarantorCreditCheckCommand, ApplicationResult<GuarantorDtos.GuarantorCreditCheckResultDto>>, RunGuarantorCreditCheckHandler>();
+        services.AddScoped<IRequestHandler<ApproveGuarantorCommand, ApplicationResult<GuarantorDtos.GuarantorDto>>, ApproveGuarantorHandler>();
+        services.AddScoped<IRequestHandler<RejectGuarantorCommand, ApplicationResult<GuarantorDtos.GuarantorDto>>, RejectGuarantorHandler>();
+        services.AddScoped<IRequestHandler<GetGuarantorByIdQuery, ApplicationResult<GuarantorDtos.GuarantorDto>>, GetGuarantorByIdHandler>();
+        services.AddScoped<IRequestHandler<GetGuarantorsByLoanApplicationQuery, ApplicationResult<List<GuarantorDtos.GuarantorSummaryDto>>>, GetGuarantorsByLoanApplicationHandler>();
+        services.AddScoped<IRequestHandler<GetGuarantorsByBVNQuery, ApplicationResult<List<GuarantorDtos.GuarantorSummaryDto>>>, GetGuarantorsByBVNHandler>();
 
         return services;
     }

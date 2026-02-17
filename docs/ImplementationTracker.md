@@ -258,6 +258,8 @@ This glossary defines the **official terms** used throughout the codebase, docum
 | 14 | **ReportingService** | 🔴 | P3 | [ReportingService.md](modules/ReportingService.md) | All modules |
 | 15 | **CustomerPortal** | 🔴 | P3 | [CustomerPortal.md](modules/CustomerPortal.md) | ProductCatalog, CreditBureauIntegration, StatementAnalyzer |
 | 16 | **DecisionEngine** | 🔴 | P3 | [DecisionEngine.md](modules/DecisionEngine.md) | CreditBureauIntegration, StatementAnalyzer |
+| 17 | **CollateralManagement** | 🟢 | P1 | [CollateralManagement.md](modules/CollateralManagement.md) | None |
+| 18 | **GuarantorManagement** | 🟢 | P1 | [GuarantorManagement.md](modules/GuarantorManagement.md) | CreditBureauIntegration |
 
 ---
 
