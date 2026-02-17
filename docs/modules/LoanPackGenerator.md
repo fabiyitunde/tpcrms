@@ -2,7 +2,9 @@
 
 ## Overview
 
-The LoanPackGenerator module generates comprehensive PDF loan packs for corporate loan applications. These loan packs are used for committee review and contain all relevant information about the loan application, borrower, credit assessment, and recommendations.
+The LoanPackGenerator module generates comprehensive PDF loan packs for **corporate loan applications only**. These loan packs are used for committee review and contain all relevant information about the loan application, borrower, credit assessment, and AI advisory recommendations.
+
+> **Note:** This module is specific to the corporate lending flow where human committees make decisions. Retail loans use the **DecisionEngine** module for automated decisioning and do not generate loan packs.
 
 ## Key Features
 
@@ -113,11 +115,12 @@ Tracks which sections are included:
 - Credit scores and status
 - Total guarantee amount
 
-### 9. AI Advisory Assessment
-- Overall risk score (large, colored)
-- Component scores (8 categories)
+### 9. AI Advisory Assessment (from AIAdvisoryEngine)
+- Overall risk score (large, colored display)
+- Component scores (8 risk categories)
 - Recommendations (amount, tenor, pricing, structuring)
 - Recommended conditions
+- Red flags and mitigating factors
 
 ### 10. Workflow History
 - Chronological list of status changes
