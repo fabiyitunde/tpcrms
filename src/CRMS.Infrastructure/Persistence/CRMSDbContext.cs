@@ -11,6 +11,7 @@ using CM = CRMS.Domain.Aggregates.Committee;
 using FS = CRMS.Domain.Aggregates.FinancialStatement;
 using GR = CRMS.Domain.Aggregates.Guarantor;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
+using LP = CRMS.Domain.Aggregates.LoanPack;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
 using WF = CRMS.Domain.Aggregates.Workflow;
 
@@ -89,6 +90,9 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     // Audit
     public DbSet<AU.AuditLog> AuditLogs => Set<AU.AuditLog>();
     public DbSet<AU.DataAccessLog> DataAccessLogs => Set<AU.DataAccessLog>();
+
+    // LoanPack
+    public DbSet<LP.LoanPack> LoanPacks => Set<LP.LoanPack>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -116,6 +116,10 @@ public static class DependencyInjection
         services.AddScoped<IDataAccessLogRepository, DataAccessLogRepository>();
         services.AddScoped<AuditService>();
 
+        // LoanPack
+        services.AddScoped<ILoanPackRepository, LoanPackRepository>();
+        services.AddScoped<Application.LoanPack.Interfaces.ILoanPackGenerator, Documents.LoanPackPdfGenerator>();
+
         // Background Services - Credit Check Queue
         var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions
         {

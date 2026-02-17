@@ -3,6 +3,8 @@ using CRMS.Application.Advisory.DTOs;
 using CRMS.Application.Advisory.Queries;
 using CRMS.Application.Audit.DTOs;
 using CRMS.Application.Audit.Queries;
+using CRMS.Application.LoanPack.Commands;
+using CRMS.Application.LoanPack.Queries;
 using CRMS.Application.Collateral.Commands;
 using CRMS.Application.Collateral.Queries;
 using CRMS.Application.Common;
@@ -133,6 +135,12 @@ public static class DependencyInjection
         services.AddScoped<IRequestHandler<GetLatestAdvisoryByLoanApplicationQuery, ApplicationResult<CreditAdvisoryDto>>, GetLatestAdvisoryByLoanApplicationHandler>();
         services.AddScoped<IRequestHandler<GetAdvisoryHistoryByLoanApplicationQuery, ApplicationResult<List<CreditAdvisorySummaryDto>>>, GetAdvisoryHistoryByLoanApplicationHandler>();
         services.AddScoped<IRequestHandler<GetScoreMatrixQuery, ApplicationResult<ScoreMatrixDto>>, GetScoreMatrixHandler>();
+
+        // LoanPack handlers
+        services.AddScoped<GenerateLoanPackHandler>();
+        services.AddScoped<GetLoanPackByIdHandler>();
+        services.AddScoped<GetLatestLoanPackHandler>();
+        services.AddScoped<GetLoanPackVersionsHandler>();
 
         // Scoring Configuration handlers (maker-checker workflow)
         services.AddScoped<GetAllScoringParametersHandler>();
