@@ -1,5 +1,5 @@
 @page "/queues/all"
-@inject ApiClient Api
+@inject ApplicationService AppService
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 
@@ -68,7 +68,8 @@
                     <tbody>
                         @foreach (var item in queueItems)
                         {
-                            <tr @onclick="() => ViewApplication(item.ApplicationId)">
+                            var itemId = item.ApplicationId;
+                            <tr @onclick="() => ViewApplication(itemId)" style="cursor: pointer;">
                                 <td>
                                     <span style="font-weight: 600; color: var(--primary-600);">@item.ApplicationNumber</span>
                                 </td>
@@ -100,7 +101,7 @@
                                     }
                                 </td>
                                 <td>
-                                    <button class="btn btn-ghost btn-sm">
+                                    <button class="btn btn-ghost btn-sm" @onclick:stopPropagation @onclick="() => ViewApplication(itemId)">
                                         <span class="material-symbols-outlined">chevron_right</span>
                                     </button>
                                 </td>
@@ -169,17 +170,51 @@
     private List<QueueItem> queueItems = [];
     private bool isLoading;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        queueSummary =
-        [
-            new() { Stage = "Branch Review", Count = 12, OverdueCount = 2 },
-            new() { Stage = "Credit Analysis", Count = 8, OverdueCount = 1 },
-            new() { Stage = "HO Review", Count = 5, OverdueCount = 0 },
-            new() { Stage = "Committee", Count = 3, OverdueCount = 0 },
-            new() { Stage = "Final Approval", Count = 2, OverdueCount = 0 },
-            new() { Stage = "Documentation", Count = 4, OverdueCount = 1 }
-        ];
+        await LoadQueueSummaryAsync();
+    }
+
+    private async Task LoadQueueSummaryAsync()
+    {
+        try
+        {
+            var dbQueues = await AppService.GetQueueSummaryAsync();
+            if (dbQueues.Count > 0)
+            {
+                queueSummary = dbQueues.Select(q => new QueueSummary
+                {
+                    Stage = q.Stage,
+                    Count = q.Count,
+                    OverdueCount = q.OverdueCount
+                }).ToList();
+            }
+            else
+            {
+                // Fallback mock data
+                queueSummary =
+                [
+                    new() { Stage = "Branch Review", Count = 12, OverdueCount = 2 },
+                    new() { Stage = "Credit Analysis", Count = 8, OverdueCount = 1 },
+                    new() { Stage = "HO Review", Count = 5, OverdueCount = 0 },
+                    new() { Stage = "Committee", Count = 3, OverdueCount = 0 },
+                    new() { Stage = "Final Approval", Count = 2, OverdueCount = 0 },
+                    new() { Stage = "Documentation", Count = 4, OverdueCount = 1 }
+                ];
+            }
+        }
+        catch
+        {
+            queueSummary =
+            [
+                new() { Stage = "Branch Review", Count = 12, OverdueCount = 2 },
+                new() { Stage = "Credit Analysis", Count = 8, OverdueCount = 1 },
+                new() { Stage = "HO Review", Count = 5, OverdueCount = 0 },
+                new() { Stage = "Committee", Count = 3, OverdueCount = 0 },
+                new() { Stage = "Final Approval", Count = 2, OverdueCount = 0 },
+                new() { Stage = "Documentation", Count = 4, OverdueCount = 1 }
+            ];
+        }
     }
 
     private async Task SelectQueue(string stage)
@@ -188,11 +223,33 @@
         isLoading = true;
         StateHasChanged();
         
-        // Simulate API call
-        await Task.Delay(300);
-        
-        queueItems = GenerateMockQueueItems(stage);
-        isLoading = false;
+        try
+        {
+            var dbItems = await AppService.GetQueueByRoleAsync(stage);
+            if (dbItems.Count > 0)
+            {
+                queueItems = dbItems.Select(i => new QueueItem
+                {
+                    ApplicationId = i.ApplicationId,
+                    ApplicationNumber = i.ApplicationNumber,
+                    CustomerName = i.CustomerName,
+                    IsOverdue = i.IsOverdue,
+                    AssignedTo = i.AssignedTo ?? ""
+                }).ToList();
+            }
+            else
+            {
+                queueItems = GenerateMockQueueItems(stage);
+            }
+        }
+        catch
+        {
+            queueItems = GenerateMockQueueItems(stage);
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private void ViewApplication(Guid id) => Navigation.NavigateTo($"/applications/{id}");

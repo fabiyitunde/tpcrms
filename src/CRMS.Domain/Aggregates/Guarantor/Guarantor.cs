@@ -67,9 +67,10 @@ public class Guarantor : AggregateRoot
     
     // Audit
     public Guid CreatedByUserId { get; private set; }
-    public new DateTime CreatedAt { get; private set; }
     public Guid? ApprovedByUserId { get; private set; }
     public DateTime? ApprovedAt { get; private set; }
+    public Guid? RejectedByUserId { get; private set; }
+    public DateTime? RejectedAt { get; private set; }
     public string? RejectionReason { get; private set; }
     public string? Notes { get; private set; }
 
@@ -241,8 +242,8 @@ public class Guarantor : AggregateRoot
             return Result.Failure("Rejection reason is required");
 
         Status = GuarantorStatus.Rejected;
-        ApprovedByUserId = rejectedByUserId;
-        ApprovedAt = DateTime.UtcNow;
+        RejectedByUserId = rejectedByUserId;
+        RejectedAt = DateTime.UtcNow;
         RejectionReason = reason;
 
         return Result.Success();
@@ -285,6 +286,52 @@ public class Guarantor : AggregateRoot
     public void AddDocument(GuarantorDocument document)
     {
         _documents.Add(document);
+    }
+
+    public Result UpdateBasicInfo(string fullName, string? bvn, string? email, string? phone, 
+        string? address, string? relationship, GuaranteeType guaranteeType, bool isDirector, bool isShareholder,
+        decimal? shareholdingPercentage, string? occupation, string? employerName, 
+        decimal? monthlyIncome, decimal? declaredNetWorth, decimal? guaranteeLimit)
+    {
+        if (Status != GuarantorStatus.Proposed && Status != GuarantorStatus.PendingVerification)
+            return Result.Failure("Can only update guarantor in Proposed or PendingVerification status");
+
+        if (string.IsNullOrWhiteSpace(fullName))
+            return Result.Failure("Full name is required");
+
+        FullName = fullName;
+        BVN = bvn;
+        Email = email;
+        Phone = phone;
+        Address = address;
+        RelationshipToApplicant = relationship;
+        GuaranteeType = guaranteeType;
+        IsDirector = isDirector;
+        IsShareHolder = isShareholder;
+        ShareholdingPercentage = shareholdingPercentage;
+        Occupation = occupation;
+        EmployerName = employerName;
+        
+        if (monthlyIncome.HasValue)
+            MonthlyIncome = Money.Create(monthlyIncome.Value, "NGN");
+        
+        if (declaredNetWorth.HasValue)
+            DeclaredNetWorth = Money.Create(declaredNetWorth.Value, "NGN");
+        
+        if (guaranteeLimit.HasValue)
+        {
+            GuaranteeLimit = Money.Create(guaranteeLimit.Value, "NGN");
+            IsUnlimited = false;
+        }
+        else
+        {
+            GuaranteeLimit = null;
+            IsUnlimited = true;
+        }
+        
+        ModifiedAt = DateTime.UtcNow;
+
+        return Result.Success();
     }
 
     public bool CanGuarantee(Money loanAmount)

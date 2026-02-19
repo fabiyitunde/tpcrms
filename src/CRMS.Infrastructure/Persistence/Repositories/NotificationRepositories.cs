@@ -45,11 +45,12 @@ public class NotificationRepository : INotificationRepository
             .ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<Notification>> GetForRetryAsync(int limit = 50, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Notification>> GetForRetryAsync(DateTime asOf, int limit = 50, CancellationToken ct = default)
     {
         return await _context.Notifications
             .Where(x => x.Status == NotificationStatus.Retry)
-            .OrderBy(x => x.CreatedAt)
+            .Where(x => x.NextRetryAt == null || x.NextRetryAt <= asOf)
+            .OrderBy(x => x.NextRetryAt ?? x.CreatedAt)
             .Take(limit)
             .ToListAsync(ct);
     }

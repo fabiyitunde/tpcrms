@@ -29,6 +29,9 @@ public class WorkflowInstance : AggregateRoot
     public bool IsCompleted { get; private set; }
     public DateTime? CompletedAt { get; private set; }
     public LoanApplicationStatus? FinalStatus { get; private set; }
+    
+    // Concurrency control
+    public byte[] RowVersion { get; private set; } = [];
 
     private readonly List<WorkflowTransitionLog> _transitionHistory = [];
     public IReadOnlyCollection<WorkflowTransitionLog> TransitionHistory => _transitionHistory.AsReadOnly();

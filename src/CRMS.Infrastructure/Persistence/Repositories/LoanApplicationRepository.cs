@@ -78,6 +78,11 @@ public class LoanApplicationRepository : ILoanApplicationRepository
             .ToListAsync(ct);
     }
 
+    public async Task<bool> ExistsAsync(Guid id, CancellationToken ct = default)
+    {
+        return await _context.LoanApplications.AnyAsync(x => x.Id == id, ct);
+    }
+
     public async Task AddAsync(LA.LoanApplication application, CancellationToken ct = default)
     {
         await _context.LoanApplications.AddAsync(application, ct);
@@ -86,5 +91,25 @@ public class LoanApplicationRepository : ILoanApplicationRepository
     public void Update(LA.LoanApplication application)
     {
         _context.LoanApplications.Update(application);
+    }
+}
+
+public class LoanApplicationDocumentRepository : ILoanApplicationDocumentRepository
+{
+    private readonly CRMSDbContext _context;
+
+    public LoanApplicationDocumentRepository(CRMSDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task AddAsync(LA.LoanApplicationDocument document, CancellationToken ct = default)
+    {
+        await _context.Set<LA.LoanApplicationDocument>().AddAsync(document, ct);
+    }
+
+    public async Task<LA.LoanApplicationDocument?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        return await _context.Set<LA.LoanApplicationDocument>().FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 }

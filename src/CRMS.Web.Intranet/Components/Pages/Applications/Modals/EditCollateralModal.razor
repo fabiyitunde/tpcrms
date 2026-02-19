@@ -1,0 +1,208 @@
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<div class="modal-backdrop show" @onclick="Close">
+    <div class="modal" style="max-width: 600px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">Edit Collateral</h3>
+            <button type="button" class="modal-close" @onclick="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body" style="flex: 1; overflow-y: auto;">
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: var(--space-8);">
+                    <span class="material-symbols-outlined spinning">progress_activity</span>
+                </div>
+            }
+            else if (model == null)
+            {
+                <div class="alert alert-danger">Failed to load collateral details</div>
+            }
+            else
+            {
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger mb-4">@errorMessage</div>
+                }
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3);">BASIC INFORMATION</h4>
+
+                <div class="form-group">
+                    <label class="form-label">Collateral Type *</label>
+                    <select class="form-control" @bind="model.Type">
+                        <option value="">Select type...</option>
+                        <option value="RealEstate">Real Estate / Property</option>
+                        <option value="Vehicle">Vehicle</option>
+                        <option value="Equipment">Equipment</option>
+                        <option value="Inventory">Inventory</option>
+                        <option value="CashDeposit">Cash Deposit</option>
+                        <option value="FixedDeposit">Fixed Deposit</option>
+                        <option value="TreasuryBills">Treasury Bills</option>
+                        <option value="Stocks">Stocks</option>
+                        <option value="Bonds">Bonds</option>
+                        <option value="Invoice">Invoice / Receivables</option>
+                        <option value="ContractProceeds">Contract Proceeds</option>
+                        <option value="InsurancePolicy">Insurance Policy</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Description *</label>
+                    <textarea class="form-control" rows="3" @bind="model.Description" 
+                        placeholder="Detailed description of the collateral..."></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Asset Identifier</label>
+                        <input type="text" class="form-control" @bind="model.AssetIdentifier" 
+                            placeholder="e.g., Title deed number, VIN" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Location</label>
+                        <input type="text" class="form-control" @bind="model.Location" 
+                            placeholder="Physical location of asset" />
+                    </div>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin: var(--space-4) 0 var(--space-3);">OWNERSHIP</h4>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Owner Name</label>
+                        <input type="text" class="form-control" @bind="model.OwnerName" 
+                            placeholder="Legal owner of the asset" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Ownership Type</label>
+                        <select class="form-control" @bind="model.OwnershipType">
+                            <option value="">Select...</option>
+                            <option value="Sole">Sole Ownership</option>
+                            <option value="Joint">Joint Ownership</option>
+                            <option value="Corporate">Corporate Ownership</option>
+                            <option value="ThirdParty">Third Party</option>
+                        </select>
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="modal-footer">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <span class="text-danger" style="margin-right: auto; font-size: var(--text-sm);">@errorMessage</span>
+            }
+            <button type="button" class="btn btn-secondary" @onclick="Close" disabled="@isSubmitting">Cancel</button>
+            <button type="button" class="btn btn-primary" @onclick="Submit" disabled="@(isSubmitting || isLoading)">
+                @if (isSubmitting)
+                {
+                    <span class="material-symbols-outlined spinning" style="font-size: 18px;">progress_activity</span>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Save Changes</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid CollateralId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSuccess { get; set; }
+
+    private CollateralEditModel? model;
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCollateral();
+    }
+
+    private async Task LoadCollateral()
+    {
+        isLoading = true;
+        var collateral = await AppService.GetCollateralDetailAsync(CollateralId);
+        if (collateral != null)
+        {
+            model = new CollateralEditModel
+            {
+                Type = collateral.Type,
+                Description = collateral.Description,
+                AssetIdentifier = collateral.AssetIdentifier,
+                Location = collateral.Location,
+                OwnerName = collateral.OwnerName,
+                OwnershipType = collateral.OwnershipType
+            };
+        }
+        isLoading = false;
+    }
+
+    private async Task Submit()
+    {
+        if (model == null) return;
+
+        if (string.IsNullOrWhiteSpace(model.Type))
+        {
+            errorMessage = "Please select a collateral type";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Description))
+        {
+            errorMessage = "Please enter a description";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await AppService.UpdateCollateralAsync(CollateralId, new UpdateCollateralRequest
+            {
+                Type = model.Type,
+                Description = model.Description,
+                AssetIdentifier = model.AssetIdentifier,
+                Location = model.Location,
+                OwnerName = model.OwnerName,
+                OwnershipType = model.OwnershipType
+            });
+
+            if (result.Success)
+            {
+                await OnSuccess.InvokeAsync();
+            }
+            else
+            {
+                errorMessage = result.Error ?? "Failed to update collateral";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+
+    private class CollateralEditModel
+    {
+        public string Type { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string? AssetIdentifier { get; set; }
+        public string? Location { get; set; }
+        public string? OwnerName { get; set; }
+        public string? OwnershipType { get; set; }
+    }
+}

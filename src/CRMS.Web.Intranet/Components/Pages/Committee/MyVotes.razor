@@ -1,5 +1,5 @@
 @page "/committee/my-votes"
-@inject ApiClient Api
+@inject ApplicationService AppService
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 
@@ -37,6 +37,7 @@ else
     <div class="votes-grid">
         @foreach (var vote in pendingVotes)
         {
+            var voteAppId = vote.ApplicationId;
             <div class="vote-card">
                 <div class="vote-card-header">
                     <div>
@@ -73,7 +74,7 @@ else
                     </div>
                 </div>
                 <div class="vote-card-footer">
-                    <button class="btn btn-outline btn-sm" @onclick="() => ViewApplication(vote.ApplicationId)">
+                    <button class="btn btn-outline btn-sm" @onclick="() => ViewApplication(voteAppId)">
                         View Details
                     </button>
                     <button class="btn btn-primary btn-sm" @onclick="() => OpenVoteModal(vote)">
@@ -286,7 +287,8 @@ else
         if (string.IsNullOrEmpty(selectedVote) || selectedReview == null) return;
         
         isSubmitting = true;
-        await Api.CastVoteAsync(selectedReview.ReviewId, selectedVote, string.IsNullOrEmpty(voteComments) ? null : voteComments);
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        await AppService.CastVoteAsync(selectedReview.ReviewId, selectedVote, string.IsNullOrEmpty(voteComments) ? null : voteComments, userId);
         isSubmitting = false;
         
         CloseVoteModal();

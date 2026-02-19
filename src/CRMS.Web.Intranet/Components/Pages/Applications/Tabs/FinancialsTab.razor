@@ -1,88 +1,303 @@
 
-
-@if (Analysis == null || !Analysis.Ratios.Any())
-{
-    <div class="card">
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <span class="material-symbols-outlined">analytics</span>
+@* Requirements Info Box *@
+<div class="card mb-4" style="background: var(--primary-50); border-color: var(--primary-200);">
+    <div class="card-body" style="padding: var(--space-4);">
+        <div style="display: flex; align-items: flex-start; gap: var(--space-3);">
+            <span class="material-symbols-outlined" style="color: var(--primary-600); font-size: 24px;">info</span>
+            <div style="flex: 1;">
+                <div style="font-weight: 600; color: var(--primary-800); margin-bottom: var(--space-2);">
+                    Financial Statement Requirements
+                    @if (YearsInOperation.HasValue)
+                    {
+                        <span class="badge badge-primary" style="margin-left: var(--space-2);">
+                            Business Age: @FormatBusinessAge(YearsInOperation.Value)
+                        </span>
+                    }
+                </div>
+                <div style="font-size: var(--text-sm); color: var(--primary-700);">
+                    @GetRequirementsDescription()
+                </div>
             </div>
-            <div class="empty-state-title">No financial analysis available</div>
-            <div class="empty-state-text">Upload audited financial statements to generate analysis.</div>
-            <button class="btn btn-primary">
-                <span class="material-symbols-outlined" style="font-size: 18px;">upload</span>
-                Upload Financials
-            </button>
+        </div>
+    </div>
+</div>
+
+@* Validation Warning/Success *@
+@{
+    var validation = ValidateFinancialStatements();
+}
+@if (Statements.Any())
+{
+    @if (validation.IsValid)
+    {
+        <div class="alert alert-success mb-4">
+            <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">check_circle</span>
+            <strong>Requirements Met:</strong> Financial statement requirements have been satisfied.
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning mb-4">
+            <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">warning</span>
+            <strong>Requirements Not Met:</strong> @validation.Message
+        </div>
+    }
+}
+
+@if (!IsEditable)
+{
+    <div class="alert alert-warning mb-4" style="display: flex; gap: var(--space-3); align-items: flex-start;">
+        <span class="material-symbols-outlined" style="color: var(--warning-600);">lock</span>
+        <div style="font-size: var(--text-sm);">
+            <strong>Read-Only:</strong> This application has been submitted for processing. Financial data cannot be modified.
         </div>
     </div>
 }
-else
-{
-    <div class="grid grid-cols-2 gap-6">
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Key Financial Ratios</h3>
-            </div>
-            <div class="card-body">
-                @foreach (var ratio in Analysis.Ratios)
+
+@* Financial Statements List *@
+<div class="card mb-6">
+    <div class="card-header">
+        <h3 class="card-title">Financial Statements</h3>
+        @if (IsEditable)
+        {
+            <div style="display: flex; gap: var(--space-2);">
+                @if (Statements.Any() && Statements.All(s => s.Status == "Draft"))
                 {
-                    <div style="margin-bottom: var(--space-4); padding-bottom: var(--space-4); border-bottom: 1px solid var(--gray-100);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2);">
-                            <span style="font-weight: 500;">@ratio.Name</span>
-                            <div style="display: flex; align-items: center; gap: var(--space-2);">
-                                <span style="font-size: var(--text-lg); font-weight: 600; color: @GetRatioColor(ratio.Status);">
-                                    @ratio.Value.ToString("0.##")
-                                </span>
-                                @if (ratio.Benchmark.HasValue)
-                                {
-                                    <span style="font-size: var(--text-xs); color: var(--gray-500);">
-                                        (Benchmark: @ratio.Benchmark.Value.ToString("0.##"))
-                                    </span>
-                                }
-                            </div>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: var(--space-2);">
-                            <span class="badge @GetStatusBadgeClass(ratio.Status)" style="font-size: 10px;">@ratio.Status</span>
-                        </div>
+                    <button type="button" class="btn btn-outline btn-sm" style="color: var(--danger-600); border-color: var(--danger-300);" @onclick="HandleDeleteAll">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">delete_sweep</span>
+                        Delete All
+                    </button>
+                }
+                <button type="button" class="btn btn-outline btn-sm" @onclick="HandleUploadExcel">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span>
+                    Upload Excel
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" @onclick="HandleEnterFinancials">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+                    Manual Entry
+                </button>
+            </div>
+        }
+    </div>
+    <div class="card-body" style="padding: 0;">
+        @if (!Statements.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">analytics</span>
+                </div>
+                <div class="empty-state-title">No financial statements entered</div>
+                <div class="empty-state-text">
+                    @if (IsEditable)
+                    {
+                        <span>Enter at least 3 years of financial statements for credit analysis.</span>
+                        <br /><br />
+                        <strong>Two options available:</strong>
+                    }
+                    else
+                    {
+                        <span>No financial statements were submitted with this application.</span>
+                    }
+                </div>
+                @if (IsEditable)
+                {
+                    <div style="display: flex; gap: var(--space-3); justify-content: center; margin-top: var(--space-4);">
+                        <button type="button" class="btn btn-outline" @onclick="HandleUploadExcel">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">upload_file</span>
+                            Upload Excel Template
+                        </button>
+                        <button type="button" class="btn btn-primary" @onclick="HandleEnterFinancials">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">edit_note</span>
+                            Enter Manually
+                        </button>
                     </div>
                 }
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Type</th>
+                        <th>Total Assets</th>
+                        <th>Revenue</th>
+                        <th>Net Profit</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var stmt in Statements.OrderByDescending(s => s.Year))
+                    {
+                        var currentStmt = stmt;
+                        <tr>
+                            <td>
+                                <div style="font-weight: 600; font-size: var(--text-lg);">@stmt.Year</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                                    Year ended @stmt.YearEndDate.ToString("MMM dd")
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge @GetYearTypeBadge(stmt.YearType)">@stmt.YearType</span>
+                            </td>
+                            <td style="font-weight: 500;">₦@FormatAmount(stmt.TotalAssets)</td>
+                            <td style="font-weight: 500;">₦@FormatAmount(stmt.Revenue)</td>
+                            <td style="font-weight: 500; color: @(stmt.NetProfit >= 0 ? "var(--success-600)" : "var(--danger-600)");">
+                                ₦@FormatAmount(stmt.NetProfit)
+                            </td>
+                            <td>
+                                <span class="badge @GetStatusBadgeClass(stmt.Status)">
+                                    <span class="status-dot @GetStatusDotClass(stmt.Status)"></span>
+                                    @stmt.Status
+                                </span>
+                            </td>
+                            <td>
+                                <div style="display: flex; gap: var(--space-2);">
+                                    <button type="button" class="btn btn-ghost btn-sm" title="View Details" @onclick="() => OnViewStatement.InvokeAsync(currentStmt.Id)">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                    </button>
+                                    @if (IsEditable && stmt.Status == "Draft")
+                                    {
+                                        <button type="button" class="btn btn-ghost btn-sm" title="Edit" @onclick="() => OnEditStatement.InvokeAsync(currentStmt.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                                        </button>
+                                        <button type="button" class="btn btn-ghost btn-sm" title="Delete" style="color: var(--danger-600);" @onclick="() => OnDeleteStatement.InvokeAsync(currentStmt.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@* Trend Analysis - Show only if 2+ years entered *@
+@if (Statements.Count >= 2)
+{
+    <div class="grid grid-cols-2 gap-6 mb-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Revenue & Profit Trend</h3>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Year</th>
+                            <th>Revenue</th>
+                            <th>Growth</th>
+                            <th>Net Profit</th>
+                            <th>Margin</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            var orderedStmts = Statements.OrderByDescending(s => s.Year).ToList();
+                        }
+                        @for (int i = 0; i < orderedStmts.Count; i++)
+                        {
+                            var stmt = orderedStmts[i];
+                            var prevStmt = i < orderedStmts.Count - 1 ? orderedStmts[i + 1] : null;
+                            var revenueGrowth = prevStmt != null && prevStmt.Revenue != 0 
+                                ? ((stmt.Revenue - prevStmt.Revenue) / prevStmt.Revenue) * 100 : (decimal?)null;
+                            var profitMargin = stmt.Revenue != 0 ? (stmt.NetProfit / stmt.Revenue) * 100 : 0;
+                            
+                            <tr>
+                                <td style="font-weight: 500;">@stmt.Year</td>
+                                <td>₦@FormatAmount(stmt.Revenue)</td>
+                                <td>
+                                    @if (revenueGrowth.HasValue)
+                                    {
+                                        <span style="color: @(revenueGrowth >= 0 ? "var(--success-600)" : "var(--danger-600)");">
+                                            @(revenueGrowth >= 0 ? "+" : "")@revenueGrowth.Value.ToString("0.1")%
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td style="color: @(stmt.NetProfit >= 0 ? "var(--success-600)" : "var(--danger-600)");">
+                                    ₦@FormatAmount(stmt.NetProfit)
+                                </td>
+                                <td>@profitMargin.ToString("0.1")%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
         </div>
 
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">Financial Trend</h3>
+                <h3 class="card-title">Balance Sheet Trend</h3>
             </div>
             <div class="card-body">
-                @if (Analysis.YearlyData.Any())
-                {
-                    <table class="table">
-                        <thead>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Year</th>
+                            <th>Total Assets</th>
+                            <th>Total Debt</th>
+                            <th>Equity</th>
+                            <th>D/E Ratio</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var stmt in Statements.OrderByDescending(s => s.Year))
+                        {
+                            var deRatio = stmt.TotalEquity != 0 ? stmt.TotalDebt / stmt.TotalEquity : 0;
                             <tr>
-                                <th>Year</th>
-                                <th>Revenue</th>
-                                <th>Net Income</th>
-                                <th>Total Assets</th>
+                                <td style="font-weight: 500;">@stmt.Year</td>
+                                <td>₦@FormatAmount(stmt.TotalAssets)</td>
+                                <td>₦@FormatAmount(stmt.TotalDebt)</td>
+                                <td>₦@FormatAmount(stmt.TotalEquity)</td>
+                                <td>
+                                    <span style="color: @(deRatio <= 2 ? "var(--success-600)" : deRatio <= 4 ? "var(--warning-600)" : "var(--danger-600)");">
+                                        @deRatio.ToString("0.##")x
+                                    </span>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var year in Analysis.YearlyData.OrderByDescending(y => y.Year))
-                            {
-                                <tr>
-                                    <td style="font-weight: 500;">@year.Year</td>
-                                    <td>₦@FormatAmount(year.Revenue)</td>
-                                    <td style="color: @(year.NetIncome >= 0 ? "var(--success-600)" : "var(--danger-600)")">
-                                        ₦@FormatAmount(year.NetIncome)
-                                    </td>
-                                    <td>₦@FormatAmount(year.TotalAssets)</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-                else
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@* Key Ratios - Show only if ratios exist *@
+@if (Analysis != null && Analysis.Ratios.Any())
+{
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Key Financial Ratios (Most Recent Year)</h3>
+        </div>
+        <div class="card-body">
+            <div class="grid grid-cols-3 gap-4">
+                @foreach (var ratio in Analysis.Ratios)
                 {
-                    <div class="text-center text-muted p-4">No yearly data available</div>
+                    <div style="padding: var(--space-4); background: var(--gray-50); border-radius: var(--radius-md);">
+                        <div style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-1);">@ratio.Name</div>
+                        <div style="display: flex; align-items: baseline; gap: var(--space-2);">
+                            <span style="font-size: var(--text-xl); font-weight: 600; color: @GetRatioColor(ratio.Status);">
+                                @ratio.Value.ToString("0.##")
+                            </span>
+                            @if (ratio.Benchmark.HasValue)
+                            {
+                                <span style="font-size: var(--text-xs); color: var(--gray-500);">
+                                    / @ratio.Benchmark.Value.ToString("0.##")
+                                </span>
+                            }
+                        </div>
+                        <span class="badge @GetStatusBadgeClass(ratio.Status)" style="font-size: 10px; margin-top: var(--space-2);">@ratio.Status</span>
+                    </div>
                 }
             </div>
         </div>
@@ -91,6 +306,84 @@ else
 
 @code {
     [Parameter] public FinancialAnalysisInfo? Analysis { get; set; }
+    [Parameter] public List<FinancialStatementInfo> Statements { get; set; } = [];
+    [Parameter] public DateTime? IncorporationDate { get; set; }
+    [Parameter] public bool IsEditable { get; set; } = true;
+    [Parameter] public EventCallback OnEnterFinancials { get; set; }
+    [Parameter] public EventCallback OnUploadExcel { get; set; }
+    [Parameter] public EventCallback<Guid> OnViewStatement { get; set; }
+    [Parameter] public EventCallback<Guid> OnEditStatement { get; set; }
+    [Parameter] public EventCallback<Guid> OnDeleteStatement { get; set; }
+    [Parameter] public EventCallback OnDeleteAll { get; set; }
+
+    private async Task HandleUploadExcel() => await OnUploadExcel.InvokeAsync();
+    private async Task HandleEnterFinancials() => await OnEnterFinancials.InvokeAsync();
+    private async Task HandleDeleteAll() => await OnDeleteAll.InvokeAsync();
+
+    private int? YearsInOperation => IncorporationDate.HasValue 
+        ? (int)Math.Floor((DateTime.Now - IncorporationDate.Value).TotalDays / 365.25)
+        : null;
+
+    private string GetRequirementsDescription()
+    {
+        var years = YearsInOperation ?? 99;
+        
+        if (years == 0)
+            return "Startup (under 1 year): Provide 3 years of projected financial statements plus a detailed business plan.";
+        if (years == 1)
+            return "New Business (1 year): Provide 1 year of actuals (audited or management accounts) + 2 years projected.";
+        if (years == 2)
+            return "Growing Business (2 years): Provide 2 years of actuals (at least 1 audited) + 1 year projected.";
+        return "Established Business (3+ years): Provide 3 years of audited financial statements.";
+    }
+
+    private (bool IsValid, string Message) ValidateFinancialStatements()
+    {
+        var years = YearsInOperation ?? 99;
+        var audited = Statements.Count(s => s.YearType == "Audited");
+        var management = Statements.Count(s => s.YearType == "ManagementAccounts");
+        var projected = Statements.Count(s => s.YearType == "Projected");
+        var total = Statements.Count;
+
+        if (total == 0)
+            return (false, "No financial statements entered. Please add at least 3 years.");
+        
+        if (total < 3)
+            return (false, $"You have entered {total} year(s). Please add {3 - total} more year(s) of financial statements.");
+
+        // Startup: Need 3 projected
+        if (years == 0)
+        {
+            if (projected >= 3) return (true, "");
+            return (false, $"Startups require at least 3 years of projected financials. You have {projected} projected.");
+        }
+        
+        // 1 year old: Need 1 actual + 2 projected
+        if (years == 1)
+        {
+            if (audited + management >= 1 && projected >= 2) return (true, "");
+            return (false, $"Businesses under 2 years need at least 1 year of actuals and 2 years projected. You have {audited + management} actual(s) and {projected} projected.");
+        }
+        
+        // 2 years old: Need 2 actuals (1 audited) + 1 projected
+        if (years == 2)
+        {
+            if (audited >= 1 && (audited + management) >= 2 && projected >= 1) return (true, "");
+            return (false, $"Businesses 2-3 years old need at least 2 years of actuals (1 audited) and 1 year projected. You have {audited} audited, {management} management accounts, and {projected} projected.");
+        }
+        
+        // 3+ years: Need 3 audited
+        if (audited >= 3) return (true, "");
+        return (false, $"Established businesses (3+ years) require 3 years of audited financials. You have {audited} audited. Management accounts: {management}");
+    }
+
+    private static string FormatBusinessAge(int years) => years switch
+    {
+        0 => "< 1 year (Startup)",
+        1 => "1 year",
+        2 => "2 years",
+        _ => $"{years} years"
+    };
 
     private static string GetRatioColor(string status) => status switch
     {
@@ -102,9 +395,26 @@ else
 
     private static string GetStatusBadgeClass(string status) => status switch
     {
-        "Good" or "Excellent" => "badge-success",
-        "Fair" or "Acceptable" => "badge-warning",
-        "Poor" => "badge-danger",
+        "Good" or "Excellent" or "Verified" => "badge-success",
+        "Fair" or "Acceptable" or "PendingReview" => "badge-warning",
+        "Poor" or "Rejected" => "badge-danger",
+        "Draft" => "badge-gray",
+        _ => "badge-gray"
+    };
+
+    private static string GetStatusDotClass(string status) => status switch
+    {
+        "Verified" => "success",
+        "PendingReview" => "warning",
+        "Rejected" => "danger",
+        _ => "gray"
+    };
+
+    private static string GetYearTypeBadge(string yearType) => yearType switch
+    {
+        "Audited" => "badge-success",
+        "ManagementAccounts" => "badge-primary",
+        "Projected" => "badge-warning",
         _ => "badge-gray"
     };
 
@@ -112,6 +422,7 @@ else
     {
         if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
         if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        if (amount >= 1_000) return $"{amount / 1_000:0.##}K";
         return $"{amount:N0}";
     }
 }

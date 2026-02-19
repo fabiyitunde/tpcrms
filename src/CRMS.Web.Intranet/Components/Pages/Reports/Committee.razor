@@ -1,0 +1,380 @@
+@page "/reports/committee"
+@inject NavigationManager Navigation
+
+<PageTitle>Committee Report - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Committee Report</h1>
+        <p class="page-subtitle">Committee activity and voting analytics</p>
+    </div>
+    <div style="display: flex; gap: var(--space-3);">
+        <select class="form-control" style="width: 150px;" @bind="selectedPeriod">
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+        </select>
+        <button class="btn btn-secondary">
+            <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+            Export
+        </button>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <span class="material-symbols-outlined">groups</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Total Reviews</div>
+            <div class="stat-value">48</div>
+            <div class="stat-change">This period</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">
+            <span class="material-symbols-outlined">thumb_up</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Approved</div>
+            <div class="stat-value">38</div>
+            <div class="stat-change positive">79% approval rate</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">
+            <span class="material-symbols-outlined">schedule</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Avg. Review Time</div>
+            <div class="stat-value">2.4 days</div>
+            <div class="stat-change positive">-0.5 days vs target</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <span class="material-symbols-outlined">how_to_vote</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Participation Rate</div>
+            <div class="stat-value">94%</div>
+            <div class="stat-change positive">+3% from last period</div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-2 gap-6 mt-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Reviews by Committee</h3>
+        </div>
+        <div class="card-body">
+            @foreach (var committee in committeeStats)
+            {
+                <div class="committee-row">
+                    <div class="committee-info">
+                        <span class="committee-name">@committee.Name</span>
+                        <span class="committee-members">@committee.MemberCount members</span>
+                    </div>
+                    <div class="committee-stats">
+                        <span class="badge badge-success">@committee.Approved approved</span>
+                        <span class="badge badge-danger">@committee.Rejected rejected</span>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Decision Distribution</h3>
+        </div>
+        <div class="card-body">
+            <div class="decision-bars">
+                <div class="decision-row">
+                    <span class="decision-label">Approved</span>
+                    <div class="decision-bar-container">
+                        <div class="decision-bar approved" style="width: 79%"></div>
+                    </div>
+                    <span class="decision-value">38 (79%)</span>
+                </div>
+                <div class="decision-row">
+                    <span class="decision-label">Rejected</span>
+                    <div class="decision-bar-container">
+                        <div class="decision-bar rejected" style="width: 15%"></div>
+                    </div>
+                    <span class="decision-value">7 (15%)</span>
+                </div>
+                <div class="decision-row">
+                    <span class="decision-label">Deferred</span>
+                    <div class="decision-bar-container">
+                        <div class="decision-bar deferred" style="width: 6%"></div>
+                    </div>
+                    <span class="decision-value">3 (6%)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-6">
+    <div class="card-header">
+        <h3 class="card-title">Member Participation</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Member</th>
+                    <th>Committee</th>
+                    <th>Reviews Assigned</th>
+                    <th>Votes Cast</th>
+                    <th>Participation</th>
+                    <th>Avg. Response Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var member in memberParticipation)
+                {
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                <div class="user-avatar" style="width: 28px; height: 28px; font-size: 10px;">@member.Initials</div>
+                                <div>
+                                    <div style="font-weight: 500;">@member.Name</div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">@member.Role</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge @GetCommitteeBadgeClass(member.Committee)">@member.Committee</span>
+                        </td>
+                        <td>@member.AssignedCount</td>
+                        <td>@member.VotesCast</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                <div class="participation-bar">
+                                    <div class="participation-fill @(member.Participation >= 90 ? "high" : member.Participation >= 75 ? "medium" : "low")" 
+                                         style="width: @member.Participation%"></div>
+                                </div>
+                                <span>@member.Participation%</span>
+                            </div>
+                        </td>
+                        <td>@member.AvgResponseHours hrs</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card mt-6">
+    <div class="card-header">
+        <h3 class="card-title">Recent Decisions</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Application</th>
+                    <th>Committee</th>
+                    <th>Decision</th>
+                    <th>Votes</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var decision in recentDecisions)
+                {
+                    <tr>
+                        <td>
+                            <a href="/applications/@decision.ApplicationId" style="font-weight: 600; color: var(--primary-600);">
+                                @decision.ApplicationNumber
+                            </a>
+                        </td>
+                        <td>@decision.Committee</td>
+                        <td>
+                            <span class="badge @GetDecisionBadgeClass(decision.Decision)">@decision.Decision</span>
+                        </td>
+                        <td>
+                            <span style="color: var(--success-600);">@decision.ApproveVotes</span> / 
+                            <span style="color: var(--danger-600);">@decision.RejectVotes</span> / 
+                            <span style="color: var(--gray-500);">@decision.AbstainVotes</span>
+                        </td>
+                        <td style="font-weight: 500;">₦@FormatAmount(decision.Amount)</td>
+                        <td>@decision.DecisionDate.ToString("MMM dd, yyyy")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .committee-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-3) 0;
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .committee-row:last-child {
+        border-bottom: none;
+    }
+    
+    .committee-name {
+        display: block;
+        font-weight: 500;
+    }
+    
+    .committee-members {
+        display: block;
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+    }
+    
+    .committee-stats {
+        display: flex;
+        gap: var(--space-2);
+    }
+    
+    .decision-row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+        margin-bottom: var(--space-4);
+    }
+    
+    .decision-label {
+        width: 80px;
+        font-size: var(--text-sm);
+    }
+    
+    .decision-bar-container {
+        flex: 1;
+        height: 20px;
+        background: var(--gray-100);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+    }
+    
+    .decision-bar {
+        height: 100%;
+        border-radius: var(--radius-md);
+    }
+    
+    .decision-bar.approved { background: var(--success-500); }
+    .decision-bar.rejected { background: var(--danger-500); }
+    .decision-bar.deferred { background: var(--warning-500); }
+    
+    .decision-value {
+        width: 80px;
+        text-align: right;
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+    
+    .participation-bar {
+        width: 60px;
+        height: 6px;
+        background: var(--gray-200);
+        border-radius: var(--radius-full);
+        overflow: hidden;
+    }
+    
+    .participation-fill {
+        height: 100%;
+        border-radius: var(--radius-full);
+    }
+    
+    .participation-fill.high { background: var(--success-500); }
+    .participation-fill.medium { background: var(--warning-500); }
+    .participation-fill.low { background: var(--danger-500); }
+</style>
+
+@code {
+    private int selectedPeriod = 30;
+
+    private List<CommitteeStat> committeeStats =
+    [
+        new() { Name = "Credit Committee", MemberCount = 5, Approved = 28, Rejected = 5 },
+        new() { Name = "Management Committee", MemberCount = 3, Approved = 8, Rejected = 2 },
+        new() { Name = "Board Committee", MemberCount = 7, Approved = 2, Rejected = 0 }
+    ];
+
+    private List<MemberParticipation> memberParticipation =
+    [
+        new() { Name = "Dr. Amina Ibrahim", Initials = "AI", Role = "Chairperson", Committee = "Credit Committee", AssignedCount = 33, VotesCast = 33, Participation = 100, AvgResponseHours = 8 },
+        new() { Name = "Chief Risk Officer", Initials = "CR", Role = "Member", Committee = "Credit Committee", AssignedCount = 33, VotesCast = 31, Participation = 94, AvgResponseHours = 12 },
+        new() { Name = "Head of Credit", Initials = "HC", Role = "Member", Committee = "Credit Committee", AssignedCount = 33, VotesCast = 30, Participation = 91, AvgResponseHours = 16 },
+        new() { Name = "Managing Director", Initials = "MD", Role = "Chairperson", Committee = "Management Committee", AssignedCount = 10, VotesCast = 10, Participation = 100, AvgResponseHours = 4 },
+        new() { Name = "Executive Director", Initials = "ED", Role = "Member", Committee = "Management Committee", AssignedCount = 10, VotesCast = 9, Participation = 90, AvgResponseHours = 18 }
+    ];
+
+    private List<RecentDecision> recentDecisions =
+    [
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0156", Committee = "Credit Committee", Decision = "Approved", ApproveVotes = 4, RejectVotes = 1, AbstainVotes = 0, Amount = 250_000_000m, DecisionDate = DateTime.Now.AddDays(-1) },
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0150", Committee = "Management Committee", Decision = "Approved", ApproveVotes = 3, RejectVotes = 0, AbstainVotes = 0, Amount = 1_000_000_000m, DecisionDate = DateTime.Now.AddDays(-2) },
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0145", Committee = "Credit Committee", Decision = "Rejected", ApproveVotes = 1, RejectVotes = 4, AbstainVotes = 0, Amount = 500_000_000m, DecisionDate = DateTime.Now.AddDays(-3) },
+        new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0140", Committee = "Credit Committee", Decision = "Approved", ApproveVotes = 5, RejectVotes = 0, AbstainVotes = 0, Amount = 300_000_000m, DecisionDate = DateTime.Now.AddDays(-5) }
+    ];
+
+    private static string GetCommitteeBadgeClass(string committee) => committee switch
+    {
+        "Credit Committee" => "badge-primary",
+        "Management Committee" => "badge-warning",
+        "Board Committee" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private static string GetDecisionBadgeClass(string decision) => decision switch
+    {
+        "Approved" => "badge-success",
+        "Rejected" => "badge-danger",
+        "Deferred" => "badge-warning",
+        _ => "badge-gray"
+    };
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+
+    private class CommitteeStat
+    {
+        public string Name { get; set; } = string.Empty;
+        public int MemberCount { get; set; }
+        public int Approved { get; set; }
+        public int Rejected { get; set; }
+    }
+
+    private class MemberParticipation
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Initials { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public string Committee { get; set; } = string.Empty;
+        public int AssignedCount { get; set; }
+        public int VotesCast { get; set; }
+        public int Participation { get; set; }
+        public int AvgResponseHours { get; set; }
+    }
+
+    private class RecentDecision
+    {
+        public Guid ApplicationId { get; set; }
+        public string ApplicationNumber { get; set; } = string.Empty;
+        public string Committee { get; set; } = string.Empty;
+        public string Decision { get; set; } = string.Empty;
+        public int ApproveVotes { get; set; }
+        public int RejectVotes { get; set; }
+        public int AbstainVotes { get; set; }
+        public decimal Amount { get; set; }
+        public DateTime DecisionDate { get; set; }
+    }
+}

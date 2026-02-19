@@ -10,4 +10,5 @@ public interface IFinancialStatementRepository
     Task<FinancialStatement?> GetByLoanApplicationAndYearAsync(Guid loanApplicationId, int year, CancellationToken ct = default);
     Task AddAsync(FinancialStatement statement, CancellationToken ct = default);
     void Update(FinancialStatement statement);
+    void Delete(FinancialStatement statement);
 }

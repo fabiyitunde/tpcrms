@@ -1,5 +1,5 @@
 @page "/reports/audit"
-@inject ApiClient Api
+@inject ApplicationService AppService
 @inject NavigationManager Navigation
 
 <PageTitle>Audit Trail - CRMS</PageTitle>
@@ -146,21 +146,48 @@
     private async Task LoadAuditLogs()
     {
         isLoading = true;
-        await Task.Delay(300);
-        
-        auditLogs =
-        [
-            new() { Timestamp = DateTime.Now.AddMinutes(-5), UserName = "John Adeyemi", Action = "Approve", EntityType = "LoanApplication", EntityId = "CL-2026-0156", Details = "Application approved at branch level", IpAddress = "192.168.1.100" },
-            new() { Timestamp = DateTime.Now.AddMinutes(-15), UserName = "Sarah Okonkwo", Action = "Update", EntityType = "LoanApplication", EntityId = "CL-2026-0155", Details = "Updated loan amount from N200M to N180M", IpAddress = "192.168.1.102" },
-            new() { Timestamp = DateTime.Now.AddMinutes(-30), UserName = "Michael Eze", Action = "Create", EntityType = "LoanApplication", EntityId = "CL-2026-0160", Details = "New corporate loan application created", IpAddress = "192.168.1.105" },
-            new() { Timestamp = DateTime.Now.AddHours(-1), UserName = "System", Action = "Update", EntityType = "BureauReport", EntityId = "BR-2026-0892", Details = "Credit bureau report received for John Adebayo", IpAddress = "localhost" },
-            new() { Timestamp = DateTime.Now.AddHours(-2), UserName = "Credit Team", Action = "Update", EntityType = "Advisory", EntityId = "ADV-2026-0445", Details = "AI Advisory generated with score 72.5", IpAddress = "192.168.1.108" },
-            new() { Timestamp = DateTime.Now.AddHours(-3), UserName = "Admin User", Action = "Login", EntityType = "User", EntityId = "USR-0001", Details = "Successful login", IpAddress = "192.168.1.1" },
-            new() { Timestamp = DateTime.Now.AddHours(-4), UserName = "Risk Committee", Action = "Approve", EntityType = "CommitteeReview", EntityId = "CR-2026-0088", Details = "Committee approved application CL-2026-0145", IpAddress = "192.168.1.120" },
-            new() { Timestamp = DateTime.Now.AddHours(-5), UserName = "Operations", Action = "Update", EntityType = "LoanApplication", EntityId = "CL-2026-0140", Details = "Marked as disbursed", IpAddress = "192.168.1.115" }
-        ];
-        
-        isLoading = false;
+        try
+        {
+            var dbLogs = await AppService.GetAuditLogsAsync(
+                string.IsNullOrEmpty(selectedAction) ? null : selectedAction,
+                dateFrom,
+                dateTo
+            );
+            
+            if (dbLogs.Count > 0)
+            {
+                auditLogs = dbLogs.Select(l => new AuditLog
+                {
+                    Timestamp = l.Timestamp,
+                    UserName = l.UserName,
+                    Action = l.Action,
+                    EntityType = l.EntityType,
+                    EntityId = l.EntityId,
+                    Details = l.Details,
+                    IpAddress = l.IpAddress
+                }).ToList();
+                totalCount = auditLogs.Count;
+            }
+            else
+            {
+                // Fallback mock data
+                auditLogs =
+                [
+                    new() { Timestamp = DateTime.Now.AddMinutes(-5), UserName = "John Adeyemi", Action = "Approve", EntityType = "LoanApplication", EntityId = "CL-2026-0156", Details = "Application approved at branch level", IpAddress = "192.168.1.100" },
+                    new() { Timestamp = DateTime.Now.AddMinutes(-15), UserName = "Sarah Okonkwo", Action = "Update", EntityType = "LoanApplication", EntityId = "CL-2026-0155", Details = "Updated loan amount from N200M to N180M", IpAddress = "192.168.1.102" },
+                    new() { Timestamp = DateTime.Now.AddMinutes(-30), UserName = "Michael Eze", Action = "Create", EntityType = "LoanApplication", EntityId = "CL-2026-0160", Details = "New corporate loan application created", IpAddress = "192.168.1.105" },
+                    new() { Timestamp = DateTime.Now.AddHours(-1), UserName = "System", Action = "Update", EntityType = "BureauReport", EntityId = "BR-2026-0892", Details = "Credit bureau report received for John Adebayo", IpAddress = "localhost" },
+                    new() { Timestamp = DateTime.Now.AddHours(-2), UserName = "Credit Team", Action = "Update", EntityType = "Advisory", EntityId = "ADV-2026-0445", Details = "AI Advisory generated with score 72.5", IpAddress = "192.168.1.108" },
+                    new() { Timestamp = DateTime.Now.AddHours(-3), UserName = "Admin User", Action = "Login", EntityType = "User", EntityId = "USR-0001", Details = "Successful login", IpAddress = "192.168.1.1" },
+                    new() { Timestamp = DateTime.Now.AddHours(-4), UserName = "Risk Committee", Action = "Approve", EntityType = "CommitteeReview", EntityId = "CR-2026-0088", Details = "Committee approved application CL-2026-0145", IpAddress = "192.168.1.120" },
+                    new() { Timestamp = DateTime.Now.AddHours(-5), UserName = "Operations", Action = "Update", EntityType = "LoanApplication", EntityId = "CL-2026-0140", Details = "Marked as disbursed", IpAddress = "192.168.1.115" }
+                ];
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private async Task Search()

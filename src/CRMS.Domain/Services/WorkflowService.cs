@@ -140,7 +140,7 @@ public class WorkflowService
 
         var transitions = definition.GetAvailableTransitions(instance.CurrentStatus);
         var actions = transitions
-            .Where(t => t.RequiredRole == userRole || userRole == "SystemAdministrator")
+            .Where(t => t.RequiredRole == userRole || userRole == "SystemAdmin")
             .Select(t => new AvailableAction
             {
                 Action = t.Action,

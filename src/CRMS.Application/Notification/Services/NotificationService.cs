@@ -124,7 +124,7 @@ public class NotificationOrchestrator : INotificationService
 
     public async Task ProcessRetriesAsync(CancellationToken ct = default)
     {
-        var retries = await _notificationRepository.GetForRetryAsync(50, ct);
+        var retries = await _notificationRepository.GetForRetryAsync(DateTime.UtcNow, 50, ct);
         
         foreach (var notification in retries)
         {

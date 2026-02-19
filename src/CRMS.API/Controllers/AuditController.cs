@@ -12,7 +12,7 @@ namespace CRMS.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "ComplianceOfficer,RiskManager,SystemAdministrator")]
+[Authorize(Roles = "Auditor,RiskManager,SystemAdmin")]
 public class AuditController : ControllerBase
 {
     private readonly IServiceProvider _serviceProvider;

@@ -49,25 +49,43 @@ public class LoanApplicationSummary
 public class LoanApplicationDetail
 {
     public Guid Id { get; set; }
+
     public string ApplicationNumber { get; set; } = string.Empty;
+
     public string Status { get; set; } = string.Empty;
-    
-    public CustomerInfo Customer { get; set; } = new();
-    public LoanInfo Loan { get; set; } = new();
-    public List<PartyInfo> Directors { get; set; } = [];
-    public List<PartyInfo> Signatories { get; set; } = [];
-    public List<DocumentInfo> Documents { get; set; } = [];
-    public List<CollateralInfo> Collaterals { get; set; } = [];
-    public List<GuarantorInfo> Guarantors { get; set; } = [];
+
+    public CustomerInfo Customer { get; set; } = new CustomerInfo();
+
+    public LoanInfo Loan { get; set; } = new LoanInfo();
+
+    public List<PartyInfo> Directors { get; set; } = new List<PartyInfo>();
+
+    public List<PartyInfo> Signatories { get; set; } = new List<PartyInfo>();
+
+    public List<DocumentInfo> Documents { get; set; } = new List<DocumentInfo>();
+
+    public List<CollateralInfo> Collaterals { get; set; } = new List<CollateralInfo>();
+
+    public List<GuarantorInfo> Guarantors { get; set; } = new List<GuarantorInfo>();
+
     public FinancialAnalysisInfo? FinancialAnalysis { get; set; }
-    public List<BureauReportInfo> BureauReports { get; set; } = [];
+
+    public List<FinancialStatementInfo> FinancialStatements { get; set; } = new List<FinancialStatementInfo>();
+
+    public List<BureauReportInfo> BureauReports { get; set; } = new List<BureauReportInfo>();
+
     public AdvisoryInfo? Advisory { get; set; }
-    public List<WorkflowHistoryItem> WorkflowHistory { get; set; } = [];
+
+    public List<WorkflowHistoryItem> WorkflowHistory { get; set; } = new List<WorkflowHistoryItem>();
+
     public CommitteeInfo? Committee { get; set; }
-    public List<CommentInfo> Comments { get; set; } = [];
-    
+
+    public List<CommentInfo> Comments { get; set; } = new List<CommentInfo>();
+
     public DateTime CreatedAt { get; set; }
+
     public DateTime? LastUpdatedAt { get; set; }
+
     public string CreatedBy { get; set; } = string.Empty;
 }
 
@@ -258,4 +276,94 @@ public class ApplicationFilter
     public decimal? AmountMax { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;
+}
+public class ApiResponse
+{
+    public bool Success { get; set; }
+
+    public string? Error { get; set; }
+
+    public static ApiResponse Ok()
+    {
+        return new ApiResponse
+        {
+            Success = true
+        };
+    }
+
+    public static ApiResponse Fail(string error)
+    {
+        return new ApiResponse
+        {
+            Success = false,
+            Error = error
+        };
+    }
+}
+public class ApiResponse<T> : ApiResponse
+{
+    public T? Data { get; set; }
+
+    public static ApiResponse<T> Ok(T data)
+    {
+        return new ApiResponse<T>
+        {
+            Success = true,
+            Data = data
+        };
+    }
+
+    public new static ApiResponse<T> Fail(string error)
+    {
+        return new ApiResponse<T>
+        {
+            Success = false,
+            Error = error
+        };
+    }
+}
+public class LoanProduct
+{
+    public Guid Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public string Code { get; set; } = string.Empty;
+
+    public decimal MinAmount { get; set; }
+
+    public decimal MaxAmount { get; set; }
+
+    public int MinTenorMonths { get; set; }
+
+    public int MaxTenorMonths { get; set; }
+
+    public decimal BaseInterestRate { get; set; }
+
+    public bool IsActive { get; set; }
+}
+
+public class FinancialStatementInfo
+{
+    public Guid Id { get; set; }
+
+    public int Year { get; set; }
+
+    public DateTime YearEndDate { get; set; }
+
+    public string YearType { get; set; } = string.Empty;
+
+    public string Status { get; set; } = string.Empty;
+
+    public decimal TotalAssets { get; set; }
+
+    public decimal TotalLiabilities { get; set; }
+
+    public decimal TotalEquity { get; set; }
+
+    public decimal TotalDebt { get; set; }
+
+    public decimal Revenue { get; set; }
+
+    public decimal NetProfit { get; set; }
 }

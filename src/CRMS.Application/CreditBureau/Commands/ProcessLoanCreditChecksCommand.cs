@@ -41,6 +41,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
     private readonly ILoanApplicationRepository _loanAppRepository;
     private readonly IGuarantorRepository _guarantorRepository;
     private readonly IBureauReportRepository _bureauReportRepository;
+    private readonly IConsentRecordRepository _consentRepository;
     private readonly ICreditBureauProvider _bureauProvider;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -48,12 +49,14 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
         ILoanApplicationRepository loanAppRepository,
         IGuarantorRepository guarantorRepository,
         IBureauReportRepository bureauReportRepository,
+        IConsentRecordRepository consentRepository,
         ICreditBureauProvider bureauProvider,
         IUnitOfWork unitOfWork)
     {
         _loanAppRepository = loanAppRepository;
         _guarantorRepository = guarantorRepository;
         _bureauReportRepository = bureauReportRepository;
+        _consentRepository = consentRepository;
         _bureauProvider = bureauProvider;
         _unitOfWork = unitOfWork;
     }
@@ -167,6 +170,16 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
     {
         try
         {
+            // NDPA Compliance: Verify consent exists before credit check
+            var consent = await _consentRepository.GetValidConsentAsync(bvn, Domain.Enums.ConsentType.CreditBureauCheck, ct);
+            if (consent == null)
+            {
+                return new IndividualCreditCheckResultDto(
+                    partyId, partyName, partyType, bvn, false, null, null, null, false,
+                    "No valid consent record found for this BVN. Consent is required for credit bureau checks (NDPA compliance)."
+                );
+            }
+
             // Search bureau by BVN
             var searchResult = await _bureauProvider.SearchByBVNAsync(bvn, ct);
             if (searchResult.IsFailure)
@@ -197,13 +210,14 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
 
             var report = reportResult.Value;
 
-            // Create and store bureau report
+            // Create and store bureau report with consent reference
             var bureauReportResult = BureauReport.Create(
                 CreditBureauProvider.CreditRegistry,
                 SubjectType.Individual,
                 partyName,
                 bvn,
                 systemUserId,
+                consent.Id,
                 loanApplicationId
             );
 

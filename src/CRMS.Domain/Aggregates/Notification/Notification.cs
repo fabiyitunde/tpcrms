@@ -39,6 +39,7 @@ public class Notification : AggregateRoot
     public string? FailureReason { get; private set; }
     public int RetryCount { get; private set; }
     public int MaxRetries { get; private set; } = 3;
+    public DateTime? NextRetryAt { get; private set; }
     
     // External reference
     public string? ExternalMessageId { get; private set; }
@@ -158,10 +159,14 @@ public class Notification : AggregateRoot
         {
             Status = NotificationStatus.Retry;
             RetryCount++;
+            // Exponential backoff: 1min, 5min, 25min (base 5^retryCount minutes)
+            var backoffMinutes = Math.Pow(5, RetryCount);
+            NextRetryAt = DateTime.UtcNow.AddMinutes(backoffMinutes);
         }
         else
         {
             Status = NotificationStatus.Failed;
+            NextRetryAt = null;
             AddDomainEvent(new NotificationFailedEvent(Id, Channel, RecipientAddress, reason));
         }
 

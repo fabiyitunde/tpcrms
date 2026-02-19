@@ -8,6 +8,7 @@ using AU = CRMS.Domain.Aggregates.Audit;
 using CF = CRMS.Domain.Aggregates.Configuration;
 using CL = CRMS.Domain.Aggregates.Collateral;
 using CM = CRMS.Domain.Aggregates.Committee;
+using CN = CRMS.Domain.Aggregates.Consent;
 using FS = CRMS.Domain.Aggregates.FinancialStatement;
 using GR = CRMS.Domain.Aggregates.Guarantor;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
@@ -98,6 +99,9 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     // Notification
     public DbSet<NF.Notification> Notifications => Set<NF.Notification>();
     public DbSet<NF.NotificationTemplate> NotificationTemplates => Set<NF.NotificationTemplate>();
+
+    // Consent
+    public DbSet<CN.ConsentRecord> ConsentRecords => Set<CN.ConsentRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

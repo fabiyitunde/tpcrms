@@ -1,5 +1,5 @@
 @page "/applications"
-@inject ApiClient Api
+@inject ApplicationService AppService
 @inject NavigationManager Navigation
 @inject AuthService AuthService
 
@@ -106,7 +106,8 @@
                     <tbody>
                         @foreach (var app in applications)
                         {
-                            <tr @onclick="() => ViewApplication(app.Id)">
+                            var appId = app.Id;
+                            <tr @onclick="() => ViewApplication(appId)" style="cursor: pointer;">
                                 <td>
                                     <span style="font-weight: 600; color: var(--primary-600);">@app.ApplicationNumber</span>
                                 </td>
@@ -139,7 +140,7 @@
                                     }
                                 </td>
                                 <td>
-                                    <button class="btn btn-ghost btn-sm" @onclick:stopPropagation @onclick="() => ViewApplication(app.Id)">
+                                    <button class="btn btn-ghost btn-sm" @onclick:stopPropagation @onclick="() => ViewApplication(appId)">
                                         <span class="material-symbols-outlined">chevron_right</span>
                                     </button>
                                 </td>
@@ -196,18 +197,48 @@
         isLoading = true;
         StateHasChanged();
 
-        var (items, count) = await Api.GetApplicationsAsync(filter);
-        applications = items;
-        totalCount = count;
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        
+        // Get user's own applications (includes Drafts)
+        var myApps = await AppService.GetMyApplicationsAsync(userId);
+        
+        // Also get applications by status if a specific status is selected
+        if (!string.IsNullOrEmpty(filter.Status))
+        {
+            var (statusApps, _) = await AppService.GetApplicationsByStatusAsync(filter.Status);
+            // Merge and deduplicate
+            var allApps = myApps.Concat(statusApps)
+                .GroupBy(a => a.Id)
+                .Select(g => g.First())
+                .ToList();
+            
+            // Filter by status
+            applications = allApps.Where(a => a.Status == filter.Status).ToList();
+        }
+        else
+        {
+            applications = myApps;
+        }
+        
+        // Apply search filter if provided
+        if (!string.IsNullOrEmpty(filter.SearchTerm))
+        {
+            var search = filter.SearchTerm.ToLower();
+            applications = applications.Where(a => 
+                a.ApplicationNumber.ToLower().Contains(search) ||
+                a.CustomerName.ToLower().Contains(search) ||
+                (a.AccountNumber?.ToLower().Contains(search) ?? false)
+            ).ToList();
+        }
+        
+        totalCount = applications.Count;
         totalPages = (int)Math.Ceiling(totalCount / (double)filter.PageSize);
 
-        // Mock data for demo
-        if (!applications.Any() && string.IsNullOrEmpty(filter.SearchTerm) && string.IsNullOrEmpty(filter.Status))
-        {
-            applications = GenerateMockApplications();
-            totalCount = applications.Count;
-            totalPages = 1;
-        }
+        // Apply pagination
+        applications = applications
+            .Skip((filter.Page - 1) * filter.PageSize)
+            .Take(filter.PageSize)
+            .ToList();
 
         isLoading = false;
     }

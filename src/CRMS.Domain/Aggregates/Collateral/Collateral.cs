@@ -42,9 +42,10 @@ public class Collateral : AggregateRoot
     
     // Audit
     public Guid CreatedByUserId { get; private set; }
-    public new DateTime CreatedAt { get; private set; }
     public Guid? ApprovedByUserId { get; private set; }
     public DateTime? ApprovedAt { get; private set; }
+    public Guid? RejectedByUserId { get; private set; }
+    public DateTime? RejectedAt { get; private set; }
     public string? RejectionReason { get; private set; }
     public string? Notes { get; private set; }
 
@@ -167,8 +168,8 @@ public class Collateral : AggregateRoot
             return Result.Failure("Rejection reason is required");
 
         Status = CollateralStatus.Rejected;
-        ApprovedByUserId = rejectedByUserId;
-        ApprovedAt = DateTime.UtcNow;
+        RejectedByUserId = rejectedByUserId;
+        RejectedAt = DateTime.UtcNow;
         RejectionReason = reason;
 
         return Result.Success();
@@ -227,6 +228,27 @@ public class Collateral : AggregateRoot
     public void AddDocument(CollateralDocument document)
     {
         _documents.Add(document);
+    }
+
+    public Result UpdateBasicInfo(CollateralType type, string description, string? assetIdentifier, 
+        string? location, string? ownerName, string? ownershipType)
+    {
+        if (Status != CollateralStatus.Proposed && Status != CollateralStatus.UnderValuation)
+            return Result.Failure("Can only update collateral in Proposed or UnderValuation status");
+
+        if (string.IsNullOrWhiteSpace(description))
+            return Result.Failure("Description is required");
+
+        Type = type;
+        Description = description;
+        AssetIdentifier = assetIdentifier;
+        Location = location;
+        OwnerName = ownerName;
+        OwnershipType = ownershipType;
+        HaircutPercentage = GetDefaultHaircut(type);
+        ModifiedAt = DateTime.UtcNow;
+
+        return Result.Success();
     }
 
     public decimal CalculateLTV(Money loanAmount)

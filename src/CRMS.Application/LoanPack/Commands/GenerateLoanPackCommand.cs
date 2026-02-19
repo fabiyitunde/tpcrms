@@ -18,7 +18,8 @@ public record LoanPackResultDto(
     int Version,
     string FileName,
     long FileSizeBytes,
-    string Status
+    string Status,
+    string? StoragePath = null
 );
 
 public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, ApplicationResult<LoanPackResultDto>>
@@ -34,6 +35,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
     private readonly ICommitteeReviewRepository _committeeRepository;
     private readonly ILoanPackRepository _loanPackRepository;
     private readonly ILoanPackGenerator _pdfGenerator;
+    private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _unitOfWork;
 
     public GenerateLoanPackHandler(
@@ -48,6 +50,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
         ICommitteeReviewRepository committeeRepository,
         ILoanPackRepository loanPackRepository,
         ILoanPackGenerator pdfGenerator,
+        IFileStorageService fileStorage,
         IUnitOfWork unitOfWork)
     {
         _loanAppRepository = loanAppRepository;
@@ -61,6 +64,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
         _committeeRepository = committeeRepository;
         _loanPackRepository = loanPackRepository;
         _pdfGenerator = pdfGenerator;
+        _fileStorage = fileStorage;
         _unitOfWork = unitOfWork;
     }
 
@@ -109,46 +113,41 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
             // Update loan pack with document info
             loanPack.SetDocument(fileName, storagePath, pdfBytes.Length, contentHash);
 
-            // Set content summary
-            var advisory = await _advisoryRepository.GetLatestByLoanApplicationIdAsync(request.LoanApplicationId, ct);
-            var bureauReports = await _bureauRepository.GetByLoanApplicationIdAsync(request.LoanApplicationId, ct);
-            var collaterals = await _collateralRepository.GetByLoanApplicationIdAsync(request.LoanApplicationId, ct);
-            var guarantors = await _guarantorRepository.GetByLoanApplicationIdAsync(request.LoanApplicationId, ct);
-
-            // Get scores from advisory if available
-            int? overallScore = null;
-            string? riskRating = null;
-            if (advisory != null)
-            {
-                overallScore = (int)advisory.OverallScore;
-                riskRating = advisory.OverallRating.ToString();
-            }
-
+            // Set content summary using data already loaded in packData (no duplicate DB queries)
             loanPack.SetContentSummary(
-                advisory?.RecommendedAmount,
-                overallScore,
-                riskRating,
-                loanApp.Parties.Count(p => p.PartyType == Domain.Enums.PartyType.Director),
-                bureauReports.Count,
-                collaterals.Count,
-                guarantors.Count);
+                packData.AIAdvisory?.RecommendedAmount,
+                packData.AIAdvisory?.OverallRiskScore,
+                packData.AIAdvisory?.RiskRating,
+                packData.Directors.Count,
+                packData.BureauReports.Count,
+                packData.Collaterals.Count,
+                packData.Guarantors.Count);
 
             loanPack.SetIncludedSections(
                 executiveSummary: true,
-                bureauReports: bureauReports.Any(),
+                bureauReports: packData.BureauReports.Any(),
                 financialAnalysis: packData.FinancialStatements.Any(),
                 cashflowAnalysis: packData.CashflowAnalysis != null,
-                collateralDetails: collaterals.Any(),
-                guarantorDetails: guarantors.Any(),
-                aiAdvisory: advisory != null,
+                collateralDetails: packData.Collaterals.Any(),
+                guarantorDetails: packData.Guarantors.Any(),
+                aiAdvisory: packData.AIAdvisory != null,
                 workflowHistory: packData.WorkflowHistory.Any(),
                 committeeComments: packData.CommitteeComments.Any());
+
+            // Save PDF bytes to file storage
+            var actualStoragePath = await _fileStorage.UploadAsync(
+                containerName: "loanpacks",
+                fileName: $"{loanApp.ApplicationNumber}/{fileName}",
+                content: pdfBytes,
+                contentType: "application/pdf",
+                ct: ct);
+
+            // Update storage path with actual path from storage service
+            loanPack.SetDocument(fileName, actualStoragePath, pdfBytes.Length, contentHash);
 
             // Save loan pack metadata
             await _loanPackRepository.AddAsync(loanPack, ct);
             await _unitOfWork.SaveChangesAsync(ct);
-
-            // TODO: Save PDF bytes to file storage (S3/Azure Blob)
 
             return ApplicationResult<LoanPackResultDto>.Success(new LoanPackResultDto(
                 loanPack.Id,
@@ -156,7 +155,8 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 existingVersion + 1,
                 fileName,
                 pdfBytes.Length,
-                loanPack.Status.ToString()));
+                loanPack.Status.ToString(),
+                actualStoragePath));
         }
         catch (Exception ex)
         {

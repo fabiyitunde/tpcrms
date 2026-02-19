@@ -92,7 +92,7 @@ public class ReportingController : ControllerBase
     /// Get detailed performance report with user and stage breakdowns.
     /// </summary>
     [HttpGet("performance/detailed")]
-    [Authorize(Roles = "Manager,RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "RiskManager,SystemAdmin")]
     public async Task<ActionResult<PerformanceReportDto>> GetPerformanceReport(
         [FromQuery] DateTime fromDate,
         [FromQuery] DateTime toDate,
@@ -119,7 +119,7 @@ public class ReportingController : ControllerBase
     /// Get SLA compliance report.
     /// </summary>
     [HttpGet("sla")]
-    [Authorize(Roles = "Manager,RiskManager,ComplianceOfficer,SystemAdministrator")]
+    [Authorize(Roles = "RiskManager,Auditor,SystemAdmin")]
     public async Task<ActionResult<SLAReportDto>> GetSLAReport(
         [FromQuery] DateTime fromDate,
         [FromQuery] DateTime toDate,
@@ -133,7 +133,7 @@ public class ReportingController : ControllerBase
     /// Get committee activity report.
     /// </summary>
     [HttpGet("committee")]
-    [Authorize(Roles = "Manager,RiskManager,ComplianceOfficer,SystemAdministrator")]
+    [Authorize(Roles = "RiskManager,Auditor,SystemAdmin")]
     public async Task<ActionResult<CommitteeReportDto>> GetCommitteeReport(
         [FromQuery] DateTime fromDate,
         [FromQuery] DateTime toDate,

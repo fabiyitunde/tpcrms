@@ -58,4 +58,9 @@ public class CollateralRepository : ICollateralRepository
     {
         _context.Collaterals.Update(collateral);
     }
+
+    public void Delete(Collateral collateral)
+    {
+        _context.Collaterals.Remove(collateral);
+    }
 }

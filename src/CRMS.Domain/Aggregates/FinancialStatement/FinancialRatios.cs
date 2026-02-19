@@ -44,6 +44,12 @@ public class FinancialRatios : ValueObject
     public bool IsLeverageHealthy => DebtToEquityRatio <= 2.0m && InterestCoverageRatio >= 2.0m;
     public bool IsProfitable => NetProfitMarginPercent > 0;
     public bool HasStrongCashGeneration => DebtServiceCoverageRatio >= 1.25m;
+    
+    /// <summary>
+    /// Indicates if DSCR was calculated without cash flow statement data.
+    /// When true, DSCR uses estimated principal from balance sheet debt and should be treated with caution.
+    /// </summary>
+    public bool IsDSCREstimated { get; private set; }
 
     private FinancialRatios() { }
 
@@ -66,7 +72,20 @@ public class FinancialRatios : ValueObject
         
         // DSCR = (Net Operating Income) / (Total Debt Service)
         // Simplified: EBITDA / (Interest + Principal Payments)
-        var annualDebtService = inc.InterestExpense + (cf?.RepaymentOfBorrowings ?? 0);
+        // When cash flow statement is absent, estimate principal as TotalDebt / 5 (5-year amortization assumption)
+        decimal principalPayments;
+        if (cf != null)
+        {
+            principalPayments = cf.RepaymentOfBorrowings;
+            ratios.IsDSCREstimated = false;
+        }
+        else
+        {
+            // Conservative estimate: assume 5-year amortization of total debt
+            principalPayments = bs.TotalDebt / 5;
+            ratios.IsDSCREstimated = true;
+        }
+        var annualDebtService = inc.InterestExpense + principalPayments;
         ratios.DebtServiceCoverageRatio = SafeDivide(inc.EBITDA, annualDebtService);
 
         // Profitability Ratios

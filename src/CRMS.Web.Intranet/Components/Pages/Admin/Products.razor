@@ -1,5 +1,5 @@
 @page "/admin/products"
-@inject ApiClient Api
+@inject ApplicationService AppService
 
 <PageTitle>Loan Products - CRMS</PageTitle>
 
@@ -200,18 +200,52 @@
     private bool showProductModal;
     private bool isEditing;
     private bool isSaving;
+    private bool isLoading = true;
     private ProductModel editingProduct = new();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        products =
-        [
-            new() { Id = Guid.NewGuid(), Name = "Corporate Term Loan", Code = "CTL", MinAmount = 10_000_000, MaxAmount = 5_000_000_000, MinTenorMonths = 12, MaxTenorMonths = 60, BaseInterestRate = 18.5m, ProductType = "TermLoan", IsActive = true, ApplicationCount = 45 },
-            new() { Id = Guid.NewGuid(), Name = "Working Capital Finance", Code = "WCF", MinAmount = 5_000_000, MaxAmount = 500_000_000, MinTenorMonths = 3, MaxTenorMonths = 12, BaseInterestRate = 20m, ProductType = "WorkingCapital", IsActive = true, ApplicationCount = 62 },
-            new() { Id = Guid.NewGuid(), Name = "Asset Finance", Code = "ASF", MinAmount = 20_000_000, MaxAmount = 2_000_000_000, MinTenorMonths = 24, MaxTenorMonths = 84, BaseInterestRate = 17m, ProductType = "AssetFinance", IsActive = true, ApplicationCount = 28 },
-            new() { Id = Guid.NewGuid(), Name = "Trade Finance", Code = "TRF", MinAmount = 10_000_000, MaxAmount = 1_000_000_000, MinTenorMonths = 1, MaxTenorMonths = 6, BaseInterestRate = 22m, ProductType = "TradeFinance", IsActive = true, ApplicationCount = 21 },
-            new() { Id = Guid.NewGuid(), Name = "Agricultural Loan", Code = "AGL", MinAmount = 5_000_000, MaxAmount = 500_000_000, MinTenorMonths = 12, MaxTenorMonths = 36, BaseInterestRate = 12m, ProductType = "TermLoan", IsActive = false, ApplicationCount = 8 }
-        ];
+        await LoadProductsAsync();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var dbProducts = await AppService.GetAllLoanProductsAsync();
+            if (dbProducts.Count > 0)
+            {
+                products = dbProducts.Select(p => new ProductModel
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Code = p.Code,
+                    MinAmount = p.MinAmount,
+                    MaxAmount = p.MaxAmount,
+                    MinTenorMonths = p.MinTenorMonths,
+                    MaxTenorMonths = p.MaxTenorMonths,
+                    BaseInterestRate = p.BaseInterestRate,
+                    IsActive = p.IsActive
+                }).ToList();
+            }
+            else
+            {
+                // Fallback to seed data display if no products in DB
+                products =
+                [
+                    new() { Id = Guid.NewGuid(), Name = "Corporate Term Loan", Code = "CTL", MinAmount = 10_000_000, MaxAmount = 5_000_000_000, MinTenorMonths = 12, MaxTenorMonths = 60, BaseInterestRate = 18.5m, ProductType = "TermLoan", IsActive = true, ApplicationCount = 45 },
+                    new() { Id = Guid.NewGuid(), Name = "Working Capital Finance", Code = "WCF", MinAmount = 5_000_000, MaxAmount = 500_000_000, MinTenorMonths = 3, MaxTenorMonths = 12, BaseInterestRate = 20m, ProductType = "WorkingCapital", IsActive = true, ApplicationCount = 62 },
+                    new() { Id = Guid.NewGuid(), Name = "Asset Finance", Code = "ASF", MinAmount = 20_000_000, MaxAmount = 2_000_000_000, MinTenorMonths = 24, MaxTenorMonths = 84, BaseInterestRate = 17m, ProductType = "AssetFinance", IsActive = true, ApplicationCount = 28 },
+                    new() { Id = Guid.NewGuid(), Name = "Trade Finance", Code = "TRF", MinAmount = 10_000_000, MaxAmount = 1_000_000_000, MinTenorMonths = 1, MaxTenorMonths = 6, BaseInterestRate = 22m, ProductType = "TradeFinance", IsActive = true, ApplicationCount = 21 },
+                    new() { Id = Guid.NewGuid(), Name = "Agricultural Loan", Code = "AGL", MinAmount = 5_000_000, MaxAmount = 500_000_000, MinTenorMonths = 12, MaxTenorMonths = 36, BaseInterestRate = 12m, ProductType = "TermLoan", IsActive = false, ApplicationCount = 8 }
+                ];
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private void OpenCreateModal()

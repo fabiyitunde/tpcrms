@@ -1,0 +1,319 @@
+@page "/settings"
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Settings - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Settings</h1>
+        <p class="page-subtitle">Application preferences and configuration</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-3 gap-6">
+    <div class="settings-nav">
+        <a href="#appearance" class="settings-nav-item active">
+            <span class="material-symbols-outlined">palette</span>
+            Appearance
+        </a>
+        <a href="#display" class="settings-nav-item">
+            <span class="material-symbols-outlined">grid_view</span>
+            Display
+        </a>
+        <a href="#accessibility" class="settings-nav-item">
+            <span class="material-symbols-outlined">accessibility</span>
+            Accessibility
+        </a>
+    </div>
+
+    <div style="grid-column: span 2;">
+        <div class="card mb-6" id="appearance">
+            <div class="card-header">
+                <h3 class="card-title">Appearance</h3>
+            </div>
+            <div class="card-body">
+                <div class="setting-row">
+                    <div>
+                        <div style="font-weight: 500;">Theme</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Choose your preferred color theme</div>
+                    </div>
+                    <div class="theme-options">
+                        <button class="theme-option @(selectedTheme == "light" ? "active" : "")" @onclick='() => selectedTheme = "light"'>
+                            <span class="material-symbols-outlined">light_mode</span>
+                            Light
+                        </button>
+                        <button class="theme-option @(selectedTheme == "dark" ? "active" : "")" @onclick='() => selectedTheme = "dark"'>
+                            <span class="material-symbols-outlined">dark_mode</span>
+                            Dark
+                        </button>
+                        <button class="theme-option @(selectedTheme == "system" ? "active" : "")" @onclick='() => selectedTheme = "system"'>
+                            <span class="material-symbols-outlined">computer</span>
+                            System
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="setting-row">
+                    <div>
+                        <div style="font-weight: 500;">Compact Mode</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Reduce spacing for denser information display</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" @bind="compactMode" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="setting-row">
+                    <div>
+                        <div style="font-weight: 500;">Sidebar Collapsed by Default</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Start with sidebar in collapsed state</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" @bind="sidebarCollapsed" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-6" id="display">
+            <div class="card-header">
+                <h3 class="card-title">Display</h3>
+            </div>
+            <div class="card-body">
+                <div class="setting-row">
+                    <div>
+                        <div style="font-weight: 500;">Default Page Size</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Number of items per page in tables</div>
+                    </div>
+                    <select class="form-control" style="width: 100px;" @bind="defaultPageSize">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                
+                <div class="setting-row">
+                    <div>
+                        <div style="font-weight: 500;">Date Format</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">How dates are displayed throughout the application</div>
+                    </div>
+                    <select class="form-control" style="width: 150px;" @bind="dateFormat">
+                        <option value="dd/MM/yyyy">DD/MM/YYYY</option>
+                        <option value="MM/dd/yyyy">MM/DD/YYYY</option>
+                        <option value="yyyy-MM-dd">YYYY-MM-DD</option>
+                    </select>
+                </div>
+                
+                <div class="setting-row">
+                    <div>
+                        <div style="font-weight: 500;">Currency Display</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Format for currency values</div>
+                    </div>
+                    <select class="form-control" style="width: 150px;" @bind="currencyFormat">
+                        <option value="symbol">₦1,000,000</option>
+                        <option value="code">NGN 1,000,000</option>
+                        <option value="short">₦1M</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="accessibility">
+            <div class="card-header">
+                <h3 class="card-title">Accessibility</h3>
+            </div>
+            <div class="card-body">
+                <div class="setting-row">
+                    <div>
+                        <div style="font-weight: 500;">High Contrast Mode</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Increase contrast for better visibility</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" @bind="highContrast" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="setting-row">
+                    <div>
+                        <div style="font-weight: 500;">Reduce Motion</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Minimize animations and transitions</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" @bind="reduceMotion" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="setting-row">
+                    <div>
+                        <div style="font-weight: 500;">Font Size</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Adjust text size for readability</div>
+                    </div>
+                    <select class="form-control" style="width: 120px;" @bind="fontSize">
+                        <option value="small">Small</option>
+                        <option value="medium">Medium</option>
+                        <option value="large">Large</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: var(--space-6); display: flex; justify-content: flex-end; gap: var(--space-3);">
+            <button class="btn btn-secondary" @onclick="ResetToDefaults">Reset to Defaults</button>
+            <button class="btn btn-primary" @onclick="SaveSettings">Save Settings</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .settings-nav {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-xl);
+        padding: var(--space-2);
+        position: sticky;
+        top: var(--space-4);
+    }
+    
+    .settings-nav-item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-3) var(--space-4);
+        border-radius: var(--radius-lg);
+        color: var(--gray-600);
+        text-decoration: none;
+        transition: all var(--transition-fast);
+    }
+    
+    .settings-nav-item:hover {
+        background: var(--gray-50);
+        color: var(--gray-800);
+    }
+    
+    .settings-nav-item.active {
+        background: var(--primary-50);
+        color: var(--primary-600);
+    }
+    
+    .setting-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-4) 0;
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .setting-row:last-child {
+        border-bottom: none;
+    }
+    
+    .theme-options {
+        display: flex;
+        gap: var(--space-2);
+    }
+    
+    .theme-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-1);
+        padding: var(--space-3);
+        border: 2px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        background: white;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        font-size: var(--text-sm);
+    }
+    
+    .theme-option:hover {
+        border-color: var(--gray-300);
+    }
+    
+    .theme-option.active {
+        border-color: var(--primary-500);
+        background: var(--primary-50);
+        color: var(--primary-700);
+    }
+    
+    .toggle {
+        position: relative;
+        display: inline-block;
+        width: 48px;
+        height: 26px;
+    }
+    
+    .toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--gray-300);
+        transition: var(--transition-fast);
+        border-radius: 26px;
+    }
+    
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: var(--transition-fast);
+        border-radius: 50%;
+    }
+    
+    .toggle input:checked + .toggle-slider {
+        background-color: var(--primary-500);
+    }
+    
+    .toggle input:checked + .toggle-slider:before {
+        transform: translateX(22px);
+    }
+</style>
+
+@code {
+    private string selectedTheme = "light";
+    private bool compactMode;
+    private bool sidebarCollapsed;
+    private int defaultPageSize = 20;
+    private string dateFormat = "dd/MM/yyyy";
+    private string currencyFormat = "symbol";
+    private bool highContrast;
+    private bool reduceMotion;
+    private string fontSize = "medium";
+
+    private void ResetToDefaults()
+    {
+        selectedTheme = "light";
+        compactMode = false;
+        sidebarCollapsed = false;
+        defaultPageSize = 20;
+        dateFormat = "dd/MM/yyyy";
+        currencyFormat = "symbol";
+        highContrast = false;
+        reduceMotion = false;
+        fontSize = "medium";
+    }
+
+    private async Task SaveSettings()
+    {
+        await Task.Delay(300);
+    }
+}

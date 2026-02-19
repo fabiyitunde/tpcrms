@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using CRMS.Application.LoanPack.Commands;
 using CRMS.Application.LoanPack.Queries;
+using CRMS.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,24 +16,38 @@ namespace CRMS.API.Controllers;
 public class LoanPackController : ControllerBase
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IFileStorageService _fileStorage;
 
-    public LoanPackController(IServiceProvider serviceProvider)
+    public LoanPackController(IServiceProvider serviceProvider, IFileStorageService fileStorage)
     {
         _serviceProvider = serviceProvider;
+        _fileStorage = fileStorage;
     }
 
     /// <summary>
     /// Generate a new loan pack PDF for an application.
+    /// Restricted to credit officers, HO reviewers, risk managers, and system admins.
     /// </summary>
     [HttpPost("generate/{loanApplicationId:guid}")]
+    [Authorize(Roles = "CreditOfficer,HOReviewer,RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(LoanPackResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Generate(Guid loanApplicationId, CancellationToken ct)
     {
-        // TODO: Get user info from claims
-        var userId = Guid.NewGuid();
-        var userName = User.Identity?.Name ?? "System";
+        // Get user info from JWT claims
+        var userIdClaim = User.FindFirst("sub")?.Value 
+                       ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        
+        if (!Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized("User identity claim is invalid or missing.");
+
+        var userName = User.Identity?.Name 
+                    ?? User.FindFirst(ClaimTypes.Name)?.Value 
+                    ?? User.FindFirst("name")?.Value 
+                    ?? "Unknown";
 
         var handler = _serviceProvider.GetRequiredService<GenerateLoanPackHandler>();
         var result = await handler.Handle(new GenerateLoanPackCommand(loanApplicationId, userId, userName), ct);
@@ -85,10 +101,13 @@ public class LoanPackController : ControllerBase
 
     /// <summary>
     /// Download a loan pack PDF.
+    /// Restricted to roles that legitimately need to view loan packs.
     /// </summary>
     [HttpGet("download/{id:guid}")]
+    [Authorize(Roles = "CreditOfficer,HOReviewer,RiskManager,CommitteeMember,FinalApprover,SystemAdmin")]
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Download(Guid id, CancellationToken ct)
     {
         var handler = _serviceProvider.GetRequiredService<GetLoanPackByIdHandler>();
@@ -99,8 +118,16 @@ public class LoanPackController : ControllerBase
 
         var pack = result.Data!;
 
-        // TODO: Retrieve actual PDF from file storage using pack.StoragePath
-        // For now, return a placeholder response
-        return NotFound("PDF file storage not implemented - file would be at: " + pack.StoragePath);
+        if (string.IsNullOrEmpty(pack.StoragePath))
+            return NotFound("Loan pack file has not been generated yet");
+
+        // Check if file exists
+        if (!await _fileStorage.ExistsAsync(pack.StoragePath, ct))
+            return NotFound("Loan pack file not found in storage");
+
+        // Download file from storage
+        var fileBytes = await _fileStorage.DownloadAsync(pack.StoragePath, ct);
+
+        return File(fileBytes, "application/pdf", pack.FileName);
     }
 }

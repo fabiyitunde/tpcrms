@@ -1,14 +1,15 @@
-using System.Net.Http.Json;
 using System.Security.Claims;
 using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
+using CRMS.Application.Identity.Interfaces;
 using CRMS.Web.Intranet.Models;
+using AppLoginRequest = CRMS.Application.Identity.DTOs.LoginRequest;
 
 namespace CRMS.Web.Intranet.Services;
 
 public class AuthService : AuthenticationStateProvider
 {
-    private readonly HttpClient _httpClient;
+    private readonly IAuthService _authService;
     private readonly ILocalStorageService _localStorage;
     private readonly ILogger<AuthService> _logger;
     
@@ -18,11 +19,11 @@ public class AuthService : AuthenticationStateProvider
     private AuthState _authState = new();
 
     public AuthService(
-        HttpClient httpClient,
+        IAuthService authService,
         ILocalStorageService localStorage,
         ILogger<AuthService> logger)
     {
-        _httpClient = httpClient;
+        _authService = authService;
         _localStorage = localStorage;
         _logger = logger;
     }
@@ -49,9 +50,6 @@ public class AuthService : AuthenticationStateProvider
                 User = user
             };
 
-            _httpClient.DefaultRequestHeaders.Authorization = 
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
             var claims = BuildClaims(user);
             var identity = new ClaimsIdentity(claims, "jwt");
             return new AuthenticationState(new ClaimsPrincipal(identity));
@@ -67,50 +65,65 @@ public class AuthService : AuthenticationStateProvider
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("api/auth/login", request);
+            var appRequest = new AppLoginRequest(request.Email, request.Password);
+            var result = await _authService.LoginAsync(appRequest);
             
-            if (!response.IsSuccessStatusCode)
+            if (!result.IsSuccess || result.Data == null)
             {
-                var error = await response.Content.ReadAsStringAsync();
-                return new LoginResponse { Success = false, Error = "Invalid credentials" };
+                return new LoginResponse { Success = false, Error = result.Error ?? "Invalid credentials" };
             }
 
-            var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-            
-            if (result?.Success == true && result.Token != null && result.User != null)
+            var appUser = result.Data.User;
+            var user = new UserInfo
             {
-                await _localStorage.SetItemAsync(TokenKey, result.Token);
-                await _localStorage.SetItemAsync(UserKey, result.User);
-                
-                _authState = new AuthState
-                {
-                    IsAuthenticated = true,
-                    Token = result.Token,
-                    User = result.User
-                };
+                Id = appUser.Id,
+                Email = appUser.Email,
+                FirstName = appUser.FirstName,
+                LastName = appUser.LastName,
+                Roles = appUser.Roles,
+                Permissions = appUser.Permissions
+            };
 
-                _httpClient.DefaultRequestHeaders.Authorization = 
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", result.Token);
+            await _localStorage.SetItemAsync(TokenKey, result.Data.AccessToken);
+            await _localStorage.SetItemAsync(UserKey, user);
+            
+            _authState = new AuthState
+            {
+                IsAuthenticated = true,
+                Token = result.Data.AccessToken,
+                User = user
+            };
 
-                NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
-            }
+            NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
 
-            return result ?? new LoginResponse { Success = false, Error = "Unknown error" };
+            return new LoginResponse { Success = true, Token = result.Data.AccessToken, User = user };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Login error");
-            return new LoginResponse { Success = false, Error = "Connection error. Please try again." };
+            return new LoginResponse { Success = false, Error = "Login failed. Please try again." };
         }
     }
 
     public async Task LogoutAsync()
     {
+        // If we have a user, notify the backend
+        if (_authState.User != null)
+        {
+            try
+            {
+                await _authService.LogoutAsync(_authState.User.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error during logout");
+            }
+        }
+
         await _localStorage.RemoveItemAsync(TokenKey);
         await _localStorage.RemoveItemAsync(UserKey);
         
         _authState = new AuthState();
-        _httpClient.DefaultRequestHeaders.Authorization = null;
         
         NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
     }
@@ -152,15 +165,4 @@ public class AuthService : AuthenticationStateProvider
     }
 }
 
-public static class AuthServiceExtensions
-{
-    public static IServiceCollection AddAuthServices(this IServiceCollection services, string apiBaseUrl)
-    {
-        services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
-        services.AddScoped<AuthService>();
-        services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<AuthService>());
-        services.AddAuthorizationCore();
-        
-        return services;
-    }
-}
+

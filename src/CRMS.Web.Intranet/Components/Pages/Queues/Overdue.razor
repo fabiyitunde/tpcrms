@@ -1,0 +1,145 @@
+@page "/queues/overdue"
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Overdue Applications - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Overdue Applications</h1>
+        <p class="page-subtitle">@overdueItems.Count applications have breached SLA</p>
+    </div>
+    <button class="btn btn-secondary" @onclick="RefreshData">
+        <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span>
+        Refresh
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div class="card p-6 text-center">
+        <div class="spinner" style="margin: 0 auto;"></div>
+        <p class="text-muted mt-4">Loading overdue applications...</p>
+    </div>
+}
+else if (!overdueItems.Any())
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <span class="material-symbols-outlined">check_circle</span>
+            </div>
+            <div class="empty-state-title">No overdue applications</div>
+            <div class="empty-state-text">All applications are within SLA timeframes.</div>
+            <a href="/queues/all" class="btn btn-primary">View All Queues</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body" style="padding: 0;">
+            <table class="table table-clickable">
+                <thead>
+                    <tr>
+                        <th>Application</th>
+                        <th>Customer</th>
+                        <th>Stage</th>
+                        <th>Assigned To</th>
+                        <th>SLA Breached</th>
+                        <th>Overdue By</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in overdueItems)
+                    {
+                        var itemId = item.ApplicationId;
+                        <tr @onclick="() => ViewApplication(itemId)" style="cursor: pointer;">
+                            <td>
+                                <span style="font-weight: 600; color: var(--primary-600);">@item.ApplicationNumber</span>
+                            </td>
+                            <td>@item.CustomerName</td>
+                            <td>
+                                <span class="badge badge-warning">@item.Stage</span>
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(item.AssignedTo))
+                                {
+                                    <span>@item.AssignedTo</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Unassigned</span>
+                                }
+                            </td>
+                            <td>
+                                <span style="font-size: var(--text-sm);">@item.SLABreachedAt.ToString("MMM dd, HH:mm")</span>
+                            </td>
+                            <td>
+                                <span class="badge badge-danger">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;">warning</span>
+                                    @FormatOverdueTime(item.SLABreachedAt)
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn btn-primary btn-sm" @onclick:stopPropagation @onclick="() => ViewApplication(itemId)">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">open_in_new</span>
+                                    View
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private List<OverdueItem> overdueItems = [];
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOverdueItems();
+    }
+
+    private async Task LoadOverdueItems()
+    {
+        isLoading = true;
+        await Task.Delay(300);
+        
+        overdueItems =
+        [
+            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0158", CustomerName = "Beta Manufacturing", Stage = "Branch Review", AssignedTo = "John Adeyemi", SLABreachedAt = DateTime.Now.AddHours(-26) },
+            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0145", CustomerName = "Delta Holdings", Stage = "Credit Analysis", AssignedTo = "Credit Team", SLABreachedAt = DateTime.Now.AddHours(-8) },
+            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0140", CustomerName = "Epsilon Services", Stage = "HO Review", AssignedTo = "", SLABreachedAt = DateTime.Now.AddDays(-2) }
+        ];
+        
+        isLoading = false;
+    }
+
+    private async Task RefreshData() => await LoadOverdueItems();
+
+    private void ViewApplication(Guid id) => Navigation.NavigateTo($"/applications/{id}");
+
+    private static string FormatOverdueTime(DateTime breachedAt)
+    {
+        var diff = DateTime.Now - breachedAt;
+        if (diff.TotalDays >= 1) return $"{(int)diff.TotalDays}d overdue";
+        if (diff.TotalHours >= 1) return $"{(int)diff.TotalHours}h overdue";
+        return $"{(int)diff.TotalMinutes}m overdue";
+    }
+
+    private class OverdueItem
+    {
+        public Guid ApplicationId { get; set; }
+        public string ApplicationNumber { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
+        public string Stage { get; set; } = string.Empty;
+        public string AssignedTo { get; set; } = string.Empty;
+        public DateTime SLABreachedAt { get; set; }
+    }
+}

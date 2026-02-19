@@ -145,6 +145,33 @@ Otherwise → "Needs Review"
 | POST | /api/v1/financial-statements/{id}/submit | Submit for review |
 | POST | /api/v1/financial-statements/{id}/verify | Verify (approve) statement |
 
+## Business Age-Based Validation
+
+Financial statement requirements vary based on how long the business has been operating (calculated from `IncorporationDate`):
+
+| Business Age | Required Financial Statements |
+|-------------|-------------------------------|
+| **Startup (< 1 year)** | 3 years **Projected** + Business Plan |
+| **New Business (1 year)** | 1 year **Actual** (Audited or Management) + 2 years **Projected** |
+| **Growing Business (2 years)** | 2 years **Actual** (at least 1 Audited) + 1 year **Projected** |
+| **Established (3+ years)** | 3 years **Audited** |
+
+### Validation Logic
+
+The system automatically:
+1. Calculates business age from `IncorporationDate`
+2. Validates submitted financial statements match requirements
+3. Shows dynamic requirements info in the UI
+4. Prevents submission for review if requirements not met
+
+### UI Implementation
+
+The `FinancialsTab.razor` component:
+- Displays requirements info box with business age badge
+- Shows validation status (success/warning)
+- Lists entered financial statements with type indicators
+- Provides trend analysis for 2+ years of data
+
 ## Data Entry Workflow
 
 ```

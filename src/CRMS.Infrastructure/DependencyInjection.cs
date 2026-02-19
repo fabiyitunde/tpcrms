@@ -37,10 +37,6 @@ public static class DependencyInjection
     {
         var serverVersion = ServerVersion.AutoDetect(connectionString);
 
-        // Scoring Configuration (parameterized AI scoring)
-        services.Configure<ScoringConfiguration>(
-            configuration.GetSection(ScoringConfiguration.SectionName));
-        
         // Domain Event Infrastructure (registered before DbContext to break circular dependency)
         services.AddSingleton<DomainEventPublishingInterceptor>();
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
@@ -69,6 +65,7 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IPermissionRepository, PermissionRepository>();
+        services.Configure<Identity.JwtSettings>(configuration.GetSection("JwtSettings"));
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IAuthService, AuthService>();
@@ -78,6 +75,7 @@ public static class DependencyInjection
 
         // LoanApplication
         services.AddScoped<ILoanApplicationRepository, LoanApplicationRepository>();
+        services.AddScoped<ILoanApplicationDocumentRepository, LoanApplicationDocumentRepository>();
 
         // StatementAnalysis
         services.AddScoped<IBankStatementRepository, BankStatementRepository>();
@@ -99,6 +97,9 @@ public static class DependencyInjection
         services.AddScoped<ICollateralRepository, CollateralRepository>();
         services.AddScoped<IGuarantorRepository, GuarantorRepository>();
 
+        // Consent
+        services.AddScoped<IConsentRecordRepository, ConsentRecordRepository>();
+
         // FinancialStatement
         services.AddScoped<IFinancialStatementRepository, FinancialStatementRepository>();
 
@@ -106,8 +107,9 @@ public static class DependencyInjection
         services.AddScoped<ICreditAdvisoryRepository, CreditAdvisoryRepository>();
         services.AddScoped<IAIAdvisoryService, MockAIAdvisoryService>();
 
-        // Scoring Configuration
+        // Scoring Configuration (database-driven with maker-checker workflow)
         services.AddScoped<IScoringParameterRepository, ScoringParameterRepository>();
+        services.AddScoped<ScoringConfigurationService>();
 
         // Workflow
         services.AddScoped<IWorkflowDefinitionRepository, WorkflowDefinitionRepository>();
@@ -117,14 +119,27 @@ public static class DependencyInjection
         // Committee
         services.AddScoped<ICommitteeReviewRepository, CommitteeReviewRepository>();
 
-        // Audit
+        // Audit (with IAuditContextProvider for IP capture and sensitive data masking)
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.AddScoped<IDataAccessLogRepository, DataAccessLogRepository>();
+        services.AddScoped<IHttpContextService, HttpContextService>();
+        services.AddScoped<IAuditContextProvider>(sp => sp.GetRequiredService<IHttpContextService>());
         services.AddScoped<AuditService>();
 
         // LoanPack
         services.AddScoped<ILoanPackRepository, LoanPackRepository>();
         services.AddScoped<Application.LoanPack.Interfaces.ILoanPackGenerator, Documents.LoanPackPdfGenerator>();
+
+        // File Storage (configurable: Local or S3)
+        var storageProvider = configuration.GetValue<string>("FileStorage:Provider") ?? "Local";
+        if (storageProvider.Equals("S3", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddScoped<IFileStorageService, Storage.S3FileStorageService>();
+        }
+        else
+        {
+            services.AddScoped<IFileStorageService, Storage.LocalFileStorageService>();
+        }
 
         // Notification
         services.AddScoped<INotificationRepository, NotificationRepository>();
@@ -144,6 +159,10 @@ public static class DependencyInjection
         services.AddScoped<IDomainEventHandler<WorkflowAssignedEvent>, WorkflowAssignedNotificationHandler>();
         services.AddScoped<IDomainEventHandler<CommitteeVotingStartedEvent>, CommitteeVotingStartedNotificationHandler>();
 
+        // Workflow Integration Event Handlers (auto-transitions based on domain events)
+        services.AddScoped<IDomainEventHandler<CommitteeDecisionRecordedEvent>, CommitteeDecisionWorkflowHandler>();
+        services.AddScoped<IDomainEventHandler<AllCreditChecksCompletedEvent>, AllCreditChecksCompletedWorkflowHandler>();
+
         // Background Services - Credit Check Queue
         var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions
         {
@@ -162,6 +181,72 @@ public static class DependencyInjection
             services.AddHttpClient<ILLMService, OpenAIService>();
             services.AddScoped<LLMTransactionCategorizationService>();
         }
+
+        // Application Layer Command/Query Handlers
+        // LoanApplication
+        services.AddScoped<Application.LoanApplication.Commands.InitiateCorporateLoanHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.SubmitLoanApplicationHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.UploadDocumentHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.VerifyDocumentHandler>();
+        services.AddScoped<Application.LoanApplication.Queries.GetLoanApplicationByIdHandler>();
+        services.AddScoped<Application.LoanApplication.Queries.GetLoanApplicationsByStatusHandler>();
+        services.AddScoped<Application.LoanApplication.Queries.GetMyLoanApplicationsHandler>();
+        
+        // ProductCatalog
+        services.AddScoped<Application.ProductCatalog.Queries.GetActiveLoanProductsByTypeHandler>();
+        services.AddScoped<Application.ProductCatalog.Queries.GetAllLoanProductsHandler>();
+        services.AddScoped<Application.ProductCatalog.Commands.CreateLoanProductHandler>();
+        services.AddScoped<Application.ProductCatalog.Commands.UpdateLoanProductHandler>();
+        
+        // Workflow
+        services.AddScoped<Application.Workflow.Commands.TransitionWorkflowHandler>();
+        services.AddScoped<Application.Workflow.Queries.GetWorkflowByLoanApplicationHandler>();
+        services.AddScoped<Application.Workflow.Queries.GetMyWorkflowQueueHandler>();
+        services.AddScoped<Application.Workflow.Queries.GetWorkflowQueueByRoleHandler>();
+        services.AddScoped<Application.Workflow.Queries.GetQueueSummaryHandler>();
+        services.AddScoped<Application.Workflow.Queries.GetOverdueWorkflowsHandler>();
+        
+        // Committee
+        services.AddScoped<Application.Committee.Commands.CastVoteHandler>();
+        services.AddScoped<Application.Committee.Queries.GetMyPendingVotesHandler>();
+        services.AddScoped<Application.Committee.Queries.GetCommitteeReviewsByStatusHandler>();
+        
+        // Advisory
+        services.AddScoped<Application.Advisory.Commands.GenerateCreditAdvisoryHandler>();
+        
+        // LoanPack
+        services.AddScoped<Application.LoanPack.Commands.GenerateLoanPackHandler>();
+        
+        // Collateral
+        services.AddScoped<Application.Collateral.Commands.AddCollateralHandler>();
+        services.AddScoped<Application.Collateral.Commands.SetCollateralValuationHandler>();
+        services.AddScoped<Application.Collateral.Commands.ApproveCollateralHandler>();
+        services.AddScoped<Application.Collateral.Queries.GetCollateralByIdHandler>();
+        services.AddScoped<Application.Collateral.Queries.GetCollateralByLoanApplicationHandler>();
+        
+        // Guarantor
+        services.AddScoped<Application.Guarantor.Commands.AddIndividualGuarantorHandler>();
+        services.AddScoped<Application.Guarantor.Commands.ApproveGuarantorHandler>();
+        services.AddScoped<Application.Guarantor.Commands.RejectGuarantorHandler>();
+        services.AddScoped<Application.Guarantor.Queries.GetGuarantorByIdHandler>();
+        services.AddScoped<Application.Guarantor.Queries.GetGuarantorsByLoanApplicationHandler>();
+        
+        // Audit
+        services.AddScoped<Application.Audit.Queries.GetRecentAuditLogsHandler>();
+        
+        // Identity
+        services.AddScoped<Application.Identity.Queries.GetAllUsersHandler>();
+        
+        // Financial Statement
+        services.AddScoped<Application.FinancialAnalysis.Commands.CreateFinancialStatementHandler>();
+        services.AddScoped<Application.FinancialAnalysis.Commands.SetBalanceSheetHandler>();
+        services.AddScoped<Application.FinancialAnalysis.Commands.SetIncomeStatementHandler>();
+        services.AddScoped<Application.FinancialAnalysis.Commands.SetCashFlowStatementHandler>();
+        services.AddScoped<Application.FinancialAnalysis.Commands.SubmitFinancialStatementHandler>();
+        services.AddScoped<Application.FinancialAnalysis.Commands.VerifyFinancialStatementHandler>();
+        services.AddScoped<Application.FinancialAnalysis.Queries.GetFinancialStatementByIdHandler>();
+        services.AddScoped<Application.FinancialAnalysis.Queries.GetFinancialStatementsByLoanApplicationHandler>();
+        services.AddScoped<Application.FinancialAnalysis.Queries.GetFinancialRatiosTrendHandler>();
 
         return services;
     }

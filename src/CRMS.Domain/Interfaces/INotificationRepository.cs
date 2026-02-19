@@ -9,7 +9,7 @@ public interface INotificationRepository
     Task<IReadOnlyList<Notification>> GetByLoanApplicationIdAsync(Guid loanApplicationId, CancellationToken ct = default);
     Task<IReadOnlyList<Notification>> GetByRecipientUserIdAsync(Guid userId, CancellationToken ct = default);
     Task<IReadOnlyList<Notification>> GetPendingAsync(int limit = 100, CancellationToken ct = default);
-    Task<IReadOnlyList<Notification>> GetForRetryAsync(int limit = 50, CancellationToken ct = default);
+    Task<IReadOnlyList<Notification>> GetForRetryAsync(DateTime asOf, int limit = 50, CancellationToken ct = default);
     Task<IReadOnlyList<Notification>> GetScheduledDueAsync(DateTime asOf, int limit = 100, CancellationToken ct = default);
     Task<int> GetUnreadCountAsync(Guid userId, CancellationToken ct = default);
     Task AddAsync(Notification notification, CancellationToken ct = default);

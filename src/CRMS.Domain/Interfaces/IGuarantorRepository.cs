@@ -14,4 +14,5 @@ public interface IGuarantorRepository
     Task<int> GetActiveGuaranteeCountByBVNAsync(string bvn, CancellationToken ct = default);
     Task AddAsync(Guarantor guarantor, CancellationToken ct = default);
     void Update(Guarantor guarantor);
+    void Delete(Guarantor guarantor);
 }

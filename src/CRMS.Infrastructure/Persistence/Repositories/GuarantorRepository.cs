@@ -71,4 +71,9 @@ public class GuarantorRepository : IGuarantorRepository
     {
         _context.Guarantors.Update(guarantor);
     }
+
+    public void Delete(Guarantor guarantor)
+    {
+        _context.Guarantors.Remove(guarantor);
+    }
 }

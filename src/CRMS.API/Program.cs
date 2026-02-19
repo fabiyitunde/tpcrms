@@ -1,17 +1,61 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using CRMS.API;
 using CRMS.Infrastructure;
 using CRMS.Infrastructure.Identity;
 using CRMS.Infrastructure.Persistence;
+using CRMS.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using static CRMS.Infrastructure.Persistence.SeedData;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+// HTTP Context Accessor for IP address capture
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IHttpContextService, HttpContextService>();
+
+// Rate Limiting
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    
+    // Global rate limit
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 10
+            }));
+
+    // Strict rate limit for authentication endpoints
+    options.AddFixedWindowLimiter("auth", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 5;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 0;
+    });
+
+    // Moderate rate limit for sensitive operations
+    options.AddFixedWindowLimiter("sensitive", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 20;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 5;
+    });
+});
 
 // JWT Settings
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
@@ -38,6 +82,9 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+// Memory cache for reporting dashboard
+builder.Services.AddMemoryCache();
+
 builder.Services.AddInfrastructure(connectionString, builder.Configuration);
 builder.Services.AddApplicationServices();
 
@@ -46,7 +93,7 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Apply database migrations automatically on startup
+// Apply database migrations and seed data automatically on startup
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<CRMSDbContext>();
@@ -57,6 +104,19 @@ using (var scope = app.Services.CreateScope())
         logger.LogInformation("Applying database migrations...");
         dbContext.Database.Migrate();
         logger.LogInformation("Database migrations applied successfully.");
+
+        // Seed initial data (roles, products, templates)
+        logger.LogInformation("Seeding initial data...");
+        await SeedData.SeedAsync(dbContext, logger);
+        logger.LogInformation("Initial data seeded successfully.");
+
+        // Seed comprehensive test data in Development
+        if (app.Environment.IsDevelopment())
+        {
+            logger.LogInformation("Seeding comprehensive test data...");
+            await ComprehensiveDataSeeder.SeedComprehensiveDataAsync(dbContext, logger);
+            logger.LogInformation("Comprehensive test data seeded successfully.");
+        }
     }
     catch (Exception ex)
     {
@@ -72,6 +132,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

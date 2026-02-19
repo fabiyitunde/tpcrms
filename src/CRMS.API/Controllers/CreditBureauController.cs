@@ -44,6 +44,7 @@ public class CreditBureauController : ControllerBase
             request.BVN,
             request.SubjectName,
             request.RequestedByUserId,
+            request.ConsentRecordId,
             request.Provider,
             request.LoanApplicationId,
             request.IncludePdf
@@ -101,6 +102,7 @@ public record RequestBureauReportRequest(
     string BVN,
     string SubjectName,
     Guid RequestedByUserId,
+    Guid ConsentRecordId,
     CreditBureauProvider Provider = CreditBureauProvider.CreditRegistry,
     Guid? LoanApplicationId = null,
     bool IncludePdf = false

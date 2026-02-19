@@ -1,0 +1,323 @@
+@page "/admin/templates"
+@inject NavigationManager Navigation
+
+<PageTitle>Notification Templates - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Notification Templates</h1>
+        <p class="page-subtitle">Manage email, SMS, and WhatsApp notification templates</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal">
+        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+        Add Template
+    </button>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body" style="padding: var(--space-4);">
+        <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 200px;">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" placeholder="Template name..." @bind="searchTerm" />
+            </div>
+            <div style="width: 150px;">
+                <label class="form-label">Channel</label>
+                <select class="form-control" @bind="selectedChannel">
+                    <option value="">All Channels</option>
+                    <option value="Email">Email</option>
+                    <option value="SMS">SMS</option>
+                    <option value="WhatsApp">WhatsApp</option>
+                </select>
+            </div>
+            <div style="width: 150px;">
+                <label class="form-label">Category</label>
+                <select class="form-control" @bind="selectedCategory">
+                    <option value="">All Categories</option>
+                    <option value="Workflow">Workflow</option>
+                    <option value="Committee">Committee</option>
+                    <option value="System">System</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" @onclick="Search">Search</button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Template Name</th>
+                    <th>Channel</th>
+                    <th>Category</th>
+                    <th>Last Updated</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var template in templates)
+                {
+                    <tr>
+                        <td>
+                            <div style="font-weight: 500;">@template.Name</div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-500);">@template.Code</div>
+                        </td>
+                        <td>
+                            <span class="badge @GetChannelBadgeClass(template.Channel)">
+                                <span class="material-symbols-outlined" style="font-size: 14px;">@GetChannelIcon(template.Channel)</span>
+                                @template.Channel
+                            </span>
+                        </td>
+                        <td>@template.Category</td>
+                        <td>
+                            <span style="font-size: var(--text-sm);">@template.UpdatedAt.ToString("MMM dd, yyyy")</span>
+                        </td>
+                        <td>
+                            <span class="badge @(template.IsActive ? "badge-success" : "badge-gray")">
+                                @(template.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: var(--space-2);">
+                                <button class="btn btn-ghost btn-sm" @onclick="() => EditTemplate(template)" title="Edit">
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                                </button>
+                                <button class="btn btn-ghost btn-sm" @onclick="() => PreviewTemplate(template)" title="Preview">
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card mt-6">
+    <div class="card-header">
+        <h3 class="card-title">Available Variables</h3>
+    </div>
+    <div class="card-body">
+        <div class="variables-grid">
+            @foreach (var variable in availableVariables)
+            {
+                <div class="variable-item">
+                    <code>@("{{" + variable.Name + "}}")</code>
+                    <span>@variable.Description</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@if (showTemplateModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseModal">
+        <div class="modal" style="max-width: 700px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@(isEditing ? "Edit Template" : "Add New Template")</h3>
+                <button class="modal-close" @onclick="CloseModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Template Name *</label>
+                        <input type="text" class="form-control" @bind="editingTemplate.Name" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Template Code *</label>
+                        <input type="text" class="form-control" @bind="editingTemplate.Code" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Channel *</label>
+                        <select class="form-control" @bind="editingTemplate.Channel">
+                            <option value="">Select Channel</option>
+                            <option value="Email">Email</option>
+                            <option value="SMS">SMS</option>
+                            <option value="WhatsApp">WhatsApp</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category *</label>
+                        <select class="form-control" @bind="editingTemplate.Category">
+                            <option value="">Select Category</option>
+                            <option value="Workflow">Workflow</option>
+                            <option value="Committee">Committee</option>
+                            <option value="System">System</option>
+                        </select>
+                    </div>
+                </div>
+                @if (editingTemplate.Channel == "Email")
+                {
+                    <div class="form-group">
+                        <label class="form-label">Subject *</label>
+                        <input type="text" class="form-control" @bind="editingTemplate.Subject" />
+                    </div>
+                }
+                <div class="form-group">
+                    <label class="form-label">Body *</label>
+                    <textarea class="form-control" rows="8" @bind="editingTemplate.Body" 
+                              placeholder="Use {{variable}} syntax for dynamic content..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveTemplate" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    @(isEditing ? "Update" : "Create") Template
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .variables-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: var(--space-3);
+    }
+    
+    .variable-item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-2) var(--space-3);
+        background: var(--gray-50);
+        border-radius: var(--radius-md);
+    }
+    
+    .variable-item code {
+        background: var(--primary-100);
+        color: var(--primary-700);
+        padding: var(--space-1) var(--space-2);
+        border-radius: var(--radius-sm);
+        font-size: var(--text-xs);
+        white-space: nowrap;
+    }
+    
+    .variable-item span {
+        font-size: var(--text-sm);
+        color: var(--gray-600);
+    }
+</style>
+
+@code {
+    private List<TemplateModel> templates = [];
+    private string searchTerm = string.Empty;
+    private string selectedChannel = string.Empty;
+    private string selectedCategory = string.Empty;
+    private bool showTemplateModal;
+    private bool isEditing;
+    private bool isSaving;
+    private TemplateModel editingTemplate = new();
+
+    private List<VariableInfo> availableVariables =
+    [
+        new() { Name = "ApplicationNumber", Description = "Loan application number" },
+        new() { Name = "CustomerName", Description = "Customer/Company name" },
+        new() { Name = "Amount", Description = "Requested loan amount" },
+        new() { Name = "Status", Description = "Current application status" },
+        new() { Name = "AssignedTo", Description = "Assigned user name" },
+        new() { Name = "DueDate", Description = "SLA due date" },
+        new() { Name = "CommitteeName", Description = "Committee name" },
+        new() { Name = "VoteDeadline", Description = "Voting deadline" }
+    ];
+
+    protected override void OnInitialized()
+    {
+        templates =
+        [
+            new() { Id = Guid.NewGuid(), Name = "Application Submitted", Code = "APP_SUBMITTED", Channel = "Email", Category = "Workflow", Subject = "New Application {{ApplicationNumber}} Submitted", Body = "Dear {{AssignedTo}},\n\nA new loan application has been submitted...", IsActive = true, UpdatedAt = DateTime.Now.AddDays(-5) },
+            new() { Id = Guid.NewGuid(), Name = "Branch Approval Required", Code = "BRANCH_APPROVAL", Channel = "Email", Category = "Workflow", Subject = "Action Required: {{ApplicationNumber}}", Body = "Application {{ApplicationNumber}} requires your approval...", IsActive = true, UpdatedAt = DateTime.Now.AddDays(-3) },
+            new() { Id = Guid.NewGuid(), Name = "Committee Vote Request", Code = "COMMITTEE_VOTE", Channel = "Email", Category = "Committee", Subject = "Committee Vote Required: {{ApplicationNumber}}", Body = "Dear Committee Member,\n\nYour vote is required...", IsActive = true, UpdatedAt = DateTime.Now.AddDays(-2) },
+            new() { Id = Guid.NewGuid(), Name = "SLA Breach Alert", Code = "SLA_BREACH", Channel = "SMS", Category = "System", Subject = "", Body = "ALERT: Application {{ApplicationNumber}} has breached SLA.", IsActive = true, UpdatedAt = DateTime.Now.AddDays(-1) },
+            new() { Id = Guid.NewGuid(), Name = "Application Approved", Code = "APP_APPROVED", Channel = "WhatsApp", Category = "Workflow", Subject = "", Body = "Congratulations! Your loan application {{ApplicationNumber}} has been approved.", IsActive = true, UpdatedAt = DateTime.Now }
+        ];
+    }
+
+    private void Search() { }
+
+    private void OpenCreateModal()
+    {
+        editingTemplate = new();
+        isEditing = false;
+        showTemplateModal = true;
+    }
+
+    private void EditTemplate(TemplateModel template)
+    {
+        editingTemplate = new()
+        {
+            Id = template.Id,
+            Name = template.Name,
+            Code = template.Code,
+            Channel = template.Channel,
+            Category = template.Category,
+            Subject = template.Subject,
+            Body = template.Body
+        };
+        isEditing = true;
+        showTemplateModal = true;
+    }
+
+    private void PreviewTemplate(TemplateModel template) { }
+
+    private void CloseModal()
+    {
+        showTemplateModal = false;
+        editingTemplate = new();
+    }
+
+    private async Task SaveTemplate()
+    {
+        isSaving = true;
+        await Task.Delay(500);
+        isSaving = false;
+        CloseModal();
+    }
+
+    private static string GetChannelBadgeClass(string channel) => channel switch
+    {
+        "Email" => "badge-primary",
+        "SMS" => "badge-success",
+        "WhatsApp" => "badge-success",
+        _ => "badge-gray"
+    };
+
+    private static string GetChannelIcon(string channel) => channel switch
+    {
+        "Email" => "mail",
+        "SMS" => "sms",
+        "WhatsApp" => "chat",
+        _ => "notifications"
+    };
+
+    private class TemplateModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public string Channel { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string Subject { get; set; } = string.Empty;
+        public string Body { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public DateTime UpdatedAt { get; set; }
+    }
+
+    private class VariableInfo
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+    }
+}

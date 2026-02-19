@@ -142,8 +142,8 @@ public class CommitteeReview : AggregateRoot
 
         AddDomainEvent(new CommitteeVoteCastEvent(Id, LoanApplicationId, userId, vote));
 
-        // Check if all votes are in
-        if (_members.All(m => m.HasVoted))
+        // Check if quorum is reached or all votes are in
+        if (Status != CommitteeReviewStatus.VotingComplete && (HasQuorum || _members.All(m => m.HasVoted)))
         {
             Status = CommitteeReviewStatus.VotingComplete;
             AddDomainEvent(new CommitteeVotingCompletedEvent(Id, LoanApplicationId));
@@ -202,14 +202,22 @@ public class CommitteeReview : AggregateRoot
         if (Status != CommitteeReviewStatus.VotingComplete && Status != CommitteeReviewStatus.InProgress)
             return Result.Failure("Review must be in voting complete or in-progress status");
 
+        // Quorum must be reached before any decision can be recorded
+        if (!HasQuorum)
+            return Result.Failure($"Quorum not reached. Required: {RequiredVotes}, Voted: {_members.Count(m => m.HasVoted)}");
+
         // Validate chairperson or authorized user
         var member = _members.FirstOrDefault(m => m.UserId == decidedByUserId);
         if (member == null || !member.IsChairperson)
         {
-            // Allow if all votes are in
+            // Allow non-chairperson only if all votes are in
             if (Status != CommitteeReviewStatus.VotingComplete)
                 return Result.Failure("Only chairperson can record decision before all votes are cast");
         }
+
+        // Chairperson must have voted before recording decision
+        if (member != null && member.IsChairperson && !member.HasVoted)
+            return Result.Failure("Chairperson must cast their vote before recording a decision");
 
         if (string.IsNullOrWhiteSpace(rationale))
             return Result.Failure("Decision rationale is required");

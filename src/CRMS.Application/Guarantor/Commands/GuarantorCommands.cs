@@ -99,7 +99,8 @@ public class AddIndividualGuarantorHandler : IRequestHandler<AddIndividualGuaran
 
 public record RunGuarantorCreditCheckCommand(
     Guid GuarantorId,
-    Guid RequestedByUserId
+    Guid RequestedByUserId,
+    Guid ConsentRecordId
 ) : IRequest<ApplicationResult<GuarantorCreditCheckResultDto>>;
 
 public class RunGuarantorCreditCheckHandler : IRequestHandler<RunGuarantorCreditCheckCommand, ApplicationResult<GuarantorCreditCheckResultDto>>
@@ -165,13 +166,14 @@ public class RunGuarantorCreditCheckHandler : IRequestHandler<RunGuarantorCredit
         // Get existing guarantee count for this BVN
         var existingGuaranteeCount = await _guarantorRepository.GetActiveGuaranteeCountByBVNAsync(guarantor.BVN, ct);
 
-        // Create bureau report entity
+        // Create bureau report entity (consent required for NDPA compliance)
         var bureauReportResult = Domain.Aggregates.CreditBureau.BureauReport.Create(
             CreditBureauProvider.CreditRegistry,
             SubjectType.Individual,
             guarantor.FullName,
             guarantor.BVN,
             request.RequestedByUserId,
+            request.ConsentRecordId,
             guarantor.LoanApplicationId
         );
 

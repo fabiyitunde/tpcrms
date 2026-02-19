@@ -13,16 +13,19 @@ public class AuditService
 {
     private readonly IAuditLogRepository _auditRepository;
     private readonly IDataAccessLogRepository _dataAccessRepository;
+    private readonly IAuditContextProvider? _auditContext;
     private readonly IUnitOfWork _unitOfWork;
 
     public AuditService(
         IAuditLogRepository auditRepository,
         IDataAccessLogRepository dataAccessRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IAuditContextProvider? auditContext = null)
     {
         _auditRepository = auditRepository;
         _dataAccessRepository = dataAccessRepository;
         _unitOfWork = unitOfWork;
+        _auditContext = auditContext;
     }
 
     /// <summary>
@@ -48,6 +51,21 @@ public class AuditService
         string? errorMessage = null,
         CancellationToken ct = default)
     {
+        // Auto-capture IP from context if not provided
+        var effectiveIpAddress = ipAddress ?? _auditContext?.GetClientIpAddress();
+        var userAgent = _auditContext?.GetUserAgent();
+
+        // Mask sensitive fields in JSON values
+        var maskedOldValues = oldValues != null 
+            ? SensitiveDataMasker.MaskJsonSensitiveFields(JsonSerializer.Serialize(oldValues)) 
+            : null;
+        var maskedNewValues = newValues != null 
+            ? SensitiveDataMasker.MaskJsonSensitiveFields(JsonSerializer.Serialize(newValues)) 
+            : null;
+        var maskedAdditionalData = additionalData != null 
+            ? SensitiveDataMasker.MaskJsonSensitiveFields(JsonSerializer.Serialize(additionalData)) 
+            : null;
+
         var log = AuditLog.Create(
             action,
             category,
@@ -58,13 +76,13 @@ public class AuditService
             userId,
             userName,
             userRole,
-            ipAddress,
-            null,
+            effectiveIpAddress,
+            userAgent,
             loanApplicationId,
             loanApplicationNumber,
-            oldValues != null ? JsonSerializer.Serialize(oldValues) : null,
-            newValues != null ? JsonSerializer.Serialize(newValues) : null,
-            additionalData != null ? JsonSerializer.Serialize(additionalData) : null,
+            maskedOldValues,
+            maskedNewValues,
+            maskedAdditionalData,
             isSuccess,
             errorMessage);
 

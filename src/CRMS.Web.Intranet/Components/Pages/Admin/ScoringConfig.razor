@@ -1,0 +1,232 @@
+@page "/admin/scoring"
+@inject NavigationManager Navigation
+
+<PageTitle>Scoring Configuration - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Scoring Configuration</h1>
+        <p class="page-subtitle">Manage AI advisory scoring parameters</p>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h3 class="card-title">Current Configuration</h3>
+        <span class="badge badge-success">Active</span>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <span class="material-symbols-outlined" style="font-size: 20px;">info</span>
+            <div>
+                <strong>Maker-Checker Workflow:</strong> Changes to scoring parameters require approval from a second administrator before taking effect.
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-2 gap-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Financial Health Weights</h3>
+        </div>
+        <div class="card-body">
+            @foreach (var param in financialHealthParams)
+            {
+                <div class="config-row">
+                    <span class="config-label">@param.Name</span>
+                    <span class="config-value">@param.Value@param.Unit</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Credit History Weights</h3>
+        </div>
+        <div class="card-body">
+            @foreach (var param in creditHistoryParams)
+            {
+                <div class="config-row">
+                    <span class="config-label">@param.Name</span>
+                    <span class="config-value">@param.Value@param.Unit</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Collateral Scoring</h3>
+        </div>
+        <div class="card-body">
+            @foreach (var param in collateralParams)
+            {
+                <div class="config-row">
+                    <span class="config-label">@param.Name</span>
+                    <span class="config-value">@param.Value@param.Unit</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Risk Thresholds</h3>
+        </div>
+        <div class="card-body">
+            @foreach (var param in riskThresholds)
+            {
+                <div class="config-row">
+                    <span class="config-label">@param.Name</span>
+                    <span class="config-value @GetThresholdClass(param.Name)">@param.Value@param.Unit</span>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card mt-6">
+    <div class="card-header">
+        <h3 class="card-title">Pending Changes</h3>
+    </div>
+    <div class="card-body">
+        @if (!pendingChanges.Any())
+        {
+            <div class="text-muted text-center p-4">No pending configuration changes</div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Current Value</th>
+                        <th>Proposed Value</th>
+                        <th>Requested By</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var change in pendingChanges)
+                    {
+                        <tr>
+                            <td>@change.ParameterName</td>
+                            <td>@change.CurrentValue</td>
+                            <td style="font-weight: 500; color: var(--primary-600);">@change.ProposedValue</td>
+                            <td>@change.RequestedBy</td>
+                            <td><span class="badge badge-warning">Pending Approval</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<style>
+    .config-row {
+        display: flex;
+        justify-content: space-between;
+        padding: var(--space-3) 0;
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .config-row:last-child {
+        border-bottom: none;
+    }
+    
+    .config-label {
+        font-size: var(--text-sm);
+        color: var(--gray-600);
+    }
+    
+    .config-value {
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+    
+    .config-value.high-risk {
+        color: var(--danger-600);
+    }
+    
+    .config-value.medium-risk {
+        color: var(--warning-600);
+    }
+    
+    .config-value.low-risk {
+        color: var(--success-600);
+    }
+    
+    .alert-info {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-3);
+        padding: var(--space-4);
+        background: var(--primary-50);
+        border: 1px solid var(--primary-200);
+        border-radius: var(--radius-lg);
+        color: var(--primary-800);
+    }
+</style>
+
+@code {
+    private List<ConfigParam> financialHealthParams =
+    [
+        new() { Name = "Current Ratio Weight", Value = "15", Unit = "%" },
+        new() { Name = "Debt-to-Equity Weight", Value = "20", Unit = "%" },
+        new() { Name = "DSCR Weight", Value = "25", Unit = "%" },
+        new() { Name = "Revenue Growth Weight", Value = "15", Unit = "%" },
+        new() { Name = "Profit Margin Weight", Value = "25", Unit = "%" }
+    ];
+
+    private List<ConfigParam> creditHistoryParams =
+    [
+        new() { Name = "Bureau Score Weight", Value = "40", Unit = "%" },
+        new() { Name = "Delinquency Penalty", Value = "-10", Unit = " points/item" },
+        new() { Name = "Legal Issues Penalty", Value = "-25", Unit = " points" },
+        new() { Name = "Active Loans Factor", Value = "-2", Unit = " points/loan" }
+    ];
+
+    private List<ConfigParam> collateralParams =
+    [
+        new() { Name = "Property Haircut", Value = "30", Unit = "%" },
+        new() { Name = "Equipment Haircut", Value = "40", Unit = "%" },
+        new() { Name = "Inventory Haircut", Value = "50", Unit = "%" },
+        new() { Name = "Min Collateral Coverage", Value = "120", Unit = "%" }
+    ];
+
+    private List<ConfigParam> riskThresholds =
+    [
+        new() { Name = "Low Risk Threshold", Value = "75", Unit = "+" },
+        new() { Name = "Medium Risk Threshold", Value = "50-74", Unit = "" },
+        new() { Name = "High Risk Threshold", Value = "<50", Unit = "" },
+        new() { Name = "Auto-Reject Score", Value = "30", Unit = "" }
+    ];
+
+    private List<PendingChange> pendingChanges = [];
+
+    private static string GetThresholdClass(string name) => name switch
+    {
+        "Low Risk Threshold" => "low-risk",
+        "Medium Risk Threshold" => "medium-risk",
+        "High Risk Threshold" or "Auto-Reject Score" => "high-risk",
+        _ => ""
+    };
+
+    private class ConfigParam
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+        public string Unit { get; set; } = string.Empty;
+    }
+
+    private class PendingChange
+    {
+        public string ParameterName { get; set; } = string.Empty;
+        public string CurrentValue { get; set; } = string.Empty;
+        public string ProposedValue { get; set; } = string.Empty;
+        public string RequestedBy { get; set; } = string.Empty;
+    }
+}

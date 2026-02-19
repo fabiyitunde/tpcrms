@@ -1,3 +1,4 @@
+using CRMS.API.Filters;
 using CRMS.Application.Workflow.Commands;
 using CRMS.Application.Workflow.DTOs;
 using CRMS.Application.Workflow.Queries;
@@ -175,7 +176,7 @@ public class WorkflowController : ControllerBase
     /// Get all overdue workflows.
     /// </summary>
     [HttpGet("overdue")]
-    [Authorize(Roles = "RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(List<WorkflowInstanceSummaryDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetOverdue(CancellationToken ct)
     {
@@ -189,7 +190,7 @@ public class WorkflowController : ControllerBase
     /// Get queue summary across all roles.
     /// </summary>
     [HttpGet("queue-summary")]
-    [Authorize(Roles = "RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(List<WorkflowQueueSummaryDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetQueueSummary(CancellationToken ct)
     {
@@ -216,11 +217,13 @@ public class WorkflowController : ControllerBase
     }
 
     /// <summary>
-    /// Seed the corporate loan workflow definition (admin only).
+    /// Seed the corporate loan workflow definition (admin only, dev/staging environments only).
     /// </summary>
     [HttpPost("seed-corporate-workflow")]
-    [Authorize(Roles = "SystemAdministrator")]
+    [Authorize(Roles = "SystemAdmin")]
+    [EnvironmentRestricted("Development", "Staging")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SeedCorporateWorkflow(CancellationToken ct)
     {
         var userId = GetCurrentUserId();

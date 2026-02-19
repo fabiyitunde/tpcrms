@@ -1,56 +1,78 @@
 using CRMS.Application.Advisory.Interfaces;
 using CRMS.Domain.Configuration;
-using Microsoft.Extensions.Options;
+using CRMS.Domain.Services;
 
 namespace CRMS.Infrastructure.ExternalServices.AIServices;
 
 /// <summary>
 /// Mock implementation of AI Advisory Service for development and testing.
 /// Returns realistic-looking advisory data based on input metrics.
-/// Scoring parameters are configurable via ScoringConfiguration.
+/// Scoring parameters are loaded from database via ScoringConfigurationService.
 /// </summary>
 public class MockAIAdvisoryService : IAIAdvisoryService
 {
-    private const string ModelVersion = "mock-v1.1-configurable";
-    private readonly ScoringConfiguration _config;
+    private const string ModelVersion = "mock-v1.2-database-config";
+    private readonly ScoringConfigurationService? _configService;
+    private ScoringConfiguration? _cachedConfig;
+    private DateTime _cacheExpiry = DateTime.MinValue;
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
-    public MockAIAdvisoryService(IOptions<ScoringConfiguration> config)
+    public MockAIAdvisoryService(ScoringConfigurationService configService)
     {
-        _config = config.Value;
+        _configService = configService;
     }
 
     // Constructor for backward compatibility / testing without DI
-    public MockAIAdvisoryService() : this(Options.Create(new ScoringConfiguration())) { }
+    public MockAIAdvisoryService() : this(null!) { }
+
+    private async Task<ScoringConfiguration> GetConfigAsync(CancellationToken ct)
+    {
+        // Return cached config if still valid
+        if (_cachedConfig != null && DateTime.UtcNow < _cacheExpiry)
+            return _cachedConfig;
+
+        // If no config service (testing), return defaults
+        if (_configService == null)
+            return new ScoringConfiguration();
+
+        // Load from database and cache
+        _cachedConfig = await _configService.LoadConfigurationAsync(ct);
+        _cacheExpiry = DateTime.UtcNow.Add(CacheDuration);
+        return _cachedConfig;
+    }
 
     public string GetModelVersion() => ModelVersion;
 
-    public Task<AIAdvisoryResponse> GenerateAdvisoryAsync(AIAdvisoryRequest request, CancellationToken ct = default)
+    public async Task<AIAdvisoryResponse> GenerateAdvisoryAsync(AIAdvisoryRequest request, CancellationToken ct = default)
     {
+        // Load scoring configuration from database
+        var config = await GetConfigAsync(ct);
+        
         var riskScores = new List<RiskScoreOutput>();
         var redFlags = new List<string>();
         var conditions = new List<string>();
         var covenants = new List<string>();
 
         // Calculate Credit History Score from bureau data
-        var creditHistoryScore = CalculateCreditHistoryScore(request.BureauReports, redFlags);
+        var creditHistoryScore = CalculateCreditHistoryScore(request.BureauReports, redFlags, config);
         riskScores.Add(creditHistoryScore);
 
         // Calculate Financial Health Score from financial statements
-        var financialHealthScore = CalculateFinancialHealthScore(request.FinancialStatements, redFlags);
+        var financialHealthScore = CalculateFinancialHealthScore(request.FinancialStatements, redFlags, config);
         riskScores.Add(financialHealthScore);
 
         // Calculate Cashflow Score
-        var cashflowScore = CalculateCashflowScore(request.CashflowAnalysis, redFlags);
+        var cashflowScore = CalculateCashflowScore(request.CashflowAnalysis, redFlags, config);
         riskScores.Add(cashflowScore);
 
         // Calculate DSCR Score
-        var dscrScore = CalculateDSCRScore(request.FinancialStatements, request.RequestedAmount, redFlags);
+        var dscrScore = CalculateDSCRScore(request.FinancialStatements, request.RequestedAmount, redFlags, config);
         riskScores.Add(dscrScore);
 
         // Calculate Collateral Coverage Score
         if (request.CollateralSummary != null)
         {
-            var collateralScore = CalculateCollateralScore(request.CollateralSummary, request.RequestedAmount, redFlags);
+            var collateralScore = CalculateCollateralScore(request.CollateralSummary, request.RequestedAmount, redFlags, config);
             riskScores.Add(collateralScore);
         }
 
@@ -61,14 +83,15 @@ public class MockAIAdvisoryService : IAIAdvisoryService
             : 50m;
 
         var overallRating = DetermineRating(overallScore);
-        var recommendation = DetermineRecommendation(overallScore, redFlags.Count);
+        var recommendation = DetermineRecommendation(overallScore, redFlags.Count, config);
 
         // Generate loan recommendations
         var (recAmount, recTenor, recRate, maxExposure) = GenerateLoanRecommendations(
             request.RequestedAmount, 
             request.RequestedTenorMonths, 
             overallScore, 
-            recommendation);
+            recommendation,
+            config);
 
         // Generate conditions based on risk level
         GenerateConditions(overallScore, redFlags, conditions, covenants);
@@ -77,7 +100,7 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         var (summary, strengths, weaknesses, mitigating, keyRisks) = GenerateAnalysisText(
             request, riskScores, overallScore, recommendation);
 
-        return Task.FromResult(new AIAdvisoryResponse(
+        return new AIAdvisoryResponse(
             Success: true,
             ErrorMessage: null,
             RiskScores: riskScores,
@@ -96,13 +119,13 @@ public class MockAIAdvisoryService : IAIAdvisoryService
             MitigatingFactors: mitigating,
             KeyRisks: keyRisks,
             RedFlags: redFlags
-        ));
+        );
     }
 
-    private RiskScoreOutput CalculateCreditHistoryScore(List<BureauDataInput> bureauReports, List<string> redFlags)
+    private RiskScoreOutput CalculateCreditHistoryScore(List<BureauDataInput> bureauReports, List<string> redFlags, ScoringConfiguration config)
     {
-        var cfg = _config.CreditHistory;
-        var weight = _config.Weights.CreditHistory;
+        var cfg = config.CreditHistory;
+        var weight = config.Weights.CreditHistory;
 
         if (!bureauReports.Any())
         {
@@ -178,7 +201,7 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         );
     }
 
-    private RiskScoreOutput CalculateFinancialHealthScore(List<FinancialDataInput> statements, List<string> redFlags)
+    private RiskScoreOutput CalculateFinancialHealthScore(List<FinancialDataInput> statements, List<string> redFlags, ScoringConfiguration config)
     {
         if (!statements.Any())
         {
@@ -258,7 +281,7 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         );
     }
 
-    private RiskScoreOutput CalculateCashflowScore(CashflowDataInput? cashflow, List<string> redFlags)
+    private RiskScoreOutput CalculateCashflowScore(CashflowDataInput? cashflow, List<string> redFlags, ScoringConfiguration config)
     {
         if (cashflow == null)
         {
@@ -397,7 +420,7 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         );
     }
 
-    private RiskScoreOutput CalculateDSCRScore(List<FinancialDataInput> statements, decimal requestedAmount, List<string> redFlags)
+    private RiskScoreOutput CalculateDSCRScore(List<FinancialDataInput> statements, decimal requestedAmount, List<string> redFlags, ScoringConfiguration config)
     {
         if (!statements.Any())
         {
@@ -470,7 +493,7 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         );
     }
 
-    private RiskScoreOutput CalculateCollateralScore(CollateralDataInput collateral, decimal requestedAmount, List<string> redFlags)
+    private RiskScoreOutput CalculateCollateralScore(CollateralDataInput collateral, decimal requestedAmount, List<string> redFlags, ScoringConfiguration config)
     {
         var positiveIndicators = new List<string>();
         var scoreRedFlags = new List<string>();
@@ -540,9 +563,9 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         _ => "VeryHigh"
     };
 
-    private string DetermineRecommendation(decimal score, int redFlagCount)
+    private static string DetermineRecommendation(decimal score, int redFlagCount, ScoringConfiguration config)
     {
-        var cfg = _config.Recommendations;
+        var cfg = config.Recommendations;
         
         if (redFlagCount >= cfg.CriticalRedFlagsThreshold || score < cfg.ReferMinScore) 
             return "Decline";
@@ -555,13 +578,13 @@ public class MockAIAdvisoryService : IAIAdvisoryService
         return "Refer";
     }
 
-    private (decimal? amount, int? tenor, decimal? rate, decimal? maxExposure) GenerateLoanRecommendations(
-        decimal requestedAmount, int requestedTenor, decimal score, string recommendation)
+    private static (decimal? amount, int? tenor, decimal? rate, decimal? maxExposure) GenerateLoanRecommendations(
+        decimal requestedAmount, int requestedTenor, decimal score, string recommendation, ScoringConfiguration config)
     {
         if (recommendation == "Decline")
             return (null, null, null, null);
 
-        var cfg = _config.LoanAdjustments;
+        var cfg = config.LoanAdjustments;
 
         decimal amountMultiplier = score switch
         {

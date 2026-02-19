@@ -1,9 +1,65 @@
 # CRMS - Credit Risk Management System
 ## Full Design Specification Document
 
-**Version:** 1.1  
-**Last Updated:** 2026-02-17  
-**Status:** Implementation Phase
+**Version:** 1.2  
+**Last Updated:** 2026-02-18  
+**Status:** Phase 1 Complete | Phase 2 Pending
+
+---
+
+## Quick Reference (For New Sessions)
+
+### Technology Stack
+- **.NET 9** with C# 13
+- **MySQL 8** with EF Core 9
+- **Blazor Server** (Intranet - direct Application layer calls, no HTTP)
+- **REST API** (for external clients and future mobile apps)
+- **Clean Architecture** with Domain-Driven Design (DDD)
+
+### Solution Structure
+```
+src/
+├── CRMS.Domain/           # Entities, Value Objects, Domain Services, Interfaces
+├── CRMS.Application/      # Commands, Queries, Handlers, DTOs
+├── CRMS.Infrastructure/   # EF Core, External Services, File Storage
+├── CRMS.API/              # REST API Controllers (JWT auth)
+├── CRMS.Web.Intranet/     # Blazor Server (Staff portal - direct to Application layer)
+└── CRMS.Web.Portal/       # Blazor Server (Customer portal - Phase 2)
+
+tests/
+├── CRMS.Domain.Tests/
+├── CRMS.Application.Tests/
+└── CRMS.Infrastructure.Tests/
+
+docs/
+├── FullDesign.md          # This file - Design specification
+├── ImplementationTracker.md # Detailed implementation status
+└── audit/                 # Code audit reports
+```
+
+### Current Implementation Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Phase 1: Corporate Loans** | ✅ Complete | All 16 backend modules |
+| **Audit Fixes (A-E)** | ✅ Complete | 78 issues resolved |
+| **Intranet UI** | ✅ Complete | 12 pages, direct Application layer calls |
+| **Phase 2: Retail Loans** | 🔴 Pending | CustomerPortal, DecisionEngine |
+
+### Key Architectural Decisions
+
+1. **Intranet calls Application layer directly** - No HTTP overhead for Blazor Server
+2. **Scoring configuration in database** - Runtime changes via `ScoringConfigurationService` with maker-checker workflow
+3. **File storage abstraction** - `IFileStorageService` with Local and S3 implementations
+4. **Domain events for audit** - Critical flows automatically logged via event handlers
+5. **Consent records** - NDPA compliance with `ConsentRecord` aggregate
+
+### Database Migrations (in order)
+1. `InitialCreate` - Base schema
+2. `AddRejectionTrackingFields` - Phase A audit fix
+3. `PhaseBDomainLogicFixes` - ConsentRecords table
+4. `PhaseCInfrastructure` - RowVersion columns for concurrency
+5. `PhaseEPerformance` - NextRetryAt for notification retry
 
 ---
 
@@ -328,9 +384,168 @@ The system uses **domain events** for communication between bounded contexts whe
 
 ---
 
+---
+
+## 12. Implementation Details
+
+### 12.1 Intranet Architecture
+
+The Intranet (CRMS.Web.Intranet) is a **Blazor Server** application that calls the Application layer **directly** without going through HTTP/API:
+
+```
+Blazor Pages (.razor)
+        ↓
+ApplicationService.cs (facade for handlers)
+        ↓
+Application Layer (Commands/Queries/Handlers)
+        ↓
+Domain + Infrastructure
+        ↓
+MySQL Database
+```
+
+**Key Files:**
+- `Services/ApplicationService.cs` - 750+ lines, 20+ methods wrapping Application handlers
+- `Services/AuthService.cs` - Uses `IAuthService` directly (no HTTP)
+- `Program.cs` - Registers `AddInfrastructure()`, runs migrations on startup
+
+**Pages (12 total):**
+| Page | Route | Purpose |
+|------|-------|---------|
+| Dashboard | `/` | Summary metrics, pending tasks |
+| My Queue | `/queues/my` | User's assigned applications |
+| All Queues | `/queues/all` | Admin view of all workflow stages |
+| Applications | `/applications` | List/search applications |
+| Application Detail | `/applications/{id}` | Full application view with 11 tabs |
+| New Application | `/applications/new` | Create corporate loan |
+| Committee Reviews | `/committee/reviews` | All committee reviews |
+| My Votes | `/committee/my-votes` | User's pending votes |
+| Reports | `/reports` | Analytics dashboard |
+| Audit Trail | `/reports/audit` | Audit log viewer |
+| Users | `/admin/users` | User management |
+| Products | `/admin/products` | Loan product management |
+
+### 12.2 Scoring Configuration
+
+Scoring parameters are stored in the database with maker-checker workflow:
+
+```
+ScoringParameter (Database Table)
+        ↓
+IScoringParameterRepository
+        ↓
+ScoringConfigurationService.LoadConfigurationAsync()
+        ↓
+MockAIAdvisoryService (5-minute cache)
+        ↓
+AI Advisory calculations
+```
+
+**Key Classes:**
+- `Domain/Configuration/ScoringConfiguration.cs` - POCO with nested config classes
+- `Domain/Aggregates/Configuration/ScoringParameter.cs` - DDD aggregate with maker-checker
+- `Domain/Services/ScoringConfigurationService.cs` - Loads config from database
+- `Infrastructure/ExternalServices/AIServices/MockAIAdvisoryService.cs` - Uses config for scoring
+
+**No appsettings.json for scoring** - All scoring parameters come from database.
+
+### 12.3 File Storage
+
+Abstracted via `IFileStorageService`:
+- `LocalFileStorageService` - Stores files in `./storage` directory
+- `S3FileStorageService` - Stores files in AWS S3
+
+Configured in `appsettings.json`:
+```json
+{
+  "FileStorage": {
+    "Provider": "Local",  // or "S3"
+    "LocalPath": "./storage"
+  }
+}
+```
+
+### 12.4 Domain Events
+
+Critical flows use domain events for loose coupling:
+
+| Event | Handlers |
+|-------|----------|
+| `WorkflowTransitionedEvent` | Audit logging |
+| `CommitteeVoteCastEvent` | Audit logging |
+| `CommitteeDecisionRecordedEvent` | Audit logging, Workflow transition |
+| `AllCreditChecksCompletedEvent` | Workflow transition |
+| `ScoringParameterChangeApprovedEvent` | Audit logging |
+| `LoanApplicationCreatedEvent` | Audit logging |
+| `LoanApplicationApprovedEvent` | Audit logging |
+| `WorkflowSLABreachedEvent` | Notification |
+| `WorkflowEscalatedEvent` | Notification |
+| `WorkflowAssignedEvent` | Notification |
+| `CommitteeVotingStartedEvent` | Notification |
+
+### 12.5 Authentication
+
+**API Layer:** JWT Bearer tokens with refresh token support
+- `IAuthService`, `ITokenService`, `IPasswordHasher` in Application layer
+- `AuthService`, `TokenService`, `PasswordHasher` implementations in Infrastructure
+
+**Intranet:** Direct `IAuthService` calls + Blazored.LocalStorage for token persistence
+- No HTTP calls to API
+- `AuthService` (Blazor) wraps `IAuthService` (Application)
+
+### 12.6 Key Interfaces
+
+| Interface | Purpose | Implementation |
+|-----------|---------|----------------|
+| `ILoanApplicationRepository` | Loan CRUD | `LoanApplicationRepository` |
+| `ICreditBureauProvider` | Bureau API calls | `MockCreditBureauProvider`, `CreditRegistryProvider` |
+| `IAIAdvisoryService` | AI scoring | `MockAIAdvisoryService` |
+| `ICoreBankingService` | Fineract integration | `MockCoreBankingService` |
+| `IFileStorageService` | File storage | `LocalFileStorageService`, `S3FileStorageService` |
+| `INotificationSender` | Send notifications | `MockEmailSender`, `MockSmsSender`, `MockWhatsAppSender` |
+| `IReportingService` | Dashboard/analytics | `ReportingService` |
+
+---
+
+## 13. Common Tasks Reference
+
+### Running the Application
+```bash
+# Intranet (Blazor Server - Port 5001)
+cd src/CRMS.Web.Intranet
+dotnet run
+
+# API (REST - Port 5000)
+cd src/CRMS.API
+dotnet run
+```
+
+### Database Migrations
+```bash
+# Add new migration
+cd src/CRMS.Infrastructure
+dotnet ef migrations add MigrationName --startup-project ../CRMS.API
+
+# Apply migrations (automatic on Intranet startup, or manual)
+dotnet ef database update --startup-project ../CRMS.API
+```
+
+### Running Tests
+```bash
+dotnet test
+```
+
+### Key Configuration Files
+- `src/CRMS.Web.Intranet/appsettings.json` - Intranet config (connection string, file storage)
+- `src/CRMS.API/appsettings.json` - API config (JWT settings, OpenAI)
+- `src/CRMS.Infrastructure/DependencyInjection.cs` - All DI registrations
+
+---
+
 ## Document History
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-02-16 | Factory AI | Initial design specification |
 | 1.1 | 2026-02-17 | Factory AI | Added domain events for cross-context communication |
+| 1.2 | 2026-02-18 | Factory AI | Added Quick Reference, Implementation Details, Common Tasks sections for session continuity |

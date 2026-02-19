@@ -12,6 +12,13 @@ public interface ILoanApplicationRepository
     Task<IReadOnlyList<LoanApplication>> GetByInitiatorAsync(Guid userId, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetPendingBranchReviewAsync(Guid? branchId = null, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetByAccountNumberAsync(string accountNumber, CancellationToken ct = default);
+    Task<bool> ExistsAsync(Guid id, CancellationToken ct = default);
     Task AddAsync(LoanApplication application, CancellationToken ct = default);
     void Update(LoanApplication application);
+}
+
+public interface ILoanApplicationDocumentRepository
+{
+    Task AddAsync(LoanApplicationDocument document, CancellationToken ct = default);
+    Task<LoanApplicationDocument?> GetByIdAsync(Guid id, CancellationToken ct = default);
 }

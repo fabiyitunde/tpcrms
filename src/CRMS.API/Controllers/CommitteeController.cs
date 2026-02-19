@@ -79,7 +79,7 @@ public class CommitteeController : ControllerBase
     /// Get reviews by status.
     /// </summary>
     [HttpGet("by-status/{status}")]
-    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(List<CommitteeReviewSummaryDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetByStatus(string status, CancellationToken ct)
     {
@@ -96,7 +96,7 @@ public class CommitteeController : ControllerBase
     /// Get overdue reviews.
     /// </summary>
     [HttpGet("overdue")]
-    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(List<CommitteeReviewSummaryDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetOverdue(CancellationToken ct)
     {
@@ -123,7 +123,7 @@ public class CommitteeController : ControllerBase
     /// Create a new committee review.
     /// </summary>
     [HttpPost]
-    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(CommitteeReviewDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(
@@ -155,7 +155,7 @@ public class CommitteeController : ControllerBase
     /// Add a member to committee review.
     /// </summary>
     [HttpPost("{id:guid}/members")]
-    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(CommitteeReviewDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddMember(
@@ -178,7 +178,7 @@ public class CommitteeController : ControllerBase
     /// Start voting on a committee review.
     /// </summary>
     [HttpPost("{id:guid}/start-voting")]
-    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(CommitteeReviewDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> StartVoting(Guid id, CancellationToken ct)
@@ -193,7 +193,7 @@ public class CommitteeController : ControllerBase
     /// Cast a vote on a committee review.
     /// </summary>
     [HttpPost("{id:guid}/vote")]
-    [Authorize(Roles = "CommitteeMember,CreditOfficer,RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "CommitteeMember,CreditOfficer,RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(CommitteeReviewDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CastVote(
@@ -236,7 +236,7 @@ public class CommitteeController : ControllerBase
     /// Record final decision on committee review.
     /// </summary>
     [HttpPost("{id:guid}/decision")]
-    [Authorize(Roles = "CommitteeMember,CreditOfficer,RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "CommitteeMember,CreditOfficer,RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(CommitteeReviewDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RecordDecision(
@@ -266,7 +266,7 @@ public class CommitteeController : ControllerBase
     /// Close a committee review.
     /// </summary>
     [HttpPost("{id:guid}/close")]
-    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdministrator")]
+    [Authorize(Roles = "CreditOfficer,RiskManager,SystemAdmin")]
     [ProducesResponseType(typeof(CommitteeReviewDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Close(Guid id, CancellationToken ct)

@@ -112,6 +112,13 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
             .HasForeignKey(x => x.LoanApplicationId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Concurrency token disabled for MySQL compatibility
+        // RowVersion stored as BLOB, must have default value to avoid DBNull issues
+        builder.Property(x => x.RowVersion)
+            .HasColumnType("BLOB")
+            .HasDefaultValue(new byte[] { 0 })
+            .IsRequired(false);
+
         builder.Ignore(x => x.DomainEvents);
     }
 }

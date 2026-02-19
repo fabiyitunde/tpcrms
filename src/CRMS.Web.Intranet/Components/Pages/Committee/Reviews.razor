@@ -1,5 +1,5 @@
 @page "/committee/reviews"
-@inject ApiClient Api
+@inject ApplicationService AppService
 @inject NavigationManager Navigation
 
 <PageTitle>Committee Reviews - CRMS</PageTitle>
@@ -77,7 +77,8 @@
                 <tbody>
                     @foreach (var review in reviews)
                     {
-                        <tr @onclick="() => ViewApplication(review.ApplicationId)">
+                        var reviewAppId = review.ApplicationId;
+                        <tr @onclick="() => ViewApplication(reviewAppId)" style="cursor: pointer;">
                             <td>
                                 <span style="font-weight: 600; color: var(--primary-600);">@review.ApplicationNumber</span>
                             </td>
@@ -154,18 +155,37 @@
     private async Task LoadReviews()
     {
         isLoading = true;
-        await Task.Delay(300);
-        
-        reviews =
-        [
-            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0156", CustomerName = "Acme Corporation", Amount = 250_000_000m, CommitteeType = "Credit Committee", Status = "Voting", VotesCast = 3, TotalMembers = 5, Decision = "" },
-            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0150", CustomerName = "Delta Holdings", Amount = 1_000_000_000m, CommitteeType = "Management Committee", Status = "Pending", VotesCast = 0, TotalMembers = 3, Decision = "" },
-            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0145", CustomerName = "Gamma Industries", Amount = 500_000_000m, CommitteeType = "Credit Committee", Status = "Completed", VotesCast = 5, TotalMembers = 5, Decision = "Approved" },
-            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0140", CustomerName = "Beta Manufacturing", Amount = 300_000_000m, CommitteeType = "Credit Committee", Status = "Completed", VotesCast = 5, TotalMembers = 5, Decision = "Rejected" },
-            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0135", CustomerName = "Alpha Services", Amount = 750_000_000m, CommitteeType = "Board Committee", Status = "Voting", VotesCast = 2, TotalMembers = 7, Decision = "" }
-        ];
-        
-        isLoading = false;
+        try
+        {
+            var dbReviews = await AppService.GetCommitteeReviewsByStatusAsync(string.IsNullOrEmpty(selectedStatus) ? null : selectedStatus);
+            if (dbReviews.Count > 0)
+            {
+                reviews = dbReviews.Select(r => new CommitteeReview
+                {
+                    ApplicationId = r.ApplicationId,
+                    ApplicationNumber = r.ApplicationNumber,
+                    CustomerName = r.CustomerName,
+                    CommitteeType = r.CommitteeType,
+                    Status = r.Status
+                }).ToList();
+            }
+            else
+            {
+                // Fallback mock data
+                reviews =
+                [
+                    new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0156", CustomerName = "Acme Corporation", Amount = 250_000_000m, CommitteeType = "Credit Committee", Status = "Voting", VotesCast = 3, TotalMembers = 5, Decision = "" },
+                    new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0150", CustomerName = "Delta Holdings", Amount = 1_000_000_000m, CommitteeType = "Management Committee", Status = "Pending", VotesCast = 0, TotalMembers = 3, Decision = "" },
+                    new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0145", CustomerName = "Gamma Industries", Amount = 500_000_000m, CommitteeType = "Credit Committee", Status = "Completed", VotesCast = 5, TotalMembers = 5, Decision = "Approved" },
+                    new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0140", CustomerName = "Beta Manufacturing", Amount = 300_000_000m, CommitteeType = "Credit Committee", Status = "Completed", VotesCast = 5, TotalMembers = 5, Decision = "Rejected" },
+                    new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0135", CustomerName = "Alpha Services", Amount = 750_000_000m, CommitteeType = "Board Committee", Status = "Voting", VotesCast = 2, TotalMembers = 7, Decision = "" }
+                ];
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private async Task Search()

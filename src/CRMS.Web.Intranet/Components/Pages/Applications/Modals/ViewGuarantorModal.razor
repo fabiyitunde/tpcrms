@@ -1,0 +1,315 @@
+@inject ApplicationService AppService
+
+<div class="modal-backdrop show" @onclick="Close">
+    <div class="modal" style="max-width: 700px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">Guarantor Details</h3>
+            <button type="button" class="modal-close" @onclick="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body" style="flex: 1; overflow-y: auto;">
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: var(--space-8);">
+                    <span class="material-symbols-outlined spinning">progress_activity</span>
+                </div>
+            }
+            else if (guarantor == null)
+            {
+                <div class="alert alert-danger">Failed to load guarantor details</div>
+            }
+            else
+            {
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="form-label text-muted">Reference</label>
+                        <div style="font-weight: 600;">@guarantor.GuarantorReference</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Status</label>
+                        <div>
+                            <span class="badge @GetStatusBadgeClass(guarantor.Status)">@guarantor.Status</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                    PERSONAL INFORMATION
+                </h4>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="form-label text-muted">Full Name</label>
+                        <div style="font-weight: 600; font-size: var(--text-lg);">@guarantor.FullName</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">BVN</label>
+                        <div style="font-family: monospace;">@(guarantor.BVN ?? "-")</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Guarantor Type</label>
+                        <div>@guarantor.Type</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Guarantee Type</label>
+                        <div>@guarantor.GuaranteeType</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="form-label text-muted">Email</label>
+                        <div>@(guarantor.Email ?? "-")</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Phone</label>
+                        <div>@(guarantor.Phone ?? "-")</div>
+                    </div>
+                </div>
+
+                <div class="form-group mb-6">
+                    <label class="form-label text-muted">Address</label>
+                    <div>@(guarantor.Address ?? "-")</div>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                    RELATIONSHIP & OWNERSHIP
+                </h4>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="form-label text-muted">Relationship to Applicant</label>
+                        <div>@(guarantor.RelationshipToApplicant ?? "-")</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Director/Shareholder</label>
+                        <div>
+                            @if (guarantor.IsDirector) { <span class="badge badge-primary">Director</span> }
+                            @if (guarantor.IsShareholder) { <span class="badge badge-primary">Shareholder (@guarantor.ShareholdingPercentage?.ToString("0.#")%)</span> }
+                            @if (!guarantor.IsDirector && !guarantor.IsShareholder) { <span>-</span> }
+                        </div>
+                    </div>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                    FINANCIAL INFORMATION
+                </h4>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="form-label text-muted">Occupation</label>
+                        <div>@(guarantor.Occupation ?? "-")</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Employer</label>
+                        <div>@(guarantor.EmployerName ?? "-")</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Monthly Income</label>
+                        <div>@(guarantor.MonthlyIncome.HasValue ? $"₦{FormatAmount(guarantor.MonthlyIncome.Value)}" : "-")</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Declared Net Worth</label>
+                        <div>@(guarantor.DeclaredNetWorth.HasValue ? $"₦{FormatAmount(guarantor.DeclaredNetWorth.Value)}" : "-")</div>
+                    </div>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                    GUARANTEE DETAILS
+                </h4>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="form-label text-muted">Guarantee Limit</label>
+                        <div style="font-weight: 600; font-size: var(--text-lg); color: var(--primary-600);">
+                            @if (guarantor.IsUnlimited)
+                            {
+                                <span>Unlimited</span>
+                            }
+                            else if (guarantor.GuaranteeLimit.HasValue)
+                            {
+                                <span>₦@FormatAmount(guarantor.GuaranteeLimit.Value)</span>
+                            }
+                            else
+                            {
+                                <span>-</span>
+                            }
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Guarantee Period</label>
+                        <div>
+                            @if (guarantor.GuaranteeStartDate.HasValue && guarantor.GuaranteeEndDate.HasValue)
+                            {
+                                <span>@guarantor.GuaranteeStartDate.Value.ToString("MMM dd, yyyy") - @guarantor.GuaranteeEndDate.Value.ToString("MMM dd, yyyy")</span>
+                            }
+                            else
+                            {
+                                <span>-</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @if (guarantor.CreditScore.HasValue)
+                {
+                    <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                        CREDIT BUREAU INFORMATION
+                    </h4>
+
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div>
+                            <label class="form-label text-muted">Credit Score</label>
+                            <div style="font-weight: 600; font-size: var(--text-xl);">
+                                @guarantor.CreditScore
+                                @if (!string.IsNullOrEmpty(guarantor.CreditScoreGrade))
+                                {
+                                    <span class="badge @GetCreditGradeBadge(guarantor.CreditScoreGrade)" style="margin-left: var(--space-2);">@guarantor.CreditScoreGrade</span>
+                                }
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Credit Check Date</label>
+                            <div>@(guarantor.CreditCheckDate?.ToString("MMM dd, yyyy") ?? "-")</div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Credit Issues</label>
+                            <div>
+                                @if (guarantor.HasCreditIssues)
+                                {
+                                    <span class="badge badge-danger">Yes</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-success">No</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(guarantor.CreditIssuesSummary))
+                    {
+                        <div class="alert alert-warning mb-6">
+                            <strong>Credit Issues:</strong> @guarantor.CreditIssuesSummary
+                        </div>
+                    }
+
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="form-label text-muted">Existing Guarantees</label>
+                            <div>@guarantor.ExistingGuaranteeCount guarantee(s)</div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Total Existing Guarantees</label>
+                            <div>@(guarantor.TotalExistingGuarantees.HasValue ? $"₦{FormatAmount(guarantor.TotalExistingGuarantees.Value)}" : "-")</div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info mb-6">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">info</span>
+                        Credit bureau check has not been performed yet. This will be done during credit analysis.
+                    </div>
+                }
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                    AGREEMENT STATUS
+                </h4>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="form-label text-muted">Guarantee Agreement Signed</label>
+                        <div>
+                            @if (guarantor.HasSignedGuaranteeAgreement)
+                            {
+                                <span class="badge badge-success">Yes</span>
+                                @if (guarantor.AgreementSignedDate.HasValue)
+                                {
+                                    <span style="margin-left: var(--space-2);">on @guarantor.AgreementSignedDate.Value.ToString("MMM dd, yyyy")</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="badge badge-warning">Pending</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                    AUDIT TRAIL
+                </h4>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="form-label text-muted">Created</label>
+                        <div>@guarantor.CreatedAt.ToString("MMM dd, yyyy HH:mm")</div>
+                    </div>
+                    @if (guarantor.ApprovedAt.HasValue)
+                    {
+                        <div>
+                            <label class="form-label text-muted">Approved</label>
+                            <div>@guarantor.ApprovedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(guarantor.RejectionReason))
+                    {
+                        <div class="col-span-2">
+                            <label class="form-label text-muted">Rejection Reason</label>
+                            <div class="text-danger">@guarantor.RejectionReason</div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @onclick="Close">Close</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid GuarantorId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private GuarantorDetailDto? guarantor;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGuarantor();
+    }
+
+    private async Task LoadGuarantor()
+    {
+        isLoading = true;
+        guarantor = await AppService.GetGuarantorDetailAsync(GuarantorId);
+        isLoading = false;
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Active" or "Approved" => "badge-success",
+        "Proposed" or "PendingVerification" or "CreditCheckPending" => "badge-warning",
+        "Rejected" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private static string GetCreditGradeBadge(string grade) => grade.ToUpper() switch
+    {
+        "A" or "AA" or "AAA" => "badge-success",
+        "B" or "BB" or "BBB" => "badge-warning",
+        _ => "badge-danger"
+    };
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:N2}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:N2}M";
+        return $"{amount:N0}";
+    }
+}

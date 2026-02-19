@@ -1,5 +1,5 @@
 @page "/queues/my"
-@inject ApiClient Api
+@inject ApplicationService AppService
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 
@@ -64,7 +64,8 @@ else
                         <tbody>
                             @foreach (var task in group.OrderBy(t => t.DueDate))
                             {
-                                <tr @onclick="() => ViewApplication(task.ApplicationId)">
+                                var taskId = task.ApplicationId;
+                                <tr @onclick="() => ViewApplication(taskId)" style="cursor: pointer;">
                                     <td>
                                         <span style="font-weight: 600; color: var(--primary-600);">@task.ApplicationNumber</span>
                                     </td>
@@ -86,7 +87,7 @@ else
                                     </td>
                                     <td>@task.RequiredAction</td>
                                     <td>
-                                        <button class="btn btn-primary btn-sm" @onclick:stopPropagation @onclick="() => ViewApplication(task.ApplicationId)">
+                                        <button class="btn btn-primary btn-sm" @onclick:stopPropagation @onclick="() => ViewApplication(taskId)">
                                             <span class="material-symbols-outlined" style="font-size: 16px;">open_in_new</span>
                                             Open
                                         </button>
@@ -113,7 +114,8 @@ else
     private async Task LoadQueue()
     {
         isLoading = true;
-        tasks = await Api.GetMyPendingTasksAsync();
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        tasks = await AppService.GetMyPendingTasksAsync(userId);
         
         // Mock data
         if (!tasks.Any())

@@ -1,12 +1,24 @@
 
+@if (!IsEditable)
+{
+    <div class="alert alert-warning mb-4" style="display: flex; gap: var(--space-3); align-items: flex-start;">
+        <span class="material-symbols-outlined" style="color: var(--warning-600);">lock</span>
+        <div style="font-size: var(--text-sm);">
+            <strong>Read-Only:</strong> This application has been submitted for processing. Guarantor data cannot be modified.
+        </div>
+    </div>
+}
 
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Guarantors</h3>
-        <button class="btn btn-primary btn-sm">
-            <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
-            Add Guarantor
-        </button>
+        @if (IsEditable)
+        {
+            <button type="button" class="btn btn-primary btn-sm" @onclick="HandleAddGuarantor">
+                <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+                Add Guarantor
+            </button>
+        }
     </div>
     <div class="card-body" style="padding: 0;">
         @if (!Guarantors.Any())
@@ -35,6 +47,7 @@
                 <tbody>
                     @foreach (var guarantor in Guarantors)
                     {
+                        var currentGuarantor = guarantor;
                         <tr>
                             <td style="font-weight: 500;">@guarantor.Name</td>
                             <td>@guarantor.Relationship</td>
@@ -55,9 +68,26 @@
                                 }
                             </td>
                             <td>
-                                <button class="btn btn-ghost btn-sm">
-                                    <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
-                                </button>
+                                <div style="display: flex; gap: var(--space-1);">
+                                    <button type="button" class="btn btn-ghost btn-sm" title="View Details" @onclick="() => OnViewGuarantor.InvokeAsync(currentGuarantor.Id)">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                    </button>
+                                    @if (IsEditable)
+                                    {
+                                        @if (CanEditGuarantor(guarantor.Status))
+                                        {
+                                            <button type="button" class="btn btn-ghost btn-sm" title="Edit" @onclick="() => OnEditGuarantor.InvokeAsync(currentGuarantor.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                                            </button>
+                                        }
+                                        @if (CanDeleteGuarantor(guarantor.Status))
+                                        {
+                                            <button type="button" class="btn btn-ghost btn-sm" title="Delete" style="color: var(--danger-600);" @onclick="() => OnDeleteGuarantor.InvokeAsync(currentGuarantor.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                                            </button>
+                                        }
+                                    }
+                                </div>
                             </td>
                         </tr>
                     }
@@ -78,12 +108,19 @@
 
 @code {
     [Parameter] public List<GuarantorInfo> Guarantors { get; set; } = [];
+    [Parameter] public bool IsEditable { get; set; } = true;
+    [Parameter] public EventCallback OnAddGuarantor { get; set; }
+    [Parameter] public EventCallback<Guid> OnViewGuarantor { get; set; }
+    [Parameter] public EventCallback<Guid> OnEditGuarantor { get; set; }
+    [Parameter] public EventCallback<Guid> OnDeleteGuarantor { get; set; }
+
+    private async Task HandleAddGuarantor() => await OnAddGuarantor.InvokeAsync();
 
     private static string GetStatusBadgeClass(string status) => status switch
     {
-        "Active" => "badge-success",
-        "Pending" => "badge-warning",
-        "Inactive" => "badge-gray",
+        "Active" or "Approved" => "badge-success",
+        "Proposed" or "PendingVerification" or "CreditCheckPending" => "badge-warning",
+        "Rejected" => "badge-danger",
         _ => "badge-gray"
     };
 
@@ -93,4 +130,10 @@
         if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
         return $"{amount:N0}";
     }
+
+    // Can edit if not yet approved/active/rejected
+    private static bool CanEditGuarantor(string status) => status is "Proposed" or "PendingVerification" or "CreditCheckPending" or "CreditCheckCompleted";
+
+    // Can delete if not yet approved/active/rejected - same as edit
+    private static bool CanDeleteGuarantor(string status) => status is "Proposed" or "PendingVerification" or "CreditCheckPending" or "CreditCheckCompleted";
 }

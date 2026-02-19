@@ -728,6 +728,15 @@ a:hover {
 
 .table-clickable tbody tr {
     cursor: pointer;
+    transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.table-clickable tbody tr:hover {
+    background: var(--primary-50);
+}
+
+.table-clickable tbody tr:active {
+    background: var(--primary-100);
 }
 
 /* ============================================

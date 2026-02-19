@@ -94,7 +94,7 @@ public class GuarantorsController : ControllerBase
     [HttpPost("{id}/credit-check")]
     public async Task<IActionResult> RunCreditCheck(Guid id, [FromBody] CreditCheckApiRequest request, CancellationToken ct)
     {
-        var result = await _creditCheckHandler.Handle(new RunGuarantorCreditCheckCommand(id, request.RequestedByUserId), ct);
+        var result = await _creditCheckHandler.Handle(new RunGuarantorCreditCheckCommand(id, request.RequestedByUserId, request.ConsentRecordId), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
@@ -135,7 +135,7 @@ public record AddIndividualGuarantorRequest(
     decimal? MonthlyIncome = null
 );
 
-public record CreditCheckApiRequest(Guid RequestedByUserId);
+public record CreditCheckApiRequest(Guid RequestedByUserId, Guid ConsentRecordId);
 
 public record ApproveGuarantorApiRequest(Guid ApprovedByUserId, decimal? VerifiedNetWorth = null, string? Currency = null);
 

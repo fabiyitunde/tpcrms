@@ -1,5 +1,5 @@
 @page "/"
-@inject ApiClient Api
+@inject ApplicationService AppService
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 
@@ -111,7 +111,8 @@
                         <tbody>
                             @foreach (var task in pendingTasks.Take(5))
                             {
-                                <tr @onclick="() => ViewApplication(task.ApplicationId)">
+                                var taskId = task.ApplicationId;
+                                <tr @onclick="() => ViewApplication(taskId)" style="cursor: pointer;">
                                     <td>
                                         <span style="font-weight: 500;">@task.ApplicationNumber</span>
                                     </td>
@@ -275,8 +276,9 @@
     {
         isLoading = true;
         
-        var summaryTask = Api.GetDashboardSummaryAsync();
-        var tasksTask = Api.GetMyPendingTasksAsync();
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        var summaryTask = AppService.GetDashboardSummaryAsync();
+        var tasksTask = AppService.GetMyPendingTasksAsync(userId);
         
         await Task.WhenAll(summaryTask, tasksTask);
         

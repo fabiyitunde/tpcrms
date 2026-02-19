@@ -65,19 +65,19 @@
     <div class="modal-backdrop show" @onclick="CloseUserMenu">
         <div class="modal" style="position: fixed; top: 70px; right: 20px; max-width: 200px;" @onclick:stopPropagation>
             <div class="modal-body p-4">
-                <a href="/profile" class="nav-item" style="color: var(--gray-700);">
-                    <span class="material-symbols-outlined nav-item-icon">person</span>
-                    <span class="nav-item-text">My Profile</span>
+                <a href="/profile" class="nav-item" style="color: var(--gray-700); display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); text-decoration: none;">
+                    <span class="material-symbols-outlined">person</span>
+                    <span>My Profile</span>
                 </a>
-                <a href="/settings" class="nav-item" style="color: var(--gray-700);">
-                    <span class="material-symbols-outlined nav-item-icon">settings</span>
-                    <span class="nav-item-text">Settings</span>
+                <a href="/settings" class="nav-item" style="color: var(--gray-700); display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); text-decoration: none;">
+                    <span class="material-symbols-outlined">settings</span>
+                    <span>Settings</span>
                 </a>
                 <hr style="margin: var(--space-2) 0; border-color: var(--gray-200);" />
-                <a @onclick="Logout" class="nav-item" style="color: var(--danger-600); cursor: pointer;">
-                    <span class="material-symbols-outlined nav-item-icon">logout</span>
-                    <span class="nav-item-text">Logout</span>
-                </a>
+                <button @onclick="Logout" class="nav-item" style="color: var(--danger-600); cursor: pointer; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); background: none; border: none; width: 100%; text-align: left;">
+                    <span class="material-symbols-outlined">logout</span>
+                    <span>Logout</span>
+                </button>
             </div>
         </div>
     </div>

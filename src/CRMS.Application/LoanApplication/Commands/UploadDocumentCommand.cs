@@ -1,5 +1,6 @@
 using CRMS.Application.Common;
 using CRMS.Application.LoanApplication.DTOs;
+using CRMS.Domain.Aggregates.LoanApplication;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
@@ -19,21 +20,28 @@ public record UploadDocumentCommand(
 public class UploadDocumentHandler : IRequestHandler<UploadDocumentCommand, ApplicationResult<LoanApplicationDocumentDto>>
 {
     private readonly ILoanApplicationRepository _repository;
+    private readonly ILoanApplicationDocumentRepository _documentRepository;
     private readonly IUnitOfWork _unitOfWork;
 
-    public UploadDocumentHandler(ILoanApplicationRepository repository, IUnitOfWork unitOfWork)
+    public UploadDocumentHandler(
+        ILoanApplicationRepository repository, 
+        ILoanApplicationDocumentRepository documentRepository,
+        IUnitOfWork unitOfWork)
     {
         _repository = repository;
+        _documentRepository = documentRepository;
         _unitOfWork = unitOfWork;
     }
 
     public async Task<ApplicationResult<LoanApplicationDocumentDto>> Handle(UploadDocumentCommand request, CancellationToken ct = default)
     {
-        var application = await _repository.GetByIdAsync(request.ApplicationId, ct);
-        if (application == null)
+        // Just verify application exists - don't load with includes to avoid tracking issues
+        var applicationExists = await _repository.ExistsAsync(request.ApplicationId, ct);
+        if (!applicationExists)
             return ApplicationResult<LoanApplicationDocumentDto>.Failure("Loan application not found");
 
-        var result = application.AddDocument(
+        var docResult = LoanApplicationDocument.Create(
+            request.ApplicationId,
             request.Category,
             request.FileName,
             request.FilePath,
@@ -43,13 +51,13 @@ public class UploadDocumentHandler : IRequestHandler<UploadDocumentCommand, Appl
             request.Description
         );
 
-        if (result.IsFailure)
-            return ApplicationResult<LoanApplicationDocumentDto>.Failure(result.Error);
+        if (docResult.IsFailure)
+            return ApplicationResult<LoanApplicationDocumentDto>.Failure(docResult.Error);
 
-        _repository.Update(application);
+        var doc = docResult.Value;
+        await _documentRepository.AddAsync(doc, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        var doc = result.Value;
         return ApplicationResult<LoanApplicationDocumentDto>.Success(new LoanApplicationDocumentDto(
             doc.Id,
             doc.Category.ToString(),
@@ -92,7 +100,7 @@ public class VerifyDocumentHandler : IRequestHandler<VerifyDocumentCommand, Appl
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 
-        _repository.Update(application);
+        // No need to call Update() - entity is already tracked
         await _unitOfWork.SaveChangesAsync(ct);
 
         return ApplicationResult.Success();

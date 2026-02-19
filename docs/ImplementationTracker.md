@@ -1,16 +1,16 @@
 # CRMS - Implementation Tracker
 
-**Version:** 2.2  
-**Last Updated:** 2026-02-17  
-**Status:** Corporate Loan Backend Complete (Phase 1) | Retail Pending (Phase 2)
+**Version:** 2.5  
+**Last Updated:** 2026-02-19  
+**Status:** Phase 1 COMPLETE (Backend + UI) | Audit Fixes Complete (A-E) | UI Enhancements Complete | Phase 2 Pending (Retail)
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Corporate Loan Backend - COMPLETE ✅
+### Phase 1: Corporate Loan System - COMPLETE ✅
 
-The backend for corporate/officer-driven loans is fully implemented. All modules required for the corporate loan flow are operational:
+#### Backend Modules (16/16)
 
 | Step | Module | Status |
 |------|--------|--------|
@@ -26,11 +26,60 @@ The backend for corporate/officer-driven loans is fully implemented. All modules
 | 10. Notifications | NotificationService | ✅ |
 | 11. Audit Trail | AuditService | ✅ |
 | 12. Reporting | ReportingService | ✅ |
+| 13. Identity/Auth | IdentityService | ✅ |
+| 14. Product Catalog | ProductCatalog | ✅ |
+| 15. Collateral | CollateralManagement | ✅ |
+| 16. Guarantor | GuarantorManagement | ✅ |
+
+#### Intranet UI (12 Pages) - COMPLETE ✅
+
+All pages call Application layer **directly** via `ApplicationService` (no HTTP/API calls):
+
+| Page | Route | ApplicationService Methods |
+|------|-------|---------------------------|
+| Dashboard | `/` | `GetDashboardSummaryAsync`, `GetMyPendingTasksAsync` |
+| My Queue | `/queues/my` | `GetMyPendingTasksAsync` |
+| All Queues | `/queues/all` | `GetQueueSummaryAsync`, `GetQueueByRoleAsync` |
+| Applications | `/applications` | `GetApplicationsByStatusAsync` |
+| Application Detail | `/applications/{id}` | `GetApplicationDetailAsync`, `GenerateLoanPackAsync`, `GenerateAdvisoryAsync`, `CastVoteAsync`, `TransitionWorkflowAsync` |
+| New Application | `/applications/new` | `GetLoanProductsAsync`, `CreateApplicationAsync`, `SubmitApplicationAsync` |
+| Committee Reviews | `/committee/reviews` | `GetCommitteeReviewsByStatusAsync` |
+| My Votes | `/committee/my-votes` | `GetMyPendingVotesAsync`, `CastVoteAsync` |
+| Reports | `/reports` | `GetReportingMetricsAsync` |
+| Audit Trail | `/reports/audit` | `GetAuditLogsAsync` |
+| Users | `/admin/users` | `GetUsersAsync` |
+| Products | `/admin/products` | `GetAllLoanProductsAsync` |
+
+**Auth:** `AuthService` calls `IAuthService` directly (no HTTP)
 
 **Disbursement:** After final approval, branch manually books the loan in core banking (Fineract). Automated disbursement API is available but not exposed - intentional for audit/compliance reasons.
 
-**Pending for Phase 1:**
-- Intranet UI (Blazor pages for staff portal)
+### Audit Fix Phases - COMPLETE ✅
+
+Following a comprehensive code audit (78 issues found), systematic fixes were applied across 5 phases:
+
+| Phase | Focus | Status | Key Fixes |
+|-------|-------|--------|-----------|
+| **A** | Code Bug Fixes | ✅ | Rejection tracking fields, DSCR calculation, role naming |
+| **B** | Domain Logic Gaps | ✅ | Consent verification, quorum enforcement, workflow handlers |
+| **C** | Infrastructure | ✅ | File storage abstraction (Local/S3), concurrency tokens |
+| **D** | Security Hardening | ✅ | IP capture, sensitive data masking, rate limiting, authorization |
+| **E** | Performance & Polish | ✅ | Exponential retry backoff, reporting cache, seed data |
+
+**Migrations Created:**
+- `AddRejectionTrackingFields` (Phase A)
+- `PhaseBDomainLogicFixes` (Phase B - ConsentRecords table)
+- `PhaseCInfrastructure` (Phase C - RowVersion columns)
+- `PhaseEPerformance` (Phase E - NextRetryAt column)
+
+**New Components Added:**
+- `ConsentRecord` aggregate (NDPA compliance)
+- `IFileStorageService` with Local and S3 implementations
+- `IHttpContextService` for IP address capture
+- `SensitiveDataMasker` utility
+- `EnvironmentRestrictedAttribute` filter
+- `SeedData` class for roles and products
+- Workflow integration handlers (Committee→Workflow, CreditChecks→Workflow)
 
 ### Phase 2: Retail Loan Backend - PENDING 🔴
 
@@ -636,15 +685,46 @@ This glossary defines the **official terms** used throughout the codebase, docum
 - Domain invariant enforcement in entities
 
 ### 5.4 Caching
-- Redis for frequently accessed data (products, configurations)
+- **In-Memory Cache** for reporting dashboard (5-15 min TTL)
+- Redis (optional) for distributed caching
 - Cache invalidation strategies
 
-### 5.5 Resilience
+### 5.5 Rate Limiting
+- .NET 9 built-in rate limiting middleware
+- **Global limit**: 100 requests/minute per IP
+- **Auth endpoints**: 5 requests/minute (strict for brute-force protection)
+- **Sensitive operations**: 20 requests/minute
+
+### 5.6 File Storage
+- **Abstraction**: `IFileStorageService` interface
+- **Local storage**: `LocalFileStorageService` for dev/single-server
+- **S3 storage**: `S3FileStorageService` for production (AWS S3, MinIO, DigitalOcean Spaces)
+- Configuration-based provider selection
+
+### 5.7 Concurrency Control
+- **Optimistic locking** via `RowVersion` columns on critical aggregates
+- Applied to: `WorkflowInstance`, `LoanApplication`
+- EF Core throws `DbUpdateConcurrencyException` on conflicts
+
+### 5.8 Resilience
 - Polly for retry policies
 - Circuit breaker for external APIs
 - Timeout handling
+- **Exponential backoff** for notification retries (5^n minutes)
 
-### 5.6 Domain Events (Cross-Context Communication)
+### 5.9 Security
+- **IP address capture** via `IHttpContextService` (supports X-Forwarded-For)
+- **Sensitive data masking** via `SensitiveDataMasker` (BVN, account numbers, etc.)
+- **Environment-restricted endpoints** via `EnvironmentRestrictedAttribute`
+- **Role-based authorization** on all sensitive endpoints
+
+### 5.10 Consent Management (NDPA Compliance)
+- `ConsentRecord` aggregate tracks borrower consent
+- Required before any credit bureau check
+- Supports multiple consent types and capture methods
+- Consent validation integrated into credit check workflows
+
+### 5.11 Domain Events (Cross-Context Communication)
 
 The system uses **domain events** for critical cross-bounded-context communication, providing loose coupling while maintaining audit compliance.
 
@@ -808,3 +888,8 @@ When starting a new Factory AI session for this project:
 | 1.7 | 2026-02-17 | Factory AI | Added AuditService module (15) with immutable logging and sensitive data tracking |
 | 1.8 | 2026-02-17 | Factory AI | Added domain event infrastructure for critical cross-context flows (Option 3) |
 | 1.9 | 2026-02-17 | Factory AI | Added LoanPackGenerator module (13) with QuestPDF for comprehensive loan pack PDFs |
+| 2.0 | 2026-02-17 | Factory AI | Added Intranet UI with all core pages and modern CSS design system |
+| 2.1 | 2026-02-17 | Factory AI | Comprehensive audit review completed (78 issues documented) |
+| 2.2 | 2026-02-18 | Factory AI | Phase A-B fixes: rejection tracking, DSCR calculation, consent verification, quorum enforcement |
+| 2.3 | 2026-02-18 | Factory AI | Phase C-E fixes: file storage (S3), concurrency tokens, security hardening, caching, seed data |
+| 2.4 | 2026-02-19 | Factory AI | Intranet UI enhancements: Data entry modals (Collateral, Guarantor, Document, Financial Statement), flexible financial statement validation by business age, document viewer, workflow fixes |

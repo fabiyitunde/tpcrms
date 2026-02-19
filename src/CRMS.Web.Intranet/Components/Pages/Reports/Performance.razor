@@ -1,0 +1,314 @@
+@page "/reports/performance"
+@inject NavigationManager Navigation
+
+<PageTitle>Performance Report - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Performance Report</h1>
+        <p class="page-subtitle">Staff and team performance metrics</p>
+    </div>
+    <div style="display: flex; gap: var(--space-3);">
+        <select class="form-control" style="width: 150px;" @bind="selectedPeriod">
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+        </select>
+        <button class="btn btn-secondary">
+            <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+            Export
+        </button>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <span class="material-symbols-outlined">schedule</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Avg. Processing Time</div>
+            <div class="stat-value">4.2 days</div>
+            <div class="stat-change positive">
+                <span class="material-symbols-outlined" style="font-size: 16px;">trending_down</span>
+                -0.8 days vs target
+            </div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">
+            <span class="material-symbols-outlined">check_circle</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">SLA Compliance</div>
+            <div class="stat-value">87%</div>
+            <div class="stat-change positive">
+                <span class="material-symbols-outlined" style="font-size: 16px;">trending_up</span>
+                +5% from last period
+            </div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">
+            <span class="material-symbols-outlined">assignment</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Applications Processed</div>
+            <div class="stat-value">156</div>
+            <div class="stat-change positive">
+                <span class="material-symbols-outlined" style="font-size: 16px;">trending_up</span>
+                +12% from last period
+            </div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon danger">
+            <span class="material-symbols-outlined">warning</span>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">SLA Breaches</div>
+            <div class="stat-value">22</div>
+            <div class="stat-change negative">
+                <span class="material-symbols-outlined" style="font-size: 16px;">trending_up</span>
+                +3 from last period
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-2 gap-6 mt-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Processing Time by Stage</h3>
+        </div>
+        <div class="card-body">
+            @foreach (var stage in stagePerformance)
+            {
+                <div class="stage-row">
+                    <div class="stage-info">
+                        <span class="stage-name">@stage.Name</span>
+                        <span class="stage-target">Target: @stage.TargetHours hrs</span>
+                    </div>
+                    <div class="stage-bar-container">
+                        <div class="stage-bar @(stage.ActualHours > stage.TargetHours ? "exceeded" : "")" 
+                             style="width: @(Math.Min(stage.ActualHours / (stage.TargetHours * 1.5m) * 100, 100))%"></div>
+                    </div>
+                    <span class="stage-actual @(stage.ActualHours > stage.TargetHours ? "text-danger" : "")">
+                        @stage.ActualHours hrs
+                    </span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Top Performers</h3>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Processed</th>
+                        <th>Avg. Time</th>
+                        <th>SLA %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var performer in topPerformers)
+                    {
+                        <tr>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                    <div class="user-avatar" style="width: 28px; height: 28px; font-size: 10px;">@performer.Initials</div>
+                                    <span>@performer.Name</span>
+                                </div>
+                            </td>
+                            <td style="font-weight: 500;">@performer.ProcessedCount</td>
+                            <td>@performer.AvgHours hrs</td>
+                            <td>
+                                <span class="badge @(performer.SlaCompliance >= 90 ? "badge-success" : performer.SlaCompliance >= 75 ? "badge-warning" : "badge-danger")">
+                                    @performer.SlaCompliance%
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-6">
+    <div class="card-header">
+        <h3 class="card-title">Team Performance</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Team/Role</th>
+                    <th>Members</th>
+                    <th>Total Processed</th>
+                    <th>Avg. Processing Time</th>
+                    <th>SLA Compliance</th>
+                    <th>Trend</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var team in teamPerformance)
+                {
+                    <tr>
+                        <td style="font-weight: 500;">@team.Name</td>
+                        <td>@team.MemberCount</td>
+                        <td>@team.TotalProcessed</td>
+                        <td>@team.AvgHours hrs</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                <div class="sla-mini-bar">
+                                    <div class="sla-mini-fill @(team.SlaCompliance >= 90 ? "success" : team.SlaCompliance >= 75 ? "warning" : "danger")" 
+                                         style="width: @team.SlaCompliance%"></div>
+                                </div>
+                                <span>@team.SlaCompliance%</span>
+                            </div>
+                        </td>
+                        <td>
+                            @if (team.TrendUp)
+                            {
+                                <span class="material-symbols-outlined text-success" style="font-size: 18px;">trending_up</span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined text-danger" style="font-size: 18px;">trending_down</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .stage-row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+        margin-bottom: var(--space-4);
+    }
+    
+    .stage-info {
+        width: 150px;
+    }
+    
+    .stage-name {
+        display: block;
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+    
+    .stage-target {
+        display: block;
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+    }
+    
+    .stage-bar-container {
+        flex: 1;
+        height: 8px;
+        background: var(--gray-100);
+        border-radius: var(--radius-full);
+        overflow: hidden;
+    }
+    
+    .stage-bar {
+        height: 100%;
+        background: var(--success-500);
+        border-radius: var(--radius-full);
+    }
+    
+    .stage-bar.exceeded {
+        background: var(--danger-500);
+    }
+    
+    .stage-actual {
+        width: 60px;
+        text-align: right;
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+    
+    .sla-mini-bar {
+        width: 60px;
+        height: 6px;
+        background: var(--gray-200);
+        border-radius: var(--radius-full);
+        overflow: hidden;
+    }
+    
+    .sla-mini-fill {
+        height: 100%;
+        border-radius: var(--radius-full);
+    }
+    
+    .sla-mini-fill.success { background: var(--success-500); }
+    .sla-mini-fill.warning { background: var(--warning-500); }
+    .sla-mini-fill.danger { background: var(--danger-500); }
+</style>
+
+@code {
+    private int selectedPeriod = 30;
+
+    private List<StagePerformance> stagePerformance =
+    [
+        new() { Name = "Branch Review", TargetHours = 24, ActualHours = 18 },
+        new() { Name = "Credit Analysis", TargetHours = 48, ActualHours = 42 },
+        new() { Name = "HO Review", TargetHours = 24, ActualHours = 28 },
+        new() { Name = "Committee", TargetHours = 72, ActualHours = 65 },
+        new() { Name = "Final Approval", TargetHours = 24, ActualHours = 16 }
+    ];
+
+    private List<Performer> topPerformers =
+    [
+        new() { Name = "Sarah Okonkwo", Initials = "SO", ProcessedCount = 42, AvgHours = 14, SlaCompliance = 95 },
+        new() { Name = "John Adeyemi", Initials = "JA", ProcessedCount = 38, AvgHours = 16, SlaCompliance = 92 },
+        new() { Name = "Grace Adekunle", Initials = "GA", ProcessedCount = 35, AvgHours = 18, SlaCompliance = 88 },
+        new() { Name = "David Okafor", Initials = "DO", ProcessedCount = 31, AvgHours = 20, SlaCompliance = 85 },
+        new() { Name = "Michael Eze", Initials = "ME", ProcessedCount = 28, AvgHours = 22, SlaCompliance = 82 }
+    ];
+
+    private List<TeamPerformance> teamPerformance =
+    [
+        new() { Name = "Branch Operations", MemberCount = 12, TotalProcessed = 85, AvgHours = 16, SlaCompliance = 91, TrendUp = true },
+        new() { Name = "Credit Analysis", MemberCount = 8, TotalProcessed = 62, AvgHours = 38, SlaCompliance = 86, TrendUp = true },
+        new() { Name = "HO Review", MemberCount = 5, TotalProcessed = 48, AvgHours = 22, SlaCompliance = 78, TrendUp = false },
+        new() { Name = "Risk Committee", MemberCount = 7, TotalProcessed = 35, AvgHours = 58, SlaCompliance = 94, TrendUp = true }
+    ];
+
+    private class StagePerformance
+    {
+        public string Name { get; set; } = string.Empty;
+        public decimal TargetHours { get; set; }
+        public decimal ActualHours { get; set; }
+    }
+
+    private class Performer
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Initials { get; set; } = string.Empty;
+        public int ProcessedCount { get; set; }
+        public decimal AvgHours { get; set; }
+        public int SlaCompliance { get; set; }
+    }
+
+    private class TeamPerformance
+    {
+        public string Name { get; set; } = string.Empty;
+        public int MemberCount { get; set; }
+        public int TotalProcessed { get; set; }
+        public decimal AvgHours { get; set; }
+        public int SlaCompliance { get; set; }
+        public bool TrendUp { get; set; }
+    }
+}

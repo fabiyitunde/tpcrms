@@ -10,6 +10,9 @@ public class BureauReport : AggregateRoot
     public SubjectType SubjectType { get; private set; }
     public BureauReportStatus Status { get; private set; }
     
+    // Consent Reference (required for NDPA compliance)
+    public Guid ConsentRecordId { get; private set; }
+    
     // Subject Identifiers
     public string? BVN { get; private set; }
     public string? RegistryId { get; private set; }
@@ -55,6 +58,7 @@ public class BureauReport : AggregateRoot
         string subjectName,
         string? bvn,
         Guid requestedByUserId,
+        Guid consentRecordId,
         Guid? loanApplicationId = null,
         string? taxId = null)
     {
@@ -63,6 +67,9 @@ public class BureauReport : AggregateRoot
 
         if (subjectType == SubjectType.Individual && string.IsNullOrWhiteSpace(bvn))
             return Result.Failure<BureauReport>("BVN is required for individual credit checks");
+
+        if (consentRecordId == Guid.Empty)
+            return Result.Failure<BureauReport>("Valid consent record is required for credit bureau checks (NDPA compliance)");
 
         var report = new BureauReport
         {
@@ -75,10 +82,11 @@ public class BureauReport : AggregateRoot
             RequestedByUserId = requestedByUserId,
             RequestedAt = DateTime.UtcNow,
             LoanApplicationId = loanApplicationId,
+            ConsentRecordId = consentRecordId,
             RequestReference = GenerateRequestReference()
         };
 
-        report.AddDomainEvent(new BureauReportRequestedEvent(report.Id, provider, subjectName, bvn));
+        report.AddDomainEvent(new BureauReportRequestedEvent(report.Id, provider, subjectName, bvn, consentRecordId));
 
         return Result.Success(report);
     }
@@ -154,5 +162,5 @@ public class BureauReport : AggregateRoot
 }
 
 // Domain Events
-public record BureauReportRequestedEvent(Guid ReportId, CreditBureauProvider Provider, string SubjectName, string? BVN) : DomainEvent;
+public record BureauReportRequestedEvent(Guid ReportId, CreditBureauProvider Provider, string SubjectName, string? BVN, Guid ConsentRecordId) : DomainEvent;
 public record BureauReportCompletedEvent(Guid ReportId, CreditBureauProvider Provider, string SubjectName, int? CreditScore) : DomainEvent;

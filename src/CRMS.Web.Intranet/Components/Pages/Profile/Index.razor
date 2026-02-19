@@ -1,0 +1,280 @@
+@page "/profile"
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>My Profile - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">My Profile</h1>
+        <p class="page-subtitle">Manage your account settings</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-3 gap-6">
+    <div class="card" style="grid-column: span 1;">
+        <div class="card-body text-center">
+            <div class="profile-avatar">
+                @UserInitials
+            </div>
+            <h3 style="margin-top: var(--space-4);">@UserName</h3>
+            <p style="color: var(--gray-500);">@UserEmail</p>
+            <div style="margin-top: var(--space-4);">
+                <span class="badge badge-primary">@UserRole</span>
+            </div>
+            @if (!string.IsNullOrEmpty(UserBranch))
+            {
+                <p style="margin-top: var(--space-3); font-size: var(--text-sm); color: var(--gray-500);">
+                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">location_on</span>
+                    @UserBranch
+                </p>
+            }
+        </div>
+    </div>
+
+    <div style="grid-column: span 2;">
+        <div class="card mb-6">
+            <div class="card-header">
+                <h3 class="card-title">Personal Information</h3>
+                <button class="btn btn-ghost btn-sm" @onclick="() => isEditingProfile = true">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                    Edit
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">First Name</label>
+                        <input type="text" class="form-control" @bind="editFirstName" disabled="@(!isEditingProfile)" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name</label>
+                        <input type="text" class="form-control" @bind="editLastName" disabled="@(!isEditingProfile)" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" value="@UserEmail" disabled />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-control" @bind="editPhone" disabled="@(!isEditingProfile)" />
+                    </div>
+                </div>
+                @if (isEditingProfile)
+                {
+                    <div style="margin-top: var(--space-4); display: flex; justify-content: flex-end; gap: var(--space-3);">
+                        <button class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveProfile">Save Changes</button>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="card mb-6">
+            <div class="card-header">
+                <h3 class="card-title">Change Password</h3>
+            </div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label class="form-label">Current Password</label>
+                    <input type="password" class="form-control" @bind="currentPassword" />
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">New Password</label>
+                        <input type="password" class="form-control" @bind="newPassword" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Confirm New Password</label>
+                        <input type="password" class="form-control" @bind="confirmPassword" />
+                    </div>
+                </div>
+                <div style="margin-top: var(--space-4);">
+                    <button class="btn btn-primary" @onclick="ChangePassword" disabled="@(string.IsNullOrEmpty(currentPassword) || string.IsNullOrEmpty(newPassword))">
+                        Update Password
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Notification Preferences</h3>
+            </div>
+            <div class="card-body">
+                <div class="notification-option">
+                    <div>
+                        <div style="font-weight: 500;">Email Notifications</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Receive notifications via email</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" @bind="emailNotifications" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="notification-option">
+                    <div>
+                        <div style="font-weight: 500;">SMS Notifications</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Receive urgent notifications via SMS</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" @bind="smsNotifications" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="notification-option">
+                    <div>
+                        <div style="font-weight: 500;">Application Updates</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Get notified when applications you're involved with change status</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" @bind="applicationUpdates" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="notification-option">
+                    <div>
+                        <div style="font-weight: 500;">Committee Reminders</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">Reminders for pending committee votes</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" @bind="committeeReminders" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .profile-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: var(--radius-full);
+        background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--text-3xl);
+        font-weight: 600;
+        margin: 0 auto;
+    }
+    
+    .notification-option {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-4) 0;
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .notification-option:last-child {
+        border-bottom: none;
+    }
+    
+    .toggle {
+        position: relative;
+        display: inline-block;
+        width: 48px;
+        height: 26px;
+    }
+    
+    .toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--gray-300);
+        transition: var(--transition-fast);
+        border-radius: 26px;
+    }
+    
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: var(--transition-fast);
+        border-radius: 50%;
+    }
+    
+    .toggle input:checked + .toggle-slider {
+        background-color: var(--primary-500);
+    }
+    
+    .toggle input:checked + .toggle-slider:before {
+        transform: translateX(22px);
+    }
+</style>
+
+@code {
+    private bool isEditingProfile;
+    private string editFirstName = string.Empty;
+    private string editLastName = string.Empty;
+    private string editPhone = string.Empty;
+    
+    private string currentPassword = string.Empty;
+    private string newPassword = string.Empty;
+    private string confirmPassword = string.Empty;
+    
+    private bool emailNotifications = true;
+    private bool smsNotifications = true;
+    private bool applicationUpdates = true;
+    private bool committeeReminders = true;
+
+    private string UserName => AuthService.CurrentUser?.FullName ?? "User";
+    private string UserFirstName => AuthService.CurrentUser?.FirstName ?? "User";
+    private string UserLastName => AuthService.CurrentUser?.LastName ?? "";
+    private string UserEmail => AuthService.CurrentUser?.Email ?? "user@bank.com";
+    private string UserInitials => AuthService.CurrentUser?.Initials ?? "U";
+    private string UserRole => AuthService.CurrentUser?.Roles.FirstOrDefault() ?? "Staff";
+    private string? UserBranch => null;
+    private string UserPhone => "+234 800 000 0000";
+
+    protected override void OnInitialized()
+    {
+        editFirstName = UserFirstName;
+        editLastName = UserLastName;
+        editPhone = UserPhone;
+    }
+
+    private void CancelEdit()
+    {
+        isEditingProfile = false;
+        editFirstName = UserFirstName;
+        editLastName = UserLastName;
+        editPhone = UserPhone;
+    }
+
+    private async Task SaveProfile()
+    {
+        await Task.Delay(300);
+        isEditingProfile = false;
+    }
+
+    private async Task ChangePassword()
+    {
+        if (newPassword != confirmPassword)
+        {
+            return;
+        }
+        
+        await Task.Delay(300);
+        currentPassword = string.Empty;
+        newPassword = string.Empty;
+        confirmPassword = string.Empty;
+    }
+}

@@ -3,20 +3,30 @@ using CRMS.Application.Reporting.Interfaces;
 using CRMS.Domain.Enums;
 using CRMS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace CRMS.Infrastructure.Services;
 
 public class ReportingService : IReportingService
 {
     private readonly CRMSDbContext _context;
+    private readonly IMemoryCache _cache;
+    private static readonly TimeSpan DashboardCacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan ReportCacheDuration = TimeSpan.FromMinutes(15);
 
-    public ReportingService(CRMSDbContext context)
+    public ReportingService(CRMSDbContext context, IMemoryCache cache)
     {
         _context = context;
+        _cache = cache;
     }
 
     public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(CancellationToken ct = default)
     {
+        const string cacheKey = "dashboard_summary";
+        
+        if (_cache.TryGetValue(cacheKey, out DashboardSummaryDto? cached) && cached != null)
+            return cached;
+
         var now = DateTime.UtcNow;
         var startOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -25,7 +35,11 @@ public class ReportingService : IReportingService
         var performance = await GetPerformanceMetricsAsync(startOfMonth, now, ct);
         var pending = await GetPendingActionsAsync(ct);
 
-        return new DashboardSummaryDto(funnel, portfolio, performance, pending);
+        var result = new DashboardSummaryDto(funnel, portfolio, performance, pending);
+        
+        _cache.Set(cacheKey, result, DashboardCacheDuration);
+        
+        return result;
     }
 
     public async Task<LoanFunnelDto> GetLoanFunnelAsync(DateTime? fromDate, DateTime? toDate, CancellationToken ct = default)
@@ -113,6 +127,11 @@ public class ReportingService : IReportingService
 
     public async Task<PortfolioSummaryDto> GetPortfolioSummaryAsync(CancellationToken ct = default)
     {
+        const string cacheKey = "portfolio_summary";
+        
+        if (_cache.TryGetValue(cacheKey, out PortfolioSummaryDto? cached) && cached != null)
+            return cached;
+
         var activeLoans = await _context.LoanApplications
             .Where(x => x.Status == LoanApplicationStatus.Disbursed)
             .ToListAsync(ct);
@@ -136,10 +155,14 @@ public class ReportingService : IReportingService
             .GroupBy(x => x.ProductCode ?? "Unknown")
             .ToDictionary(g => g.Key, g => g.Sum(x => x.ApprovedAmount?.Amount ?? x.RequestedAmount.Amount));
 
-        return new PortfolioSummaryDto(
+        var result = new PortfolioSummaryDto(
             totalActive, totalOutstanding, avgTicketSize,
             corporateLoans, retailLoans, corporateOutstanding, retailOutstanding,
             loansByProduct, outstandingByProduct);
+        
+        _cache.Set(cacheKey, result, ReportCacheDuration);
+        
+        return result;
     }
 
     public async Task<PortfolioReportDto> GetPortfolioReportAsync(DateTime? asOfDate, CancellationToken ct = default)

@@ -1,0 +1,279 @@
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<div class="modal-backdrop show" @onclick="Close">
+    <div class="modal" style="max-width: 700px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">Edit Guarantor</h3>
+            <button type="button" class="modal-close" @onclick="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body" style="flex: 1; overflow-y: auto;">
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: var(--space-8);">
+                    <span class="material-symbols-outlined spinning">progress_activity</span>
+                </div>
+            }
+            else if (model == null)
+            {
+                <div class="alert alert-danger">Failed to load guarantor details</div>
+            }
+            else
+            {
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger mb-4">@errorMessage</div>
+                }
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3);">PERSONAL INFORMATION</h4>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Full Name *</label>
+                        <input type="text" class="form-control" @bind="model.FullName" placeholder="Full legal name" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">BVN</label>
+                        <input type="text" class="form-control" @bind="model.BVN" placeholder="11-digit BVN" maxlength="11" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" @bind="model.Email" placeholder="email@example.com" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-control" @bind="model.Phone" placeholder="+234..." />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Address</label>
+                    <textarea class="form-control" rows="2" @bind="model.Address" placeholder="Full address..."></textarea>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin: var(--space-4) 0 var(--space-3);">RELATIONSHIP</h4>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Relationship to Applicant</label>
+                        <select class="form-control" @bind="model.Relationship">
+                            <option value="">Select...</option>
+                            <option value="Director">Director</option>
+                            <option value="Shareholder">Shareholder</option>
+                            <option value="Spouse">Spouse</option>
+                            <option value="Parent">Parent</option>
+                            <option value="Sibling">Sibling</option>
+                            <option value="BusinessPartner">Business Partner</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Guarantee Type *</label>
+                        <select class="form-control" @bind="model.GuaranteeType">
+                            <option value="Unlimited">Unlimited</option>
+                            <option value="Limited">Limited</option>
+                            <option value="Joint">Joint</option>
+                            <option value="JointAndSeveral">Joint and Several</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="form-group">
+                        <label class="form-label" style="display: flex; align-items: center; gap: var(--space-2);">
+                            <input type="checkbox" @bind="model.IsDirector" />
+                            Is Director
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="display: flex; align-items: center; gap: var(--space-2);">
+                            <input type="checkbox" @bind="model.IsShareholder" />
+                            Is Shareholder
+                        </label>
+                    </div>
+                    @if (model.IsShareholder)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Shareholding %</label>
+                            <input type="number" class="form-control" @bind="model.ShareholdingPercentage" step="0.01" min="0" max="100" />
+                        </div>
+                    }
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin: var(--space-4) 0 var(--space-3);">FINANCIAL INFORMATION</h4>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Occupation</label>
+                        <input type="text" class="form-control" @bind="model.Occupation" placeholder="e.g., Business Owner" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Employer Name</label>
+                        <input type="text" class="form-control" @bind="model.EmployerName" placeholder="Company name" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Monthly Income (₦)</label>
+                        <input type="number" class="form-control" @bind="model.MonthlyIncome" step="1000" min="0" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Declared Net Worth (₦)</label>
+                        <input type="number" class="form-control" @bind="model.DeclaredNetWorth" step="1000" min="0" />
+                    </div>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin: var(--space-4) 0 var(--space-3);">GUARANTEE LIMIT</h4>
+
+                <div class="form-group">
+                    <label class="form-label">Guarantee Limit (₦)</label>
+                    <input type="number" class="form-control" @bind="model.GuaranteeLimit" step="1000" min="0" 
+                        placeholder="Leave empty for unlimited guarantee" />
+                    <small class="text-muted">Leave empty if guarantee is unlimited</small>
+                </div>
+            }
+        </div>
+        <div class="modal-footer">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <span class="text-danger" style="margin-right: auto; font-size: var(--text-sm);">@errorMessage</span>
+            }
+            <button type="button" class="btn btn-secondary" @onclick="Close" disabled="@isSubmitting">Cancel</button>
+            <button type="button" class="btn btn-primary" @onclick="Submit" disabled="@(isSubmitting || isLoading)">
+                @if (isSubmitting)
+                {
+                    <span class="material-symbols-outlined spinning" style="font-size: 18px;">progress_activity</span>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Save Changes</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid GuarantorId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSuccess { get; set; }
+
+    private GuarantorEditModel? model;
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGuarantor();
+    }
+
+    private async Task LoadGuarantor()
+    {
+        isLoading = true;
+        var guarantor = await AppService.GetGuarantorDetailAsync(GuarantorId);
+        if (guarantor != null)
+        {
+            model = new GuarantorEditModel
+            {
+                FullName = guarantor.FullName,
+                BVN = guarantor.BVN,
+                Email = guarantor.Email,
+                Phone = guarantor.Phone,
+                Address = guarantor.Address,
+                Relationship = guarantor.RelationshipToApplicant,
+                GuaranteeType = guarantor.GuaranteeType,
+                IsDirector = guarantor.IsDirector,
+                IsShareholder = guarantor.IsShareholder,
+                ShareholdingPercentage = guarantor.ShareholdingPercentage,
+                Occupation = guarantor.Occupation,
+                EmployerName = guarantor.EmployerName,
+                MonthlyIncome = guarantor.MonthlyIncome,
+                DeclaredNetWorth = guarantor.DeclaredNetWorth,
+                GuaranteeLimit = guarantor.GuaranteeLimit
+            };
+        }
+        isLoading = false;
+    }
+
+    private async Task Submit()
+    {
+        if (model == null) return;
+
+        if (string.IsNullOrWhiteSpace(model.FullName))
+        {
+            errorMessage = "Please enter the guarantor's full name";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await AppService.UpdateGuarantorAsync(GuarantorId, new UpdateGuarantorRequest
+            {
+                FullName = model.FullName,
+                BVN = model.BVN,
+                Email = model.Email,
+                Phone = model.Phone,
+                Address = model.Address,
+                Relationship = model.Relationship,
+                GuaranteeType = model.GuaranteeType,
+                IsDirector = model.IsDirector,
+                IsShareholder = model.IsShareholder,
+                ShareholdingPercentage = model.ShareholdingPercentage,
+                Occupation = model.Occupation,
+                EmployerName = model.EmployerName,
+                MonthlyIncome = model.MonthlyIncome,
+                DeclaredNetWorth = model.DeclaredNetWorth,
+                GuaranteeLimit = model.GuaranteeLimit
+            });
+
+            if (result.Success)
+            {
+                await OnSuccess.InvokeAsync();
+            }
+            else
+            {
+                errorMessage = result.Error ?? "Failed to update guarantor";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+
+    private class GuarantorEditModel
+    {
+        public string FullName { get; set; } = string.Empty;
+        public string? BVN { get; set; }
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
+        public string? Address { get; set; }
+        public string? Relationship { get; set; }
+        public string GuaranteeType { get; set; } = "Unlimited";
+        public bool IsDirector { get; set; }
+        public bool IsShareholder { get; set; }
+        public decimal? ShareholdingPercentage { get; set; }
+        public string? Occupation { get; set; }
+        public string? EmployerName { get; set; }
+        public decimal? MonthlyIncome { get; set; }
+        public decimal? DeclaredNetWorth { get; set; }
+        public decimal? GuaranteeLimit { get; set; }
+    }
+}

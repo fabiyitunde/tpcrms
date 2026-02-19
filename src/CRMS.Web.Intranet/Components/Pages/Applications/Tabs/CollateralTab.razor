@@ -1,12 +1,37 @@
 
+@* Info card explaining the collateral workflow *@
+@if (IsEditable)
+{
+    <div class="alert alert-info mb-4" style="display: flex; gap: var(--space-3); align-items: flex-start;">
+        <span class="material-symbols-outlined" style="color: var(--info-600);">info</span>
+        <div style="font-size: var(--text-sm);">
+            <strong>Collateral Workflow:</strong> 
+            Register collateral here → Valuation is performed during credit analysis → 
+            Documents are uploaded for perfection → Final approval after lien registration.
+            <br/><span class="text-muted">FSV (Forced Sale Value) and LTV (Loan-to-Value) are calculated after professional valuation.</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-warning mb-4" style="display: flex; gap: var(--space-3); align-items: flex-start;">
+        <span class="material-symbols-outlined" style="color: var(--warning-600);">lock</span>
+        <div style="font-size: var(--text-sm);">
+            <strong>Read-Only:</strong> This application has been submitted for processing. Collateral data cannot be modified.
+        </div>
+    </div>
+}
 
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Collateral</h3>
-        <button class="btn btn-primary btn-sm">
-            <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
-            Add Collateral
-        </button>
+        @if (IsEditable)
+        {
+            <button type="button" class="btn btn-primary btn-sm" @onclick="HandleAddCollateral">
+                <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+                Add Collateral
+            </button>
+        }
     </div>
     <div class="card-body" style="padding: 0;">
         @if (!Collaterals.Any())
@@ -26,9 +51,7 @@
                     <tr>
                         <th>Type</th>
                         <th>Description</th>
-                        <th>Market Value</th>
-                        <th>FSV</th>
-                        <th>LTV</th>
+                        <th>Acceptable Value</th>
                         <th>Status</th>
                         <th></th>
                     </tr>
@@ -36,11 +59,12 @@
                 <tbody>
                     @foreach (var collateral in Collaterals)
                     {
+                        var currentCollateral = collateral;
                         <tr>
                             <td>
-                                <span class="badge badge-gray">@collateral.Type</span>
+                                <span class="badge badge-gray">@FormatCollateralType(collateral.Type)</span>
                             </td>
-                            <td style="max-width: 250px;">
+                            <td style="max-width: 300px;">
                                 <div style="font-weight: 500;">@collateral.Description</div>
                                 @if (collateral.LastValuationDate.HasValue)
                                 {
@@ -48,60 +72,109 @@
                                         Valued: @collateral.LastValuationDate.Value.ToString("MMM dd, yyyy")
                                     </div>
                                 }
+                                else
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--warning-600);">
+                                        <span class="material-symbols-outlined" style="font-size: 12px; vertical-align: middle;">schedule</span>
+                                        Pending valuation
+                                    </div>
+                                }
                             </td>
-                            <td style="font-weight: 500;">₦@FormatAmount(collateral.MarketValue)</td>
-                            <td>₦@FormatAmount(collateral.ForcedSaleValue)</td>
-                            <td>
-                                <span class="badge @GetLtvBadgeClass(collateral.LoanToValue)">
-                                    @collateral.LoanToValue.ToString("0")%
-                                </span>
+                            <td style="font-weight: 500;">
+                                @if (collateral.MarketValue > 0)
+                                {
+                                    <span>₦@FormatAmount(collateral.MarketValue)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Not valued</span>
+                                }
                             </td>
                             <td>
                                 <span class="badge @GetStatusBadgeClass(collateral.Status)">
+                                    <span class="status-dot @GetStatusDotClass(collateral.Status)"></span>
                                     @collateral.Status
                                 </span>
                             </td>
                             <td>
-                                <button class="btn btn-ghost btn-sm">
-                                    <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
-                                </button>
+                                <div style="display: flex; gap: var(--space-1);">
+                                    <button type="button" class="btn btn-ghost btn-sm" title="View Details" @onclick="() => OnViewCollateral.InvokeAsync(currentCollateral.Id)">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                    </button>
+                                    @if (IsEditable)
+                                    {
+                                        @if (CanEditCollateral(collateral.Status))
+                                        {
+                                            <button type="button" class="btn btn-ghost btn-sm" title="Edit" @onclick="() => OnEditCollateral.InvokeAsync(currentCollateral.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                                            </button>
+                                        }
+                                        @if (CanDeleteCollateral(collateral.Status))
+                                        {
+                                            <button type="button" class="btn btn-ghost btn-sm" title="Delete" style="color: var(--danger-600);" @onclick="() => OnDeleteCollateral.InvokeAsync(currentCollateral.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                                            </button>
+                                        }
+                                    }
+                                </div>
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
             
-            <div style="padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100);">
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="font-weight: 500;">Total Collateral Coverage</span>
-                    <div>
-                        <span style="font-weight: 600; color: var(--primary-600);">
-                            ₦@FormatAmount(Collaterals.Sum(c => c.ForcedSaleValue))
-                        </span>
-                        <span style="color: var(--gray-500);"> FSV</span>
+            @if (Collaterals.Any(c => c.MarketValue > 0))
+            {
+                <div style="padding: var(--space-4); background: var(--gray-50); border-top: 1px solid var(--gray-100);">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="font-weight: 500;">Total Acceptable Collateral Value</span>
+                        <div>
+                            <span style="font-weight: 600; color: var(--primary-600);">
+                                ₦@FormatAmount(Collaterals.Sum(c => c.MarketValue))
+                            </span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            }
         }
     </div>
 </div>
 
 @code {
     [Parameter] public List<CollateralInfo> Collaterals { get; set; } = [];
+    [Parameter] public bool IsEditable { get; set; } = true;
+    [Parameter] public EventCallback OnAddCollateral { get; set; }
+    [Parameter] public EventCallback<Guid> OnViewCollateral { get; set; }
+    [Parameter] public EventCallback<Guid> OnEditCollateral { get; set; }
+    [Parameter] public EventCallback<Guid> OnDeleteCollateral { get; set; }
+
+    private async Task HandleAddCollateral() => await OnAddCollateral.InvokeAsync();
 
     private static string GetStatusBadgeClass(string status) => status switch
     {
-        "Verified" => "badge-success",
-        "Pending" => "badge-warning",
+        "Approved" or "Perfected" => "badge-success",
+        "Proposed" or "UnderValuation" or "Valued" => "badge-warning",
         "Rejected" => "badge-danger",
         _ => "badge-gray"
     };
 
-    private static string GetLtvBadgeClass(decimal ltv) => ltv switch
+    private static string GetStatusDotClass(string status) => status switch
     {
-        <= 50 => "badge-success",
-        <= 70 => "badge-warning",
-        _ => "badge-danger"
+        "Approved" or "Perfected" => "status-dot-success",
+        "Proposed" or "UnderValuation" or "Valued" => "status-dot-warning",
+        "Rejected" => "status-dot-danger",
+        _ => "status-dot-gray"
+    };
+
+    private static string FormatCollateralType(string type) => type switch
+    {
+        "RealEstate" => "Real Estate",
+        "CashDeposit" => "Cash Deposit",
+        "FixedDeposit" => "Fixed Deposit",
+        "TreasuryBills" => "T-Bills",
+        "ContractProceeds" => "Contract Proceeds",
+        "InsurancePolicy" => "Insurance",
+        _ => type
     };
 
     private static string FormatAmount(decimal amount)
@@ -110,4 +183,10 @@
         if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
         return $"{amount:N0}";
     }
+
+    // Can edit if not yet approved/perfected/rejected
+    private static bool CanEditCollateral(string status) => status is "Proposed" or "UnderValuation" or "Valued";
+
+    // Can delete only if not yet approved/perfected/rejected - allow delete for any editable status
+    private static bool CanDeleteCollateral(string status) => status is "Proposed" or "UnderValuation" or "Valued";
 }

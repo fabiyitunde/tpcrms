@@ -1,0 +1,419 @@
+@using CRMS.Web.Intranet.Services
+@inject IJSRuntime JS
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<div class="modal-backdrop show" @onclick="Close">
+    <div class="modal" style="max-width: 800px;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary-600); vertical-align: middle; margin-right: var(--space-2);">upload_file</span>
+                Upload Financial Statements (Excel)
+            </h3>
+            <button class="modal-close" @onclick="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            @if (currentStep == Step.Download)
+            {
+                <div class="alert alert-info mb-4">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">info</span>
+                    <div>
+                        <strong>Step 1: Download Template</strong><br />
+                        Download the Excel template, fill in your financial data offline, then upload it.
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="card" style="cursor: pointer; transition: all 0.2s;" @onclick="DownloadBlankTemplate">
+                        <div class="card-body text-center" style="padding: var(--space-6);">
+                            <span class="material-symbols-outlined" style="font-size: 48px; color: var(--primary-600);">description</span>
+                            <h3 style="margin: var(--space-3) 0; font-size: var(--text-lg);">Blank Template</h3>
+                            <p class="text-muted" style="font-size: var(--text-sm);">
+                                Download empty template to fill in your financial data
+                            </p>
+                            <button class="btn btn-primary btn-sm mt-3">
+                                <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                Download Template
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="cursor: pointer; transition: all 0.2s;" @onclick="DownloadSampleTemplate">
+                        <div class="card-body text-center" style="padding: var(--space-6);">
+                            <span class="material-symbols-outlined" style="font-size: 48px; color: var(--success-600);">data_table</span>
+                            <h3 style="margin: var(--space-3) 0; font-size: var(--text-lg);">Sample with Data</h3>
+                            <p class="text-muted" style="font-size: var(--text-sm);">
+                                Download template with sample data as reference
+                            </p>
+                            <button class="btn btn-outline btn-sm mt-3">
+                                <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                Download Sample
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <p class="text-muted mb-3">Already have a filled template?</p>
+                    <button class="btn btn-primary" @onclick="() => currentStep = Step.Upload">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">arrow_forward</span>
+                        Proceed to Upload
+                    </button>
+                </div>
+            }
+            else if (currentStep == Step.Upload)
+            {
+                <div class="mb-4">
+                    <button class="btn btn-ghost btn-sm" @onclick="() => currentStep = Step.Download">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">arrow_back</span>
+                        Back to Templates
+                    </button>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Upload Excel File</label>
+                    <div class="upload-zone @(isDragging ? "dragging" : "")" 
+                         @ondragenter="HandleDragEnter" 
+                         @ondragleave="HandleDragLeave"
+                         @ondragover:preventDefault="true">
+                        <InputFile OnChange="HandleFileSelected" accept=".xlsx,.xls" class="upload-input" />
+                        <div class="upload-content">
+                            <span class="material-symbols-outlined" style="font-size: 48px; color: var(--gray-400);">cloud_upload</span>
+                            <p style="margin: var(--space-3) 0;">
+                                <strong>Click to upload</strong> or drag and drop
+                            </p>
+                            <p class="text-muted" style="font-size: var(--text-sm);">
+                                Excel files only (.xlsx, .xls)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                @if (selectedFile != null)
+                {
+                    <div class="alert alert-success mb-4">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+                        <div>
+                            <strong>File selected:</strong> @selectedFile.Name (@FormatFileSize(selectedFile.Size))
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-primary w-100" @onclick="ParseFile" disabled="@isParsing">
+                        @if (isParsing)
+                        {
+                            <span class="spinner"></span>
+                            <span>Parsing...</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined" style="font-size: 18px;">analytics</span>
+                            <span>Parse & Preview</span>
+                        }
+                    </button>
+                }
+                
+                @if (!string.IsNullOrEmpty(parseError))
+                {
+                    <div class="alert alert-danger mt-4">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">error</span>
+                        <div>
+                            <strong>Parse Error:</strong> @parseError
+                        </div>
+                    </div>
+                }
+            }
+            else if (currentStep == Step.Preview && parsedData != null)
+            {
+                <div class="mb-4">
+                    <button class="btn btn-ghost btn-sm" @onclick="() => { currentStep = Step.Upload; parsedData = null; }">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">arrow_back</span>
+                        Back to Upload
+                    </button>
+                </div>
+                
+                <div class="alert alert-success mb-4">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+                    <strong>@parsedData.Count year(s) parsed successfully!</strong>
+                </div>
+                
+                <h4 style="margin-bottom: var(--space-3);">Preview</h4>
+                
+                <table class="table mb-4">
+                    <thead>
+                        <tr>
+                            <th>Year</th>
+                            <th>Type</th>
+                            <th>Total Assets</th>
+                            <th>Total Liabilities</th>
+                            <th>Equity</th>
+                            <th>Revenue</th>
+                            <th>Net Profit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var stmt in parsedData.OrderByDescending(s => s.Year))
+                        {
+                            <tr>
+                                <td><strong>@stmt.Year</strong></td>
+                                <td><span class="badge @GetYearTypeBadge(stmt.YearType)">@stmt.YearType</span></td>
+                                <td>₦@FormatAmount(stmt.BalanceSheet.TotalCurrentAssets + stmt.BalanceSheet.TotalNonCurrentAssets)</td>
+                                <td>₦@FormatAmount(stmt.BalanceSheet.TotalCurrentLiabilities + stmt.BalanceSheet.TotalNonCurrentLiabilities)</td>
+                                <td>₦@FormatAmount(stmt.BalanceSheet.TotalEquity)</td>
+                                <td>₦@FormatAmount(stmt.IncomeStatement.Revenue)</td>
+                                <td style="color: @(GetNetProfit(stmt.IncomeStatement) >= 0 ? "var(--success-600)" : "var(--danger-600)")">
+                                    ₦@FormatAmount(GetNetProfit(stmt.IncomeStatement))
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                
+                <div class="text-muted mb-4" style="font-size: var(--text-sm);">
+                    <strong>Note:</strong> All amounts shown in NGN thousands ('000). Click "Import" to create these financial statements.
+                </div>
+            }
+        </div>
+        
+        @if (currentStep == Step.Preview && parsedData != null)
+        {
+            <div class="modal-footer">
+                @if (!string.IsNullOrEmpty(parseError))
+                {
+                    <div class="alert alert-danger" style="flex: 1; margin: 0; margin-right: var(--space-3); padding: var(--space-2) var(--space-3);">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">error</span>
+                        @parseError
+                    </div>
+                }
+                <button type="button" class="btn btn-outline" @onclick="Close" disabled="@isImporting">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="HandleImport" disabled="@isImporting">
+                    @if (isImporting)
+                    {
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                        <span>Importing...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">save</span>
+                        <span>Import @parsedData.Count Statement(s)</span>
+                    }
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .upload-zone {
+        border: 2px dashed var(--gray-300);
+        border-radius: var(--radius-lg);
+        padding: var(--space-8);
+        text-align: center;
+        cursor: pointer;
+        position: relative;
+        transition: all 0.2s;
+    }
+    
+    .upload-zone:hover, .upload-zone.dragging {
+        border-color: var(--primary-500);
+        background: var(--primary-50);
+    }
+    
+    .upload-input {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+    }
+    
+    .upload-content {
+        pointer-events: none;
+    }
+    
+    .spinning {
+        animation: spin 1s linear infinite;
+    }
+    
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    [Parameter] public Guid ApplicationId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnImported { get; set; }
+    
+    private enum Step { Download, Upload, Preview }
+    private Step currentStep = Step.Download;
+    
+    private IBrowserFile? selectedFile;
+    private byte[]? fileBytes;
+    private bool isDragging;
+    private bool isParsing;
+    private bool isImporting;
+    private string? parseError;
+    private List<FinancialStatementUploadData>? parsedData;
+    
+    private FinancialStatementExcelService excelService = new();
+    
+    private void Close() => OnClose.InvokeAsync();
+    
+    private async Task DownloadBlankTemplate()
+    {
+        await JS.InvokeVoidAsync("open", "/api/financial-statements/template", "_blank");
+    }
+    
+    private async Task DownloadSampleTemplate()
+    {
+        await JS.InvokeVoidAsync("open", "/api/financial-statements/sample", "_blank");
+    }
+    
+    private void HandleDragEnter() => isDragging = true;
+    private void HandleDragLeave() => isDragging = false;
+    
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        isDragging = false;
+        selectedFile = e.File;
+        parseError = null;
+        parsedData = null;
+        
+        // Read file bytes immediately
+        using var stream = new MemoryStream();
+        await selectedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(stream);
+        fileBytes = stream.ToArray();
+    }
+    
+    private async Task ParseFile()
+    {
+        if (fileBytes == null) return;
+        
+        isParsing = true;
+        parseError = null;
+        
+        await Task.Delay(100); // Allow UI to update
+        
+        try
+        {
+            using var stream = new MemoryStream(fileBytes);
+            var result = excelService.ParseUploadedFile(stream);
+            
+            if (result.Success && result.Data != null)
+            {
+                parsedData = result.Data;
+                currentStep = Step.Preview;
+            }
+            else
+            {
+                parseError = result.Error ?? "Unknown error parsing file";
+            }
+        }
+        catch (Exception ex)
+        {
+            parseError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isParsing = false;
+        }
+    }
+    
+    private async Task HandleImport()
+    {
+        await ImportStatements();
+    }
+    
+    private async Task ImportStatements()
+    {
+        if (parsedData == null || !parsedData.Any()) 
+        {
+            parseError = "No data to import";
+            return;
+        }
+        
+        isImporting = true;
+        parseError = null;
+        await InvokeAsync(StateHasChanged);
+        
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            var importedCount = 0;
+            
+            foreach (var stmt in parsedData)
+            {
+                // Create the financial statement via service
+                var request = new CreateFinancialStatementFromExcelRequest
+                {
+                    Year = stmt.Year,
+                    YearType = stmt.YearType,
+                    BalanceSheet = stmt.BalanceSheet,
+                    IncomeStatement = stmt.IncomeStatement,
+                    CashFlow = stmt.CashFlow
+                };
+                
+                var result = await AppService.CreateFinancialStatementFromExcelAsync(ApplicationId, request, userId);
+                
+                if (!result.Success)
+                {
+                    parseError = $"Error importing {stmt.Year}: {result.Error}";
+                    isImporting = false;
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+                
+                importedCount++;
+            }
+            
+            // Success - notify parent and close modal
+            isImporting = false;
+            await OnImported.InvokeAsync();
+            await OnClose.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            parseError = $"Import error: {ex.Message}";
+            isImporting = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes >= 1024 * 1024) return $"{bytes / 1024.0 / 1024.0:0.#} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:0.#} KB";
+        return $"{bytes} bytes";
+    }
+    
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000) return $"{amount / 1_000:0.#}M";
+        if (amount >= 1_000) return $"{amount:0.#}K";
+        return $"{amount:N0}";
+    }
+    
+    private static decimal GetNetProfit(IncomeStatementData is_)
+    {
+        var grossProfit = is_.Revenue + is_.OtherOperatingIncome - is_.CostOfSales;
+        var totalOpex = is_.SellingExpenses + is_.AdministrativeExpenses + is_.DepreciationAmortization + is_.OtherOperatingExpenses;
+        var ebit = grossProfit - totalOpex;
+        var netFinance = is_.InterestExpense + is_.OtherFinanceCosts - is_.InterestIncome;
+        var pbt = ebit - netFinance;
+        return pbt - is_.IncomeTaxExpense;
+    }
+    
+    private static string GetYearTypeBadge(string yearType) => yearType switch
+    {
+        "Audited" => "badge-success",
+        "ManagementAccounts" => "badge-primary",
+        "Projected" => "badge-warning",
+        _ => "badge-gray"
+    };
+}

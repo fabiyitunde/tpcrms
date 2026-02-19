@@ -1,12 +1,26 @@
 
+@inject IJSRuntime JS
+
+@if (!IsEditable)
+{
+    <div class="alert alert-warning mb-4" style="display: flex; gap: var(--space-3); align-items: flex-start;">
+        <span class="material-symbols-outlined" style="color: var(--warning-600);">lock</span>
+        <div style="font-size: var(--text-sm);">
+            <strong>Read-Only:</strong> This application has been submitted for processing. Documents cannot be added or removed.
+        </div>
+    </div>
+}
 
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Documents</h3>
-        <button class="btn btn-primary btn-sm">
-            <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
-            Upload Document
-        </button>
+        @if (IsEditable)
+        {
+            <button type="button" class="btn btn-primary btn-sm" @onclick="() => OnUploadDocument.InvokeAsync()">
+                <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+                Upload Document
+            </button>
+        }
     </div>
     <div class="card-body" style="padding: 0;">
         @if (!Documents.Any())
@@ -35,6 +49,7 @@
                 <tbody>
                     @foreach (var doc in Documents)
                     {
+                        var currentDoc = doc;
                         <tr>
                             <td>
                                 <div style="display: flex; align-items: center; gap: var(--space-3);">
@@ -61,18 +76,18 @@
                             <td style="font-size: var(--text-sm); color: var(--gray-500);">@FormatSize(doc.SizeBytes)</td>
                             <td>
                                 <div style="display: flex; gap: var(--space-2);">
-                                    <button class="btn btn-ghost btn-sm" title="Download">
+                                    <button class="btn btn-ghost btn-sm" title="Download" @onclick="() => DownloadDocument(currentDoc)">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
                                     </button>
-                                    <button class="btn btn-ghost btn-sm" title="View">
+                                    <button class="btn btn-ghost btn-sm" title="View" @onclick="() => ViewDocument(currentDoc)">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
                                     </button>
                                     @if (doc.Status == "Pending")
                                     {
-                                        <button class="btn btn-ghost btn-sm text-success" title="Verify">
+                                        <button class="btn btn-ghost btn-sm text-success" title="Verify" @onclick="() => OnVerifyDocument.InvokeAsync(currentDoc.Id)">
                                             <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
                                         </button>
-                                        <button class="btn btn-ghost btn-sm text-danger" title="Reject">
+                                        <button class="btn btn-ghost btn-sm text-danger" title="Reject" @onclick="() => OnRejectDocument.InvokeAsync(currentDoc.Id)">
                                             <span class="material-symbols-outlined" style="font-size: 18px;">cancel</span>
                                         </button>
                                     }
@@ -86,14 +101,101 @@
     </div>
 </div>
 
+@if (showViewerModal && selectedDocument != null)
+{
+    <div class="modal-backdrop show" @onclick="CloseViewer">
+        <div class="modal" style="max-width: 900px; max-height: 90vh;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@selectedDocument.Name</h3>
+                <button class="modal-close" @onclick="CloseViewer">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 0; height: 70vh; overflow: hidden;">
+                @if (IsViewableInBrowser(selectedDocument.Name))
+                {
+                    <iframe src="@BuildDocumentViewUrl(selectedDocument)" style="width: 100%; height: 100%; border: none;"></iframe>
+                }
+                else
+                {
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: var(--space-4);">
+                        <span class="material-symbols-outlined" style="font-size: 64px; color: var(--gray-400);">@GetDocIcon(selectedDocument.Name)</span>
+                        <div style="text-align: center;">
+                            <div style="font-weight: 600; font-size: var(--text-lg);">@selectedDocument.Name</div>
+                            <div style="color: var(--gray-500); margin-top: var(--space-1);">@FormatSize(selectedDocument.SizeBytes)</div>
+                            <div style="color: var(--gray-500); font-size: var(--text-sm); margin-top: var(--space-2);">
+                                This file type cannot be previewed in the browser.
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" @onclick="() => DownloadDocument(selectedDocument)">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                            Download File
+                        </button>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <div style="display: flex; gap: var(--space-2); align-items: center;">
+                    <span class="badge @GetStatusBadgeClass(selectedDocument.Status)">@selectedDocument.Status</span>
+                    <span style="font-size: var(--text-sm); color: var(--gray-500);">
+                        Uploaded @selectedDocument.UploadedAt.ToString("MMM dd, yyyy HH:mm")
+                        @if (!string.IsNullOrEmpty(selectedDocument.UploadedBy))
+                        {
+                            <span>by @selectedDocument.UploadedBy</span>
+                        }
+                    </span>
+                </div>
+                <button class="btn btn-secondary" @onclick="CloseViewer">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public List<DocumentInfo> Documents { get; set; } = [];
+    [Parameter] public bool IsEditable { get; set; } = true;
+    [Parameter] public EventCallback OnUploadDocument { get; set; }
+    [Parameter] public EventCallback<Guid> OnVerifyDocument { get; set; }
+    [Parameter] public EventCallback<Guid> OnRejectDocument { get; set; }
+
+    private bool showViewerModal;
+    private DocumentInfo? selectedDocument;
+
+    private void ViewDocument(DocumentInfo doc)
+    {
+        selectedDocument = doc;
+        showViewerModal = true;
+    }
+
+    private void CloseViewer()
+    {
+        showViewerModal = false;
+        selectedDocument = null;
+    }
+
+    private async Task DownloadDocument(DocumentInfo doc)
+    {
+        var url = $"/api/documents/{doc.Id}/download";
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    private string BuildDocumentViewUrl(DocumentInfo doc)
+    {
+        return $"/api/documents/{doc.Id}/view";
+    }
+
+    private static bool IsViewableInBrowser(string name)
+    {
+        var ext = Path.GetExtension(name).ToLowerInvariant();
+        return ext is ".pdf" or ".png" or ".jpg" or ".jpeg" or ".gif" or ".txt";
+    }
 
     private static string GetDocIcon(string name)
     {
         if (name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return "picture_as_pdf";
         if (name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)) return "table_chart";
         if (name.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".doc", StringComparison.OrdinalIgnoreCase)) return "description";
+        if (name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)) return "image";
         return "insert_drive_file";
     }
 

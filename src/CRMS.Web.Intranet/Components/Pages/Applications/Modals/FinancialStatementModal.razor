@@ -1,0 +1,964 @@
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<div class="modal-backdrop show" @onclick="Close">
+    <div class="modal" style="max-width: 900px; max-height: 90vh; overflow: hidden;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">
+                @if (isEditMode)
+                {
+                    <span>Edit Financial Statement - @financialYear</span>
+                }
+                else
+                {
+                    <span>New Financial Statement Entry</span>
+                }
+            </h3>
+            <button class="modal-close" @onclick="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        
+        <div class="wizard-steps" style="padding: var(--space-4); border-bottom: 1px solid var(--gray-200);">
+            <div class="step @(currentStep == 1 ? "active" : "") @(currentStep > 1 ? "completed" : "")">
+                <div class="step-number">1</div>
+                <span>Header Info</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step @(currentStep == 2 ? "active" : "") @(currentStep > 2 ? "completed" : "")">
+                <div class="step-number">2</div>
+                <span>Balance Sheet</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step @(currentStep == 3 ? "active" : "") @(currentStep > 3 ? "completed" : "")">
+                <div class="step-number">3</div>
+                <span>Income Statement</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step @(currentStep == 4 ? "active" : "")">
+                <div class="step-number">4</div>
+                <span>Cash Flow</span>
+            </div>
+        </div>
+        
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger mb-4">@errorMessage</div>
+            }
+
+            @switch (currentStep)
+            {
+                case 1:
+                    @* Header Information *@
+                    <div class="form-section">
+                        <h4 style="margin-bottom: var(--space-4);">Financial Statement Details</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Financial Year *</label>
+                                <select class="form-control" @bind="financialYear">
+                                    @for (int y = DateTime.Now.Year; y >= DateTime.Now.Year - 5; y--)
+                                    {
+                                        <option value="@y">@y</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Year End Date *</label>
+                                <input type="date" class="form-control" @bind="yearEndDate" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Year Type *</label>
+                                <select class="form-control" @bind="yearType">
+                                    <option value="Audited">Audited</option>
+                                    <option value="ManagementAccounts">Management Accounts</option>
+                                    <option value="Projected">Projected</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Currency</label>
+                                <select class="form-control" @bind="currency">
+                                    <option value="NGN">NGN - Nigerian Naira</option>
+                                    <option value="USD">USD - US Dollar</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        @if (yearType == "Audited")
+                        {
+                            <h4 style="margin: var(--space-6) 0 var(--space-4);">Auditor Information</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="form-group">
+                                    <label class="form-label">Auditor Name</label>
+                                    <input type="text" class="form-control" @bind="auditorName" placeholder="e.g., John Smith" />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Audit Firm</label>
+                                    <input type="text" class="form-control" @bind="auditorFirm" placeholder="e.g., KPMG, PWC" />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Audit Date</label>
+                                    <input type="date" class="form-control" @bind="auditDate" />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Audit Opinion</label>
+                                    <select class="form-control" @bind="auditOpinion">
+                                        <option value="">Select...</option>
+                                        <option value="Unqualified">Unqualified (Clean)</option>
+                                        <option value="Qualified">Qualified</option>
+                                        <option value="Adverse">Adverse</option>
+                                        <option value="Disclaimer">Disclaimer</option>
+                                    </select>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    break;
+
+                case 2:
+                    @* Balance Sheet *@
+                    <div class="form-section">
+                        <h4 style="margin-bottom: var(--space-4);">Current Assets</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Cash & Cash Equivalents</label>
+                                <input type="number" class="form-control" @bind="bs.CashAndCashEquivalents" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Trade Receivables</label>
+                                <input type="number" class="form-control" @bind="bs.TradeReceivables" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Inventory</label>
+                                <input type="number" class="form-control" @bind="bs.Inventory" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Prepaid Expenses</label>
+                                <input type="number" class="form-control" @bind="bs.PrepaidExpenses" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other Current Assets</label>
+                                <input type="number" class="form-control" @bind="bs.OtherCurrentAssets" step="0.01" />
+                            </div>
+                        </div>
+
+                        <h4 style="margin: var(--space-6) 0 var(--space-4);">Non-Current Assets</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Property, Plant & Equipment</label>
+                                <input type="number" class="form-control" @bind="bs.PropertyPlantEquipment" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Intangible Assets</label>
+                                <input type="number" class="form-control" @bind="bs.IntangibleAssets" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Long-term Investments</label>
+                                <input type="number" class="form-control" @bind="bs.LongTermInvestments" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Deferred Tax Assets</label>
+                                <input type="number" class="form-control" @bind="bs.DeferredTaxAssets" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other Non-Current Assets</label>
+                                <input type="number" class="form-control" @bind="bs.OtherNonCurrentAssets" step="0.01" />
+                            </div>
+                        </div>
+
+                        <h4 style="margin: var(--space-6) 0 var(--space-4);">Current Liabilities</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Trade Payables</label>
+                                <input type="number" class="form-control" @bind="bs.TradePayables" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Short-term Borrowings</label>
+                                <input type="number" class="form-control" @bind="bs.ShortTermBorrowings" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Current Portion of Long-term Debt</label>
+                                <input type="number" class="form-control" @bind="bs.CurrentPortionLongTermDebt" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Accrued Expenses</label>
+                                <input type="number" class="form-control" @bind="bs.AccruedExpenses" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Tax Payable</label>
+                                <input type="number" class="form-control" @bind="bs.TaxPayable" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other Current Liabilities</label>
+                                <input type="number" class="form-control" @bind="bs.OtherCurrentLiabilities" step="0.01" />
+                            </div>
+                        </div>
+
+                        <h4 style="margin: var(--space-6) 0 var(--space-4);">Non-Current Liabilities</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Long-term Debt</label>
+                                <input type="number" class="form-control" @bind="bs.LongTermDebt" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Deferred Tax Liabilities</label>
+                                <input type="number" class="form-control" @bind="bs.DeferredTaxLiabilities" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Provisions</label>
+                                <input type="number" class="form-control" @bind="bs.Provisions" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other Non-Current Liabilities</label>
+                                <input type="number" class="form-control" @bind="bs.OtherNonCurrentLiabilities" step="0.01" />
+                            </div>
+                        </div>
+
+                        <h4 style="margin: var(--space-6) 0 var(--space-4);">Shareholders' Equity</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Share Capital</label>
+                                <input type="number" class="form-control" @bind="bs.ShareCapital" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Share Premium</label>
+                                <input type="number" class="form-control" @bind="bs.SharePremium" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Retained Earnings</label>
+                                <input type="number" class="form-control" @bind="bs.RetainedEarnings" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other Reserves</label>
+                                <input type="number" class="form-control" @bind="bs.OtherReserves" step="0.01" />
+                            </div>
+                        </div>
+
+                        <div class="balance-check" style="margin-top: var(--space-6); padding: var(--space-4); background: var(--gray-50); border-radius: var(--radius-md);">
+                            <div class="grid grid-cols-3 gap-4" style="text-align: center;">
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Total Assets</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600;">@FormatAmount(TotalAssets)</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Total Liabilities + Equity</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600;">@FormatAmount(TotalLiabilitiesAndEquity)</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Balance Check</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600; color: @(IsBalanced ? "var(--success-600)" : "var(--danger-600)");">
+                                        @(IsBalanced ? "✓ Balanced" : "✗ Unbalanced")
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    break;
+
+                case 3:
+                    @* Income Statement (P&L) *@
+                    <div class="form-section">
+                        <h4 style="margin-bottom: var(--space-4);">Revenue</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Revenue (Sales)</label>
+                                <input type="number" class="form-control" @bind="inc.Revenue" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other Operating Income</label>
+                                <input type="number" class="form-control" @bind="inc.OtherOperatingIncome" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Cost of Sales</label>
+                                <input type="number" class="form-control" @bind="inc.CostOfSales" step="0.01" />
+                            </div>
+                        </div>
+
+                        <h4 style="margin: var(--space-6) 0 var(--space-4);">Operating Expenses</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Selling Expenses</label>
+                                <input type="number" class="form-control" @bind="inc.SellingExpenses" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Administrative Expenses</label>
+                                <input type="number" class="form-control" @bind="inc.AdministrativeExpenses" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Depreciation & Amortization</label>
+                                <input type="number" class="form-control" @bind="inc.DepreciationAmortization" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other Operating Expenses</label>
+                                <input type="number" class="form-control" @bind="inc.OtherOperatingExpenses" step="0.01" />
+                            </div>
+                        </div>
+
+                        <h4 style="margin: var(--space-6) 0 var(--space-4);">Finance Items</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Interest Income</label>
+                                <input type="number" class="form-control" @bind="inc.InterestIncome" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Interest Expense</label>
+                                <input type="number" class="form-control" @bind="inc.InterestExpense" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other Finance Costs</label>
+                                <input type="number" class="form-control" @bind="inc.OtherFinanceCosts" step="0.01" />
+                            </div>
+                        </div>
+
+                        <h4 style="margin: var(--space-6) 0 var(--space-4);">Tax & Dividends</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Income Tax Expense</label>
+                                <input type="number" class="form-control" @bind="inc.IncomeTaxExpense" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Dividends Declared</label>
+                                <input type="number" class="form-control" @bind="inc.DividendsDeclared" step="0.01" />
+                            </div>
+                        </div>
+
+                        <div class="summary-box" style="margin-top: var(--space-6); padding: var(--space-4); background: var(--gray-50); border-radius: var(--radius-md);">
+                            <div class="grid grid-cols-4 gap-4" style="text-align: center;">
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Gross Profit</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600;">@FormatAmount(GrossProfit)</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Operating Profit</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600;">@FormatAmount(OperatingProfit)</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Profit Before Tax</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600;">@FormatAmount(ProfitBeforeTax)</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Net Profit</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600; color: @(NetProfit >= 0 ? "var(--success-600)" : "var(--danger-600)");">
+                                        @FormatAmount(NetProfit)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    break;
+
+                case 4:
+                    @* Cash Flow Statement *@
+                    <div class="form-section">
+                        <h4 style="margin-bottom: var(--space-4);">Operating Activities</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Profit Before Tax</label>
+                                <input type="number" class="form-control" @bind="cf.ProfitBeforeTax" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Depreciation & Amortization (Add-back)</label>
+                                <input type="number" class="form-control" @bind="cf.DepreciationAmortization" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Interest Expense (Add-back)</label>
+                                <input type="number" class="form-control" @bind="cf.InterestExpenseAddBack" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Changes in Working Capital</label>
+                                <input type="number" class="form-control" @bind="cf.ChangesInWorkingCapital" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Tax Paid</label>
+                                <input type="number" class="form-control" @bind="cf.TaxPaid" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Other Operating Adjustments</label>
+                                <input type="number" class="form-control" @bind="cf.OtherOperatingAdjustments" step="0.01" />
+                            </div>
+                        </div>
+
+                        <h4 style="margin: var(--space-6) 0 var(--space-4);">Investing Activities</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Purchase of PPE</label>
+                                <input type="number" class="form-control" @bind="cf.PurchaseOfPPE" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Sale of PPE</label>
+                                <input type="number" class="form-control" @bind="cf.SaleOfPPE" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Purchase of Investments</label>
+                                <input type="number" class="form-control" @bind="cf.PurchaseOfInvestments" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Sale of Investments</label>
+                                <input type="number" class="form-control" @bind="cf.SaleOfInvestments" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Interest Received</label>
+                                <input type="number" class="form-control" @bind="cf.InterestReceived" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Dividends Received</label>
+                                <input type="number" class="form-control" @bind="cf.DividendsReceived" step="0.01" />
+                            </div>
+                        </div>
+
+                        <h4 style="margin: var(--space-6) 0 var(--space-4);">Financing Activities</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">Proceeds from Borrowings</label>
+                                <input type="number" class="form-control" @bind="cf.ProceedsFromBorrowings" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Repayment of Borrowings</label>
+                                <input type="number" class="form-control" @bind="cf.RepaymentOfBorrowings" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Interest Paid</label>
+                                <input type="number" class="form-control" @bind="cf.InterestPaid" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Dividends Paid</label>
+                                <input type="number" class="form-control" @bind="cf.DividendsPaid" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Proceeds from Share Issue</label>
+                                <input type="number" class="form-control" @bind="cf.ProceedsFromShareIssue" step="0.01" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Opening Cash Balance</label>
+                                <input type="number" class="form-control" @bind="cf.OpeningCashBalance" step="0.01" />
+                            </div>
+                        </div>
+
+                        <div class="summary-box" style="margin-top: var(--space-6); padding: var(--space-4); background: var(--gray-50); border-radius: var(--radius-md);">
+                            <div class="grid grid-cols-4 gap-4" style="text-align: center;">
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Operating Cash Flow</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600; color: @(NetCashFromOperations >= 0 ? "var(--success-600)" : "var(--danger-600)");">
+                                        @FormatAmount(NetCashFromOperations)
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Investing Cash Flow</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600;">@FormatAmount(NetCashFromInvesting)</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Financing Cash Flow</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600;">@FormatAmount(NetCashFromFinancing)</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: var(--text-sm); color: var(--gray-500);">Closing Cash</div>
+                                    <div style="font-size: var(--text-lg); font-weight: 600;">@FormatAmount(ClosingCash)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    break;
+            }
+        </div>
+        
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="Close" disabled="@isSaving">Cancel</button>
+            <div style="display: flex; gap: var(--space-2);">
+                @if (currentStep > 1)
+                {
+                    <button class="btn btn-outline" @onclick="PreviousStep" disabled="@isSaving">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>
+                        Previous
+                    </button>
+                }
+                @if (currentStep < 4)
+                {
+                    <button class="btn btn-primary" @onclick="NextStep" disabled="@isSaving">
+                        Next
+                        <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-primary" @onclick="SaveFinancialStatement" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        Save Financial Statement
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .wizard-steps {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+    }
+    
+    .step {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-md);
+        font-size: var(--text-sm);
+        color: var(--gray-500);
+    }
+    
+    .step.active {
+        background: var(--primary-50);
+        color: var(--primary-700);
+    }
+    
+    .step.completed {
+        color: var(--success-600);
+    }
+    
+    .step-number {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--gray-200);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: var(--text-xs);
+    }
+    
+    .step.active .step-number {
+        background: var(--primary-500);
+        color: white;
+    }
+    
+    .step.completed .step-number {
+        background: var(--success-500);
+        color: white;
+    }
+    
+    .step-connector {
+        width: 24px;
+        height: 2px;
+        background: var(--gray-200);
+    }
+    
+    .form-section h4 {
+        font-size: var(--text-base);
+        font-weight: 600;
+        color: var(--gray-700);
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--gray-200);
+    }
+</style>
+
+@code {
+    [Parameter] public Guid ApplicationId { get; set; }
+    [Parameter] public Guid? EditStatementId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSuccess { get; set; }
+
+    private int currentStep = 1;
+    private bool isSaving;
+    private bool isLoading;
+    private bool isEditMode => EditStatementId.HasValue;
+    private string? errorMessage;
+
+    // Header info
+    private int financialYear = DateTime.Now.Year - 1;
+    private DateTime yearEndDate = new DateTime(DateTime.Now.Year - 1, 12, 31);
+    private string yearType = "Audited";
+    private string currency = "NGN";
+    private string? auditorName;
+    private string? auditorFirm;
+    private DateTime? auditDate;
+    private string? auditOpinion;
+
+    // Balance Sheet
+    private BalanceSheetInput bs = new();
+
+    // Income Statement
+    private IncomeStatementInput inc = new();
+
+    // Cash Flow
+    private CashFlowInput cf = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (EditStatementId.HasValue)
+        {
+            await LoadStatementForEdit();
+        }
+    }
+    
+    private async Task LoadStatementForEdit()
+    {
+        isLoading = true;
+        errorMessage = null;
+        
+        try
+        {
+            var statement = await AppService.GetFinancialStatementByIdAsync(EditStatementId!.Value);
+            if (statement == null)
+            {
+                errorMessage = "Financial statement not found";
+                return;
+            }
+            
+            // Populate header info
+            financialYear = statement.Year;
+            yearEndDate = statement.YearEndDate;
+            yearType = statement.YearType;
+            
+            // Populate Balance Sheet (convert from actual to display format - divide by 1000)
+            if (statement.BalanceSheet != null)
+            {
+                var bsData = statement.BalanceSheet;
+                bs = new BalanceSheetInput
+                {
+                    CashAndCashEquivalents = bsData.CashAndCashEquivalents / 1000,
+                    TradeReceivables = bsData.TradeReceivables / 1000,
+                    Inventory = bsData.Inventory / 1000,
+                    PrepaidExpenses = bsData.PrepaidExpenses / 1000,
+                    OtherCurrentAssets = bsData.OtherCurrentAssets / 1000,
+                    PropertyPlantEquipment = bsData.PropertyPlantEquipment / 1000,
+                    IntangibleAssets = bsData.IntangibleAssets / 1000,
+                    LongTermInvestments = bsData.LongTermInvestments / 1000,
+                    DeferredTaxAssets = bsData.DeferredTaxAssets / 1000,
+                    OtherNonCurrentAssets = bsData.OtherNonCurrentAssets / 1000,
+                    TradePayables = bsData.TradePayables / 1000,
+                    ShortTermBorrowings = bsData.ShortTermBorrowings / 1000,
+                    CurrentPortionLongTermDebt = bsData.CurrentPortionLongTermDebt / 1000,
+                    AccruedExpenses = bsData.AccruedExpenses / 1000,
+                    TaxPayable = bsData.TaxPayable / 1000,
+                    OtherCurrentLiabilities = bsData.OtherCurrentLiabilities / 1000,
+                    LongTermDebt = bsData.LongTermDebt / 1000,
+                    DeferredTaxLiabilities = bsData.DeferredTaxLiabilities / 1000,
+                    Provisions = bsData.Provisions / 1000,
+                    OtherNonCurrentLiabilities = bsData.OtherNonCurrentLiabilities / 1000,
+                    ShareCapital = bsData.ShareCapital / 1000,
+                    SharePremium = bsData.SharePremium / 1000,
+                    RetainedEarnings = bsData.RetainedEarnings / 1000,
+                    OtherReserves = bsData.OtherReserves / 1000
+                };
+            }
+            
+            // Populate Income Statement
+            if (statement.IncomeStatement != null)
+            {
+                var incData = statement.IncomeStatement;
+                inc = new IncomeStatementInput
+                {
+                    Revenue = incData.Revenue / 1000,
+                    OtherOperatingIncome = incData.OtherOperatingIncome / 1000,
+                    CostOfSales = incData.CostOfSales / 1000,
+                    SellingExpenses = incData.SellingExpenses / 1000,
+                    AdministrativeExpenses = incData.AdministrativeExpenses / 1000,
+                    DepreciationAmortization = incData.DepreciationAmortization / 1000,
+                    OtherOperatingExpenses = incData.OtherOperatingExpenses / 1000,
+                    InterestIncome = incData.InterestIncome / 1000,
+                    InterestExpense = incData.InterestExpense / 1000,
+                    OtherFinanceCosts = incData.OtherFinanceCosts / 1000,
+                    IncomeTaxExpense = incData.IncomeTaxExpense / 1000,
+                    DividendsDeclared = incData.DividendsDeclared / 1000
+                };
+            }
+            
+            // Populate Cash Flow
+            if (statement.CashFlow != null)
+            {
+                var cfData = statement.CashFlow;
+                cf = new CashFlowInput
+                {
+                    ProfitBeforeTax = cfData.ProfitBeforeTax / 1000,
+                    DepreciationAmortization = cfData.DepreciationAmortization / 1000,
+                    InterestExpenseAddBack = cfData.InterestExpenseAddBack / 1000,
+                    ChangesInWorkingCapital = cfData.ChangesInWorkingCapital / 1000,
+                    TaxPaid = cfData.TaxPaid / 1000,
+                    OtherOperatingAdjustments = cfData.OtherOperatingAdjustments / 1000,
+                    PurchaseOfPPE = cfData.PurchaseOfPPE / 1000,
+                    SaleOfPPE = cfData.SaleOfPPE / 1000,
+                    PurchaseOfInvestments = cfData.PurchaseOfInvestments / 1000,
+                    SaleOfInvestments = cfData.SaleOfInvestments / 1000,
+                    InterestReceived = cfData.InterestReceived / 1000,
+                    DividendsReceived = cfData.DividendsReceived / 1000,
+                    ProceedsFromBorrowings = cfData.ProceedsFromBorrowings / 1000,
+                    RepaymentOfBorrowings = cfData.RepaymentOfBorrowings / 1000,
+                    InterestPaid = cfData.InterestPaid / 1000,
+                    DividendsPaid = cfData.DividendsPaid / 1000,
+                    ProceedsFromShareIssue = cfData.ProceedsFromShareIssue / 1000,
+                    OpeningCashBalance = cfData.OpeningCashBalance / 1000
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading statement: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // Calculated values - Balance Sheet
+    private decimal TotalCurrentAssets => bs.CashAndCashEquivalents + bs.TradeReceivables + bs.Inventory + bs.PrepaidExpenses + bs.OtherCurrentAssets;
+    private decimal TotalNonCurrentAssets => bs.PropertyPlantEquipment + bs.IntangibleAssets + bs.LongTermInvestments + bs.DeferredTaxAssets + bs.OtherNonCurrentAssets;
+    private decimal TotalAssets => TotalCurrentAssets + TotalNonCurrentAssets;
+    private decimal TotalCurrentLiabilities => bs.TradePayables + bs.ShortTermBorrowings + bs.CurrentPortionLongTermDebt + bs.AccruedExpenses + bs.TaxPayable + bs.OtherCurrentLiabilities;
+    private decimal TotalNonCurrentLiabilities => bs.LongTermDebt + bs.DeferredTaxLiabilities + bs.Provisions + bs.OtherNonCurrentLiabilities;
+    private decimal TotalLiabilities => TotalCurrentLiabilities + TotalNonCurrentLiabilities;
+    private decimal TotalEquity => bs.ShareCapital + bs.SharePremium + bs.RetainedEarnings + bs.OtherReserves;
+    private decimal TotalLiabilitiesAndEquity => TotalLiabilities + TotalEquity;
+    private bool IsBalanced => Math.Abs(TotalAssets - TotalLiabilitiesAndEquity) < 0.01m;
+
+    // Calculated values - Income Statement
+    private decimal GrossProfit => inc.Revenue + inc.OtherOperatingIncome - inc.CostOfSales;
+    private decimal TotalOperatingExpenses => inc.SellingExpenses + inc.AdministrativeExpenses + inc.DepreciationAmortization + inc.OtherOperatingExpenses;
+    private decimal OperatingProfit => GrossProfit - TotalOperatingExpenses;
+    private decimal NetFinanceCost => inc.InterestExpense + inc.OtherFinanceCosts - inc.InterestIncome;
+    private decimal ProfitBeforeTax => OperatingProfit - NetFinanceCost;
+    private decimal NetProfit => ProfitBeforeTax - inc.IncomeTaxExpense;
+
+    // Calculated values - Cash Flow
+    private decimal NetCashFromOperations => cf.ProfitBeforeTax + cf.DepreciationAmortization + cf.InterestExpenseAddBack + cf.ChangesInWorkingCapital - cf.TaxPaid + cf.OtherOperatingAdjustments;
+    private decimal NetCashFromInvesting => cf.SaleOfPPE + cf.SaleOfInvestments + cf.InterestReceived + cf.DividendsReceived - cf.PurchaseOfPPE - cf.PurchaseOfInvestments;
+    private decimal NetCashFromFinancing => cf.ProceedsFromBorrowings + cf.ProceedsFromShareIssue - cf.RepaymentOfBorrowings - cf.InterestPaid - cf.DividendsPaid;
+    private decimal NetChangeInCash => NetCashFromOperations + NetCashFromInvesting + NetCashFromFinancing;
+    private decimal ClosingCash => cf.OpeningCashBalance + NetChangeInCash;
+
+    private void NextStep()
+    {
+        if (currentStep < 4) currentStep++;
+    }
+
+    private void PreviousStep()
+    {
+        if (currentStep > 1) currentStep--;
+    }
+
+    private async Task SaveFinancialStatement()
+    {
+        // Validate balance sheet balances before saving
+        if (!IsBalanced)
+        {
+            var difference = TotalAssets - TotalLiabilitiesAndEquity;
+            errorMessage = $"Balance Sheet does not balance. Total Assets ({FormatAmount(TotalAssets)}) must equal Total Liabilities + Equity ({FormatAmount(TotalLiabilitiesAndEquity)}). Difference: {FormatAmount(Math.Abs(difference))}";
+            return;
+        }
+        
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            
+            ApiResponse<Guid> result;
+            
+            if (isEditMode)
+            {
+                // Update existing statement - convert to DTOs
+                var bsDto = new BalanceSheetInputDto
+                {
+                    CashAndCashEquivalents = bs.CashAndCashEquivalents,
+                    TradeReceivables = bs.TradeReceivables,
+                    Inventory = bs.Inventory,
+                    PrepaidExpenses = bs.PrepaidExpenses,
+                    OtherCurrentAssets = bs.OtherCurrentAssets,
+                    PropertyPlantEquipment = bs.PropertyPlantEquipment,
+                    IntangibleAssets = bs.IntangibleAssets,
+                    LongTermInvestments = bs.LongTermInvestments,
+                    DeferredTaxAssets = bs.DeferredTaxAssets,
+                    OtherNonCurrentAssets = bs.OtherNonCurrentAssets,
+                    TradePayables = bs.TradePayables,
+                    ShortTermBorrowings = bs.ShortTermBorrowings,
+                    CurrentPortionLongTermDebt = bs.CurrentPortionLongTermDebt,
+                    AccruedExpenses = bs.AccruedExpenses,
+                    TaxPayable = bs.TaxPayable,
+                    OtherCurrentLiabilities = bs.OtherCurrentLiabilities,
+                    LongTermDebt = bs.LongTermDebt,
+                    DeferredTaxLiabilities = bs.DeferredTaxLiabilities,
+                    Provisions = bs.Provisions,
+                    OtherNonCurrentLiabilities = bs.OtherNonCurrentLiabilities,
+                    ShareCapital = bs.ShareCapital,
+                    SharePremium = bs.SharePremium,
+                    RetainedEarnings = bs.RetainedEarnings,
+                    OtherReserves = bs.OtherReserves
+                };
+                
+                var incDto = new IncomeStatementInputDto
+                {
+                    Revenue = inc.Revenue,
+                    OtherOperatingIncome = inc.OtherOperatingIncome,
+                    CostOfSales = inc.CostOfSales,
+                    SellingExpenses = inc.SellingExpenses,
+                    AdministrativeExpenses = inc.AdministrativeExpenses,
+                    DepreciationAmortization = inc.DepreciationAmortization,
+                    OtherOperatingExpenses = inc.OtherOperatingExpenses,
+                    InterestIncome = inc.InterestIncome,
+                    InterestExpense = inc.InterestExpense,
+                    OtherFinanceCosts = inc.OtherFinanceCosts,
+                    IncomeTaxExpense = inc.IncomeTaxExpense,
+                    DividendsDeclared = inc.DividendsDeclared
+                };
+                
+                var cfDto = new CashFlowInputDto
+                {
+                    ProfitBeforeTax = cf.ProfitBeforeTax,
+                    DepreciationAmortization = cf.DepreciationAmortization,
+                    InterestExpenseAddBack = cf.InterestExpenseAddBack,
+                    ChangesInWorkingCapital = cf.ChangesInWorkingCapital,
+                    TaxPaid = cf.TaxPaid,
+                    OtherOperatingAdjustments = cf.OtherOperatingAdjustments,
+                    PurchaseOfPPE = cf.PurchaseOfPPE,
+                    SaleOfPPE = cf.SaleOfPPE,
+                    PurchaseOfInvestments = cf.PurchaseOfInvestments,
+                    SaleOfInvestments = cf.SaleOfInvestments,
+                    InterestReceived = cf.InterestReceived,
+                    DividendsReceived = cf.DividendsReceived,
+                    ProceedsFromBorrowings = cf.ProceedsFromBorrowings,
+                    RepaymentOfBorrowings = cf.RepaymentOfBorrowings,
+                    InterestPaid = cf.InterestPaid,
+                    DividendsPaid = cf.DividendsPaid,
+                    ProceedsFromShareIssue = cf.ProceedsFromShareIssue,
+                    OpeningCashBalance = cf.OpeningCashBalance
+                };
+                
+                result = await AppService.UpdateFinancialStatementAsync(
+                    EditStatementId!.Value,
+                    financialYear,
+                    yearEndDate,
+                    yearType,
+                    currency,
+                    auditorName,
+                    auditorFirm,
+                    auditDate,
+                    auditOpinion,
+                    bsDto,
+                    incDto,
+                    cfDto,
+                    userId
+                );
+            }
+            else
+            {
+                // Create new statement
+                result = await AppService.CreateFinancialStatementAsync(
+                    ApplicationId,
+                    financialYear,
+                    yearEndDate,
+                    yearType,
+                    currency,
+                    auditorName,
+                    auditorFirm,
+                    auditDate,
+                    auditOpinion,
+                    bs,
+                    inc,
+                    cf,
+                    userId
+                );
+            }
+
+            if (result.Success)
+            {
+                await OnSuccess.InvokeAsync();
+            }
+            else
+            {
+                errorMessage = result.Error ?? "Failed to save financial statement";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"₦{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"₦{amount / 1_000_000:0.##}M";
+        if (amount >= 1_000) return $"₦{amount / 1_000:0.##}K";
+        return $"₦{amount:N0}";
+    }
+
+    // Input classes
+    public class BalanceSheetInput
+    {
+        public decimal CashAndCashEquivalents { get; set; }
+        public decimal TradeReceivables { get; set; }
+        public decimal Inventory { get; set; }
+        public decimal PrepaidExpenses { get; set; }
+        public decimal OtherCurrentAssets { get; set; }
+        public decimal PropertyPlantEquipment { get; set; }
+        public decimal IntangibleAssets { get; set; }
+        public decimal LongTermInvestments { get; set; }
+        public decimal DeferredTaxAssets { get; set; }
+        public decimal OtherNonCurrentAssets { get; set; }
+        public decimal TradePayables { get; set; }
+        public decimal ShortTermBorrowings { get; set; }
+        public decimal CurrentPortionLongTermDebt { get; set; }
+        public decimal AccruedExpenses { get; set; }
+        public decimal TaxPayable { get; set; }
+        public decimal OtherCurrentLiabilities { get; set; }
+        public decimal LongTermDebt { get; set; }
+        public decimal DeferredTaxLiabilities { get; set; }
+        public decimal Provisions { get; set; }
+        public decimal OtherNonCurrentLiabilities { get; set; }
+        public decimal ShareCapital { get; set; }
+        public decimal SharePremium { get; set; }
+        public decimal RetainedEarnings { get; set; }
+        public decimal OtherReserves { get; set; }
+    }
+
+    public class IncomeStatementInput
+    {
+        public decimal Revenue { get; set; }
+        public decimal OtherOperatingIncome { get; set; }
+        public decimal CostOfSales { get; set; }
+        public decimal SellingExpenses { get; set; }
+        public decimal AdministrativeExpenses { get; set; }
+        public decimal DepreciationAmortization { get; set; }
+        public decimal OtherOperatingExpenses { get; set; }
+        public decimal InterestIncome { get; set; }
+        public decimal InterestExpense { get; set; }
+        public decimal OtherFinanceCosts { get; set; }
+        public decimal IncomeTaxExpense { get; set; }
+        public decimal DividendsDeclared { get; set; }
+    }
+
+    public class CashFlowInput
+    {
+        public decimal ProfitBeforeTax { get; set; }
+        public decimal DepreciationAmortization { get; set; }
+        public decimal InterestExpenseAddBack { get; set; }
+        public decimal ChangesInWorkingCapital { get; set; }
+        public decimal TaxPaid { get; set; }
+        public decimal OtherOperatingAdjustments { get; set; }
+        public decimal PurchaseOfPPE { get; set; }
+        public decimal SaleOfPPE { get; set; }
+        public decimal PurchaseOfInvestments { get; set; }
+        public decimal SaleOfInvestments { get; set; }
+        public decimal InterestReceived { get; set; }
+        public decimal DividendsReceived { get; set; }
+        public decimal ProceedsFromBorrowings { get; set; }
+        public decimal RepaymentOfBorrowings { get; set; }
+        public decimal InterestPaid { get; set; }
+        public decimal DividendsPaid { get; set; }
+        public decimal ProceedsFromShareIssue { get; set; }
+        public decimal OpeningCashBalance { get; set; }
+    }
+}

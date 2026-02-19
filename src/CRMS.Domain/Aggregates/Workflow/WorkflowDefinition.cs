@@ -115,7 +115,7 @@ public class WorkflowDefinition : AggregateRoot
         var transition = GetTransition(from, to, action);
         if (transition == null) return false;
         
-        return transition.RequiredRole == userRole || userRole == "SystemAdministrator";
+        return transition.RequiredRole == userRole || userRole == "SystemAdmin";
     }
 
     public void Deactivate() => IsActive = false;

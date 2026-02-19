@@ -1,0 +1,258 @@
+@inject ApplicationService AppService
+
+<div class="modal-backdrop show" @onclick="Close">
+    <div class="modal" style="max-width: 700px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">Collateral Details</h3>
+            <button type="button" class="modal-close" @onclick="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body" style="flex: 1; overflow-y: auto;">
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: var(--space-8);">
+                    <span class="material-symbols-outlined spinning">progress_activity</span>
+                </div>
+            }
+            else if (collateral == null)
+            {
+                <div class="alert alert-danger">Failed to load collateral details</div>
+            }
+            else
+            {
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="form-label text-muted">Reference</label>
+                        <div style="font-weight: 600;">@collateral.CollateralReference</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Status</label>
+                        <div>
+                            <span class="badge @GetStatusBadgeClass(collateral.Status)">@collateral.Status</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                    BASIC INFORMATION
+                </h4>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="form-label text-muted">Type</label>
+                        <div style="font-weight: 500;">@FormatCollateralType(collateral.Type)</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Perfection Status</label>
+                        <div>
+                            <span class="badge badge-gray">@collateral.PerfectionStatus</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group mb-4">
+                    <label class="form-label text-muted">Description</label>
+                    <div style="font-weight: 500;">@collateral.Description</div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="form-label text-muted">Asset Identifier</label>
+                        <div>@(collateral.AssetIdentifier ?? "-")</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Location</label>
+                        <div>@(collateral.Location ?? "-")</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Owner Name</label>
+                        <div>@(collateral.OwnerName ?? "-")</div>
+                    </div>
+                    <div>
+                        <label class="form-label text-muted">Ownership Type</label>
+                        <div>@(collateral.OwnershipType ?? "-")</div>
+                    </div>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                    VALUATION
+                </h4>
+
+                @if (collateral.MarketValue.HasValue)
+                {
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div>
+                            <label class="form-label text-muted">Market Value</label>
+                            <div style="font-weight: 600; font-size: var(--text-lg);">₦@FormatAmount(collateral.MarketValue.Value)</div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Forced Sale Value</label>
+                            <div style="font-weight: 600; font-size: var(--text-lg);">
+                                @if (collateral.ForcedSaleValue.HasValue)
+                                {
+                                    <span>₦@FormatAmount(collateral.ForcedSaleValue.Value)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Acceptable Value</label>
+                            <div style="font-weight: 600; font-size: var(--text-lg); color: var(--success-600);">
+                                @if (collateral.AcceptableValue.HasValue)
+                                {
+                                    <span>₦@FormatAmount(collateral.AcceptableValue.Value)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="form-label text-muted">Haircut Percentage</label>
+                            <div>@(collateral.HaircutPercentage.HasValue ? $"{collateral.HaircutPercentage.Value}%" : "-")</div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Last Valuation Date</label>
+                            <div>@(collateral.LastValuationDate?.ToString("MMM dd, yyyy") ?? "-")</div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-warning mb-6">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">schedule</span>
+                        This collateral has not been valued yet. Valuation will be performed during credit analysis.
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(collateral.LienReference))
+                {
+                    <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                        LIEN INFORMATION
+                    </h4>
+
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="form-label text-muted">Lien Type</label>
+                            <div>@(collateral.LienType ?? "-")</div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Lien Reference</label>
+                            <div>@collateral.LienReference</div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Registration Date</label>
+                            <div>@(collateral.LienRegistrationDate?.ToString("MMM dd, yyyy") ?? "-")</div>
+                        </div>
+                    </div>
+                }
+
+                @if (collateral.IsInsured)
+                {
+                    <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                        INSURANCE
+                    </h4>
+
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="form-label text-muted">Policy Number</label>
+                            <div>@(collateral.InsurancePolicyNumber ?? "-")</div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Insured Value</label>
+                            <div>@(collateral.InsuredValue.HasValue ? $"₦{FormatAmount(collateral.InsuredValue.Value)}" : "-")</div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Expiry Date</label>
+                            <div>@(collateral.InsuranceExpiryDate?.ToString("MMM dd, yyyy") ?? "-")</div>
+                        </div>
+                    </div>
+                }
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                    AUDIT TRAIL
+                </h4>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="form-label text-muted">Created</label>
+                        <div>@collateral.CreatedAt.ToString("MMM dd, yyyy HH:mm")</div>
+                    </div>
+                    @if (collateral.ApprovedAt.HasValue)
+                    {
+                        <div>
+                            <label class="form-label text-muted">Approved</label>
+                            <div>@collateral.ApprovedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(collateral.RejectionReason))
+                    {
+                        <div class="col-span-2">
+                            <label class="form-label text-muted">Rejection Reason</label>
+                            <div class="text-danger">@collateral.RejectionReason</div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @onclick="Close">Close</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid CollateralId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private CollateralDetailDto? collateral;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCollateral();
+    }
+
+    private async Task LoadCollateral()
+    {
+        isLoading = true;
+        collateral = await AppService.GetCollateralDetailAsync(CollateralId);
+        isLoading = false;
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Approved" or "Perfected" => "badge-success",
+        "Proposed" or "UnderValuation" or "Valued" => "badge-warning",
+        "Rejected" => "badge-danger",
+        _ => "badge-gray"
+    };
+
+    private static string FormatCollateralType(string type) => type switch
+    {
+        "RealEstate" => "Real Estate",
+        "CashDeposit" => "Cash Deposit",
+        "FixedDeposit" => "Fixed Deposit",
+        "TreasuryBills" => "Treasury Bills",
+        "ContractProceeds" => "Contract Proceeds",
+        "InsurancePolicy" => "Insurance Policy",
+        _ => type
+    };
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:N2}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:N2}M";
+        return $"{amount:N0}";
+    }
+}

@@ -94,6 +94,14 @@ public class NotificationController : ControllerBase
         if (notification == null)
             return NotFound();
 
+        // Verify ownership - user can only mark their own notifications as read
+        var currentUserIdClaim = User.FindFirst("sub")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(currentUserIdClaim, out var currentUserId))
+            return Unauthorized("Unable to identify current user");
+
+        if (notification.RecipientUserId.HasValue && notification.RecipientUserId.Value != currentUserId)
+            return Forbid("You can only mark your own notifications as read");
+
         var result = notification.MarkAsRead();
         if (!result.IsSuccess)
             return BadRequest(result.Error);
@@ -108,7 +116,7 @@ public class NotificationController : ControllerBase
     /// Send a notification (admin only).
     /// </summary>
     [HttpPost("send")]
-    [Authorize(Roles = "SystemAdministrator")]
+    [Authorize(Roles = "SystemAdmin")]
     public async Task<ActionResult<Guid>> SendNotification([FromBody] SendNotificationRequest request, CancellationToken ct)
     {
         if (!Enum.TryParse<NotificationType>(request.Type, out var type))
@@ -143,7 +151,7 @@ public class NotificationController : ControllerBase
     /// Get all notification templates.
     /// </summary>
     [HttpGet("templates")]
-    [Authorize(Roles = "SystemAdministrator")]
+    [Authorize(Roles = "SystemAdmin")]
     public async Task<ActionResult<List<NotificationTemplateDto>>> GetAllTemplates(CancellationToken ct)
     {
         var handler = new GetAllNotificationTemplatesHandler(_templateRepository);
@@ -156,7 +164,7 @@ public class NotificationController : ControllerBase
     /// Get notification template by ID.
     /// </summary>
     [HttpGet("templates/{id:guid}")]
-    [Authorize(Roles = "SystemAdministrator")]
+    [Authorize(Roles = "SystemAdmin")]
     public async Task<ActionResult<NotificationTemplateDto>> GetTemplateById(Guid id, CancellationToken ct)
     {
         var handler = new GetNotificationTemplateByIdHandler(_templateRepository);
@@ -172,7 +180,7 @@ public class NotificationController : ControllerBase
     /// Create a notification template.
     /// </summary>
     [HttpPost("templates")]
-    [Authorize(Roles = "SystemAdministrator")]
+    [Authorize(Roles = "SystemAdmin")]
     public async Task<ActionResult<Guid>> CreateTemplate([FromBody] CreateNotificationTemplateRequest request, CancellationToken ct)
     {
         if (!Enum.TryParse<NotificationType>(request.Type, out var type))
@@ -209,7 +217,7 @@ public class NotificationController : ControllerBase
     /// Update a notification template.
     /// </summary>
     [HttpPut("templates/{id:guid}")]
-    [Authorize(Roles = "SystemAdministrator")]
+    [Authorize(Roles = "SystemAdmin")]
     public async Task<IActionResult> UpdateTemplate(Guid id, [FromBody] UpdateNotificationTemplateRequest request, CancellationToken ct)
     {
         var template = await _templateRepository.GetByIdAsync(id, ct);
@@ -240,7 +248,7 @@ public class NotificationController : ControllerBase
     /// Deactivate a notification template.
     /// </summary>
     [HttpPost("templates/{id:guid}/deactivate")]
-    [Authorize(Roles = "SystemAdministrator")]
+    [Authorize(Roles = "SystemAdmin")]
     public async Task<IActionResult> DeactivateTemplate(Guid id, CancellationToken ct)
     {
         var template = await _templateRepository.GetByIdAsync(id, ct);

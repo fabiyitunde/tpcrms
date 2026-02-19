@@ -53,6 +53,9 @@ public class LoanApplication : AggregateRoot
     public DateTime? CreditCheckStartedAt { get; private set; }
     public DateTime? CreditCheckCompletedAt { get; private set; }
 
+    // Concurrency control
+    public byte[] RowVersion { get; private set; } = [];
+
     // Related Entities
     private readonly List<LoanApplicationDocument> _documents = [];
     private readonly List<LoanApplicationParty> _parties = [];
@@ -325,6 +328,21 @@ public class LoanApplication : AggregateRoot
         ApprovedTenorMonths = approvedTenor;
         ApprovedInterestRate = approvedRate;
         AddStatusHistory(Status, userId, comment ?? "Committee approved");
+
+        return Result.Success();
+    }
+
+    public Result RejectCommittee(Guid userId, string reason)
+    {
+        if (Status != LoanApplicationStatus.CommitteeCirculation)
+            return Result.Failure("Application must be in CommitteeCirculation status");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Rejection reason is required");
+
+        Status = LoanApplicationStatus.CommitteeRejected;
+        AddStatusHistory(Status, userId, reason);
+        AddComment(userId, reason, "Committee Rejection");
 
         return Result.Success();
     }

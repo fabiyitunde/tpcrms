@@ -12,7 +12,7 @@ namespace CRMS.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "SystemAdministrator")]
+[Authorize(Roles = "SystemAdmin")]
 public class ScoringConfigurationController : ControllerBase
 {
     private readonly IServiceProvider _serviceProvider;

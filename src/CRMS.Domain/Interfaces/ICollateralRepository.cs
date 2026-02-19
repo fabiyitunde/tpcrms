@@ -12,4 +12,5 @@ public interface ICollateralRepository
     Task<Collateral?> GetByReferenceAsync(string reference, CancellationToken ct = default);
     Task AddAsync(Collateral collateral, CancellationToken ct = default);
     void Update(Collateral collateral);
+    void Delete(Collateral collateral);
 }
