@@ -49,3 +49,4 @@ Thumbs.db
 # User-specific
 *.rsuser
 *.DotSettings.user
+/src/CRMS.Web.Intranet/storage/collateral/bc5294f5-7905-4d06-adb4-ee5ed4395ea7/documents
