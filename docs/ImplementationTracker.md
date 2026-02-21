@@ -1,6 +1,6 @@
 # CRMS - Implementation Tracker
 
-**Version:** 2.7
+**Version:** 2.8
 **Last Updated:** 2026-02-21
 **Status:** Phase 1 COMPLETE (Backend + UI) | Audit Fixes Complete (A-E) | UI Enhancements In Progress | Phase 2 Pending (Retail)
 
@@ -896,3 +896,4 @@ When starting a new Factory AI session for this project:
 | 2.5 | 2026-02-19 | Factory AI | Intranet UI: View modals for Collateral and Guarantor; error messages moved to modal footers; Add Guarantor silent-failure fix (GuaranteeType enum values) |
 | 2.6 | 2026-02-20 | Factory AI | Intranet UI: Document verify/reject fully wired (RejectDocumentCommand added to Application layer); SetCollateralValuationModal created; CollateralTab valuation/approve buttons; approve collateral confirmation modal; directors/signatories confirmed as read-only (auto-fetched from core banking) |
 | 2.7 | 2026-02-21 | Factory AI | Intranet UI: Guarantor approve/reject fully wired (ApproveGuarantorAsync + RejectGuarantorAsync in ApplicationService; GuarantorsTab updated with CanManageGuarantors param and contextual buttons; Detail.razor approve confirmation modal and reject modal with mandatory reason; DI registrations verified; build clean) |
+| 2.8 | 2026-02-21 | Factory AI | Intranet UI: Collateral document management complete — ICollateralDocumentRepository interface + CollateralDocumentRepository; UploadCollateralDocumentCommand/Handler + DeleteCollateralDocumentCommand/Handler in CollateralCommands.cs; RemoveDocument() on Collateral aggregate; UploadCollateralDocumentModal.razor (NEW); ViewCollateralModal DOCUMENTS section with view/download/delete + confirmation; CollateralTab upload button; Detail.razor wired; /api/collateral-documents/{id}/view and /download endpoints; delete removes both DB record and storage file |

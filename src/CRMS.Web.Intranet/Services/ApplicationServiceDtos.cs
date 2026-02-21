@@ -526,6 +526,32 @@
 
         public string? OwnershipType { get; set; }
     }
+    public class UploadCollateralDocumentRequest
+    {
+        public Guid CollateralId { get; set; }
+
+        public string DocumentType { get; set; } = string.Empty;
+
+        public string FileName { get; set; } = string.Empty;
+
+        public Stream FileContent { get; set; } = Stream.Null;
+
+        public long FileSize { get; set; }
+
+        public string ContentType { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+    }
+
+    public class CollateralDocumentResult
+    {
+        public Guid Id { get; set; }
+
+        public string FileName { get; set; } = string.Empty;
+
+        public string DocumentType { get; set; } = string.Empty;
+    }
+
     public class CollateralDetailDto
     {
         public Guid Id { get; set; }
@@ -579,6 +605,23 @@
         public DateTime? ApprovedAt { get; set; }
 
         public string? RejectionReason { get; set; }
+
+        public List<CollateralDocumentInfo> Documents { get; set; } = [];
+    }
+
+    public class CollateralDocumentInfo
+    {
+        public Guid Id { get; set; }
+
+        public string DocumentType { get; set; } = string.Empty;
+
+        public string FileName { get; set; } = string.Empty;
+
+        public long FileSizeBytes { get; set; }
+
+        public bool IsVerified { get; set; }
+
+        public DateTime UploadedAt { get; set; }
     }
 
 

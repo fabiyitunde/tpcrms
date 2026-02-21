@@ -64,3 +64,36 @@ public class CollateralRepository : ICollateralRepository
         _context.Collaterals.Remove(collateral);
     }
 }
+
+public class CollateralDocumentRepository : ICollateralDocumentRepository
+{
+    private readonly CRMSDbContext _context;
+
+    public CollateralDocumentRepository(CRMSDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<CollateralDocument?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        return await _context.CollateralDocuments.FirstOrDefaultAsync(x => x.Id == id, ct);
+    }
+
+    public async Task<IReadOnlyList<CollateralDocument>> GetByCollateralIdAsync(Guid collateralId, CancellationToken ct = default)
+    {
+        return await _context.CollateralDocuments
+            .Where(x => x.CollateralId == collateralId)
+            .OrderByDescending(x => x.UploadedAt)
+            .ToListAsync(ct);
+    }
+
+    public async Task AddAsync(CollateralDocument document, CancellationToken ct = default)
+    {
+        await _context.CollateralDocuments.AddAsync(document, ct);
+    }
+
+    public void Delete(CollateralDocument document)
+    {
+        _context.CollateralDocuments.Remove(document);
+    }
+}

@@ -1,4 +1,5 @@
 @inject ApplicationService AppService
+@inject IJSRuntime JS
 
 <div class="modal-backdrop show" @onclick="Close">
     <div class="modal" style="max-width: 700px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
@@ -178,6 +179,71 @@
                 }
 
                 <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
+                    DOCUMENTS
+                </h4>
+
+                @if (collateral.Documents.Any())
+                {
+                    <div class="document-list mb-6">
+                        @foreach (var doc in collateral.Documents)
+                        {
+                            <div class="document-item">
+                                <div style="display: flex; align-items: center; gap: var(--space-3); flex: 1; min-width: 0;">
+                                    <span class="material-symbols-outlined" style="font-size: 24px; color: var(--primary-500);">
+                                        @GetFileIcon(doc.FileName)
+                                    </span>
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                            @doc.FileName
+                                        </div>
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                                            @FormatDocumentType(doc.DocumentType) · @FormatFileSize(doc.FileSizeBytes) · @doc.UploadedAt.ToString("MMM dd, yyyy")
+                                            @if (doc.IsVerified)
+                                            {
+                                                <span class="badge badge-success" style="margin-left: var(--space-2); font-size: 10px;">Verified</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: var(--space-1);">
+                                    @if (IsViewableInBrowser(doc.FileName))
+                                    {
+                                        <button type="button" class="btn btn-ghost btn-sm" title="View" @onclick="() => ViewDocument(doc)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                        </button>
+                                    }
+                                    <button type="button" class="btn btn-ghost btn-sm" title="Download" @onclick="() => DownloadDocument(doc)">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                                    </button>
+                                    @if (CanDelete)
+                                    {
+                                        <button type="button" class="btn btn-ghost btn-sm" title="Delete" style="color: var(--danger-600);" 
+                                                @onclick="() => DeleteDocument(doc)" disabled="@isDeleting">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info mb-6" style="display: flex; gap: var(--space-2); align-items: center;">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">info</span>
+                        <span>No documents have been uploaded for this collateral.</span>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(deleteError))
+                {
+                    <div class="alert alert-danger mb-4" style="display: flex; gap: var(--space-2); align-items: center;">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">error</span>
+                        <span>@deleteError</span>
+                    </div>
+                }
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-200); padding-bottom: var(--space-2);">
                     AUDIT TRAIL
                 </h4>
 
@@ -209,12 +275,89 @@
     </div>
 </div>
 
+@* Delete Confirmation Dialog *@
+@if (showDeleteConfirmation && documentToDelete != null)
+{
+    <div class="modal-backdrop show" style="z-index: 1060;" @onclick="CancelDelete">
+        <div class="modal" style="max-width: 400px; z-index: 1061;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title" style="display: flex; align-items: center; gap: var(--space-2);">
+                    <span class="material-symbols-outlined" style="color: var(--danger-600);">warning</span>
+                    Delete Document
+                </h3>
+                <button class="modal-close" @onclick="CancelDelete">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this document?</p>
+                <div style="background: var(--gray-50); padding: var(--space-3); border-radius: var(--radius-md); margin: var(--space-3) 0;">
+                    <div style="font-weight: 500;">@documentToDelete.FileName</div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                        @FormatDocumentType(documentToDelete.DocumentType) · @FormatFileSize(documentToDelete.FileSizeBytes)
+                    </div>
+                </div>
+                <p class="text-muted" style="font-size: var(--text-sm);">
+                    This will permanently delete both the document record and the uploaded file. This action cannot be undone.
+                </p>
+                @if (!string.IsNullOrEmpty(deleteError))
+                {
+                    <div class="alert alert-danger mt-3">@deleteError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" @onclick="CancelDelete" disabled="@isDeleting">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
+                    @if (isDeleting)
+                    {
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                        <span>Deleting...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                        <span>Delete</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .document-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+    
+    .document-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--space-3);
+        background: var(--gray-50);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--gray-200);
+    }
+    
+    .document-item:hover {
+        background: var(--gray-100);
+    }
+</style>
+
 @code {
     [Parameter] public Guid CollateralId { get; set; }
+    [Parameter] public bool CanDelete { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnDocumentDeleted { get; set; }
 
     private CollateralDetailDto? collateral;
     private bool isLoading = true;
+    private bool isDeleting;
+    private string? deleteError;
+    private bool showDeleteConfirmation;
+    private CollateralDocumentInfo? documentToDelete;
 
     protected override async Task OnInitializedAsync()
     {
@@ -229,6 +372,47 @@
     }
 
     private async Task Close() => await OnClose.InvokeAsync();
+
+    private void DeleteDocument(CollateralDocumentInfo doc)
+    {
+        documentToDelete = doc;
+        deleteError = null;
+        showDeleteConfirmation = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirmation = false;
+        documentToDelete = null;
+        deleteError = null;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (isDeleting || documentToDelete == null) return;
+        isDeleting = true;
+        deleteError = null;
+
+        try
+        {
+            var result = await AppService.DeleteCollateralDocumentAsync(CollateralId, documentToDelete.Id);
+            if (result.Success)
+            {
+                showDeleteConfirmation = false;
+                documentToDelete = null;
+                await LoadCollateral();
+                await OnDocumentDeleted.InvokeAsync();
+            }
+            else
+            {
+                deleteError = result.Error ?? "Failed to delete document";
+            }
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
 
     private static string GetStatusBadgeClass(string status) => status switch
     {
@@ -254,5 +438,57 @@
         if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:N2}B";
         if (amount >= 1_000_000) return $"{amount / 1_000_000:N2}M";
         return $"{amount:N0}";
+    }
+
+    private static string GetFileIcon(string fileName)
+    {
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        return ext switch
+        {
+            ".pdf" => "picture_as_pdf",
+            ".doc" or ".docx" => "description",
+            ".jpg" or ".jpeg" or ".png" => "image",
+            _ => "insert_drive_file"
+        };
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes >= 1_000_000) return $"{bytes / 1_000_000.0:0.#} MB";
+        if (bytes >= 1_000) return $"{bytes / 1_000.0:0.#} KB";
+        return $"{bytes} B";
+    }
+
+    private static string FormatDocumentType(string type) => type switch
+    {
+        "TitleDeed" => "Title Deed",
+        "Certificate" => "Certificate",
+        "ValuationReport" => "Valuation Report",
+        "InsurancePolicy" => "Insurance Policy",
+        "LienDocument" => "Lien Document",
+        "VehicleRegistration" => "Vehicle Registration",
+        "EquipmentInvoice" => "Equipment Invoice",
+        "DepositCertificate" => "Deposit Certificate",
+        "StockCertificate" => "Stock Certificate",
+        "BondCertificate" => "Bond Certificate",
+        _ => type
+    };
+
+    private static bool IsViewableInBrowser(string fileName)
+    {
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        return ext is ".pdf" or ".jpg" or ".jpeg" or ".png" or ".gif";
+    }
+
+    private async Task ViewDocument(CollateralDocumentInfo doc)
+    {
+        var url = $"/api/collateral-documents/{doc.Id}/view";
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    private async Task DownloadDocument(CollateralDocumentInfo doc)
+    {
+        var url = $"/api/collateral-documents/{doc.Id}/download";
+        await JS.InvokeVoidAsync("open", url, "_blank");
     }
 }

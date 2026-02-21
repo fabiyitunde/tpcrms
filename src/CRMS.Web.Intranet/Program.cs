@@ -107,6 +107,52 @@ app.MapGet("/api/documents/{id:guid}/download", async (Guid id, CRMSDbContext db
     }
 }).DisableAntiforgery();
 
+// Collateral document file serving endpoints
+app.MapGet("/api/collateral-documents/{id:guid}/view", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
+{
+    var document = await db.Set<CRMS.Domain.Aggregates.Collateral.CollateralDocument>()
+        .FirstOrDefaultAsync(d => d.Id == id);
+    
+    if (document == null)
+        return Results.NotFound("Document not found");
+    
+    if (string.IsNullOrEmpty(document.StoragePath))
+        return Results.NotFound("Document file path not available");
+    
+    try
+    {
+        var fileBytes = await fileStorage.DownloadAsync(document.StoragePath);
+        httpContext.Response.Headers.ContentDisposition = $"inline; filename=\"{document.FileName}\"";
+        return Results.File(fileBytes, document.ContentType ?? "application/octet-stream");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error retrieving file: {ex.Message}");
+    }
+}).DisableAntiforgery();
+
+app.MapGet("/api/collateral-documents/{id:guid}/download", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage) =>
+{
+    var document = await db.Set<CRMS.Domain.Aggregates.Collateral.CollateralDocument>()
+        .FirstOrDefaultAsync(d => d.Id == id);
+    
+    if (document == null)
+        return Results.NotFound("Document not found");
+    
+    if (string.IsNullOrEmpty(document.StoragePath))
+        return Results.NotFound("Document file path not available");
+    
+    try
+    {
+        var fileBytes = await fileStorage.DownloadAsync(document.StoragePath);
+        return Results.File(fileBytes, "application/octet-stream", document.FileName);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error retrieving file: {ex.Message}");
+    }
+}).DisableAntiforgery();
+
 // Financial Statement Excel template endpoints
 app.MapGet("/api/financial-statements/template", () =>
 {

@@ -1,0 +1,218 @@
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<div class="modal-backdrop show" @onclick="Close">
+    <div class="modal" style="max-width: 500px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">Upload Collateral Document</h3>
+            <button type="button" class="modal-close" @onclick="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body" style="flex: 1; overflow-y: auto;">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger mb-4">@errorMessage</div>
+            }
+
+            <div class="form-group">
+                <label class="form-label">Document Type *</label>
+                <select class="form-control" @bind="documentType">
+                    <option value="">Select type...</option>
+                    <option value="TitleDeed">Title Deed</option>
+                    <option value="Certificate">Certificate of Ownership</option>
+                    <option value="ValuationReport">Valuation Report</option>
+                    <option value="InsurancePolicy">Insurance Policy</option>
+                    <option value="LienDocument">Lien Document</option>
+                    <option value="VehicleRegistration">Vehicle Registration</option>
+                    <option value="EquipmentInvoice">Equipment Invoice</option>
+                    <option value="DepositCertificate">Deposit Certificate</option>
+                    <option value="StockCertificate">Stock Certificate</option>
+                    <option value="BondCertificate">Bond Certificate</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">File *</label>
+                <InputFile @ref="inputFile" OnChange="HandleFileSelected" 
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" 
+                    class="form-control" style="padding: var(--space-2);" />
+                <p style="font-size: var(--text-xs); color: var(--gray-500); margin-top: var(--space-1);">
+                    PDF, DOC, JPG, PNG (Max 10MB)
+                </p>
+                
+                @if (selectedFile != null)
+                {
+                    <div class="selected-file" style="margin-top: var(--space-2);">
+                        <span class="material-symbols-outlined" style="font-size: 24px; color: var(--primary-500);">
+                            @GetFileIcon(selectedFile.Name)
+                        </span>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                @selectedFile.Name
+                            </div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                                @FormatFileSize(selectedFile.Size)
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Description (Optional)</label>
+                <textarea class="form-control" rows="2" @bind="description" 
+                    placeholder="Brief description of the document..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" @onclick="Close" disabled="@isUploading">Cancel</button>
+            <button type="button" class="btn btn-primary" @onclick="Upload" disabled="@(!IsValid || isUploading)">
+                @if (isUploading)
+                {
+                    <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                    <span>Uploading...</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined" style="font-size: 18px;">upload</span>
+                    <span>Upload</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .selected-file {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-3);
+        background: var(--gray-50);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--gray-200);
+    }
+    
+    .spinning {
+        animation: spin 1s linear infinite;
+    }
+    
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    [Parameter] public Guid CollateralId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSuccess { get; set; }
+
+    private InputFile? inputFile;
+    private string documentType = string.Empty;
+    private string description = string.Empty;
+    private IBrowserFile? selectedFile;
+    private byte[]? fileBytes;
+    private string? errorMessage;
+    private bool isUploading;
+
+    private bool IsValid => !string.IsNullOrWhiteSpace(documentType) && selectedFile != null && fileBytes != null;
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file.Size > 10 * 1024 * 1024)
+        {
+            errorMessage = "File size exceeds 10MB limit";
+            selectedFile = null;
+            fileBytes = null;
+            return;
+        }
+        
+        try
+        {
+            await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            fileBytes = ms.ToArray();
+            selectedFile = file;
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error reading file: {ex.Message}";
+            selectedFile = null;
+            fileBytes = null;
+        }
+    }
+
+    private async Task Upload()
+    {
+        if (!IsValid || selectedFile == null || fileBytes == null) return;
+        if (isUploading) return; // Prevent double-clicks
+
+        isUploading = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            var memoryStream = new MemoryStream(fileBytes);
+
+            var request = new UploadCollateralDocumentRequest
+            {
+                CollateralId = CollateralId,
+                DocumentType = documentType,
+                FileName = selectedFile.Name,
+                FileContent = memoryStream,
+                FileSize = selectedFile.Size,
+                ContentType = selectedFile.ContentType,
+                Description = description
+            };
+
+            var result = await AppService.UploadCollateralDocumentAsync(request, userId);
+
+            if (result.Success)
+            {
+                await OnSuccess.InvokeAsync();
+            }
+            else
+            {
+                errorMessage = result.Error ?? "Failed to upload document";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+
+    private static string GetFileIcon(string fileName)
+    {
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        return ext switch
+        {
+            ".pdf" => "picture_as_pdf",
+            ".doc" or ".docx" => "description",
+            ".jpg" or ".jpeg" or ".png" => "image",
+            _ => "insert_drive_file"
+        };
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes >= 1_000_000) return $"{bytes / 1_000_000.0:0.#} MB";
+        if (bytes >= 1_000) return $"{bytes / 1_000.0:0.#} KB";
+        return $"{bytes} B";
+    }
+}

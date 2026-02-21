@@ -1,6 +1,6 @@
 # CRMS Intranet UI - Gap Analysis
 
-**Document Version:** 3.1
+**Document Version:** 3.2
 **Date:** 2026-02-21
 **Status:** Priority 1 RESOLVED | Priority 2 Partially Resolved | Priority 3 Pending
 
@@ -63,6 +63,7 @@ The following methods were added to `ApplicationService.cs`:
 | `EditCollateralModal.razor` | Edit existing collateral | Same fields as add, pre-populated |
 | `ViewCollateralModal.razor` | View collateral details | Full detail including valuation, lien, insurance |
 | `SetCollateralValuationModal.razor` | Set valuation for collateral | Market value, FSV, haircut %, live acceptable value | ← *Added 2026-02-20* |
+| `UploadCollateralDocumentModal.razor` | Upload document to collateral | Document type, file upload, description | ← *Added 2026-02-21* |
 | `AddGuarantorModal.razor` | Add guarantor to application | Personal info, BVN, guarantee type, net worth |
 | `EditGuarantorModal.razor` | Edit existing guarantor | Same fields as add, pre-populated |
 | `ViewGuarantorModal.razor` | View guarantor details | Full detail including credit check data |
@@ -91,19 +92,25 @@ Business age-based validation now implemented:
 
 ## 2. Remaining Issues (Priority 2)
 
-### 2.1 Collateral Management - ✅ Core Complete
+### 2.1 Collateral Management - ✅ Complete
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Add collateral | ✅ Done | Via modal |
 | Edit collateral | ✅ Done | Via modal (Proposed/UnderValuation status only) |
 | Delete collateral | ✅ Done | Confirmation modal (Proposed status only) |
-| View collateral detail | ✅ Done | Full detail modal including valuation, lien, insurance |
+| View collateral detail | ✅ Done | Full detail modal including valuation, lien, insurance, documents |
 | Set valuation | ✅ Done | `SetCollateralValuationModal` — market value, FSV, haircut %, live acceptable value calc |
 | Approve collateral | ✅ Done | Confirmation modal, calls `ApproveCollateralAsync` |
-| Upload collateral documents | ❌ Pending | No sub-document support yet |
+| Upload collateral documents | ✅ Done | `UploadCollateralDocumentModal`; upload button in CollateralTab (Draft or review stages) |
+| View collateral documents | ✅ Done | View/download buttons in `ViewCollateralModal` DOCUMENTS section |
+| Delete collateral documents | ✅ Done | Confirmation dialog; deletes both DB record and file from storage |
 
 `CanManageValuation` is `true` when the application is actively in review (not Draft, Approved, CommitteeApproved, Rejected, or Disbursed).
+
+**Collateral Document Access Control:**
+- Upload/Delete available: Draft, BranchReview, HOReview, CreditAnalysis, FinalApproval
+- Upload/Delete NOT available: Approved, CommitteeApproved, Rejected, Disbursed
 
 ### 2.2 Guarantor Management - ✅ Core Complete
 
@@ -233,6 +240,34 @@ Business age-based validation now implemented:
 
 ---
 
+### 2026-02-21 Session
+
+#### Domain Layer Modified
+- `Domain/Interfaces/ICollateralRepository.cs` - Added `ICollateralDocumentRepository` interface
+- `Domain/Aggregates/Collateral/Collateral.cs` - Added `RemoveDocument()` method
+
+#### Application Layer Added
+- `Application/Collateral/Commands/CollateralCommands.cs` - Added `UploadCollateralDocumentCommand`, `UploadCollateralDocumentHandler`, `DeleteCollateralDocumentCommand`, `DeleteCollateralDocumentHandler`
+
+#### Components Created
+- `Components/Pages/Applications/Modals/UploadCollateralDocumentModal.razor` - Upload document to collateral with type selection
+
+#### Components Modified
+- `Components/Pages/Applications/Modals/ViewCollateralModal.razor` - Added DOCUMENTS section with view/download/delete buttons + delete confirmation dialog
+- `Components/Pages/Applications/Tabs/CollateralTab.razor` - Added `OnUploadDocument` param and upload button
+- `Components/Pages/Applications/Detail.razor` - Wired upload collateral document modal, added `OnCollateralDocumentDeleted` callback
+
+#### Services Modified
+- `Services/ApplicationService.cs` - Added `UploadCollateralDocumentAsync`, `DeleteCollateralDocumentAsync`
+- `Services/ApplicationServiceDtos.cs` - Added `UploadCollateralDocumentRequest`, `CollateralDocumentResult`, `CollateralDocumentInfo`
+
+#### Infrastructure Modified
+- `Infrastructure/Persistence/Repositories/CollateralRepository.cs` - Added `CollateralDocumentRepository` class
+- `Infrastructure/DependencyInjection.cs` - Registered `ICollateralDocumentRepository`, `UploadCollateralDocumentHandler`, `DeleteCollateralDocumentHandler`
+- `Program.cs` - Added `/api/collateral-documents/{id}/view` and `/api/collateral-documents/{id}/download` endpoints
+
+---
+
 ## 5. Next Steps
 
 ### Priority 2 (Remaining)
@@ -240,7 +275,8 @@ Business age-based validation now implemented:
 2. ~~Document verify/reject~~ ✅ Done
 3. ~~Guarantor approve/reject workflow UI~~ ✅ Done
 4. ~~Directors/Signatories CRUD~~ N/A — auto-fetched from core banking
-5. Credit bureau check UI (⏸️ on hold)
+5. ~~Collateral document upload/view/delete~~ ✅ Done
+6. Credit bureau check UI (⏸️ on hold)
 
 ### Priority 3 (Admin & Reports)
 1. User management CRUD (create, edit, deactivate)
@@ -259,3 +295,4 @@ Business age-based validation now implemented:
 | 2.0 | 2026-02-19 | Priority 1 resolved: Data entry modals (Collateral, Guarantor, Document, Financial Statement), workflow transitions, document viewer, financial statement validation, delete for collateral/guarantor, edit for collateral/guarantor |
 | 3.0 | 2026-02-20 | Priority 2 partial: Document verify/reject fully wired; collateral set-valuation modal and approve confirmation added; directors/signatories confirmed N/A (auto-fetched from core banking); credit bureau on hold |
 | 3.1 | 2026-02-21 | Guarantor approve/reject fully wired (`ApproveGuarantorAsync`, `RejectGuarantorAsync` in ApplicationService; GuarantorsTab updated; Detail.razor approve confirmation + reject reason modals; DI registrations confirmed; build clean) |
+| 3.2 | 2026-02-21 | Collateral document management complete: `ICollateralDocumentRepository`, upload/delete handlers, `UploadCollateralDocumentModal.razor`, `ViewCollateralModal` DOCUMENTS section with view/download/delete + confirmation dialog, API endpoints for view/download, delete removes both DB record and file |

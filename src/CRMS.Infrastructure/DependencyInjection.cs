@@ -95,6 +95,7 @@ public static class DependencyInjection
 
         // Collateral & Guarantor
         services.AddScoped<ICollateralRepository, CollateralRepository>();
+        services.AddScoped<ICollateralDocumentRepository, CollateralDocumentRepository>();
         services.AddScoped<IGuarantorRepository, GuarantorRepository>();
 
         // Consent
@@ -222,6 +223,8 @@ public static class DependencyInjection
         services.AddScoped<Application.Collateral.Commands.AddCollateralHandler>();
         services.AddScoped<Application.Collateral.Commands.SetCollateralValuationHandler>();
         services.AddScoped<Application.Collateral.Commands.ApproveCollateralHandler>();
+        services.AddScoped<Application.Collateral.Commands.UploadCollateralDocumentHandler>();
+        services.AddScoped<Application.Collateral.Commands.DeleteCollateralDocumentHandler>();
         services.AddScoped<Application.Collateral.Queries.GetCollateralByIdHandler>();
         services.AddScoped<Application.Collateral.Queries.GetCollateralByLoanApplicationHandler>();
         

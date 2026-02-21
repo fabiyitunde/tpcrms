@@ -95,7 +95,16 @@ public partial class ApplicationService
                 InsuranceExpiryDate = c.InsuranceExpiryDate,
                 CreatedAt = c.CreatedAt,
                 ApprovedAt = c.ApprovedAt,
-                RejectionReason = c.RejectionReason
+                RejectionReason = c.RejectionReason,
+                Documents = c.Documents.Select(d => new CollateralDocumentInfo
+                {
+                    Id = d.Id,
+                    DocumentType = d.DocumentType,
+                    FileName = d.FileName,
+                    FileSizeBytes = d.FileSizeBytes,
+                    IsVerified = d.IsVerified,
+                    UploadedAt = d.UploadedAt
+                }).ToList()
             };
         }
         catch (Exception ex)
@@ -967,6 +976,75 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error approving collateral");
             return ApiResponse.Fail("Failed to approve collateral");
+        }
+    }
+
+    public async Task<ApiResponse<CollateralDocumentResult>> UploadCollateralDocumentAsync(UploadCollateralDocumentRequest request, Guid userId)
+    {
+        try
+        {
+            var fileStorage = _sp.GetRequiredService<IFileStorageService>();
+            var containerName = $"collateral/{request.CollateralId}/documents";
+            var filePath = await fileStorage.UploadAsync(containerName, request.FileName, request.FileContent, request.ContentType);
+
+            var handler = _sp.GetRequiredService<UploadCollateralDocumentHandler>();
+            var command = new UploadCollateralDocumentCommand(
+                request.CollateralId,
+                request.DocumentType,
+                request.FileName,
+                filePath,
+                request.FileSize,
+                request.ContentType,
+                userId,
+                request.Description
+            );
+
+            var result = await handler.Handle(command, CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+            {
+                return ApiResponse<CollateralDocumentResult>.Fail(result.Error ?? "Failed to upload collateral document");
+            }
+
+            return ApiResponse<CollateralDocumentResult>.Ok(new CollateralDocumentResult
+            {
+                Id = result.Data.Id,
+                FileName = result.Data.FileName,
+                DocumentType = result.Data.DocumentType
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading collateral document");
+            return ApiResponse<CollateralDocumentResult>.Fail("Failed to upload collateral document");
+        }
+    }
+
+    public async Task<ApiResponse> DeleteCollateralDocumentAsync(Guid collateralId, Guid documentId)
+    {
+        try
+        {
+            // Also delete the file from storage
+            var repository = _sp.GetRequiredService<ICollateralRepository>();
+            var collateral = await repository.GetByIdWithDetailsAsync(collateralId, CancellationToken.None);
+            if (collateral == null)
+                return ApiResponse.Fail("Collateral not found");
+
+            var document = collateral.Documents.FirstOrDefault(d => d.Id == documentId);
+            if (document != null && !string.IsNullOrEmpty(document.StoragePath))
+            {
+                var fileStorage = _sp.GetRequiredService<IFileStorageService>();
+                await fileStorage.DeleteAsync(document.StoragePath);
+            }
+
+            var handler = _sp.GetRequiredService<DeleteCollateralDocumentHandler>();
+            var command = new DeleteCollateralDocumentCommand(collateralId, documentId);
+            var result = await handler.Handle(command, CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to delete document");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting collateral document");
+            return ApiResponse.Fail("Failed to delete collateral document");
         }
     }
 

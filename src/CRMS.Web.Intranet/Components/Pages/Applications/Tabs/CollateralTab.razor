@@ -131,6 +131,12 @@ else
                                             </button>
                                         }
                                     }
+                                    @if (IsEditable || CanManageValuation)
+                                    {
+                                        <button type="button" class="btn btn-ghost btn-sm" title="Upload Document" style="color: var(--primary-600);" @onclick="() => OnUploadDocument.InvokeAsync(currentCollateral.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">upload_file</span>
+                                        </button>
+                                    }
                                 </div>
                             </td>
                         </tr>
@@ -165,6 +171,7 @@ else
     [Parameter] public EventCallback<Guid> OnDeleteCollateral { get; set; }
     [Parameter] public EventCallback<Guid> OnSetValuation { get; set; }
     [Parameter] public EventCallback<Guid> OnApproveCollateral { get; set; }
+    [Parameter] public EventCallback<Guid> OnUploadDocument { get; set; }
 
     private async Task HandleAddCollateral() => await OnAddCollateral.InvokeAsync();
 

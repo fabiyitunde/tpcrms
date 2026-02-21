@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-02-21 (updated end-of-session)
+**Last Updated:** 2026-02-21 (updated end-of-session #2)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -27,6 +27,16 @@ Update **this file** as follows — do not skip any step:
 | 3 | **Section 5 — "Last Session Summary"** | Replace the entire section with what was done this session: list each completed feature with the key files changed and any important implementation notes |
 | 4 | **Section 6 — "Suggested Next Task"** | Update to the next logical feature. Include: which backend handlers already exist, which files to change, and what pattern to follow |
 | 5 | **`Last Updated` date** in the header | Set to today's date |
+| 6 | **Section 5 — "Docs Updated This Session"** | Use the mandatory checklist below — all three docs are always required; fill in the version numbers |
+
+**Mandatory checklist — copy this exactly into Section 5 every session:**
+```
+### Docs Updated This Session
+- [ ] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → vX.X
+- [ ] `docs/ImplementationTracker.md` → vX.X
+```
+Replace `[ ]` with `[x]` for each doc you actually updated. If a doc was skipped, leave it unchecked and add a note explaining why.
 
 Then update **`docs/UIGaps.md`**:
 - Move completed features to ✅ in the relevant section
@@ -71,6 +81,7 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | Add / Edit / Delete / View Collateral | ✅ |
 | Set Collateral Valuation (modal: market value, FSV, haircut %, live AcceptableValue) | ✅ |
 | Approve Collateral (confirmation modal) | ✅ |
+| Upload / View / Download / Delete Collateral Documents | ✅ |
 | Add / Edit / Delete / View Guarantor | ✅ |
 | Approve / Reject Guarantor (confirmation modal + reject with reason) | ✅ |
 | Upload / View / Download Documents | ✅ |
@@ -172,8 +183,9 @@ private async Task ConfirmXyz()
 src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/
 ├── AddCollateralModal.razor
 ├── EditCollateralModal.razor
-├── ViewCollateralModal.razor
+├── ViewCollateralModal.razor              ← includes document list with view/download/delete
 ├── SetCollateralValuationModal.razor
+├── UploadCollateralDocumentModal.razor    ← NEW: upload docs to collateral
 ├── AddGuarantorModal.razor
 ├── EditGuarantorModal.razor
 ├── ViewGuarantorModal.razor
@@ -185,9 +197,9 @@ src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/
 ### Tabs Directory
 ```
 src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/
-├── CollateralTab.razor     ← params: CanManageValuation, OnSetValuation, OnApproveCollateral
+├── CollateralTab.razor     ← params: CanManageValuation, OnSetValuation, OnApproveCollateral, OnUploadDocument
 ├── DocumentsTab.razor      ← params: OnVerifyDocument, OnRejectDocument
-├── GuarantorsTab.razor     ← next: add CanManageGuarantors, OnApproveGuarantor, OnRejectGuarantor
+├── GuarantorsTab.razor     ← params: CanManageGuarantors, OnApproveGuarantor, OnRejectGuarantor
 ├── FinancialsTab.razor
 ├── PartiesTab.razor        ← read-only; directors/signatories from core banking
 └── ...
@@ -198,7 +210,7 @@ src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/
 src/CRMS.Application/
 ├── LoanApplication/Commands/UploadDocumentCommand.cs    ← Verify + RejectDocumentHandler
 ├── Collateral/Commands/CollateralCommands.cs            ← SetValuation + ApproveCollateralHandler
-├── Guarantor/Commands/GuarantorCommands.cs              ← ApproveGuarantorHandler, RejectGuarantorHandler ← NEXT
+├── Guarantor/Commands/GuarantorCommands.cs              ← ApproveGuarantorHandler, RejectGuarantorHandler
 ├── Workflow/Commands/TransitionWorkflowCommand.cs
 └── ...
 ```
@@ -208,20 +220,41 @@ src/CRMS.Application/
 ## 5. Last Session Summary (2026-02-21)
 
 ### Completed
-1. **Guarantor Approve / Reject UI** (implemented in a separate AI session, verified this session)
-   - Added `ApproveGuarantorAsync(Guid guarantorId, Guid approvedByUserId)` to `ApplicationService.cs`
-     - Calls `ApproveGuarantorHandler` with `ApproveGuarantorCommand(guarantorId, approvedByUserId)`
-   - Added `RejectGuarantorAsync(Guid guarantorId, Guid rejectedByUserId, string reason)` to `ApplicationService.cs`
-     - Calls `RejectGuarantorHandler` with `RejectGuarantorCommand(guarantorId, rejectedByUserId, reason)`
-   - Updated `GuarantorsTab.razor`: added `CanManageGuarantors`, `OnApproveGuarantor`, `OnRejectGuarantor` params; Approve button (green `check_circle`) for `CreditCheckCompleted`; Reject button (red `cancel`) for `Proposed`, `PendingVerification`, or `CreditCheckCompleted`
-   - Updated `Detail.razor`: approve confirmation modal, reject modal with mandatory reason textarea, `CanManageGuarantors` property (same logic as `CanManageValuation`), all state variables and handlers
-   - Both handlers already registered in `DependencyInjection.cs`
-   - Build: zero `error CS` compiler errors
+1. **Collateral Document Management** (full CRUD)
+   - Created `ICollateralDocumentRepository` interface and `CollateralDocumentRepository` implementation
+   - Created `UploadCollateralDocumentCommand` + `UploadCollateralDocumentHandler` in `CollateralCommands.cs`
+   - Created `DeleteCollateralDocumentCommand` + `DeleteCollateralDocumentHandler`
+   - Added `RemoveDocument()` method to `Collateral` aggregate
+   - Added `UploadCollateralDocumentAsync()` and `DeleteCollateralDocumentAsync()` to `ApplicationService.cs`
+   - Created `UploadCollateralDocumentModal.razor` with document type selection, file upload
+   - Updated `ViewCollateralModal.razor`: added DOCUMENTS section with view/download/delete buttons + delete confirmation dialog
+   - Updated `CollateralTab.razor`: added `OnUploadDocument` param and upload button (visible in Draft or review stages)
+   - Updated `Detail.razor`: wired upload modal state, handlers, and `OnCollateralDocumentDeleted` callback
+   - Added API endpoints: `/api/collateral-documents/{id}/view` and `/api/collateral-documents/{id}/download`
+   - Added DTOs: `UploadCollateralDocumentRequest`, `CollateralDocumentResult`, `CollateralDocumentInfo`
+   - Registered `UploadCollateralDocumentHandler`, `DeleteCollateralDocumentHandler`, `ICollateralDocumentRepository` in DI
+   - Delete removes **both** database record AND file from storage
+   - Delete available when: `IsApplicationEditable` (Draft) OR `CanManageValuation` (review stages)
+   - Delete NOT available when: Approved, CommitteeApproved, Rejected, Disbursed
+
+### Key Files Changed
+- `src/CRMS.Domain/Interfaces/ICollateralRepository.cs` — added `ICollateralDocumentRepository`
+- `src/CRMS.Domain/Aggregates/Collateral/Collateral.cs` — added `RemoveDocument()`
+- `src/CRMS.Application/Collateral/Commands/CollateralCommands.cs` — added upload/delete handlers
+- `src/CRMS.Infrastructure/Persistence/Repositories/CollateralRepository.cs` — added `CollateralDocumentRepository`
+- `src/CRMS.Infrastructure/DependencyInjection.cs` — registered new handlers and repository
+- `src/CRMS.Web.Intranet/Program.cs` — added collateral document API endpoints
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs` — added upload/delete methods
+- `src/CRMS.Web.Intranet/Services/ApplicationServiceDtos.cs` — added DTOs
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/UploadCollateralDocumentModal.razor` — NEW
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/ViewCollateralModal.razor` — added docs section + delete confirmation
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/CollateralTab.razor` — added upload button
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` — wired upload modal
 
 ### Docs Updated This Session
-- `docs/SESSION_HANDOFF.md` → updated (this file)
-- `docs/UIGaps.md` → v3.1
-- `docs/ImplementationTracker.md` → v2.7
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v3.2
+- [x] `docs/ImplementationTracker.md` → v2.8
 
 ---
 

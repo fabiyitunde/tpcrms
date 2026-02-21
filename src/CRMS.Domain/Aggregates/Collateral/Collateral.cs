@@ -230,6 +230,11 @@ public class Collateral : AggregateRoot
         _documents.Add(document);
     }
 
+    public void RemoveDocument(CollateralDocument document)
+    {
+        _documents.Remove(document);
+    }
+
     public Result UpdateBasicInfo(CollateralType type, string description, string? assetIdentifier, 
         string? location, string? ownerName, string? ownershipType)
     {

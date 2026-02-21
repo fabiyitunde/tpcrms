@@ -180,7 +180,8 @@ else
                 OnEditCollateral="EditCollateral"
                 OnDeleteCollateral="DeleteCollateral"
                 OnSetValuation="ShowSetValuationModal"
-                OnApproveCollateral="ShowApproveCollateralModal" />
+                OnApproveCollateral="ShowApproveCollateralModal"
+                OnUploadDocument="ShowUploadCollateralDocModal" />
             break;
         case "guarantors":
             <GuarantorsTab 
@@ -250,8 +251,10 @@ else
 @if (showViewCollateralModal && viewingCollateralId.HasValue)
 {
     <ViewCollateralModal 
-        CollateralId="viewingCollateralId.Value" 
-        OnClose="CloseViewCollateralModal" />
+        CollateralId="viewingCollateralId.Value"
+        CanDelete="IsApplicationEditable || CanManageValuation"
+        OnClose="CloseViewCollateralModal"
+        OnDocumentDeleted="OnCollateralDocumentDeleted" />
 }
 
 @if (showEditCollateralModal && editingCollateralId.HasValue)
@@ -312,6 +315,14 @@ else
             </div>
         </div>
     </div>
+}
+
+@if (showUploadCollateralDocModal && uploadingCollateralDocId.HasValue)
+{
+    <UploadCollateralDocumentModal
+        CollateralId="uploadingCollateralDocId.Value"
+        OnClose="CloseUploadCollateralDocModal"
+        OnSuccess="OnCollateralDocUploaded" />
 }
 
 @if (showGuarantorModal)
@@ -1017,6 +1028,11 @@ else
         viewingCollateralId = null;
     }
 
+    private async Task OnCollateralDocumentDeleted()
+    {
+        await LoadApplication();
+    }
+
     private void EditCollateral(Guid collateralId)
     {
         editingCollateralId = collateralId;
@@ -1144,6 +1160,29 @@ else
         {
             isApprovingCollateral = false;
         }
+    }
+
+    // Collateral document upload
+    private bool showUploadCollateralDocModal;
+    private Guid? uploadingCollateralDocId;
+
+    private void ShowUploadCollateralDocModal(Guid collateralId)
+    {
+        uploadingCollateralDocId = collateralId;
+        showUploadCollateralDocModal = true;
+    }
+
+    private void CloseUploadCollateralDocModal()
+    {
+        showUploadCollateralDocModal = false;
+        uploadingCollateralDocId = null;
+    }
+
+    private async Task OnCollateralDocUploaded()
+    {
+        showUploadCollateralDocModal = false;
+        uploadingCollateralDocId = null;
+        await LoadApplication();
     }
 
     // Modal handlers - Guarantor

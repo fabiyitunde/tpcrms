@@ -163,6 +163,97 @@ public class ApproveCollateralHandler : IRequestHandler<ApproveCollateralCommand
     );
 }
 
+public record UploadCollateralDocumentCommand(
+    Guid CollateralId,
+    string DocumentType,
+    string FileName,
+    string FilePath,
+    long FileSizeBytes,
+    string? ContentType,
+    Guid UploadedByUserId,
+    string? Description
+) : IRequest<ApplicationResult<CollateralDocumentDto>>;
+
+public class UploadCollateralDocumentHandler : IRequestHandler<UploadCollateralDocumentCommand, ApplicationResult<CollateralDocumentDto>>
+{
+    private readonly ICollateralRepository _collateralRepository;
+    private readonly ICollateralDocumentRepository _documentRepository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public UploadCollateralDocumentHandler(
+        ICollateralRepository collateralRepository,
+        ICollateralDocumentRepository documentRepository,
+        IUnitOfWork unitOfWork)
+    {
+        _collateralRepository = collateralRepository;
+        _documentRepository = documentRepository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult<CollateralDocumentDto>> Handle(UploadCollateralDocumentCommand request, CancellationToken ct = default)
+    {
+        // Verify collateral exists
+        var collateral = await _collateralRepository.GetByIdAsync(request.CollateralId, ct);
+        if (collateral == null)
+            return ApplicationResult<CollateralDocumentDto>.Failure("Collateral not found");
+
+        var document = CollateralDocument.Create(
+            request.CollateralId,
+            request.DocumentType,
+            request.FileName,
+            request.FilePath,
+            request.FileSizeBytes,
+            request.ContentType,
+            request.UploadedByUserId,
+            request.Description
+        );
+
+        await _documentRepository.AddAsync(document, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return ApplicationResult<CollateralDocumentDto>.Success(new CollateralDocumentDto(
+            document.Id,
+            document.DocumentType,
+            document.FileName,
+            document.FileSizeBytes,
+            document.IsVerified,
+            document.UploadedAt
+        ));
+    }
+}
+
+public record DeleteCollateralDocumentCommand(
+    Guid CollateralId,
+    Guid DocumentId
+) : IRequest<ApplicationResult>;
+
+public class DeleteCollateralDocumentHandler : IRequestHandler<DeleteCollateralDocumentCommand, ApplicationResult>
+{
+    private readonly ICollateralDocumentRepository _documentRepository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public DeleteCollateralDocumentHandler(ICollateralDocumentRepository documentRepository, IUnitOfWork unitOfWork)
+    {
+        _documentRepository = documentRepository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult> Handle(DeleteCollateralDocumentCommand request, CancellationToken ct = default)
+    {
+        var document = await _documentRepository.GetByIdAsync(request.DocumentId, ct);
+        if (document == null)
+            return ApplicationResult.Failure("Document not found");
+
+        if (document.CollateralId != request.CollateralId)
+            return ApplicationResult.Failure("Document does not belong to the specified collateral");
+
+        _documentRepository.Delete(document);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return ApplicationResult.Success();
+    }
+}
+
 public record RecordPerfectionCommand(
     Guid CollateralId,
     LienType LienType,

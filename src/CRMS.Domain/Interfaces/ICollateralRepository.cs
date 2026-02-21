@@ -14,3 +14,11 @@ public interface ICollateralRepository
     void Update(Collateral collateral);
     void Delete(Collateral collateral);
 }
+
+public interface ICollateralDocumentRepository
+{
+    Task<CollateralDocument?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<CollateralDocument>> GetByCollateralIdAsync(Guid collateralId, CancellationToken ct = default);
+    Task AddAsync(CollateralDocument document, CancellationToken ct = default);
+    void Delete(CollateralDocument document);
+}
