@@ -1,5 +1,71 @@
 ﻿namespace CRMS.Web.Intranet.Services
 {
+    public class BalanceSheetInputDto
+    {
+        public decimal CashAndCashEquivalents { get; set; }
+        public decimal TradeReceivables { get; set; }
+        public decimal Inventory { get; set; }
+        public decimal PrepaidExpenses { get; set; }
+        public decimal OtherCurrentAssets { get; set; }
+        public decimal PropertyPlantEquipment { get; set; }
+        public decimal IntangibleAssets { get; set; }
+        public decimal LongTermInvestments { get; set; }
+        public decimal DeferredTaxAssets { get; set; }
+        public decimal OtherNonCurrentAssets { get; set; }
+        public decimal TradePayables { get; set; }
+        public decimal ShortTermBorrowings { get; set; }
+        public decimal CurrentPortionLongTermDebt { get; set; }
+        public decimal AccruedExpenses { get; set; }
+        public decimal TaxPayable { get; set; }
+        public decimal OtherCurrentLiabilities { get; set; }
+        public decimal LongTermDebt { get; set; }
+        public decimal DeferredTaxLiabilities { get; set; }
+        public decimal Provisions { get; set; }
+        public decimal OtherNonCurrentLiabilities { get; set; }
+        public decimal ShareCapital { get; set; }
+        public decimal SharePremium { get; set; }
+        public decimal RetainedEarnings { get; set; }
+        public decimal OtherReserves { get; set; }
+    }
+
+    public class IncomeStatementInputDto
+    {
+        public decimal Revenue { get; set; }
+        public decimal OtherOperatingIncome { get; set; }
+        public decimal CostOfSales { get; set; }
+        public decimal SellingExpenses { get; set; }
+        public decimal AdministrativeExpenses { get; set; }
+        public decimal DepreciationAmortization { get; set; }
+        public decimal OtherOperatingExpenses { get; set; }
+        public decimal InterestIncome { get; set; }
+        public decimal InterestExpense { get; set; }
+        public decimal OtherFinanceCosts { get; set; }
+        public decimal IncomeTaxExpense { get; set; }
+        public decimal DividendsDeclared { get; set; }
+    }
+
+    public class CashFlowInputDto
+    {
+        public decimal ProfitBeforeTax { get; set; }
+        public decimal DepreciationAmortization { get; set; }
+        public decimal InterestExpenseAddBack { get; set; }
+        public decimal ChangesInWorkingCapital { get; set; }
+        public decimal TaxPaid { get; set; }
+        public decimal OtherOperatingAdjustments { get; set; }
+        public decimal PurchaseOfPPE { get; set; }
+        public decimal SaleOfPPE { get; set; }
+        public decimal PurchaseOfInvestments { get; set; }
+        public decimal SaleOfInvestments { get; set; }
+        public decimal InterestReceived { get; set; }
+        public decimal DividendsReceived { get; set; }
+        public decimal ProceedsFromBorrowings { get; set; }
+        public decimal RepaymentOfBorrowings { get; set; }
+        public decimal InterestPaid { get; set; }
+        public decimal DividendsPaid { get; set; }
+        public decimal ProceedsFromShareIssue { get; set; }
+        public decimal OpeningCashBalance { get; set; }
+    }
+
     public class FinancialStatementDetailDto
     {
         public Guid Id { get; set; }
@@ -190,7 +256,7 @@
 
         public string? BVN { get; set; }
 
-        public string GuaranteeType { get; set; } = "Personal";
+        public string GuaranteeType { get; set; } = "Limited";
 
         public string? Relationship { get; set; }
 

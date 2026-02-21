@@ -106,3 +106,36 @@ public class VerifyDocumentHandler : IRequestHandler<VerifyDocumentCommand, Appl
         return ApplicationResult.Success();
     }
 }
+
+public record RejectDocumentCommand(Guid ApplicationId, Guid DocumentId, Guid UserId, string Reason) : IRequest<ApplicationResult>;
+
+public class RejectDocumentHandler : IRequestHandler<RejectDocumentCommand, ApplicationResult>
+{
+    private readonly ILoanApplicationRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public RejectDocumentHandler(ILoanApplicationRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult> Handle(RejectDocumentCommand request, CancellationToken ct = default)
+    {
+        var application = await _repository.GetByIdAsync(request.ApplicationId, ct);
+        if (application == null)
+            return ApplicationResult.Failure("Loan application not found");
+
+        var document = application.Documents.FirstOrDefault(d => d.Id == request.DocumentId);
+        if (document == null)
+            return ApplicationResult.Failure("Document not found");
+
+        var result = document.Reject(request.UserId, request.Reason);
+        if (result.IsFailure)
+            return ApplicationResult.Failure(result.Error);
+
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return ApplicationResult.Success();
+    }
+}

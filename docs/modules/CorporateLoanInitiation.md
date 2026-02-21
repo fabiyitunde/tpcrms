@@ -88,6 +88,7 @@ Draft → Submitted → DataGathering → BranchReview
 | ReturnFromBranch | Return to initiator with comments |
 | UploadDocument | Add document to application |
 | VerifyDocument | Mark document as verified |
+| RejectDocument | Reject a document with a mandatory reason |
 
 ---
 
@@ -146,8 +147,8 @@ On loan initiation:
 
 ## 8. Key Features
 
-- **Auto Data Pull**: Directors and signatories pulled from Fineract on initiation
-- **Document Management**: Upload, verify, reject documents
+- **Auto Data Pull**: Directors and signatories pulled from Fineract on initiation — these are read-only in the UI (no manual add/edit needed)
+- **Document Management**: Upload, verify, and reject documents; `DocumentStatus.Uploaded` is displayed as "Pending" in the UI until actioned
 - **Status History**: Full audit trail of all status changes
 - **Branch Routing**: Applications routed to branch for approval
 - **Workflow Comments**: Comments tracked by category (Branch Return, etc.)
@@ -190,6 +191,7 @@ See [CreditBureauIntegration.md](CreditBureauIntegration.md) for details.
 - [x] ~~Add BVN verification for parties~~ (via automatic credit checks)
 - [ ] Add file storage integration (Azure Blob/S3)
 - [ ] Add AI advisory integration
+- [x] ~~Add document rejection command~~ (RejectDocumentCommand implemented)
 
 ---
 
@@ -199,3 +201,4 @@ See [CreditBureauIntegration.md](CreditBureauIntegration.md) for details.
 |---------|------|---------|
 | 1.0 | 2026-02-16 | Initial implementation with branch workflow |
 | 1.1 | 2026-02-17 | Added automatic credit check integration after branch approval |
+| 1.2 | 2026-02-20 | Added RejectDocumentCommand + RejectDocumentHandler; confirmed directors/signatories are auto-fetched from core banking (read-only in UI) |

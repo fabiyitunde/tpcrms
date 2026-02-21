@@ -63,7 +63,7 @@
                             <td>
                                 <span class="badge @GetStatusBadgeClass(doc.Status)">
                                     <span class="status-dot @GetStatusDotClass(doc.Status)"></span>
-                                    @doc.Status
+                                    @FormatStatus(doc.Status)
                                 </span>
                             </td>
                             <td>
@@ -82,12 +82,12 @@
                                     <button class="btn btn-ghost btn-sm" title="View" @onclick="() => ViewDocument(currentDoc)">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
                                     </button>
-                                    @if (doc.Status == "Pending")
+                                    @if (doc.Status is "Pending" or "Uploaded")
                                     {
-                                        <button class="btn btn-ghost btn-sm text-success" title="Verify" @onclick="() => OnVerifyDocument.InvokeAsync(currentDoc.Id)">
+                                        <button class="btn btn-ghost btn-sm" title="Verify" style="color: var(--success-600);" @onclick="() => OnVerifyDocument.InvokeAsync(currentDoc.Id)">
                                             <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
                                         </button>
-                                        <button class="btn btn-ghost btn-sm text-danger" title="Reject" @onclick="() => OnRejectDocument.InvokeAsync(currentDoc.Id)">
+                                        <button class="btn btn-ghost btn-sm" title="Reject" style="color: var(--danger-600);" @onclick="() => OnRejectDocument.InvokeAsync(currentDoc.Id)">
                                             <span class="material-symbols-outlined" style="font-size: 18px;">cancel</span>
                                         </button>
                                     }
@@ -210,10 +210,16 @@
         _ => category
     };
 
+    private static string FormatStatus(string status) => status switch
+    {
+        "Uploaded" => "Pending",
+        _ => status
+    };
+
     private static string GetStatusBadgeClass(string status) => status switch
     {
         "Verified" => "badge-success",
-        "Pending" => "badge-warning",
+        "Pending" or "Uploaded" => "badge-warning",
         "Rejected" => "badge-danger",
         _ => "badge-gray"
     };
@@ -221,7 +227,7 @@
     private static string GetStatusDotClass(string status) => status switch
     {
         "Verified" => "success",
-        "Pending" => "warning",
+        "Pending" or "Uploaded" => "warning",
         "Rejected" => "danger",
         _ => "gray"
     };

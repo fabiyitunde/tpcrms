@@ -87,6 +87,21 @@
                                             </button>
                                         }
                                     }
+                                    @if (CanManageGuarantors)
+                                    {
+                                        @if (CanApproveGuarantor(guarantor.Status))
+                                        {
+                                            <button type="button" class="btn btn-ghost btn-sm" title="Approve Guarantor" style="color: var(--success-600);" @onclick="() => OnApproveGuarantor.InvokeAsync(currentGuarantor.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+                                            </button>
+                                        }
+                                        @if (CanRejectGuarantor(guarantor.Status))
+                                        {
+                                            <button type="button" class="btn btn-ghost btn-sm" title="Reject Guarantor" style="color: var(--danger-600);" @onclick="() => OnRejectGuarantor.InvokeAsync(currentGuarantor.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">cancel</span>
+                                            </button>
+                                        }
+                                    }
                                 </div>
                             </td>
                         </tr>
@@ -109,10 +124,13 @@
 @code {
     [Parameter] public List<GuarantorInfo> Guarantors { get; set; } = [];
     [Parameter] public bool IsEditable { get; set; } = true;
+    [Parameter] public bool CanManageGuarantors { get; set; }
     [Parameter] public EventCallback OnAddGuarantor { get; set; }
     [Parameter] public EventCallback<Guid> OnViewGuarantor { get; set; }
     [Parameter] public EventCallback<Guid> OnEditGuarantor { get; set; }
     [Parameter] public EventCallback<Guid> OnDeleteGuarantor { get; set; }
+    [Parameter] public EventCallback<Guid> OnApproveGuarantor { get; set; }
+    [Parameter] public EventCallback<Guid> OnRejectGuarantor { get; set; }
 
     private async Task HandleAddGuarantor() => await OnAddGuarantor.InvokeAsync();
 
@@ -131,9 +149,15 @@
         return $"{amount:N0}";
     }
 
-    // Can edit if not yet approved/active/rejected
-    private static bool CanEditGuarantor(string status) => status is "Proposed" or "PendingVerification" or "CreditCheckPending" or "CreditCheckCompleted";
+    // Can edit if in an early status (application is already gated to Draft by IsEditable)
+    private static bool CanEditGuarantor(string status) => status is "Proposed" or "PendingVerification";
 
-    // Can delete if not yet approved/active/rejected - same as edit
-    private static bool CanDeleteGuarantor(string status) => status is "Proposed" or "PendingVerification" or "CreditCheckPending" or "CreditCheckCompleted";
+    // Can delete only if Proposed — Draft applications will only ever have Proposed guarantors
+    private static bool CanDeleteGuarantor(string status) => status is "Proposed";
+
+    // Can approve only when credit check is completed
+    private static bool CanApproveGuarantor(string status) => status is "CreditCheckCompleted";
+
+    // Can reject at various early stages before approval
+    private static bool CanRejectGuarantor(string status) => status is "Proposed" or "PendingVerification" or "CreditCheckCompleted";
 }

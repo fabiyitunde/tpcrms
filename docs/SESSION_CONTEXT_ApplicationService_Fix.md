@@ -1,6 +1,68 @@
-# Session Context: ApplicationService.cs Compilation Fix
+# [ARCHIVED — HISTORICAL ONLY] Session Context: ApplicationService.cs Recovery
 
-## Problem Summary
+> **This file is outdated. Do NOT use it for session context.**
+> The current session handoff file is `docs/SESSION_HANDOFF.md`.
+> This file is kept for historical reference only (describes a past file-corruption incident).
+
+---
+
+# Session Context: ApplicationService.cs Recovery - RESOLVED ✓ DELETE FIXED
+
+## STATUS: BUILD SUCCEEDS, DELETE FULLY IMPLEMENTED
+
+All delete functionality for Collateral and Guarantor is now **complete and working**:
+
+### What was fixed in this session:
+1. **Service validation mismatch fixed** (`ApplicationService.cs`):
+   - `DeleteCollateralAsync`: now allows deletion of `Proposed`, `UnderValuation`, AND `Valued` status (was only Proposed/UnderValuation)
+   - `DeleteGuarantorAsync`: now allows deletion of `Proposed`, `PendingVerification`, `CreditCheckPending`, AND `CreditCheckCompleted` (was only Proposed/PendingVerification)
+
+2. **Confirmation dialogs added** (`Detail.razor`):
+   - Both Collateral and Guarantor delete now show a confirmation modal before deleting (consistent with Financial Statement delete UX)
+
+3. **Error feedback added** (`Detail.razor`):
+   - If delete fails, error message is shown inside the confirmation modal
+
+### NEXT SESSION: Potential next features
+- End-to-end testing of the full loan application workflow
+- Verify Add/Edit modals for Collateral and Guarantor work correctly
+- Test the Submit for Review flow
+- Implement any missing features from `UIGaps.md`
+
+**What caused the crash:**
+- I was trying to relax the delete validation to allow deletion of collaterals in "Valued" status (not just "Proposed")
+- A PowerShell command accidentally corrupted the entire ApplicationService.cs file to just 12 bytes
+- User recovered the file using DLL decompilation (dnSpy/ILSpy)
+
+---
+
+## Final Status: BUILD SUCCESSFUL
+
+The `ApplicationService.cs` file was recovered successfully using DLL decompilation (dnSpy/ILSpy). The build now succeeds with only warnings.
+
+## What Was Done
+
+1. User restored `ApplicationService.cs` from decompiled DLL
+2. Renamed `RestoreApplicationservice.cs` to `ApplicationService.cs`
+3. Renamed `RestoreApplicationServiceDtos.cs` to `ApplicationServiceDtos.cs` (keeps DTOs separate)
+4. Added namespace `CRMS.Web.Intranet.Services` and made class `partial`
+5. Added missing Input DTOs (`BalanceSheetInputDto`, `IncomeStatementInputDto`, `CashFlowInputDto`)
+6. Deleted duplicate `ApplicationService.Collateral.cs` (methods already in main file)
+7. Restored `ApplicationModels.cs` to original git version
+
+## Current File Structure
+
+```
+src/CRMS.Web.Intranet/Services/
+├── ApplicationService.cs        # Main service (~1516 lines, partial class)
+├── ApplicationServiceDtos.cs    # Separate DTOs file (~400 lines)
+├── AuthService.cs
+└── FinancialStatementExcelService.cs
+```
+
+---
+
+## Original Problem Summary (For Reference)
 
 The `ApplicationService.cs` file in the CRMS.Web.Intranet project was accidentally corrupted during a debugging session. A partial recovery was made using Visual Studio's undo history, but the recovered file (1406 lines) has **63 compilation errors** due to mismatches between the service code and the actual Application layer DTOs/handlers.
 

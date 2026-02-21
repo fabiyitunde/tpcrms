@@ -1,0 +1,193 @@
+@inject ApplicationService AppService
+
+<div class="modal-backdrop show" @onclick="Close">
+    <div class="modal" style="max-width: 540px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">Set Collateral Valuation</h3>
+            <button type="button" class="modal-close" @onclick="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body" style="flex: 1; overflow-y: auto;">
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: var(--space-8);">
+                    <span class="material-symbols-outlined spinning">progress_activity</span>
+                </div>
+            }
+            else if (collateral == null)
+            {
+                <div class="alert alert-danger">Failed to load collateral details.</div>
+            }
+            else
+            {
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger mb-4">@errorMessage</div>
+                }
+
+                <div class="alert alert-info mb-4" style="font-size: var(--text-sm);">
+                    <strong>@FormatCollateralType(collateral.Type)</strong> — @collateral.Description
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Market Value (₦) *</label>
+                    <input type="number" class="form-control" @bind="marketValue" min="0" step="1000"
+                        placeholder="Enter professional valuation amount" />
+                    <div class="form-hint">Independent professional valuation amount</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Forced Sale Value (₦)</label>
+                    <input type="number" class="form-control" @bind="forcedSaleValue" min="0" step="1000"
+                        placeholder="Defaults to 70% of market value" />
+                    <div class="form-hint">Leave blank to auto-calculate as 70% of market value</div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Haircut Percentage (%)</label>
+                        <input type="number" class="form-control" @bind="haircutPercentage"
+                            min="0" max="100" step="0.5" style="max-width: 150px;" />
+                        <div class="form-hint">Risk discount applied to market value</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Acceptable Value</label>
+                        <div style="padding: var(--space-2) var(--space-3); background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600; color: var(--success-600); min-height: 42px; display: flex; align-items: center;">
+                            @if (marketValue > 0)
+                            {
+                                <span>₦@FormatAmount(AcceptableValue)</span>
+                            }
+                            else
+                            {
+                                <span style="font-weight: 400; font-size: var(--text-sm); color: var(--gray-500);">Auto-calculated</span>
+                            }
+                        </div>
+                        <div class="form-hint">Market Value × (1 − Haircut%)</div>
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" @onclick="Close" disabled="@isSubmitting">Cancel</button>
+            <button type="button" class="btn btn-primary" @onclick="Submit"
+                disabled="@(isSubmitting || isLoading || collateral == null || marketValue <= 0)">
+                @if (isSubmitting)
+                {
+                    <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined" style="font-size: 18px;">save</span>
+                    <span>Save Valuation</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .spinning {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    [Parameter] public Guid CollateralId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSuccess { get; set; }
+
+    private CollateralDetailDto? collateral;
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    private decimal marketValue;
+    private decimal? forcedSaleValue;
+    private decimal haircutPercentage;
+
+    private decimal AcceptableValue => marketValue * (1 - haircutPercentage / 100);
+
+    protected override async Task OnInitializedAsync()
+    {
+        collateral = await AppService.GetCollateralDetailAsync(CollateralId);
+        if (collateral != null)
+        {
+            marketValue = collateral.MarketValue ?? 0;
+            forcedSaleValue = collateral.ForcedSaleValue;
+            haircutPercentage = collateral.HaircutPercentage ?? GetDefaultHaircut(collateral.Type);
+        }
+        isLoading = false;
+    }
+
+    private async Task Submit()
+    {
+        if (marketValue <= 0) return;
+
+        isSubmitting = true;
+        errorMessage = null;
+        try
+        {
+            var result = await AppService.SetCollateralValuationAsync(
+                CollateralId,
+                marketValue,
+                forcedSaleValue,
+                haircutPercentage
+            );
+            if (result.Success)
+            {
+                await OnSuccess.InvokeAsync();
+            }
+            else
+            {
+                errorMessage = result.Error ?? "Failed to save valuation.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+
+    private static decimal GetDefaultHaircut(string type) => type switch
+    {
+        "CashDeposit" => 0,
+        "FixedDeposit" or "TreasuryBills" => 5,
+        "Bonds" => 10,
+        "RealEstate" => 20,
+        "Vehicle" or "Stocks" => 30,
+        "Equipment" => 40,
+        "Inventory" => 50,
+        _ => 20
+    };
+
+    private static string FormatCollateralType(string type) => type switch
+    {
+        "RealEstate" => "Real Estate",
+        "CashDeposit" => "Cash Deposit",
+        "FixedDeposit" => "Fixed Deposit",
+        "TreasuryBills" => "Treasury Bills",
+        "ContractProceeds" => "Contract Proceeds",
+        "InsurancePolicy" => "Insurance Policy",
+        _ => type
+    };
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+}

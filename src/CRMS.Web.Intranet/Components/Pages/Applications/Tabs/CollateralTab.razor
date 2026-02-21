@@ -116,6 +116,21 @@ else
                                             </button>
                                         }
                                     }
+                                    @if (CanManageValuation)
+                                    {
+                                        @if (collateral.Status is "Proposed" or "UnderValuation")
+                                        {
+                                            <button type="button" class="btn btn-ghost btn-sm" title="Set Valuation" style="color: var(--info-600);" @onclick="() => OnSetValuation.InvokeAsync(currentCollateral.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">fact_check</span>
+                                            </button>
+                                        }
+                                        @if (collateral.Status == "Valued")
+                                        {
+                                            <button type="button" class="btn btn-ghost btn-sm" title="Approve Collateral" style="color: var(--success-600);" @onclick="() => OnApproveCollateral.InvokeAsync(currentCollateral.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+                                            </button>
+                                        }
+                                    }
                                 </div>
                             </td>
                         </tr>
@@ -143,10 +158,13 @@ else
 @code {
     [Parameter] public List<CollateralInfo> Collaterals { get; set; } = [];
     [Parameter] public bool IsEditable { get; set; } = true;
+    [Parameter] public bool CanManageValuation { get; set; }
     [Parameter] public EventCallback OnAddCollateral { get; set; }
     [Parameter] public EventCallback<Guid> OnViewCollateral { get; set; }
     [Parameter] public EventCallback<Guid> OnEditCollateral { get; set; }
     [Parameter] public EventCallback<Guid> OnDeleteCollateral { get; set; }
+    [Parameter] public EventCallback<Guid> OnSetValuation { get; set; }
+    [Parameter] public EventCallback<Guid> OnApproveCollateral { get; set; }
 
     private async Task HandleAddCollateral() => await OnAddCollateral.InvokeAsync();
 
@@ -184,9 +202,9 @@ else
         return $"{amount:N0}";
     }
 
-    // Can edit if not yet approved/perfected/rejected
-    private static bool CanEditCollateral(string status) => status is "Proposed" or "UnderValuation" or "Valued";
+    // Can edit if in an early status (application is already gated to Draft by IsEditable)
+    private static bool CanEditCollateral(string status) => status is "Proposed" or "UnderValuation";
 
-    // Can delete only if not yet approved/perfected/rejected - allow delete for any editable status
-    private static bool CanDeleteCollateral(string status) => status is "Proposed" or "UnderValuation" or "Valued";
+    // Can delete only if Proposed — Draft applications will only ever have Proposed collateral
+    private static bool CanDeleteCollateral(string status) => status is "Proposed";
 }

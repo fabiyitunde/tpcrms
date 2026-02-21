@@ -1,14 +1,14 @@
 # CRMS Intranet UI - Gap Analysis
 
-**Document Version:** 2.0  
-**Date:** 2026-02-19  
-**Status:** Priority 1 Issues RESOLVED | Priority 2-3 Pending
+**Document Version:** 3.1
+**Date:** 2026-02-21
+**Status:** Priority 1 RESOLVED | Priority 2 Partially Resolved | Priority 3 Pending
 
 ---
 
 ## Executive Summary
 
-Following the 2026-02-18 gap analysis, significant progress has been made on Priority 1 issues. The core data entry workflow (Collateral, Guarantors, Documents, Financial Statements) is now functional. Workflow transitions work correctly. Financial statement validation now supports businesses of all ages.
+Following the 2026-02-18 gap analysis, significant progress has been made. The core data entry workflow (Collateral, Guarantors, Documents, Financial Statements) is now functional. Workflow transitions work correctly. Financial statement validation supports businesses of all ages. Document verification/rejection and collateral valuation/approval are now also complete.
 
 ---
 
@@ -33,14 +33,16 @@ The following methods were added to `ApplicationService.cs`:
 ```csharp
 // Collateral
 - AddCollateralAsync(Guid applicationId, AddCollateralRequest request)
-- SetCollateralValuationAsync(Guid collateralId, SetValuationRequest request)
+- SetCollateralValuationAsync(Guid collateralId, decimal marketValue, decimal? forcedSaleValue, decimal? haircutPercentage)
+- ApproveCollateralAsync(Guid collateralId, Guid approvedByUserId)             // Added 2026-02-20
 
 // Guarantors
 - AddGuarantorAsync(Guid applicationId, AddGuarantorRequest request)
 
 // Documents
 - UploadDocumentAsync(Guid applicationId, UploadDocumentRequest request)
-- VerifyDocumentAsync(Guid documentId, Guid userId)
+- VerifyDocumentAsync(Guid applicationId, Guid documentId, Guid userId)
+- RejectDocumentAsync(Guid applicationId, Guid documentId, Guid userId, string reason)  // Added 2026-02-20
 
 // Financial Statements
 - CreateFinancialStatementAsync(Guid applicationId, CreateFinancialStatementRequest request)
@@ -58,7 +60,12 @@ The following methods were added to `ApplicationService.cs`:
 | Component | Purpose | Features |
 |-----------|---------|----------|
 | `AddCollateralModal.razor` | Add collateral to application | Type, description, location, owner info |
+| `EditCollateralModal.razor` | Edit existing collateral | Same fields as add, pre-populated |
+| `ViewCollateralModal.razor` | View collateral details | Full detail including valuation, lien, insurance |
+| `SetCollateralValuationModal.razor` | Set valuation for collateral | Market value, FSV, haircut %, live acceptable value | ← *Added 2026-02-20* |
 | `AddGuarantorModal.razor` | Add guarantor to application | Personal info, BVN, guarantee type, net worth |
+| `EditGuarantorModal.razor` | Edit existing guarantor | Same fields as add, pre-populated |
+| `ViewGuarantorModal.razor` | View guarantor details | Full detail including credit check data |
 | `UploadDocumentModal.razor` | Upload documents | File picker, category selection |
 | `FinancialStatementModal.razor` | 4-step financial data entry | Header → Balance Sheet → P&L → Cash Flow |
 
@@ -84,50 +91,65 @@ Business age-based validation now implemented:
 
 ## 2. Remaining Issues (Priority 2)
 
-### 2.1 Collateral Management - Partial
+### 2.1 Collateral Management - ✅ Core Complete
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Add collateral | ✅ Done | Via modal |
-| Set valuation | ❌ Pending | No UI for market/forced sale value |
-| Approve collateral | ❌ Pending | No approval workflow UI |
-| Upload collateral documents | ❌ Pending | No sub-document support |
+| Edit collateral | ✅ Done | Via modal (Proposed/UnderValuation status only) |
+| Delete collateral | ✅ Done | Confirmation modal (Proposed status only) |
+| View collateral detail | ✅ Done | Full detail modal including valuation, lien, insurance |
+| Set valuation | ✅ Done | `SetCollateralValuationModal` — market value, FSV, haircut %, live acceptable value calc |
+| Approve collateral | ✅ Done | Confirmation modal, calls `ApproveCollateralAsync` |
+| Upload collateral documents | ❌ Pending | No sub-document support yet |
 
-### 2.2 Guarantor Management - Partial
+`CanManageValuation` is `true` when the application is actively in review (not Draft, Approved, CommitteeApproved, Rejected, or Disbursed).
+
+### 2.2 Guarantor Management - ✅ Core Complete
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Add guarantor | ✅ Done | Via modal |
-| Run credit check | ❌ Pending | Button exists, handler needed |
+| Edit guarantor | ✅ Done | Via modal |
+| Delete guarantor | ✅ Done | Confirmation modal |
+| View guarantor detail | ✅ Done | Full detail modal |
+| Approve guarantor | ✅ Done | Confirmation modal; `CanManageGuarantors` gate; status `CreditCheckCompleted` only |
+| Reject guarantor | ✅ Done | Modal with mandatory reason; statuses `Proposed`, `PendingVerification`, `CreditCheckCompleted` |
+| Run credit check | ❌ Pending | On hold pending credit bureau provider decision |
 | View credit report | ❌ Pending | No detail modal |
-| Approve/Reject | ❌ Pending | No workflow UI |
 
-### 2.3 Document Management - Partial
+`CanManageGuarantors` is `true` when the application is actively in review (not Draft, Approved, CommitteeApproved, Rejected, or Disbursed).
+
+### 2.3 Document Management - ✅ Complete
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Upload | ✅ Done | Via modal |
 | View | ✅ Done | PDF/image preview |
 | Download | ✅ Done | File download |
-| Verify | ❌ Pending | Checkbox exists, not wired |
-| Reject | ❌ Pending | No command exists |
+| Verify | ✅ Done | Inline button; calls `VerifyDocumentAsync` |
+| Reject | ✅ Done | Modal with reason textarea; calls `RejectDocumentAsync` |
 
-### 2.4 Credit Bureau Checks
+**Note on status display:** The domain creates documents with `DocumentStatus.Uploaded` but the UI displays this as "Pending" (via `FormatStatus()` in `DocumentsTab.razor`). Both "Uploaded" and "Pending" strings trigger the verify/reject buttons.
+
+### 2.4 Credit Bureau Checks - ⏸️ On Hold
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | List bureau reports | ⚠️ Mock | Shows sample data |
-| Request check | ❌ Pending | PartiesTab callback not implemented |
+| Request check | ⏸️ On Hold | Pending credit bureau provider decision |
 | View report detail | ❌ Pending | No modal |
 
-### 2.5 Directors/Signatories Management
+### 2.5 Directors/Signatories Management - ✅ No Action Required
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| List parties | ✅ Done | PartiesTab displays |
-| Add director | ❌ Pending | No modal |
-| Add signatory | ❌ Pending | No modal |
-| Run bureau check | ❌ Pending | Button callback empty |
+| List parties | ✅ Done | PartiesTab displays directors and signatories |
+| Add director/signatory | N/A — Not needed | Auto-fetched from core banking at application creation |
+| Edit director/signatory | N/A — Not needed | Core banking data is read-only in the UI |
+| Run bureau check | ⏸️ On Hold | Pending credit bureau provider decision |
+
+**Confirmed (2026-02-20):** `InitiateCorporateLoanCommand` automatically calls `GetDirectorsAsync(customer.CustomerId)` and `GetSignatoriesAsync(accountNumber)` at application creation, populating all parties as `LoanApplicationParty` records. No "Add Director" or "Add Signatory" modals are needed — the PartiesTab is intentionally read-only.
 
 ---
 
@@ -152,16 +174,23 @@ Business age-based validation now implemented:
 
 ---
 
-## 4. Files Modified (2026-02-19)
+## 4. Files Modified
 
-### Components Created
+### 2026-02-19 Session
+
+#### Components Created
 - `Components/Pages/Applications/Modals/AddCollateralModal.razor`
+- `Components/Pages/Applications/Modals/EditCollateralModal.razor`
+- `Components/Pages/Applications/Modals/ViewCollateralModal.razor`
 - `Components/Pages/Applications/Modals/AddGuarantorModal.razor`
+- `Components/Pages/Applications/Modals/EditGuarantorModal.razor`
+- `Components/Pages/Applications/Modals/ViewGuarantorModal.razor`
 - `Components/Pages/Applications/Modals/UploadDocumentModal.razor`
 - `Components/Pages/Applications/Modals/FinancialStatementModal.razor`
+- `Components/Pages/Applications/Modals/UploadFinancialStatementModal.razor`
 - `Components/Pages/Applications/Modals/_Imports.razor`
 
-### Components Modified
+#### Components Modified
 - `Components/Pages/Applications/Detail.razor` - Added modal integration, workflow actions, financial validation
 - `Components/Pages/Applications/Index.razor` - Fixed to show user's Draft applications
 - `Components/Pages/Applications/New.razor` - Changed "Submit" to "Create Application" (Draft only)
@@ -170,32 +199,55 @@ Business age-based validation now implemented:
 - `Components/Pages/Applications/Tabs/DocumentsTab.razor` - Added upload, view, download handlers
 - `Components/Pages/Applications/Tabs/FinancialsTab.razor` - Complete redesign with business age validation
 
-### Services Modified
+#### Services Modified
 - `Services/ApplicationService.cs` - Added 15+ methods for CRUD operations
 - `Services/AuthService.cs` - Minor fixes
 
-### Infrastructure Modified
+#### Infrastructure Modified
 - `Infrastructure/DependencyInjection.cs` - Registered 30+ Application handlers
 - `Program.cs` - Added file serving endpoints
 
-### Models Modified
+#### Models Modified
 - `Models/ApplicationModels.cs` - Added FinancialStatementInfo, request/response classes
+
+---
+
+### 2026-02-20 Session
+
+#### Application Layer Added
+- `Application/LoanApplication/Commands/UploadDocumentCommand.cs` - Added `RejectDocumentCommand` + `RejectDocumentHandler`
+
+#### Components Created
+- `Components/Pages/Applications/Modals/SetCollateralValuationModal.razor` - Set valuation: market value, FSV, haircut %, live acceptable value
+
+#### Components Modified
+- `Components/Pages/Applications/Tabs/CollateralTab.razor` - Added `CanManageValuation`, `OnSetValuation`, `OnApproveCollateral` params; "Set Valuation" button (Proposed/UnderValuation status), "Approve" button (Valued status)
+- `Components/Pages/Applications/Tabs/DocumentsTab.razor` - Fixed status handling ("Uploaded" → "Pending" display); wired verify/reject buttons with correct styling
+- `Components/Pages/Applications/Detail.razor` - Wired document verify/reject; wired collateral set-valuation/approve; added reject document modal; added approve collateral confirmation modal
+
+#### Services Modified
+- `Services/ApplicationService.cs` - Added `RejectDocumentAsync`, `ApproveCollateralAsync`
+
+#### Infrastructure Modified
+- `Infrastructure/DependencyInjection.cs` - Registered `RejectDocumentHandler`
 
 ---
 
 ## 5. Next Steps
 
-### Priority 2 (Data Enrichment)
-1. Collateral valuation form
-2. Guarantor credit check integration
-3. Document verification workflow
-4. Directors/Signatories CRUD
+### Priority 2 (Remaining)
+1. ~~Collateral valuation UI~~ ✅ Done
+2. ~~Document verify/reject~~ ✅ Done
+3. ~~Guarantor approve/reject workflow UI~~ ✅ Done
+4. ~~Directors/Signatories CRUD~~ N/A — auto-fetched from core banking
+5. Credit bureau check UI (⏸️ on hold)
 
 ### Priority 3 (Admin & Reports)
-1. Scoring configuration editor
-2. Template management CRUD
-3. User management CRUD
-4. Connect reports to ReportingService
+1. User management CRUD (create, edit, deactivate)
+2. Product edit/delete
+3. Scoring configuration editor
+4. Template management CRUD
+5. Connect performance/committee report pages to `ReportingService`
 
 ---
 
@@ -204,4 +256,6 @@ Business age-based validation now implemented:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-02-18 | Initial gap analysis (78 issues identified) |
-| 2.0 | 2026-02-19 | Priority 1 resolved: Data entry modals, workflow transitions, document viewer, financial statement validation |
+| 2.0 | 2026-02-19 | Priority 1 resolved: Data entry modals (Collateral, Guarantor, Document, Financial Statement), workflow transitions, document viewer, financial statement validation, delete for collateral/guarantor, edit for collateral/guarantor |
+| 3.0 | 2026-02-20 | Priority 2 partial: Document verify/reject fully wired; collateral set-valuation modal and approve confirmation added; directors/signatories confirmed N/A (auto-fetched from core banking); credit bureau on hold |
+| 3.1 | 2026-02-21 | Guarantor approve/reject fully wired (`ApproveGuarantorAsync`, `RejectGuarantorAsync` in ApplicationService; GuarantorsTab updated; Detail.razor approve confirmation + reject reason modals; DI registrations confirmed; build clean) |

@@ -1,8 +1,8 @@
 # CRMS - Implementation Tracker
 
-**Version:** 2.5  
-**Last Updated:** 2026-02-19  
-**Status:** Phase 1 COMPLETE (Backend + UI) | Audit Fixes Complete (A-E) | UI Enhancements Complete | Phase 2 Pending (Retail)
+**Version:** 2.7
+**Last Updated:** 2026-02-21
+**Status:** Phase 1 COMPLETE (Backend + UI) | Audit Fixes Complete (A-E) | UI Enhancements In Progress | Phase 2 Pending (Retail)
 
 ---
 
@@ -41,7 +41,7 @@ All pages call Application layer **directly** via `ApplicationService` (no HTTP/
 | My Queue | `/queues/my` | `GetMyPendingTasksAsync` |
 | All Queues | `/queues/all` | `GetQueueSummaryAsync`, `GetQueueByRoleAsync` |
 | Applications | `/applications` | `GetApplicationsByStatusAsync` |
-| Application Detail | `/applications/{id}` | `GetApplicationDetailAsync`, `GenerateLoanPackAsync`, `GenerateAdvisoryAsync`, `CastVoteAsync`, `TransitionWorkflowAsync` |
+| Application Detail | `/applications/{id}` | `GetApplicationDetailAsync`, `GenerateLoanPackAsync`, `GenerateAdvisoryAsync`, `CastVoteAsync`, `TransitionWorkflowAsync`, `VerifyDocumentAsync`, `RejectDocumentAsync`, `SetCollateralValuationAsync`, `ApproveCollateralAsync`, `ApproveGuarantorAsync`, `RejectGuarantorAsync` |
 | New Application | `/applications/new` | `GetLoanProductsAsync`, `CreateApplicationAsync`, `SubmitApplicationAsync` |
 | Committee Reviews | `/committee/reviews` | `GetCommitteeReviewsByStatusAsync` |
 | My Votes | `/committee/my-votes` | `GetMyPendingVotesAsync`, `CastVoteAsync` |
@@ -892,4 +892,7 @@ When starting a new Factory AI session for this project:
 | 2.1 | 2026-02-17 | Factory AI | Comprehensive audit review completed (78 issues documented) |
 | 2.2 | 2026-02-18 | Factory AI | Phase A-B fixes: rejection tracking, DSCR calculation, consent verification, quorum enforcement |
 | 2.3 | 2026-02-18 | Factory AI | Phase C-E fixes: file storage (S3), concurrency tokens, security hardening, caching, seed data |
-| 2.4 | 2026-02-19 | Factory AI | Intranet UI enhancements: Data entry modals (Collateral, Guarantor, Document, Financial Statement), flexible financial statement validation by business age, document viewer, workflow fixes |
+| 2.4 | 2026-02-19 | Factory AI | Intranet UI enhancements: Data entry modals (Collateral, Guarantor, Document, Financial Statement), flexible financial statement validation by business age, document viewer, workflow fixes, delete/edit for Collateral and Guarantor |
+| 2.5 | 2026-02-19 | Factory AI | Intranet UI: View modals for Collateral and Guarantor; error messages moved to modal footers; Add Guarantor silent-failure fix (GuaranteeType enum values) |
+| 2.6 | 2026-02-20 | Factory AI | Intranet UI: Document verify/reject fully wired (RejectDocumentCommand added to Application layer); SetCollateralValuationModal created; CollateralTab valuation/approve buttons; approve collateral confirmation modal; directors/signatories confirmed as read-only (auto-fetched from core banking) |
+| 2.7 | 2026-02-21 | Factory AI | Intranet UI: Guarantor approve/reject fully wired (ApproveGuarantorAsync + RejectGuarantorAsync in ApplicationService; GuarantorsTab updated with CanManageGuarantors param and contextual buttons; Detail.razor approve confirmation modal and reject modal with mandatory reason; DI registrations verified; build clean) |

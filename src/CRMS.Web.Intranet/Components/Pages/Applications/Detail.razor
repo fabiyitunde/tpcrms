@@ -147,10 +147,12 @@ else
             <PartiesTab Directors="application.Directors" Signatories="application.Signatories" OnRequestBureauCheck="RequestBureauCheck" />
             break;
         case "documents":
-            <DocumentsTab 
-                Documents="application.Documents" 
+            <DocumentsTab
+                Documents="application.Documents"
                 IsEditable="IsApplicationEditable"
-                OnUploadDocument="ShowUploadDocumentModal" />
+                OnUploadDocument="ShowUploadDocumentModal"
+                OnVerifyDocument="VerifyDocument"
+                OnRejectDocument="ShowRejectDocumentModal" />
             break;
         case "financials":
             <FinancialsTab 
@@ -169,22 +171,28 @@ else
             <BureauTab Reports="application.BureauReports" />
             break;
         case "collateral":
-            <CollateralTab 
-                Collaterals="application.Collaterals" 
+            <CollateralTab
+                Collaterals="application.Collaterals"
                 IsEditable="IsApplicationEditable"
-                OnAddCollateral="ShowAddCollateralModal" 
+                CanManageValuation="CanManageValuation"
+                OnAddCollateral="ShowAddCollateralModal"
                 OnViewCollateral="ViewCollateral"
                 OnEditCollateral="EditCollateral"
-                OnDeleteCollateral="DeleteCollateral" />
+                OnDeleteCollateral="DeleteCollateral"
+                OnSetValuation="ShowSetValuationModal"
+                OnApproveCollateral="ShowApproveCollateralModal" />
             break;
         case "guarantors":
             <GuarantorsTab 
                 Guarantors="application.Guarantors" 
                 IsEditable="IsApplicationEditable"
+                CanManageGuarantors="CanManageGuarantors"
                 OnAddGuarantor="ShowAddGuarantorModal"
                 OnViewGuarantor="ViewGuarantor"
                 OnEditGuarantor="EditGuarantor"
-                OnDeleteGuarantor="DeleteGuarantor" />
+                OnDeleteGuarantor="DeleteGuarantor"
+                OnApproveGuarantor="ShowApproveGuarantorModal"
+                OnRejectGuarantor="ShowRejectGuarantorModal" />
             break;
         case "advisory":
             <AdvisoryTab Advisory="application.Advisory" OnGenerateAdvisory="GenerateAdvisory" />
@@ -248,10 +256,62 @@ else
 
 @if (showEditCollateralModal && editingCollateralId.HasValue)
 {
-    <EditCollateralModal 
-        CollateralId="editingCollateralId.Value" 
-        OnClose="CloseEditCollateralModal" 
+    <EditCollateralModal
+        CollateralId="editingCollateralId.Value"
+        OnClose="CloseEditCollateralModal"
         OnSuccess="OnCollateralUpdated" />
+}
+
+@if (showSetValuationModal && valuatingCollateralId.HasValue)
+{
+    <SetCollateralValuationModal
+        CollateralId="valuatingCollateralId.Value"
+        OnClose="CloseSetValuationModal"
+        OnSuccess="OnCollateralValuated" />
+}
+
+@if (showApproveCollateralModal && approvingCollateralId.HasValue)
+{
+    var collateralToApprove = application?.Collaterals.FirstOrDefault(c => c.Id == approvingCollateralId.Value);
+    <div class="modal-backdrop show" @onclick="CloseApproveCollateralModal">
+        <div class="modal" style="max-width: 450px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <span class="material-symbols-outlined" style="font-size: 22px; vertical-align: middle; margin-right: var(--space-2); color: var(--success-600);">check_circle</span>
+                    Approve Collateral
+                </h3>
+                <button class="modal-close" @onclick="CloseApproveCollateralModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Approve the collateral: <strong>@(collateralToApprove?.Description ?? "this item")</strong>?</p>
+                <p class="text-muted" style="font-size: var(--text-sm);">This will mark the collateral as approved and eligible to secure the loan facility.</p>
+                @if (!string.IsNullOrEmpty(approveCollateralError))
+                {
+                    <div class="alert alert-danger mt-3" style="display: flex; gap: var(--space-2); align-items: flex-start;">
+                        <span class="material-symbols-outlined" style="color: var(--danger-600); font-size: 18px;">error</span>
+                        <span>@approveCollateralError</span>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" @onclick="CloseApproveCollateralModal" disabled="@isApprovingCollateral">Cancel</button>
+                <button type="button" class="btn btn-success" @onclick="ConfirmApproveCollateral" disabled="@isApprovingCollateral">
+                    @if (isApprovingCollateral)
+                    {
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                        <span>Approving...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+                        <span>Approve Collateral</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
 }
 
 @if (showGuarantorModal)
@@ -277,12 +337,246 @@ else
         OnSuccess="OnGuarantorUpdated" />
 }
 
+@if (showDeleteCollateralModal && deletingCollateralId.HasValue)
+{
+    var collateralToDelete = application?.Collaterals.FirstOrDefault(c => c.Id == deletingCollateralId.Value);
+    <div class="modal-backdrop show" @onclick="CloseDeleteCollateralModal">
+        <div class="modal" style="max-width: 450px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--danger-600);">
+                    <span class="material-symbols-outlined" style="font-size: 24px; vertical-align: middle; margin-right: var(--space-2);">warning</span>
+                    Delete Collateral
+                </h3>
+                <button class="modal-close" @onclick="CloseDeleteCollateralModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the collateral: <strong>@(collateralToDelete?.Description ?? "this item")</strong>?</p>
+                <p class="text-muted" style="font-size: var(--text-sm);">This action cannot be undone.</p>
+                @if (!string.IsNullOrEmpty(deleteErrorMessage))
+                {
+                    <div class="alert alert-danger mt-3" style="display: flex; gap: var(--space-2); align-items: flex-start;">
+                        <span class="material-symbols-outlined" style="color: var(--danger-600); font-size: 18px;">error</span>
+                        <span>@deleteErrorMessage</span>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" @onclick="CloseDeleteCollateralModal" disabled="@isDeleting">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteCollateral" disabled="@isDeleting">
+                    @if (isDeleting)
+                    {
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                        <span>Deleting...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                        <span>Delete</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeleteGuarantorModal && deletingGuarantorId.HasValue)
+{
+    var guarantorToDelete = application?.Guarantors.FirstOrDefault(g => g.Id == deletingGuarantorId.Value);
+    <div class="modal-backdrop show" @onclick="CloseDeleteGuarantorModal">
+        <div class="modal" style="max-width: 450px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--danger-600);">
+                    <span class="material-symbols-outlined" style="font-size: 24px; vertical-align: middle; margin-right: var(--space-2);">warning</span>
+                    Delete Guarantor
+                </h3>
+                <button class="modal-close" @onclick="CloseDeleteGuarantorModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the guarantor: <strong>@(guarantorToDelete?.Name ?? "this item")</strong>?</p>
+                <p class="text-muted" style="font-size: var(--text-sm);">This action cannot be undone.</p>
+                @if (!string.IsNullOrEmpty(deleteErrorMessage))
+                {
+                    <div class="alert alert-danger mt-3" style="display: flex; gap: var(--space-2); align-items: flex-start;">
+                        <span class="material-symbols-outlined" style="color: var(--danger-600); font-size: 18px;">error</span>
+                        <span>@deleteErrorMessage</span>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" @onclick="CloseDeleteGuarantorModal" disabled="@isDeleting">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteGuarantor" disabled="@isDeleting">
+                    @if (isDeleting)
+                    {
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                        <span>Deleting...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                        <span>Delete</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showApproveGuarantorModal && approvingGuarantorId.HasValue)
+{
+    var guarantorToApprove = application?.Guarantors.FirstOrDefault(g => g.Id == approvingGuarantorId.Value);
+    <div class="modal-backdrop show" @onclick="CloseApproveGuarantorModal">
+        <div class="modal" style="max-width: 450px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <span class="material-symbols-outlined" style="font-size: 22px; vertical-align: middle; margin-right: var(--space-2); color: var(--success-600);">check_circle</span>
+                    Approve Guarantor
+                </h3>
+                <button class="modal-close" @onclick="CloseApproveGuarantorModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to approve <strong>@(guarantorToApprove?.Name ?? "this guarantor")</strong>?</p>
+                <p class="text-muted" style="font-size: var(--text-sm);">Once approved, the guarantor will be accepted as collateral support for this loan application.</p>
+                @if (!string.IsNullOrEmpty(approveGuarantorError))
+                {
+                    <div class="alert alert-danger mt-3" style="display: flex; gap: var(--space-2); align-items: flex-start;">
+                        <span class="material-symbols-outlined" style="color: var(--danger-600); font-size: 18px;">error</span>
+                        <span>@approveGuarantorError</span>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" @onclick="CloseApproveGuarantorModal" disabled="@isApprovingGuarantor">Cancel</button>
+                <button type="button" class="btn btn-success" @onclick="ConfirmApproveGuarantor" disabled="@isApprovingGuarantor">
+                    @if (isApprovingGuarantor)
+                    {
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                        <span>Approving...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+                        <span>Approve Guarantor</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showRejectGuarantorModal && rejectingGuarantorId.HasValue)
+{
+    var guarantorToReject = application?.Guarantors.FirstOrDefault(g => g.Id == rejectingGuarantorId.Value);
+    <div class="modal-backdrop show" @onclick="CloseRejectGuarantorModal">
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--danger-600);">
+                    <span class="material-symbols-outlined" style="font-size: 22px; vertical-align: middle; margin-right: var(--space-2);">cancel</span>
+                    Reject Guarantor
+                </h3>
+                <button class="modal-close" @onclick="CloseRejectGuarantorModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: var(--space-4);">
+                    Rejecting: <strong>@(guarantorToReject?.Name ?? "this guarantor")</strong>
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Rejection Reason *</label>
+                    <textarea class="form-control" rows="3" @bind="rejectGuarantorReason"
+                        placeholder="Explain why this guarantor is being rejected..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(rejectGuarantorError))
+                {
+                    <div class="alert alert-danger mt-3" style="display: flex; gap: var(--space-2); align-items: flex-start;">
+                        <span class="material-symbols-outlined" style="color: var(--danger-600); font-size: 18px;">error</span>
+                        <span>@rejectGuarantorError</span>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" @onclick="CloseRejectGuarantorModal" disabled="@isRejectingGuarantor">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmRejectGuarantor"
+                    disabled="@(isRejectingGuarantor || string.IsNullOrWhiteSpace(rejectGuarantorReason))">
+                    @if (isRejectingGuarantor)
+                    {
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                        <span>Rejecting...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">cancel</span>
+                        <span>Reject Guarantor</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @if (showDocumentModal)
 {
-    <UploadDocumentModal 
-        ApplicationId="Id" 
-        OnClose="CloseDocumentModal" 
+    <UploadDocumentModal
+        ApplicationId="Id"
+        OnClose="CloseDocumentModal"
         OnSuccess="OnDocumentUploaded" />
+}
+
+@if (showRejectDocumentModal && rejectingDocumentId.HasValue)
+{
+    var docToReject = application?.Documents.FirstOrDefault(d => d.Id == rejectingDocumentId.Value);
+    <div class="modal-backdrop show" @onclick="CloseRejectDocumentModal">
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--danger-600);">
+                    <span class="material-symbols-outlined" style="font-size: 22px; vertical-align: middle; margin-right: var(--space-2);">cancel</span>
+                    Reject Document
+                </h3>
+                <button class="modal-close" @onclick="CloseRejectDocumentModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: var(--space-4);">
+                    Rejecting: <strong>@(docToReject?.Name ?? "this document")</strong>
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Rejection Reason *</label>
+                    <textarea class="form-control" rows="3" @bind="rejectDocumentReason"
+                        placeholder="Explain why this document is being rejected..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(rejectDocumentError))
+                {
+                    <div class="alert alert-danger mt-3" style="display: flex; gap: var(--space-2); align-items: flex-start;">
+                        <span class="material-symbols-outlined" style="color: var(--danger-600); font-size: 18px;">error</span>
+                        <span>@rejectDocumentError</span>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" @onclick="CloseRejectDocumentModal" disabled="@isProcessingDocument">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmRejectDocument"
+                    disabled="@(isProcessingDocument || string.IsNullOrWhiteSpace(rejectDocumentReason))">
+                    @if (isProcessingDocument)
+                    {
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                        <span>Rejecting...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">cancel</span>
+                        <span>Reject Document</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
 }
 
 @if (showFinancialStatementModal)
@@ -515,14 +809,20 @@ else
     private bool showCollateralModal;
     private bool showViewCollateralModal;
     private bool showEditCollateralModal;
+    private bool showDeleteCollateralModal;
     private Guid? viewingCollateralId;
     private Guid? editingCollateralId;
+    private Guid? deletingCollateralId;
 
     private bool showGuarantorModal;
     private bool showViewGuarantorModal;
     private bool showEditGuarantorModal;
+    private bool showDeleteGuarantorModal;
     private Guid? viewingGuarantorId;
     private Guid? editingGuarantorId;
+    private Guid? deletingGuarantorId;
+
+    private string? deleteErrorMessage;
 
     private bool showDocumentModal;
     private bool showFinancialStatementModal;
@@ -736,12 +1036,113 @@ else
         await LoadApplication();
     }
 
-    private async Task DeleteCollateral(Guid collateralId)
+    private void DeleteCollateral(Guid collateralId)
     {
-        var result = await AppService.DeleteCollateralAsync(collateralId);
-        if (result.Success)
+        deletingCollateralId = collateralId;
+        showDeleteCollateralModal = true;
+        deleteErrorMessage = null;
+    }
+
+    private void CloseDeleteCollateralModal()
+    {
+        showDeleteCollateralModal = false;
+        deletingCollateralId = null;
+        deleteErrorMessage = null;
+    }
+
+    private async Task ConfirmDeleteCollateral()
+    {
+        if (deletingCollateralId == null) return;
+
+        isDeleting = true;
+        deleteErrorMessage = null;
+        try
         {
-            await LoadApplication();
+            var result = await AppService.DeleteCollateralAsync(deletingCollateralId.Value);
+            if (result.Success)
+            {
+                showDeleteCollateralModal = false;
+                deletingCollateralId = null;
+                await LoadApplication();
+            }
+            else
+            {
+                deleteErrorMessage = result.Error ?? "Failed to delete collateral.";
+            }
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    // Collateral valuation / approve
+    private bool showSetValuationModal;
+    private bool showApproveCollateralModal;
+    private Guid? valuatingCollateralId;
+    private Guid? approvingCollateralId;
+    private string? approveCollateralError;
+    private bool isApprovingCollateral;
+
+    private bool CanManageValuation => application?.Status is not (null or "Draft" or "Approved" or "CommitteeApproved" or "Rejected" or "Disbursed");
+
+    private void ShowSetValuationModal(Guid collateralId)
+    {
+        valuatingCollateralId = collateralId;
+        showSetValuationModal = true;
+    }
+
+    private void CloseSetValuationModal()
+    {
+        showSetValuationModal = false;
+        valuatingCollateralId = null;
+    }
+
+    private async Task OnCollateralValuated()
+    {
+        showSetValuationModal = false;
+        valuatingCollateralId = null;
+        await LoadApplication();
+    }
+
+    private void ShowApproveCollateralModal(Guid collateralId)
+    {
+        approvingCollateralId = collateralId;
+        approveCollateralError = null;
+        showApproveCollateralModal = true;
+    }
+
+    private void CloseApproveCollateralModal()
+    {
+        showApproveCollateralModal = false;
+        approvingCollateralId = null;
+        approveCollateralError = null;
+    }
+
+    private async Task ConfirmApproveCollateral()
+    {
+        if (approvingCollateralId == null) return;
+
+        isApprovingCollateral = true;
+        approveCollateralError = null;
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            var result = await AppService.ApproveCollateralAsync(approvingCollateralId.Value, userId);
+            if (result.Success)
+            {
+                showApproveCollateralModal = false;
+                approvingCollateralId = null;
+                await LoadApplication();
+            }
+            else
+            {
+                approveCollateralError = result.Error ?? "Failed to approve collateral.";
+            }
+        }
+        finally
+        {
+            isApprovingCollateral = false;
         }
     }
 
@@ -785,12 +1186,140 @@ else
         await LoadApplication();
     }
 
-    private async Task DeleteGuarantor(Guid guarantorId)
+    private void DeleteGuarantor(Guid guarantorId)
     {
-        var result = await AppService.DeleteGuarantorAsync(guarantorId);
-        if (result.Success)
+        deletingGuarantorId = guarantorId;
+        showDeleteGuarantorModal = true;
+        deleteErrorMessage = null;
+    }
+
+    private void CloseDeleteGuarantorModal()
+    {
+        showDeleteGuarantorModal = false;
+        deletingGuarantorId = null;
+        deleteErrorMessage = null;
+    }
+
+    private async Task ConfirmDeleteGuarantor()
+    {
+        if (deletingGuarantorId == null) return;
+
+        isDeleting = true;
+        deleteErrorMessage = null;
+        try
         {
-            await LoadApplication();
+            var result = await AppService.DeleteGuarantorAsync(deletingGuarantorId.Value);
+            if (result.Success)
+            {
+                showDeleteGuarantorModal = false;
+                deletingGuarantorId = null;
+                await LoadApplication();
+            }
+            else
+            {
+                deleteErrorMessage = result.Error ?? "Failed to delete guarantor.";
+            }
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    // Guarantor approve / reject
+    private bool showApproveGuarantorModal;
+    private bool showRejectGuarantorModal;
+    private Guid? approvingGuarantorId;
+    private Guid? rejectingGuarantorId;
+    private string? approveGuarantorError;
+    private string rejectGuarantorReason = string.Empty;
+    private string? rejectGuarantorError;
+    private bool isApprovingGuarantor;
+    private bool isRejectingGuarantor;
+
+    private bool CanManageGuarantors => application?.Status is not (null or "Draft" or "Approved" or "CommitteeApproved" or "Rejected" or "Disbursed");
+
+    private void ShowApproveGuarantorModal(Guid guarantorId)
+    {
+        approvingGuarantorId = guarantorId;
+        approveGuarantorError = null;
+        showApproveGuarantorModal = true;
+    }
+
+    private void CloseApproveGuarantorModal()
+    {
+        showApproveGuarantorModal = false;
+        approvingGuarantorId = null;
+        approveGuarantorError = null;
+    }
+
+    private async Task ConfirmApproveGuarantor()
+    {
+        if (approvingGuarantorId == null) return;
+
+        isApprovingGuarantor = true;
+        approveGuarantorError = null;
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            var result = await AppService.ApproveGuarantorAsync(approvingGuarantorId.Value, userId);
+            if (result.Success)
+            {
+                showApproveGuarantorModal = false;
+                approvingGuarantorId = null;
+                await LoadApplication();
+            }
+            else
+            {
+                approveGuarantorError = result.Error ?? "Failed to approve guarantor.";
+            }
+        }
+        finally
+        {
+            isApprovingGuarantor = false;
+        }
+    }
+
+    private void ShowRejectGuarantorModal(Guid guarantorId)
+    {
+        rejectingGuarantorId = guarantorId;
+        rejectGuarantorReason = string.Empty;
+        rejectGuarantorError = null;
+        showRejectGuarantorModal = true;
+    }
+
+    private void CloseRejectGuarantorModal()
+    {
+        showRejectGuarantorModal = false;
+        rejectingGuarantorId = null;
+        rejectGuarantorReason = string.Empty;
+        rejectGuarantorError = null;
+    }
+
+    private async Task ConfirmRejectGuarantor()
+    {
+        if (rejectingGuarantorId == null || string.IsNullOrWhiteSpace(rejectGuarantorReason)) return;
+
+        isRejectingGuarantor = true;
+        rejectGuarantorError = null;
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            var result = await AppService.RejectGuarantorAsync(rejectingGuarantorId.Value, userId, rejectGuarantorReason);
+            if (result.Success)
+            {
+                showRejectGuarantorModal = false;
+                rejectingGuarantorId = null;
+                await LoadApplication();
+            }
+            else
+            {
+                rejectGuarantorError = result.Error ?? "Failed to reject guarantor.";
+            }
+        }
+        finally
+        {
+            isRejectingGuarantor = false;
         }
     }
 
@@ -800,6 +1329,69 @@ else
     {
         showDocumentModal = false;
         await LoadApplication();
+    }
+
+    // Document verify / reject
+    private bool showRejectDocumentModal;
+    private Guid? rejectingDocumentId;
+    private string rejectDocumentReason = string.Empty;
+    private string? rejectDocumentError;
+    private bool isProcessingDocument;
+
+    private async Task VerifyDocument(Guid documentId)
+    {
+        isProcessingDocument = true;
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        var result = await AppService.VerifyDocumentAsync(Id, documentId, userId);
+        isProcessingDocument = false;
+
+        if (result.Success)
+        {
+            await LoadApplication();
+        }
+    }
+
+    private void ShowRejectDocumentModal(Guid documentId)
+    {
+        rejectingDocumentId = documentId;
+        rejectDocumentReason = string.Empty;
+        rejectDocumentError = null;
+        showRejectDocumentModal = true;
+    }
+
+    private void CloseRejectDocumentModal()
+    {
+        showRejectDocumentModal = false;
+        rejectingDocumentId = null;
+        rejectDocumentReason = string.Empty;
+        rejectDocumentError = null;
+    }
+
+    private async Task ConfirmRejectDocument()
+    {
+        if (rejectingDocumentId == null || string.IsNullOrWhiteSpace(rejectDocumentReason)) return;
+
+        isProcessingDocument = true;
+        rejectDocumentError = null;
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            var result = await AppService.RejectDocumentAsync(Id, rejectingDocumentId.Value, userId, rejectDocumentReason);
+            if (result.Success)
+            {
+                showRejectDocumentModal = false;
+                rejectingDocumentId = null;
+                await LoadApplication();
+            }
+            else
+            {
+                rejectDocumentError = result.Error ?? "Failed to reject document.";
+            }
+        }
+        finally
+        {
+            isProcessingDocument = false;
+        }
     }
 
     private void ShowFinancialStatementModal()

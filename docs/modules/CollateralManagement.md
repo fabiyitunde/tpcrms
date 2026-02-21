@@ -4,7 +4,7 @@
 **Status:** 🟢 Completed  
 **Priority:** P1  
 **Bounded Context:** Lending  
-**Last Updated:** 2026-02-17
+**Last Updated:** 2026-02-20
 
 ---
 
@@ -70,14 +70,24 @@ Supporting documents:
 ## 4. Collateral Workflow
 
 ```
-┌──────────┐    ┌────────────┐    ┌──────────┐    ┌───────────┐    ┌──────────┐
-│ Proposed │───>│ Valuated   │───>│ Approved │───>│ Perfected │───>│ Released │
-└──────────┘    └────────────┘    └──────────┘    └───────────┘    └──────────┘
-     │               │                  │
-     │               │                  └─── Rejected
-     │               └─── Disputed
-     └─── Rejected
+┌──────────┐    ┌──────────────┐    ┌──────────┐    ┌───────────┐    ┌──────────┐
+│ Proposed │───>│ UnderValuat. │───>│  Valued  │───>│ Approved  │───>│ Perfected│
+└──────────┘    └──────────────┘    └──────────┘    └───────────┘    └──────────┘
+     │                                    │               │
+     │                                    │               └─── Rejected
+     └─── Rejected (direct)               └─── Disputed
 ```
+
+### UI Workflow Mapping (Intranet)
+
+| Status | Available UI Actions |
+|--------|---------------------|
+| Proposed / UnderValuation | Edit, Delete, **Set Valuation** (blue button) |
+| Valued | View, **Approve Collateral** (green button) |
+| Approved | View only |
+| Rejected | View only |
+
+`CanManageValuation` is enabled when the loan application is in an active review stage (not Draft, Approved, CommitteeApproved, Rejected, or Disbursed). This ensures collateral is valued and approved during the credit analysis phase, not during draft data entry.
 
 ---
 
@@ -146,7 +156,23 @@ LTV = (Loan Amount / Total Acceptable Collateral Value) × 100
 
 ---
 
-## 10. Future Enhancements
+## 10. Intranet UI Implementation
+
+The following UI components implement the collateral workflow in `CRMS.Web.Intranet`:
+
+| Component | Purpose |
+|-----------|---------|
+| `AddCollateralModal.razor` | Register new collateral (Proposed status) |
+| `EditCollateralModal.razor` | Edit collateral in Proposed/UnderValuation status |
+| `ViewCollateralModal.razor` | Full read-only detail view including valuation, lien, insurance |
+| `SetCollateralValuationModal.razor` | Set market value, FSV, haircut %; live-calculates AcceptableValue |
+| `CollateralTab.razor` | List all collaterals with contextual action buttons |
+
+The `SetCollateralValuationModal` pre-fills haircut % from the existing collateral record (or from type-based defaults if not yet set) and displays the computed `AcceptableValue = MarketValue × (1 − HaircutPercentage/100)` live as the user types.
+
+---
+
+## 11. Future Enhancements
 
 - [ ] Integration with land registry APIs
 - [ ] Automated revaluation reminders
@@ -154,6 +180,7 @@ LTV = (Loan Amount / Total Acceptable Collateral Value) × 100
 - [ ] Collateral substitution workflow
 - [ ] Multi-currency collateral support
 - [ ] Collateral pool management
+- [ ] Collateral document sub-uploads (title deeds, insurance certificates)
 
 ---
 
@@ -162,3 +189,4 @@ LTV = (Loan Amount / Total Acceptable Collateral Value) × 100
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-02-17 | Initial implementation |
+| 1.1 | 2026-02-20 | Added UI implementation section; SetCollateralValuationModal, CollateralTab valuation/approve buttons, approve confirmation modal |

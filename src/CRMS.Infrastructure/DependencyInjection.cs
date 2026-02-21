@@ -188,6 +188,7 @@ public static class DependencyInjection
         services.AddScoped<Application.LoanApplication.Commands.SubmitLoanApplicationHandler>();
         services.AddScoped<Application.LoanApplication.Commands.UploadDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Commands.VerifyDocumentHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.RejectDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetLoanApplicationByIdHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetLoanApplicationsByStatusHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetMyLoanApplicationsHandler>();
