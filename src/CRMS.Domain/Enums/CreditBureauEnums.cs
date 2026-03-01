@@ -4,7 +4,52 @@ public enum CreditBureauProvider
 {
     CreditRegistry,
     FirstCentral,
-    CRC
+    CRC,
+    SmartComply
+}
+
+public enum SmartComplyReportType
+{
+    // Individual Credit Reports
+    FirstCentralSummary,
+    FirstCentralFull,
+    FirstCentralScore,
+    CreditRegistrySummary,
+    CreditRegistryFull,
+    CreditRegistryAdvanced,
+    CRCScore,
+    CRCHistory,
+    CRCFull,
+    CreditPremium,
+    
+    // Business Credit Reports
+    CRCBusinessHistory,
+    FirstCentralBusiness,
+    PremiumBusiness,
+    
+    // Loan Fraud Check
+    IndividualLoanFraudCheck,
+    BusinessLoanFraudCheck
+}
+
+public enum SmartComplyKycType
+{
+    // Nigeria KYC
+    BVN,
+    BVNAdvanced,
+    BVNWithFace,
+    NIN,
+    NINWithFace,
+    VNIN,
+    TIN,
+    CAC,
+    CACAdvanced,
+    DriversLicense,
+    Passport,
+    VotersId,
+    NUBAN,
+    PhoneNumberBasic,
+    PhoneNumberAdvanced
 }
 
 public enum BureauReportStatus

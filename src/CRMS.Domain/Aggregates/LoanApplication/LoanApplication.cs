@@ -18,6 +18,7 @@ public class LoanApplication : AggregateRoot
     public string AccountNumber { get; private set; } = string.Empty;
     public string CustomerId { get; private set; } = string.Empty;
     public string CustomerName { get; private set; } = string.Empty;
+    public string? RegistrationNumber { get; private set; } // RC number for corporate loans
     
     // Loan Details
     public Money RequestedAmount { get; private set; } = null!;
@@ -43,6 +44,9 @@ public class LoanApplication : AggregateRoot
     public Guid? FinalApprovedByUserId { get; private set; }
     public DateTime? DisbursedAt { get; private set; }
     
+    // Corporate Details
+    public DateTime? IncorporationDate { get; private set; }
+
     // Core Banking Reference
     public string? CoreBankingLoanId { get; private set; }
 
@@ -81,7 +85,9 @@ public class LoanApplication : AggregateRoot
         InterestRateType interestRateType,
         Guid initiatedByUserId,
         Guid? branchId,
-        string? purpose = null)
+        string? purpose = null,
+        string? registrationNumber = null,
+        DateTime? incorporationDate = null)
     {
         if (string.IsNullOrWhiteSpace(accountNumber))
             return Result.Failure<LoanApplication>("Account number is required");
@@ -105,6 +111,8 @@ public class LoanApplication : AggregateRoot
             AccountNumber = accountNumber,
             CustomerId = customerId,
             CustomerName = customerName,
+            RegistrationNumber = registrationNumber,
+            IncorporationDate = incorporationDate,
             RequestedAmount = requestedAmount,
             RequestedTenorMonths = requestedTenorMonths,
             InterestRatePerAnnum = interestRatePerAnnum,
@@ -434,6 +442,17 @@ public class LoanApplication : AggregateRoot
     private void AddStatusHistory(LoanApplicationStatus status, Guid userId, string? comment)
     {
         _statusHistory.Add(new LoanApplicationStatusHistory(Id, status, userId, comment));
+    }
+
+    public Result UpdatePartyFields(Guid partyId, string? bvn, decimal? shareholdingPercent)
+    {
+        var party = _parties.FirstOrDefault(p => p.Id == partyId);
+        if (party == null) return Result.Failure("Party not found");
+        if (Status != LoanApplicationStatus.Draft)
+            return Result.Failure("Party info can only be updated in Draft status");
+        if (bvn != null) party.UpdateBVN(bvn);
+        if (shareholdingPercent.HasValue) party.UpdateShareholdingPercent(shareholdingPercent.Value);
+        return Result.Success();
     }
 
     public Result UpdateLoanDetails(Money requestedAmount, int requestedTenorMonths, decimal interestRate, string? purpose)

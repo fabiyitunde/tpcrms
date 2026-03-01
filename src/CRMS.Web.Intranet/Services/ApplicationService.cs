@@ -43,6 +43,8 @@ using CRMS.Domain.Interfaces;
 using CRMS.Domain.ValueObjects;
 using CRMS.Web.Intranet.Components.Pages.Applications.Modals;
 using CRMS.Web.Intranet.Models;
+using CRMS.Application.CreditBureau.DTOs;
+using CRMS.Application.CreditBureau.Queries;
 using CRMS.Web.Intranet.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -56,6 +58,231 @@ public partial class ApplicationService
     private readonly IReportingService _reporting;
 
     private readonly ILogger<ApplicationService> _logger;
+
+    public async Task<List<BureauReportInfo>> GetBureauReportsAsync(Guid loanApplicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetBureauReportsByLoanApplicationHandler>();
+            var result = await handler.Handle(new GetBureauReportsByLoanApplicationQuery(loanApplicationId), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+            {
+                return new List<BureauReportInfo>();
+            }
+            return result.Data.Select(r => new BureauReportInfo
+            {
+                Id = r.Id,
+                SubjectName = r.SubjectName,
+                SubjectType = r.SubjectType,
+                Provider = r.Provider,
+                Status = r.Status,
+                CreditScore = r.CreditScore,
+                Rating = GetScoreGrade(r.CreditScore),
+                ActiveLoans = r.ActiveLoans,
+                TotalExposure = r.TotalOutstandingBalance,
+                TotalOverdue = r.TotalOverdue,
+                MaxDelinquencyDays = r.MaxDelinquencyDays,
+                HasLegalIssues = r.HasLegalActions,
+                ReportDate = r.CompletedAt ?? r.RequestedAt,
+                FraudRiskScore = r.FraudRiskScore,
+                FraudRecommendation = r.FraudRecommendation,
+                PartyId = r.PartyId,
+                PartyType = r.PartyType
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching bureau reports for application {Id}", loanApplicationId);
+            return new List<BureauReportInfo>();
+        }
+    }
+
+    private static string GetScoreGrade(int? score)
+    {
+        if (!score.HasValue) return "N/A";
+        return score.Value switch
+        {
+            >= 750 => "Excellent",
+            >= 700 => "Good",
+            >= 650 => "Fair",
+            _ => "Poor"
+        };
+    }
+
+    private static string MaskBvn(string? bvn)
+    {
+        if (string.IsNullOrWhiteSpace(bvn)) return "N/A";
+        if (bvn.Length <= 4) return new string('*', bvn.Length);
+        return $"*******{bvn[^4..]}";
+    }
+
+    public async Task<List<BankStatementInfo>> GetBankStatementsAsync(Guid applicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.StatementAnalysis.Queries.GetStatementsByLoanApplicationHandler>();
+            var result = await handler.Handle(new CRMS.Application.StatementAnalysis.Queries.GetStatementsByLoanApplicationQuery(applicationId), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return new List<BankStatementInfo>();
+
+            return result.Data.Select(s => new BankStatementInfo
+            {
+                Id = s.Id,
+                AccountNumber = s.AccountNumber,
+                AccountName = s.AccountName,
+                BankName = s.BankName,
+                PeriodStart = s.PeriodStart,
+                PeriodEnd = s.PeriodEnd,
+                MonthsCovered = s.MonthsCovered,
+                OpeningBalance = s.OpeningBalance,
+                ClosingBalance = s.ClosingBalance,
+                Source = s.Source,
+                IsInternal = s.IsInternal,
+                TrustWeight = s.TrustWeight,
+                AnalysisStatus = s.AnalysisStatus,
+                VerificationStatus = s.VerificationStatus,
+                TransactionCount = s.TransactionCount,
+                OriginalFileName = s.OriginalFileName,
+                TotalCredits = s.CashflowSummary?.TotalCredits,
+                TotalDebits = s.CashflowSummary?.TotalDebits,
+                AverageMonthlyBalance = s.CashflowSummary?.AverageMonthlyBalance,
+                NetMonthlyCashflow = s.CashflowSummary?.NetCashflow,
+                BouncedTransactions = s.CashflowSummary?.BouncedTransactionCount,
+                GamblingTransactions = s.CashflowSummary?.GamblingTransactionCount
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching bank statements for application {Id}", applicationId);
+            return new List<BankStatementInfo>();
+        }
+    }
+
+    public async Task<ApiResponse> UploadExternalStatementAsync(Guid applicationId, UploadExternalStatementRequest request, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.StatementAnalysis.Commands.UploadStatementHandler>();
+            var command = new CRMS.Application.StatementAnalysis.Commands.UploadStatementCommand(
+                request.AccountNumber,
+                request.AccountName,
+                request.BankName,
+                request.PeriodFrom,
+                request.PeriodTo,
+                request.OpeningBalance,
+                request.ClosingBalance,
+                CRMS.Domain.Enums.StatementFormat.PDF,
+                CRMS.Domain.Enums.StatementSource.ManualUpload,
+                userId,
+                request.File?.Name,
+                null,
+                applicationId
+            );
+            var result = await handler.Handle(command, CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to upload statement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading external statement for application {Id}", applicationId);
+            return ApiResponse.Fail("Failed to upload statement");
+        }
+    }
+
+    public async Task<ApiResponse> VerifyStatementAsync(Guid statementId, Guid userId, string? notes = null)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.StatementAnalysis.Commands.VerifyStatementHandler>();
+            var result = await handler.Handle(new CRMS.Application.StatementAnalysis.Commands.VerifyStatementCommand(statementId, userId, notes), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to verify statement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying statement {Id}", statementId);
+            return ApiResponse.Fail("Failed to verify statement");
+        }
+    }
+
+    public async Task<ApiResponse> RejectStatementAsync(Guid statementId, Guid userId, string reason)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.StatementAnalysis.Commands.RejectStatementHandler>();
+            var result = await handler.Handle(new CRMS.Application.StatementAnalysis.Commands.RejectStatementCommand(statementId, userId, reason), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to reject statement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error rejecting statement {Id}", statementId);
+            return ApiResponse.Fail("Failed to reject statement");
+        }
+    }
+
+    public async Task<ApiResponse> AnalyzeStatementAsync(Guid statementId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.StatementAnalysis.Commands.AnalyzeStatementHandler>();
+            var result = await handler.Handle(new CRMS.Application.StatementAnalysis.Commands.AnalyzeStatementCommand(statementId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to analyze statement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error analyzing statement {Id}", statementId);
+            return ApiResponse.Fail("Failed to analyze statement");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Web.Intranet.Models.CustomerInfo>> FetchCorporateDataAsync(string accountNumber)
+    {
+        try
+        {
+            var coreBanking = _sp.GetRequiredService<CRMS.Domain.Interfaces.ICoreBankingService>();
+            var customerResult = await coreBanking.GetCustomerByAccountNumberAsync(accountNumber);
+            if (customerResult.IsFailure)
+                return ApiResponse<CRMS.Web.Intranet.Models.CustomerInfo>.Fail(customerResult.Error ?? "Account not found");
+
+            var customer = customerResult.Value;
+            if (customer.CustomerType != CRMS.Domain.Interfaces.CustomerType.Corporate)
+                return ApiResponse<CRMS.Web.Intranet.Models.CustomerInfo>.Fail("Account is not a corporate account");
+
+            var corporateResult = await coreBanking.GetCorporateInfoAsync(accountNumber);
+            var corporate = corporateResult.IsSuccess ? corporateResult.Value : null;
+
+            var info = new CRMS.Web.Intranet.Models.CustomerInfo
+            {
+                AccountNumber = accountNumber,
+                CompanyName = customer.FullName,
+                RegistrationNumber = corporate?.RegistrationNumber ?? string.Empty,
+                Industry = corporate?.Industry ?? string.Empty,
+                IncorporationDate = corporate?.IncorporationDate,
+                Address = customer.Address ?? string.Empty,
+                Email = customer.Email ?? string.Empty,
+                Phone = customer.PhoneNumber ?? string.Empty
+            };
+            return ApiResponse<CRMS.Web.Intranet.Models.CustomerInfo>.Ok(info);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching corporate data for {AccountNumber}", accountNumber);
+            return ApiResponse<CRMS.Web.Intranet.Models.CustomerInfo>.Fail("Failed to fetch customer data");
+        }
+    }
+
+    public async Task<ApiResponse> UpdatePartyInfoAsync(Guid applicationId, Guid partyId, string? bvn, decimal? shareholdingPercent, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.LoanApplication.Commands.UpdatePartyInfoHandler>();
+            var result = await handler.Handle(new CRMS.Application.LoanApplication.Commands.UpdatePartyInfoCommand(applicationId, partyId, bvn, shareholdingPercent, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update party info");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating party info for party {PartyId}", partyId);
+            return ApiResponse.Fail("Failed to update party info");
+        }
+    }
 
     public async Task<CollateralDetailDto?> GetCollateralDetailAsync(Guid collateralId)
     {
@@ -385,7 +612,9 @@ public partial class ApplicationService
                 Customer = new CRMS.Web.Intranet.Models.CustomerInfo
                 {
                     AccountNumber = app.AccountNumber,
-                    CompanyName = app.CustomerName
+                    CompanyName = app.CustomerName,
+                    RegistrationNumber = app.RegistrationNumber ?? string.Empty,
+                    IncorporationDate = app.IncorporationDate
                 },
                 Loan = new CRMS.Web.Intranet.Models.LoanInfo
                 {
@@ -404,7 +633,10 @@ public partial class ApplicationService
                              {
                                  Id = p.Id,
                                  Name = p.FullName,
+                                 RawBVN = p.BVN,
+                                 BvnMasked = MaskBvn(p.BVN),
                                  Position = (p.Designation ?? ""),
+                                 PartyType = p.PartyType,
                                  ShareholdingPercentage = p.ShareholdingPercent
                              }).ToList(),
                 Signatories = (from p in app.Parties
@@ -413,7 +645,11 @@ public partial class ApplicationService
                                {
                                    Id = p.Id,
                                    Name = p.FullName,
-                                   Position = (p.Designation ?? "")
+                                   RawBVN = p.BVN,
+                                   BvnMasked = MaskBvn(p.BVN),
+                                   Position = (p.Designation ?? ""),
+                                   PartyType = p.PartyType,
+                                   MandateType = p.Designation
                                }).ToList(),
                 Documents = app.Documents.Select((LoanApplicationDocumentDto d) => new DocumentInfo
                 {
@@ -537,7 +773,7 @@ public partial class ApplicationService
         {
             InitiateCorporateLoanHandler handler = _sp.GetRequiredService<InitiateCorporateLoanHandler>();
             InterestRateType rt;
-            InitiateCorporateLoanCommand command = new InitiateCorporateLoanCommand(InterestRateType: Enum.TryParse<InterestRateType>(request.InterestRateType, ignoreCase: true, out rt) ? rt : InterestRateType.Flat, LoanProductId: productId, ProductCode: productCode, AccountNumber: request.AccountNumber, RequestedAmount: request.RequestedAmount, Currency: "NGN", RequestedTenorMonths: request.TenorMonths, InterestRatePerAnnum: request.InterestRate, InitiatedByUserId: userId, BranchId: null, Purpose: request.Purpose);
+            InitiateCorporateLoanCommand command = new InitiateCorporateLoanCommand(InterestRateType: Enum.TryParse<InterestRateType>(request.InterestRateType, ignoreCase: true, out rt) ? rt : InterestRateType.Flat, LoanProductId: productId, ProductCode: productCode, AccountNumber: request.AccountNumber, RequestedAmount: request.RequestedAmount, Currency: "NGN", RequestedTenorMonths: request.TenorMonths, InterestRatePerAnnum: request.InterestRate, InitiatedByUserId: userId, BranchId: null, Purpose: request.Purpose, RegistrationNumberOverride: request.RegistrationNumberOverride, IncorporationDateOverride: request.IncorporationDateOverride);
             ApplicationResult<LoanApplicationDto> result = await handler.Handle(command, CancellationToken.None);
             return result.IsSuccess ? ApiResponse<Guid>.Ok(result.Data.Id) : ApiResponse<Guid>.Fail(result.Error ?? "Failed to create application");
         }

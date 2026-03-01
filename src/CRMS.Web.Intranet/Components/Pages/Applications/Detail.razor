@@ -129,6 +129,7 @@ else
         <div class="tab @(activeTab == "parties" ? "active" : "")" @onclick='() => activeTab = "parties"'>Directors & Signatories</div>
         <div class="tab @(activeTab == "documents" ? "active" : "")" @onclick='() => activeTab = "documents"'>Documents</div>
         <div class="tab @(activeTab == "financials" ? "active" : "")" @onclick='() => activeTab = "financials"'>Financial Analysis</div>
+        <div class="tab @(activeTab == "statements" ? "active" : "")" @onclick='() => activeTab = "statements"'>Bank Statements</div>
         <div class="tab @(activeTab == "bureau" ? "active" : "")" @onclick='() => activeTab = "bureau"'>Credit Bureau</div>
         <div class="tab @(activeTab == "collateral" ? "active" : "")" @onclick='() => activeTab = "collateral"'>Collateral</div>
         <div class="tab @(activeTab == "guarantors" ? "active" : "")" @onclick='() => activeTab = "guarantors"'>Guarantors</div>
@@ -144,7 +145,19 @@ else
             <OverviewTab Application="application" />
             break;
         case "parties":
-            <PartiesTab Directors="application.Directors" Signatories="application.Signatories" OnRequestBureauCheck="RequestBureauCheck" />
+            <PartiesTab Directors="application.Directors" Signatories="application.Signatories"
+                IsEditable="IsApplicationEditable"
+                OnRequestBureauCheck="RequestBureauCheck"
+                OnFillPartyInfo="ShowFillPartyInfoModal" />
+            break;
+        case "statements":
+            <StatementsTab
+                Statements="application.BankStatements"
+                IsEditable="IsApplicationEditable"
+                OnUpload="ShowUploadStatementModal"
+                OnVerify="VerifyStatement"
+                OnReject="ShowRejectStatementModal"
+                OnAnalyze="AnalyzeStatement" />
             break;
         case "documents":
             <DocumentsTab
@@ -590,6 +603,65 @@ else
     </div>
 }
 
+@if (showUploadBankStatementModal)
+{
+    <UploadExternalStatementModal
+        ApplicationId="Id"
+        OnClose="CloseUploadStatementModal"
+        OnSuccess="OnBankStatementUploaded" />
+}
+
+@if (showRejectStatementModal && rejectingStatementId.HasValue)
+{
+    <div class="modal-backdrop show" @onclick="CloseRejectStatementModal">
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--danger-600);">
+                    <span class="material-symbols-outlined" style="font-size: 22px; vertical-align: middle; margin-right: var(--space-2);">cancel</span>
+                    Reject Statement
+                </h3>
+                <button class="modal-close" @onclick="CloseRejectStatementModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Reason for Rejection *</label>
+                    <textarea class="form-control" rows="3" @bind="rejectStatementReason" placeholder="Explain why this statement is being rejected..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(rejectStatementError))
+                {
+                    <div class="alert alert-danger mt-3">@rejectStatementError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" @onclick="CloseRejectStatementModal" disabled="@isProcessingStatement">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmRejectStatement"
+                    disabled="@(isProcessingStatement || string.IsNullOrWhiteSpace(rejectStatementReason))">
+                    @if (isProcessingStatement)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">cancel</span>
+                        <span>Reject Statement</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showFillPartyInfoModal && fillingPartyInfo != null)
+{
+    <FillPartyInfoModal
+        ApplicationId="Id"
+        Party="fillingPartyInfo"
+        OnClose="CloseFillPartyInfoModal"
+        OnSuccess="OnPartyInfoFilled" />
+}
+
 @if (showFinancialStatementModal)
 {
     <CRMS.Web.Intranet.Components.Pages.Applications.Modals.FinancialStatementModal
@@ -861,6 +933,13 @@ else
         if (application == null)
         {
             application = GenerateMockApplication();
+        }
+        else
+        {
+            // Fetch real bureau reports from database
+            application.BureauReports = await AppService.GetBureauReportsAsync(Id);
+            // Fetch bank statements
+            application.BankStatements = await AppService.GetBankStatementsAsync(Id);
         }
         
         isLoading = false;
@@ -1433,6 +1512,78 @@ else
         }
     }
 
+    // Bank statement upload / verify / reject / analyze
+    private bool showUploadBankStatementModal;
+    private bool showRejectStatementModal;
+    private Guid? rejectingStatementId;
+    private string rejectStatementReason = string.Empty;
+    private string? rejectStatementError;
+    private bool isProcessingStatement;
+
+    private void ShowUploadStatementModal() { showUploadBankStatementModal = true; }
+    private void CloseUploadStatementModal() { showUploadBankStatementModal = false; }
+    private async Task OnBankStatementUploaded() { showUploadBankStatementModal = false; await LoadApplication(); }
+
+    private async Task VerifyStatement(Guid statementId)
+    {
+        isProcessingStatement = true;
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        var result = await AppService.VerifyStatementAsync(statementId, userId);
+        isProcessingStatement = false;
+        if (result.Success) await LoadApplication();
+    }
+
+    private void ShowRejectStatementModal(Guid statementId)
+    {
+        rejectingStatementId = statementId;
+        rejectStatementReason = string.Empty;
+        rejectStatementError = null;
+        showRejectStatementModal = true;
+    }
+
+    private void CloseRejectStatementModal()
+    {
+        showRejectStatementModal = false;
+        rejectingStatementId = null;
+        rejectStatementReason = string.Empty;
+        rejectStatementError = null;
+    }
+
+    private async Task ConfirmRejectStatement()
+    {
+        if (rejectingStatementId == null || string.IsNullOrWhiteSpace(rejectStatementReason)) return;
+        isProcessingStatement = true;
+        rejectStatementError = null;
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            var result = await AppService.RejectStatementAsync(rejectingStatementId.Value, userId, rejectStatementReason);
+            if (result.Success) { showRejectStatementModal = false; rejectingStatementId = null; await LoadApplication(); }
+            else rejectStatementError = result.Error ?? "Failed to reject statement.";
+        }
+        finally { isProcessingStatement = false; }
+    }
+
+    private async Task AnalyzeStatement(Guid statementId)
+    {
+        var result = await AppService.AnalyzeStatementAsync(statementId);
+        if (result.Success) await LoadApplication();
+    }
+
+    // Fill party info modal
+    private bool showFillPartyInfoModal;
+    private PartyInfo? fillingPartyInfo;
+
+    private void ShowFillPartyInfoModal(Guid partyId)
+    {
+        var allParties = (application?.Directors ?? []).Concat(application?.Signatories ?? []);
+        fillingPartyInfo = allParties.FirstOrDefault(p => p.Id == partyId);
+        if (fillingPartyInfo != null) showFillPartyInfoModal = true;
+    }
+
+    private void CloseFillPartyInfoModal() { showFillPartyInfoModal = false; fillingPartyInfo = null; }
+    private async Task OnPartyInfoFilled() { showFillPartyInfoModal = false; fillingPartyInfo = null; await LoadApplication(); }
+
     private void ShowFinancialStatementModal()
     {
         editingStatementId = null; // Ensure we're in create mode
@@ -1741,8 +1892,11 @@ else
         ],
         BureauReports =
         [
-            new() { Id = Guid.NewGuid(), SubjectName = "John Adebayo", SubjectType = "Director", CreditScore = 720, Rating = "Good", ActiveLoans = 2, TotalExposure = 15_000_000m, DelinquencyCount = 0, HasLegalIssues = false, ReportDate = DateTime.Now.AddDays(-3) },
-            new() { Id = Guid.NewGuid(), SubjectName = "Sarah Okonkwo", SubjectType = "Director", CreditScore = 680, Rating = "Fair", ActiveLoans = 3, TotalExposure = 25_000_000m, DelinquencyCount = 1, HasLegalIssues = false, ReportDate = DateTime.Now.AddDays(-3) }
+            new() { Id = Guid.NewGuid(), SubjectName = "Acme Corporation Limited", SubjectType = "Business", PartyType = "Business", Provider = "SmartComply", Status = "Completed", CreditScore = 710, Rating = "Good", ActiveLoans = 5, TotalExposure = 150_000_000m, TotalOverdue = 0, MaxDelinquencyDays = 0, HasLegalIssues = false, ReportDate = DateTime.Now.AddDays(-3), FraudRiskScore = 15, FraudRecommendation = "Low Risk" },
+            new() { Id = Guid.NewGuid(), SubjectName = "John Adebayo", SubjectType = "Individual", PartyType = "Director", Provider = "SmartComply", Status = "Completed", CreditScore = 720, Rating = "Good", ActiveLoans = 2, TotalExposure = 15_000_000m, TotalOverdue = 0, MaxDelinquencyDays = 0, HasLegalIssues = false, ReportDate = DateTime.Now.AddDays(-3), FraudRiskScore = 10, FraudRecommendation = "Low Risk" },
+            new() { Id = Guid.NewGuid(), SubjectName = "Sarah Okonkwo", SubjectType = "Individual", PartyType = "Director", Provider = "SmartComply", Status = "Completed", CreditScore = 680, Rating = "Fair", ActiveLoans = 3, TotalExposure = 25_000_000m, TotalOverdue = 500_000m, MaxDelinquencyDays = 30, HasLegalIssues = false, ReportDate = DateTime.Now.AddDays(-3), FraudRiskScore = 25, FraudRecommendation = "Low Risk" },
+            new() { Id = Guid.NewGuid(), SubjectName = "Michael Eze", SubjectType = "Individual", PartyType = "Director", Provider = "SmartComply", Status = "Completed", CreditScore = 750, Rating = "Excellent", ActiveLoans = 1, TotalExposure = 5_000_000m, TotalOverdue = 0, MaxDelinquencyDays = 0, HasLegalIssues = false, ReportDate = DateTime.Now.AddDays(-3), FraudRiskScore = 5, FraudRecommendation = "Low Risk" },
+            new() { Id = Guid.NewGuid(), SubjectName = "Delta Holdings Ltd", SubjectType = "Individual", PartyType = "Guarantor", Provider = "SmartComply", Status = "Completed", CreditScore = 700, Rating = "Good", ActiveLoans = 4, TotalExposure = 80_000_000m, TotalOverdue = 0, MaxDelinquencyDays = 0, HasLegalIssues = false, ReportDate = DateTime.Now.AddDays(-3), FraudRiskScore = 20, FraudRecommendation = "Low Risk" }
         ],
         Advisory = new()
         {

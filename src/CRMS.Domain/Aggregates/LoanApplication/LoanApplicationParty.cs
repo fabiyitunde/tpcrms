@@ -60,4 +60,8 @@ public class LoanApplicationParty : Entity
         Address = address;
         DateOfBirth = dateOfBirth;
     }
+
+    public void UpdateBVN(string bvn) { BVN = bvn; }
+
+    public void UpdateShareholdingPercent(decimal pct) { ShareholdingPercent = pct; }
 }

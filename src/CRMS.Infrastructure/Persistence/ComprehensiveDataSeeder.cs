@@ -616,14 +616,13 @@ public static class ComprehensiveDataSeeder
             {
                 await context.ConsentRecords.AddAsync(consentResult.Value);
                 
-                // 2. Bureau Reports - Cover all providers
-                var providers = new[] { CreditBureauProvider.CreditRegistry, CreditBureauProvider.FirstCentral, CreditBureauProvider.CRC };
-                var providerIndex = _random.Next(providers.Length);
-                var provider = providers[providerIndex];
+                // 2. Bureau Reports - Use SmartComply (current provider after migration)
+                var provider = CreditBureauProvider.SmartComply;
                 
                 var bureauReportResult = BureauReport.Create(
                     provider, SubjectType.Individual, party.FullName,
-                    party.BVN, users.CreditOfficer.Id, consentResult.Value.Id, app.Id);
+                    party.BVN, users.CreditOfficer.Id, consentResult.Value.Id, app.Id,
+                    taxId: null, partyId: party.Id, partyType: party.PartyType.ToString());
                 
                 if (bureauReportResult.IsSuccess)
                 {
@@ -631,12 +630,16 @@ public static class ComprehensiveDataSeeder
                     var creditScore = _random.Next(450, 850);
                     var grade = creditScore >= 700 ? "A" : creditScore >= 600 ? "B" : creditScore >= 500 ? "C" : "D";
                     
+                    var totalAccounts = _random.Next(3, 10);
+                    var activeLoans = _random.Next(2, totalAccounts);
+                    var performingAccounts = _random.Next(1, activeLoans + 1);
+                    
                     report.CompleteWithData(
-                        $"{provider.ToString()[..2].ToUpper()}{_random.Next(100000, 999999)}", // Registry ID
+                        $"SC{_random.Next(100000, 999999)}", // SmartComply Registry ID
                         creditScore, grade, DateTime.UtcNow.AddDays(-1),
-                        $"{{\"provider\":\"{provider}\",\"status\":\"success\"}}", null,
-                        _random.Next(3, 10), _random.Next(2, 8), _random.Next(0, 3), _random.Next(0, 3),
-                        _random.Next(10000000, 50000000), _random.Next(50000000, 100000000),
+                        $"{{\"provider\":\"SmartComply\",\"status\":\"success\"}}", null,
+                        totalAccounts, activeLoans, performingAccounts, _random.Next(0, 3), _random.Next(0, 3),
+                        _random.Next(10000000, 50000000), _random.Next(0, 5000000), _random.Next(50000000, 100000000),
                         _random.Next(0, 60), _random.Next(10) == 0);
                     
                     // Add multiple bureau accounts with different statuses
@@ -673,6 +676,57 @@ public static class ComprehensiveDataSeeder
                         report.AddScoreFactor(factor);
                     }
                     
+                    // Add fraud check results (SmartComply integration)
+                    var fraudScore = _random.Next(15, 85);
+                    var fraudRecommendation = fraudScore < 30 ? "Low Risk - Approve" 
+                        : fraudScore < 60 ? "Medium Risk - Review Required" 
+                        : "High Risk - Manual Review";
+                    report.RecordFraudCheckResults(fraudScore, fraudRecommendation, 
+                        $"{{\"fraudRiskScore\":{fraudScore},\"recommendation\":\"{fraudRecommendation}\"}}");
+                    
+                    await context.BureauReports.AddAsync(report);
+                }
+            }
+        }
+
+        // 2b. Business Consent Record (for corporate entity credit check using RC number)
+        // RC number is stored in NIN field (repurposed for business identifier)
+        if (!string.IsNullOrEmpty(app.RegistrationNumber))
+        {
+            var businessConsentResult = ConsentRecord.Create(
+                app.CustomerName, null, ConsentType.CreditBureauCheck,
+                "Corporate credit assessment for loan application",
+                "The company hereby authorizes the bank to obtain its credit report from any licensed credit bureau in Nigeria.",
+                "1.0", ConsentCaptureMethod.Digital, users.LoanOfficer.Id, users.LoanOfficer.FullName,
+                app.Id, nin: app.RegistrationNumber, null, null, null, "192.168.1.100", "Mozilla/5.0");
+
+            if (businessConsentResult.IsSuccess)
+            {
+                await context.ConsentRecords.AddAsync(businessConsentResult.Value);
+
+                // Business Bureau Report
+                var provider = CreditBureauProvider.SmartComply;
+                var businessReportResult = BureauReport.Create(
+                    provider, SubjectType.Business, app.CustomerName,
+                    null, users.CreditOfficer.Id, businessConsentResult.Value.Id, app.Id,
+                    taxId: app.RegistrationNumber, partyId: null, partyType: "Business");
+
+                if (businessReportResult.IsSuccess)
+                {
+                    var report = businessReportResult.Value;
+                    var totalAccounts = _random.Next(5, 15);
+                    var activeLoans = _random.Next(3, totalAccounts);
+                    var performingAccounts = _random.Next(2, activeLoans + 1);
+
+                    report.CompleteWithData(
+                        $"SC{_random.Next(100000, 999999)}",
+                        null, null, DateTime.UtcNow.AddDays(-1),
+                        $"{{\"provider\":\"{provider}\",\"status\":\"success\",\"businessName\":\"{app.CustomerName}\"}}",
+                        null, totalAccounts, activeLoans, performingAccounts,
+                        _random.Next(0, 2), _random.Next(0, 2),
+                        _random.Next(100000000, 500000000), _random.Next(0, 10000000),
+                        _random.Next(200000000, 800000000), _random.Next(0, 30), false);
+
                     await context.BureauReports.AddAsync(report);
                 }
             }

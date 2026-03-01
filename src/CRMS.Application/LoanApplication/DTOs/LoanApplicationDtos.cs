@@ -10,6 +10,7 @@ public record LoanApplicationDto(
     string AccountNumber,
     string CustomerId,
     string CustomerName,
+    string? RegistrationNumber,
     decimal RequestedAmount,
     string Currency,
     int RequestedTenorMonths,
@@ -29,7 +30,8 @@ public record LoanApplicationDto(
     DateTime CreatedAt,
     DateTime? ModifiedAt,
     List<LoanApplicationDocumentDto> Documents,
-    List<LoanApplicationPartyDto> Parties
+    List<LoanApplicationPartyDto> Parties,
+    DateTime? IncorporationDate = null
 );
 
 public record LoanApplicationSummaryDto(

@@ -13,10 +13,12 @@ public record BureauReportDto(
     string? ScoreGrade,
     DateTime? ReportDate,
     int TotalAccounts,
+    int ActiveLoans,
     int PerformingAccounts,
     int NonPerformingAccounts,
     int ClosedAccounts,
     decimal TotalOutstandingBalance,
+    decimal TotalOverdue,
     decimal TotalCreditLimit,
     int MaxDelinquencyDays,
     bool HasLegalActions,
@@ -24,6 +26,12 @@ public record BureauReportDto(
     DateTime RequestedAt,
     DateTime? CompletedAt,
     string? ErrorMessage,
+    // Fraud check results (SmartComply)
+    int? FraudRiskScore,
+    string? FraudRecommendation,
+    // Party linkage
+    Guid? PartyId,
+    string? PartyType,
     List<BureauAccountDto> Accounts,
     List<BureauScoreFactorDto> ScoreFactors
 );
@@ -31,10 +39,22 @@ public record BureauReportDto(
 public record BureauReportSummaryDto(
     Guid Id,
     string Provider,
+    string SubjectType,
     string SubjectName,
     string Status,
     int? CreditScore,
     string? ScoreGrade,
+    int ActiveLoans,
+    decimal TotalOutstandingBalance,
+    decimal TotalOverdue,
+    int MaxDelinquencyDays,
+    bool HasLegalActions,
+    // Fraud check results (SmartComply)
+    int? FraudRiskScore,
+    string? FraudRecommendation,
+    // Party linkage
+    Guid? PartyId,
+    string? PartyType,
     DateTime RequestedAt,
     DateTime? CompletedAt
 );

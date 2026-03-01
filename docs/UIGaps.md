@@ -1,8 +1,8 @@
 # CRMS Intranet UI - Gap Analysis
 
-**Document Version:** 3.2
-**Date:** 2026-02-21
-**Status:** Priority 1 RESOLVED | Priority 2 Partially Resolved | Priority 3 Pending
+**Document Version:** 3.4
+**Date:** 2026-03-01
+**Status:** Priority 1 RESOLVED | Priority 2 RESOLVED | Priority 3 Pending
 
 ---
 
@@ -139,24 +139,43 @@ Business age-based validation now implemented:
 
 **Note on status display:** The domain creates documents with `DocumentStatus.Uploaded` but the UI displays this as "Pending" (via `FormatStatus()` in `DocumentsTab.razor`). Both "Uploaded" and "Pending" strings trigger the verify/reject buttons.
 
-### 2.4 Credit Bureau Checks - ⏸️ On Hold
+### 2.4 Credit Bureau Checks - ✅ Complete
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| List bureau reports | ⚠️ Mock | Shows sample data |
-| Request check | ⏸️ On Hold | Pending credit bureau provider decision |
-| View report detail | ❌ Pending | No modal |
+| List bureau reports | ✅ Done | Fetches real data from DB; grouped by party type |
+| Business credit reports | ✅ Done | Separate section with distinct styling |
+| Fraud risk display | ✅ Done | Color-coded badges (Low/Medium/High) |
+| Party grouping | ✅ Done | Directors, Signatories, Guarantors in separate sections |
+| New metrics | ✅ Done | Total Overdue, Max Delinquency Days, Provider name |
+| Failed check indicator | ✅ Done | Shows "Check Failed" badge for failed reports |
+| Request check | ⏸️ On Hold | Manual re-check button not yet implemented |
+| View report detail | ❌ Pending | No detail modal (click to expand) |
 
-### 2.5 Directors/Signatories Management - ✅ No Action Required
+### 2.5 Directors/Signatories Management - ✅ Core Complete
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | List parties | ✅ Done | PartiesTab displays directors and signatories |
 | Add director/signatory | N/A — Not needed | Auto-fetched from core banking at application creation |
-| Edit director/signatory | N/A — Not needed | Core banking data is read-only in the UI |
+| Fill null BVN / shareholding % | ✅ Done | `FillPartyInfoModal` — shows only missing fields; Draft status only |
 | Run bureau check | ⏸️ On Hold | Pending credit bureau provider decision |
 
-**Confirmed (2026-02-20):** `InitiateCorporateLoanCommand` automatically calls `GetDirectorsAsync(customer.CustomerId)` and `GetSignatoriesAsync(accountNumber)` at application creation, populating all parties as `LoanApplicationParty` records. No "Add Director" or "Add Signatory" modals are needed — the PartiesTab is intentionally read-only.
+**Confirmed (2026-02-20):** `InitiateCorporateLoanCommand` automatically calls `GetDirectorsAsync(customer.CustomerId)` and `GetSignatoriesAsync(accountNumber)` at application creation, populating all parties as `LoanApplicationParty` records. No "Add Director" or "Add Signatory" modals are needed — the PartiesTab is intentionally read-only for structure.
+
+**Added (2026-03-01):** When core banking returns null BVN or shareholding %, a "Complete info" warning button appears in the row (Draft only). `FillPartyInfoModal` collects only the null fields and calls `UpdatePartyInfoAsync`.
+
+### 2.6 Bank Statement Management - ✅ Complete
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Auto-fetch on application create | ✅ Done | `InitiateCorporateLoanCommand` persists CoreBanking statement (6-month) on create |
+| View own-bank statement | ✅ Done | `StatementsTab` — Own Bank section with trust badge, cashflow metrics |
+| Upload external statement | ✅ Done | `UploadExternalStatementModal` — bank name, account, period, balances |
+| Verify external statement | ✅ Done | Inline button; calls `VerifyStatementAsync`; trust weight → 85% |
+| Reject external statement | ✅ Done | Reason modal; calls `RejectStatementAsync` |
+| Trigger cashflow analysis | ✅ Done | "Analyze" button per statement; calls `AnalyzeStatementAsync` |
+| Cashflow metrics display | ✅ Done | Credits, Debits, Avg Balance, Net Cashflow, Bounced/Gambling tx counts |
 
 ---
 
@@ -276,7 +295,7 @@ Business age-based validation now implemented:
 3. ~~Guarantor approve/reject workflow UI~~ ✅ Done
 4. ~~Directors/Signatories CRUD~~ N/A — auto-fetched from core banking
 5. ~~Collateral document upload/view/delete~~ ✅ Done
-6. Credit bureau check UI (⏸️ on hold)
+6. ~~Credit bureau check UI~~ ✅ Done (SmartComply integration)
 
 ### Priority 3 (Admin & Reports)
 1. User management CRUD (create, edit, deactivate)
@@ -296,3 +315,5 @@ Business age-based validation now implemented:
 | 3.0 | 2026-02-20 | Priority 2 partial: Document verify/reject fully wired; collateral set-valuation modal and approve confirmation added; directors/signatories confirmed N/A (auto-fetched from core banking); credit bureau on hold |
 | 3.1 | 2026-02-21 | Guarantor approve/reject fully wired (`ApproveGuarantorAsync`, `RejectGuarantorAsync` in ApplicationService; GuarantorsTab updated; Detail.razor approve confirmation + reject reason modals; DI registrations confirmed; build clean) |
 | 3.2 | 2026-02-21 | Collateral document management complete: `ICollateralDocumentRepository`, upload/delete handlers, `UploadCollateralDocumentModal.razor`, `ViewCollateralModal` DOCUMENTS section with view/download/delete + confirmation dialog, API endpoints for view/download, delete removes both DB record and file |
+| 3.3 | 2026-03-01 | Credit Bureau UI complete: SmartComply integration wired to UI; `BureauTab.razor` redesigned with business reports section, party grouping (Directors/Signatories/Guarantors), fraud risk badges (Low/Medium/High), new metrics (TotalOverdue, MaxDelinquencyDays, Provider); `ApplicationService.GetBureauReportsAsync()` fetches real data; `BureauReportInfo` model updated with new fields |
+| 3.4 | 2026-03-01 | Bank Statement auto-fetch + UI complete: `InitiateCorporateLoanCommand` now persists CoreBanking statement on create. New `StatementsTab.razor` (Own Bank + Other Banks), `UploadExternalStatementModal.razor`, `FillPartyInfoModal.razor`. `ApplicationService` + 7 new methods. `LoanApplication.IncorporationDate` + `UpdatePartyFields()`. `UpdatePartyInfoCommand`. Party null-field "Complete info" button in PartiesTab. New.razor uses real `FetchCorporateDataAsync()` with editable override fields. Migration `20260301170000_AddIncorporationDateToLoanApplication`. Build: 0 errors. |

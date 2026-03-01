@@ -1,4 +1,4 @@
-
+@using CRMS.Web.Intranet.Models
 
 <div class="card">
     <div class="card-header">
@@ -13,57 +13,157 @@
                     <span class="material-symbols-outlined">fact_check</span>
                 </div>
                 <div class="empty-state-title">No bureau reports available</div>
-                <div class="empty-state-text">Request credit bureau checks from the Directors & Signatories tab.</div>
+                <div class="empty-state-text">Credit bureau checks are automatically triggered after branch approval.</div>
             </div>
         }
         else
         {
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: var(--space-4); padding: var(--space-4);">
-                @foreach (var report in Reports)
-                {
-                    <div class="bureau-card">
-                        <div class="bureau-card-header">
-                            <div>
-                                <div style="font-weight: 600;">@report.SubjectName</div>
-                                <div style="font-size: var(--text-xs); color: var(--gray-500);">@report.SubjectType</div>
+            @* Business Credit Reports Section *@
+            @if (BusinessReports.Any())
+            {
+                <div style="padding: var(--space-4); border-bottom: 1px solid var(--gray-200);">
+                    <h4 style="margin: 0 0 var(--space-3) 0; font-size: var(--text-sm); font-weight: 600; color: var(--gray-700);">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">business</span>
+                        Business Credit Report
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: var(--space-4);">
+                        @foreach (var report in BusinessReports)
+                        {
+                            <div class="bureau-card bureau-card-business">
+                                <div class="bureau-card-header">
+                                    <div>
+                                        <div style="font-weight: 600;">@report.SubjectName</div>
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">Business Entity</div>
+                                    </div>
+                                    <div class="bureau-score @GetScoreClass(report.CreditScore)">
+                                        @(report.CreditScore?.ToString() ?? "N/A")
+                                    </div>
+                                </div>
+                                <div class="bureau-card-body">
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Rating</span>
+                                        <span class="badge @GetRatingBadgeClass(report.Rating)">@report.Rating</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Active Facilities</span>
+                                        <span class="bureau-stat-value">@report.ActiveLoans</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Total Exposure</span>
+                                        <span class="bureau-stat-value">₦@FormatAmount(report.TotalExposure)</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Total Overdue</span>
+                                        <span class="bureau-stat-value @(report.TotalOverdue > 0 ? "text-danger" : "")">₦@FormatAmount(report.TotalOverdue)</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Max Delinquency</span>
+                                        <span class="bureau-stat-value @(report.MaxDelinquencyDays > 0 ? "text-danger" : "")">@report.MaxDelinquencyDays days</span>
+                                    </div>
+                                    @if (report.FraudRiskScore.HasValue)
+                                    {
+                                        <div class="bureau-stat">
+                                            <span class="bureau-stat-label">Fraud Risk</span>
+                                            <span class="badge @GetFraudBadgeClass(report.FraudRiskScore)">
+                                                @GetFraudRiskLabel(report.FraudRiskScore, report.FraudRecommendation)
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="bureau-card-footer">
+                                    @if (report.HasLegalIssues)
+                                    {
+                                        <span class="badge badge-danger">
+                                            <span class="material-symbols-outlined" style="font-size: 14px;">gavel</span>
+                                            Legal Issues
+                                        </span>
+                                    }
+                                    <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: auto;">
+                                        @report.Provider | @report.ReportDate.ToString("MMM dd, yyyy")
+                                    </span>
+                                </div>
                             </div>
-                            <div class="bureau-score @GetScoreClass(report.CreditScore)">
-                                @(report.CreditScore?.ToString() ?? "N/A")
-                            </div>
-                        </div>
-                        <div class="bureau-card-body">
-                            <div class="bureau-stat">
-                                <span class="bureau-stat-label">Rating</span>
-                                <span class="badge @GetRatingBadgeClass(report.Rating)">@report.Rating</span>
-                            </div>
-                            <div class="bureau-stat">
-                                <span class="bureau-stat-label">Active Loans</span>
-                                <span class="bureau-stat-value">@report.ActiveLoans</span>
-                            </div>
-                            <div class="bureau-stat">
-                                <span class="bureau-stat-label">Total Exposure</span>
-                                <span class="bureau-stat-value">₦@FormatAmount(report.TotalExposure)</span>
-                            </div>
-                            <div class="bureau-stat">
-                                <span class="bureau-stat-label">Delinquencies</span>
-                                <span class="bureau-stat-value @(report.DelinquencyCount > 0 ? "text-danger" : "")">@report.DelinquencyCount</span>
-                            </div>
-                        </div>
-                        <div class="bureau-card-footer">
-                            @if (report.HasLegalIssues)
-                            {
-                                <span class="badge badge-danger">
-                                    <span class="material-symbols-outlined" style="font-size: 14px;">warning</span>
-                                    Legal Issues
-                                </span>
-                            }
-                            <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: auto;">
-                                Report date: @report.ReportDate.ToString("MMM dd, yyyy")
-                            </span>
-                        </div>
+                        }
                     </div>
-                }
-            </div>
+                </div>
+            }
+
+            @* Individual Credit Reports by Party Type *@
+            @foreach (var group in IndividualReportsByType)
+            {
+                <div style="padding: var(--space-4); @(group.Key != IndividualReportsByType.Last().Key ? "border-bottom: 1px solid var(--gray-200);" : "")">
+                    <h4 style="margin: 0 0 var(--space-3) 0; font-size: var(--text-sm); font-weight: 600; color: var(--gray-700);">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">@GetPartyTypeIcon(group.Key)</span>
+                        @FormatPartyType(group.Key) (@group.Value.Count)
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: var(--space-4);">
+                        @foreach (var report in group.Value)
+                        {
+                            <div class="bureau-card">
+                                <div class="bureau-card-header">
+                                    <div>
+                                        <div style="font-weight: 600;">@report.SubjectName</div>
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">@FormatSubjectType(report.SubjectType)</div>
+                                    </div>
+                                    <div class="bureau-score @GetScoreClass(report.CreditScore)">
+                                        @(report.CreditScore?.ToString() ?? "N/A")
+                                    </div>
+                                </div>
+                                <div class="bureau-card-body">
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Rating</span>
+                                        <span class="badge @GetRatingBadgeClass(report.Rating)">@report.Rating</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Active Loans</span>
+                                        <span class="bureau-stat-value">@report.ActiveLoans</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Total Exposure</span>
+                                        <span class="bureau-stat-value">₦@FormatAmount(report.TotalExposure)</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Total Overdue</span>
+                                        <span class="bureau-stat-value @(report.TotalOverdue > 0 ? "text-danger" : "")">₦@FormatAmount(report.TotalOverdue)</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Max Delinquency</span>
+                                        <span class="bureau-stat-value @(report.MaxDelinquencyDays > 0 ? "text-danger" : "")">@report.MaxDelinquencyDays days</span>
+                                    </div>
+                                    @if (report.FraudRiskScore.HasValue)
+                                    {
+                                        <div class="bureau-stat">
+                                            <span class="bureau-stat-label">Fraud Risk</span>
+                                            <span class="badge @GetFraudBadgeClass(report.FraudRiskScore)">
+                                                @GetFraudRiskLabel(report.FraudRiskScore, report.FraudRecommendation)
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="bureau-card-footer">
+                                    @if (report.HasLegalIssues)
+                                    {
+                                        <span class="badge badge-danger">
+                                            <span class="material-symbols-outlined" style="font-size: 14px;">gavel</span>
+                                            Legal Issues
+                                        </span>
+                                    }
+                                    @if (report.Status == "Failed")
+                                    {
+                                        <span class="badge badge-warning">
+                                            <span class="material-symbols-outlined" style="font-size: 14px;">error</span>
+                                            Check Failed
+                                        </span>
+                                    }
+                                    <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: auto;">
+                                        @report.Provider | @report.ReportDate.ToString("MMM dd, yyyy")
+                                    </span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
         }
     </div>
 </div>
@@ -75,6 +175,11 @@
         overflow: hidden;
     }
     
+    .bureau-card-business {
+        border-color: var(--primary-200);
+        background: linear-gradient(to bottom, var(--primary-50), white);
+    }
+    
     .bureau-card-header {
         display: flex;
         justify-content: space-between;
@@ -82,6 +187,11 @@
         padding: var(--space-4);
         background: var(--gray-50);
         border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .bureau-card-business .bureau-card-header {
+        background: var(--primary-50);
+        border-bottom-color: var(--primary-100);
     }
     
     .bureau-score {
@@ -100,6 +210,7 @@
     .bureau-score.good { background: #22c55e; }
     .bureau-score.fair { background: var(--warning-500); }
     .bureau-score.poor { background: var(--danger-500); }
+    .bureau-score:not(.excellent):not(.good):not(.fair):not(.poor) { background: var(--gray-400); }
     
     .bureau-card-body {
         padding: var(--space-4);
@@ -126,14 +237,70 @@
     .bureau-card-footer {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
+        gap: var(--space-2);
         padding: var(--space-3) var(--space-4);
         background: var(--gray-50);
         border-top: 1px solid var(--gray-100);
     }
+    
+    .bureau-card-business .bureau-card-footer {
+        background: var(--primary-50);
+        border-top-color: var(--primary-100);
+    }
+    
+    .text-danger {
+        color: var(--danger-600) !important;
+    }
+    
+    .badge-fraud-low { background: var(--success-100); color: var(--success-700); }
+    .badge-fraud-medium { background: var(--warning-100); color: var(--warning-700); }
+    .badge-fraud-high { background: var(--danger-100); color: var(--danger-700); }
 </style>
 
 @code {
     [Parameter] public List<BureauReportInfo> Reports { get; set; } = [];
+
+    private List<BureauReportInfo> BusinessReports => Reports
+        .Where(r => r.SubjectType == "Business" || r.PartyType == "Business")
+        .ToList();
+
+    private Dictionary<string, List<BureauReportInfo>> IndividualReportsByType => Reports
+        .Where(r => r.SubjectType != "Business" && r.PartyType != "Business")
+        .GroupBy(r => r.PartyType ?? r.SubjectType ?? "Unknown")
+        .OrderBy(g => GetPartyTypeOrder(g.Key))
+        .ToDictionary(g => g.Key, g => g.ToList());
+
+    private static int GetPartyTypeOrder(string partyType) => partyType switch
+    {
+        "Director" => 1,
+        "Signatory" => 2,
+        "Guarantor" => 3,
+        _ => 99
+    };
+
+    private static string GetPartyTypeIcon(string partyType) => partyType switch
+    {
+        "Director" => "supervisor_account",
+        "Signatory" => "draw",
+        "Guarantor" => "shield_person",
+        _ => "person"
+    };
+
+    private static string FormatPartyType(string partyType) => partyType switch
+    {
+        "Director" => "Directors",
+        "Signatory" => "Signatories",
+        "Guarantor" => "Guarantors",
+        _ => partyType
+    };
+
+    private static string FormatSubjectType(string subjectType) => subjectType switch
+    {
+        "Individual" => "Individual",
+        "Business" => "Business Entity",
+        _ => subjectType
+    };
 
     private static string GetScoreClass(int? score)
     {
@@ -155,6 +322,30 @@
         "Poor" => "badge-danger",
         _ => "badge-gray"
     };
+
+    private static string GetFraudBadgeClass(int? score)
+    {
+        if (!score.HasValue) return "badge-gray";
+        return score.Value switch
+        {
+            <= 30 => "badge-fraud-low",
+            <= 60 => "badge-fraud-medium",
+            _ => "badge-fraud-high"
+        };
+    }
+
+    private static string GetFraudRiskLabel(int? score, string? recommendation)
+    {
+        if (!string.IsNullOrEmpty(recommendation))
+            return recommendation;
+        if (!score.HasValue) return "N/A";
+        return score.Value switch
+        {
+            <= 30 => "Low Risk",
+            <= 60 => "Medium Risk",
+            _ => "High Risk"
+        };
+    }
 
     private static string FormatAmount(decimal amount)
     {

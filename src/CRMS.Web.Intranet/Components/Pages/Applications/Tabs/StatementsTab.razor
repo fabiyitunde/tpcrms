@@ -1,0 +1,246 @@
+@using CRMS.Web.Intranet.Models
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h3 class="card-title">
+            <span class="material-symbols-outlined" style="font-size: 20px; vertical-align: middle; margin-right: var(--space-2);">account_balance</span>
+            Own Bank Statement
+        </h3>
+        <span class="badge badge-primary">Internal</span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        @{
+            var internal_ = Statements.FirstOrDefault(s => s.IsInternal);
+        }
+        @if (internal_ == null)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">receipt_long</span>
+                </div>
+                <div class="empty-state-title">No internal statement</div>
+                <div class="empty-state-text">The 6-month bank statement will be auto-fetched from core banking when the application is created.</div>
+            </div>
+        }
+        else
+        {
+            <div style="padding: var(--space-4);">
+                <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3);">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600;">@internal_.BankName</div>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500);">@internal_.AccountNumber • @internal_.AccountName</div>
+                    </div>
+                    @TrustBadge(internal_.TrustWeight, internal_.IsInternal)
+                    @AnalysisBadge(internal_.AnalysisStatus)
+                    @if (internal_.AnalysisStatus == "Pending")
+                    {
+                        <button class="btn btn-sm btn-outline" @onclick="() => OnAnalyze.InvokeAsync(internal_.Id)" title="Run cashflow analysis">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">analytics</span>
+                            Analyze
+                        </button>
+                    }
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-3);">
+                    <div class="stat-box">
+                        <span class="stat-label">Period</span>
+                        <span class="stat-value">@internal_.PeriodStart.ToString("MMM yyyy") – @internal_.PeriodEnd.ToString("MMM yyyy")</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Months Covered</span>
+                        <span class="stat-value">@internal_.MonthsCovered months</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Transactions</span>
+                        <span class="stat-value">@internal_.TransactionCount</span>
+                    </div>
+                    @if (internal_.TotalCredits.HasValue)
+                    {
+                        <div class="stat-box">
+                            <span class="stat-label">Total Credits</span>
+                            <span class="stat-value" style="color: var(--success-600);">₦@FormatAmount(internal_.TotalCredits.Value)</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Total Debits</span>
+                            <span class="stat-value" style="color: var(--danger-600);">₦@FormatAmount(internal_.TotalDebits ?? 0)</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Avg Monthly Balance</span>
+                            <span class="stat-value">₦@FormatAmount(internal_.AverageMonthlyBalance ?? 0)</span>
+                        </div>
+                        @if (internal_.BouncedTransactions.HasValue)
+                        {
+                            <div class="stat-box">
+                                <span class="stat-label">Bounced</span>
+                                <span class="stat-value @(internal_.BouncedTransactions > 0 ? "text-danger" : "")">@internal_.BouncedTransactions</span>
+                            </div>
+                        }
+                        @if (internal_.GamblingTransactions.HasValue)
+                        {
+                            <div class="stat-box">
+                                <span class="stat-label">Gambling Txns</span>
+                                <span class="stat-value @(internal_.GamblingTransactions > 0 ? "text-danger" : "")">@internal_.GamblingTransactions</span>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <span class="material-symbols-outlined" style="font-size: 20px; vertical-align: middle; margin-right: var(--space-2);">account_balance_wallet</span>
+            Other Bank Statements
+        </h3>
+        @if (IsEditable)
+        {
+            <button class="btn btn-sm btn-primary" @onclick="OnUpload">
+                <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+                Upload Statement
+            </button>
+        }
+    </div>
+    <div class="card-body" style="padding: 0;">
+        @{
+            var externals = Statements.Where(s => !s.IsInternal).ToList();
+        }
+        @if (!externals.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <span class="material-symbols-outlined">library_add</span>
+                </div>
+                <div class="empty-state-title">No external statements</div>
+                <div class="empty-state-text">External statements from other banks strengthen the credit analysis. Adding verified external statements increases confidence.</div>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Bank / Account</th>
+                        <th>Period</th>
+                        <th>Trust</th>
+                        <th>Verification</th>
+                        <th>Analysis</th>
+                        <th>Txns</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var stmt in externals)
+                    {
+                        <tr>
+                            <td>
+                                <div style="font-weight: 500;">@stmt.BankName</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">@stmt.AccountNumber</div>
+                            </td>
+                            <td>
+                                <div>@stmt.PeriodStart.ToString("MMM yyyy") – @stmt.PeriodEnd.ToString("MMM yyyy")</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">@stmt.MonthsCovered months</div>
+                            </td>
+                            <td>@TrustBadge(stmt.TrustWeight, stmt.IsInternal)</td>
+                            <td>@VerificationBadge(stmt.VerificationStatus)</td>
+                            <td>@AnalysisBadge(stmt.AnalysisStatus)</td>
+                            <td>@stmt.TransactionCount</td>
+                            <td>
+                                <div style="display: flex; gap: var(--space-2);">
+                                    @if (stmt.VerificationStatus == "Pending")
+                                    {
+                                        <button class="btn btn-sm btn-success" @onclick="() => OnVerify.InvokeAsync(stmt.Id)" title="Verify">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">check</span>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" @onclick="() => OnReject.InvokeAsync(stmt.Id)" title="Reject">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                                        </button>
+                                    }
+                                    @if (stmt.AnalysisStatus == "Pending" && stmt.VerificationStatus != "Rejected")
+                                    {
+                                        <button class="btn btn-sm btn-outline" @onclick="() => OnAnalyze.InvokeAsync(stmt.Id)" title="Analyze">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">analytics</span>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<BankStatementInfo> Statements { get; set; } = [];
+    [Parameter] public bool IsEditable { get; set; }
+    [Parameter] public EventCallback OnUpload { get; set; }
+    [Parameter] public EventCallback<Guid> OnVerify { get; set; }
+    [Parameter] public EventCallback<Guid> OnReject { get; set; }
+    [Parameter] public EventCallback<Guid> OnAnalyze { get; set; }
+
+    private static string FormatAmount(decimal amount) =>
+        amount >= 1_000_000_000 ? $"{amount / 1_000_000_000:N2}B"
+        : amount >= 1_000_000 ? $"{amount / 1_000_000:N2}M"
+        : amount >= 1_000 ? $"{amount / 1_000:N2}K"
+        : amount.ToString("N0");
+
+    private RenderFragment TrustBadge(decimal weight, bool isInternal) => __builder =>
+    {
+        if (isInternal)
+        {
+            __builder.OpenElement(0, "span");
+            __builder.AddAttribute(1, "class", "badge badge-success");
+            __builder.AddAttribute(2, "title", "Internal statement — highest trust");
+            __builder.AddContent(3, "Internal 100%");
+            __builder.CloseElement();
+        }
+        else if (weight >= 0.85m)
+        {
+            __builder.OpenElement(0, "span");
+            __builder.AddAttribute(1, "class", "badge badge-primary");
+            __builder.AddAttribute(2, "title", "Verified external statement");
+            __builder.AddContent(3, $"Verified {weight:P0}");
+            __builder.CloseElement();
+        }
+        else
+        {
+            __builder.OpenElement(0, "span");
+            __builder.AddAttribute(1, "class", "badge badge-warning");
+            __builder.AddAttribute(2, "title", "Unverified external statement — pending review");
+            __builder.AddContent(3, $"Unverified {weight:P0}");
+            __builder.CloseElement();
+        }
+    };
+
+    private RenderFragment VerificationBadge(string status) => __builder =>
+    {
+        var (cls, label) = status switch
+        {
+            "Verified" => ("badge-success", "Verified"),
+            "Rejected" => ("badge-danger", "Rejected"),
+            _ => ("badge-warning", "Pending Review")
+        };
+        __builder.OpenElement(0, "span");
+        __builder.AddAttribute(1, "class", $"badge {cls}");
+        __builder.AddContent(2, label);
+        __builder.CloseElement();
+    };
+
+    private RenderFragment AnalysisBadge(string status) => __builder =>
+    {
+        var (cls, label) = status switch
+        {
+            "Completed" => ("badge-success", "✓ Analyzed"),
+            "Processing" => ("badge-primary", "Processing…"),
+            "Failed" => ("badge-danger", "Failed"),
+            _ => ("badge-gray", "Pending")
+        };
+        __builder.OpenElement(0, "span");
+        __builder.AddAttribute(1, "class", $"badge {cls}");
+        __builder.AddContent(2, label);
+        __builder.CloseElement();
+    };
+}

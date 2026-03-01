@@ -23,12 +23,22 @@ public record BankStatementDto(
 public record BankStatementSummaryDto(
     Guid Id,
     string AccountNumber,
+    string AccountName,
     string BankName,
     DateTime PeriodStart,
     DateTime PeriodEnd,
+    decimal OpeningBalance,
+    decimal ClosingBalance,
+    string Source,
     string AnalysisStatus,
+    string VerificationStatus,
+    decimal TrustWeight,
+    bool IsInternal,
+    int MonthsCovered,
     int TransactionCount,
-    DateTime CreatedAt
+    string? OriginalFileName,
+    DateTime CreatedAt,
+    CashflowSummaryDto? CashflowSummary
 );
 
 public record StatementTransactionDto(

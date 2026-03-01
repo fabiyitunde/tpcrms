@@ -72,8 +72,9 @@ public class ConsentRecord : AggregateRoot
         if (string.IsNullOrWhiteSpace(consentText))
             return Result.Failure<ConsentRecord>("Consent text is required");
 
-        if (consentType == ConsentType.CreditBureauCheck && string.IsNullOrWhiteSpace(bvn))
-            return Result.Failure<ConsentRecord>("BVN is required for credit bureau consent");
+        // For credit bureau consent, require at least one identifier (BVN for individuals, or will use NIN field for RC number for business)
+        if (consentType == ConsentType.CreditBureauCheck && string.IsNullOrWhiteSpace(bvn) && string.IsNullOrWhiteSpace(nin))
+            return Result.Failure<ConsentRecord>("BVN or business identifier is required for credit bureau consent");
 
         var consent = new ConsentRecord
         {

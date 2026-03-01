@@ -19,10 +19,11 @@ public class ConsentRecordRepository : IConsentRecordRepository
         return await _context.ConsentRecords.FirstOrDefaultAsync(c => c.Id == id, ct);
     }
 
-    public async Task<ConsentRecord?> GetValidConsentAsync(string bvn, ConsentType consentType, CancellationToken ct = default)
+    public async Task<ConsentRecord?> GetValidConsentAsync(string subjectIdentifier, ConsentType consentType, CancellationToken ct = default)
     {
+        // Search both BVN (individuals) and NIN (business RC numbers) fields
         return await _context.ConsentRecords
-            .Where(c => c.BVN == bvn 
+            .Where(c => (c.BVN == subjectIdentifier || c.NIN == subjectIdentifier)
                      && c.ConsentType == consentType 
                      && c.Status == ConsentStatus.Active
                      && c.ExpiresAt > DateTime.UtcNow)

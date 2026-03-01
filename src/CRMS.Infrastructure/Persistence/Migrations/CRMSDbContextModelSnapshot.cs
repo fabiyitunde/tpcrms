@@ -1292,6 +1292,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<int>("ActiveLoans")
+                        .HasColumnType("int");
+
                     b.Property<string>("BVN")
                         .HasMaxLength(11)
                         .HasColumnType("varchar(11)");
@@ -1319,6 +1322,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)");
 
+                    b.Property<string>("FraudCheckRawJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("FraudRecommendation")
+                        .HasColumnType("longtext");
+
+                    b.Property<int?>("FraudRiskScore")
+                        .HasColumnType("int");
+
                     b.Property<bool>("HasLegalActions")
                         .HasColumnType("tinyint(1)");
 
@@ -1336,6 +1348,13 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("NonPerformingAccounts")
                         .HasColumnType("int");
+
+                    b.Property<Guid?>("PartyId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("PartyType")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
 
                     b.Property<string>("PdfReportBase64")
                         .HasColumnType("LONGTEXT");
@@ -1402,11 +1421,16 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal>("TotalOverdue")
+                        .HasColumnType("decimal(65,30)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BVN");
 
                     b.HasIndex("LoanApplicationId");
+
+                    b.HasIndex("PartyId");
 
                     b.HasIndex("RequestReference");
 
@@ -2234,13 +2258,20 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
+                    b.Property<string>("RegistrationNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("IncorporationDate")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<int>("RequestedTenorMonths")
                         .HasColumnType("int");
 
                     b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("BLOB");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("BLOB")
+                        .HasDefaultValue(new byte[] { 0 });
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -3389,9 +3420,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("BLOB");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("BLOB")
+                        .HasDefaultValue(new byte[] { 0 });
 
                     b.Property<DateTime?>("SLADueAt")
                         .HasColumnType("datetime(6)");

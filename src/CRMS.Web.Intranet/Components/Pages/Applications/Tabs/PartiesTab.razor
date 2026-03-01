@@ -48,19 +48,28 @@
                                     }
                                 </td>
                                 <td>
-                                    @if (!director.HasBureauReport)
-                                    {
-                                        <button class="btn btn-ghost btn-sm" @onclick="() => OnRequestBureauCheck.InvokeAsync(director.Id)">
-                                            <span class="material-symbols-outlined" style="font-size: 16px;">search</span>
-                                            Check
-                                        </button>
-                                    }
-                                    else
-                                    {
-                                        <button class="btn btn-ghost btn-sm">
-                                            <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
-                                        </button>
-                                    }
+                                    <div style="display: flex; gap: var(--space-2);">
+                                        @if (IsEditable && (string.IsNullOrEmpty(director.RawBVN) || director.ShareholdingPercentage == null))
+                                        {
+                                            <button class="btn btn-warning btn-sm" @onclick="() => OnFillPartyInfo.InvokeAsync(director.Id)" title="Complete missing information">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">edit_note</span>
+                                                Complete info
+                                            </button>
+                                        }
+                                        @if (!director.HasBureauReport)
+                                        {
+                                            <button class="btn btn-ghost btn-sm" @onclick="() => OnRequestBureauCheck.InvokeAsync(director.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">search</span>
+                                                Check
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-ghost btn-sm">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                                            </button>
+                                        }
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -117,19 +126,28 @@
                                     }
                                 </td>
                                 <td>
-                                    @if (!signatory.HasBureauReport)
-                                    {
-                                        <button class="btn btn-ghost btn-sm" @onclick="() => OnRequestBureauCheck.InvokeAsync(signatory.Id)">
-                                            <span class="material-symbols-outlined" style="font-size: 16px;">search</span>
-                                            Check
-                                        </button>
-                                    }
-                                    else
-                                    {
-                                        <button class="btn btn-ghost btn-sm">
-                                            <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
-                                        </button>
-                                    }
+                                    <div style="display: flex; gap: var(--space-2);">
+                                        @if (IsEditable && string.IsNullOrEmpty(signatory.RawBVN))
+                                        {
+                                            <button class="btn btn-warning btn-sm" @onclick="() => OnFillPartyInfo.InvokeAsync(signatory.Id)" title="Complete missing information">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">edit_note</span>
+                                                Complete info
+                                            </button>
+                                        }
+                                        @if (!signatory.HasBureauReport)
+                                        {
+                                            <button class="btn btn-ghost btn-sm" @onclick="() => OnRequestBureauCheck.InvokeAsync(signatory.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">search</span>
+                                                Check
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-ghost btn-sm">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                                            </button>
+                                        }
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -143,7 +161,9 @@
 @code {
     [Parameter] public List<PartyInfo> Directors { get; set; } = [];
     [Parameter] public List<PartyInfo> Signatories { get; set; } = [];
+    [Parameter] public bool IsEditable { get; set; }
     [Parameter] public EventCallback<Guid> OnRequestBureauCheck { get; set; }
+    [Parameter] public EventCallback<Guid> OnFillPartyInfo { get; set; }
 
     private static string GetBureauBadgeClass(string? status) => status switch
     {

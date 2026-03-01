@@ -82,3 +82,61 @@ public class UploadStatementHandler : IRequestHandler<UploadStatementCommand, Ap
         null
     );
 }
+
+public record VerifyStatementCommand(Guid StatementId, Guid VerifiedByUserId, string? Notes) : IRequest<ApplicationResult>;
+
+public class VerifyStatementHandler : IRequestHandler<VerifyStatementCommand, ApplicationResult>
+{
+    private readonly IBankStatementRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public VerifyStatementHandler(IBankStatementRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult> Handle(VerifyStatementCommand request, CancellationToken ct = default)
+    {
+        var statement = await _repository.GetByIdWithTransactionsAsync(request.StatementId, ct);
+        if (statement == null)
+            return ApplicationResult.Failure("Statement not found");
+
+        var result = statement.Verify(request.VerifiedByUserId, request.Notes);
+        if (result.IsFailure)
+            return ApplicationResult.Failure(result.Error);
+
+        _repository.Update(statement);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return ApplicationResult.Success();
+    }
+}
+
+public record RejectStatementCommand(Guid StatementId, Guid RejectedByUserId, string Reason) : IRequest<ApplicationResult>;
+
+public class RejectStatementHandler : IRequestHandler<RejectStatementCommand, ApplicationResult>
+{
+    private readonly IBankStatementRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public RejectStatementHandler(IBankStatementRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult> Handle(RejectStatementCommand request, CancellationToken ct = default)
+    {
+        var statement = await _repository.GetByIdWithTransactionsAsync(request.StatementId, ct);
+        if (statement == null)
+            return ApplicationResult.Failure("Statement not found");
+
+        var result = statement.Reject(request.RejectedByUserId, request.Reason);
+        if (result.IsFailure)
+            return ApplicationResult.Failure(result.Error);
+
+        _repository.Update(statement);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return ApplicationResult.Success();
+    }
+}

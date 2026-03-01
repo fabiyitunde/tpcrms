@@ -4,6 +4,7 @@ using CRMS.Application.Notification.Interfaces;
 using CRMS.Application.Notification.Services;
 using CRMS.Domain.Aggregates.Committee;
 using CRMS.Domain.Aggregates.Configuration;
+using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Aggregates.LoanApplication;
 using CRMS.Domain.Aggregates.Notification;
 using CRMS.Domain.Aggregates.Workflow;
@@ -19,6 +20,7 @@ using CRMS.Infrastructure.ExternalServices.AI;
 using CRMS.Infrastructure.ExternalServices.AIServices;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
 using CRMS.Infrastructure.ExternalServices.CreditBureau;
+using CRMS.Infrastructure.ExternalServices.SmartComply;
 using CRMS.Infrastructure.ExternalServices.Notifications;
 using CRMS.Application.Reporting.Interfaces;
 using CRMS.Infrastructure.Services;
@@ -27,6 +29,8 @@ using CRMS.Infrastructure.Persistence;
 using CRMS.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Polly;
+using Polly.Extensions.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CRMS.Infrastructure;
@@ -57,6 +61,10 @@ public static class DependencyInjection
         services.AddScoped<IDomainEventHandler<ScoringParameterChangeApprovedEvent>, ScoringParameterChangeAuditHandler>();
         services.AddScoped<IDomainEventHandler<LoanApplicationCreatedEvent>, LoanApplicationCreatedAuditHandler>();
         services.AddScoped<IDomainEventHandler<LoanApplicationApprovedEvent>, LoanApplicationApprovedAuditHandler>();
+        // Credit Bureau Audit Handlers (NDPA/CBN compliance)
+        services.AddScoped<IDomainEventHandler<CreditAnalysisStartedEvent>, CreditAnalysisStartedAuditHandler>();
+        services.AddScoped<IDomainEventHandler<BureauReportRequestedEvent>, BureauReportRequestedAuditHandler>();
+        services.AddScoped<IDomainEventHandler<BureauReportCompletedEvent>, BureauReportCompletedAuditHandler>();
         
         // ProductCatalog
         services.AddScoped<ILoanProductRepository, LoanProductRepository>();
@@ -80,7 +88,7 @@ public static class DependencyInjection
         // StatementAnalysis
         services.AddScoped<IBankStatementRepository, BankStatementRepository>();
 
-        // CreditBureau
+        // CreditBureau - Legacy CreditRegistry Provider
         services.AddScoped<IBureauReportRepository, BureauReportRepository>();
         var creditRegistrySection = configuration.GetSection(CreditRegistrySettings.SectionName);
         if (creditRegistrySection.Exists() && !creditRegistrySection.GetValue<bool>("UseMock"))
@@ -91,6 +99,20 @@ public static class DependencyInjection
         else
         {
             services.AddScoped<ICreditBureauProvider, MockCreditBureauProvider>();
+        }
+
+        // SmartComply Provider (new comprehensive credit bureau integration)
+        var smartComplySection = configuration.GetSection(SmartComplySettings.SectionName);
+        if (smartComplySection.Exists() && !smartComplySection.GetValue<bool>("UseMock"))
+        {
+            services.Configure<SmartComplySettings>(smartComplySection);
+            services.AddHttpClient<ISmartComplyProvider, SmartComplyProvider>()
+                .AddPolicyHandler(GetSmartComplyRetryPolicy())
+                .AddPolicyHandler(GetSmartComplyCircuitBreakerPolicy());
+        }
+        else
+        {
+            services.AddScoped<ISmartComplyProvider, MockSmartComplyProvider>();
         }
 
         // Collateral & Guarantor
@@ -173,6 +195,33 @@ public static class DependencyInjection
         services.AddSingleton(creditCheckChannel);
         services.AddSingleton<Application.CreditBureau.Interfaces.ICreditCheckQueue, CreditCheckQueue>();
         services.AddHostedService<CreditCheckBackgroundService>();
+        
+        // Credit Check Handlers
+        services.AddScoped<Application.Common.IRequestHandler<
+            Application.CreditBureau.Commands.ProcessLoanCreditChecksCommand, 
+            Application.Common.ApplicationResult<Application.CreditBureau.Commands.CreditCheckBatchResultDto>>, 
+            Application.CreditBureau.Commands.ProcessLoanCreditChecksHandler>();
+        
+        // Ad-hoc bureau report requests (uses CreditRegistry provider)
+        services.AddScoped<Application.Common.IRequestHandler<
+            Application.CreditBureau.Commands.RequestBureauReportCommand,
+            Application.Common.ApplicationResult<Application.CreditBureau.DTOs.BureauReportDto>>,
+            Application.CreditBureau.Commands.RequestBureauReportHandler>();
+
+        // Bureau Report Queries (UI fetch)
+        services.AddScoped<Application.CreditBureau.Queries.GetBureauReportByIdHandler>();
+        services.AddScoped<Application.CreditBureau.Queries.GetBureauReportsByLoanApplicationHandler>();
+
+        // Consent Handlers (required before credit checks - NDPA compliance)
+        services.AddScoped<Application.Common.IRequestHandler<
+            Application.Consent.Commands.RecordConsentCommand,
+            Application.Common.ApplicationResult<Application.Consent.Commands.ConsentRecordDto>>,
+            Application.Consent.Commands.RecordConsentHandler>();
+        
+        services.AddScoped<Application.Common.IRequestHandler<
+            Application.Consent.Commands.RecordBulkConsentCommand,
+            Application.Common.ApplicationResult<Application.Consent.Commands.BulkConsentResultDto>>,
+            Application.Consent.Commands.RecordBulkConsentHandler>();
 
         // AI/LLM Services
         var openAISection = configuration.GetSection(OpenAISettings.SectionName);
@@ -241,6 +290,23 @@ public static class DependencyInjection
         // Identity
         services.AddScoped<Application.Identity.Queries.GetAllUsersHandler>();
         
+        // Statement Analysis domain services
+        services.AddScoped<CRMS.Domain.Services.TransactionCategorizationService>();
+        services.AddScoped<CRMS.Domain.Services.CashflowAnalysisService>();
+
+        // Statement Analysis
+        services.AddScoped<Application.StatementAnalysis.Commands.UploadStatementHandler>();
+        services.AddScoped<Application.StatementAnalysis.Commands.AddTransactionsHandler>();
+        services.AddScoped<Application.StatementAnalysis.Commands.AnalyzeStatementHandler>();
+        services.AddScoped<Application.StatementAnalysis.Commands.VerifyStatementHandler>();
+        services.AddScoped<Application.StatementAnalysis.Commands.RejectStatementHandler>();
+        services.AddScoped<Application.StatementAnalysis.Queries.GetStatementByIdHandler>();
+        services.AddScoped<Application.StatementAnalysis.Queries.GetStatementsByLoanApplicationHandler>();
+        services.AddScoped<Application.StatementAnalysis.Queries.GetStatementTransactionsHandler>();
+
+        // Party Info Update
+        services.AddScoped<Application.LoanApplication.Commands.UpdatePartyInfoHandler>();
+
         // Financial Statement
         services.AddScoped<Application.FinancialAnalysis.Commands.CreateFinancialStatementHandler>();
         services.AddScoped<Application.FinancialAnalysis.Commands.SetBalanceSheetHandler>();
@@ -253,5 +319,28 @@ public static class DependencyInjection
         services.AddScoped<Application.FinancialAnalysis.Queries.GetFinancialRatiosTrendHandler>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Retry policy for SmartComply API: 3 retries with exponential backoff (2s, 4s, 8s).
+    /// Handles transient HTTP errors (5xx, 408, network failures).
+    /// </summary>
+    private static IAsyncPolicy<HttpResponseMessage> GetSmartComplyRetryPolicy()
+    {
+        return HttpPolicyExtensions
+            .HandleTransientHttpError()
+            .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+    }
+
+    /// <summary>
+    /// Circuit breaker for SmartComply API: Opens after 5 consecutive failures, stays open for 30 seconds.
+    /// Prevents cascading failures when the credit bureau is down.
+    /// </summary>
+    private static IAsyncPolicy<HttpResponseMessage> GetSmartComplyCircuitBreakerPolicy()
+    {
+        return HttpPolicyExtensions
+            .HandleTransientHttpError()
+            .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30));
     }
 }

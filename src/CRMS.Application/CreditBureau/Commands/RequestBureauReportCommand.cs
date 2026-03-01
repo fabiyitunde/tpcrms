@@ -59,7 +59,10 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
             request.BVN,
             request.RequestedByUserId,
             request.ConsentRecordId,
-            request.LoanApplicationId
+            request.LoanApplicationId,
+            taxId: null,
+            partyId: null, // Not available in this context
+            partyType: null
         );
 
         if (reportResult.IsFailure)
@@ -110,10 +113,12 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
             rawResponseJson: reportData.RawJson,
             pdfReportBase64: reportData.PdfBase64,
             totalAccounts: reportData.Summary.TotalAccounts,
+            activeLoans: reportData.Summary.ActiveLoans,
             performingAccounts: reportData.Summary.PerformingAccounts,
             nonPerformingAccounts: reportData.Summary.NonPerformingAccounts,
             closedAccounts: reportData.Summary.ClosedAccounts,
             totalOutstandingBalance: reportData.Summary.TotalOutstandingBalance,
+            totalOverdue: reportData.Summary.TotalOverdue,
             totalCreditLimit: reportData.Summary.TotalCreditLimit,
             maxDelinquencyDays: reportData.Summary.MaxDelinquencyDays,
             hasLegalActions: reportData.Summary.HasLegalActions
@@ -208,10 +213,12 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
         r.ScoreGrade,
         r.ReportDate,
         r.TotalAccounts,
+        r.ActiveLoans,
         r.PerformingAccounts,
         r.NonPerformingAccounts,
         r.ClosedAccounts,
         r.TotalOutstandingBalance,
+        r.TotalOverdue,
         r.TotalCreditLimit,
         r.MaxDelinquencyDays,
         r.HasLegalActions,
@@ -219,6 +226,10 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
         r.RequestedAt,
         r.CompletedAt,
         r.ErrorMessage,
+        r.FraudRiskScore,
+        r.FraudRecommendation,
+        r.PartyId,
+        r.PartyType,
         r.Accounts.Select(a => new BureauAccountDto(
             a.Id, a.AccountNumber, a.CreditorName, a.AccountType, a.Status.ToString(),
             a.DelinquencyLevel.ToString(), a.CreditLimit, a.Balance, a.DateOpened,

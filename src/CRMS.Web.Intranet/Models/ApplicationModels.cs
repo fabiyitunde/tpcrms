@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Components.Forms;
+
 namespace CRMS.Web.Intranet.Models;
 
 public class LoanApplicationSummary
@@ -74,6 +76,8 @@ public class LoanApplicationDetail
 
     public List<BureauReportInfo> BureauReports { get; set; } = new List<BureauReportInfo>();
 
+    public List<BankStatementInfo> BankStatements { get; set; } = new List<BankStatementInfo>();
+
     public AdvisoryInfo? Advisory { get; set; }
 
     public List<WorkflowHistoryItem> WorkflowHistory { get; set; } = new List<WorkflowHistoryItem>();
@@ -117,8 +121,10 @@ public class PartyInfo
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? RawBVN { get; set; }
     public string BvnMasked { get; set; } = string.Empty;
     public string Position { get; set; } = string.Empty;
+    public string PartyType { get; set; } = string.Empty;
     public decimal? ShareholdingPercentage { get; set; }
     public string? MandateType { get; set; }
     public bool HasBureauReport { get; set; }
@@ -186,13 +192,22 @@ public class BureauReportInfo
     public Guid Id { get; set; }
     public string SubjectName { get; set; } = string.Empty;
     public string SubjectType { get; set; } = string.Empty;
+    public string Provider { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
     public int? CreditScore { get; set; }
     public string Rating { get; set; } = string.Empty;
     public int ActiveLoans { get; set; }
     public decimal TotalExposure { get; set; }
-    public int DelinquencyCount { get; set; }
+    public decimal TotalOverdue { get; set; }
+    public int MaxDelinquencyDays { get; set; }
     public bool HasLegalIssues { get; set; }
     public DateTime ReportDate { get; set; }
+    // Fraud check results (SmartComply)
+    public int? FraudRiskScore { get; set; }
+    public string? FraudRecommendation { get; set; }
+    // Party linkage
+    public Guid? PartyId { get; set; }
+    public string? PartyType { get; set; }
 }
 
 public class AdvisoryInfo
@@ -263,6 +278,46 @@ public class CreateApplicationRequest
     public decimal InterestRate { get; set; }
     public string InterestRateType { get; set; } = string.Empty;
     public string Purpose { get; set; } = string.Empty;
+    public string? RegistrationNumberOverride { get; set; }
+    public DateTime? IncorporationDateOverride { get; set; }
+}
+
+public class BankStatementInfo
+{
+    public Guid Id { get; set; }
+    public string AccountNumber { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public string BankName { get; set; } = string.Empty;
+    public DateTime PeriodStart { get; set; }
+    public DateTime PeriodEnd { get; set; }
+    public int MonthsCovered { get; set; }
+    public decimal OpeningBalance { get; set; }
+    public decimal ClosingBalance { get; set; }
+    public string Source { get; set; } = string.Empty;
+    public bool IsInternal { get; set; }
+    public decimal TrustWeight { get; set; }
+    public string AnalysisStatus { get; set; } = string.Empty;
+    public string VerificationStatus { get; set; } = string.Empty;
+    public int TransactionCount { get; set; }
+    public string? OriginalFileName { get; set; }
+    public decimal? TotalCredits { get; set; }
+    public decimal? TotalDebits { get; set; }
+    public decimal? AverageMonthlyBalance { get; set; }
+    public decimal? NetMonthlyCashflow { get; set; }
+    public int? BouncedTransactions { get; set; }
+    public int? GamblingTransactions { get; set; }
+}
+
+public class UploadExternalStatementRequest
+{
+    public string BankName { get; set; } = string.Empty;
+    public string AccountNumber { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public DateTime PeriodFrom { get; set; } = DateTime.Today.AddMonths(-6);
+    public DateTime PeriodTo { get; set; } = DateTime.Today;
+    public decimal OpeningBalance { get; set; }
+    public decimal ClosingBalance { get; set; }
+    public IBrowserFile? File { get; set; }
 }
 
 public class ApplicationFilter

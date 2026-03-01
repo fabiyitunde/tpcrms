@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-02-21 (updated end-of-session #2)
+**Last Updated:** 2026-03-01 (Session 7)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -72,7 +72,7 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 
 **Intranet UI:** Core workflows complete. A few management features remain.
 
-### What Works (as of 2026-02-21)
+### What Works (as of 2026-03-01)
 
 | Feature Area | Status |
 |---|---|
@@ -93,12 +93,15 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | Loan Pack PDF generation | ✅ |
 | Workflow queue pages (My Queue, All Queues) | ✅ |
 | Dashboard and Reports | ✅ |
+| **Credit Bureau UI (SmartComply)** | ✅ |
 
 ### What Is Pending
 
 | Feature | Priority | Notes |
 |---|---|---|
-| Credit bureau check UI | ⏸️ On Hold | Provider change pending — do not implement yet |
+| Bank Statement tab (view, analyze, upload external) | P2 | ✅ UI built; `GetBankStatementsAsync`, `UploadExternalStatementAsync`, `VerifyStatementAsync`, `RejectStatementAsync`, `AnalyzeStatementAsync` all wired |
+| Editable fallback for null core-banking fields | P2 | ✅ Done — RC number + IncorporationDate in New.razor; BVN + shareholding % in PartiesTab via FillPartyInfoModal |
+| Bank statement auto-fetch at creation | P2 | ✅ Done — `InitiateCorporateLoanCommand` now persists CoreBanking statement on application create |
 | User management CRUD | P3 | Currently display-only (`/admin/users`) |
 | Product edit / delete | P3 | Create works; edit/delete missing (`/admin/products`) |
 | Scoring config editor | P3 | Display-only (`/admin/scoring`) |
@@ -134,7 +137,7 @@ return result.IsSuccess
 ### Access Control Rules
 - `IsApplicationEditable` = `application.Status == "Draft"` — data entry (add/edit/delete) only allowed in Draft
 - `CanManageValuation` = status is NOT `Draft`, `Approved`, `CommitteeApproved`, `Rejected`, or `Disbursed` — valuation/approval happens during review stages
-- Directors and Signatories are **auto-fetched from core banking at application creation** — PartiesTab is intentionally read-only, never add Add/Edit modals for these
+- Directors and Signatories are **auto-fetched from core banking at application creation** — PartiesTab is intentionally read-only for structure; null fields (BVN, shareholding %) can be filled via FillPartyInfoModal (Draft only)
 
 ### Blazor Modal Pattern (used consistently throughout Detail.razor)
 ```csharp
@@ -185,24 +188,27 @@ src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/
 ├── EditCollateralModal.razor
 ├── ViewCollateralModal.razor              ← includes document list with view/download/delete
 ├── SetCollateralValuationModal.razor
-├── UploadCollateralDocumentModal.razor    ← NEW: upload docs to collateral
+├── UploadCollateralDocumentModal.razor
 ├── AddGuarantorModal.razor
 ├── EditGuarantorModal.razor
 ├── ViewGuarantorModal.razor
 ├── UploadDocumentModal.razor
 ├── FinancialStatementModal.razor
-└── UploadFinancialStatementModal.razor
+├── UploadFinancialStatementModal.razor
+├── UploadExternalStatementModal.razor     ← NEW: upload other-bank statement
+└── FillPartyInfoModal.razor               ← NEW: fill null BVN/shareholding for a party
 ```
 
 ### Tabs Directory
 ```
 src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/
-├── CollateralTab.razor     ← params: CanManageValuation, OnSetValuation, OnApproveCollateral, OnUploadDocument
-├── DocumentsTab.razor      ← params: OnVerifyDocument, OnRejectDocument
-├── GuarantorsTab.razor     ← params: CanManageGuarantors, OnApproveGuarantor, OnRejectGuarantor
+├── CollateralTab.razor       ← params: CanManageValuation, OnSetValuation, OnApproveCollateral, OnUploadDocument
+├── DocumentsTab.razor        ← params: OnVerifyDocument, OnRejectDocument
+├── GuarantorsTab.razor       ← params: CanManageGuarantors, OnApproveGuarantor, OnRejectGuarantor
 ├── FinancialsTab.razor
-├── PartiesTab.razor        ← read-only; directors/signatories from core banking
-└── ...
+├── StatementsTab.razor       ← NEW: Own Bank + Other Banks; trust badges; verify/reject/analyze
+├── PartiesTab.razor          ← params: IsEditable, OnRequestBureauCheck, OnFillPartyInfo
+└── BureauTab.razor
 ```
 
 ### Application Layer — Check These Before Writing Any New Code
@@ -217,82 +223,155 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-02-21)
+## 5. Last Session Summary (2026-03-01 Session 7)
 
-### Completed
-1. **Collateral Document Management** (full CRUD)
-   - Created `ICollateralDocumentRepository` interface and `CollateralDocumentRepository` implementation
-   - Created `UploadCollateralDocumentCommand` + `UploadCollateralDocumentHandler` in `CollateralCommands.cs`
-   - Created `DeleteCollateralDocumentCommand` + `DeleteCollateralDocumentHandler`
-   - Added `RemoveDocument()` method to `Collateral` aggregate
-   - Added `UploadCollateralDocumentAsync()` and `DeleteCollateralDocumentAsync()` to `ApplicationService.cs`
-   - Created `UploadCollateralDocumentModal.razor` with document type selection, file upload
-   - Updated `ViewCollateralModal.razor`: added DOCUMENTS section with view/download/delete buttons + delete confirmation dialog
-   - Updated `CollateralTab.razor`: added `OnUploadDocument` param and upload button (visible in Draft or review stages)
-   - Updated `Detail.razor`: wired upload modal state, handlers, and `OnCollateralDocumentDeleted` callback
-   - Added API endpoints: `/api/collateral-documents/{id}/view` and `/api/collateral-documents/{id}/download`
-   - Added DTOs: `UploadCollateralDocumentRequest`, `CollateralDocumentResult`, `CollateralDocumentInfo`
-   - Registered `UploadCollateralDocumentHandler`, `DeleteCollateralDocumentHandler`, `ICollateralDocumentRepository` in DI
-   - Delete removes **both** database record AND file from storage
-   - Delete available when: `IsApplicationEditable` (Draft) OR `CanManageValuation` (review stages)
-   - Delete NOT available when: Approved, CommitteeApproved, Rejected, Disbursed
+### Completed — Bank Statement Auto-Fetch + External Statements UI + Editable Fallback Fields
 
-### Key Files Changed
-- `src/CRMS.Domain/Interfaces/ICollateralRepository.cs` — added `ICollateralDocumentRepository`
-- `src/CRMS.Domain/Aggregates/Collateral/Collateral.cs` — added `RemoveDocument()`
-- `src/CRMS.Application/Collateral/Commands/CollateralCommands.cs` — added upload/delete handlers
-- `src/CRMS.Infrastructure/Persistence/Repositories/CollateralRepository.cs` — added `CollateralDocumentRepository`
-- `src/CRMS.Infrastructure/DependencyInjection.cs` — registered new handlers and repository
-- `src/CRMS.Web.Intranet/Program.cs` — added collateral document API endpoints
-- `src/CRMS.Web.Intranet/Services/ApplicationService.cs` — added upload/delete methods
-- `src/CRMS.Web.Intranet/Services/ApplicationServiceDtos.cs` — added DTOs
-- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/UploadCollateralDocumentModal.razor` — NEW
-- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/ViewCollateralModal.razor` — added docs section + delete confirmation
-- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/CollateralTab.razor` — added upload button
-- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` — wired upload modal
+Three related gaps implemented in a single session:
+
+#### 1. Bank Statement Auto-Fetch at Application Creation
+
+- **`InitiateCorporateLoanCommand.cs`**: Injects `IBankStatementRepository`; after saving the application, calls `ICoreBankingService.GetStatementAsync()` (6-month window) and persists a `BankStatement` aggregate with `StatementSource.CoreBanking` and all transactions.
+- **`LoanApplication.cs`**: Added `IncorporationDate` property; updated `CreateCorporate(...)` factory; added `UpdatePartyFields(...)` domain method.
+- **`LoanApplicationParty.cs`**: Added `UpdateBVN()` and `UpdateShareholdingPercent()` domain methods.
+
+#### 2. Bank Statement UI (StatementsTab)
+
+- **`StatementsTab.razor`** (new): Two sections — Own Bank (internal CoreBanking) and Other Banks (external). Trust badges (100% Internal / 85% Verified / 70% Unverified). Cashflow metrics when analysis complete. Verify/Reject/Analyze action buttons.
+- **`UploadExternalStatementModal.razor`** (new): Fields: bank name, account number/name, period, opening/closing balance. Period ≥ 3 month validation.
+- **`Detail.razor`**: Added "Bank Statements" tab; wired modal state for upload, reject statement (with reason), analyze; `LoadApplication()` fetches real statements.
+- **`ApplicationService.cs`**: Added `GetBankStatementsAsync`, `UploadExternalStatementAsync`, `VerifyStatementAsync`, `RejectStatementAsync`, `AnalyzeStatementAsync`.
+
+#### 3. Editable Fallback for Null Core Banking Fields
+
+- **`FillPartyInfoModal.razor`** (new): Targeted modal; shows only null fields (BVN if empty, shareholding % if null and Director).
+- **`PartiesTab.razor`**: Added "Complete info" warning button per row when `IsEditable && null fields exist`. Added `OnFillPartyInfo` param.
+- **`New.razor`**: Replaced mock `FetchCustomer` with real `AppService.FetchCorporateDataAsync()`; shows editable override fields for null RC number and IncorporationDate from core banking.
+- **`ApplicationService.cs`**: Added `FetchCorporateDataAsync()` (returns `ApiResponse<CustomerInfo>`) and `UpdatePartyInfoAsync()`.
+- **`UpdatePartyInfoCommand.cs`** (new): Command + handler for party BVN/shareholding updates.
+
+#### Application Layer Updates
+
+- **`UploadStatementCommand.cs`**: Added `VerifyStatementCommand`/`RejectStatementCommand` + handlers.
+- **`StatementAnalysisDtos.cs`**: Extended `BankStatementSummaryDto` from 8 to 18 fields.
+- **`GetStatementQuery.cs`**: Updated `GetStatementsByLoanApplicationHandler` mapper for new fields.
+- **`LoanApplicationDtos.cs`**: Added `IncorporationDate` to `LoanApplicationDto`.
+- **`GetLoanApplicationQuery.cs`**: Both `MapToDto` overloads updated to map `IncorporationDate`.
+- **`ApplicationModels.cs`**: Added `BankStatementInfo`, `UploadExternalStatementRequest`, `RawBVN`/`PartyType` to `PartyInfo`, `IncorporationDate` to `LoanApplicationDetail`.
+
+#### Infrastructure
+
+- **`DependencyInjection.cs`**: Registered `TransactionCategorizationService`, `CashflowAnalysisService`, 8 statement handlers, `UpdatePartyInfoHandler`.
+- **`LoanApplicationConfiguration.cs`**: Added `IncorporationDate` column config.
+- **Migration `20260301170000_AddIncorporationDateToLoanApplication`**: Manual migration (+ Designer.cs) adding nullable `datetime(6)` `IncorporationDate` column to `LoanApplications`.
+- **`CRMSDbContextModelSnapshot.cs`**: Updated with `IncorporationDate`.
+
+### Files Updated This Session
+- `src/CRMS.Domain/Aggregates/LoanApplication/LoanApplication.cs`
+- `src/CRMS.Domain/Aggregates/LoanApplication/LoanApplicationParty.cs`
+- `src/CRMS.Application/LoanApplication/DTOs/LoanApplicationDtos.cs`
+- `src/CRMS.Application/LoanApplication/Queries/GetLoanApplicationQuery.cs`
+- `src/CRMS.Application/LoanApplication/Commands/InitiateCorporateLoanCommand.cs`
+- `src/CRMS.Application/LoanApplication/Commands/UpdatePartyInfoCommand.cs` ← **NEW**
+- `src/CRMS.Application/StatementAnalysis/Commands/UploadStatementCommand.cs`
+- `src/CRMS.Application/StatementAnalysis/DTOs/StatementAnalysisDtos.cs`
+- `src/CRMS.Application/StatementAnalysis/Queries/GetStatementQuery.cs`
+- `src/CRMS.Infrastructure/DependencyInjection.cs`
+- `src/CRMS.Infrastructure/Persistence/Configurations/LoanApplication/LoanApplicationConfiguration.cs`
+- `src/CRMS.Infrastructure/Persistence/Migrations/20260301170000_AddIncorporationDateToLoanApplication.cs` ← **NEW**
+- `src/CRMS.Infrastructure/Persistence/Migrations/20260301170000_AddIncorporationDateToLoanApplication.Designer.cs` ← **NEW**
+- `src/CRMS.Infrastructure/Persistence/Migrations/CRMSDbContextModelSnapshot.cs`
+- `src/CRMS.Web.Intranet/Models/ApplicationModels.cs`
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/StatementsTab.razor` ← **NEW**
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/PartiesTab.razor`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/UploadExternalStatementModal.razor` ← **NEW**
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/FillPartyInfoModal.razor` ← **NEW**
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/New.razor`
 
 ### Docs Updated This Session
 - [x] `docs/SESSION_HANDOFF.md` → updated (this file)
-- [x] `docs/UIGaps.md` → v3.2
-- [x] `docs/ImplementationTracker.md` → v2.8
+- [x] `docs/UIGaps.md` → v3.4
+- [x] `docs/ImplementationTracker.md` → v3.3
+
+---
+
+## 5.1 Previous Session Summary (2026-03-01 Session 5)
+
+### Completed — Comprehensive Code Review + Critical/High Bug Fixes
+
+This session performed a full code review of the SmartComply integration (Sessions 1–4). 14 issues were identified (1 critical, 3 high, 5 medium, 5 low). The 4 critical/high bugs were fixed immediately.
+
+#### BUG Fixes Applied
+
+- **C-1 (CRITICAL): Workflow no longer advances when all credit checks blocked by missing consent**
+- **H-1 (HIGH): `RecordBulkConsentHandler.CreateOrGetConsent` no longer throws `InvalidOperationException`**
+- **H-2 (HIGH): InternalError path in credit check now creates NDPA audit record**
+- **H-3 (HIGH): Duplicate consent records for same-BVN parties in bulk consent batch**
+
+---
+
+## 5.3 Previous Session Summary (2026-03-01 Session 4)
+
+### Completed — Extended Bug Fixes, NDPA Compliance & Production Hardening
+
+BUG-A through BUG-I, GAP-F through GAP-H, DESIGN-J fixes applied. See Session 4 details in previous handoff versions.
+
+---
+
+## 5.5 Previous Sessions (2026-03-01 Sessions 1-3)
+
+Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previous handoff versions for full details.
 
 ---
 
 ## 6. Suggested Next Task
 
-### User Management CRUD (`/admin/users`)
+### Option A — End-to-End Test the Session 7 Features
 
-The page currently shows a read-only list of users. The backend handlers exist — this is UI work only.
+Before moving to admin pages, run the app and manually test:
+
+1. Create application with account `1234567890` → open Statements tab → should show 1 CoreBanking statement
+2. Upload an external statement → appears in "Other Banks" section as Pending Review
+3. Click Verify on external statement → status changes to Verified (trust 85%)
+4. Click Reject on external statement → reason modal → status changes to Rejected
+5. Open Parties tab on a Draft application → check "Complete info" button for directors with null BVN
+6. Fill in BVN → save → button disappears
+7. On New Application page, use account that has null RC number → verify editable field appears
+
+---
+
+### Option B — Fix Remaining Medium Issues (code quality, from Session 5 review)
+
+1. **M-1**: Add EF indexes on `ConsentRecords.BVN` and `ConsentRecords.NIN`
+2. **M-2**: Configure `BureauReport.ConsentRecordId` in `BureauReportConfiguration.cs`
+3. **M-3**: Migrate `RequestBureauReportCommand` to use `ISmartComplyProvider` instead of legacy `ICreditBureauProvider`
+4. **M-4**: Add distributed/DB lock on `LoanApplicationId` in `ProcessLoanCreditChecksCommand`
+5. **M-5**: Rename `BureauReport.NonPerformingAccounts` → `DelinquentFacilities`
+
+---
+
+### Option C — User Management CRUD (`/admin/users`)
+
+The Users page currently only displays users. Add full CRUD:
 
 **What to build:**
 - "Create User" button → modal with: name, email, role dropdown, branch
 - "Edit" button per row → modal pre-filled with user data
 - "Deactivate" button per row → confirmation modal
 
-**Step 1 — Check existing Application layer handlers:**
-```
-src/CRMS.Application/Identity/Commands/  ← look for CreateUserHandler, UpdateUserHandler, DeactivateUserHandler
-```
-
-**Step 2 — Add methods to `ApplicationService.cs`:**
-```csharp
-public async Task<ApiResponse> CreateUserAsync(CreateUserRequest request)
-public async Task<ApiResponse> UpdateUserAsync(Guid userId, UpdateUserRequest request)
-public async Task<ApiResponse> DeactivateUserAsync(Guid userId)
-```
-
-**Step 3 — Create modals:**
-```
-src/CRMS.Web.Intranet/Components/Pages/Admin/Modals/
-├── CreateUserModal.razor
-└── EditUserModal.razor
-```
-
-**Step 4 — Update `/admin/users` page (`src/CRMS.Web.Intranet/Components/Pages/Admin/Users.razor`):**
-- Add modal state variables and event handlers in `@code`
-- Wire up Create/Edit/Deactivate buttons
+**Backend:** Handlers likely exist in `Application/Identity/Commands/`. Check and register if needed.
 
 **Template to follow:** `AddGuarantorModal.razor` (Add) and collateral approve confirmation modal (Deactivate).
+
+---
+
+### Option D — Product Edit/Delete (`/admin/products`)
+
+Create works; add edit/delete functionality.
+
+**Note:** `dotnet ef database update` requires `Microsoft.EntityFrameworkCore.Design` — use `dotnet run` instead (app runs `MigrateAsync()` on startup automatically).
 
 ---
 

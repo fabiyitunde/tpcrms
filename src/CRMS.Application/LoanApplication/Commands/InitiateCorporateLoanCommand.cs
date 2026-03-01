@@ -1,5 +1,7 @@
 using CRMS.Application.Common;
 using CRMS.Application.LoanApplication.DTOs;
+using CRMS.Domain.Aggregates.StatementAnalysis;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.ValueObjects;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
@@ -17,22 +19,27 @@ public record InitiateCorporateLoanCommand(
     InterestRateType InterestRateType,
     Guid InitiatedByUserId,
     Guid? BranchId,
-    string? Purpose
+    string? Purpose,
+    string? RegistrationNumberOverride = null,
+    DateTime? IncorporationDateOverride = null
 ) : IRequest<ApplicationResult<LoanApplicationDto>>;
 
 public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoanCommand, ApplicationResult<LoanApplicationDto>>
 {
     private readonly ILoanApplicationRepository _repository;
     private readonly ICoreBankingService _coreBankingService;
+    private readonly IBankStatementRepository _bankStatementRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public InitiateCorporateLoanHandler(
         ILoanApplicationRepository repository,
         ICoreBankingService coreBankingService,
+        IBankStatementRepository bankStatementRepository,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
         _coreBankingService = coreBankingService;
+        _bankStatementRepository = bankStatementRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -46,6 +53,15 @@ public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoa
         var customer = customerResult.Value;
         if (customer.CustomerType != CustomerType.Corporate)
             return ApplicationResult<LoanApplicationDto>.Failure("Account is not a corporate account");
+
+        // Fetch corporate info to get RC number and incorporation date
+        var corporateResult = await _coreBankingService.GetCorporateInfoAsync(request.AccountNumber, ct);
+        var registrationNumber = corporateResult.IsSuccess
+            ? (corporateResult.Value.RegistrationNumber?.ToUpperInvariant() ?? request.RegistrationNumberOverride?.ToUpperInvariant())
+            : request.RegistrationNumberOverride?.ToUpperInvariant();
+        var incorporationDate = corporateResult.IsSuccess
+            ? (corporateResult.Value.IncorporationDate ?? request.IncorporationDateOverride)
+            : request.IncorporationDateOverride;
 
         var amount = Money.Create(request.RequestedAmount, request.Currency);
 
@@ -61,7 +77,9 @@ public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoa
             request.InterestRateType,
             request.InitiatedByUserId,
             request.BranchId,
-            request.Purpose
+            request.Purpose,
+            registrationNumber,
+            incorporationDate
         );
 
         if (applicationResult.IsFailure)
@@ -107,6 +125,45 @@ public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoa
         await _repository.AddAsync(application, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
+        // Auto-fetch and persist 6-month bank statement from core banking
+        var toDate = DateTime.UtcNow;
+        var fromDate = toDate.AddMonths(-6);
+        var statementResult = await _coreBankingService.GetStatementAsync(request.AccountNumber, fromDate, toDate, ct);
+        if (statementResult.IsSuccess)
+        {
+            var stmt = statementResult.Value;
+            var bankStatementResult = BankStatement.Create(
+                stmt.AccountNumber,
+                customer.FullName,
+                "Own Bank",
+                stmt.FromDate,
+                stmt.ToDate,
+                stmt.OpeningBalance,
+                stmt.ClosingBalance,
+                StatementFormat.JSON,
+                StatementSource.CoreBanking,
+                request.InitiatedByUserId,
+                null,
+                null,
+                application.Id
+            );
+            if (bankStatementResult.IsSuccess)
+            {
+                var bankStatement = bankStatementResult.Value;
+                foreach (var tx in stmt.Transactions)
+                {
+                    bankStatement.AddTransaction(
+                        tx.Date, tx.Description, tx.Amount,
+                        tx.Type == TransactionType.Credit
+                            ? StatementTransactionType.Credit
+                            : StatementTransactionType.Debit,
+                        tx.RunningBalance, tx.Reference);
+                }
+                await _bankStatementRepository.AddAsync(bankStatement, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+        }
+
         return ApplicationResult<LoanApplicationDto>.Success(MapToDto(application));
     }
 
@@ -122,6 +179,7 @@ public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoa
             app.AccountNumber,
             app.CustomerId,
             app.CustomerName,
+            app.RegistrationNumber,
             app.RequestedAmount.Amount,
             app.RequestedAmount.Currency,
             app.RequestedTenorMonths,
@@ -162,7 +220,8 @@ public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoa
                 p.Designation,
                 p.ShareholdingPercent,
                 p.BVNVerified
-            )).ToList()
+            )).ToList(),
+            app.IncorporationDate
         );
     }
 }

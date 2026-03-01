@@ -1,0 +1,123 @@
+@using CRMS.Web.Intranet.Models
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<div class="modal-backdrop show" @onclick="Close">
+    <div class="modal" style="max-width: 600px;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">Upload External Bank Statement</h3>
+            <button type="button" class="modal-close" @onclick="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label class="form-label">Bank Name *</label>
+                    <input type="text" class="form-control" @bind="model.BankName" placeholder="e.g. GTBank, Zenith Bank" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Account Number *</label>
+                    <input type="text" class="form-control" @bind="model.AccountNumber" placeholder="Account number at other bank" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Account Name *</label>
+                <input type="text" class="form-control" @bind="model.AccountName" placeholder="Full account name as on statement" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label class="form-label">Period From *</label>
+                    <input type="date" class="form-control" @bind="model.PeriodFrom" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Period To *</label>
+                    <input type="date" class="form-control" @bind="model.PeriodTo" />
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label class="form-label">Opening Balance (₦) *</label>
+                    <input type="number" class="form-control" @bind="model.OpeningBalance" step="0.01" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Closing Balance (₦) *</label>
+                    <input type="number" class="form-control" @bind="model.ClosingBalance" step="0.01" />
+                </div>
+            </div>
+
+            @if (periodError != null)
+            {
+                <div class="alert alert-warning" style="margin-top: var(--space-2);">
+                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">warning</span>
+                    @periodError
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <div class="alert alert-danger mt-3">
+                    <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">error</span>
+                    @error
+                </div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @onclick="Close" disabled="@isSaving">Cancel</button>
+            <button type="button" class="btn btn-primary" @onclick="Save" disabled="@(!IsValid || isSaving)">
+                @if (isSaving)
+                {
+                    <span class="spinner"></span>
+                }
+                Upload Statement
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid ApplicationId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSuccess { get; set; }
+
+    private UploadExternalStatementRequest model = new();
+    private bool isSaving;
+    private string? error;
+
+    private string? periodError
+    {
+        get
+        {
+            var months = (model.PeriodTo - model.PeriodFrom).TotalDays / 30.0;
+            if (model.PeriodTo > model.PeriodFrom && months < 3)
+                return "Statement period must be at least 3 months.";
+            return null;
+        }
+    }
+
+    private bool IsValid =>
+        !string.IsNullOrWhiteSpace(model.BankName) &&
+        !string.IsNullOrWhiteSpace(model.AccountNumber) &&
+        !string.IsNullOrWhiteSpace(model.AccountName) &&
+        model.PeriodTo > model.PeriodFrom &&
+        periodError == null;
+
+    private async Task Save()
+    {
+        if (!IsValid) return;
+        isSaving = true;
+        error = null;
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        var result = await AppService.UploadExternalStatementAsync(ApplicationId, model, userId);
+        isSaving = false;
+        if (result.Success)
+            await OnSuccess.InvokeAsync();
+        else
+            error = result.Error ?? "Failed to upload statement.";
+    }
+
+    private Task Close() => OnClose.InvokeAsync();
+}

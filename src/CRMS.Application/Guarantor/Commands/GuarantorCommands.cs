@@ -97,12 +97,23 @@ public class AddIndividualGuarantorHandler : IRequestHandler<AddIndividualGuaran
     );
 }
 
+/// <summary>
+/// DEPRECATED: Use ProcessLoanCreditChecksCommand instead, which handles all parties (directors, signatories, guarantors)
+/// and the business entity in a single batch operation using SmartComply.
+/// This command is retained for backward compatibility but is not registered in DI.
+/// </summary>
+[Obsolete("Use ProcessLoanCreditChecksCommand for all credit checks. This handler uses the legacy CreditRegistry provider.")]
 public record RunGuarantorCreditCheckCommand(
     Guid GuarantorId,
     Guid RequestedByUserId,
     Guid ConsentRecordId
 ) : IRequest<ApplicationResult<GuarantorCreditCheckResultDto>>;
 
+/// <summary>
+/// DEPRECATED: Use ProcessLoanCreditChecksCommand instead.
+/// This handler uses the legacy ICreditBureauProvider (CreditRegistry) and is not registered in DI.
+/// </summary>
+[Obsolete("Use ProcessLoanCreditChecksCommand for all credit checks. This handler uses the legacy CreditRegistry provider.")]
 public class RunGuarantorCreditCheckHandler : IRequestHandler<RunGuarantorCreditCheckCommand, ApplicationResult<GuarantorCreditCheckResultDto>>
 {
     private readonly IGuarantorRepository _guarantorRepository;
@@ -174,7 +185,10 @@ public class RunGuarantorCreditCheckHandler : IRequestHandler<RunGuarantorCredit
             guarantor.BVN,
             request.RequestedByUserId,
             request.ConsentRecordId,
-            guarantor.LoanApplicationId
+            guarantor.LoanApplicationId,
+            taxId: null,
+            partyId: guarantor.Id,
+            partyType: "Guarantor"
         );
 
         if (bureauReportResult.IsSuccess)
@@ -182,9 +196,9 @@ public class RunGuarantorCreditCheckHandler : IRequestHandler<RunGuarantorCredit
             var bureauReport = bureauReportResult.Value;
             bureauReport.CompleteWithData(
                 report.RegistryId, report.CreditScore, report.ScoreGrade, report.ReportDate,
-                report.RawJson, null, report.Summary.TotalAccounts, report.Summary.PerformingAccounts,
-                report.Summary.NonPerformingAccounts, report.Summary.ClosedAccounts,
-                report.Summary.TotalOutstandingBalance, report.Summary.TotalCreditLimit,
+                report.RawJson, null, report.Summary.TotalAccounts, report.Summary.ActiveLoans,
+                report.Summary.PerformingAccounts, report.Summary.NonPerformingAccounts, report.Summary.ClosedAccounts,
+                report.Summary.TotalOutstandingBalance, report.Summary.TotalOverdue, report.Summary.TotalCreditLimit,
                 report.Summary.MaxDelinquencyDays, report.Summary.HasLegalActions
             );
             await _bureauReportRepository.AddAsync(bureauReport, ct);

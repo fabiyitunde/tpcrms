@@ -80,7 +80,7 @@
                             <div class="customer-info-grid">
                                 <div>
                                     <span class="info-label">Registration Number</span>
-                                    <span class="info-value">@customer.RegistrationNumber</span>
+                                    <span class="info-value">@(string.IsNullOrEmpty(customer.RegistrationNumber) ? "Not on file" : customer.RegistrationNumber)</span>
                                 </div>
                                 <div>
                                     <span class="info-label">Industry</span>
@@ -88,7 +88,7 @@
                                 </div>
                                 <div>
                                     <span class="info-label">Incorporation Date</span>
-                                    <span class="info-value">@(customer.IncorporationDate?.ToString("MMM dd, yyyy") ?? "N/A")</span>
+                                    <span class="info-value">@(customer.IncorporationDate?.ToString("MMM dd, yyyy") ?? "Not on file")</span>
                                 </div>
                                 <div>
                                     <span class="info-label">Address</span>
@@ -97,6 +97,30 @@
                             </div>
                         </div>
                     </div>
+
+                    @if (string.IsNullOrEmpty(customer.RegistrationNumber))
+                    {
+                        <div class="form-group mt-4">
+                            <label class="form-label">
+                                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; color: var(--warning-600);">warning</span>
+                                RC Number (not on file — please enter)
+                            </label>
+                            <input type="text" class="form-control" @bind="rcNumberOverride" placeholder="e.g. RC123456" />
+                            <div class="form-hint">Required for SmartComply business credit check</div>
+                        </div>
+                    }
+
+                    @if (customer.IncorporationDate == null)
+                    {
+                        <div class="form-group mt-2">
+                            <label class="form-label">
+                                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; color: var(--warning-600);">warning</span>
+                                Date of Incorporation (not on file — please enter)
+                            </label>
+                            <input type="date" class="form-control" @bind="incorporationDateOverride" />
+                            <div class="form-hint">Used for financial statement validation</div>
+                        </div>
+                    }
                 }
             }
             else if (currentStep == 2)
@@ -451,35 +475,30 @@
 
     private void GoBack() => Navigation.NavigateTo("/applications");
 
+    private string? rcNumberOverride;
+    private DateTime? incorporationDateOverride;
+
     private async Task FetchCustomer()
     {
         if (string.IsNullOrWhiteSpace(accountNumber)) return;
-        
+
         isLoadingCustomer = true;
         customerError = null;
         customer = null;
+        rcNumberOverride = null;
+        incorporationDateOverride = null;
         StateHasChanged();
-        
-        // Core banking fetch - fallback to mock for now
-        customer = null; // AppService.FetchCustomerFromCoreBankingAsync requires implementation
-        
-        // Mock customer if not found
-        if (customer == null)
+
+        var result = await AppService.FetchCorporateDataAsync(accountNumber);
+        if (result.Success && result.Data != null)
         {
-            // Simulate found customer for demo
-            customer = new CustomerInfo
-            {
-                AccountNumber = accountNumber,
-                CompanyName = "Demo Corporation Ltd",
-                RegistrationNumber = "RC" + accountNumber[^6..],
-                Industry = "Manufacturing",
-                IncorporationDate = DateTime.Now.AddYears(-10),
-                Address = "123 Business District, Lagos",
-                Email = "info@democorp.com",
-                Phone = "+234 1 234 5678"
-            };
+            customer = result.Data;
         }
-        
+        else
+        {
+            customerError = result.Error ?? "Account not found. Please check the account number.";
+        }
+
         request.AccountNumber = accountNumber;
         isLoadingCustomer = false;
     }
@@ -518,6 +537,8 @@
         {
             var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
             var productCode = selectedProduct?.Code ?? "UNK";
+            request.RegistrationNumberOverride = rcNumberOverride;
+            request.IncorporationDateOverride = incorporationDateOverride;
             var result = await AppService.CreateApplicationAsync(request, request.ProductId, productCode, userId);
             
             if (result.Success)

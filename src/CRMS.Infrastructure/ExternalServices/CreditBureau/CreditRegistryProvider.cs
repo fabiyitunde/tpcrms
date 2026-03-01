@@ -379,16 +379,19 @@ public class CreditRegistryProvider : ICreditBureauProvider
         var nonPerformingCount = accounts.Count(a => a.Status == "NonPerforming");
         var closedCount = accounts.Count(a => a.Status == "Closed");
         var writtenOffCount = accounts.Count(a => a.Status == "WrittenOff");
+        var activeCount = accounts.Count - closedCount - writtenOffCount; // Active = not closed and not written off
         var maxDelinquency = accounts.Any() ? accounts.Max(a => a.DelinquencyDays) : 0;
         var hasLegal = accounts.Any(a => !string.IsNullOrEmpty(a.LegalStatus) && a.LegalStatus != "None");
 
         return new BureauReportSummary(
             TotalAccounts: accounts.Count,
+            ActiveLoans: activeCount,
             PerformingAccounts: performingCount,
             NonPerformingAccounts: nonPerformingCount,
             ClosedAccounts: closedCount,
             WrittenOffAccounts: writtenOffCount,
             TotalOutstandingBalance: accounts.Sum(a => a.Balance),
+            TotalOverdue: accounts.Where(a => a.DelinquencyDays > 0).Sum(a => a.Balance),
             TotalCreditLimit: accounts.Sum(a => a.CreditLimit),
             MaxDelinquencyDays: maxDelinquency,
             HasLegalActions: hasLegal,

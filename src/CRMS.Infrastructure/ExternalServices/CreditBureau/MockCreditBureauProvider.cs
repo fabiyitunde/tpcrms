@@ -175,13 +175,17 @@ public class MockCreditBureauProvider : ICreditBureauProvider
         var closedCount = accounts.Count(a => a.Status == "Closed");
         var writtenOffCount = accounts.Count(a => a.Status == "WrittenOff");
 
+        var activeCount = accounts.Count - closedCount - writtenOffCount; // Active = not closed and not written off
+        
         var summary = new BureauReportSummary(
             TotalAccounts: accounts.Count,
+            ActiveLoans: activeCount,
             PerformingAccounts: performingCount,
             NonPerformingAccounts: nonPerformingCount,
             ClosedAccounts: closedCount,
             WrittenOffAccounts: writtenOffCount,
             TotalOutstandingBalance: accounts.Sum(a => a.Balance),
+            TotalOverdue: accounts.Where(a => a.DelinquencyDays > 0).Sum(a => a.Balance),
             TotalCreditLimit: accounts.Sum(a => a.CreditLimit),
             MaxDelinquencyDays: accounts.Any() ? accounts.Max(a => a.DelinquencyDays) : 0,
             HasLegalActions: false,

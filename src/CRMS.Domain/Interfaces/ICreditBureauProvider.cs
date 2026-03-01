@@ -42,11 +42,13 @@ public record BureauCreditReport(
 
 public record BureauReportSummary(
     int TotalAccounts,
+    int ActiveLoans,
     int PerformingAccounts,
     int NonPerformingAccounts,
     int ClosedAccounts,
     int WrittenOffAccounts,
     decimal TotalOutstandingBalance,
+    decimal TotalOverdue,
     decimal TotalCreditLimit,
     int MaxDelinquencyDays,
     bool HasLegalActions,

@@ -1,5 +1,6 @@
 using CRMS.Domain.Aggregates.Committee;
 using CRMS.Domain.Aggregates.Configuration;
+using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Aggregates.LoanApplication;
 using CRMS.Domain.Aggregates.Workflow;
 using CRMS.Domain.Common;
@@ -219,6 +220,136 @@ public class LoanApplicationApprovedAuditHandler : IDomainEventHandler<LoanAppli
             domainEvent.ApplicationId,
             domainEvent.ApplicationNumber,
             newValues: new { ApprovedAmount = domainEvent.ApprovedAmount },
+            ct: ct);
+    }
+}
+
+/// <summary>
+/// Audit handler for credit analysis initiation (NDPA/CBN compliance).
+/// Logs when credit bureau checks are started for a loan application.
+/// </summary>
+public class CreditAnalysisStartedAuditHandler : IDomainEventHandler<CreditAnalysisStartedEvent>
+{
+    private readonly AuditService _auditService;
+    private readonly ILogger<CreditAnalysisStartedAuditHandler> _logger;
+
+    public CreditAnalysisStartedAuditHandler(AuditService auditService, ILogger<CreditAnalysisStartedAuditHandler> logger)
+    {
+        _auditService = auditService;
+        _logger = logger;
+    }
+
+    public async Task HandleAsync(CreditAnalysisStartedEvent domainEvent, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Audit: Credit analysis started for {AppNumber} with {TotalChecks} checks",
+            domainEvent.ApplicationNumber, domainEvent.TotalChecks);
+
+        await _auditService.LogAsync(
+            AuditAction.StatusChange,
+            AuditCategory.CreditBureau,
+            $"Credit analysis started for {domainEvent.TotalChecks} parties",
+            "LoanApplication",
+            domainEvent.ApplicationId,
+            domainEvent.ApplicationNumber,
+            null,
+            null,
+            null,
+            null,
+            domainEvent.ApplicationId,
+            domainEvent.ApplicationNumber,
+            newValues: new { TotalChecks = domainEvent.TotalChecks },
+            ct: ct);
+    }
+}
+
+/// <summary>
+/// Audit handler for credit bureau report requests (NDPA/CBN compliance).
+/// Logs when a credit report is requested from the bureau - sensitive operation.
+/// </summary>
+public class BureauReportRequestedAuditHandler : IDomainEventHandler<BureauReportRequestedEvent>
+{
+    private readonly AuditService _auditService;
+    private readonly ILogger<BureauReportRequestedAuditHandler> _logger;
+
+    public BureauReportRequestedAuditHandler(AuditService auditService, ILogger<BureauReportRequestedAuditHandler> logger)
+    {
+        _auditService = auditService;
+        _logger = logger;
+    }
+
+    public async Task HandleAsync(BureauReportRequestedEvent domainEvent, CancellationToken ct = default)
+    {
+        // Mask BVN for logging (show only last 4 digits)
+        var maskedBvn = domainEvent.BVN != null && domainEvent.BVN.Length >= 4 
+            ? $"****{domainEvent.BVN[^4..]}" 
+            : "N/A";
+        
+        _logger.LogInformation("Audit: Credit bureau report requested for {SubjectName} (BVN: {MaskedBvn}) via {Provider}",
+            domainEvent.SubjectName, maskedBvn, domainEvent.Provider);
+
+        await _auditService.LogAsync(
+            AuditAction.Read, // Accessing external credit data
+            AuditCategory.CreditBureau,
+            $"Credit bureau report requested for {domainEvent.SubjectName}",
+            "BureauReport",
+            domainEvent.ReportId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            newValues: new 
+            { 
+                Provider = domainEvent.Provider.ToString(),
+                SubjectName = domainEvent.SubjectName,
+                BVN = maskedBvn, // Store masked BVN only
+                ConsentRecordId = domainEvent.ConsentRecordId
+            },
+            ct: ct);
+    }
+}
+
+/// <summary>
+/// Audit handler for credit bureau report completion (NDPA/CBN compliance).
+/// Logs when a credit report is received from the bureau.
+/// </summary>
+public class BureauReportCompletedAuditHandler : IDomainEventHandler<BureauReportCompletedEvent>
+{
+    private readonly AuditService _auditService;
+    private readonly ILogger<BureauReportCompletedAuditHandler> _logger;
+
+    public BureauReportCompletedAuditHandler(AuditService auditService, ILogger<BureauReportCompletedAuditHandler> logger)
+    {
+        _auditService = auditService;
+        _logger = logger;
+    }
+
+    public async Task HandleAsync(BureauReportCompletedEvent domainEvent, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Audit: Credit bureau report completed for {SubjectName} with score {CreditScore}",
+            domainEvent.SubjectName, domainEvent.CreditScore ?? 0);
+
+        await _auditService.LogAsync(
+            AuditAction.Update,
+            AuditCategory.CreditBureau,
+            $"Credit bureau report completed for {domainEvent.SubjectName}",
+            "BureauReport",
+            domainEvent.ReportId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            newValues: new 
+            { 
+                Provider = domainEvent.Provider.ToString(),
+                SubjectName = domainEvent.SubjectName,
+                CreditScore = domainEvent.CreditScore
+            },
             ct: ct);
     }
 }

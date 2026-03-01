@@ -36,6 +36,7 @@ public class GetLoanApplicationByIdHandler : IRequestHandler<GetLoanApplicationB
         app.AccountNumber,
         app.CustomerId,
         app.CustomerName,
+        app.RegistrationNumber,
         app.RequestedAmount.Amount,
         app.RequestedAmount.Currency,
         app.RequestedTenorMonths,
@@ -60,7 +61,8 @@ public class GetLoanApplicationByIdHandler : IRequestHandler<GetLoanApplicationB
             d.VerifiedAt, d.RejectionReason)).ToList(),
         app.Parties.Select(p => new LoanApplicationPartyDto(
             p.Id, p.PartyType.ToString(), p.FullName, p.BVN, p.Email,
-            p.PhoneNumber, p.Designation, p.ShareholdingPercent, p.BVNVerified)).ToList()
+            p.PhoneNumber, p.Designation, p.ShareholdingPercent, p.BVNVerified)).ToList(),
+        app.IncorporationDate
     );
 }
 
@@ -94,6 +96,7 @@ public class GetLoanApplicationByNumberHandler : IRequestHandler<GetLoanApplicat
         app.AccountNumber,
         app.CustomerId,
         app.CustomerName,
+        app.RegistrationNumber,
         app.RequestedAmount.Amount,
         app.RequestedAmount.Currency,
         app.RequestedTenorMonths,
@@ -118,7 +121,8 @@ public class GetLoanApplicationByNumberHandler : IRequestHandler<GetLoanApplicat
             d.VerifiedAt, d.RejectionReason)).ToList(),
         app.Parties.Select(p => new LoanApplicationPartyDto(
             p.Id, p.PartyType.ToString(), p.FullName, p.BVN, p.Email,
-            p.PhoneNumber, p.Designation, p.ShareholdingPercent, p.BVNVerified)).ToList()
+            p.PhoneNumber, p.Designation, p.ShareholdingPercent, p.BVNVerified)).ToList(),
+        app.IncorporationDate
     );
 }
 

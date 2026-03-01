@@ -67,6 +67,21 @@ public class BureauReportConfiguration : IEntityTypeConfiguration<BureauReport>
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(1000);
 
+        // Fraud check fields (SmartComply integration)
+        builder.Property(x => x.FraudRecommendation)
+            .HasMaxLength(1000);
+
+        builder.Property(x => x.FraudCheckRawJson)
+            .HasColumnType("LONGTEXT");
+
+        // TotalOverdue needs precision like other monetary fields
+        builder.Property(x => x.TotalOverdue)
+            .HasPrecision(18, 2);
+
+        builder.Property(x => x.PartyType)
+            .HasMaxLength(50);
+
+        builder.HasIndex(x => x.PartyId);
         builder.HasIndex(x => x.LoanApplicationId);
         builder.HasIndex(x => x.RequestedByUserId);
 

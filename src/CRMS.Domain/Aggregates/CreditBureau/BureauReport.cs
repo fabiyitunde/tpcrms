@@ -19,6 +19,10 @@ public class BureauReport : AggregateRoot
     public string? TaxId { get; private set; }
     public string SubjectName { get; private set; } = string.Empty;
     
+    // Party Reference (for linking back to director/signatory/guarantor)
+    public Guid? PartyId { get; private set; }
+    public string? PartyType { get; private set; }
+    
     // Report Data
     public int? CreditScore { get; private set; }
     public string? ScoreGrade { get; private set; }
@@ -28,13 +32,20 @@ public class BureauReport : AggregateRoot
     
     // Summary Metrics
     public int TotalAccounts { get; private set; }
-    public int PerformingAccounts { get; private set; }
+    public int ActiveLoans { get; private set; } // Currently open facilities (active, not closed)
+    public int PerformingAccounts { get; private set; } // Open facilities with no delinquency
     public int NonPerformingAccounts { get; private set; }
     public int ClosedAccounts { get; private set; }
     public decimal TotalOutstandingBalance { get; private set; }
+    public decimal TotalOverdue { get; private set; }
     public decimal TotalCreditLimit { get; private set; }
     public int MaxDelinquencyDays { get; private set; }
     public bool HasLegalActions { get; private set; }
+    
+    // Fraud Check Results (from SmartComply Loan Fraud Check)
+    public int? FraudRiskScore { get; private set; }
+    public string? FraudRecommendation { get; private set; }
+    public string? FraudCheckRawJson { get; private set; }
     
     // Request Tracking
     public string? RequestReference { get; private set; }
@@ -60,7 +71,9 @@ public class BureauReport : AggregateRoot
         Guid requestedByUserId,
         Guid consentRecordId,
         Guid? loanApplicationId = null,
-        string? taxId = null)
+        string? taxId = null,
+        Guid? partyId = null,
+        string? partyType = null)
     {
         if (string.IsNullOrWhiteSpace(subjectName))
             return Result.Failure<BureauReport>("Subject name is required");
@@ -83,11 +96,55 @@ public class BureauReport : AggregateRoot
             RequestedAt = DateTime.UtcNow,
             LoanApplicationId = loanApplicationId,
             ConsentRecordId = consentRecordId,
-            RequestReference = GenerateRequestReference()
+            RequestReference = GenerateRequestReference(),
+            PartyId = partyId,
+            PartyType = partyType
         };
 
         report.AddDomainEvent(new BureauReportRequestedEvent(report.Id, provider, subjectName, bvn, consentRecordId));
 
+        return Result.Success(report);
+    }
+
+    /// <summary>
+    /// Creates a BureauReport record for a consent failure (NDPA audit trail requirement).
+    /// This records the attempt even when no valid consent exists.
+    /// </summary>
+    public static Result<BureauReport> CreateForConsentFailure(
+        CreditBureauProvider provider,
+        SubjectType subjectType,
+        string subjectName,
+        string? bvn,
+        string? taxId,
+        Guid requestedByUserId,
+        Guid? loanApplicationId,
+        Guid? partyId,
+        string? partyType,
+        string errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(subjectName))
+            return Result.Failure<BureauReport>("Subject name is required");
+
+        var report = new BureauReport
+        {
+            Provider = provider,
+            SubjectType = subjectType,
+            SubjectName = subjectName,
+            BVN = bvn,
+            TaxId = taxId,
+            Status = BureauReportStatus.Failed,
+            RequestedByUserId = requestedByUserId,
+            RequestedAt = DateTime.UtcNow,
+            CompletedAt = DateTime.UtcNow,
+            LoanApplicationId = loanApplicationId,
+            ConsentRecordId = Guid.Empty, // No consent - that's the failure reason
+            RequestReference = GenerateRequestReference(),
+            PartyId = partyId,
+            PartyType = partyType,
+            ErrorMessage = errorMessage
+        };
+
+        // Note: No BureauReportRequestedEvent since no actual bureau access was attempted
         return Result.Success(report);
     }
 
@@ -109,10 +166,12 @@ public class BureauReport : AggregateRoot
         string? rawResponseJson,
         string? pdfReportBase64,
         int totalAccounts,
+        int activeLoans,
         int performingAccounts,
         int nonPerformingAccounts,
         int closedAccounts,
         decimal totalOutstandingBalance,
+        decimal totalOverdue,
         decimal totalCreditLimit,
         int maxDelinquencyDays,
         bool hasLegalActions)
@@ -124,10 +183,12 @@ public class BureauReport : AggregateRoot
         RawResponseJson = rawResponseJson;
         PdfReportBase64 = pdfReportBase64;
         TotalAccounts = totalAccounts;
+        ActiveLoans = activeLoans;
         PerformingAccounts = performingAccounts;
         NonPerformingAccounts = nonPerformingAccounts;
         ClosedAccounts = closedAccounts;
         TotalOutstandingBalance = totalOutstandingBalance;
+        TotalOverdue = totalOverdue;
         TotalCreditLimit = totalCreditLimit;
         MaxDelinquencyDays = maxDelinquencyDays;
         HasLegalActions = hasLegalActions;
@@ -158,6 +219,17 @@ public class BureauReport : AggregateRoot
     public void AddScoreFactor(BureauScoreFactor factor)
     {
         _scoreFactors.Add(factor);
+    }
+
+    /// <summary>
+    /// Records fraud check results from SmartComply Loan Fraud Check API.
+    /// Called after the main credit report is completed.
+    /// </summary>
+    public void RecordFraudCheckResults(int? fraudRiskScore, string? fraudRecommendation, string? rawJson = null)
+    {
+        FraudRiskScore = fraudRiskScore;
+        FraudRecommendation = fraudRecommendation;
+        FraudCheckRawJson = rawJson;
     }
 }
 

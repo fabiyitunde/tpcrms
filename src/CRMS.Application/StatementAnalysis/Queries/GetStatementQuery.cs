@@ -98,10 +98,31 @@ public class GetStatementsByLoanApplicationHandler : IRequestHandler<GetStatemen
     {
         var statements = await _repository.GetByLoanApplicationIdAsync(request.LoanApplicationId, ct);
 
-        var dtos = statements.Select(s => new BankStatementSummaryDto(
-            s.Id, s.AccountNumber, s.BankName, s.PeriodStart, s.PeriodEnd,
-            s.AnalysisStatus.ToString(), s.Transactions.Count, s.CreatedAt
-        )).ToList();
+        var dtos = statements.Select(s =>
+        {
+            CashflowSummaryDto? summaryDto = null;
+            if (s.CashflowSummary != null)
+            {
+                var cs = s.CashflowSummary;
+                summaryDto = new CashflowSummaryDto(
+                    cs.PeriodMonths, cs.PeriodStart, cs.PeriodEnd,
+                    cs.TotalCredits, cs.TotalDebits, cs.NetCashflow, cs.TotalTransactionCount,
+                    cs.AverageMonthlyCredits, cs.AverageMonthlyDebits, cs.AverageMonthlyBalance,
+                    cs.DetectedMonthlySalary, cs.HasRegularSalary, cs.SalaryPayDay, cs.SalarySource,
+                    cs.TotalMonthlyObligations, cs.DetectedLoanRepayments, cs.DetectedRentPayments, cs.DetectedUtilityPayments,
+                    cs.GamblingTransactionsTotal, cs.GamblingTransactionCount, cs.BouncedTransactionCount,
+                    cs.DaysWithNegativeBalance, cs.LowestBalance, cs.HighestBalance,
+                    cs.BalanceVolatility, cs.IncomeVolatility, cs.CreditToDebitRatio,
+                    cs.DebtServiceCoverageRatio, cs.DisposableIncomeRatio
+                );
+            }
+            return new BankStatementSummaryDto(
+                s.Id, s.AccountNumber, s.AccountName, s.BankName, s.PeriodStart, s.PeriodEnd,
+                s.OpeningBalance, s.ClosingBalance, s.Source.ToString(), s.AnalysisStatus.ToString(),
+                s.VerificationStatus.ToString(), s.TrustWeight, s.IsInternal,
+                s.GetStatementMonths(), s.Transactions.Count, s.OriginalFileName, s.CreatedAt, summaryDto
+            );
+        }).ToList();
 
         return ApplicationResult<List<BankStatementSummaryDto>>.Success(dtos);
     }
