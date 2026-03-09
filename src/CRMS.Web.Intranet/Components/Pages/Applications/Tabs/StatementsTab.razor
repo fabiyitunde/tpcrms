@@ -32,6 +32,10 @@
                     </div>
                     @TrustBadge(internal_.TrustWeight, internal_.IsInternal)
                     @AnalysisBadge(internal_.AnalysisStatus)
+                    <button class="btn btn-sm btn-outline" @onclick="() => OnViewTransactions.InvokeAsync(internal_.Id)" title="View transactions">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">list</span>
+                        View
+                    </button>
                     @if (internal_.AnalysisStatus == "Pending")
                     {
                         <button class="btn btn-sm btn-outline" @onclick="() => OnAnalyze.InvokeAsync(internal_.Id)" title="Run cashflow analysis">
@@ -148,6 +152,9 @@
                             <td>@stmt.TransactionCount</td>
                             <td>
                                 <div style="display: flex; gap: var(--space-2);">
+                                    <button class="btn btn-sm btn-outline" @onclick="() => OnViewTransactions.InvokeAsync(stmt.Id)" title="View transactions">
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">list</span>
+                                    </button>
                                     @if (stmt.VerificationStatus == "Pending")
                                     {
                                         <button class="btn btn-sm btn-success" @onclick="() => OnVerify.InvokeAsync(stmt.Id)" title="Verify">
@@ -180,6 +187,7 @@
     [Parameter] public EventCallback<Guid> OnVerify { get; set; }
     [Parameter] public EventCallback<Guid> OnReject { get; set; }
     [Parameter] public EventCallback<Guid> OnAnalyze { get; set; }
+    [Parameter] public EventCallback<Guid> OnViewTransactions { get; set; }
 
     private static string FormatAmount(decimal amount) =>
         amount >= 1_000_000_000 ? $"{amount / 1_000_000_000:N2}B"

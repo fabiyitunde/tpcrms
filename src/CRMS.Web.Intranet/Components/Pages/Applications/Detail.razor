@@ -157,7 +157,8 @@ else
                 OnUpload="ShowUploadStatementModal"
                 OnVerify="VerifyStatement"
                 OnReject="ShowRejectStatementModal"
-                OnAnalyze="AnalyzeStatement" />
+                OnAnalyze="AnalyzeStatement"
+                OnViewTransactions="ShowViewStatementTransactionsModal" />
             break;
         case "documents":
             <DocumentsTab
@@ -609,6 +610,17 @@ else
         ApplicationId="Id"
         OnClose="CloseUploadStatementModal"
         OnSuccess="OnBankStatementUploaded" />
+}
+
+@if (showViewStatementTransactionsModal && viewingStatementTransactionsId.HasValue)
+{
+    var stmtForView = application?.BankStatements.FirstOrDefault(s => s.Id == viewingStatementTransactionsId.Value);
+    if (stmtForView != null)
+    {
+        <ViewStatementModal
+            Statement="stmtForView"
+            OnClose="CloseViewStatementTransactionsModal" />
+    }
 }
 
 @if (showRejectStatementModal && rejectingStatementId.HasValue)
@@ -1512,7 +1524,22 @@ else
         }
     }
 
-    // Bank statement upload / verify / reject / analyze
+    // Bank statement upload / verify / reject / analyze / view transactions
+    private bool showViewStatementTransactionsModal;
+    private Guid? viewingStatementTransactionsId;
+
+    private void ShowViewStatementTransactionsModal(Guid statementId)
+    {
+        viewingStatementTransactionsId = statementId;
+        showViewStatementTransactionsModal = true;
+    }
+
+    private void CloseViewStatementTransactionsModal()
+    {
+        showViewStatementTransactionsModal = false;
+        viewingStatementTransactionsId = null;
+    }
+
     private bool showUploadBankStatementModal;
     private bool showRejectStatementModal;
     private Guid? rejectingStatementId;

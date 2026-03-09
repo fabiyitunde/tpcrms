@@ -14,6 +14,7 @@ public class ConsentRecordConfiguration : IEntityTypeConfiguration<ConsentRecord
 
         builder.HasIndex(x => x.LoanApplicationId);
         builder.HasIndex(x => x.BVN);
+        builder.HasIndex(x => x.NIN);
         builder.HasIndex(x => new { x.BVN, x.ConsentType, x.Status });
 
         builder.Property(x => x.ConsentType)

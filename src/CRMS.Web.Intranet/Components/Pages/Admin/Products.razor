@@ -50,7 +50,7 @@
                     <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
                     Edit
                 </button>
-                <button class="btn btn-ghost btn-sm" @onclick="() => ToggleProduct(product)">
+                <button class="btn btn-ghost btn-sm" @onclick="() => ToggleProduct(product)" disabled="@isSaving">
                     <span class="material-symbols-outlined" style="font-size: 16px;">@(product.IsActive ? "pause" : "play_arrow")</span>
                     @(product.IsActive ? "Disable" : "Enable")
                 </button>
@@ -115,6 +115,10 @@
                 </div>
             </div>
             <div class="modal-footer">
+                @if (!string.IsNullOrEmpty(saveError))
+                {
+                    <div class="alert alert-danger" style="margin: 0; flex: 1; font-size: var(--text-sm);">@saveError</div>
+                }
                 <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
                 <button class="btn btn-primary" @onclick="SaveProduct" disabled="@isSaving">
                     @if (isSaving)
@@ -201,6 +205,7 @@
     private bool isEditing;
     private bool isSaving;
     private bool isLoading = true;
+    private string? saveError;
     private ProductModel editingProduct = new();
 
     protected override async Task OnInitializedAsync()
@@ -278,19 +283,60 @@
     {
         showProductModal = false;
         editingProduct = new();
+        saveError = null;
     }
 
     private async Task SaveProduct()
     {
         isSaving = true;
-        await Task.Delay(500);
-        isSaving = false;
-        CloseModal();
+        saveError = null;
+        try
+        {
+            ApiResponse result;
+            if (isEditing)
+            {
+                result = await AppService.UpdateLoanProductAsync(
+                    editingProduct.Id,
+                    editingProduct.Name,
+                    editingProduct.Description,
+                    editingProduct.MinAmount,
+                    editingProduct.MaxAmount,
+                    editingProduct.MinTenorMonths,
+                    editingProduct.MaxTenorMonths);
+            }
+            else
+            {
+                result = await AppService.CreateLoanProductAsync(
+                    editingProduct.Code,
+                    editingProduct.Name,
+                    editingProduct.Description ?? string.Empty,
+                    editingProduct.MinAmount,
+                    editingProduct.MaxAmount,
+                    editingProduct.MinTenorMonths,
+                    editingProduct.MaxTenorMonths);
+            }
+
+            if (result.Success)
+            {
+                CloseModal();
+                await LoadProductsAsync();
+            }
+            else
+            {
+                saveError = result.Error ?? "Failed to save product";
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
     }
 
-    private void ToggleProduct(ProductModel product)
+    private async Task ToggleProduct(ProductModel product)
     {
-        product.IsActive = !product.IsActive;
+        var result = await AppService.ToggleLoanProductAsync(product.Id, product.IsActive);
+        if (result.Success)
+            await LoadProductsAsync();
     }
 
     private static string FormatAmount(decimal amount)

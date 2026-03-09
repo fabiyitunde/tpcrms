@@ -233,6 +233,36 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<List<StatementTransactionInfo>> GetStatementTransactionsAsync(Guid statementId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.StatementAnalysis.Queries.GetStatementTransactionsHandler>();
+            var result = await handler.Handle(new CRMS.Application.StatementAnalysis.Queries.GetStatementTransactionsQuery(statementId), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return new List<StatementTransactionInfo>();
+
+            return result.Data.Select(t => new StatementTransactionInfo
+            {
+                Id = t.Id,
+                Date = t.Date,
+                Description = t.Description,
+                Amount = t.Amount,
+                Type = t.Type,
+                RunningBalance = t.RunningBalance,
+                Reference = t.Reference,
+                Category = t.Category,
+                CategoryConfidence = t.CategoryConfidence,
+                IsRecurring = t.IsRecurring
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching transactions for statement {Id}", statementId);
+            return new List<StatementTransactionInfo>();
+        }
+    }
+
     public async Task<ApiResponse<CRMS.Web.Intranet.Models.CustomerInfo>> FetchCorporateDataAsync(string accountNumber)
     {
         try
@@ -835,9 +865,9 @@ public partial class ApplicationService
                 Code = p.Code,
                 MinAmount = p.MinAmount,
                 MaxAmount = p.MaxAmount,
-                MinTenorMonths = 6,
-                MaxTenorMonths = 60,
-                BaseInterestRate = 15m,
+                MinTenorMonths = p.MinTenorMonths,
+                MaxTenorMonths = p.MaxTenorMonths,
+                BaseInterestRate = p.BaseInterestRate,
                 IsActive = (p.Status == "Active")
             }).ToList();
         }
@@ -1125,6 +1155,57 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse> CreateUserAsync(string email, string firstName, string lastName, string? phoneNumber, List<string> roles)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Identity.Commands.RegisterUserHandler>();
+            var userName = email.Split('@')[0];
+            var result = await handler.Handle(new CRMS.Application.Identity.Commands.RegisterUserCommand(
+                email, userName, "Welcome@1234", firstName, lastName,
+                CRMS.Domain.Entities.Identity.UserType.Staff, phoneNumber, null, roles
+            ), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create user");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating user");
+            return ApiResponse.Fail("Failed to create user");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateUserAsync(Guid userId, string firstName, string lastName, string? phoneNumber, List<string> roles)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Identity.Commands.UpdateUserHandler>();
+            var result = await handler.Handle(new CRMS.Application.Identity.Commands.UpdateUserCommand(
+                userId, firstName, lastName, phoneNumber, roles
+            ), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update user");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating user {Id}", userId);
+            return ApiResponse.Fail("Failed to update user");
+        }
+    }
+
+    public async Task<ApiResponse> ToggleUserStatusAsync(Guid userId, bool currentlyActive)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Identity.Commands.ToggleUserStatusHandler>();
+            var result = await handler.Handle(new CRMS.Application.Identity.Commands.ToggleUserStatusCommand(userId, currentlyActive), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update user status");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling user status {Id}", userId);
+            return ApiResponse.Fail("Failed to update user status");
+        }
+    }
+
     public async Task<List<LoanProduct>> GetAllLoanProductsAsync()
     {
         try
@@ -1142,9 +1223,9 @@ public partial class ApplicationService
                 Code = p.Code,
                 MinAmount = p.MinAmount,
                 MaxAmount = p.MaxAmount,
-                MinTenorMonths = 6,
-                MaxTenorMonths = 60,
-                BaseInterestRate = 15m,
+                MinTenorMonths = p.MinTenorMonths,
+                MaxTenorMonths = p.MaxTenorMonths,
+                BaseInterestRate = p.BaseInterestRate,
                 IsActive = (p.Status == "Active")
             }).ToList();
         }
@@ -1153,6 +1234,65 @@ public partial class ApplicationService
             Exception ex2 = ex;
             _logger.LogError(ex2, "Error fetching all loan products");
             return new List<LoanProduct>();
+        }
+    }
+
+    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.CreateLoanProductHandler>();
+            var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.CreateLoanProductCommand(
+                code, name, description, CRMS.Domain.Enums.LoanProductType.Corporate,
+                minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths
+            ), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create product");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating loan product");
+            return ApiResponse.Fail("Failed to create product");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.UpdateLoanProductHandler>();
+            var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.UpdateLoanProductCommand(
+                id, name, description ?? string.Empty, minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths
+            ), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update product");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating loan product {Id}", id);
+            return ApiResponse.Fail("Failed to update product");
+        }
+    }
+
+    public async Task<ApiResponse> ToggleLoanProductAsync(Guid id, bool currentlyActive)
+    {
+        try
+        {
+            if (currentlyActive)
+            {
+                var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.SuspendLoanProductHandler>();
+                var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.SuspendLoanProductCommand(id), CancellationToken.None);
+                return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to suspend product");
+            }
+            else
+            {
+                var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.ActivateLoanProductHandler>();
+                var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.ActivateLoanProductCommand(id), CancellationToken.None);
+                return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to activate product");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling loan product {Id}", id);
+            return ApiResponse.Fail("Failed to update product status");
         }
     }
 

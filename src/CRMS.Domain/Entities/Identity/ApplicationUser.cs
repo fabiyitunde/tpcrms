@@ -113,6 +113,21 @@ public class ApplicationUser : Entity
         return Result.Success();
     }
 
+    public Result UpdateProfile(string firstName, string lastName, string? phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(firstName)) return Result.Failure("First name is required");
+        if (string.IsNullOrWhiteSpace(lastName)) return Result.Failure("Last name is required");
+        FirstName = firstName;
+        LastName = lastName;
+        PhoneNumber = phoneNumber;
+        return Result.Success();
+    }
+
+    public void ClearRoles()
+    {
+        _userRoles.Clear();
+    }
+
     public Result Deactivate()
     {
         Status = UserStatus.Inactive;
@@ -141,19 +156,6 @@ public class ApplicationUser : Entity
             _userRoles.Remove(userRole);
     }
 
-    public Result UpdateProfile(string firstName, string lastName, string? phoneNumber)
-    {
-        if (string.IsNullOrWhiteSpace(firstName))
-            return Result.Failure("First name is required");
-
-        if (string.IsNullOrWhiteSpace(lastName))
-            return Result.Failure("Last name is required");
-
-        FirstName = firstName;
-        LastName = lastName;
-        PhoneNumber = phoneNumber;
-        return Result.Success();
-    }
 }
 
 public enum UserType

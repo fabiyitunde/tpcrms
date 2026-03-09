@@ -248,6 +248,8 @@ public static class DependencyInjection
         services.AddScoped<Application.ProductCatalog.Queries.GetAllLoanProductsHandler>();
         services.AddScoped<Application.ProductCatalog.Commands.CreateLoanProductHandler>();
         services.AddScoped<Application.ProductCatalog.Commands.UpdateLoanProductHandler>();
+        services.AddScoped<Application.ProductCatalog.Commands.ActivateLoanProductHandler>();
+        services.AddScoped<Application.ProductCatalog.Commands.SuspendLoanProductHandler>();
         
         // Workflow
         services.AddScoped<Application.Workflow.Commands.TransitionWorkflowHandler>();
@@ -289,6 +291,9 @@ public static class DependencyInjection
         
         // Identity
         services.AddScoped<Application.Identity.Queries.GetAllUsersHandler>();
+        services.AddScoped<Application.Identity.Commands.RegisterUserHandler>();
+        services.AddScoped<Application.Identity.Commands.UpdateUserHandler>();
+        services.AddScoped<Application.Identity.Commands.ToggleUserStatusHandler>();
         
         // Statement Analysis domain services
         services.AddScoped<CRMS.Domain.Services.TransactionCategorizationService>();

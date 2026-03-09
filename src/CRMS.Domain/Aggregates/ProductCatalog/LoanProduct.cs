@@ -115,6 +115,7 @@ public class LoanProduct : AggregateRoot
             return Result.Failure("Only active products can be suspended");
 
         Status = ProductStatus.Suspended;
+        AddDomainEvent(new LoanProductSuspendedEvent(Id, Code));
         return Result.Success();
     }
 
@@ -239,3 +240,4 @@ public class LoanProduct : AggregateRoot
 
 public record LoanProductCreatedEvent(Guid ProductId, string Code, string Name) : DomainEvent;
 public record LoanProductActivatedEvent(Guid ProductId, string Code) : DomainEvent;
+public record LoanProductSuspendedEvent(Guid ProductId, string Code) : DomainEvent;

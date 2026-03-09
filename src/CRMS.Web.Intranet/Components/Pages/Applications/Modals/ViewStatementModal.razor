@@ -1,0 +1,188 @@
+@using CRMS.Web.Intranet.Models
+@inject CRMS.Web.Intranet.Services.ApplicationService AppService
+
+<div class="modal-backdrop show" @onclick="OnClose">
+    <div class="modal" style="max-width: 900px; max-height: 90vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <div>
+                <h3 class="modal-title">
+                    <span class="material-symbols-outlined" style="font-size: 20px; vertical-align: middle; margin-right: var(--space-2);">receipt_long</span>
+                    @Statement.BankName — Transactions
+                </h3>
+                <div style="font-size: var(--text-sm); color: var(--gray-500); margin-top: 2px;">
+                    @Statement.AccountNumber • @Statement.AccountName •
+                    @Statement.PeriodStart.ToString("dd MMM yyyy") – @Statement.PeriodEnd.ToString("dd MMM yyyy")
+                </div>
+            </div>
+            <button class="modal-close" @onclick="OnClose">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        <div style="padding: var(--space-4) var(--space-4) 0; border-bottom: 1px solid var(--gray-200);">
+            <!-- Summary row -->
+            <div style="display: flex; gap: var(--space-4); margin-bottom: var(--space-3); flex-wrap: wrap;">
+                <div class="stat-box" style="min-width: 130px;">
+                    <span class="stat-label">Opening Balance</span>
+                    <span class="stat-value">₦@FormatAmount(Statement.OpeningBalance)</span>
+                </div>
+                <div class="stat-box" style="min-width: 130px;">
+                    <span class="stat-label">Closing Balance</span>
+                    <span class="stat-value">₦@FormatAmount(Statement.ClosingBalance)</span>
+                </div>
+                <div class="stat-box" style="min-width: 130px;">
+                    <span class="stat-label">Total Transactions</span>
+                    <span class="stat-value">@Statement.TransactionCount</span>
+                </div>
+                @if (Statement.TotalCredits.HasValue)
+                {
+                    <div class="stat-box" style="min-width: 130px;">
+                        <span class="stat-label">Total Credits</span>
+                        <span class="stat-value" style="color: var(--success-600);">₦@FormatAmount(Statement.TotalCredits.Value)</span>
+                    </div>
+                    <div class="stat-box" style="min-width: 130px;">
+                        <span class="stat-label">Total Debits</span>
+                        <span class="stat-value" style="color: var(--danger-600);">₦@FormatAmount(Statement.TotalDebits ?? 0)</span>
+                    </div>
+                }
+            </div>
+
+            <!-- Filter bar -->
+            <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-3); align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; gap: var(--space-1);">
+                    <button class="btn btn-sm @(filter == "All" ? "btn-primary" : "btn-outline")" @onclick='() => filter = "All"'>All (@allTransactions.Count)</button>
+                    <button class="btn btn-sm @(filter == "Credit" ? "btn-success" : "btn-outline")" @onclick='() => filter = "Credit"'>Credits (@creditCount)</button>
+                    <button class="btn btn-sm @(filter == "Debit" ? "btn-danger" : "btn-outline")" @onclick='() => filter = "Debit"'>Debits (@debitCount)</button>
+                </div>
+                <input class="form-control" style="max-width: 220px; height: 32px; font-size: var(--text-sm);"
+                       type="text" placeholder="Search description…" @bind="searchText" @bind:event="oninput" />
+            </div>
+        </div>
+
+        <div style="overflow-y: auto; flex: 1; padding: 0 var(--space-4) var(--space-4);">
+            @if (isLoading)
+            {
+                <div style="text-align: center; padding: var(--space-8);">
+                    <div class="spinner" style="margin: 0 auto;"></div>
+                    <div style="margin-top: var(--space-3); color: var(--gray-500); font-size: var(--text-sm);">Loading transactions…</div>
+                </div>
+            }
+            else if (!filteredTransactions.Any())
+            {
+                <div class="empty-state" style="padding: var(--space-8) 0;">
+                    <div class="empty-state-icon"><span class="material-symbols-outlined">search_off</span></div>
+                    <div class="empty-state-title">No transactions found</div>
+                    <div class="empty-state-text">Try adjusting your filter or search term.</div>
+                </div>
+            }
+            else
+            {
+                <table class="table" style="font-size: var(--text-sm);">
+                    <thead style="position: sticky; top: 0; background: white; z-index: 1;">
+                        <tr>
+                            <th style="white-space: nowrap;">Date</th>
+                            <th>Description</th>
+                            <th>Reference</th>
+                            <th>Category</th>
+                            <th style="text-align: right;">Debit</th>
+                            <th style="text-align: right;">Credit</th>
+                            <th style="text-align: right;">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var txn in filteredTransactions)
+                        {
+                            <tr>
+                                <td style="white-space: nowrap; color: var(--gray-500);">@txn.Date.ToString("dd MMM yy")</td>
+                                <td>
+                                    @txn.Description
+                                    @if (txn.IsRecurring)
+                                    {
+                                        <span class="badge badge-primary" style="margin-left: 4px; font-size: 10px;" title="Recurring transaction">↻</span>
+                                    }
+                                </td>
+                                <td style="color: var(--gray-400); font-size: var(--text-xs);">@(txn.Reference ?? "—")</td>
+                                <td>
+                                    <span class="badge @CategoryBadgeClass(txn.Category)" style="font-size: 10px;">
+                                        @FormatCategory(txn.Category)
+                                    </span>
+                                </td>
+                                <td style="text-align: right; color: var(--danger-600); font-weight: 500;">
+                                    @(txn.Type == "Debit" ? $"₦{FormatAmount(txn.Amount)}" : "")
+                                </td>
+                                <td style="text-align: right; color: var(--success-600); font-weight: 500;">
+                                    @(txn.Type == "Credit" ? $"₦{FormatAmount(txn.Amount)}" : "")
+                                </td>
+                                <td style="text-align: right; white-space: nowrap; color: @(txn.RunningBalance < 0 ? "var(--danger-600)" : "inherit");">
+                                    ₦@FormatAmount(txn.RunningBalance)
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <div class="modal-footer">
+            <span style="font-size: var(--text-sm); color: var(--gray-500);">
+                Showing @filteredTransactions.Count of @allTransactions.Count transaction(s)
+            </span>
+            <button type="button" class="btn btn-secondary" @onclick="OnClose">Close</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public BankStatementInfo Statement { get; set; } = default!;
+    [Parameter, EditorRequired] public EventCallback OnClose { get; set; }
+
+    private List<StatementTransactionInfo> allTransactions = [];
+    private bool isLoading = true;
+    private string filter = "All";
+    private string searchText = string.Empty;
+
+    private int creditCount => allTransactions.Count(t => t.Type == "Credit");
+    private int debitCount => allTransactions.Count(t => t.Type == "Debit");
+
+    private List<StatementTransactionInfo> filteredTransactions => allTransactions
+        .Where(t => filter == "All" || t.Type == filter)
+        .Where(t => string.IsNullOrWhiteSpace(searchText)
+                    || t.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                    || (t.Reference?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        allTransactions = await AppService.GetStatementTransactionsAsync(Statement.Id);
+        isLoading = false;
+    }
+
+    private static string FormatAmount(decimal amount) =>
+        amount >= 1_000_000_000 ? $"{amount / 1_000_000_000:N2}B"
+        : amount >= 1_000_000 ? $"{amount / 1_000_000:N2}M"
+        : amount >= 1_000 ? $"{amount / 1_000:N2}K"
+        : amount.ToString("N0");
+
+    private static string FormatCategory(string category) => category switch
+    {
+        "SalaryIncome" => "Salary",
+        "BusinessIncome" => "Income",
+        "LoanRepayment" => "Loan Repayment",
+        "UtilityPayment" => "Utility",
+        "RentPayment" => "Rent",
+        "GamblingTransaction" => "Gambling",
+        "BouncedCheque" => "Bounced",
+        "TransferIn" => "Transfer In",
+        "TransferOut" => "Transfer Out",
+        "Unknown" => "Other",
+        _ => category
+    };
+
+    private static string CategoryBadgeClass(string category) => category switch
+    {
+        "GamblingTransaction" or "BouncedCheque" => "badge-danger",
+        "SalaryIncome" or "BusinessIncome" or "TransferIn" => "badge-success",
+        "LoanRepayment" or "RentPayment" or "UtilityPayment" => "badge-warning",
+        _ => "badge-gray"
+    };
+}

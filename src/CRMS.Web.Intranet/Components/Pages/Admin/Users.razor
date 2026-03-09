@@ -176,6 +176,10 @@
                 </div>
             </div>
             <div class="modal-footer">
+                @if (!string.IsNullOrEmpty(saveError))
+                {
+                    <div class="alert alert-danger" style="margin: 0; flex: 1; font-size: var(--text-sm);">@saveError</div>
+                }
                 <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
                 <button class="btn btn-primary" @onclick="SaveUser" disabled="@isSaving">
                     @if (isSaving)
@@ -198,6 +202,8 @@
     private bool showUserModal;
     private bool isEditing;
     private bool isSaving;
+    private string? saveError;
+    private string newUserPassword = string.Empty;
     private UserModel editingUser = new();
 
     protected override async Task OnInitializedAsync()
@@ -250,6 +256,8 @@
     private void OpenCreateModal()
     {
         editingUser = new();
+        newUserPassword = string.Empty;
+        saveError = null;
         isEditing = false;
         showUserModal = true;
     }
@@ -273,26 +281,53 @@
     {
         showUserModal = false;
         editingUser = new();
+        newUserPassword = string.Empty;
+        saveError = null;
     }
 
     private async Task SaveUser()
     {
         isSaving = true;
-        await Task.Delay(500);
-        isSaving = false;
-        CloseModal();
-        await LoadUsers();
+        saveError = null;
+        try
+        {
+            var roles = string.IsNullOrEmpty(editingUser.Role) ? new List<string>() : new List<string> { editingUser.Role };
+            ApiResponse result;
+            if (isEditing)
+            {
+                result = await AppService.UpdateUserAsync(editingUser.Id, editingUser.FirstName, editingUser.LastName, null, roles);
+            }
+            else
+            {
+                result = await AppService.CreateUserAsync(editingUser.Email, editingUser.FirstName, editingUser.LastName, null, roles);
+            }
+
+            if (result.Success)
+            {
+                CloseModal();
+                await LoadUsers();
+            }
+            else
+            {
+                saveError = result.Error ?? "Failed to save user";
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
     }
 
     private async Task ToggleUserStatus(UserModel user)
     {
-        user.IsActive = !user.IsActive;
-        await Task.Delay(200);
+        var result = await AppService.ToggleUserStatusAsync(user.Id, user.IsActive);
+        if (result.Success)
+            await LoadUsers();
     }
 
     private async Task ResetPassword(UserModel user)
     {
-        await Task.Delay(200);
+        await Task.CompletedTask; // Placeholder — password reset via email flow
     }
 
     private static string GetRoleBadgeClass(string role) => role switch

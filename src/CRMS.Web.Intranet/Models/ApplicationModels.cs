@@ -308,6 +308,20 @@ public class BankStatementInfo
     public int? GamblingTransactions { get; set; }
 }
 
+public class StatementTransactionInfo
+{
+    public Guid Id { get; set; }
+    public DateTime Date { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string Type { get; set; } = string.Empty;   // "Credit" | "Debit"
+    public decimal RunningBalance { get; set; }
+    public string? Reference { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public decimal CategoryConfidence { get; set; }
+    public bool IsRecurring { get; set; }
+}
+
 public class UploadExternalStatementRequest
 {
     public string BankName { get; set; } = string.Empty;

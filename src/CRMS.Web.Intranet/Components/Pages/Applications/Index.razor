@@ -201,7 +201,13 @@
         
         // Get user's own applications (includes Drafts)
         var myApps = await AppService.GetMyApplicationsAsync(userId);
-        
+
+        // Fallback to mock data when the database is empty (same pattern as Dashboard)
+        if (!myApps.Any())
+        {
+            myApps = GenerateMockApplications();
+        }
+
         // Also get applications by status if a specific status is selected
         if (!string.IsNullOrEmpty(filter.Status))
         {

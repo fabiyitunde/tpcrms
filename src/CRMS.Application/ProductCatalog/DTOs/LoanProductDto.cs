@@ -26,7 +26,10 @@ public record LoanProductSummaryDto(
     decimal MinAmount,
     decimal MaxAmount,
     string Currency,
-    string Status
+    string Status,
+    int MinTenorMonths,
+    int MaxTenorMonths,
+    decimal BaseInterestRate
 );
 
 public record PricingTierDto(

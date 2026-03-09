@@ -1,6 +1,6 @@
 # CRMS Intranet UI - Gap Analysis
 
-**Document Version:** 3.4
+**Document Version:** 3.6
 **Date:** 2026-03-01
 **Status:** Priority 1 RESOLVED | Priority 2 RESOLVED | Priority 3 Pending
 
@@ -176,6 +176,7 @@ Business age-based validation now implemented:
 | Reject external statement | ✅ Done | Reason modal; calls `RejectStatementAsync` |
 | Trigger cashflow analysis | ✅ Done | "Analyze" button per statement; calls `AnalyzeStatementAsync` |
 | Cashflow metrics display | ✅ Done | Credits, Debits, Avg Balance, Net Cashflow, Bounced/Gambling tx counts |
+| View individual transactions | ✅ Done | `ViewStatementModal` — filter (All/Credits/Debits), live search, color-coded category badges, recurring badge, negative balance highlight |
 
 ---
 
@@ -187,8 +188,8 @@ Business age-based validation now implemented:
 |------|-------|--------|--------|
 | Scoring Config | `/admin/scoring` | Display Only | No edit functionality |
 | Templates | `/admin/templates` | Display Only | No CRUD operations |
-| Users | `/admin/users` | Display Only | No create/edit/deactivate |
-| Products | `/admin/products` | Partial | Create works, edit/delete missing |
+| Users | `/admin/users` | ✅ CRUD Complete | Create / Edit / Activate / Deactivate wired to real backend |
+| Products | `/admin/products` | ✅ CRUD Complete | Create / Edit / Enable / Disable wired to real backend |
 
 ### 3.2 Report Pages
 
@@ -317,3 +318,5 @@ Business age-based validation now implemented:
 | 3.2 | 2026-02-21 | Collateral document management complete: `ICollateralDocumentRepository`, upload/delete handlers, `UploadCollateralDocumentModal.razor`, `ViewCollateralModal` DOCUMENTS section with view/download/delete + confirmation dialog, API endpoints for view/download, delete removes both DB record and file |
 | 3.3 | 2026-03-01 | Credit Bureau UI complete: SmartComply integration wired to UI; `BureauTab.razor` redesigned with business reports section, party grouping (Directors/Signatories/Guarantors), fraud risk badges (Low/Medium/High), new metrics (TotalOverdue, MaxDelinquencyDays, Provider); `ApplicationService.GetBureauReportsAsync()` fetches real data; `BureauReportInfo` model updated with new fields |
 | 3.4 | 2026-03-01 | Bank Statement auto-fetch + UI complete: `InitiateCorporateLoanCommand` now persists CoreBanking statement on create. New `StatementsTab.razor` (Own Bank + Other Banks), `UploadExternalStatementModal.razor`, `FillPartyInfoModal.razor`. `ApplicationService` + 7 new methods. `LoanApplication.IncorporationDate` + `UpdatePartyFields()`. `UpdatePartyInfoCommand`. Party null-field "Complete info" button in PartiesTab. New.razor uses real `FetchCorporateDataAsync()` with editable override fields. Migration `20260301170000_AddIncorporationDateToLoanApplication`. Build: 0 errors. |
+| 3.6 | 2026-03-09 | Code quality (M-1 NIN index, M-2 ConsentRecordId index). User CRUD: `UpdateUserCommand`, `ToggleUserStatusCommand`, `ClearRoles()` on `ApplicationUser`; `CreateUserAsync`, `UpdateUserAsync`, `ToggleUserStatusAsync` in `ApplicationService`; `Users.razor` fully wired. Product CRUD: `SuspendLoanProductCommand`, `LoanProductSuspendedEvent`; `CreateLoanProductAsync`, `UpdateLoanProductAsync`, `ToggleLoanProductAsync` in `ApplicationService`; `Products.razor` fully wired. Bug fix: `LoanProductSummaryDto` missing `MinTenorMonths`/`MaxTenorMonths`/`BaseInterestRate` caused hardcoded values in product dropdown — fixed in DTO, mapper, and both service methods. Build: 0 errors. |
+| 3.5 | 2026-03-09 | Bank statement transaction drill-down: `ViewStatementModal.razor` (new) — per-statement transaction list with filter (All/Credits/Debits), live search by description/reference, color-coded category badges, recurring badge, negative balance highlight. `StatementTransactionInfo` model added. `GetStatementTransactionsAsync` added to `ApplicationService`. "View" button added to own-bank card and every external statement row in `StatementsTab`. `Detail.razor` wired. No backend changes needed — `GetStatementTransactionsHandler` was already registered in DI. Build: 0 errors. |

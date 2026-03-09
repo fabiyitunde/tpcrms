@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-03-01 (Session 7)
+**Last Updated:** 2026-03-09 (Session 11)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -72,7 +72,7 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 
 **Intranet UI:** Core workflows complete. A few management features remain.
 
-### What Works (as of 2026-03-01)
+### What Works (as of 2026-03-09)
 
 | Feature Area | Status |
 |---|---|
@@ -94,18 +94,20 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | Workflow queue pages (My Queue, All Queues) | ✅ |
 | Dashboard and Reports | ✅ |
 | **Credit Bureau UI (SmartComply)** | ✅ |
+| **Bank Statement tab (view transactions drill-down)** | ✅ |
+| **User management CRUD (Create / Edit / Activate / Deactivate)** | ✅ |
+| **Product management (Create / Edit / Enable / Disable)** | ✅ |
 
 ### What Is Pending
 
 | Feature | Priority | Notes |
 |---|---|---|
-| Bank Statement tab (view, analyze, upload external) | P2 | ✅ UI built; `GetBankStatementsAsync`, `UploadExternalStatementAsync`, `VerifyStatementAsync`, `RejectStatementAsync`, `AnalyzeStatementAsync` all wired |
-| Editable fallback for null core-banking fields | P2 | ✅ Done — RC number + IncorporationDate in New.razor; BVN + shareholding % in PartiesTab via FillPartyInfoModal |
-| Bank statement auto-fetch at creation | P2 | ✅ Done — `InitiateCorporateLoanCommand` now persists CoreBanking statement on application create |
-| User management CRUD | P3 | Currently display-only (`/admin/users`) |
-| Product edit / delete | P3 | Create works; edit/delete missing (`/admin/products`) |
 | Scoring config editor | P3 | Display-only (`/admin/scoring`) |
 | Connect report pages to ReportingService | P3 | Performance/Committee pages show mock data |
+| Seed default products in DB | P3 | New.razor mock fallback uses `Guid.NewGuid()` — invalid if DB empty; seed via `SeedData` class |
+| M-3: Migrate `RequestBureauReportCommand` to `ISmartComplyProvider` | P3 | Still uses legacy `ICreditBureauProvider`; deferred — complex API shape change |
+| M-4: Distributed lock in `ProcessLoanCreditChecksCommand` | P3 | Deferred — needs distributed lock infrastructure |
+| M-5: Rename `NonPerformingAccounts` → `DelinquentFacilities` | P3 | Deferred — 20+ references + DB migration column rename |
 
 ---
 
@@ -223,7 +225,172 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-03-01 Session 7)
+## 5. Last Session Summary (2026-03-09 Session 11)
+
+### Completed — Code Quality Fixes (M-1, M-2) + User Management CRUD + Product Management + Product Dropdown Bug Fix
+
+---
+
+#### 1. Code Quality Fixes (Option B — M-1, M-2)
+
+- **`ConsentRecordConfiguration.cs`**: Added `HasIndex(x => x.NIN)` — NIN index was missing (BVN index already existed).
+- **`BureauReportConfiguration.cs`**: Added `HasIndex(x => x.ConsentRecordId)` — FK field had no index.
+- M-3/M-4/M-5 deferred: M-5 touches 20+ files + migration column rename; M-3 requires full API shape change; M-4 needs distributed lock infrastructure.
+
+#### 2. Product Management — Edit / Enable / Disable (Option D)
+
+- **`LoanProduct.cs`** (Domain): Added `LoanProductSuspendedEvent`; existing `Suspend()` now raises it.
+- **`SuspendLoanProductCommand.cs`** (NEW): Command + handler calling `product.Suspend()`.
+- **`DependencyInjection.cs`**: Registered `ActivateLoanProductHandler` and `SuspendLoanProductHandler`.
+- **`ApplicationService.cs`**: Added `CreateLoanProductAsync()`, `UpdateLoanProductAsync()`, `ToggleLoanProductAsync()` (calls Suspend or Activate based on current state).
+- **`Products.razor`**: `SaveProduct()` now calls real backend (Create or Update per `isEditing`); `ToggleProduct()` calls `ToggleLoanProductAsync()`; error displayed in modal footer.
+
+#### 3. User Management CRUD (Option C)
+
+- **`ApplicationUser.cs`** (Domain): Added `ClearRoles()` method (domain already had `UpdateProfile`).
+- **`UpdateUserCommand.cs`** (NEW): Command + handler — updates FirstName, LastName, PhoneNumber, clears and reassigns roles.
+- **`ToggleUserStatusCommand.cs`** (NEW): Command + handler — calls `Activate()` or `Deactivate()` based on `request.Deactivate`.
+- **`DependencyInjection.cs`**: Registered `RegisterUserHandler`, `UpdateUserHandler`, `ToggleUserStatusHandler`.
+- **`ApplicationService.cs`**: Added `CreateUserAsync()`, `UpdateUserAsync()`, `ToggleUserStatusAsync()`. Default password for new users: `Welcome@1234`.
+- **`Users.razor`**: `SaveUser()` calls Create or Update (real backend); `ToggleUserStatus()` calls `ToggleUserStatusAsync()`; `saveError` shown in modal footer.
+
+#### 4. Product Dropdown Bug Fix (New Application page)
+
+**Root cause:** `LoanProductSummaryDto` was missing `MinTenorMonths`, `MaxTenorMonths`, `BaseInterestRate`. So `GetLoanProductsAsync()` and `GetAllLoanProductsAsync()` hardcoded these values (`6`, `60`, `15m`) regardless of what the admin configured.
+
+- **`LoanProductDto.cs`**: Added `MinTenorMonths`, `MaxTenorMonths`, `BaseInterestRate` to `LoanProductSummaryDto`.
+- **`LoanProductMappings.cs`**: `ToSummaryDto()` now maps real domain values; `BaseInterestRate` = first pricing tier rate (or 0).
+- **`ApplicationService.cs`**: Both `GetLoanProductsAsync()` and `GetAllLoanProductsAsync()` now use `p.MinTenorMonths`, `p.MaxTenorMonths`, `p.BaseInterestRate` — no more hardcoded values.
+
+> **Remaining note:** `New.razor` mock fallback uses `Guid.NewGuid()` product IDs — valid only for UI demo when DB is empty. Real fix = seed default products via the `SeedData` class in Infrastructure.
+
+### Files Updated This Session
+- `src/CRMS.Infrastructure/Persistence/Configurations/Consent/ConsentRecordConfiguration.cs`
+- `src/CRMS.Infrastructure/Persistence/Configurations/CreditBureau/BureauReportConfiguration.cs`
+- `src/CRMS.Domain/Aggregates/ProductCatalog/LoanProduct.cs`
+- `src/CRMS.Application/ProductCatalog/Commands/SuspendLoanProductCommand.cs` ← **NEW**
+- `src/CRMS.Application/ProductCatalog/DTOs/LoanProductDto.cs`
+- `src/CRMS.Application/ProductCatalog/Mappings/LoanProductMappings.cs`
+- `src/CRMS.Domain/Entities/Identity/ApplicationUser.cs`
+- `src/CRMS.Application/Identity/Commands/UpdateUserCommand.cs` ← **NEW**
+- `src/CRMS.Application/Identity/Commands/ToggleUserStatusCommand.cs` ← **NEW**
+- `src/CRMS.Infrastructure/DependencyInjection.cs`
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs`
+- `src/CRMS.Web.Intranet/Components/Pages/Admin/Products.razor`
+- `src/CRMS.Web.Intranet/Components/Pages/Admin/Users.razor`
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v3.6
+- [x] `docs/ImplementationTracker.md` → v3.5
+
+---
+
+## 5. Previous Session Summary (2026-03-09 Session 10)
+
+### Completed — Bank Statement Transaction Detail Viewer
+
+**Goal:** Add a drill-down view so users can see individual transactions inside any bank statement (own-bank CoreBanking or external).
+
+#### What was built
+
+- **`StatementTransactionInfo`** added to `ApplicationModels.cs` — UI model for a single transaction (Date, Description, Amount, Type, RunningBalance, Reference, Category, CategoryConfidence, IsRecurring).
+- **`GetStatementTransactionsAsync(Guid statementId)`** added to `ApplicationService.cs` — calls the already-existing `GetStatementTransactionsHandler` (DI-registered since Session 7) and maps results to `StatementTransactionInfo`.
+- **`ViewStatementModal.razor`** (new) — full-featured transaction viewer:
+  - Header with bank name, account, period
+  - Summary row: Opening/Closing balance, transaction count, total credits/debits
+  - Filter buttons: All / Credits / Debits (with live counts)
+  - Live search by description or reference
+  - Scrollable table: Date | Description | Ref | Category | Debit | Credit | Running Balance
+  - Recurring badge (↻) on recurring transactions
+  - Category badges color-coded: red = Gambling/Bounced, green = Salary/Income/Transfer In, yellow = Loan/Rent/Utility
+  - Negative running balance highlighted in red
+- **`StatementsTab.razor`** — added "View" button to the own-bank card and to every row in the external statements table; added `OnViewTransactions` `EventCallback<Guid>` parameter.
+- **`Detail.razor`** — added `OnViewTransactions="ShowViewStatementTransactionsModal"` param to `StatementsTab`; added state vars (`showViewStatementTransactionsModal`, `viewingStatementTransactionsId`); added show/close handlers; added `ViewStatementModal` rendering block.
+
+**Build:** 0 errors.
+
+### Files Updated This Session
+- `src/CRMS.Web.Intranet/Models/ApplicationModels.cs`
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/ViewStatementModal.razor` ← **NEW**
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/StatementsTab.razor`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor`
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v3.5
+- [x] `docs/ImplementationTracker.md` → v3.4
+
+---
+
+## 5. Previous Session Summary (2026-03-01 Session 9)
+
+### Completed — UI Theme Migration to Forest Green + Bug Fixes
+
+**Goal:** Migrate the entire CRMS intranet UI to match the RH-SHF-EOI reference app's forest green color scheme, and fix broken/misaligned UI elements.
+
+#### 1. Color Scheme Migration (CSS Variables)
+
+- **`wwwroot/css/app.css`**: Replaced all 10 `--primary-*` CSS variables from blue (#3b82f6 scale) to forest green (#1a5f2a / #2e7d32 scale). All components using `var(--primary-*)` (buttons, badges, form focus rings, tabs, spinners, nav items, user avatar, logo icon) now render in green.
+- **`wwwroot/app.css`**: Updated legacy Bootstrap-style `.btn-primary`, link color, and focus ring from blue to green.
+- Both sidebar gradients updated to dark forest green (`#0d2813 → #1a3d20`).
+
+#### 2. Sidebar Background Not Updating (Critical Fix)
+
+- **Root cause:** `MainLayout.razor.css` (Blazor scoped CSS) had an old blue/purple gradient `rgb(5,39,103) → #3a0647` and `position: sticky` on `.sidebar`. Scoped CSS has higher specificity than global CSS — it was winning and overriding the global green gradient and `position: fixed`.
+- **Fix:** Rewrote `MainLayout.razor.css` to contain only the dark green sidebar gradient and the `#blazor-error-ui` styles. Removed all legacy template styles (`.page`, `.top-row`, sidebar width/position overrides).
+
+#### 3. NavMenu Legacy CSS Conflicts (Fixed)
+
+- **Root cause:** `NavMenu.razor.css` had `padding-bottom: 0.5rem` on `.nav-item` (conflicting with global padding), `::deep a.active` background override (conflicting with themed active state), and other legacy template styles.
+- **Fix:** Cleared `NavMenu.razor.css` to a comment-only file. All nav styling now comes exclusively from the global `app.css`.
+
+#### 4. Login Page Heading Text Invisible (Fixed)
+
+- **Root cause:** Global CSS rule `h1, h2, h3 { color: var(--gray-900); }` explicitly sets dark text, overriding the inherited `color: white` from `.login-left`. On the dark green background this made headings nearly invisible.
+- **Fix:** Added `.login-left h1, .login-left h2, .login-left h3, .login-left h4, .login-left p, .login-left span { color: white; }` to `app.css`.
+
+#### 5. Applications List Empty (Fixed)
+
+- **Root cause:** `Applications/Index.razor` called `AppService.GetMyApplicationsAsync()` which returns an empty list when the DB has no data for the current user. Unlike the Dashboard page, it had no mock data fallback. The `GenerateMockApplications()` method was defined but never called.
+- **Fix:** Added mock data fallback (same pattern as Dashboard): if `GetMyApplicationsAsync` returns empty, call `GenerateMockApplications()` as a fallback.
+
+### Files Updated This Session
+- `wwwroot/css/app.css` — primary color vars, sidebar gradient, login gradient, login-left text fix
+- `wwwroot/app.css` — legacy link/button blue → green
+- `Components/Layout/MainLayout.razor.css` — complete rewrite (remove conflicting legacy styles, fix sidebar)
+- `Components/Layout/NavMenu.razor.css` — cleared conflicting legacy styles
+- `Components/Pages/Applications/Index.razor` — mock data fallback added
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → no feature change, visual-only
+- [ ] `docs/ImplementationTracker.md` → no feature change, visual-only
+
+---
+
+## 5.1 Previous Session Summary (2026-03-01 Session 8)
+
+### Completed — SDK Version Pin (Runtime Crash Fix)
+
+**Bug:** App crashed on every page load with `InvalidOperationException: Router does not have property 'NotFoundPage'`.
+
+**Root cause:** Two SDKs are installed (9.0.310 and 10.0.102). With no `global.json`, the machine defaulted to SDK 10. The SDK 10 Razor compiler generates .NET 10-style `Router` code using a `NotFoundPage` (Type) parameter; the project's net9.0 runtime `Router` only knows `NotFound` (RenderFragment) — mismatch at runtime.
+
+**Fix:** Created `global.json` at repo root pinning SDK to `9.0.310` with `rollForward: latestPatch`. One file, zero code changes. Build and runtime now match.
+
+### Files Updated This Session
+- `global.json` ← **NEW** (repo root)
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → no change (not a UI feature)
+- [ ] `docs/ImplementationTracker.md` → no change (infrastructure-only fix)
+
+---
+
+## 5.2 Previous Session Summary (2026-03-01 Session 7)
 
 ### Completed — Bank Statement Auto-Fetch + External Statements UI + Editable Fallback Fields
 
@@ -328,17 +495,14 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ## 6. Suggested Next Task
 
-### Option A — End-to-End Test the Session 7 Features
+### Option A — End-to-End Test Session 11 Features
 
-Before moving to admin pages, run the app and manually test:
-
-1. Create application with account `1234567890` → open Statements tab → should show 1 CoreBanking statement
-2. Upload an external statement → appears in "Other Banks" section as Pending Review
-3. Click Verify on external statement → status changes to Verified (trust 85%)
-4. Click Reject on external statement → reason modal → status changes to Rejected
-5. Open Parties tab on a Draft application → check "Complete info" button for directors with null BVN
-6. Fill in BVN → save → button disappears
-7. On New Application page, use account that has null RC number → verify editable field appears
+1. `/admin/products` → Edit a product → change tenor range → save → verify values updated
+2. `/admin/products` → Disable a product → Enable it again
+3. `/admin/users` → Create a new user → appears in list
+4. `/admin/users` → Edit a user's name → saved correctly
+5. `/admin/users` → Deactivate a user → badge turns Inactive → Activate again
+6. Create a new application → check product dropdown shows correct tenor/rate (not hardcoded 6mo/15%)
 
 ---
 
@@ -386,9 +550,20 @@ dotnet run --project src/CRMS.Web.Intranet/CRMS.Web.Intranet.csproj
 
 # Check for real errors only (ignore MSB3026/MSB3021 file-lock noise from running app)
 dotnet build src/CRMS.Web.Intranet/CRMS.Web.Intranet.csproj 2>&1 | grep "error CS"
+
+# Verify correct SDK is active (must be 9.x, not 10.x)
+dotnet --version   # should print 9.0.x
 ```
 
 `MSB3026` / `MSB3021` errors = app is running and holding DLL locks. **Not real errors.** Only `error CS` lines are compiler errors.
+
+### SDK Version — CRITICAL
+
+A `global.json` at the repo root pins the SDK to **9.0.310** (`rollForward: latestPatch`). **Do not remove it.**
+
+**Why:** Both SDK 9.0.310 and SDK 10.0.102 are installed on this machine. SDK 10's Razor compiler generates .NET 10-style Router code (`NotFoundPage` as a `Type` parameter) which is incompatible with the net9.0 runtime's `Router` class (which uses `NotFound` as a `RenderFragment`). Without the pin, the app crashes on startup with `InvalidOperationException: Router does not have property 'NotFoundPage'`.
+
+If you see that error again, run `dotnet --version` first — it must say `9.0.x`.
 
 ---
 
