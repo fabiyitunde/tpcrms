@@ -78,6 +78,10 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
         builder.Property(x => x.IncorporationDate)
             .IsRequired(false);
 
+        builder.Property(x => x.IndustrySector)
+            .HasMaxLength(100)
+            .IsRequired(false);
+
         builder.OwnsOne(x => x.ApprovedAmount, money =>
         {
             money.Property(m => m.Amount)

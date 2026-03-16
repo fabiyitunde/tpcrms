@@ -62,6 +62,24 @@ public class CreditHistoryConfig
     public decimal DelinquencyPenalty { get; set; } = 15m;
     public decimal PerformingLoansBonus { get; set; } = 5m;
     public int MinPerformingLoansForBonus { get; set; } = 3;
+
+    // Legal actions
+    public decimal LegalActionsPenalty { get; set; } = 20m;
+
+    // Delinquency day thresholds
+    public int SevereDelinquencyDaysThreshold { get; set; } = 90;
+    public decimal SevereDelinquencyPenalty { get; set; } = 15m;
+    public int WatchListDaysThreshold { get; set; } = 30;
+    public decimal WatchListPenalty { get; set; } = 8m;
+
+    // Fraud risk score thresholds
+    public int HighFraudRiskScoreThreshold { get; set; } = 70;
+    public decimal HighFraudRiskPenalty { get; set; } = 25m;
+    public int ElevatedFraudRiskScoreThreshold { get; set; } = 50;
+    public decimal ElevatedFraudRiskPenalty { get; set; } = 10m;
+
+    // Missing bureau data
+    public decimal MissingBureauDataPenaltyPerParty { get; set; } = 5m;
 }
 
 public class FinancialHealthConfig

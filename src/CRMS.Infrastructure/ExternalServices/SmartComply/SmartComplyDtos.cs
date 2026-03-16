@@ -969,12 +969,268 @@ public class CacDirectorData
 {
     [JsonPropertyName("name")]
     public string? Name { get; set; }
-    
+
     [JsonPropertyName("designation")]
     public string? Designation { get; set; }
-    
+
     [JsonPropertyName("date_of_appointment")]
     public string? DateOfAppointment { get; set; }
+}
+
+// Full CAC Advanced response — POST /api/onboarding/nigeria_kyc/cac_advanced/
+public class CacAdvancedData
+{
+    [JsonPropertyName("company_name")]
+    public string? CompanyName { get; set; }
+
+    [JsonPropertyName("rc_number")]
+    public string? RcNumber { get; set; }
+
+    [JsonPropertyName("number")]
+    public string? Number { get; set; }
+
+    [JsonPropertyName("company_id")]
+    public long? CompanyId { get; set; }
+
+    [JsonPropertyName("entity_type")]
+    public string? EntityType { get; set; }
+
+    [JsonPropertyName("company_status")]
+    public string? CompanyStatus { get; set; }
+
+    [JsonPropertyName("company_address")]
+    public string? CompanyAddress { get; set; }
+
+    [JsonPropertyName("email_address")]
+    public string? EmailAddress { get; set; }
+
+    [JsonPropertyName("registrationDate")]
+    public string? RegistrationDate { get; set; }
+
+    [JsonPropertyName("city")]
+    public string? City { get; set; }
+
+    [JsonPropertyName("state")]
+    public string? State { get; set; }
+
+    [JsonPropertyName("lga")]
+    public string? Lga { get; set; }
+
+    [JsonPropertyName("branchAddress")]
+    public string? BranchAddress { get; set; }
+
+    [JsonPropertyName("searchScore")]
+    public double? SearchScore { get; set; }
+
+    [JsonPropertyName("directors")]
+    public List<CacAdvancedDirectorData>? Directors { get; set; }
+}
+
+public class CacAdvancedDirectorData
+{
+    [JsonPropertyName("id")]
+    public long? Id { get; set; }
+
+    [JsonPropertyName("surname")]
+    public string? Surname { get; set; }
+
+    [JsonPropertyName("firstname")]
+    public string? Firstname { get; set; }
+
+    [JsonPropertyName("otherName")]
+    public string? OtherName { get; set; }
+
+    [JsonPropertyName("gender")]
+    public string? Gender { get; set; }
+
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+
+    [JsonPropertyName("address")]
+    public string? Address { get; set; }
+
+    [JsonPropertyName("city")]
+    public string? City { get; set; }
+
+    [JsonPropertyName("state")]
+    public string? State { get; set; }
+
+    [JsonPropertyName("lga")]
+    public string? Lga { get; set; }
+
+    [JsonPropertyName("email")]
+    public string? Email { get; set; }
+
+    [JsonPropertyName("phoneNumber")]
+    public string? PhoneNumber { get; set; }
+
+    [JsonPropertyName("occupation")]
+    public string? Occupation { get; set; }
+
+    [JsonPropertyName("nationality")]
+    public string? Nationality { get; set; }
+
+    [JsonPropertyName("identityNumber")]
+    public string? IdentityNumber { get; set; }
+
+    [JsonPropertyName("dateOfBirth")]
+    public string? DateOfBirth { get; set; }
+
+    [JsonPropertyName("isChairman")]
+    public bool? IsChairman { get; set; }
+
+    [JsonPropertyName("isCorporate")]
+    public bool? IsCorporate { get; set; }
+
+    [JsonPropertyName("isDesignated")]
+    public bool? IsDesignated { get; set; }
+
+    [JsonPropertyName("typeOfShares")]
+    public string? TypeOfShares { get; set; }
+
+    [JsonPropertyName("numSharesAlloted")]
+    public long? NumSharesAlloted { get; set; }
+
+    [JsonPropertyName("dateOfAppointment")]
+    public string? DateOfAppointment { get; set; }
+
+    [JsonPropertyName("formerName")]
+    public string? FormerName { get; set; }
+
+    [JsonPropertyName("formerSurname")]
+    public string? FormerSurname { get; set; }
+
+    [JsonPropertyName("formerFirstName")]
+    public string? FormerFirstName { get; set; }
+
+    [JsonPropertyName("formerNationality")]
+    public string? FormerNationality { get; set; }
+
+    [JsonPropertyName("rcNumber")]
+    public string? RcNumber { get; set; }
+
+    [JsonPropertyName("postcode")]
+    public string? Postcode { get; set; }
+
+    [JsonPropertyName("streetNumber")]
+    public string? StreetNumber { get; set; }
+
+    [JsonPropertyName("corporationName")]
+    public string? CorporationName { get; set; }
+
+    [JsonPropertyName("accreditationnumber")]
+    public string? AccreditationNumber { get; set; }
+
+    [JsonPropertyName("otherDirectorshipDetails")]
+    public string? OtherDirectorshipDetails { get; set; }
+
+    [JsonPropertyName("formType")]
+    public string? FormType { get; set; }
+
+    [JsonPropertyName("countryFk")]
+    public CacCountryReference? CountryFk { get; set; }
+
+    [JsonPropertyName("affiliateTypeFk")]
+    public CacAffiliateTypeReference? AffiliateTypeFk { get; set; }
+
+    [JsonPropertyName("affiliatesPscInformation")]
+    public CacPscInformation? AffiliatesPscInformation { get; set; }
+
+    [JsonPropertyName("affiliatesResidentialAddress")]
+    public CacResidentialAddress? AffiliatesResidentialAddress { get; set; }
+}
+
+public class CacCountryReference
+{
+    [JsonPropertyName("id")]
+    public int? Id { get; set; }
+
+    [JsonPropertyName("code")]
+    public string? Code { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+}
+
+public class CacAffiliateTypeReference
+{
+    [JsonPropertyName("id")]
+    public long? Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}
+
+public class CacPscInformation
+{
+    [JsonPropertyName("id")]
+    public long? Id { get; set; }
+
+    [JsonPropertyName("register")]
+    public string? Register { get; set; }
+
+    [JsonPropertyName("dateOfPsc")]
+    public string? DateOfPsc { get; set; }
+
+    [JsonPropertyName("legalForm")]
+    public string? LegalForm { get; set; }
+
+    [JsonPropertyName("governingLaw")]
+    public string? GoverningLaw { get; set; }
+
+    [JsonPropertyName("pscVotingRights")]
+    public string? PscVotingRights { get; set; }
+
+    [JsonPropertyName("pscRightToAppoints")]
+    public string? PscRightToAppoints { get; set; }
+
+    [JsonPropertyName("pscSignificantInfluence")]
+    public string? PscSignificantInfluence { get; set; }
+
+    [JsonPropertyName("pscHoldsSharesOrInterest")]
+    public string? PscHoldsSharesOrInterest { get; set; }
+
+    [JsonPropertyName("pscVotingRightsPercentageHeldDirectly")]
+    public double? PscVotingRightsPercentageHeldDirectly { get; set; }
+
+    [JsonPropertyName("pscVotingRightsPercentageHeldIndirectly")]
+    public double? PscVotingRightsPercentageHeldIndirectly { get; set; }
+
+    [JsonPropertyName("pscHoldsSharesOrInterestPercentageHeldDirectly")]
+    public double? PscHoldsSharesOrInterestPercentageHeldDirectly { get; set; }
+
+    [JsonPropertyName("pscHoldsSharesOrInterestPercentageHeldIndirectly")]
+    public double? PscHoldsSharesOrInterestPercentageHeldIndirectly { get; set; }
+}
+
+public class CacResidentialAddress
+{
+    [JsonPropertyName("id")]
+    public long? Id { get; set; }
+
+    [JsonPropertyName("lga")]
+    public string? Lga { get; set; }
+
+    [JsonPropertyName("city")]
+    public string? City { get; set; }
+
+    [JsonPropertyName("state")]
+    public string? State { get; set; }
+
+    [JsonPropertyName("address")]
+    public string? Address { get; set; }
+
+    [JsonPropertyName("country")]
+    public string? Country { get; set; }
+
+    [JsonPropertyName("postcode")]
+    public string? Postcode { get; set; }
+
+    [JsonPropertyName("streetNumber")]
+    public string? StreetNumber { get; set; }
 }
 
 public class NinVerificationRequest

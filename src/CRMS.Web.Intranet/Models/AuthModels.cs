@@ -26,8 +26,13 @@ public class UserInfo
     public string Initials => $"{FirstName?.FirstOrDefault()}{LastName?.FirstOrDefault()}";
     public List<string> Roles { get; set; } = [];
     public List<string> Permissions { get; set; } = [];
-    public string? BranchId { get; set; }
-    public string? BranchName { get; set; }
+    public Guid? LocationId { get; set; }
+    public string? LocationName { get; set; }
+    // Backward compatibility
+    public string? BranchId { get => LocationId?.ToString(); set => LocationId = Guid.TryParse(value, out var id) ? id : null; }
+    public string? BranchName { get => LocationName; set => LocationName = value; }
+
+    public string PrimaryRole => Roles.FirstOrDefault() ?? string.Empty;
 
     public bool HasRole(string role) => Roles.Contains(role, StringComparer.OrdinalIgnoreCase);
     public bool HasAnyRole(params string[] roles) => roles.Any(r => HasRole(r));

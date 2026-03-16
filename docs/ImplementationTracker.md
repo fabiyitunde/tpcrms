@@ -1,8 +1,8 @@
 # CRMS - Implementation Tracker
 
-**Version:** 3.5
-**Last Updated:** 2026-03-09
-**Status:** Phase 1 COMPLETE (Backend + UI) | Audit Fixes Complete (A-E) | UI Enhancements COMPLETE | SmartComply Integration COMPLETE (Backend + UI) | Bank Statement UI COMPLETE | Phase 2 Pending (Retail)
+**Version:** 4.2
+**Last Updated:** 2026-03-16
+**Status:** Phase 1 COMPLETE (Backend + UI) | Audit Fixes Complete (A-E) | UI Enhancements COMPLETE | SmartComply Integration COMPLETE (Backend + UI) | Bank Statement UI COMPLETE | AI Advisory Data Quality COMPLETE | Scoring Config Editor COMPLETE | Core Banking API COMPLETE | Location Hierarchy COMPLETE | Phase 2 Pending (Retail)
 
 ---
 
@@ -15,7 +15,7 @@
 | Step | Module | Status |
 |------|--------|--------|
 | 1. Loan Officer Initiation | CorporateLoanInitiation | ✅ |
-| 2. Core Banking Data Pull | CoreBankingAdapter | ✅ (Mock) |
+| 2. Core Banking Data Pull | CoreBankingAdapter | ✅ (Real + Mock) |
 | 3. Document Uploads | LoanApplication | ✅ |
 | 4. Credit Bureau Checks | CreditBureauIntegration | ✅ (Auto-triggered) |
 | 5. Financial Analysis | FinancialDocumentAnalyzer | ✅ |
@@ -390,18 +390,24 @@ This glossary defines the **official terms** used throughout the codebase, docum
 ---
 
 ### 4.3 CoreBankingAdapter
-**Purpose:** Integration layer for Fineract core banking system.
+**Purpose:** Integration layer for the bank's core banking system (CBS).
 
 **Key Responsibilities:**
-- Customer lookup and creation
-- Account information retrieval
-- Loan booking and disbursement
-- Repayment schedule synchronization
-- Statement retrieval
+- Customer/corporate account lookup by NUBAN (`/core/account/fulldetailsbynuban/{nuban}`)
+- Director and signatory retrieval (from the same endpoint)
+- Account transaction/statement retrieval (`/core/transactions/{nuban}?startDate=&endDate=`)
 
-**Integration Pattern:** Anti-corruption layer with adapter pattern
+**Authentication:** OAuth 2.0 Client Credentials (bearer token via `CoreBankingAuthHandler`)
 
-**External API:** Fineract REST API
+**Integration Pattern:** Anti-corruption layer with adapter pattern. Single CBS response cached per-request to avoid duplicate calls.
+
+**Real API Endpoints (2):**
+1. `GET /core/account/fulldetailsbynuban/{nuban}` — client details + directors[] + signatories[]
+2. `GET /core/transactions/{nuban}?startDate=DD-MM-YYYY&endDate=DD-MM-YYYY` — transaction list
+
+**Not Available from CBS:** Loan booking/disbursement (done manually), balance queries, customer creation, repayment schedules. These are stubbed with explicit failure messages for Phase 2.
+
+**Configuration:** `appsettings.json` → `CoreBanking` section (`BaseUrl`, `ClientId`, `ClientSecret`, `TokenEndpoint`, `UseMock`)
 
 **Bounded Context:** CoreBanking
 
@@ -904,3 +910,9 @@ When starting a new Factory AI session for this project:
 | 3.5 | 2026-03-09 | Factory AI | Code quality M-1/M-2 (NIN index on ConsentRecords, ConsentRecordId index on BureauReports). User CRUD: `UpdateUserCommand`+handler, `ToggleUserStatusCommand`+handler, `ApplicationUser.ClearRoles()` added; 3 handlers registered in DI; `CreateUserAsync`, `UpdateUserAsync`, `ToggleUserStatusAsync` added to `ApplicationService`; `Users.razor` SaveUser/ToggleUserStatus wired to real backend. Product CRUD: `SuspendLoanProductCommand`+handler, `LoanProductSuspendedEvent`; `ActivateLoanProductHandler`+`SuspendLoanProductHandler` registered; `CreateLoanProductAsync`, `UpdateLoanProductAsync`, `ToggleLoanProductAsync` added; `Products.razor` SaveProduct/ToggleProduct wired. Bug fix: `LoanProductSummaryDto` extended with `MinTenorMonths`/`MaxTenorMonths`/`BaseInterestRate`; `ToSummaryDto()` mapper updated; hardcoded fallback values removed from both `GetLoanProductsAsync` and `GetAllLoanProductsAsync`. Build: 0 errors. |
 | 3.4 | 2026-03-09 | Factory AI | Bank Statement Transaction Drill-Down: `ViewStatementModal.razor` (new) — transaction list with All/Credits/Debits filter, live search, category badges (color-coded), recurring badge, negative balance highlight. `StatementTransactionInfo` model added to `ApplicationModels.cs`. `GetStatementTransactionsAsync` added to `ApplicationService.cs`. "View" button added to own-bank card and each external statement row in `StatementsTab.razor`. `Detail.razor` wired with state vars, show/close handlers, and modal block. No backend changes — `GetStatementTransactionsHandler` already registered. Build: 0 errors. |
 | 3.3 | 2026-03-01 | Factory AI | Bank Statement Auto-Fetch + External Statements UI + Editable Fallback Fields: InitiateCorporateLoanCommand now persists 6-month CoreBanking statement on application create. LoanApplication.IncorporationDate added (with migration). LoanApplicationParty.UpdateBVN/UpdateShareholdingPercent domain methods. UpdatePartyInfoCommand/Handler (new). VerifyStatementCommand/RejectStatementCommand + handlers added to UploadStatementCommand.cs. BankStatementSummaryDto extended to 18 fields. GetStatementsByLoanApplicationHandler mapper updated. 8 statement handlers + UpdatePartyInfoHandler + domain services registered in DI. StatementsTab.razor (new): Own Bank + Other Banks sections, trust badges, cashflow metrics, verify/reject/analyze buttons. UploadExternalStatementModal.razor (new). FillPartyInfoModal.razor (new). PartiesTab: "Complete info" button for null BVN/shareholding (Draft only). New.razor: real FetchCorporateDataAsync() call + override fields for null RC number/IncorporationDate. ApplicationService: 7 new methods (GetBankStatements, UploadExternal, Verify, Reject, Analyze, FetchCorporateData, UpdatePartyInfo). Manual migration 20260301170000 + Designer.cs. Build: 0 errors. |
+| 3.6 | 2026-03-13 | Factory AI | SmartComply CAC Advanced data structure complete: `CacAdvancedData`/`CacAdvancedDirectorData` DTOs (30+ fields per director), `ISmartComplyProvider` split into `VerifyCacAsync` (basic) and `VerifyCacAdvancedAsync` (advanced), `SmartComplyCacDirector` expanded from 3 to 24 fields, `MockSmartComplyProvider` updated with rich mock data. New application flow redesigned: RC number always editable; `FetchCacDirectorsAsync` (new) calls CAC Advanced to retrieve directors; `FetchCorporateDataAsync` now includes signatories from core banking; `ApplicationModels.cs` extended with `DirectorInput`/`SignatoryInput`/`CacLookupResult`/`CacDirectorEntry`; `CreateApplicationRequest` carries directors and signatories; `InitiateCorporateLoanCommand` accepts `DirectorInput[]`/`SignatoryInput[]` with core banking fallback; `New.razor` Step 1 redesigned (CAC lookup banner, director cards with BVN input, signatory BVN entry). Build: 0 errors. |
+| 3.7 | 2026-03-13 | Factory AI | AI Advisory bureau data fix: `GenerateCreditAdvisoryHandler` now injects `IBureauReportRepository` and queries real `BureauReport` records by `LoanApplicationId`, indexed by `PartyId`; `MapBureauReport()` helper maps all domain fields (credit score, active loans, performing/non-performing, outstanding balance, overdue, delinquency days, legal actions, fraud score) and derives `WorstStatus`; corporate bureau report (`SubjectType.Business`) added as "Corporate" entry; parties without bureau data flagged via `IsPlaceholder`. `BureauDataInput` extended with `MaxDelinquencyDays`, `HasLegalActions`, `TotalOverdue`, `FraudRiskScore`, `FraudRecommendation`, `IsPlaceholder`. Scoring config alignment: 10 new fields added to `CreditHistoryConfig` (`LegalActionsPenalty`, `SevereDelinquencyDaysThreshold`/`Penalty`, `WatchListDaysThreshold`/`Penalty`, `HighFraudRiskScoreThreshold`/`Penalty`, `ElevatedFraudRiskScoreThreshold`/`Penalty`, `MissingBureauDataPenaltyPerParty`); all loaded from DB via `ScoringConfigurationService`; `MockAIAdvisoryService.CalculateCreditHistoryScore()` uses `cfg.` for all values. Build: 0 errors. |
+| 3.9 | 2026-03-16 | Factory AI | Real Core Banking API integration: Created `CoreBankingService` (real HTTP client for CBS API using 2 endpoints: `fulldetailsbynuban` for account+directors+signatories, `transactions` for statements). `CoreBankingAuthHandler` implements OAuth 2.0 Client Credentials with token caching. `CoreBankingSettings` + `CoreBankingDtos` match actual CBS JSON shape. `DependencyInjection.cs` updated with conditional `UseMock` toggle + retry policy. `MockCoreBankingService` completely rewritten to reflect real API constraints (no shareholding/nationality on directors, no mandate type/designation on signatories, no industry/incorporation date on corporate info, dead operations return explicit failures). Director discrepancy indicator added to `New.razor`: collapsible CBS-vs-SmartComply comparison with match/discrepancy badge, names-only-in-one-source listing, and CBS director reference table. `FetchCorporateDataAsync` now also fetches CBS directors via `GetDirectorsAsync` for comparison. `CbsDirectorInfo` model added to `ApplicationModels.cs`. Build: 0 errors. |
+| 4.0 | 2026-03-16 | Factory AI | AI Advisory data quality fixes (6 gaps): GAP-1 — ExistingExposure now derived from corporate bureau report `TotalOutstandingBalance`/`ActiveLoans` instead of hardcoded zero. GAP-2 — `PendingReview` financials now included with `IsUnverified` flag on `FinancialDataInput`. GAP-3 — `RecurringCreditsCount`/`RecurringDebitsCount` aggregated from `BankStatement.Transactions.IsRecurring`. GAP-5 — `IndustrySector` field added to `LoanApplication` domain, `CreateCorporate()` factory, DTOs, mappers, `InitiateCorporateLoanCommand`, `New.razor` Step 2 (17-option CBN sector dropdown), and AI request. Migration `20260316120000_AddIndustrySectorToLoanApplication`. GAP-6 — confirmed already implemented (YearType in FinancialDataInput). GAP-7 — `GuarantorDataInput` extended with `HasBureauReport` flag; each guarantor checked against `reportsByParty`. GAP-8 — `Valued` collateral now included alongside `Approved`; `CollateralDataInput` extended with `ApprovedCount`, `ValuedButNotApprovedCount`, `ValuedButNotApprovedMarketValue`. Build: 0 errors. |
+| 4.1 | 2026-03-16 | Factory AI | Role-based workflow authorization alignment: Comprehensive review of 11 roles vs 17 workflow stages. Fixed 4 UI authorization issues in `Detail.razor`: (1) `HOReview` status now checks `CreditOfficer` instead of `HOReviewer`; (2) `ShowReturnButton` now has per-status role checks (`BranchApprover`/`CreditOfficer`); (3) `ShowRejectButton` now has per-status role checks; (4) Added `CommitteeCirculation`→`CommitteeMember` and changed `FinalApproval`→`CommitteeApproved` for `FinalApprover`. UI button visibility now matches backend workflow transitions exactly. |
+| 4.2 | 2026-03-16 | Factory AI | Location hierarchy + role-based visibility filtering: `Location` aggregate with 4-level hierarchy (HeadOffice→Region→Zone→Branch), `LocationType`/`VisibilityScope` enums, `ILocationRepository` (13 methods), `LocationRepository` with hierarchy traversal, `VisibilityService` domain service. `ApplicationUser.LocationId` replaces `BranchId`. `Roles.RoleVisibilityScopes` maps 11 roles (Branch: LoanOfficer/BranchApprover; Global: CreditOfficer/HOReviewer/Committee/FinalApprover/Operations/Risk/Audit/Admin; Own: Customer). EF migration `AddLocationHierarchy` creates Locations table + renames Users.BranchId→LocationId. Seed data: 21 Nigeria locations (1 HO, 2 Regions, 6 Zones, 12 Branches). Query handlers `GetLoanApplicationsByStatusHandler`/`GetPendingBranchReviewHandler` now accept visibility params and filter through `VisibilityService`. `UserInfo.LocationId`/`PrimaryRole` added. `ApplicationService.GetApplicationsByStatusAsync` has visibility-aware overload. Applications Index page passes user context. Build: 0 errors, all tests pass. |

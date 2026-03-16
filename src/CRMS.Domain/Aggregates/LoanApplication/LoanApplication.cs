@@ -46,6 +46,7 @@ public class LoanApplication : AggregateRoot
     
     // Corporate Details
     public DateTime? IncorporationDate { get; private set; }
+    public string? IndustrySector { get; private set; }
 
     // Core Banking Reference
     public string? CoreBankingLoanId { get; private set; }
@@ -87,7 +88,8 @@ public class LoanApplication : AggregateRoot
         Guid? branchId,
         string? purpose = null,
         string? registrationNumber = null,
-        DateTime? incorporationDate = null)
+        DateTime? incorporationDate = null,
+        string? industrySector = null)
     {
         if (string.IsNullOrWhiteSpace(accountNumber))
             return Result.Failure<LoanApplication>("Account number is required");
@@ -119,7 +121,8 @@ public class LoanApplication : AggregateRoot
             InterestRateType = interestRateType,
             InitiatedByUserId = initiatedByUserId,
             BranchId = branchId,
-            Purpose = purpose
+            Purpose = purpose,
+            IndustrySector = industrySector
         };
 
         application.AddStatusHistory(LoanApplicationStatus.Draft, initiatedByUserId, "Application created");

@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-03-09 (Session 11)
+**Last Updated:** 2026-03-16 (Session 17)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -72,11 +72,11 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 
 **Intranet UI:** Core workflows complete. A few management features remain.
 
-### What Works (as of 2026-03-09)
+### What Works (as of 2026-03-14)
 
 | Feature Area | Status |
 |---|---|
-| Create new application (auto-fetches directors/signatories from core banking) | ✅ |
+| Create new application (auto-fetches details from core banking + directors from SmartComply CAC) | ✅ |
 | Submit for review, workflow transitions (Approve / Return / Reject) | ✅ |
 | Add / Edit / Delete / View Collateral | ✅ |
 | Set Collateral Valuation (modal: market value, FSV, haircut %, live AcceptableValue) | ✅ |
@@ -93,16 +93,22 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | Loan Pack PDF generation | ✅ |
 | Workflow queue pages (My Queue, All Queues) | ✅ |
 | Dashboard and Reports | ✅ |
-| **Credit Bureau UI (SmartComply)** | ✅ |
-| **Bank Statement tab (view transactions drill-down)** | ✅ |
-| **User management CRUD (Create / Edit / Activate / Deactivate)** | ✅ |
-| **Product management (Create / Edit / Enable / Disable)** | ✅ |
+| Credit Bureau UI (SmartComply) | ✅ |
+| Bank Statement tab (view transactions drill-down) | ✅ |
+| User management CRUD (Create / Edit / Activate / Deactivate) | ✅ |
+| Product management (Create / Edit / Enable / Disable) | ✅ |
+| **Scoring Config editor (`/admin/scoring`) — maker-checker, seed, all 9 categories** | ✅ |
+| **Real Core Banking API integration (OAuth2, account details + transactions)** | ✅ |
+| **Director discrepancy indicator (CBS vs SmartComply CAC comparison in New Application)** | ✅ |
+| **AI Advisory data quality fixes (GAPs 1-3, 5, 7-8)** | ✅ |
+| **Industry/Sector classification on loan applications** | ✅ |
+| **Role-based workflow authorization aligned (UI ↔ Backend)** | ✅ |
+| **Location hierarchy (HO/Region/Zone/Branch) + role-based visibility filtering** | ✅ |
 
 ### What Is Pending
 
 | Feature | Priority | Notes |
-|---|---|---|
-| Scoring config editor | P3 | Display-only (`/admin/scoring`) |
+| Location CRUD UI (admin page for managing locations) | P2 | Domain + repository + seed data exist; need Application commands + UI page |
 | Connect report pages to ReportingService | P3 | Performance/Committee pages show mock data |
 | Seed default products in DB | P3 | New.razor mock fallback uses `Guid.NewGuid()` — invalid if DB empty; seed via `SeedData` class |
 | M-3: Migrate `RequestBureauReportCommand` to `ISmartComplyProvider` | P3 | Still uses legacy `ICreditBureauProvider`; deferred — complex API shape change |
@@ -139,7 +145,9 @@ return result.IsSuccess
 ### Access Control Rules
 - `IsApplicationEditable` = `application.Status == "Draft"` — data entry (add/edit/delete) only allowed in Draft
 - `CanManageValuation` = status is NOT `Draft`, `Approved`, `CommitteeApproved`, `Rejected`, or `Disbursed` — valuation/approval happens during review stages
-- Directors and Signatories are **auto-fetched from core banking at application creation** — PartiesTab is intentionally read-only for structure; null fields (BVN, shareholding %) can be filled via FillPartyInfoModal (Draft only)
+- **Directors** come from **SmartComply CAC** (primary source) — core banking also returns directors for discrepancy comparison only
+- **Signatories** come from **core banking** (CBS `fulldetailsbynuban`)
+- PartiesTab is intentionally read-only; null fields (BVN, shareholding %) can be filled via FillPartyInfoModal (Draft only)
 
 ### Blazor Modal Pattern (used consistently throughout Detail.razor)
 ```csharp
@@ -225,7 +233,232 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-03-09 Session 11)
+## 5. Last Session Summary (2026-03-16 Session 17)
+
+### Completed — Location Hierarchy + Role-Based Visibility Filtering
+
+Implemented a complete 4-level location hierarchy (HeadOffice → Region → Zone → Branch) with role-based visibility filtering so users only see loan applications within their organizational scope.
+
+#### Domain Layer
+
+- **`Location.cs`** (new aggregate) — Self-referencing hierarchy with `LocationType` enum (HeadOffice/Region/Zone/Branch). Factory methods: `CreateHeadOffice`, `CreateRegion`, `CreateZone`, `CreateBranch`. Domain methods: `Update`, `Activate`, `Deactivate`, `ValidateParentType`.
+- **`VisibilityScope.cs`** (new enum) — Own, Branch, Zone, Region, Global
+- **`Roles.cs`** — Added `RoleVisibilityScopes` dictionary (11 roles mapped), `GetVisibilityScope()`, `HasGlobalVisibility()` helpers. Branch roles: LoanOfficer, BranchApprover. Global roles: CreditOfficer, HOReviewer, CommitteeMember, FinalApprover, Operations, RiskManager, Auditor, SystemAdmin. Own: Customer.
+- **`ApplicationUser.cs`** — Replaced `BranchId` with `LocationId` + `Location` navigation property. Deprecated `BranchId` property for backward compatibility. Added `SetLocation()` method.
+- **`ILocationRepository.cs`** (new interface) — 13 methods including `GetDescendantBranchIdsAsync()`, `GetAncestorIdsAsync()`, `GetHierarchyTreeAsync()`.
+- **`VisibilityService.cs`** (new domain service) — `GetVisibleBranchIdsAsync()` returns `null` for global (no filter), `[]` for own (filter by user), or branch GUID list for scoped visibility. `CanAccessApplicationAsync()` for single-application access checks.
+
+#### Infrastructure Layer
+
+- **`LocationConfiguration.cs`** (new EF config) — Self-referencing FK with Restrict delete, 5 indexes (Code unique, Type, ParentLocationId, IsActive, composite Type+IsActive).
+- **`LocationRepository.cs`** (new) — Full hierarchy traversal: zone→branches, region→zones→branches, HO→all branches. Recursive ancestor lookup.
+- **`ApplicationUserConfiguration.cs`** — Added Location FK (SetNull on delete) + LocationId index.
+- **`CRMSDbContext.cs`** — Added `Locations` DbSet.
+- **`SeedData.cs`** — `SeedLocationsAsync()` creates Nigeria banking geography: 1 HO, 2 Regions (Southern/Northern), 6 Zones (SW/SE/SS/NC/NW/NE), 12 Branches (Lagos×4, Ibadan, PH, Enugu, Benin, Abuja×2, Kano, Kaduna).
+- **`DependencyInjection.cs`** — Registered `ILocationRepository` → `LocationRepository`, `VisibilityService`.
+- **Migration `20260316164251_AddLocationHierarchy`** — Creates `Locations` table, renames `Users.BranchId` → `LocationId`, adds FK with SetNull delete.
+
+#### Application Layer — Visibility Filtering
+
+- **`ILoanApplicationRepository.cs`** — Added `GetByStatusFilteredAsync(status, visibleBranchIds)` and `GetPendingBranchReviewFilteredAsync(visibleBranchIds)`.
+- **`LoanApplicationRepository.cs`** — Implemented both filtered methods (null = no filter, list = filter by BranchId IN list).
+- **`GetLoanApplicationQuery.cs`** — `GetLoanApplicationsByStatusQuery` now accepts `UserLocationId`, `UserRole`, `UserId`. Handler uses `VisibilityService` to filter: Global roles see all, Own scope filters by initiator, Branch/Zone/Region scopes filter by descendant branch IDs. Backward-compatible when no role info provided.
+- **`GetPendingBranchReviewQuery`** — Same pattern: accepts `UserLocationId`, `UserRole`; uses `VisibilityService` for filtering.
+
+#### Web.Intranet Layer
+
+- **`AuthModels.cs`** — `UserInfo` now has `LocationId` (Guid?), `LocationName`, `PrimaryRole`. `BranchId`/`BranchName` properties retained as computed backward-compatibility shims.
+- **`ApplicationService.cs`** — `GetApplicationsByStatusAsync` now has a visibility-aware overload accepting `userLocationId`, `userRole`, `userId`.
+- **`Applications/Index.razor`** — Passes `user.LocationId`, `user.PrimaryRole`, `user.Id` to status query.
+
+**Build:** 0 errors. **Tests:** All pass (4/4).
+
+### Files Created This Session
+- `src/CRMS.Domain/Aggregates/Location/Location.cs`
+- `src/CRMS.Domain/Enums/VisibilityScope.cs`
+- `src/CRMS.Domain/Interfaces/ILocationRepository.cs`
+- `src/CRMS.Domain/Services/VisibilityService.cs`
+- `src/CRMS.Infrastructure/Persistence/Configurations/Location/LocationConfiguration.cs`
+- `src/CRMS.Infrastructure/Persistence/Repositories/Location/LocationRepository.cs`
+- `src/CRMS.Infrastructure/Persistence/Migrations/20260316164251_AddLocationHierarchy.cs`
+- `src/CRMS.Infrastructure/Persistence/Migrations/20260316164251_AddLocationHierarchy.Designer.cs`
+
+### Files Modified This Session
+- `src/CRMS.Domain/Constants/Roles.cs` — Added `RoleVisibilityScopes`, `GetVisibilityScope()`, `HasGlobalVisibility()`
+- `src/CRMS.Domain/Entities/Identity/ApplicationUser.cs` — `LocationId` replaces `BranchId`, `Location` nav prop, `SetLocation()`
+- `src/CRMS.Domain/Interfaces/ILoanApplicationRepository.cs` — Added 2 filtered query methods
+- `src/CRMS.Application/LoanApplication/Queries/GetLoanApplicationQuery.cs` — Visibility-aware handlers
+- `src/CRMS.Infrastructure/Persistence/CRMSDbContext.cs` — `Locations` DbSet
+- `src/CRMS.Infrastructure/Persistence/Configurations/Identity/ApplicationUserConfiguration.cs` — Location FK
+- `src/CRMS.Infrastructure/Persistence/Repositories/LoanApplicationRepository.cs` — 2 filtered methods
+- `src/CRMS.Infrastructure/Persistence/SeedData.cs` — `SeedLocationsAsync()`
+- `src/CRMS.Infrastructure/DependencyInjection.cs` — Registered LocationRepository + VisibilityService
+- `src/CRMS.Infrastructure/Persistence/Migrations/CRMSDbContextModelSnapshot.cs` — Updated
+- `src/CRMS.Web.Intranet/Models/AuthModels.cs` — `UserInfo.LocationId`, `PrimaryRole`
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs` — Visibility-aware `GetApplicationsByStatusAsync` overload
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Index.razor` — Passes visibility context
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v3.7
+- [x] `docs/ImplementationTracker.md` → v4.2
+
+---
+
+## 5. Previous Session Summary (2026-03-16 Session 16)
+
+### Completed — Role-Based Workflow Authorization Alignment
+
+Fixed 4 UI authorization issues in `Detail.razor` where button visibility did not match backend workflow definitions: HOReview now checks CreditOfficer, Return/Reject buttons have per-status role checks, CommitteeCirculation added for CommitteeMember, FinalApproval corrected to CommitteeApproved for FinalApprover.
+
+---
+
+## 5. Previous Session Summary (2026-03-16 Session 15)
+
+### Completed — Real Core Banking API Integration + Director Discrepancy Indicator
+
+Replaced the mock-only core banking layer with a real CBS API client matching the bank's actual API, and aligned the mock to reflect real API constraints. Added a director discrepancy comparison UI. See Session 15 details for full implementation notes.
+
+**Build:** 0 errors.
+
+---
+
+## 5. Previous Session Summary (2026-03-14 Session 14)
+
+### Completed — Scoring Config Editor UI (`/admin/scoring`)
+
+The scoring configuration page was display-only with hardcoded data. Replaced with a fully functional maker-checker editor wired to the real backend. See previous handoff for full details.
+
+**Build:** 0 errors.
+
+---
+
+## 5. Previous Session Summary (2026-03-13 Session 13)
+
+### Completed — AI Advisory Bureau Data Fix + Scoring Config Alignment
+
+Two related gaps fixed in this session.
+
+#### 1. AI Advisory Now Uses Real Bureau Data
+
+Previously, `GenerateCreditAdvisoryHandler.BuildAIRequest()` created placeholder `BureauDataInput` objects (all-zeros, random GUIDs) for every director and signatory. The actual `BureauReport` table — populated by `ProcessLoanCreditChecksCommand` after branch approval — was never queried.
+
+- **`GenerateCreditAdvisoryCommand.cs`**:
+  - Injected `IBureauReportRepository`
+  - `BuildAIRequest()` now calls `GetByLoanApplicationIdAsync(loanApp.Id)` and indexes completed reports by `PartyId`
+  - For each party in `loanApp.Parties`, finds matching `BureauReport` by `PartyId` → builds real `BureauDataInput`
+  - Falls back to a flagged placeholder (`IsPlaceholder = true`) when no bureau report exists for a party, so the AI model knows the gap
+  - Also picks up the corporate/business bureau report (`SubjectType.Business`) and adds it as a `"Corporate"` entry
+  - Added `MapBureauReport()` private helper — maps: `CreditScore`, `ActiveLoans`, `TotalOutstandingBalance`, `PerformingAccounts`, `NonPerformingAccounts`, `MaxDelinquencyDays`, `HasLegalActions`, `TotalOverdue`, `FraudRiskScore`, `FraudRecommendation`, `ReportDate`; derives `WorstStatus` from `MaxDelinquencyDays`
+
+- **`IAIAdvisoryService.cs`** — `BureauDataInput` extended with 6 new fields:
+  - `MaxDelinquencyDays`, `HasLegalActions`, `TotalOverdue`, `FraudRiskScore`, `FraudRecommendation`
+  - `IsPlaceholder` — flags entries with no actual bureau data
+
+#### 2. New Bureau Scoring Thresholds Added to Scoring Config (Admin-Editable)
+
+The new `MockAIAdvisoryService` scoring logic initially had hardcoded penalty values. These were moved to the scoring configuration so admins can tune them.
+
+- **`ScoringConfiguration.cs`** — Added 10 new fields to `CreditHistoryConfig`:
+  - `LegalActionsPenalty` (default 20)
+  - `SevereDelinquencyDaysThreshold` / `SevereDelinquencyPenalty` (90 days / 15pts)
+  - `WatchListDaysThreshold` / `WatchListPenalty` (30 days / 8pts)
+  - `HighFraudRiskScoreThreshold` / `HighFraudRiskPenalty` (score ≥70 / 25pts)
+  - `ElevatedFraudRiskScoreThreshold` / `ElevatedFraudRiskPenalty` (score ≥50 / 10pts)
+  - `MissingBureauDataPenaltyPerParty` (5pts per missing party)
+
+- **`ScoringConfigurationService.cs`** — Added 10 corresponding `GetValue()` calls to load each new field from DB (under `CreditHistory` category key), with defaults matching the config class.
+
+- **`MockAIAdvisoryService.cs`** — `CalculateCreditHistoryScore()` updated:
+  - All new penalties now use `cfg.FieldName` instead of hardcoded constants
+  - Scoring rationale string now includes delinquency days, legal action status, fraud score, and real vs placeholder report count
+
+**Build:** 0 errors.
+
+### Files Updated This Session
+- `src/CRMS.Application/Advisory/Interfaces/IAIAdvisoryService.cs`
+- `src/CRMS.Application/Advisory/Commands/GenerateCreditAdvisoryCommand.cs`
+- `src/CRMS.Domain/Configuration/ScoringConfiguration.cs`
+- `src/CRMS.Domain/Services/ScoringConfigurationService.cs`
+- `src/CRMS.Infrastructure/ExternalServices/AIServices/MockAIAdvisoryService.cs`
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → no UI changes this session
+- [x] `docs/ImplementationTracker.md` → v3.7
+
+---
+
+## 5. Previous Session Summary (2026-03-13 Session 12)
+
+### Completed — SmartComply CAC Advanced Data Structure Fix + New Application Flow Redesign
+
+#### 1. SmartComply CAC Advanced DTOs (User's Primary Fix)
+
+- **`SmartComplyDtos.cs`**: Added complete CAC Advanced response DTOs matching the actual API:
+  - `CacAdvancedData` — company-level fields: `CompanyName`, `RcNumber`, `CompanyId`, `EntityType`, `CompanyStatus`, `CompanyAddress`, `EmailAddress`, `RegistrationDate`, `City`, `State`, `Lga`, `BranchAddress`, `SearchScore`, `Directors[]`
+  - `CacAdvancedDirectorData` — full director fields: `Id`, `Surname`, `Firstname`, `OtherName`, `Gender`, `Status`, `Address`, `City`, `State`, `Lga`, `Email`, `PhoneNumber`, `Occupation`, `Nationality`, `IdentityNumber`, `DateOfBirth`, `IsChairman`, `IsCorporate`, `IsDesignated`, `TypeOfShares`, `NumSharesAlloted`, `DateOfAppointment`, and all former-name fields
+  - Nested classes: `CacCountryReference`, `CacAffiliateTypeReference`, `CacPscInformation`, `CacResidentialAddress`
+
+- **`ISmartComplyProvider.cs`** — Enriched domain records:
+  - `SmartComplyCacResult`: added `CompanyId` field
+  - `SmartComplyCacDirector`: replaced 3-field record with 24-field record (`Id`, `Surname`, `FirstName`, `OtherName`, `FullName`, `Gender`, `DateOfBirth`, `Nationality`, `Occupation`, `Email`, `PhoneNumber`, `Address`, `City`, `State`, `Lga`, `Status`, `IsChairman`, `IsCorporate`, `DateOfAppointment`, `AffiliateType`, `TypeOfShares`, `NumSharesAlloted`, `IdentityNumber`, `Country`)
+
+- **`SmartComplyProvider.cs`** — Split `GetCacVerificationAsync` into two separate methods:
+  - `VerifyCacAsync` → uses `CacVerificationData` (basic endpoint, unchanged structure)
+  - `VerifyCacAdvancedAsync` → uses `CacAdvancedData` (advanced endpoint, full structure)
+  - Added `MapCacAdvancedToResult()` and `MapCacAdvancedDirector()` helpers
+
+- **`MockSmartComplyProvider.cs`** — Updated mock to return fully populated `SmartComplyCacDirector` objects with shares, IsChairman, AffiliateType, DateOfAppointment, etc.
+
+#### 2. New Application Flow — Directors from SmartComply CAC
+
+**New flow:** Core banking → account name + signatories only. RC number always editable. SmartComply CAC Advanced → directors list. Data entry fills BVN for each director and any signatory without BVN.
+
+- **`ApplicationModels.cs`**:
+  - Added `DirectorInput` — UI model for a director with user-entered BVN
+  - Added `SignatoryInput` — UI model for a signatory with user-entered BVN
+  - Added `CacLookupResult` — SmartComply CAC Advanced result for New.razor
+  - Added `CacDirectorEntry` — one director row with `BvnInput` binding
+  - Added `Signatories` list to `CustomerInfo` model
+  - Updated `CreateApplicationRequest` to carry `Directors` and `Signatories` lists
+
+- **`ApplicationService.cs`**:
+  - `FetchCorporateDataAsync`: now fetches signatories from core banking and includes them in the response; RC number left blank (user always enters it)
+  - `FetchCacDirectorsAsync(rcNumber)` (NEW): calls `ISmartComplyProvider.VerifyCacAdvancedAsync` and returns a `CacLookupResult` with all directors
+  - `CreateApplicationAsync`: maps `request.Directors` → `CmdNs.DirectorInput` records and `request.Signatories` → `CmdNs.SignatoryInput` records, passes them to the command
+
+- **`InitiateCorporateLoanCommand.cs`**:
+  - Added `DirectorInput` and `SignatoryInput` command-layer records
+  - Added `Directors` and `Signatories` optional params to the command
+  - Handler uses passed-in directors/signatories when provided; falls back to core banking calls when not (legacy compatibility)
+
+- **`New.razor`** — Restructured Step 1:
+  - RC number field is now **always shown and always editable** (not conditional on empty)
+  - "Fetch Directors" button calls `FetchCacDirectorsAsync` and shows CAC company confirmation banner
+  - Directors from SmartComply displayed in cards with BVN input per director
+  - Signatories from core banking displayed with BVN input (disabled if already on file, editable if missing)
+  - `CanProceed` step 1 = customer loaded AND RC number entered
+  - `CreateApplication` packs directors (with BVNs) and signatories into the request
+
+### Files Updated This Session
+- `src/CRMS.Infrastructure/ExternalServices/SmartComply/SmartComplyDtos.cs`
+- `src/CRMS.Domain/Interfaces/ISmartComplyProvider.cs`
+- `src/CRMS.Infrastructure/ExternalServices/SmartComply/SmartComplyProvider.cs`
+- `src/CRMS.Infrastructure/ExternalServices/SmartComply/MockSmartComplyProvider.cs`
+- `src/CRMS.Web.Intranet/Models/ApplicationModels.cs`
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs`
+- `src/CRMS.Application/LoanApplication/Commands/InitiateCorporateLoanCommand.cs`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/New.razor`
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → not updated this session
+- [x] `docs/ImplementationTracker.md` → v3.6
+
+---
+
+## 5. Previous Session Summary (2026-03-09 Session 11)
 
 ### Completed — Code Quality Fixes (M-1, M-2) + User Management CRUD + Product Management + Product Dropdown Bug Fix
 
@@ -495,45 +728,35 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ## 6. Suggested Next Task
 
-### Option A — End-to-End Test Session 11 Features
+### Option A — Location Management Admin Page
 
-1. `/admin/products` → Edit a product → change tenor range → save → verify values updated
-2. `/admin/products` → Disable a product → Enable it again
-3. `/admin/users` → Create a new user → appears in list
-4. `/admin/users` → Edit a user's name → saved correctly
-5. `/admin/users` → Deactivate a user → badge turns Inactive → Activate again
-6. Create a new application → check product dropdown shows correct tenor/rate (not hardcoded 6mo/15%)
+Domain + repository + seed data all exist. Need:
+1. Application layer: `CreateLocationCommand`, `UpdateLocationCommand`, `DeactivateLocationCommand` + handlers
+2. Location query: `GetLocationsQuery` + handler
+3. Admin page `/admin/locations` with tree view (expand/collapse), add/edit/deactivate per level
+4. Update Users admin page to include location picker dropdown (currently BranchId is just a raw GUID)
 
----
-
-### Option B — Fix Remaining Medium Issues (code quality, from Session 5 review)
-
-1. **M-1**: Add EF indexes on `ConsentRecords.BVN` and `ConsentRecords.NIN`
-2. **M-2**: Configure `BureauReport.ConsentRecordId` in `BureauReportConfiguration.cs`
-3. **M-3**: Migrate `RequestBureauReportCommand` to use `ISmartComplyProvider` instead of legacy `ICreditBureauProvider`
-4. **M-4**: Add distributed/DB lock on `LoanApplicationId` in `ProcessLoanCreditChecksCommand`
-5. **M-5**: Rename `BureauReport.NonPerformingAccounts` → `DelinquentFacilities`
+**Key context:** `ILocationRepository` has all 13 methods ready. `VisibilityService` is wired. `SeedData` creates 21 locations on first run.
 
 ---
 
-### Option C — User Management CRUD (`/admin/users`)
+### Option B — Configure Real CBS Credentials & Test Live
 
-The Users page currently only displays users. Add full CRUD:
-
-**What to build:**
-- "Create User" button → modal with: name, email, role dropdown, branch
-- "Edit" button per row → modal pre-filled with user data
-- "Deactivate" button per row → confirmation modal
-
-**Backend:** Handlers likely exist in `Application/Identity/Commands/`. Check and register if needed.
-
-**Template to follow:** `AddGuarantorModal.razor` (Add) and collateral approve confirmation modal (Deactivate).
+Set real `BaseUrl`, `ClientId`, `ClientSecret` in appsettings (or user-secrets), flip `UseMock: false`, and test the full flow against the CBS sandbox. Verify: account lookup, director fetch, 6-month statement pull, discrepancy indicator.
 
 ---
 
-### Option D — Product Edit/Delete (`/admin/products`)
+### Option C — Fix Remaining Medium Issues (code quality, from Session 5 review)
 
-Create works; add edit/delete functionality.
+1. **M-3**: Migrate `RequestBureauReportCommand` to use `ISmartComplyProvider` instead of legacy `ICreditBureauProvider`
+2. **M-4**: Add distributed/DB lock on `LoanApplicationId` in `ProcessLoanCreditChecksCommand`
+3. **M-5**: Rename `BureauReport.NonPerformingAccounts` → `DelinquentFacilities`
+
+---
+
+### Option D — Connect Report Pages to ReportingService
+
+Performance and Committee report pages show mock data. Wire them to the real `ReportingService` query handlers.
 
 **Note:** `dotnet ef database update` requires `Microsoft.EntityFrameworkCore.Design` — use `dotnet run` instead (app runs `MigrateAsync()` on startup automatically).
 
@@ -569,11 +792,30 @@ If you see that error again, run `dotnet --version` first — it must say `9.0.x
 
 ## 8. Mock Data Reference
 
-Core banking mock only has data for account `1234567890` ("Acme Industries Ltd"):
-- 3 directors: John Adebayo (40%), Amina Ibrahim (35%), Chukwuma Okonkwo (25%)
-- 2 signatories: MD (Class A), Finance Director (Class B)
+### Core Banking Mock (CBS)
+Account `1234567890` ("Acme Industries Ltd", clientType=BUSINESS, RC=RC123456):
+- 3 directors (CBS shape — name/BVN/email/phone only, no shareholding): John Adebayo, Amina Ibrahim, Chukwuma Okonkwo
+- 2 signatories (same CBS shape): John Adebayo, Fatima Bello
+- CBS does **not** return: `ShareholdingPercent`, `Nationality`, `MandateType`, `Designation`, `Industry`, `IncorporationDate`
 
-Any other account number returns an empty directors/signatories list. Use `1234567890` when testing the New Application flow end-to-end.
+Account `0987654321` ("Oluwaseun Bakare", clientType=PERSON): individual account, no directors/signatories.
+
+Any other NUBAN returns "not found". Use `1234567890` when testing the New Application flow.
+
+### Core Banking Configuration
+```json
+"CoreBanking": {
+    "BaseUrl": "",           // e.g. "https://sandbox.cbs.com/api"
+    "ClientId": "",          // OAuth2 client_id
+    "ClientSecret": "",      // OAuth2 client_secret
+    "TokenEndpoint": "/oauth/token",
+    "TimeoutSeconds": 30,
+    "UseMock": true          // flip to false for real CBS
+}
+```
+
+### SmartComply CAC Mock
+RC `RC123456` returns 3 directors with full CAC data (shares, appointment date, chairman flag, etc.).
 
 ---
 

@@ -56,7 +56,14 @@ public record BureauDataInput(
     int DelinquentLoansCount,
     int DefaultedLoansCount,
     string? WorstStatus,
-    DateTime ReportDate
+    DateTime ReportDate,
+    // Extended fields from bureau response
+    int MaxDelinquencyDays = 0,
+    bool HasLegalActions = false,
+    decimal TotalOverdue = 0,
+    int? FraudRiskScore = null,
+    string? FraudRecommendation = null,
+    bool IsPlaceholder = false  // true = no actual bureau data available
 );
 
 public record FinancialDataInput(
@@ -79,7 +86,8 @@ public record FinancialDataInput(
     string LiquidityAssessment,
     string LeverageAssessment,
     string ProfitabilityAssessment,
-    string OverallAssessment
+    string OverallAssessment,
+    bool IsUnverified = false // true = Submitted/PendingReview, not yet verified by credit analyst
 );
 
 public record CashflowDataInput(
@@ -117,7 +125,10 @@ public record CollateralDataInput(
     decimal TotalForcedSaleValue,
     decimal AverageLTV,
     List<string> CollateralTypes,
-    bool HasPerfectedLiens
+    bool HasPerfectedLiens,
+    int ApprovedCount = 0,
+    int ValuedButNotApprovedCount = 0,
+    decimal ValuedButNotApprovedMarketValue = 0
 );
 
 public record GuarantorDataInput(
@@ -127,7 +138,8 @@ public record GuarantorDataInput(
     decimal NetWorth,
     decimal GuaranteeAmount,
     int? CreditScore,
-    string CreditStatus
+    string CreditStatus,
+    bool HasBureauReport = true
 );
 
 public record AIAdvisoryResponse(

@@ -12,6 +12,7 @@ using CN = CRMS.Domain.Aggregates.Consent;
 using FS = CRMS.Domain.Aggregates.FinancialStatement;
 using GR = CRMS.Domain.Aggregates.Guarantor;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
+using LO = CRMS.Domain.Aggregates.Location;
 using LP = CRMS.Domain.Aggregates.LoanPack;
 using NF = CRMS.Domain.Aggregates.Notification;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
@@ -102,6 +103,9 @@ public class CRMSDbContext : DbContext, IUnitOfWork
 
     // Consent
     public DbSet<CN.ConsentRecord> ConsentRecords => Set<CN.ConsentRecord>();
+
+    // Location
+    public DbSet<LO.Location> Locations => Set<LO.Location>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

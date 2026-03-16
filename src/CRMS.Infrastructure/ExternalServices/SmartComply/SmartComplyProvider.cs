@@ -535,52 +535,154 @@ public class SmartComplyProvider : ISmartComplyProvider
 
     public async Task<Result<SmartComplyCacResult>> VerifyCacAsync(string rcNumber, CancellationToken ct = default)
     {
-        return await GetCacVerificationAsync(SmartComplyEndpoints.KycNigeria.CAC, rcNumber, ct);
+        try
+        {
+            _logger.LogInformation("Verifying CAC (basic) for RC {RcNumber}", rcNumber);
+
+            var request = new CacVerificationRequest { RcNumber = rcNumber };
+            var response = await _httpClient.PostAsJsonAsync(SmartComplyEndpoints.KycNigeria.CAC, request, ct);
+
+            if (!response.IsSuccessStatusCode)
+                return Result.Failure<SmartComplyCacResult>($"API request failed: {response.StatusCode}");
+
+            var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<CacVerificationData>>(_jsonOptions, ct);
+
+            if (result == null || !result.Success || result.Data == null)
+                return Result.Failure<SmartComplyCacResult>(result?.Message ?? "Verification failed");
+
+            var d = result.Data;
+            return Result.Success(new SmartComplyCacResult(
+                CompanyName: d.CompanyName,
+                RcNumber: d.RcNumber,
+                CompanyType: d.CompanyType,
+                RegistrationDate: d.RegistrationDate,
+                Address: d.Address,
+                City: d.City,
+                State: d.State,
+                Email: d.Email,
+                Status: d.Status,
+                NatureOfBusiness: d.NatureOfBusiness,
+                ShareCapital: d.ShareCapital,
+                CompanyId: null,
+                Directors: d.Directors?.Select(dir => new SmartComplyCacDirector(
+                    Id: null,
+                    Surname: null,
+                    FirstName: null,
+                    OtherName: null,
+                    FullName: dir.Name,
+                    Gender: null,
+                    DateOfBirth: null,
+                    Nationality: null,
+                    Occupation: null,
+                    Email: null,
+                    PhoneNumber: null,
+                    Address: null,
+                    City: null,
+                    State: null,
+                    Lga: null,
+                    Status: null,
+                    IsChairman: null,
+                    IsCorporate: null,
+                    DateOfAppointment: dir.DateOfAppointment,
+                    AffiliateType: dir.Designation,
+                    TypeOfShares: null,
+                    NumSharesAlloted: null,
+                    IdentityNumber: null,
+                    Country: null
+                )).ToList() ?? []
+            ));
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during CAC (basic) verification");
+            return Result.Failure<SmartComplyCacResult>($"Error: {ex.Message}");
+        }
     }
 
     public async Task<Result<SmartComplyCacResult>> VerifyCacAdvancedAsync(string rcNumber, CancellationToken ct = default)
     {
-        return await GetCacVerificationAsync(SmartComplyEndpoints.KycNigeria.CACAdvanced, rcNumber, ct);
-    }
-
-    private async Task<Result<SmartComplyCacResult>> GetCacVerificationAsync(string endpoint, string rcNumber, CancellationToken ct)
-    {
         try
         {
-            _logger.LogInformation("Verifying CAC for RC {RcNumber}", rcNumber);
+            _logger.LogInformation("Verifying CAC (advanced) for RC {RcNumber}", rcNumber);
 
             var request = new CacVerificationRequest { RcNumber = rcNumber };
-            var response = await _httpClient.PostAsJsonAsync(endpoint, request, ct);
-            
+            var response = await _httpClient.PostAsJsonAsync(SmartComplyEndpoints.KycNigeria.CACAdvanced, request, ct);
+
             if (!response.IsSuccessStatusCode)
-            {
                 return Result.Failure<SmartComplyCacResult>($"API request failed: {response.StatusCode}");
-            }
 
-            var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<CacVerificationData>>(_jsonOptions, ct);
-            
-            if (result == null || !result.Success || result.Data == null)
-            {
+            var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<CacAdvancedData>>(_jsonOptions, ct);
+
+            if (result == null || result.Data == null)
                 return Result.Failure<SmartComplyCacResult>(result?.Message ?? "Verification failed");
-            }
 
-            var data = result.Data;
-            return Result.Success(new SmartComplyCacResult(
-                data.CompanyName, data.RcNumber, data.CompanyType,
-                data.RegistrationDate, data.Address, data.City, data.State,
-                data.Email, data.Status, data.NatureOfBusiness, data.ShareCapital,
-                data.Directors?.Select(d => new SmartComplyCacDirector(d.Name, d.Designation, d.DateOfAppointment)).ToList() ?? []
-            ));
+            // Advanced endpoint returns status:"success" at top level (not a bool Success field)
+            if (!string.IsNullOrEmpty(result.Status) && result.Status.ToLower() != "success" && !result.Success)
+                return Result.Failure<SmartComplyCacResult>(result.Message ?? "Verification failed");
+
+            var d = result.Data;
+            return Result.Success(MapCacAdvancedToResult(d));
         }
-        catch (OperationCanceledException)
-        {
-            throw; // Propagate cancellation
-        }
+        catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during CAC verification");
+            _logger.LogError(ex, "Error during CAC (advanced) verification");
             return Result.Failure<SmartComplyCacResult>($"Error: {ex.Message}");
         }
+    }
+
+    private static SmartComplyCacResult MapCacAdvancedToResult(CacAdvancedData d)
+    {
+        return new SmartComplyCacResult(
+            CompanyName: d.CompanyName,
+            RcNumber: d.RcNumber,
+            CompanyType: d.EntityType,
+            RegistrationDate: d.RegistrationDate,
+            Address: d.CompanyAddress,
+            City: d.City,
+            State: d.State,
+            Email: d.EmailAddress,
+            Status: d.CompanyStatus,
+            NatureOfBusiness: null,
+            ShareCapital: null,
+            CompanyId: d.CompanyId,
+            Directors: d.Directors?.Select(MapCacAdvancedDirector).ToList() ?? []
+        );
+    }
+
+    private static SmartComplyCacDirector MapCacAdvancedDirector(CacAdvancedDirectorData dir)
+    {
+        var parts = new[] { dir.Firstname, dir.OtherName, dir.Surname }
+            .Where(s => !string.IsNullOrWhiteSpace(s));
+        var fullName = string.Join(" ", parts);
+
+        return new SmartComplyCacDirector(
+            Id: dir.Id,
+            Surname: dir.Surname,
+            FirstName: dir.Firstname,
+            OtherName: string.IsNullOrWhiteSpace(dir.OtherName) ? null : dir.OtherName,
+            FullName: string.IsNullOrWhiteSpace(fullName) ? null : fullName,
+            Gender: dir.Gender,
+            DateOfBirth: dir.DateOfBirth,
+            Nationality: dir.Nationality,
+            Occupation: dir.Occupation,
+            Email: dir.Email,
+            PhoneNumber: dir.PhoneNumber,
+            Address: dir.Address,
+            City: dir.City,
+            State: dir.State,
+            Lga: dir.Lga,
+            Status: dir.Status,
+            IsChairman: dir.IsChairman,
+            IsCorporate: dir.IsCorporate,
+            DateOfAppointment: dir.DateOfAppointment,
+            AffiliateType: dir.AffiliateTypeFk?.Name,
+            TypeOfShares: string.IsNullOrWhiteSpace(dir.TypeOfShares) ? null : dir.TypeOfShares,
+            NumSharesAlloted: dir.NumSharesAlloted,
+            IdentityNumber: string.IsNullOrWhiteSpace(dir.IdentityNumber) ? null : dir.IdentityNumber,
+            Country: dir.CountryFk?.Name
+        );
     }
 
     #endregion

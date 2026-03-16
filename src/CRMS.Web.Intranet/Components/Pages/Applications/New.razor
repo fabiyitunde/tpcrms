@@ -76,49 +76,227 @@
                             </div>
                             <span class="badge badge-success" style="margin-left: auto;">Verified</span>
                         </div>
-                        <div class="customer-card-body">
-                            <div class="customer-info-grid">
-                                <div>
-                                    <span class="info-label">Registration Number</span>
-                                    <span class="info-value">@(string.IsNullOrEmpty(customer.RegistrationNumber) ? "Not on file" : customer.RegistrationNumber)</span>
-                                </div>
-                                <div>
-                                    <span class="info-label">Industry</span>
-                                    <span class="info-value">@customer.Industry</span>
-                                </div>
-                                <div>
-                                    <span class="info-label">Incorporation Date</span>
-                                    <span class="info-value">@(customer.IncorporationDate?.ToString("MMM dd, yyyy") ?? "Not on file")</span>
-                                </div>
-                                <div>
-                                    <span class="info-label">Address</span>
-                                    <span class="info-value">@customer.Address</span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
-                    @if (string.IsNullOrEmpty(customer.RegistrationNumber))
+                    @* RC Number — always editable; used for SmartComply CAC lookup *@
+                    <div class="form-group mt-4">
+                        <label class="form-label">RC Number *</label>
+                        <div style="display: flex; gap: var(--space-3);">
+                            <input type="text" class="form-control" style="flex: 1;"
+                                   @bind="rcNumberOverride" placeholder="e.g. RC654321"
+                                   disabled="@isLoadingCac" />
+                            <button class="btn btn-secondary" @onclick="LookupCacDirectors"
+                                    disabled="@(isLoadingCac || string.IsNullOrWhiteSpace(rcNumberOverride))">
+                                @if (isLoadingCac)
+                                {
+                                    <span class="spinner"></span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">manage_search</span>
+                                }
+                                Fetch Directors
+                            </button>
+                        </div>
+                        <div class="form-hint">Enter the CAC RC number then click "Fetch Directors" to load director list from SmartComply.</div>
+                        @if (!string.IsNullOrEmpty(cacError))
+                        {
+                            <div class="form-error">@cacError</div>
+                        }
+                    </div>
+
+                    @if (cacLookup != null)
                     {
-                        <div class="form-group mt-4">
-                            <label class="form-label">
-                                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; color: var(--warning-600);">warning</span>
-                                RC Number (not on file — please enter)
-                            </label>
-                            <input type="text" class="form-control" @bind="rcNumberOverride" placeholder="e.g. RC123456" />
-                            <div class="form-hint">Required for SmartComply business credit check</div>
+                        @* CAC company confirmation *@
+                        <div class="alert alert-info mt-3" style="padding: var(--space-3); border-radius: var(--radius-md); background: var(--primary-50); border: 1px solid var(--primary-200);">
+                            <div style="font-weight: 600;">@cacLookup.CompanyName</div>
+                            <div style="font-size: var(--text-sm); color: var(--gray-600);">
+                                RC: @cacLookup.RcNumber &nbsp;|&nbsp;
+                                Status: <span class="@(cacLookup.Status?.ToUpper() == "ACTIVE" ? "badge badge-success" : "badge badge-warning")">@cacLookup.Status</span>
+                                @if (!string.IsNullOrEmpty(cacLookup.RegistrationDate))
+                                {
+                                    <span>&nbsp;|&nbsp; Registered: @cacLookup.RegistrationDate</span>
+                                }
+                            </div>
+                        </div>
+
+                        @* Directors from CAC with BVN entry *@
+                        <div class="mt-4">
+                            <h4 style="font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-3);">
+                                Directors from CAC
+                                <span class="badge badge-primary" style="margin-left: var(--space-2);">@cacLookup.Directors.Count</span>
+                            </h4>
+                            @foreach (var dir in cacLookup.Directors)
+                            {
+                                <div class="party-bvn-card">
+                                    <div style="display: flex; gap: var(--space-3); align-items: flex-start;">
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600;">@dir.FullName</div>
+                                            <div style="font-size: var(--text-sm); color: var(--gray-600);">
+                                                @dir.AffiliateType
+                                                @if (dir.IsChairman == true)
+                                                {
+                                                    <span class="badge badge-warning" style="margin-left: var(--space-2);">Chairman</span>
+                                                }
+                                            </div>
+                                            @if (dir.NumSharesAlloted.HasValue)
+                                            {
+                                                <div style="font-size: var(--text-sm); color: var(--gray-500);">
+                                                    Shares: @dir.NumSharesAlloted.Value.ToString("N0") @dir.TypeOfShares
+                                                </div>
+                                            }
+                                            @if (!string.IsNullOrEmpty(dir.DateOfAppointment))
+                                            {
+                                                <div style="font-size: var(--text-xs); color: var(--gray-400);">Appointed: @dir.DateOfAppointment[..10]</div>
+                                            }
+                                        </div>
+                                        <div style="width: 220px;">
+                                            <label class="form-label" style="font-size: var(--text-xs);">BVN</label>
+                                            <input type="text" class="form-control form-control-sm"
+                                                   @bind="dir.BvnInput"
+                                                   placeholder="11-digit BVN"
+                                                   maxlength="11" />
+                                        </div>
+                                    </div>
+                                </div>
+                            }
                         </div>
                     }
 
-                    @if (customer.IncorporationDate == null)
+                    @* Director discrepancy indicator — CBS vs SmartComply CAC *@
+                    @if (cacLookup != null && customer.CbsDirectors.Count > 0)
                     {
-                        <div class="form-group mt-2">
-                            <label class="form-label">
-                                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; color: var(--warning-600);">warning</span>
-                                Date of Incorporation (not on file — please enter)
-                            </label>
-                            <input type="date" class="form-control" @bind="incorporationDateOverride" />
-                            <div class="form-hint">Used for financial statement validation</div>
+                        var cacCount = cacLookup.Directors.Count;
+                        var cbsCount = customer.CbsDirectors.Count;
+                        var cacNames = cacLookup.Directors.Select(d => d.FullName?.Trim().ToUpperInvariant()).Where(n => !string.IsNullOrEmpty(n)).OrderBy(n => n).ToList();
+                        var cbsNames = customer.CbsDirectors.Select(d => d.FullName?.Trim().ToUpperInvariant()).Where(n => !string.IsNullOrEmpty(n)).OrderBy(n => n).ToList();
+                        var onlyInCac = cacNames.Except(cbsNames).ToList();
+                        var onlyInCbs = cbsNames.Except(cacNames).ToList();
+                        var hasDiscrepancy = cacCount != cbsCount || onlyInCac.Count > 0 || onlyInCbs.Count > 0;
+
+                        <div class="mt-3" style="border: 1px solid @(hasDiscrepancy ? "var(--warning-300)" : "var(--success-300)"); border-radius: var(--radius-md); padding: var(--space-3); background: @(hasDiscrepancy ? "var(--warning-50)" : "var(--success-50)");">
+                            <div style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;" @onclick="() => showCbsDirectorComparison = !showCbsDirectorComparison">
+                                <span class="material-symbols-outlined" style="font-size: 20px; color: @(hasDiscrepancy ? "var(--warning-600)" : "var(--success-600)");">
+                                    @(hasDiscrepancy ? "warning" : "check_circle")
+                                </span>
+                                <span style="font-weight: 600; font-size: var(--text-sm);">
+                                    Director Source Comparison:
+                                    SmartComply CAC (@cacCount) vs Core Banking (@cbsCount)
+                                    @if (hasDiscrepancy)
+                                    {
+                                        <span class="badge badge-warning" style="margin-left: var(--space-2);">Discrepancy</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-success" style="margin-left: var(--space-2);">Match</span>
+                                    }
+                                </span>
+                                <span class="material-symbols-outlined" style="margin-left: auto; font-size: 18px;">
+                                    @(showCbsDirectorComparison ? "expand_less" : "expand_more")
+                                </span>
+                            </div>
+                            @if (showCbsDirectorComparison)
+                            {
+                                <div style="margin-top: var(--space-3); font-size: var(--text-sm);">
+                                    @if (hasDiscrepancy)
+                                    {
+                                        <p style="color: var(--gray-600); margin-bottom: var(--space-2);">
+                                            The SmartComply CAC director list (primary source) differs from core banking records. Review below for reference.
+                                        </p>
+                                        @if (onlyInCac.Count > 0)
+                                        {
+                                            <div style="margin-bottom: var(--space-2);">
+                                                <strong style="color: var(--primary-700);">In SmartComply CAC only:</strong>
+                                                @foreach (var name in onlyInCac)
+                                                {
+                                                    <span class="badge" style="margin: 2px; background: var(--primary-100); color: var(--primary-800);">@name</span>
+                                                }
+                                            </div>
+                                        }
+                                        @if (onlyInCbs.Count > 0)
+                                        {
+                                            <div style="margin-bottom: var(--space-2);">
+                                                <strong style="color: var(--warning-700);">In Core Banking only:</strong>
+                                                @foreach (var name in onlyInCbs)
+                                                {
+                                                    <span class="badge" style="margin: 2px; background: var(--warning-100); color: var(--warning-800);">@name</span>
+                                                }
+                                            </div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <p style="color: var(--success-700);">Both sources report the same directors.</p>
+                                    }
+
+                                    <div style="margin-top: var(--space-3);">
+                                        <strong>Core Banking Directors (reference only):</strong>
+                                        <table style="width: 100%; margin-top: var(--space-2); font-size: var(--text-xs);">
+                                            <thead>
+                                                <tr style="text-align: left; border-bottom: 1px solid var(--gray-200);">
+                                                    <th style="padding: 4px 8px;">Name</th>
+                                                    <th style="padding: 4px 8px;">BVN</th>
+                                                    <th style="padding: 4px 8px;">Email</th>
+                                                    <th style="padding: 4px 8px;">Phone</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var dir in customer.CbsDirectors)
+                                                {
+                                                    <tr style="border-bottom: 1px solid var(--gray-100);">
+                                                        <td style="padding: 4px 8px;">@dir.FullName</td>
+                                                        <td style="padding: 4px 8px;">@(dir.BVN ?? "—")</td>
+                                                        <td style="padding: 4px 8px;">@(dir.Email ?? "—")</td>
+                                                        <td style="padding: 4px 8px;">@(dir.PhoneNumber ?? "—")</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @* Signatories from core banking with BVN entry where missing *@
+                    @if (customer.Signatories.Count > 0)
+                    {
+                        <div class="mt-4">
+                            <h4 style="font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-3);">
+                                Signatories
+                                <span class="badge" style="margin-left: var(--space-2);">@customer.Signatories.Count</span>
+                            </h4>
+                            @foreach (var sig in customer.Signatories)
+                            {
+                                <div class="party-bvn-card">
+                                    <div style="display: flex; gap: var(--space-3); align-items: flex-start;">
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600;">@sig.FullName</div>
+                                            <div style="font-size: var(--text-sm); color: var(--gray-600);">
+                                                @sig.Designation &nbsp;|&nbsp; @sig.MandateType
+                                            </div>
+                                        </div>
+                                        <div style="width: 220px;">
+                                            <label class="form-label" style="font-size: var(--text-xs);">
+                                                BVN
+                                                @if (!string.IsNullOrWhiteSpace(sig.BVN))
+                                                {
+                                                    <span class="badge badge-success" style="margin-left: 4px;">On file</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge badge-warning" style="margin-left: 4px;">Required</span>
+                                                }
+                                            </label>
+                                            <input type="text" class="form-control form-control-sm"
+                                                   @bind="sig.BVN"
+                                                   placeholder="11-digit BVN"
+                                                   maxlength="11"
+                                                   disabled="@(!string.IsNullOrWhiteSpace(sig.BVN))" />
+                                        </div>
+                                    </div>
+                                </div>
+                            }
                         </div>
                     }
                 }
@@ -184,6 +362,30 @@
                         </select>
                     </div>
                     
+                    <div class="form-group">
+                        <label class="form-label">Industry / Sector *</label>
+                        <select class="form-control" @bind="request.IndustrySector">
+                            <option value="">Select sector</option>
+                            <option value="Agriculture">Agriculture</option>
+                            <option value="Manufacturing">Manufacturing</option>
+                            <option value="Mining & Quarrying">Mining & Quarrying</option>
+                            <option value="Construction & Real Estate">Construction & Real Estate</option>
+                            <option value="Oil & Gas">Oil & Gas</option>
+                            <option value="Power & Energy">Power & Energy</option>
+                            <option value="Transportation & Logistics">Transportation & Logistics</option>
+                            <option value="Information & Communication Technology">Information & Communication Technology</option>
+                            <option value="Wholesale & Retail Trade">Wholesale & Retail Trade</option>
+                            <option value="Financial Services">Financial Services</option>
+                            <option value="Education">Education</option>
+                            <option value="Healthcare">Healthcare</option>
+                            <option value="Hospitality & Tourism">Hospitality & Tourism</option>
+                            <option value="Professional Services">Professional Services</option>
+                            <option value="Government & Public Sector">Government & Public Sector</option>
+                            <option value="General Commerce">General Commerce</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
                     <div class="form-group" style="grid-column: span 2;">
                         <label class="form-label">Purpose *</label>
                         <textarea class="form-control" rows="3" @bind="request.Purpose" 
@@ -231,6 +433,10 @@
                         <div>
                             <span class="review-label">Interest Rate</span>
                             <span class="review-value">@request.InterestRate% @request.InterestRateType</span>
+                        </div>
+                        <div>
+                            <span class="review-label">Industry / Sector</span>
+                            <span class="review-value">@request.IndustrySector</span>
                         </div>
                         <div style="grid-column: span 2;">
                             <span class="review-label">Purpose</span>
@@ -428,6 +634,19 @@
         font-size: var(--text-sm);
         color: var(--gray-800);
     }
+
+    .party-bvn-card {
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-md);
+        padding: var(--space-3) var(--space-4);
+        margin-bottom: var(--space-3);
+        background: var(--gray-50);
+    }
+
+    .form-control-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: var(--text-sm);
+    }
 </style>
 
 @code {
@@ -447,12 +666,13 @@
 
     private bool CanProceed => currentStep switch
     {
-        1 => customer != null,
-        2 => request.ProductId != Guid.Empty 
-             && request.RequestedAmount > 0 
-             && request.TenorMonths > 0 
-             && request.InterestRate > 0 
+        1 => customer != null && !string.IsNullOrWhiteSpace(rcNumberOverride),
+        2 => request.ProductId != Guid.Empty
+             && request.RequestedAmount > 0
+             && request.TenorMonths > 0
+             && request.InterestRate > 0
              && !string.IsNullOrWhiteSpace(request.InterestRateType)
+             && !string.IsNullOrWhiteSpace(request.IndustrySector)
              && !string.IsNullOrWhiteSpace(request.Purpose),
         _ => true
     };
@@ -477,6 +697,10 @@
 
     private string? rcNumberOverride;
     private DateTime? incorporationDateOverride;
+    private CacLookupResult? cacLookup;
+    private bool isLoadingCac;
+    private string? cacError;
+    private bool showCbsDirectorComparison;
 
     private async Task FetchCustomer()
     {
@@ -487,6 +711,8 @@
         customer = null;
         rcNumberOverride = null;
         incorporationDateOverride = null;
+        cacLookup = null;
+        cacError = null;
         StateHasChanged();
 
         var result = await AppService.FetchCorporateDataAsync(accountNumber);
@@ -501,6 +727,28 @@
 
         request.AccountNumber = accountNumber;
         isLoadingCustomer = false;
+    }
+
+    private async Task LookupCacDirectors()
+    {
+        if (string.IsNullOrWhiteSpace(rcNumberOverride)) return;
+
+        isLoadingCac = true;
+        cacError = null;
+        cacLookup = null;
+        StateHasChanged();
+
+        var result = await AppService.FetchCacDirectorsAsync(rcNumberOverride.Trim());
+        if (result.Success && result.Data != null)
+        {
+            cacLookup = result.Data;
+        }
+        else
+        {
+            cacError = result.Error ?? "Could not retrieve directors from CAC. Please verify the RC number.";
+        }
+
+        isLoadingCac = false;
     }
 
     private void NextStep()
@@ -539,6 +787,47 @@
             var productCode = selectedProduct?.Code ?? "UNK";
             request.RegistrationNumberOverride = rcNumberOverride;
             request.IncorporationDateOverride = incorporationDateOverride;
+
+            // Pack directors (from SmartComply CAC + user-entered BVNs)
+            if (cacLookup != null)
+            {
+                request.Directors = cacLookup.Directors.Select(d => new DirectorInput
+                {
+                    FullName = d.FullName,
+                    Surname = d.Surname,
+                    FirstName = d.FirstName,
+                    OtherName = d.OtherName,
+                    BVN = string.IsNullOrWhiteSpace(d.BvnInput) ? null : d.BvnInput,
+                    Email = d.Email,
+                    PhoneNumber = d.PhoneNumber,
+                    NumSharesAlloted = d.NumSharesAlloted,
+                    TypeOfShares = d.TypeOfShares,
+                    IsChairman = d.IsChairman,
+                    AffiliateType = d.AffiliateType,
+                    DateOfAppointment = d.DateOfAppointment,
+                    DateOfBirth = d.DateOfBirth,
+                    Gender = d.Gender,
+                    Occupation = d.Occupation,
+                    Nationality = d.Nationality,
+                    Address = d.Address
+                }).ToList();
+            }
+
+            // Pack signatories (from core banking + user-entered BVNs)
+            if (customer?.Signatories.Count > 0)
+            {
+                request.Signatories = customer.Signatories.Select(s => new SignatoryInput
+                {
+                    SignatoryId = s.SignatoryId,
+                    FullName = s.FullName,
+                    BVN = string.IsNullOrWhiteSpace(s.BVN) ? null : s.BVN,
+                    Email = s.Email,
+                    PhoneNumber = s.PhoneNumber,
+                    Designation = s.Designation,
+                    MandateType = s.MandateType
+                }).ToList();
+            }
+
             var result = await AppService.CreateApplicationAsync(request, request.ProductId, productCode, userId);
             
             if (result.Success)

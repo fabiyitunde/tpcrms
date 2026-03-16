@@ -21,6 +21,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
     private readonly ICollateralRepository _collateralRepository;
     private readonly IGuarantorRepository _guarantorRepository;
     private readonly IBankStatementRepository _bankStatementRepository;
+    private readonly IBureauReportRepository _bureauReportRepository;
     private readonly IAIAdvisoryService _aiService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -31,6 +32,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
         ICollateralRepository collateralRepository,
         IGuarantorRepository guarantorRepository,
         IBankStatementRepository bankStatementRepository,
+        IBureauReportRepository bureauReportRepository,
         IAIAdvisoryService aiService,
         IUnitOfWork unitOfWork)
     {
@@ -40,6 +42,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
         _collateralRepository = collateralRepository;
         _guarantorRepository = guarantorRepository;
         _bankStatementRepository = bankStatementRepository;
+        _bureauReportRepository = bureauReportRepository;
         _aiService = aiService;
         _unitOfWork = unitOfWork;
     }
@@ -147,10 +150,11 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
         Domain.Aggregates.LoanApplication.LoanApplication loanApp, 
         CancellationToken ct)
     {
-        // Get financial statements
+        // Get financial statements — include Verified and Submitted (with IsUnverified flag)
         var financials = await _financialRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
         var financialInputs = financials
-            .Where(f => f.Status == FinancialStatementStatus.Verified && f.CalculatedRatios != null)
+            .Where(f => (f.Status == FinancialStatementStatus.Verified || f.Status == FinancialStatementStatus.PendingReview)
+                        && f.CalculatedRatios != null)
             .Select(f => new FinancialDataInput(
                 f.Id,
                 f.FinancialYear,
@@ -171,71 +175,112 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
                 f.CalculatedRatios.GetLiquidityAssessment(),
                 f.CalculatedRatios.GetLeverageAssessment(),
                 f.CalculatedRatios.GetProfitabilityAssessment(),
-                f.CalculatedRatios.GetOverallAssessment()
+                f.CalculatedRatios.GetOverallAssessment(),
+                IsUnverified: f.Status != FinancialStatementStatus.Verified
             ))
             .ToList();
 
-        // Get collateral
+        // Get collateral — include Approved and Valued (not yet approved) with separate counts
         var collaterals = await _collateralRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
         var approvedCollaterals = collaterals.Where(c => c.Status == CollateralStatus.Approved).ToList();
+        var valuedCollaterals = collaterals.Where(c => c.Status == CollateralStatus.Valued).ToList();
+        var allUsableCollaterals = approvedCollaterals.Concat(valuedCollaterals).ToList();
         
         CollateralDataInput? collateralInput = null;
-        if (approvedCollaterals.Any())
+        if (allUsableCollaterals.Any())
         {
             collateralInput = new CollateralDataInput(
-                approvedCollaterals.Count,
-                approvedCollaterals.Sum(c => c.MarketValue?.Amount ?? 0),
-                approvedCollaterals.Sum(c => c.ForcedSaleValue?.Amount ?? 0),
-                approvedCollaterals.Average(c => c.AcceptableValue?.Amount ?? 0) / loanApp.RequestedAmount.Amount * 100,
-                approvedCollaterals.Select(c => c.Type.ToString()).Distinct().ToList(),
-                approvedCollaterals.All(c => c.PerfectionStatus == PerfectionStatus.Perfected)
+                allUsableCollaterals.Count,
+                allUsableCollaterals.Sum(c => c.MarketValue?.Amount ?? 0),
+                allUsableCollaterals.Sum(c => c.ForcedSaleValue?.Amount ?? 0),
+                allUsableCollaterals.Average(c => c.AcceptableValue?.Amount ?? 0) / loanApp.RequestedAmount.Amount * 100,
+                allUsableCollaterals.Select(c => c.Type.ToString()).Distinct().ToList(),
+                approvedCollaterals.All(c => c.PerfectionStatus == PerfectionStatus.Perfected) && approvedCollaterals.Any(),
+                ApprovedCount: approvedCollaterals.Count,
+                ValuedButNotApprovedCount: valuedCollaterals.Count,
+                ValuedButNotApprovedMarketValue: valuedCollaterals.Sum(c => c.MarketValue?.Amount ?? 0)
             );
         }
 
         // Get guarantors
         var guarantors = await _guarantorRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
-        var guarantorInputs = guarantors
-            .Where(g => g.Status == GuarantorStatus.Approved)
-            .Select(g => new GuarantorDataInput(
-                g.Id,
-                g.FullName,
-                g.Type.ToString(),
-                g.VerifiedNetWorth?.Amount ?? g.DeclaredNetWorth?.Amount ?? 0,
-                g.GuaranteeLimit?.Amount ?? 0,
-                g.CreditScore,
-                g.Status.ToString()
-            ))
-            .ToList();
+        var approvedGuarantors = guarantors.Where(g => g.Status == GuarantorStatus.Approved).ToList();
 
-        // Build bureau data from parties (directors, signatories)
+        // Build bureau data from actual BureauReport records persisted after credit checks
         var bureauInputs = new List<BureauDataInput>();
-        
-        var directors = loanApp.Parties.Where(p => p.PartyType == PartyType.Director);
-        foreach (var director in directors)
+        var allBureauReports = await _bureauReportRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
+
+        // Index completed reports by PartyId for fast lookup
+        var reportsByParty = allBureauReports
+            .Where(r => r.Status == BureauReportStatus.Completed && r.PartyId.HasValue)
+            .GroupBy(r => r.PartyId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.ReportDate ?? r.CompletedAt ?? r.RequestedAt).First());
+
+        // Index corporate report (no PartyId, SubjectType = Business)
+        var corporateBureauReport = allBureauReports
+            .Where(r => r.Status == BureauReportStatus.Completed && r.SubjectType == SubjectType.Business)
+            .OrderByDescending(r => r.ReportDate ?? r.CompletedAt ?? r.RequestedAt)
+            .FirstOrDefault();
+
+        // Map individual party reports
+        foreach (var party in loanApp.Parties)
         {
-            // Bureau data would come from a separate bureau report lookup
-            // For now, create placeholder - actual integration would fetch from BureauReport table
-            bureauInputs.Add(new BureauDataInput(
-                Guid.NewGuid(), // Would be actual BureauReportId
-                director.FullName,
-                "Director",
-                null, // CreditScore - from bureau
-                0, 0, 0, 0, 0, null,
-                DateTime.UtcNow
-            ));
+            var subjectType = party.PartyType.ToString(); // Director, Signatory, Guarantor
+
+            if (party.Id != Guid.Empty && reportsByParty.TryGetValue(party.Id, out var report))
+            {
+                bureauInputs.Add(MapBureauReport(report, party.FullName, subjectType));
+            }
+            else
+            {
+                // No bureau data for this party — include as placeholder so AI knows the gap
+                bureauInputs.Add(new BureauDataInput(
+                    Guid.NewGuid(),
+                    party.FullName,
+                    subjectType,
+                    CreditScore: null,
+                    ActiveLoansCount: 0,
+                    TotalOutstandingDebt: 0,
+                    PerformingLoansCount: 0,
+                    DelinquentLoansCount: 0,
+                    DefaultedLoansCount: 0,
+                    WorstStatus: null,
+                    ReportDate: DateTime.UtcNow,
+                    IsPlaceholder: true
+                ));
+            }
         }
 
-        var signatories = loanApp.Parties.Where(p => p.PartyType == PartyType.Signatory);
-        foreach (var signatory in signatories)
+        // Add corporate bureau entry if available
+        if (corporateBureauReport != null)
         {
-            bureauInputs.Add(new BureauDataInput(
-                Guid.NewGuid(),
-                signatory.FullName,
-                "Signatory",
-                null, 0, 0, 0, 0, 0, null,
-                DateTime.UtcNow
-            ));
+            bureauInputs.Add(MapBureauReport(corporateBureauReport, loanApp.CustomerName, "Corporate"));
         }
+
+        // Build guarantor inputs with bureau report availability flag
+        var guarantorInputs = approvedGuarantors
+            .Select(g =>
+            {
+                // Check if this guarantor has a corresponding party with a bureau report
+                var guarantorParty = loanApp.Parties.FirstOrDefault(p =>
+                    p.PartyType == PartyType.Guarantor &&
+                    string.Equals(p.FullName, g.FullName, StringComparison.OrdinalIgnoreCase));
+                var hasBureau = guarantorParty != null
+                    && guarantorParty.Id != Guid.Empty
+                    && reportsByParty.ContainsKey(guarantorParty.Id);
+
+                return new GuarantorDataInput(
+                    g.Id,
+                    g.FullName,
+                    g.Type.ToString(),
+                    g.VerifiedNetWorth?.Amount ?? g.DeclaredNetWorth?.Amount ?? 0,
+                    g.GuaranteeLimit?.Amount ?? 0,
+                    g.CreditScore,
+                    g.Status.ToString(),
+                    HasBureauReport: hasBureau
+                );
+            })
+            .ToList();
 
         // Get bank statements and perform aggregated cashflow analysis
         var bankStatements = await _bankStatementRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
@@ -248,6 +293,14 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
             
             if (aggregatedResult.IsSuccess)
             {
+                // Aggregate recurring transaction counts from all bank statements
+                var recurringCredits = bankStatements
+                    .SelectMany(s => s.Transactions)
+                    .Count(t => t.IsRecurring && t.Type == Domain.Enums.StatementTransactionType.Credit);
+                var recurringDebits = bankStatements
+                    .SelectMany(s => s.Transactions)
+                    .Count(t => t.IsRecurring && t.Type == Domain.Enums.StatementTransactionType.Debit);
+
                 cashflowInput = new CashflowDataInput(
                     aggregatedResult.StatementSummaries.FirstOrDefault()?.StatementId ?? Guid.Empty,
                     aggregatedResult.TotalMonthsCovered,
@@ -255,8 +308,8 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
                     aggregatedResult.WeightedTotalDebits / Math.Max(1, aggregatedResult.TotalMonthsCovered),
                     aggregatedResult.WeightedNetMonthlyCashflow,
                     aggregatedResult.WeightedBalanceVolatility,
-                    0, // RecurringCreditsCount - would need to aggregate from individual summaries
-                    0, // RecurringDebitsCount
+                    recurringCredits,
+                    recurringDebits,
                     aggregatedResult.WeightedMonthlyObligations > 0 
                         ? aggregatedResult.WeightedMonthlyObligations / (aggregatedResult.DetectedMonthlySalary ?? aggregatedResult.WeightedTotalCredits / Math.Max(1, aggregatedResult.TotalMonthsCovered))
                         : 0,
@@ -278,19 +331,57 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
             }
         }
 
+        // Derive existing exposure from the corporate bureau report (SmartComply)
+        var existingExposure = corporateBureauReport?.TotalOutstandingBalance ?? 0m;
+        var existingFacilitiesCount = corporateBureauReport?.ActiveLoans ?? 0;
+
         return new AIAdvisoryRequest(
             loanApp.Id,
             loanApp.RequestedAmount.Amount,
             loanApp.RequestedTenorMonths,
             loanApp.ProductCode ?? "Corporate Loan",
-            loanApp.Purpose ?? "General Business",
+            loanApp.IndustrySector ?? "General Business",
             bureauInputs,
             financialInputs,
             cashflowInput,
             collateralInput,
             guarantorInputs,
-            0, // ExistingExposure - to be fetched from CoreBanking
-            0  // ExistingFacilitiesCount
+            existingExposure,
+            existingFacilitiesCount
+        );
+    }
+
+    private static BureauDataInput MapBureauReport(
+        Domain.Aggregates.CreditBureau.BureauReport report,
+        string subjectName,
+        string subjectType)
+    {
+        // Derive worst status from delinquency days
+        var worstStatus = report.MaxDelinquencyDays switch
+        {
+            0 => report.NonPerformingAccounts > 0 ? "Non-Performing" : "Performing",
+            < 30 => "Overdue",
+            < 90 => "Watch",
+            _ => "Non-Performing"
+        };
+
+        return new BureauDataInput(
+            ReportId: report.Id,
+            SubjectName: subjectName,
+            SubjectType: subjectType,
+            CreditScore: report.CreditScore,
+            ActiveLoansCount: report.ActiveLoans,
+            TotalOutstandingDebt: report.TotalOutstandingBalance,
+            PerformingLoansCount: report.PerformingAccounts,
+            DelinquentLoansCount: report.NonPerformingAccounts,
+            DefaultedLoansCount: report.MaxDelinquencyDays >= 90 && report.NonPerformingAccounts > 0 ? report.NonPerformingAccounts : 0,
+            WorstStatus: worstStatus,
+            ReportDate: report.ReportDate ?? report.CompletedAt ?? report.RequestedAt,
+            MaxDelinquencyDays: report.MaxDelinquencyDays,
+            HasLegalActions: report.HasLegalActions,
+            TotalOverdue: report.TotalOverdue,
+            FraudRiskScore: report.FraudRiskScore,
+            FraudRecommendation: report.FraudRecommendation
         );
     }
 

@@ -187,15 +187,61 @@ public class MockAIAdvisoryService : IAIAdvisoryService
             positiveIndicators.Add($"{totalPerforming} performing loan facilities indicate good repayment history");
         }
 
+        // Legal actions
+        var hasLegal = bureauReports.Any(b => b.HasLegalActions);
+        if (hasLegal)
+        {
+            score -= cfg.LegalActionsPenalty;
+            scoreRedFlags.Add("Legal actions recorded against one or more parties");
+            redFlags.Add("Legal actions detected in credit bureau records");
+        }
+
+        // High delinquency days
+        var maxDays = bureauReports.Max(b => b.MaxDelinquencyDays);
+        if (maxDays >= cfg.SevereDelinquencyDaysThreshold)
+        {
+            score -= cfg.SevereDelinquencyPenalty;
+            scoreRedFlags.Add($"Severe delinquency: up to {maxDays} days overdue");
+        }
+        else if (maxDays >= cfg.WatchListDaysThreshold)
+        {
+            score -= cfg.WatchListPenalty;
+            scoreRedFlags.Add($"Delinquency of {maxDays} days recorded");
+        }
+
+        // Fraud risk
+        var highFraud = bureauReports.Where(b => b.FraudRiskScore.HasValue).ToList();
+        if (highFraud.Any(b => b.FraudRiskScore >= cfg.HighFraudRiskScoreThreshold))
+        {
+            score -= cfg.HighFraudRiskPenalty;
+            scoreRedFlags.Add("High fraud risk score flagged by bureau");
+            redFlags.Add("High fraud risk score detected — manual verification required");
+        }
+        else if (highFraud.Any(b => b.FraudRiskScore >= cfg.ElevatedFraudRiskScoreThreshold))
+        {
+            score -= cfg.ElevatedFraudRiskPenalty;
+            scoreRedFlags.Add("Elevated fraud risk score");
+        }
+
+        // Placeholder data gaps
+        var missingCount = bureauReports.Count(b => b.IsPlaceholder);
+        if (missingCount > 0)
+        {
+            score -= missingCount * cfg.MissingBureauDataPenaltyPerParty;
+            scoreRedFlags.Add($"Bureau data unavailable for {missingCount} party(ies)");
+        }
+
         score = Math.Clamp(score, 0, 100);
 
+        var realReportCount = bureauReports.Count(b => !b.IsPlaceholder);
         return new RiskScoreOutput(
             "CreditHistory",
             score,
             weight,
             DetermineRating(score),
-            $"Credit history assessment based on {bureauReports.Count} bureau reports. " +
-            $"Average credit score: {avgScore:N0}. Performing: {totalPerforming}, Delinquent: {totalDelinquent}, Defaulted: {totalDefaults}.",
+            $"Credit history assessment based on {realReportCount} bureau report(s) ({missingCount} missing). " +
+            $"Average credit score: {avgScore:N0}. Performing: {totalPerforming}, Delinquent: {totalDelinquent}, Defaulted: {totalDefaults}. " +
+            $"Max delinquency: {maxDays} days. Legal actions: {(hasLegal ? "Yes" : "No")}.",
             scoreRedFlags,
             positiveIndicators
         );

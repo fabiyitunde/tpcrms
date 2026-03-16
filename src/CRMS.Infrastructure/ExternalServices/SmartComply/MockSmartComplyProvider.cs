@@ -472,10 +472,38 @@ public class MockSmartComplyProvider : ISmartComplyProvider
             Status: "Active",
             NatureOfBusiness: "Financial Services",
             ShareCapital: 10000000,
+            CompanyId: null,
             Directors: [
-                new SmartComplyCacDirector("John Adebayo", "Managing Director", "2010-01-01"),
-                new SmartComplyCacDirector("Amina Ibrahim", "Executive Director", "2012-05-15"),
-                new SmartComplyCacDirector("Chukwuma Okonkwo", "Non-Executive Director", "2015-08-20")
+                new SmartComplyCacDirector(
+                    Id: 10001, Surname: "ADEBAYO", FirstName: "JOHN", OtherName: "OLUMIDE",
+                    FullName: "JOHN OLUMIDE ADEBAYO", Gender: "MALE", DateOfBirth: "1975-03-20",
+                    Nationality: "NIGERIAN", Occupation: "BUSINESSMAN", Email: "john.adebayo@company.com",
+                    PhoneNumber: "+2348012345001", Address: "45 Victoria Island, Lagos",
+                    City: "LAGOS", State: "LAGOS", Lga: "ETI-OSA", Status: "ACTIVE",
+                    IsChairman: true, IsCorporate: false, DateOfAppointment: "2010-01-01",
+                    AffiliateType: "MANAGING DIRECTOR", TypeOfShares: "ORDINARY",
+                    NumSharesAlloted: 400000, IdentityNumber: null, Country: "NIGERIA"
+                ),
+                new SmartComplyCacDirector(
+                    Id: 10002, Surname: "IBRAHIM", FirstName: "AMINA", OtherName: null,
+                    FullName: "AMINA IBRAHIM", Gender: "FEMALE", DateOfBirth: "1980-07-10",
+                    Nationality: "NIGERIAN", Occupation: "ENTREPRENEUR", Email: "amina.ibrahim@company.com",
+                    PhoneNumber: "+2348012345002", Address: "12 Maitama, Abuja",
+                    City: "ABUJA", State: "FCT", Lga: "MAITAMA", Status: "ACTIVE",
+                    IsChairman: false, IsCorporate: false, DateOfAppointment: "2012-05-15",
+                    AffiliateType: "EXECUTIVE DIRECTOR", TypeOfShares: "ORDINARY",
+                    NumSharesAlloted: 350000, IdentityNumber: null, Country: "NIGERIA"
+                ),
+                new SmartComplyCacDirector(
+                    Id: 10003, Surname: "OKONKWO", FirstName: "CHUKWUMA", OtherName: "EMEKA",
+                    FullName: "CHUKWUMA EMEKA OKONKWO", Gender: "MALE", DateOfBirth: "1982-11-05",
+                    Nationality: "NIGERIAN", Occupation: "ENGINEER", Email: "c.okonkwo@company.com",
+                    PhoneNumber: "+2348012345003", Address: "3 GRA, Port Harcourt",
+                    City: "PORT HARCOURT", State: "RIVERS", Lga: "PORT HARCOURT", Status: "ACTIVE",
+                    IsChairman: false, IsCorporate: false, DateOfAppointment: "2015-08-20",
+                    AffiliateType: "NON-EXECUTIVE DIRECTOR", TypeOfShares: "ORDINARY",
+                    NumSharesAlloted: 250000, IdentityNumber: null, Country: "NIGERIA"
+                )
             ]
         )));
     }

@@ -1,4 +1,6 @@
+using CRMS.Domain.Aggregates.Location;
 using CRMS.Domain.Aggregates.ProductCatalog;
+using CRMS.Domain.Common;
 using CRMS.Domain.Constants;
 using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Enums;
@@ -16,8 +18,104 @@ public static class SeedData
 {
     public static async Task SeedAsync(CRMSDbContext context, ILogger logger)
     {
+        await SeedLocationsAsync(context, logger);
         await SeedRolesAsync(context, logger);
         await SeedLoanProductsAsync(context, logger);
+    }
+
+    private static async Task SeedLocationsAsync(CRMSDbContext context, ILogger logger)
+    {
+        if (await context.Locations.AnyAsync())
+        {
+            logger.LogInformation("Locations already seeded, skipping");
+            return;
+        }
+
+        logger.LogInformation("Seeding locations...");
+
+        // Create HeadOffice (root)
+        var hoResult = Location.CreateHeadOffice("HO", "Head Office", "Corporate Headquarters, Victoria Island, Lagos");
+        if (hoResult.IsFailure) { logger.LogError("Failed to create HeadOffice: {Error}", hoResult.Error); return; }
+        var ho = hoResult.Value;
+        await context.Locations.AddAsync(ho);
+        await context.SaveChangesAsync(); // Save to get the ID
+
+        // Create Regions
+        var southernResult = Location.CreateRegion("RG-SOUTH", "Southern Region", ho.Id, 1);
+        var northernResult = Location.CreateRegion("RG-NORTH", "Northern Region", ho.Id, 2);
+        
+        if (southernResult.IsFailure || northernResult.IsFailure)
+        {
+            logger.LogError("Failed to create regions");
+            return;
+        }
+        
+        var southern = southernResult.Value;
+        var northern = northernResult.Value;
+        await context.Locations.AddRangeAsync(southern, northern);
+        await context.SaveChangesAsync();
+
+        // Create Zones under Southern Region
+        var swZoneResult = Location.CreateZone("ZN-SW", "South-West Zone", southern.Id, 1);
+        var seZoneResult = Location.CreateZone("ZN-SE", "South-East Zone", southern.Id, 2);
+        var ssZoneResult = Location.CreateZone("ZN-SS", "South-South Zone", southern.Id, 3);
+        
+        // Create Zones under Northern Region
+        var ncZoneResult = Location.CreateZone("ZN-NC", "North-Central Zone", northern.Id, 1);
+        var nwZoneResult = Location.CreateZone("ZN-NW", "North-West Zone", northern.Id, 2);
+        var neZoneResult = Location.CreateZone("ZN-NE", "North-East Zone", northern.Id, 3);
+
+        var zones = new[] { swZoneResult, seZoneResult, ssZoneResult, ncZoneResult, nwZoneResult, neZoneResult };
+        foreach (var zoneResult in zones)
+        {
+            if (zoneResult.IsSuccess)
+                await context.Locations.AddAsync(zoneResult.Value);
+        }
+        await context.SaveChangesAsync();
+
+        var swZone = swZoneResult.Value;
+        var seZone = seZoneResult.Value;
+        var ssZone = ssZoneResult.Value;
+        var ncZone = ncZoneResult.Value;
+        var nwZone = nwZoneResult.Value;
+
+        // Create Branches under South-West Zone (Lagos)
+        var branches = new List<Result<Location>>
+        {
+            Location.CreateBranch("BR-LAG-001", "Lagos Main Branch", swZone.Id, "123 Marina Road, Lagos Island", "John Adeyemi", "08012345678", 1),
+            Location.CreateBranch("BR-LAG-002", "Victoria Island Branch", swZone.Id, "Plot 45, Adeola Odeku Street, VI", "Sarah Okonkwo", "08023456789", 2),
+            Location.CreateBranch("BR-LAG-003", "Ikeja Branch", swZone.Id, "15 Allen Avenue, Ikeja", "Michael Eze", "08034567890", 3),
+            Location.CreateBranch("BR-LAG-004", "Lekki Branch", swZone.Id, "Admiralty Way, Lekki Phase 1", "Grace Adekunle", "08045678901", 4),
+            Location.CreateBranch("BR-IBD-001", "Ibadan Branch", swZone.Id, "Ring Road, Ibadan", "Peter Uche", "08056789012", 5),
+            
+            // South-East Zone (Port Harcourt, Enugu)
+            Location.CreateBranch("BR-PH-001", "Port Harcourt Main Branch", seZone.Id, "Aba Road, Port Harcourt", "Amina Ibrahim", "08067890123", 1),
+            Location.CreateBranch("BR-ENU-001", "Enugu Branch", seZone.Id, "Ogui Road, Enugu", "David Okafor", "08078901234", 2),
+            
+            // South-South Zone
+            Location.CreateBranch("BR-BEN-001", "Benin Branch", ssZone.Id, "Airport Road, Benin City", "Comfort Idowu", "08089012345", 1),
+            
+            // North-Central Zone (Abuja)
+            Location.CreateBranch("BR-ABJ-001", "Abuja Main Branch", ncZone.Id, "Central Business District, Abuja", "Hassan Mohammed", "08090123456", 1),
+            Location.CreateBranch("BR-ABJ-002", "Wuse Branch", ncZone.Id, "Zone 5, Wuse, Abuja", "Fatima Bello", "08001234567", 2),
+            
+            // North-West Zone
+            Location.CreateBranch("BR-KAN-001", "Kano Branch", nwZone.Id, "Murtala Mohammed Way, Kano", "Usman Yakubu", "08012345679", 1),
+            Location.CreateBranch("BR-KAD-001", "Kaduna Branch", nwZone.Id, "Ahmadu Bello Way, Kaduna", "Musa Garba", "08023456780", 2)
+        };
+
+        var branchCount = 0;
+        foreach (var branchResult in branches)
+        {
+            if (branchResult.IsSuccess)
+            {
+                await context.Locations.AddAsync(branchResult.Value);
+                branchCount++;
+            }
+        }
+
+        await context.SaveChangesAsync();
+        logger.LogInformation("Locations seeded successfully (1 HO, 2 Regions, 6 Zones, {BranchCount} Branches)", branchCount);
     }
 
     private static async Task SeedRolesAsync(CRMSDbContext context, ILogger logger)

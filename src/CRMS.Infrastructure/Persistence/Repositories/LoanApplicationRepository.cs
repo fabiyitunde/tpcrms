@@ -49,6 +49,23 @@ public class LoanApplicationRepository : ILoanApplicationRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<LA.LoanApplication>> GetByStatusFilteredAsync(
+        LoanApplicationStatus status,
+        IReadOnlyList<Guid>? visibleBranchIds,
+        CancellationToken ct = default)
+    {
+        var query = _context.LoanApplications
+            .Where(x => x.Status == status);
+
+        // null means global visibility (no filter)
+        if (visibleBranchIds != null)
+            query = query.Where(x => x.BranchId.HasValue && visibleBranchIds.Contains(x.BranchId.Value));
+
+        return await query
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<LA.LoanApplication>> GetByInitiatorAsync(Guid userId, CancellationToken ct = default)
     {
         return await _context.LoanApplications
@@ -64,6 +81,22 @@ public class LoanApplicationRepository : ILoanApplicationRepository
 
         if (branchId.HasValue)
             query = query.Where(x => x.BranchId == branchId);
+
+        return await query
+            .OrderBy(x => x.SubmittedAt)
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<LA.LoanApplication>> GetPendingBranchReviewFilteredAsync(
+        IReadOnlyList<Guid>? visibleBranchIds,
+        CancellationToken ct = default)
+    {
+        var query = _context.LoanApplications
+            .Where(x => x.Status == LoanApplicationStatus.BranchReview);
+
+        // null means global visibility (no filter)
+        if (visibleBranchIds != null)
+            query = query.Where(x => x.BranchId.HasValue && visibleBranchIds.Contains(x.BranchId.Value));
 
         return await query
             .OrderBy(x => x.SubmittedAt)

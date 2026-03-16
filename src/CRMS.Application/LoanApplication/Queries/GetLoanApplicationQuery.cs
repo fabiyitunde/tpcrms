@@ -2,6 +2,7 @@ using CRMS.Application.Common;
 using CRMS.Application.LoanApplication.DTOs;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
+using CRMS.Domain.Services;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
 
 namespace CRMS.Application.LoanApplication.Queries;
@@ -62,7 +63,8 @@ public class GetLoanApplicationByIdHandler : IRequestHandler<GetLoanApplicationB
         app.Parties.Select(p => new LoanApplicationPartyDto(
             p.Id, p.PartyType.ToString(), p.FullName, p.BVN, p.Email,
             p.PhoneNumber, p.Designation, p.ShareholdingPercent, p.BVNVerified)).ToList(),
-        app.IncorporationDate
+        app.IncorporationDate,
+        app.IndustrySector
     );
 }
 
@@ -122,24 +124,57 @@ public class GetLoanApplicationByNumberHandler : IRequestHandler<GetLoanApplicat
         app.Parties.Select(p => new LoanApplicationPartyDto(
             p.Id, p.PartyType.ToString(), p.FullName, p.BVN, p.Email,
             p.PhoneNumber, p.Designation, p.ShareholdingPercent, p.BVNVerified)).ToList(),
-        app.IncorporationDate
+        app.IncorporationDate,
+        app.IndustrySector
     );
 }
 
-public record GetLoanApplicationsByStatusQuery(LoanApplicationStatus Status) : IRequest<ApplicationResult<List<LoanApplicationSummaryDto>>>;
+public record GetLoanApplicationsByStatusQuery(
+    LoanApplicationStatus Status,
+    Guid? UserLocationId = null,
+    string? UserRole = null,
+    Guid? UserId = null) : IRequest<ApplicationResult<List<LoanApplicationSummaryDto>>>;
 
 public class GetLoanApplicationsByStatusHandler : IRequestHandler<GetLoanApplicationsByStatusQuery, ApplicationResult<List<LoanApplicationSummaryDto>>>
 {
     private readonly ILoanApplicationRepository _repository;
+    private readonly VisibilityService _visibilityService;
 
-    public GetLoanApplicationsByStatusHandler(ILoanApplicationRepository repository)
+    public GetLoanApplicationsByStatusHandler(
+        ILoanApplicationRepository repository,
+        VisibilityService visibilityService)
     {
         _repository = repository;
+        _visibilityService = visibilityService;
     }
 
     public async Task<ApplicationResult<List<LoanApplicationSummaryDto>>> Handle(GetLoanApplicationsByStatusQuery request, CancellationToken ct = default)
     {
-        var applications = await _repository.GetByStatusAsync(request.Status, ct);
+        IReadOnlyList<LA.LoanApplication> applications;
+
+        if (request.UserRole != null)
+        {
+            var scope = VisibilityService.GetVisibilityScopeForRole(request.UserRole);
+
+            if (scope == VisibilityScope.Own && request.UserId.HasValue)
+            {
+                // Own visibility: only show applications created by this user with matching status
+                var allByUser = await _repository.GetByInitiatorAsync(request.UserId.Value, ct);
+                applications = allByUser.Where(a => a.Status == request.Status).ToList();
+            }
+            else
+            {
+                var visibleBranchIds = await _visibilityService.GetVisibleBranchIdsAsync(
+                    request.UserLocationId, request.UserRole, ct);
+                applications = await _repository.GetByStatusFilteredAsync(request.Status, visibleBranchIds, ct);
+            }
+        }
+        else
+        {
+            // No role info provided - return unfiltered (backward compatibility)
+            applications = await _repository.GetByStatusAsync(request.Status, ct);
+        }
+
         var dtos = applications.Select(app => new LoanApplicationSummaryDto(
             app.Id,
             app.ApplicationNumber,
@@ -188,20 +223,40 @@ public class GetMyLoanApplicationsHandler : IRequestHandler<GetMyLoanApplication
     }
 }
 
-public record GetPendingBranchReviewQuery(Guid? BranchId) : IRequest<ApplicationResult<List<LoanApplicationSummaryDto>>>;
+public record GetPendingBranchReviewQuery(
+    Guid? BranchId,
+    Guid? UserLocationId = null,
+    string? UserRole = null) : IRequest<ApplicationResult<List<LoanApplicationSummaryDto>>>;
 
 public class GetPendingBranchReviewHandler : IRequestHandler<GetPendingBranchReviewQuery, ApplicationResult<List<LoanApplicationSummaryDto>>>
 {
     private readonly ILoanApplicationRepository _repository;
+    private readonly VisibilityService _visibilityService;
 
-    public GetPendingBranchReviewHandler(ILoanApplicationRepository repository)
+    public GetPendingBranchReviewHandler(
+        ILoanApplicationRepository repository,
+        VisibilityService visibilityService)
     {
         _repository = repository;
+        _visibilityService = visibilityService;
     }
 
     public async Task<ApplicationResult<List<LoanApplicationSummaryDto>>> Handle(GetPendingBranchReviewQuery request, CancellationToken ct = default)
     {
-        var applications = await _repository.GetPendingBranchReviewAsync(request.BranchId, ct);
+        IReadOnlyList<LA.LoanApplication> applications;
+
+        if (request.UserRole != null)
+        {
+            var visibleBranchIds = await _visibilityService.GetVisibleBranchIdsAsync(
+                request.UserLocationId, request.UserRole, ct);
+            applications = await _repository.GetPendingBranchReviewFilteredAsync(visibleBranchIds, ct);
+        }
+        else
+        {
+            // Backward compatibility: use old BranchId-based filtering
+            applications = await _repository.GetPendingBranchReviewAsync(request.BranchId, ct);
+        }
+
         var dtos = applications.Select(app => new LoanApplicationSummaryDto(
             app.Id,
             app.ApplicationNumber,

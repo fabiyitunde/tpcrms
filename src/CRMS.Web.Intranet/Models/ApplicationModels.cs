@@ -103,6 +103,21 @@ public class CustomerInfo
     public string Address { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
+    // Signatories from core banking (shown in New.razor for BVN entry)
+    public List<SignatoryInput> Signatories { get; set; } = new();
+    // Directors from core banking (used for discrepancy comparison against SmartComply CAC)
+    public List<CbsDirectorInfo> CbsDirectors { get; set; } = new();
+}
+
+// Director info from core banking (CBS) — used only for discrepancy comparison
+public class CbsDirectorInfo
+{
+    public string FullName { get; set; } = string.Empty;
+    public string? BVN { get; set; }
+    public string? Email { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? DateOfBirth { get; set; }
+    public string? Address { get; set; }
 }
 
 public class LoanInfo
@@ -280,6 +295,87 @@ public class CreateApplicationRequest
     public string Purpose { get; set; } = string.Empty;
     public string? RegistrationNumberOverride { get; set; }
     public DateTime? IncorporationDateOverride { get; set; }
+    public string? IndustrySector { get; set; }
+    // Directors from SmartComply CAC (with user-entered BVNs)
+    public List<DirectorInput> Directors { get; set; } = new();
+    // Signatories from core banking (with user-entered BVNs where missing)
+    public List<SignatoryInput> Signatories { get; set; } = new();
+}
+
+// Director data from SmartComply CAC Advanced + user-entered BVN
+public class DirectorInput
+{
+    public string FullName { get; set; } = string.Empty;
+    public string? Surname { get; set; }
+    public string? FirstName { get; set; }
+    public string? OtherName { get; set; }
+    public string? BVN { get; set; }             // entered by data-entry user
+    public string? Email { get; set; }
+    public string? PhoneNumber { get; set; }
+    public decimal? ShareholdingPercent { get; set; }
+    public long? NumSharesAlloted { get; set; }
+    public string? TypeOfShares { get; set; }
+    public bool? IsChairman { get; set; }
+    public string? AffiliateType { get; set; }  // designation from CAC
+    public string? DateOfAppointment { get; set; }
+    public string? DateOfBirth { get; set; }
+    public string? Gender { get; set; }
+    public string? Occupation { get; set; }
+    public string? Nationality { get; set; }
+    public string? Address { get; set; }
+}
+
+// Signatory from core banking + user-entered BVN (when missing)
+public class SignatoryInput
+{
+    public string SignatoryId { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string? BVN { get; set; }             // from core banking or entered by data-entry user
+    public string? Email { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Designation { get; set; }
+    public string? MandateType { get; set; }
+}
+
+// Result of SmartComply CAC Advanced lookup used in New.razor
+public class CacLookupResult
+{
+    public string? CompanyName { get; set; }
+    public string? RcNumber { get; set; }
+    public string? Status { get; set; }
+    public string? RegistrationDate { get; set; }
+    public string? EntityType { get; set; }
+    public string? Address { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public long? CompanyId { get; set; }
+    public List<CacDirectorEntry> Directors { get; set; } = new();
+}
+
+// One director row in the New Application form
+public class CacDirectorEntry
+{
+    public long? Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string? Surname { get; set; }
+    public string? FirstName { get; set; }
+    public string? OtherName { get; set; }
+    public string? Gender { get; set; }
+    public string? DateOfBirth { get; set; }
+    public string? Occupation { get; set; }
+    public string? Nationality { get; set; }
+    public string? Email { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Address { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public bool? IsChairman { get; set; }
+    public string? AffiliateType { get; set; }
+    public string? TypeOfShares { get; set; }
+    public long? NumSharesAlloted { get; set; }
+    public string? DateOfAppointment { get; set; }
+    // Entered by data-entry user:
+    public string BvnInput { get; set; } = string.Empty;
 }
 
 public class BankStatementInfo

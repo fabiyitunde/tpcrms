@@ -1,4 +1,7 @@
+using CRMS.Domain.Aggregates.Location;
 using CRMS.Domain.Common;
+using CRMS.Domain.Constants;
+using CRMS.Domain.Enums;
 
 namespace CRMS.Domain.Entities.Identity;
 
@@ -14,7 +17,19 @@ public class ApplicationUser : Entity
     public string? PhoneNumber { get; private set; }
     public UserType Type { get; private set; }
     public UserStatus Status { get; private set; }
-    public Guid? BranchId { get; private set; }
+    
+    /// <summary>
+    /// The location (branch/zone/region/HO) this user is assigned to.
+    /// For branch-level staff, this is their branch.
+    /// For HO staff, this can be null (global) or the HO location.
+    /// </summary>
+    public Guid? LocationId { get; private set; }
+    
+    /// <summary>
+    /// Navigation property to the user's assigned location.
+    /// </summary>
+    public Location? Location { get; private set; }
+    
     public DateTime? LastLoginAt { get; private set; }
     public int FailedLoginAttempts { get; private set; }
     public DateTime? LockoutEndAt { get; private set; }
@@ -26,6 +41,10 @@ public class ApplicationUser : Entity
     public IReadOnlyCollection<ApplicationUserRole> UserRoles => _userRoles.AsReadOnly();
 
     public string FullName => $"{FirstName} {LastName}";
+    
+    // Keep BranchId as computed property for backward compatibility
+    [Obsolete("Use LocationId instead. This property exists for backward compatibility.")]
+    public Guid? BranchId => LocationId;
 
     private ApplicationUser() { }
 
@@ -36,7 +55,7 @@ public class ApplicationUser : Entity
         string lastName,
         UserType type,
         string? phoneNumber = null,
-        Guid? branchId = null)
+        Guid? locationId = null)
     {
         if (string.IsNullOrWhiteSpace(email))
             return Result.Failure<ApplicationUser>("Email is required");
@@ -61,9 +80,25 @@ public class ApplicationUser : Entity
             PhoneNumber = phoneNumber,
             Type = type,
             Status = UserStatus.Active,
-            BranchId = branchId,
+            LocationId = locationId,
             SecurityStamp = Guid.NewGuid().ToString()
         });
+    }
+    
+    /// <summary>
+    /// Updates the user's assigned location.
+    /// </summary>
+    public void SetLocation(Guid? locationId)
+    {
+        LocationId = locationId;
+    }
+    
+    /// <summary>
+    /// Gets the visibility scope for a given role.
+    /// </summary>
+    public static VisibilityScope GetVisibilityScopeForRole(string role)
+    {
+        return Roles.GetVisibilityScope(role);
     }
 
     public void SetPasswordHash(string passwordHash)

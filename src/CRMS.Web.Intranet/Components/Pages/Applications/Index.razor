@@ -211,7 +211,9 @@
         // Also get applications by status if a specific status is selected
         if (!string.IsNullOrEmpty(filter.Status))
         {
-            var (statusApps, _) = await AppService.GetApplicationsByStatusAsync(filter.Status);
+            var user = AuthService.CurrentUser;
+            var (statusApps, _) = await AppService.GetApplicationsByStatusAsync(
+                filter.Status, user?.LocationId, user?.PrimaryRole, user?.Id);
             // Merge and deduplicate
             var allApps = myApps.Concat(statusApps)
                 .GroupBy(a => a.Id)

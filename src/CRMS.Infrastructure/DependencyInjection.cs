@@ -22,6 +22,8 @@ using CRMS.Infrastructure.ExternalServices.CoreBanking;
 using CRMS.Infrastructure.ExternalServices.CreditBureau;
 using CRMS.Infrastructure.ExternalServices.SmartComply;
 using CRMS.Infrastructure.ExternalServices.Notifications;
+using CRMS.Application.Configuration.Commands;
+using CRMS.Application.Configuration.Queries;
 using CRMS.Application.Reporting.Interfaces;
 using CRMS.Infrastructure.Services;
 using CRMS.Infrastructure.Identity;
@@ -78,8 +80,24 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IAuthService, AuthService>();
 
-        // Core Banking (Mock for now - will be replaced with real Fineract client)
-        services.AddScoped<ICoreBankingService, MockCoreBankingService>();
+        // Core Banking — real CBS API or mock based on config
+        var cbsSection = configuration.GetSection(CoreBankingSettings.SectionName);
+        if (cbsSection.Exists() && !cbsSection.GetValue<bool>("UseMock"))
+        {
+            services.Configure<CoreBankingSettings>(cbsSection);
+            services.AddTransient<CoreBankingAuthHandler>();
+            services.AddHttpClient<ICoreBankingService, CoreBankingService>(client =>
+                {
+                    client.BaseAddress = new Uri(cbsSection.GetValue<string>("BaseUrl") ?? "");
+                    client.Timeout = TimeSpan.FromSeconds(cbsSection.GetValue<int>("TimeoutSeconds", 30));
+                })
+                .AddHttpMessageHandler<CoreBankingAuthHandler>()
+                .AddPolicyHandler(GetCoreBankingRetryPolicy());
+        }
+        else
+        {
+            services.AddScoped<ICoreBankingService, MockCoreBankingService>();
+        }
 
         // LoanApplication
         services.AddScoped<ILoanApplicationRepository, LoanApplicationRepository>();
@@ -123,6 +141,10 @@ public static class DependencyInjection
         // Consent
         services.AddScoped<IConsentRecordRepository, ConsentRecordRepository>();
 
+        // Location
+        services.AddScoped<ILocationRepository, Persistence.Repositories.Location.LocationRepository>();
+        services.AddScoped<VisibilityService>();
+
         // FinancialStatement
         services.AddScoped<IFinancialStatementRepository, FinancialStatementRepository>();
 
@@ -133,6 +155,16 @@ public static class DependencyInjection
         // Scoring Configuration (database-driven with maker-checker workflow)
         services.AddScoped<IScoringParameterRepository, ScoringParameterRepository>();
         services.AddScoped<ScoringConfigurationService>();
+
+        // Scoring Configuration Handlers (queries + commands)
+        services.AddScoped<GetAllScoringParametersHandler>();
+        services.AddScoped<GetScoringParametersByCategoryHandler>();
+        services.AddScoped<GetPendingChangesHandler>();
+        services.AddScoped<RequestParameterChangeHandler>();
+        services.AddScoped<ApproveParameterChangeHandler>();
+        services.AddScoped<RejectParameterChangeHandler>();
+        services.AddScoped<CancelParameterChangeHandler>();
+        services.AddScoped<SeedDefaultParametersHandler>();
 
         // Workflow
         services.AddScoped<IWorkflowDefinitionRepository, WorkflowDefinitionRepository>();
@@ -324,6 +356,16 @@ public static class DependencyInjection
         services.AddScoped<Application.FinancialAnalysis.Queries.GetFinancialRatiosTrendHandler>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Retry policy for Core Banking API: 2 retries with exponential backoff (1s, 2s).
+    /// </summary>
+    private static IAsyncPolicy<HttpResponseMessage> GetCoreBankingRetryPolicy()
+    {
+        return HttpPolicyExtensions
+            .HandleTransientHttpError()
+            .WaitAndRetryAsync(2, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt - 1)));
     }
 
     /// <summary>

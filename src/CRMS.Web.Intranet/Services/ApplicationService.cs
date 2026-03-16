@@ -45,6 +45,9 @@ using CRMS.Web.Intranet.Components.Pages.Applications.Modals;
 using CRMS.Web.Intranet.Models;
 using CRMS.Application.CreditBureau.DTOs;
 using CRMS.Application.CreditBureau.Queries;
+using CRMS.Application.Configuration.Commands;
+using CRMS.Application.Configuration.DTOs;
+using CRMS.Application.Configuration.Queries;
 using CRMS.Web.Intranet.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -276,19 +279,48 @@ public partial class ApplicationService
             if (customer.CustomerType != CRMS.Domain.Interfaces.CustomerType.Corporate)
                 return ApiResponse<CRMS.Web.Intranet.Models.CustomerInfo>.Fail("Account is not a corporate account");
 
-            var corporateResult = await coreBanking.GetCorporateInfoAsync(accountNumber);
-            var corporate = corporateResult.IsSuccess ? corporateResult.Value : null;
+            // Fetch signatories from core banking (directors now come from SmartComply CAC)
+            var signatoriesResult = await coreBanking.GetSignatoriesAsync(accountNumber);
+            var signatories = signatoriesResult.IsSuccess
+                ? signatoriesResult.Value.Select(s => new CRMS.Web.Intranet.Models.SignatoryInput
+                  {
+                      SignatoryId = s.SignatoryId,
+                      FullName = s.FullName,
+                      BVN = s.BVN,
+                      Email = s.Email,
+                      PhoneNumber = s.PhoneNumber,
+                      Designation = s.Designation,
+                      MandateType = s.MandateType
+                  }).ToList()
+                : new List<CRMS.Web.Intranet.Models.SignatoryInput>();
+
+            // Fetch directors from core banking (for discrepancy comparison against SmartComply CAC)
+            var directorsResult = await coreBanking.GetDirectorsAsync(customer.CustomerId);
+            var cbsDirectors = directorsResult.IsSuccess
+                ? directorsResult.Value.Select(d => new CRMS.Web.Intranet.Models.CbsDirectorInfo
+                  {
+                      FullName = d.FullName,
+                      BVN = d.BVN,
+                      Email = d.Email,
+                      PhoneNumber = d.PhoneNumber,
+                      DateOfBirth = d.DateOfBirth?.ToString("dd-MM-yyyy"),
+                      Address = d.Address
+                  }).ToList()
+                : new List<CRMS.Web.Intranet.Models.CbsDirectorInfo>();
 
             var info = new CRMS.Web.Intranet.Models.CustomerInfo
             {
                 AccountNumber = accountNumber,
                 CompanyName = customer.FullName,
-                RegistrationNumber = corporate?.RegistrationNumber ?? string.Empty,
-                Industry = corporate?.Industry ?? string.Empty,
-                IncorporationDate = corporate?.IncorporationDate,
+                // RC number intentionally left blank — user enters it for SmartComply lookup
+                RegistrationNumber = string.Empty,
+                Industry = string.Empty,
+                IncorporationDate = null,
                 Address = customer.Address ?? string.Empty,
                 Email = customer.Email ?? string.Empty,
-                Phone = customer.PhoneNumber ?? string.Empty
+                Phone = customer.PhoneNumber ?? string.Empty,
+                Signatories = signatories,
+                CbsDirectors = cbsDirectors
             };
             return ApiResponse<CRMS.Web.Intranet.Models.CustomerInfo>.Ok(info);
         }
@@ -296,6 +328,60 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error fetching corporate data for {AccountNumber}", accountNumber);
             return ApiResponse<CRMS.Web.Intranet.Models.CustomerInfo>.Fail("Failed to fetch customer data");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Web.Intranet.Models.CacLookupResult>> FetchCacDirectorsAsync(string rcNumber)
+    {
+        try
+        {
+            var smartComply = _sp.GetRequiredService<CRMS.Domain.Interfaces.ISmartComplyProvider>();
+            var result = await smartComply.VerifyCacAdvancedAsync(rcNumber.Trim());
+            if (result.IsFailure)
+                return ApiResponse<CRMS.Web.Intranet.Models.CacLookupResult>.Fail(result.Error ?? "CAC lookup failed");
+
+            var cac = result.Value;
+            var lookupResult = new CRMS.Web.Intranet.Models.CacLookupResult
+            {
+                CompanyName = cac.CompanyName,
+                RcNumber = cac.RcNumber,
+                Status = cac.Status,
+                RegistrationDate = cac.RegistrationDate,
+                EntityType = cac.CompanyType,
+                Address = cac.Address,
+                City = cac.City,
+                State = cac.State,
+                CompanyId = cac.CompanyId,
+                Directors = cac.Directors.Select(d => new CRMS.Web.Intranet.Models.CacDirectorEntry
+                {
+                    Id = d.Id,
+                    FullName = d.FullName ?? $"{d.FirstName} {d.Surname}".Trim(),
+                    Surname = d.Surname,
+                    FirstName = d.FirstName,
+                    OtherName = d.OtherName,
+                    Gender = d.Gender,
+                    DateOfBirth = d.DateOfBirth,
+                    Occupation = d.Occupation,
+                    Nationality = d.Nationality,
+                    Email = d.Email,
+                    PhoneNumber = d.PhoneNumber,
+                    Address = d.Address,
+                    City = d.City,
+                    State = d.State,
+                    IsChairman = d.IsChairman,
+                    AffiliateType = d.AffiliateType,
+                    TypeOfShares = d.TypeOfShares,
+                    NumSharesAlloted = d.NumSharesAlloted,
+                    DateOfAppointment = d.DateOfAppointment,
+                    BvnInput = string.Empty
+                }).ToList()
+            };
+            return ApiResponse<CRMS.Web.Intranet.Models.CacLookupResult>.Ok(lookupResult);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching CAC directors for RC {RcNumber}", rcNumber);
+            return ApiResponse<CRMS.Web.Intranet.Models.CacLookupResult>.Fail("Failed to fetch directors from CAC");
         }
     }
 
@@ -559,7 +645,11 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<(List<LoanApplicationSummary> Items, int TotalCount)> GetApplicationsByStatusAsync(string? status)
+    public Task<(List<LoanApplicationSummary> Items, int TotalCount)> GetApplicationsByStatusAsync(string? status)
+        => GetApplicationsByStatusAsync(status, null, null, null);
+
+    public async Task<(List<LoanApplicationSummary> Items, int TotalCount)> GetApplicationsByStatusAsync(
+        string? status, Guid? userLocationId, string? userRole, Guid? userId)
     {
         try
         {
@@ -569,7 +659,8 @@ public partial class ApplicationService
             }
             LoanApplicationStatus statusEnum = Enum.Parse<LoanApplicationStatus>(status, ignoreCase: true);
             GetLoanApplicationsByStatusHandler handler = _sp.GetRequiredService<GetLoanApplicationsByStatusHandler>();
-            ApplicationResult<List<LoanApplicationSummaryDto>> result = await handler.Handle(new GetLoanApplicationsByStatusQuery(statusEnum), CancellationToken.None);
+            ApplicationResult<List<LoanApplicationSummaryDto>> result = await handler.Handle(
+                new GetLoanApplicationsByStatusQuery(statusEnum, userLocationId, userRole, userId), CancellationToken.None);
             if (!result.IsSuccess || result.Data == null)
             {
                 return (Items: new List<LoanApplicationSummary>(), TotalCount: 0);
@@ -801,16 +892,60 @@ public partial class ApplicationService
     {
         try
         {
-            InitiateCorporateLoanHandler handler = _sp.GetRequiredService<InitiateCorporateLoanHandler>();
-            InterestRateType rt;
-            InitiateCorporateLoanCommand command = new InitiateCorporateLoanCommand(InterestRateType: Enum.TryParse<InterestRateType>(request.InterestRateType, ignoreCase: true, out rt) ? rt : InterestRateType.Flat, LoanProductId: productId, ProductCode: productCode, AccountNumber: request.AccountNumber, RequestedAmount: request.RequestedAmount, Currency: "NGN", RequestedTenorMonths: request.TenorMonths, InterestRatePerAnnum: request.InterestRate, InitiatedByUserId: userId, BranchId: null, Purpose: request.Purpose, RegistrationNumberOverride: request.RegistrationNumberOverride, IncorporationDateOverride: request.IncorporationDateOverride);
-            ApplicationResult<LoanApplicationDto> result = await handler.Handle(command, CancellationToken.None);
-            return result.IsSuccess ? ApiResponse<Guid>.Ok(result.Data.Id) : ApiResponse<Guid>.Fail(result.Error ?? "Failed to create application");
+            var handler = _sp.GetRequiredService<InitiateCorporateLoanHandler>();
+            Enum.TryParse<InterestRateType>(request.InterestRateType, ignoreCase: true, out var rt);
+
+            var directors = request.Directors.Count > 0
+                ? request.Directors.Select(d => new CRMS.Application.LoanApplication.Commands.DirectorInput(
+                    FullName: d.FullName,
+                    BVN: string.IsNullOrWhiteSpace(d.BVN) ? null : d.BVN,
+                    Email: d.Email,
+                    PhoneNumber: d.PhoneNumber,
+                    ShareholdingPercent: null,
+                    IsChairman: d.IsChairman,
+                    Designation: d.AffiliateType,
+                    DateOfAppointment: d.DateOfAppointment
+                  )).ToList()
+                : null;
+
+            var signatories = request.Signatories.Count > 0
+                ? request.Signatories.Select(s => new CRMS.Application.LoanApplication.Commands.SignatoryInput(
+                    FullName: s.FullName,
+                    BVN: string.IsNullOrWhiteSpace(s.BVN) ? null : s.BVN,
+                    Email: s.Email,
+                    PhoneNumber: s.PhoneNumber,
+                    Designation: s.Designation,
+                    MandateType: s.MandateType ?? "Class A"
+                  )).ToList()
+                : null;
+
+            var command = new InitiateCorporateLoanCommand(
+                LoanProductId: productId,
+                ProductCode: productCode,
+                AccountNumber: request.AccountNumber,
+                RequestedAmount: request.RequestedAmount,
+                Currency: "NGN",
+                RequestedTenorMonths: request.TenorMonths,
+                InterestRatePerAnnum: request.InterestRate,
+                InterestRateType: rt == default ? InterestRateType.Flat : rt,
+                InitiatedByUserId: userId,
+                BranchId: null,
+                Purpose: request.Purpose,
+                RegistrationNumberOverride: request.RegistrationNumberOverride,
+                IncorporationDateOverride: request.IncorporationDateOverride,
+                IndustrySector: request.IndustrySector,
+                Directors: directors,
+                Signatories: signatories
+            );
+
+            var result = await handler.Handle(command, CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<Guid>.Ok(result.Data.Id)
+                : ApiResponse<Guid>.Fail(result.Error ?? "Failed to create application");
         }
         catch (Exception ex)
         {
-            Exception ex2 = ex;
-            _logger.LogError(ex2, "Error creating application");
+            _logger.LogError(ex, "Error creating application");
             return ApiResponse<Guid>.Fail("Failed to create application");
         }
     }
@@ -2035,6 +2170,110 @@ public partial class ApplicationService
             Exception ex2 = ex;
             _logger.LogError(ex2, "Error deleting financial statements for application {AppId}", applicationId);
             return ApiResponse.Fail("Error: " + ex2.Message);
+        }
+    }
+
+    // ── Scoring Configuration ────────────────────────────────────────────────
+
+    public async Task<ApiResponse<List<ScoringParameterDto>>> GetAllScoringParametersAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetAllScoringParametersHandler>();
+            var result = await handler.Handle(new GetAllScoringParametersQuery(), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<List<ScoringParameterDto>>.Ok(result.Data!)
+                : ApiResponse<List<ScoringParameterDto>>.Fail(result.Error ?? "Failed to load scoring parameters");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading scoring parameters");
+            return ApiResponse<List<ScoringParameterDto>>.Fail("Failed to load scoring parameters");
+        }
+    }
+
+    public async Task<ApiResponse<int>> SeedDefaultScoringParametersAsync(Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<SeedDefaultParametersHandler>();
+            var result = await handler.Handle(new SeedDefaultParametersCommand(userId), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<int>.Ok(result.Data)
+                : ApiResponse<int>.Fail(result.Error ?? "Failed to seed parameters");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error seeding scoring parameters");
+            return ApiResponse<int>.Fail("Failed to seed scoring parameters");
+        }
+    }
+
+    public async Task<ApiResponse> RequestParameterChangeAsync(Guid parameterId, decimal newValue, string reason, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<RequestParameterChangeHandler>();
+            var result = await handler.Handle(new RequestParameterChangeCommand(parameterId, newValue, reason, userId), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse.Ok()
+                : ApiResponse.Fail(result.Error ?? "Failed to submit change request");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error requesting parameter change {ParameterId}", parameterId);
+            return ApiResponse.Fail("Failed to submit change request");
+        }
+    }
+
+    public async Task<ApiResponse> ApproveParameterChangeAsync(Guid parameterId, Guid userId, string? notes)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<ApproveParameterChangeHandler>();
+            var result = await handler.Handle(new ApproveParameterChangeCommand(parameterId, userId, notes), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse.Ok()
+                : ApiResponse.Fail(result.Error ?? "Failed to approve change");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error approving parameter change {ParameterId}", parameterId);
+            return ApiResponse.Fail("Failed to approve change");
+        }
+    }
+
+    public async Task<ApiResponse> RejectParameterChangeAsync(Guid parameterId, Guid userId, string reason)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<RejectParameterChangeHandler>();
+            var result = await handler.Handle(new RejectParameterChangeCommand(parameterId, userId, reason), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse.Ok()
+                : ApiResponse.Fail(result.Error ?? "Failed to reject change");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error rejecting parameter change {ParameterId}", parameterId);
+            return ApiResponse.Fail("Failed to reject change");
+        }
+    }
+
+    public async Task<ApiResponse> CancelParameterChangeAsync(Guid parameterId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CancelParameterChangeHandler>();
+            var result = await handler.Handle(new CancelParameterChangeCommand(parameterId, userId), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse.Ok()
+                : ApiResponse.Fail(result.Error ?? "Failed to cancel change");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error cancelling parameter change {ParameterId}", parameterId);
+            return ApiResponse.Fail("Failed to cancel change request");
         }
     }
 }

@@ -8,6 +8,28 @@ using LA = CRMS.Domain.Aggregates.LoanApplication;
 
 namespace CRMS.Application.LoanApplication.Commands;
 
+// Director data passed from the UI (sourced from SmartComply CAC + user-entered BVN)
+public record DirectorInput(
+    string FullName,
+    string? BVN,
+    string? Email,
+    string? PhoneNumber,
+    decimal? ShareholdingPercent,
+    bool? IsChairman,
+    string? Designation,
+    string? DateOfAppointment
+);
+
+// Signatory data passed from the UI (sourced from core banking + user-entered BVN where missing)
+public record SignatoryInput(
+    string FullName,
+    string? BVN,
+    string? Email,
+    string? PhoneNumber,
+    string? Designation,
+    string MandateType
+);
+
 public record InitiateCorporateLoanCommand(
     Guid LoanProductId,
     string ProductCode,
@@ -21,7 +43,10 @@ public record InitiateCorporateLoanCommand(
     Guid? BranchId,
     string? Purpose,
     string? RegistrationNumberOverride = null,
-    DateTime? IncorporationDateOverride = null
+    DateTime? IncorporationDateOverride = null,
+    string? IndustrySector = null,
+    List<DirectorInput>? Directors = null,      // from SmartComply CAC + user BVN entry
+    List<SignatoryInput>? Signatories = null    // from core banking + user BVN entry
 ) : IRequest<ApplicationResult<LoanApplicationDto>>;
 
 public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoanCommand, ApplicationResult<LoanApplicationDto>>
@@ -79,7 +104,8 @@ public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoa
             request.BranchId,
             request.Purpose,
             registrationNumber,
-            incorporationDate
+            incorporationDate,
+            request.IndustrySector
         );
 
         if (applicationResult.IsFailure)
@@ -87,11 +113,10 @@ public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoa
 
         var application = applicationResult.Value;
 
-        // Auto-pull directors and signatories
-        var directorsResult = await _coreBankingService.GetDirectorsAsync(customer.CustomerId, ct);
-        if (directorsResult.IsSuccess)
+        // Directors: use UI-provided list (from SmartComply CAC), otherwise fall back to core banking
+        if (request.Directors != null && request.Directors.Count > 0)
         {
-            foreach (var director in directorsResult.Value)
+            foreach (var director in request.Directors)
             {
                 application.AddParty(
                     Domain.Enums.PartyType.Director,
@@ -99,16 +124,36 @@ public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoa
                     director.BVN,
                     director.Email,
                     director.PhoneNumber,
-                    null,
+                    director.Designation,
                     director.ShareholdingPercent
                 );
             }
         }
-
-        var signatoriesResult = await _coreBankingService.GetSignatoriesAsync(request.AccountNumber, ct);
-        if (signatoriesResult.IsSuccess)
+        else
         {
-            foreach (var signatory in signatoriesResult.Value)
+            // Legacy fallback: fetch directors from core banking
+            var directorsResult = await _coreBankingService.GetDirectorsAsync(customer.CustomerId, ct);
+            if (directorsResult.IsSuccess)
+            {
+                foreach (var director in directorsResult.Value)
+                {
+                    application.AddParty(
+                        Domain.Enums.PartyType.Director,
+                        director.FullName,
+                        director.BVN,
+                        director.Email,
+                        director.PhoneNumber,
+                        null,
+                        director.ShareholdingPercent
+                    );
+                }
+            }
+        }
+
+        // Signatories: use UI-provided list (from core banking + user BVN entry), otherwise fetch from core banking
+        if (request.Signatories != null && request.Signatories.Count > 0)
+        {
+            foreach (var signatory in request.Signatories)
             {
                 application.AddParty(
                     Domain.Enums.PartyType.Signatory,
@@ -119,6 +164,26 @@ public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoa
                     signatory.Designation,
                     null
                 );
+            }
+        }
+        else
+        {
+            // Legacy fallback: fetch signatories from core banking
+            var signatoriesResult = await _coreBankingService.GetSignatoriesAsync(request.AccountNumber, ct);
+            if (signatoriesResult.IsSuccess)
+            {
+                foreach (var signatory in signatoriesResult.Value)
+                {
+                    application.AddParty(
+                        Domain.Enums.PartyType.Signatory,
+                        signatory.FullName,
+                        signatory.BVN,
+                        signatory.Email,
+                        signatory.PhoneNumber,
+                        signatory.Designation,
+                        null
+                    );
+                }
             }
         }
 
@@ -221,7 +286,8 @@ public class InitiateCorporateLoanHandler : IRequestHandler<InitiateCorporateLoa
                 p.ShareholdingPercent,
                 p.BVNVerified
             )).ToList(),
-            app.IncorporationDate
+            app.IncorporationDate,
+            app.IndustrySector
         );
     }
 }

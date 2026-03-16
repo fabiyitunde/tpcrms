@@ -31,7 +31,8 @@ public record LoanApplicationDto(
     DateTime? ModifiedAt,
     List<LoanApplicationDocumentDto> Documents,
     List<LoanApplicationPartyDto> Parties,
-    DateTime? IncorporationDate = null
+    DateTime? IncorporationDate = null,
+    string? IndustrySector = null
 );
 
 public record LoanApplicationSummaryDto(

@@ -316,7 +316,7 @@ public record SmartComplyTinResult(
 public record SmartComplyCacResult(
     string? CompanyName,
     string? RcNumber,
-    string? CompanyType,
+    string? CompanyType,        // entity_type (advanced) or company_type (basic)
     string? RegistrationDate,
     string? Address,
     string? City,
@@ -325,13 +325,42 @@ public record SmartComplyCacResult(
     string? Status,
     string? NatureOfBusiness,
     decimal? ShareCapital,
+    long? CompanyId,            // from advanced endpoint
     List<SmartComplyCacDirector> Directors
 );
 
 public record SmartComplyCacDirector(
-    string? Name,
-    string? Designation,
-    string? DateOfAppointment
+    // Identity
+    long? Id,
+    string? Surname,
+    string? FirstName,
+    string? OtherName,
+    string? FullName,           // computed: "FirstName OtherName Surname" (non-null parts joined)
+    // Personal
+    string? Gender,
+    string? DateOfBirth,
+    string? Nationality,
+    string? Occupation,
+    // Contact
+    string? Email,
+    string? PhoneNumber,
+    string? Address,
+    string? City,
+    string? State,
+    string? Lga,
+    // Corporate role
+    string? Status,
+    bool? IsChairman,
+    bool? IsCorporate,
+    string? DateOfAppointment,
+    string? AffiliateType,      // affiliateTypeFk.name
+    // Shares
+    string? TypeOfShares,
+    long? NumSharesAlloted,
+    // Identity document
+    string? IdentityNumber,
+    // Country
+    string? Country             // countryFk.name
 );
 
 #endregion

@@ -1,5 +1,6 @@
 @page "/admin/scoring"
-@inject NavigationManager Navigation
+@inject ApplicationService AppService
+@inject AuthService AuthService
 
 <PageTitle>Scoring Configuration - CRMS</PageTitle>
 
@@ -10,223 +11,567 @@
     </div>
 </div>
 
-<div class="card mb-6">
-    <div class="card-header">
-        <h3 class="card-title">Current Configuration</h3>
-        <span class="badge badge-success">Active</span>
+@if (isLoading)
+{
+    <div class="text-center p-8">
+        <span class="material-symbols-outlined spinning" style="font-size:32px;color:var(--primary-500)">progress_activity</span>
+        <p class="text-muted mt-2">Loading parameters…</p>
     </div>
-    <div class="card-body">
-        <div class="alert alert-info">
-            <span class="material-symbols-outlined" style="font-size: 20px;">info</span>
-            <div>
-                <strong>Maker-Checker Workflow:</strong> Changes to scoring parameters require approval from a second administrator before taking effect.
+}
+else if (!parameters.Any())
+{
+    <div class="card">
+        <div class="card-body text-center p-8">
+            <span class="material-symbols-outlined" style="font-size:48px;color:var(--gray-300)">tune</span>
+            <h3 class="mt-4" style="color:var(--gray-700)">No scoring parameters found</h3>
+            <p class="text-muted mb-4">Seed the default parameters to get started.</p>
+            <button class="btn btn-primary" @onclick="SeedParameters" disabled="@isSeeding">
+                @if (isSeeding)
+                {
+                    <span class="material-symbols-outlined spinning" style="font-size:16px">progress_activity</span>
+                    <span>Seeding…</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined" style="font-size:16px">add_circle</span>
+                    <span>Seed Default Parameters</span>
+                }
+            </button>
+            @if (!string.IsNullOrEmpty(seedError))
+            {
+                <div class="alert alert-danger mt-3">@seedError</div>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="alert-info-box">
+                <span class="material-symbols-outlined" style="font-size:20px">info</span>
+                <div>
+                    <strong>Maker-Checker Workflow:</strong> Changes submitted here require approval from a second administrator before they take effect. You cannot approve your own changes.
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="grid grid-cols-2 gap-6">
+    @* Pending Changes section *@
+    @if (pendingParams.Any())
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title">
+                    Pending Changes
+                    <span class="badge badge-warning ms-2">@pendingParams.Count</span>
+                </h3>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Parameter</th>
+                            <th>Current</th>
+                            <th>Proposed</th>
+                            <th>Reason</th>
+                            <th>Requested</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in pendingParams)
+                        {
+                            <tr>
+                                <td><span class="badge badge-secondary">@GetCategoryDisplayName(p.Category)</span></td>
+                                <td>@p.DisplayName</td>
+                                <td class="text-mono">@FormatValue(p.CurrentValue, p.DataType)</td>
+                                <td class="text-mono" style="color:var(--primary-600);font-weight:600">
+                                    @FormatValue(p.PendingValue ?? 0, p.DataType)
+                                    <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;color:var(--warning-600)">arrow_forward</span>
+                                </td>
+                                <td style="max-width:180px;font-size:var(--text-xs);color:var(--gray-500)">@p.PendingChangeReason</td>
+                                <td style="font-size:var(--text-xs);color:var(--gray-500)">@p.PendingChangeAt?.ToString("dd MMM yyyy")</td>
+                                <td>
+                                    @* Can approve only if a different user submitted *@
+                                    @if (p.PendingChangeByUserId != CurrentUserId)
+                                    {
+                                        <button class="btn btn-xs btn-success me-1" @onclick="() => ShowApproveModal(p)">Approve</button>
+                                        <button class="btn btn-xs btn-danger me-1" @onclick="() => ShowRejectModal(p)">Reject</button>
+                                    }
+                                    @if (p.PendingChangeByUserId == CurrentUserId)
+                                    {
+                                        <button class="btn btn-xs btn-outline-secondary" @onclick="() => ConfirmCancel(p)">Cancel</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    @* Category tabs *@
     <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Financial Health Weights</h3>
+        <div class="card-header" style="padding-bottom:0;border-bottom:none">
+            <div class="tab-nav" style="flex-wrap:wrap">
+                @foreach (var cat in categories)
+                {
+                    <button class="tab-btn @(selectedCategory == cat ? "active" : "")"
+                            @onclick="() => selectedCategory = cat">
+                        @GetCategoryDisplayName(cat)
+                        @if (parameters.Any(p => p.Category == cat && p.ChangeStatus == "Pending"))
+                        {
+                            <span class="badge badge-warning ms-1" style="font-size:10px">!</span>
+                        }
+                    </button>
+                }
+            </div>
         </div>
-        <div class="card-body">
-            @foreach (var param in financialHealthParams)
-            {
-                <div class="config-row">
-                    <span class="config-label">@param.Name</span>
-                    <span class="config-value">@param.Value@param.Unit</span>
-                </div>
+        <div class="card-body p-0">
+            @{
+                var catParams = parameters.Where(p => p.Category == selectedCategory).OrderBy(p => p.SortOrder).ToList();
             }
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Credit History Weights</h3>
-        </div>
-        <div class="card-body">
-            @foreach (var param in creditHistoryParams)
-            {
-                <div class="config-row">
-                    <span class="config-label">@param.Name</span>
-                    <span class="config-value">@param.Value@param.Unit</span>
-                </div>
-            }
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Collateral Scoring</h3>
-        </div>
-        <div class="card-body">
-            @foreach (var param in collateralParams)
-            {
-                <div class="config-row">
-                    <span class="config-label">@param.Name</span>
-                    <span class="config-value">@param.Value@param.Unit</span>
-                </div>
-            }
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Risk Thresholds</h3>
-        </div>
-        <div class="card-body">
-            @foreach (var param in riskThresholds)
-            {
-                <div class="config-row">
-                    <span class="config-label">@param.Name</span>
-                    <span class="config-value @GetThresholdClass(param.Name)">@param.Value@param.Unit</span>
-                </div>
-            }
-        </div>
-    </div>
-</div>
-
-<div class="card mt-6">
-    <div class="card-header">
-        <h3 class="card-title">Pending Changes</h3>
-    </div>
-    <div class="card-body">
-        @if (!pendingChanges.Any())
-        {
-            <div class="text-muted text-center p-4">No pending configuration changes</div>
-        }
-        else
-        {
-            <table class="table">
+            <table class="table mb-0">
                 <thead>
                     <tr>
-                        <th>Parameter</th>
-                        <th>Current Value</th>
-                        <th>Proposed Value</th>
-                        <th>Requested By</th>
-                        <th>Status</th>
+                        <th style="width:28%">Parameter</th>
+                        <th style="width:30%">Description</th>
+                        <th style="width:13%">Current Value</th>
+                        <th style="width:13%">Range</th>
+                        <th style="width:10%">Status</th>
+                        <th style="width:6%"></th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var change in pendingChanges)
+                    @foreach (var p in catParams)
                     {
                         <tr>
-                            <td>@change.ParameterName</td>
-                            <td>@change.CurrentValue</td>
-                            <td style="font-weight: 500; color: var(--primary-600);">@change.ProposedValue</td>
-                            <td>@change.RequestedBy</td>
-                            <td><span class="badge badge-warning">Pending Approval</span></td>
+                            <td style="font-weight:500">@p.DisplayName</td>
+                            <td style="font-size:var(--text-xs);color:var(--gray-500)">@p.Description</td>
+                            <td class="text-mono">
+                                @FormatValue(p.CurrentValue, p.DataType)
+                                @if (p.ChangeStatus == "Pending")
+                                {
+                                    <span class="d-block" style="font-size:var(--text-xs);color:var(--primary-600)">
+                                        → @FormatValue(p.PendingValue ?? 0, p.DataType)
+                                    </span>
+                                }
+                            </td>
+                            <td style="font-size:var(--text-xs);color:var(--gray-500)">
+                                @if (p.MinValue.HasValue || p.MaxValue.HasValue)
+                                {
+                                    <span>@(p.MinValue?.ToString("G") ?? "—") – @(p.MaxValue?.ToString("G") ?? "—")</span>
+                                }
+                            </td>
+                            <td>
+                                @if (p.ChangeStatus == "Pending")
+                                {
+                                    <span class="badge badge-warning">Pending</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-success">Active</span>
+                                }
+                            </td>
+                            <td>
+                                @if (p.ChangeStatus != "Pending")
+                                {
+                                    <button class="btn btn-xs btn-outline-primary" @onclick="() => ShowRequestModal(p)">Edit</button>
+                                }
+                                else if (p.PendingChangeByUserId == CurrentUserId)
+                                {
+                                    <button class="btn btn-xs btn-outline-secondary" @onclick="() => ConfirmCancel(p)">Cancel</button>
+                                }
+                            </td>
                         </tr>
                     }
                 </tbody>
             </table>
-        }
+        </div>
     </div>
-</div>
+}
+
+@* ── Request Change Modal ── *@
+@if (showRequestModal && editingParam != null)
+{
+    <div class="modal-backdrop" @onclick="CloseRequestModal"></div>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Request Parameter Change</h5>
+                <button class="modal-close" @onclick="CloseRequestModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group mb-3">
+                    <label class="form-label text-muted" style="font-size:var(--text-sm)">Parameter</label>
+                    <div style="font-weight:500">@editingParam.DisplayName</div>
+                    <div style="font-size:var(--text-xs);color:var(--gray-500)">@editingParam.Description</div>
+                </div>
+                <div class="form-group mb-3">
+                    <label class="form-label">Current Value</label>
+                    <div class="text-mono" style="font-size:var(--text-lg);font-weight:600">@FormatValue(editingParam.CurrentValue, editingParam.DataType)</div>
+                </div>
+                <div class="form-group mb-3">
+                    <label class="form-label">New Value @if (editingParam.MinValue.HasValue || editingParam.MaxValue.HasValue) { <span class="text-muted" style="font-size:var(--text-xs)">(Range: @editingParam.MinValue?.ToString("G") – @editingParam.MaxValue?.ToString("G"))</span> }</label>
+                    <input type="number" class="form-control" step="any"
+                           min="@editingParam.MinValue" max="@editingParam.MaxValue"
+                           @bind="requestNewValue" />
+                </div>
+                <div class="form-group mb-3">
+                    <label class="form-label">Reason for Change <span class="text-danger">*</span></label>
+                    <textarea class="form-control" rows="3" placeholder="Explain why this value needs to change…"
+                              @bind="requestReason"></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(requestError))
+                {
+                    <div class="alert alert-danger">@requestError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" @onclick="CloseRequestModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SubmitRequest" disabled="@isProcessingRequest">
+                    @if (isProcessingRequest) { <span class="material-symbols-outlined spinning" style="font-size:16px">progress_activity</span> }
+                    Submit Change Request
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Approve Modal ── *@
+@if (showApproveModal && editingParam != null)
+{
+    <div class="modal-backdrop" @onclick="CloseApproveModal"></div>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Approve Change</h5>
+                <button class="modal-close" @onclick="CloseApproveModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert-info-box mb-3">
+                    <span class="material-symbols-outlined" style="font-size:18px">info</span>
+                    <span>This will update <strong>@editingParam.DisplayName</strong> from <strong>@FormatValue(editingParam.CurrentValue, editingParam.DataType)</strong> to <strong>@FormatValue(editingParam.PendingValue ?? 0, editingParam.DataType)</strong>.</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes (optional)</label>
+                    <textarea class="form-control" rows="2" placeholder="Any notes on this approval…" @bind="approveNotes"></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(approveError))
+                {
+                    <div class="alert alert-danger mt-2">@approveError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" @onclick="CloseApproveModal">Cancel</button>
+                <button class="btn btn-success" @onclick="SubmitApprove" disabled="@isProcessingApprove">
+                    @if (isProcessingApprove) { <span class="material-symbols-outlined spinning" style="font-size:16px">progress_activity</span> }
+                    Confirm Approval
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Reject Modal ── *@
+@if (showRejectModal && editingParam != null)
+{
+    <div class="modal-backdrop" @onclick="CloseRejectModal"></div>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Reject Change</h5>
+                <button class="modal-close" @onclick="CloseRejectModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Reject the proposed change to <strong>@editingParam.DisplayName</strong>? The parameter will remain at <strong>@FormatValue(editingParam.CurrentValue, editingParam.DataType)</strong>.</p>
+                <div class="form-group">
+                    <label class="form-label">Rejection Reason <span class="text-danger">*</span></label>
+                    <textarea class="form-control" rows="3" placeholder="Explain why this change is being rejected…" @bind="rejectReason"></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(rejectError))
+                {
+                    <div class="alert alert-danger mt-2">@rejectError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" @onclick="CloseRejectModal">Cancel</button>
+                <button class="btn btn-danger" @onclick="SubmitReject" disabled="@isProcessingReject">
+                    @if (isProcessingReject) { <span class="material-symbols-outlined spinning" style="font-size:16px">progress_activity</span> }
+                    Confirm Rejection
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
 <style>
-    .config-row {
-        display: flex;
-        justify-content: space-between;
-        padding: var(--space-3) 0;
-        border-bottom: 1px solid var(--gray-100);
-    }
-    
-    .config-row:last-child {
-        border-bottom: none;
-    }
-    
-    .config-label {
-        font-size: var(--text-sm);
-        color: var(--gray-600);
-    }
-    
-    .config-value {
-        font-size: var(--text-sm);
-        font-weight: 500;
-    }
-    
-    .config-value.high-risk {
-        color: var(--danger-600);
-    }
-    
-    .config-value.medium-risk {
-        color: var(--warning-600);
-    }
-    
-    .config-value.low-risk {
-        color: var(--success-600);
-    }
-    
-    .alert-info {
+    .alert-info-box {
         display: flex;
         align-items: flex-start;
         gap: var(--space-3);
-        padding: var(--space-4);
+        padding: var(--space-3) var(--space-4);
         background: var(--primary-50);
         border: 1px solid var(--primary-200);
         border-radius: var(--radius-lg);
         color: var(--primary-800);
+        font-size: var(--text-sm);
     }
+
+    .tab-nav {
+        display: flex;
+        gap: 2px;
+        overflow-x: auto;
+    }
+
+    .tab-btn {
+        padding: var(--space-2) var(--space-4);
+        border: none;
+        background: transparent;
+        color: var(--gray-600);
+        font-size: var(--text-sm);
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+        color: var(--primary-600);
+        background: var(--primary-50);
+    }
+
+    .tab-btn.active {
+        color: var(--primary-700);
+        border-bottom-color: var(--primary-600);
+        font-weight: 600;
+    }
+
+    .text-mono {
+        font-family: var(--font-mono, monospace);
+        font-size: var(--text-sm);
+    }
+
+    .btn-xs {
+        padding: 2px 8px;
+        font-size: var(--text-xs);
+        border-radius: var(--radius-sm);
+    }
+
+    .ms-1 { margin-left: 4px; }
+    .ms-2 { margin-left: 8px; }
+    .me-1 { margin-right: 4px; }
+    .mt-2 { margin-top: 8px; }
+    .mt-3 { margin-top: 12px; }
+    .mt-4 { margin-top: 16px; }
+    .mb-3 { margin-bottom: 12px; }
+    .mb-4 { margin-bottom: 16px; }
+    .d-block { display: block; }
+
+    @@keyframes spin { to { transform: rotate(360deg); } }
+    .spinning { animation: spin 1s linear infinite; display: inline-block; }
 </style>
 
 @code {
-    private List<ConfigParam> financialHealthParams =
-    [
-        new() { Name = "Current Ratio Weight", Value = "15", Unit = "%" },
-        new() { Name = "Debt-to-Equity Weight", Value = "20", Unit = "%" },
-        new() { Name = "DSCR Weight", Value = "25", Unit = "%" },
-        new() { Name = "Revenue Growth Weight", Value = "15", Unit = "%" },
-        new() { Name = "Profit Margin Weight", Value = "25", Unit = "%" }
-    ];
+    private List<CRMS.Application.Configuration.DTOs.ScoringParameterDto> parameters = [];
+    private List<CRMS.Application.Configuration.DTOs.ScoringParameterDto> pendingParams = [];
+    private List<string> categories = [];
+    private string selectedCategory = "Weights";
 
-    private List<ConfigParam> creditHistoryParams =
-    [
-        new() { Name = "Bureau Score Weight", Value = "40", Unit = "%" },
-        new() { Name = "Delinquency Penalty", Value = "-10", Unit = " points/item" },
-        new() { Name = "Legal Issues Penalty", Value = "-25", Unit = " points" },
-        new() { Name = "Active Loans Factor", Value = "-2", Unit = " points/loan" }
-    ];
+    private bool isLoading = true;
+    private bool isSeeding;
+    private string? seedError;
 
-    private List<ConfigParam> collateralParams =
-    [
-        new() { Name = "Property Haircut", Value = "30", Unit = "%" },
-        new() { Name = "Equipment Haircut", Value = "40", Unit = "%" },
-        new() { Name = "Inventory Haircut", Value = "50", Unit = "%" },
-        new() { Name = "Min Collateral Coverage", Value = "120", Unit = "%" }
-    ];
+    // Request Change modal
+    private bool showRequestModal;
+    private CRMS.Application.Configuration.DTOs.ScoringParameterDto? editingParam;
+    private decimal requestNewValue;
+    private string requestReason = string.Empty;
+    private string? requestError;
+    private bool isProcessingRequest;
 
-    private List<ConfigParam> riskThresholds =
-    [
-        new() { Name = "Low Risk Threshold", Value = "75", Unit = "+" },
-        new() { Name = "Medium Risk Threshold", Value = "50-74", Unit = "" },
-        new() { Name = "High Risk Threshold", Value = "<50", Unit = "" },
-        new() { Name = "Auto-Reject Score", Value = "30", Unit = "" }
-    ];
+    // Approve modal
+    private bool showApproveModal;
+    private string? approveNotes;
+    private string? approveError;
+    private bool isProcessingApprove;
 
-    private List<PendingChange> pendingChanges = [];
+    // Reject modal
+    private bool showRejectModal;
+    private string rejectReason = string.Empty;
+    private string? rejectError;
+    private bool isProcessingReject;
 
-    private static string GetThresholdClass(string name) => name switch
+    private Guid CurrentUserId => AuthService.CurrentUser?.Id ?? Guid.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadParameters();
+
+    private async Task LoadParameters()
     {
-        "Low Risk Threshold" => "low-risk",
-        "Medium Risk Threshold" => "medium-risk",
-        "High Risk Threshold" or "Auto-Reject Score" => "high-risk",
-        _ => ""
+        isLoading = true;
+        var result = await AppService.GetAllScoringParametersAsync();
+        if (result.Success && result.Data != null)
+        {
+            parameters = result.Data;
+            pendingParams = parameters.Where(p => p.ChangeStatus == "Pending").ToList();
+            categories = parameters.Select(p => p.Category).Distinct()
+                .OrderBy(GetCategorySortOrder).ToList();
+            if (!categories.Contains(selectedCategory) && categories.Any())
+                selectedCategory = categories.First();
+        }
+        isLoading = false;
+    }
+
+    private async Task SeedParameters()
+    {
+        isSeeding = true;
+        seedError = null;
+        var result = await AppService.SeedDefaultScoringParametersAsync(CurrentUserId);
+        if (result.Success)
+            await LoadParameters();
+        else
+            seedError = result.Error ?? "Failed to seed parameters";
+        isSeeding = false;
+    }
+
+    // ── Request Change ─────────────────────────────────────────────────────
+    private void ShowRequestModal(CRMS.Application.Configuration.DTOs.ScoringParameterDto p)
+    {
+        editingParam = p;
+        requestNewValue = p.CurrentValue;
+        requestReason = string.Empty;
+        requestError = null;
+        showRequestModal = true;
+    }
+
+    private void CloseRequestModal() { showRequestModal = false; editingParam = null; requestError = null; }
+
+    private async Task SubmitRequest()
+    {
+        if (editingParam == null) return;
+        if (string.IsNullOrWhiteSpace(requestReason)) { requestError = "Please provide a reason for the change."; return; }
+        isProcessingRequest = true;
+        requestError = null;
+        var result = await AppService.RequestParameterChangeAsync(editingParam.Id, requestNewValue, requestReason.Trim(), CurrentUserId);
+        if (result.Success)
+        {
+            showRequestModal = false;
+            editingParam = null;
+            await LoadParameters();
+        }
+        else
+            requestError = result.Error ?? "Failed to submit change request";
+        isProcessingRequest = false;
+    }
+
+    // ── Approve ────────────────────────────────────────────────────────────
+    private void ShowApproveModal(CRMS.Application.Configuration.DTOs.ScoringParameterDto p)
+    {
+        editingParam = p;
+        approveNotes = null;
+        approveError = null;
+        showApproveModal = true;
+    }
+
+    private void CloseApproveModal() { showApproveModal = false; editingParam = null; approveError = null; }
+
+    private async Task SubmitApprove()
+    {
+        if (editingParam == null) return;
+        isProcessingApprove = true;
+        approveError = null;
+        var result = await AppService.ApproveParameterChangeAsync(editingParam.Id, CurrentUserId, approveNotes);
+        if (result.Success)
+        {
+            showApproveModal = false;
+            editingParam = null;
+            await LoadParameters();
+        }
+        else
+            approveError = result.Error ?? "Failed to approve change";
+        isProcessingApprove = false;
+    }
+
+    // ── Reject ─────────────────────────────────────────────────────────────
+    private void ShowRejectModal(CRMS.Application.Configuration.DTOs.ScoringParameterDto p)
+    {
+        editingParam = p;
+        rejectReason = string.Empty;
+        rejectError = null;
+        showRejectModal = true;
+    }
+
+    private void CloseRejectModal() { showRejectModal = false; editingParam = null; rejectError = null; }
+
+    private async Task SubmitReject()
+    {
+        if (editingParam == null) return;
+        if (string.IsNullOrWhiteSpace(rejectReason)) { rejectError = "Please provide a rejection reason."; return; }
+        isProcessingReject = true;
+        rejectError = null;
+        var result = await AppService.RejectParameterChangeAsync(editingParam.Id, CurrentUserId, rejectReason.Trim());
+        if (result.Success)
+        {
+            showRejectModal = false;
+            editingParam = null;
+            await LoadParameters();
+        }
+        else
+            rejectError = result.Error ?? "Failed to reject change";
+        isProcessingReject = false;
+    }
+
+    // ── Cancel (inline, no modal) ──────────────────────────────────────────
+    private async Task ConfirmCancel(CRMS.Application.Configuration.DTOs.ScoringParameterDto p)
+    {
+        var result = await AppService.CancelParameterChangeAsync(p.Id, CurrentUserId);
+        if (result.Success)
+            await LoadParameters();
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    private static string FormatValue(decimal value, string dataType) => dataType switch
+    {
+        "Percentage" => $"{value:G}%",
+        "Decimal"    => value.ToString("G"),
+        "Integer"    => ((int)value).ToString(),
+        "Score"      => value.ToString("G"),
+        _            => value.ToString("G")
     };
 
-    private class ConfigParam
+    private static string GetCategoryDisplayName(string category) => category switch
     {
-        public string Name { get; set; } = string.Empty;
-        public string Value { get; set; } = string.Empty;
-        public string Unit { get; set; } = string.Empty;
-    }
+        "Weights"         => "Weights",
+        "CreditHistory"   => "Credit History",
+        "FinancialHealth" => "Financial Health",
+        "Cashflow"        => "Cashflow",
+        "DSCR"            => "DSCR",
+        "Collateral"      => "Collateral",
+        "Recommendations" => "Recommendations",
+        "LoanAdjustments" => "Loan Adjustments",
+        "StatementTrust"  => "Statement Trust",
+        _                 => category
+    };
 
-    private class PendingChange
+    private static int GetCategorySortOrder(string category) => category switch
     {
-        public string ParameterName { get; set; } = string.Empty;
-        public string CurrentValue { get; set; } = string.Empty;
-        public string ProposedValue { get; set; } = string.Empty;
-        public string RequestedBy { get; set; } = string.Empty;
-    }
+        "Weights"         => 1,
+        "CreditHistory"   => 2,
+        "FinancialHealth" => 3,
+        "Cashflow"        => 4,
+        "DSCR"            => 5,
+        "Collateral"      => 6,
+        "Recommendations" => 7,
+        "LoanAdjustments" => 8,
+        "StatementTrust"  => 9,
+        _                 => 99
+    };
 }

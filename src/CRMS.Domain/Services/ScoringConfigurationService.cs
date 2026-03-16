@@ -43,6 +43,16 @@ public class ScoringConfigurationService
         config.CreditHistory.DelinquencyPenalty = GetValue(parameters, "CreditHistory", "DelinquencyPenalty", 15m);
         config.CreditHistory.PerformingLoansBonus = GetValue(parameters, "CreditHistory", "PerformingLoansBonus", 5m);
         config.CreditHistory.MinPerformingLoansForBonus = (int)GetValue(parameters, "CreditHistory", "MinPerformingLoansForBonus", 3m);
+        config.CreditHistory.LegalActionsPenalty = GetValue(parameters, "CreditHistory", "LegalActionsPenalty", 20m);
+        config.CreditHistory.SevereDelinquencyDaysThreshold = (int)GetValue(parameters, "CreditHistory", "SevereDelinquencyDaysThreshold", 90m);
+        config.CreditHistory.SevereDelinquencyPenalty = GetValue(parameters, "CreditHistory", "SevereDelinquencyPenalty", 15m);
+        config.CreditHistory.WatchListDaysThreshold = (int)GetValue(parameters, "CreditHistory", "WatchListDaysThreshold", 30m);
+        config.CreditHistory.WatchListPenalty = GetValue(parameters, "CreditHistory", "WatchListPenalty", 8m);
+        config.CreditHistory.HighFraudRiskScoreThreshold = (int)GetValue(parameters, "CreditHistory", "HighFraudRiskScoreThreshold", 70m);
+        config.CreditHistory.HighFraudRiskPenalty = GetValue(parameters, "CreditHistory", "HighFraudRiskPenalty", 25m);
+        config.CreditHistory.ElevatedFraudRiskScoreThreshold = (int)GetValue(parameters, "CreditHistory", "ElevatedFraudRiskScoreThreshold", 50m);
+        config.CreditHistory.ElevatedFraudRiskPenalty = GetValue(parameters, "CreditHistory", "ElevatedFraudRiskPenalty", 10m);
+        config.CreditHistory.MissingBureauDataPenaltyPerParty = GetValue(parameters, "CreditHistory", "MissingBureauDataPenaltyPerParty", 5m);
 
         // Load Financial Health config
         config.FinancialHealth.BaseScore = GetValue(parameters, "FinancialHealth", "BaseScore", 60m);

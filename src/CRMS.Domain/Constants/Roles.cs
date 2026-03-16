@@ -1,3 +1,5 @@
+using CRMS.Domain.Enums;
+
 namespace CRMS.Domain.Constants;
 
 public static class Roles
@@ -43,4 +45,40 @@ public static class Roles
         { Auditor, "Read-only audit access" },
         { Customer, "Self-service retail loan applicant" }
     };
+
+    /// <summary>
+    /// Defines what visibility scope each role has for viewing loan applications.
+    /// Branch-level roles can only see applications in their branch.
+    /// HO roles can see all applications globally.
+    /// </summary>
+    public static readonly Dictionary<string, VisibilityScope> RoleVisibilityScopes = new()
+    {
+        { SystemAdmin, VisibilityScope.Global },      // Superuser - sees all
+        { LoanOfficer, VisibilityScope.Branch },      // Sees applications in their branch
+        { CreditOfficer, VisibilityScope.Global },    // HO role - sees all
+        { RiskManager, VisibilityScope.Global },      // HO role - sees all
+        { BranchApprover, VisibilityScope.Branch },   // Approves applications in their branch
+        { HOReviewer, VisibilityScope.Global },       // HO role - sees all
+        { CommitteeMember, VisibilityScope.Global },  // Committee can see all (for voting)
+        { FinalApprover, VisibilityScope.Global },    // HO role - sees all
+        { Operations, VisibilityScope.Global },       // HO role - sees all
+        { Auditor, VisibilityScope.Global },          // Read-only audit - sees all
+        { Customer, VisibilityScope.Own }             // Customers see only their own applications
+    };
+
+    /// <summary>
+    /// Gets the visibility scope for a role. Defaults to Branch if role not found.
+    /// </summary>
+    public static VisibilityScope GetVisibilityScope(string role)
+    {
+        return RoleVisibilityScopes.GetValueOrDefault(role, VisibilityScope.Branch);
+    }
+
+    /// <summary>
+    /// Checks if a role has global visibility (can see all applications).
+    /// </summary>
+    public static bool HasGlobalVisibility(string role)
+    {
+        return GetVisibilityScope(role) == VisibilityScope.Global;
+    }
 }

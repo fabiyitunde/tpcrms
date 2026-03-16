@@ -26,6 +26,14 @@ public interface ICoreBankingService
     Task<Result<LoanInfo>> GetLoanInfoAsync(string loanId, CancellationToken ct = default);
     Task<Result<RepaymentSchedule>> GetRepaymentScheduleAsync(string loanId, CancellationToken ct = default);
     Task<Result<LoanStatus>> GetLoanStatusAsync(string loanId, CancellationToken ct = default);
+
+    // Exposure Operations
+    // TODO: Pending CBS API specification from core banking provider.
+    // This should return the customer's total active credit exposure held AT THIS BANK
+    // (sum of all outstanding loan balances across all facilities for the given account).
+    // This is distinct from the credit bureau total which covers all institutions.
+    // Required by: GenerateCreditAdvisoryCommand — ExistingExposure field in AIAdvisoryRequest.
+    Task<Result<CustomerExposure>> GetCustomerExposureAsync(string accountNumber, CancellationToken ct = default);
 }
 
 // Customer Models
@@ -194,3 +202,26 @@ public enum InstallmentStatus
     Overdue,
     PartiallyPaid
 }
+
+// Exposure Models
+// TODO: CBS provider to confirm exact field names and endpoint path.
+// Expected endpoint shape (to be agreed with provider):
+//   GET /core/account/exposure/{accountNumber}
+//   Returns: total outstanding balance of all active loan facilities for the customer.
+public record CustomerExposure(
+    string AccountNumber,
+    string CustomerName,
+    int ActiveFacilitiesCount,          // Number of active loan facilities at this bank
+    decimal TotalOutstandingBalance,    // Sum of outstanding principal across all facilities
+    decimal TotalApprovedLimit,         // Sum of approved limits across all facilities
+    IReadOnlyList<FacilitySummary> Facilities
+);
+
+public record FacilitySummary(
+    string FacilityId,
+    string ProductType,                 // e.g. "Term Loan", "Overdraft", "LPO Finance"
+    decimal ApprovedAmount,
+    decimal OutstandingBalance,
+    string Status,                      // Active, Overdue, etc.
+    DateTime? MaturityDate
+);

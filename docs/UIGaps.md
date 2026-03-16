@@ -1,7 +1,7 @@
 # CRMS Intranet UI - Gap Analysis
 
-**Document Version:** 3.6
-**Date:** 2026-03-01
+**Document Version:** 3.7
+**Date:** 2026-03-16
 **Status:** Priority 1 RESOLVED | Priority 2 RESOLVED | Priority 3 Pending
 
 ---
@@ -299,11 +299,13 @@ Business age-based validation now implemented:
 6. ~~Credit bureau check UI~~ ✅ Done (SmartComply integration)
 
 ### Priority 3 (Admin & Reports)
-1. User management CRUD (create, edit, deactivate)
-2. Product edit/delete
-3. Scoring configuration editor
+1. ~~User management CRUD (create, edit, deactivate)~~ ✅ Done
+2. ~~Product edit/delete~~ ✅ Done
+3. ~~Scoring configuration editor~~ ✅ Done
 4. Template management CRUD
 5. Connect performance/committee report pages to `ReportingService`
+6. Location management admin page (`/admin/locations`) — tree view, add/edit/deactivate
+7. User admin page — location picker dropdown (replace raw GUID BranchId)
 
 ---
 
@@ -320,3 +322,4 @@ Business age-based validation now implemented:
 | 3.4 | 2026-03-01 | Bank Statement auto-fetch + UI complete: `InitiateCorporateLoanCommand` now persists CoreBanking statement on create. New `StatementsTab.razor` (Own Bank + Other Banks), `UploadExternalStatementModal.razor`, `FillPartyInfoModal.razor`. `ApplicationService` + 7 new methods. `LoanApplication.IncorporationDate` + `UpdatePartyFields()`. `UpdatePartyInfoCommand`. Party null-field "Complete info" button in PartiesTab. New.razor uses real `FetchCorporateDataAsync()` with editable override fields. Migration `20260301170000_AddIncorporationDateToLoanApplication`. Build: 0 errors. |
 | 3.6 | 2026-03-09 | Code quality (M-1 NIN index, M-2 ConsentRecordId index). User CRUD: `UpdateUserCommand`, `ToggleUserStatusCommand`, `ClearRoles()` on `ApplicationUser`; `CreateUserAsync`, `UpdateUserAsync`, `ToggleUserStatusAsync` in `ApplicationService`; `Users.razor` fully wired. Product CRUD: `SuspendLoanProductCommand`, `LoanProductSuspendedEvent`; `CreateLoanProductAsync`, `UpdateLoanProductAsync`, `ToggleLoanProductAsync` in `ApplicationService`; `Products.razor` fully wired. Bug fix: `LoanProductSummaryDto` missing `MinTenorMonths`/`MaxTenorMonths`/`BaseInterestRate` caused hardcoded values in product dropdown — fixed in DTO, mapper, and both service methods. Build: 0 errors. |
 | 3.5 | 2026-03-09 | Bank statement transaction drill-down: `ViewStatementModal.razor` (new) — per-statement transaction list with filter (All/Credits/Debits), live search by description/reference, color-coded category badges, recurring badge, negative balance highlight. `StatementTransactionInfo` model added. `GetStatementTransactionsAsync` added to `ApplicationService`. "View" button added to own-bank card and every external statement row in `StatementsTab`. `Detail.razor` wired. No backend changes needed — `GetStatementTransactionsHandler` was already registered in DI. Build: 0 errors. |
+| 3.7 | 2026-03-16 | Location hierarchy + visibility filtering: `Location` aggregate (4-level: HO→Region→Zone→Branch), `VisibilityScope` enum, `VisibilityService` domain service, `LocationRepository`, EF migration `AddLocationHierarchy`, seed data (21 Nigeria locations). `ApplicationUser.LocationId` replaces `BranchId`. Query handlers filter by visibility scope. `UserInfo.LocationId`/`PrimaryRole` added. `ApplicationService.GetApplicationsByStatusAsync` visibility-aware overload. Applications Index passes user context. Pending: Location admin page, user location picker. Build: 0 errors. |

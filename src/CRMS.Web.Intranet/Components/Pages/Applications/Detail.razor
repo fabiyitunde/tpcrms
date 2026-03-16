@@ -971,20 +971,25 @@ else
     private bool ShowApproveButton => application?.Status switch
     {
         "BranchReview" => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        "HOReview" => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
-        "FinalApproval" => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
+        "HOReview" => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        "CommitteeCirculation" => AuthService.CurrentUser?.HasRole("CommitteeMember") ?? false,
+        "CommitteeApproved" => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
         _ => false
     };
 
     private bool ShowReturnButton => application?.Status switch
     {
-        "BranchReview" or "HOReview" or "CreditAnalysis" => true,
+        "BranchReview" => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        "HOReview" => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
         _ => false
     };
 
     private bool ShowRejectButton => application?.Status switch
     {
-        "BranchReview" or "HOReview" or "FinalApproval" => true,
+        "BranchReview" => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        "HOReview" => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        "CommitteeCirculation" => AuthService.CurrentUser?.HasRole("CommitteeMember") ?? false,
+        "CommitteeApproved" => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
         _ => false
     };
 
