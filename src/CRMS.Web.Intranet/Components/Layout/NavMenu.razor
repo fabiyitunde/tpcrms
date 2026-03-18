@@ -1,5 +1,6 @@
 @inject NavigationManager Navigation
 @inject AuthService AuthService
+@inject ApplicationService AppService
 
 <nav class="sidebar-nav">
     <div class="nav-section">
@@ -118,6 +119,14 @@
                 <span class="material-symbols-outlined nav-item-icon">inventory_2</span>
                 @if (!Collapsed) { <span class="nav-item-text">Products</span> }
             </NavLink>
+            <NavLink href="/admin/locations" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">location_city</span>
+                @if (!Collapsed) { <span class="nav-item-text">Locations</span> }
+            </NavLink>
+            <NavLink href="/admin/committees" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">groups</span>
+                @if (!Collapsed) { <span class="nav-item-text">Committees</span> }
+            </NavLink>
             <NavLink href="/admin/scoring" class="nav-item">
                 <span class="material-symbols-outlined nav-item-icon">tune</span>
                 @if (!Collapsed) { <span class="nav-item-text">Scoring Config</span> }
@@ -133,9 +142,9 @@
 @code {
     [Parameter] public bool Collapsed { get; set; }
     
-    private int MyQueueCount { get; set; } = 5;
-    private int OverdueCount { get; set; } = 2;
-    private int PendingVotesCount { get; set; } = 1;
+    private int MyQueueCount { get; set; }
+    private int OverdueCount { get; set; }
+    private int PendingVotesCount { get; set; }
 
     private UserInfo? User => AuthService.CurrentUser;
     
@@ -147,4 +156,31 @@
     private bool CanViewReports => User?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer", "HOReviewer", "Auditor") ?? false;
     private bool CanViewAudit => User?.HasAnyRole("SystemAdmin", "RiskManager", "Auditor") ?? false;
     private bool IsAdmin => User?.HasRole("SystemAdmin") ?? false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCounts();
+    }
+
+    private async Task LoadCounts()
+    {
+        var userId = User?.Id ?? Guid.Empty;
+        if (userId == Guid.Empty) return;
+
+        var tasks = new List<Task>();
+
+        tasks.Add(Task.Run(async () => MyQueueCount = await AppService.GetMyQueueCountAsync(userId)));
+
+        if (CanViewOverdue)
+        {
+            tasks.Add(Task.Run(async () => OverdueCount = await AppService.GetOverdueCountAsync()));
+        }
+
+        if (IsCommitteeMember)
+        {
+            tasks.Add(Task.Run(async () => PendingVotesCount = await AppService.GetMyPendingVotesCountAsync(userId)));
+        }
+
+        await Task.WhenAll(tasks);
+    }
 }

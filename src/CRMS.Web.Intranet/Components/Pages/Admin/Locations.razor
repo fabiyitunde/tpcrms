@@ -1,0 +1,650 @@
+@page "/admin/locations"
+@inject ApplicationService AppService
+@inject NavigationManager Navigation
+
+<PageTitle>Location Management - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Location Management</h1>
+        <p class="page-subtitle">Manage organizational hierarchy (Head Office → Region → Zone → Branch)</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal">
+        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+        Add Location
+    </button>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body" style="padding: var(--space-4);">
+        <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: center;">
+            <div style="flex: 1; min-width: 200px;">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" placeholder="Code, name, manager..." 
+                       @bind="searchTerm" @bind:event="oninput" />
+            </div>
+            <div style="width: 160px;">
+                <label class="form-label">Type</label>
+                <select class="form-control" @bind="selectedType">
+                    <option value="">All Types</option>
+                    <option value="HeadOffice">Head Office</option>
+                    <option value="Region">Region</option>
+                    <option value="Zone">Zone</option>
+                    <option value="Branch">Branch</option>
+                </select>
+            </div>
+            <div style="width: 140px;">
+                <label class="form-label">Status</label>
+                <select class="form-control" @bind="includeInactive">
+                    <option value="false">Active Only</option>
+                    <option value="true">Include Inactive</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: var(--space-2); align-items: flex-end;">
+                <button class="btn @(viewMode == "tree" ? "btn-primary" : "btn-secondary")" 
+                        @onclick="SetTreeView" title="Tree View">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">account_tree</span>
+                </button>
+                <button class="btn @(viewMode == "list" ? "btn-primary" : "btn-secondary")" 
+                        @onclick="SetListView" title="List View">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">list</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="card">
+        <div class="card-body text-center" style="padding: var(--space-8);">
+            <div class="spinner" style="margin: 0 auto;"></div>
+            <p style="margin-top: var(--space-4); color: var(--gray-500);">Loading locations...</p>
+        </div>
+    </div>
+}
+else if (viewMode == "tree" && treeRoot != null)
+{
+    <div class="card">
+        <div class="card-body" style="padding: var(--space-4);">
+            <div class="location-tree">
+                @RenderTreeNode(treeRoot, 0)
+            </div>
+        </div>
+    </div>
+}
+else if (viewMode == "list")
+{
+    <div class="card">
+        <div class="card-body" style="padding: 0;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Parent</th>
+                        <th>Manager</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var loc in FilteredLocations)
+                    {
+                        <tr class="@(!loc.IsActive ? "inactive-row" : "")">
+                            <td><code style="font-size: var(--text-sm);">@loc.Code</code></td>
+                            <td style="font-weight: 500;">@loc.Name</td>
+                            <td><span class="badge @loc.TypeBadgeClass">@loc.Type</span></td>
+                            <td style="color: var(--gray-500);">@(loc.ParentLocationName ?? "-")</td>
+                            <td>@(loc.ManagerName ?? "-")</td>
+                            <td>
+                                <span class="badge @(loc.IsActive ? "badge-success" : "badge-gray")">
+                                    <span class="status-dot @(loc.IsActive ? "success" : "gray")"></span>
+                                    @(loc.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td style="text-align: right;">
+                                <button class="btn btn-sm btn-secondary" @onclick="() => OpenEditModal(loc)" title="Edit">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+                                </button>
+                                <button class="btn btn-sm @(loc.IsActive ? "btn-warning" : "btn-success")" 
+                                        @onclick="() => ToggleStatus(loc)" 
+                                        title="@(loc.IsActive ? "Deactivate" : "Activate")">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">
+                                        @(loc.IsActive ? "block" : "check_circle")
+                                    </span>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (!FilteredLocations.Any())
+            {
+                <div class="text-center" style="padding: var(--space-8); color: var(--gray-500);">
+                    No locations found matching your criteria.
+                </div>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body text-center" style="padding: var(--space-8); color: var(--gray-500);">
+            No location hierarchy found. Add a Head Office to get started.
+        </div>
+    </div>
+}
+
+@* Create/Edit Modal *@
+@if (showModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseModal">
+        <div class="modal" style="max-width: 500px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h5 class="modal-title">@(isEditing ? "Edit Location" : "Add Location")</h5>
+                <button type="button" class="btn-close" @onclick="CloseModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (!isEditing)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Type *</label>
+                        <select class="form-control" @bind="editingLocation.Type">
+                            <option value="">Select type...</option>
+                            @if (!locations.Any(l => l.Type == "HeadOffice"))
+                            {
+                                <option value="HeadOffice">Head Office</option>
+                            }
+                            <option value="Region">Region</option>
+                            <option value="Zone">Zone</option>
+                            <option value="Branch">Branch</option>
+                        </select>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(editingLocation.Type) && editingLocation.Type != "HeadOffice")
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Parent Location *</label>
+                            <select class="form-control" @bind="editingLocation.ParentLocationId">
+                                <option value="">Select parent...</option>
+                                @foreach (var parent in GetValidParents(editingLocation.Type))
+                                {
+                                    <option value="@parent.Id">@parent.Code - @parent.Name</option>
+                                }
+                            </select>
+                        </div>
+                    }
+
+                    <div class="form-group">
+                        <label class="form-label">Code *</label>
+                        <input type="text" class="form-control" @bind="editingLocation.Code" 
+                               placeholder="e.g., BR-LAG-001" style="text-transform: uppercase;" />
+                        <small class="form-hint">Unique identifier (auto-uppercased)</small>
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input type="text" class="form-control" @bind="editingLocation.Name" 
+                           placeholder="e.g., Lagos Main Branch" />
+                </div>
+
+                @if (editingLocation.Type == "Branch")
+                {
+                    <div class="form-group">
+                        <label class="form-label">Address</label>
+                        <textarea class="form-control" rows="2" @bind="editingLocation.Address"
+                                  placeholder="Branch address..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Branch Manager</label>
+                        <input type="text" class="form-control" @bind="editingLocation.ManagerName" 
+                               placeholder="Manager name" />
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label class="form-label">Contact Phone</label>
+                                <input type="text" class="form-control" @bind="editingLocation.ContactPhone" 
+                                       placeholder="08012345678" />
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label class="form-label">Contact Email</label>
+                                <input type="email" class="form-control" @bind="editingLocation.ContactEmail" 
+                                       placeholder="branch@bank.com" />
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label class="form-label">Sort Order</label>
+                    <input type="number" class="form-control" @bind="editingLocation.SortOrder" 
+                           style="width: 100px;" />
+                    <small class="form-hint">Lower numbers appear first</small>
+                </div>
+
+                @if (!string.IsNullOrEmpty(saveError))
+                {
+                    <div class="alert alert-danger" style="margin-top: var(--space-4);">@saveError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="SaveLocation" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-sm"></span>
+                    }
+                    @(isEditing ? "Update" : "Create")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .location-tree {
+        font-size: var(--text-sm);
+    }
+
+    .tree-node {
+        margin-bottom: var(--space-1);
+    }
+
+    .tree-node-content {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: background-color 0.15s;
+    }
+
+    .tree-node-content:hover {
+        background-color: var(--gray-50);
+    }
+
+    .tree-node-content.inactive {
+        opacity: 0.5;
+    }
+
+    .tree-toggle {
+        width: 20px;
+        text-align: center;
+        color: var(--gray-400);
+        cursor: pointer;
+    }
+
+    .tree-icon {
+        font-size: 16px;
+    }
+
+    .tree-name {
+        flex: 1;
+        font-weight: 500;
+    }
+
+    .tree-code {
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+        background: var(--gray-100);
+        padding: 2px 6px;
+        border-radius: var(--radius-sm);
+    }
+
+    .tree-manager {
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+    }
+
+    .tree-actions {
+        display: flex;
+        gap: var(--space-1);
+        opacity: 0;
+        transition: opacity 0.15s;
+    }
+
+    .tree-node-content:hover .tree-actions {
+        opacity: 1;
+    }
+
+    .tree-children {
+        margin-left: 24px;
+        border-left: 1px dashed var(--gray-200);
+        padding-left: var(--space-3);
+    }
+
+    .inactive-row {
+        opacity: 0.5;
+        background-color: var(--gray-50);
+    }
+
+    .btn-warning {
+        background-color: var(--yellow-500);
+        color: white;
+    }
+
+    .btn-warning:hover {
+        background-color: var(--yellow-600);
+    }
+</style>
+
+@code {
+    private List<LocationInfo> locations = [];
+    private LocationTreeNode? treeRoot;
+    private bool isLoading = true;
+    private string searchTerm = "";
+    private string selectedType = "";
+    private string includeInactive = "false";
+    private string viewMode = "tree";
+
+    private bool showModal;
+    private bool isEditing;
+    private bool isSaving;
+    private string? saveError;
+    private EditLocationModel editingLocation = new();
+
+    private IEnumerable<LocationInfo> FilteredLocations => locations
+        .Where(l => string.IsNullOrEmpty(searchTerm) || 
+                    l.Code.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    l.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    (l.ManagerName?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false))
+        .Where(l => string.IsNullOrEmpty(selectedType) || l.Type == selectedType)
+        .OrderBy(l => l.Type)
+        .ThenBy(l => l.SortOrder)
+        .ThenBy(l => l.Name);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private void SetTreeView() => viewMode = "tree";
+    private void SetListView() => viewMode = "list";
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            var includeInactiveBool = includeInactive == "true";
+            locations = await AppService.GetAllLocationsAsync(includeInactiveBool);
+            treeRoot = await AppService.GetLocationTreeAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private RenderFragment RenderTreeNode(LocationTreeNode node, int depth) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "tree-node");
+
+        // Node content
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", $"tree-node-content {(!node.IsActive ? "inactive" : "")}");
+
+        // Toggle
+        builder.OpenElement(4, "span");
+        builder.AddAttribute(5, "class", "tree-toggle");
+        if (node.Children.Any())
+        {
+            builder.AddAttribute(6, "onclick", EventCallback.Factory.Create(this, () => node.IsExpanded = !node.IsExpanded));
+            builder.AddContent(7, node.IsExpanded ? "▼" : "▶");
+        }
+        builder.CloseElement();
+
+        // Icon
+        builder.OpenElement(8, "span");
+        builder.AddAttribute(9, "class", "tree-icon");
+        builder.AddContent(10, node.TypeIcon);
+        builder.CloseElement();
+
+        // Name
+        builder.OpenElement(11, "span");
+        builder.AddAttribute(12, "class", "tree-name");
+        builder.AddContent(13, node.Name);
+        builder.CloseElement();
+
+        // Code
+        builder.OpenElement(14, "span");
+        builder.AddAttribute(15, "class", "tree-code");
+        builder.AddContent(16, node.Code);
+        builder.CloseElement();
+
+        // Manager (for branches)
+        if (!string.IsNullOrEmpty(node.ManagerName))
+        {
+            builder.OpenElement(17, "span");
+            builder.AddAttribute(18, "class", "tree-manager");
+            builder.AddContent(19, $"• {node.ManagerName}");
+            builder.CloseElement();
+        }
+
+        // Status badge
+        if (!node.IsActive)
+        {
+            builder.OpenElement(20, "span");
+            builder.AddAttribute(21, "class", "badge badge-gray");
+            builder.AddContent(22, "Inactive");
+            builder.CloseElement();
+        }
+
+        // Actions
+        builder.OpenElement(23, "span");
+        builder.AddAttribute(24, "class", "tree-actions");
+
+        // Edit button
+        builder.OpenElement(25, "button");
+        builder.AddAttribute(26, "class", "btn btn-sm btn-secondary");
+        builder.AddAttribute(27, "title", "Edit");
+        var locInfo = locations.FirstOrDefault(l => l.Id == node.Id);
+        if (locInfo != null)
+        {
+            builder.AddAttribute(28, "onclick", EventCallback.Factory.Create(this, () => OpenEditModal(locInfo)));
+        }
+        builder.OpenElement(29, "span");
+        builder.AddAttribute(30, "class", "material-symbols-outlined");
+        builder.AddAttribute(31, "style", "font-size: 14px;");
+        builder.AddContent(32, "edit");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        // Toggle status button
+        builder.OpenElement(33, "button");
+        builder.AddAttribute(34, "class", $"btn btn-sm {(node.IsActive ? "btn-warning" : "btn-success")}");
+        builder.AddAttribute(35, "title", node.IsActive ? "Deactivate" : "Activate");
+        if (locInfo != null)
+        {
+            builder.AddAttribute(36, "onclick", EventCallback.Factory.Create(this, () => ToggleStatus(locInfo)));
+        }
+        builder.OpenElement(37, "span");
+        builder.AddAttribute(38, "class", "material-symbols-outlined");
+        builder.AddAttribute(39, "style", "font-size: 14px;");
+        builder.AddContent(40, node.IsActive ? "block" : "check_circle");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement(); // tree-actions
+
+        builder.CloseElement(); // tree-node-content
+
+        // Children
+        if (node.IsExpanded && node.Children.Any())
+        {
+            builder.OpenElement(41, "div");
+            builder.AddAttribute(42, "class", "tree-children");
+            foreach (var child in node.Children.OrderBy(c => c.SortOrder).ThenBy(c => c.Name))
+            {
+                builder.AddContent(43, RenderTreeNode(child, depth + 1));
+            }
+            builder.CloseElement();
+        }
+
+        builder.CloseElement(); // tree-node
+    };
+
+    private void OpenCreateModal()
+    {
+        isEditing = false;
+        editingLocation = new EditLocationModel();
+        saveError = null;
+        showModal = true;
+    }
+
+    private void OpenEditModal(LocationInfo loc)
+    {
+        isEditing = true;
+        editingLocation = new EditLocationModel
+        {
+            Id = loc.Id,
+            Code = loc.Code,
+            Name = loc.Name,
+            Type = loc.Type,
+            ParentLocationId = loc.ParentLocationId,
+            Address = loc.Address,
+            ManagerName = loc.ManagerName,
+            ContactPhone = loc.ContactPhone,
+            ContactEmail = loc.ContactEmail,
+            SortOrder = loc.SortOrder
+        };
+        saveError = null;
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        editingLocation = new();
+        saveError = null;
+    }
+
+    private IEnumerable<LocationInfo> GetValidParents(string childType)
+    {
+        var parentType = childType switch
+        {
+            "Region" => "HeadOffice",
+            "Zone" => "Region",
+            "Branch" => "Zone",
+            _ => null
+        };
+
+        if (parentType == null) return [];
+        return locations.Where(l => l.Type == parentType && l.IsActive);
+    }
+
+    private async Task SaveLocation()
+    {
+        if (string.IsNullOrWhiteSpace(editingLocation.Name))
+        {
+            saveError = "Name is required";
+            return;
+        }
+
+        if (!isEditing)
+        {
+            if (string.IsNullOrWhiteSpace(editingLocation.Code))
+            {
+                saveError = "Code is required";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(editingLocation.Type))
+            {
+                saveError = "Type is required";
+                return;
+            }
+            if (editingLocation.Type != "HeadOffice" && !editingLocation.ParentLocationId.HasValue)
+            {
+                saveError = "Parent location is required";
+                return;
+            }
+        }
+
+        isSaving = true;
+        saveError = null;
+
+        try
+        {
+            if (isEditing)
+            {
+                var result = await AppService.UpdateLocationAsync(
+                    editingLocation.Id!.Value,
+                    editingLocation.Name,
+                    editingLocation.Address,
+                    editingLocation.ManagerName,
+                    editingLocation.ContactPhone,
+                    editingLocation.ContactEmail,
+                    editingLocation.SortOrder
+                );
+
+                if (!result.Success)
+                {
+                    saveError = result.Error ?? "Failed to update location";
+                    return;
+                }
+            }
+            else
+            {
+                var result = await AppService.CreateLocationAsync(
+                    editingLocation.Code!,
+                    editingLocation.Name,
+                    editingLocation.Type!,
+                    editingLocation.ParentLocationId,
+                    editingLocation.Address,
+                    editingLocation.ManagerName,
+                    editingLocation.ContactPhone,
+                    editingLocation.ContactEmail,
+                    editingLocation.SortOrder
+                );
+
+                if (!result.Success)
+                {
+                    saveError = result.Error ?? "Failed to create location";
+                    return;
+                }
+            }
+
+            CloseModal();
+            await LoadData();
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ToggleStatus(LocationInfo loc)
+    {
+        var result = await AppService.ToggleLocationStatusAsync(loc.Id, loc.IsActive);
+        if (result.Success)
+        {
+            await LoadData();
+        }
+    }
+
+    private class EditLocationModel
+    {
+        public Guid? Id { get; set; }
+        public string? Code { get; set; }
+        public string Name { get; set; } = "";
+        public string? Type { get; set; }
+        public Guid? ParentLocationId { get; set; }
+        public string? Address { get; set; }
+        public string? ManagerName { get; set; }
+        public string? ContactPhone { get; set; }
+        public string? ContactEmail { get; set; }
+        public int SortOrder { get; set; }
+    }
+}

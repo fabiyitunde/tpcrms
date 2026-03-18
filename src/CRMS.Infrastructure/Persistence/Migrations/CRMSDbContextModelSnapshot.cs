@@ -877,6 +877,111 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("CommitteeReviews", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Committee.StandingCommittee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("CommitteeType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("DefaultDeadlineHours")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<decimal?>("MaxAmountThreshold")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("MinAmountThreshold")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("MinimumApprovalVotes")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int>("RequiredVotes")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommitteeType")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("StandingCommittees", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Committee.StandingCommitteeMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("longtext");
+
+                    b.Property<bool>("IsChairperson")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("StandingCommitteeId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("StandingCommitteeId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("StandingCommitteeMembers", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Configuration.ScoringParameter", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1349,7 +1454,7 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("ModifiedBy")
                         .HasColumnType("longtext");
 
-                    b.Property<int>("NonPerformingAccounts")
+                    b.Property<int>("DelinquentFacilities")
                         .HasColumnType("int");
 
                     b.Property<Guid?>("PartyId")
@@ -4180,6 +4285,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Committee.StandingCommitteeMember", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Committee.StandingCommittee", null)
+                        .WithMany("Members")
+                        .HasForeignKey("StandingCommitteeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.CreditBureau.BureauAccount", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.CreditBureau.BureauReport", null)
@@ -4969,6 +5083,11 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Documents");
 
+                    b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Committee.StandingCommittee", b =>
+                {
                     b.Navigation("Members");
                 });
 

@@ -274,6 +274,7 @@ public static class DependencyInjection
         services.AddScoped<Application.LoanApplication.Queries.GetLoanApplicationByIdHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetLoanApplicationsByStatusHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetMyLoanApplicationsHandler>();
+        services.AddScoped<Application.LoanApplication.Queries.GetPendingBranchReviewHandler>();
         
         // ProductCatalog
         services.AddScoped<Application.ProductCatalog.Queries.GetActiveLoanProductsByTypeHandler>();
@@ -298,6 +299,24 @@ public static class DependencyInjection
         
         // Advisory
         services.AddScoped<Application.Advisory.Commands.GenerateCreditAdvisoryHandler>();
+        services.AddScoped<Application.Advisory.Queries.GetLatestAdvisoryByLoanApplicationHandler>();
+        services.AddScoped<Application.Advisory.Queries.GetCreditAdvisoryByIdHandler>();
+
+        // Committee (additional handlers)
+        services.AddScoped<Application.Committee.Queries.GetCommitteeReviewByLoanApplicationHandler>();
+        services.AddScoped<Application.Committee.Commands.AddCommitteeCommentHandler>();
+        services.AddScoped<Application.Committee.Commands.CreateCommitteeReviewHandler>();
+        services.AddScoped<Application.Committee.Commands.AddCommitteeMemberHandler>();
+
+        // Standing Committee
+        services.AddScoped<IStandingCommitteeRepository, Persistence.Repositories.Committee.StandingCommitteeRepository>();
+        services.AddScoped<Application.Committee.Commands.CreateStandingCommitteeHandler>();
+        services.AddScoped<Application.Committee.Commands.UpdateStandingCommitteeHandler>();
+        services.AddScoped<Application.Committee.Commands.ToggleStandingCommitteeHandler>();
+        services.AddScoped<Application.Committee.Commands.AddStandingCommitteeMemberHandler>();
+        services.AddScoped<Application.Committee.Commands.RemoveStandingCommitteeMemberHandler>();
+        services.AddScoped<Application.Committee.Queries.GetAllStandingCommitteesHandler>();
+        services.AddScoped<Application.Committee.Queries.GetStandingCommitteeForAmountHandler>();
         
         // LoanPack
         services.AddScoped<Application.LoanPack.Commands.GenerateLoanPackHandler>();
@@ -326,6 +345,17 @@ public static class DependencyInjection
         services.AddScoped<Application.Identity.Commands.RegisterUserHandler>();
         services.AddScoped<Application.Identity.Commands.UpdateUserHandler>();
         services.AddScoped<Application.Identity.Commands.ToggleUserStatusHandler>();
+        
+        // Location
+        services.AddScoped<Application.Location.Commands.CreateLocationHandler>();
+        services.AddScoped<Application.Location.Commands.UpdateLocationHandler>();
+        services.AddScoped<Application.Location.Commands.ActivateLocationHandler>();
+        services.AddScoped<Application.Location.Commands.DeactivateLocationHandler>();
+        services.AddScoped<Application.Location.Queries.GetLocationByIdHandler>();
+        services.AddScoped<Application.Location.Queries.GetAllLocationsHandler>();
+        services.AddScoped<Application.Location.Queries.GetLocationsByTypeHandler>();
+        services.AddScoped<Application.Location.Queries.GetLocationTreeHandler>();
+        services.AddScoped<Application.Location.Queries.GetChildLocationsHandler>();
         
         // Statement Analysis domain services
         services.AddScoped<CRMS.Domain.Services.TransactionCategorizationService>();

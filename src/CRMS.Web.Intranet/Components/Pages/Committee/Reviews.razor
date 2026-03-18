@@ -158,28 +158,24 @@
         try
         {
             var dbReviews = await AppService.GetCommitteeReviewsByStatusAsync(string.IsNullOrEmpty(selectedStatus) ? null : selectedStatus);
-            if (dbReviews.Count > 0)
+            if (dbReviews.Any())
             {
                 reviews = dbReviews.Select(r => new CommitteeReview
                 {
                     ApplicationId = r.ApplicationId,
                     ApplicationNumber = r.ApplicationNumber,
-                    CustomerName = r.CustomerName,
+                    CustomerName = r.CustomerName ?? "N/A",
+                    Amount = r.Amount,
                     CommitteeType = r.CommitteeType,
-                    Status = r.Status
+                    Status = r.Status,
+                    VotesCast = r.VotesCast,
+                    TotalMembers = r.TotalMembers > 0 ? r.TotalMembers : 1,
+                    Decision = "" // Would need to fetch from full review if needed
                 }).ToList();
             }
             else
             {
-                // Fallback mock data
-                reviews =
-                [
-                    new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0156", CustomerName = "Acme Corporation", Amount = 250_000_000m, CommitteeType = "Credit Committee", Status = "Voting", VotesCast = 3, TotalMembers = 5, Decision = "" },
-                    new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0150", CustomerName = "Delta Holdings", Amount = 1_000_000_000m, CommitteeType = "Management Committee", Status = "Pending", VotesCast = 0, TotalMembers = 3, Decision = "" },
-                    new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0145", CustomerName = "Gamma Industries", Amount = 500_000_000m, CommitteeType = "Credit Committee", Status = "Completed", VotesCast = 5, TotalMembers = 5, Decision = "Approved" },
-                    new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0140", CustomerName = "Beta Manufacturing", Amount = 300_000_000m, CommitteeType = "Credit Committee", Status = "Completed", VotesCast = 5, TotalMembers = 5, Decision = "Rejected" },
-                    new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0135", CustomerName = "Alpha Services", Amount = 750_000_000m, CommitteeType = "Board Committee", Status = "Voting", VotesCast = 2, TotalMembers = 7, Decision = "" }
-                ];
+                reviews = [];
             }
         }
         finally

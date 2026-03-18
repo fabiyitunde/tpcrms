@@ -1,0 +1,408 @@
+@page "/admin/committees"
+@inject ApplicationService AppService
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Standing Committees</h1>
+        <p class="page-subtitle">Configure permanent credit committees with amount-based routing</p>
+    </div>
+    <button class="btn btn-primary" @onclick="ShowCreateModal">
+        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+        New Committee
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div style="text-align: center; padding: var(--space-8);"><div class="spinner"></div></div>
+}
+else if (!committees.Any())
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">groups</span></div>
+            <div class="empty-state-title">No standing committees configured</div>
+            <div class="empty-state-text">Create standing committees to enable automatic committee routing based on loan amount.</div>
+        </div>
+    </div>
+}
+else
+{
+    @foreach (var committee in committees)
+    {
+        <div class="card" style="margin-bottom: var(--space-4);">
+            <div class="card-header">
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                    <h3 class="card-title">@committee.Name</h3>
+                    <span class="badge @GetTypeBadgeClass(committee.CommitteeType)">@FormatType(committee.CommitteeType)</span>
+                    @if (!committee.IsActive)
+                    {
+                        <span class="badge badge-gray">Inactive</span>
+                    }
+                </div>
+                <div style="display: flex; gap: var(--space-2);">
+                    <button class="btn btn-ghost btn-sm" @onclick="() => ShowEditModal(committee)">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+                    </button>
+                    <button class="btn btn-ghost btn-sm" @onclick="() => ToggleStatus(committee)">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">@(committee.IsActive ? "pause" : "play_arrow")</span>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="grid grid-cols-4 gap-4" style="margin-bottom: var(--space-4);">
+                    <div>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase;">Amount Range</div>
+                        <div style="font-weight: 600;">@FormatAmount(committee.MinAmountThreshold) — @(committee.MaxAmountThreshold.HasValue ? FormatAmount(committee.MaxAmountThreshold.Value) : "No limit")</div>
+                    </div>
+                    <div>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase;">Required Votes</div>
+                        <div style="font-weight: 600;">@committee.RequiredVotes</div>
+                    </div>
+                    <div>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase;">Min. Approval Votes</div>
+                        <div style="font-weight: 600;">@committee.MinimumApprovalVotes</div>
+                    </div>
+                    <div>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase;">Deadline</div>
+                        <div style="font-weight: 600;">@committee.DefaultDeadlineHours hours</div>
+                    </div>
+                </div>
+
+                <div style="font-size: var(--text-sm); font-weight: 600; margin-bottom: var(--space-2);">
+                    Members (@committee.Members.Count)
+                    <button class="btn btn-ghost btn-sm" style="margin-left: var(--space-2);" @onclick="() => ShowAddMemberModal(committee)">
+                        <span class="material-symbols-outlined" style="font-size: 14px;">person_add</span>
+                    </button>
+                </div>
+                @if (committee.Members.Any())
+                {
+                    <table class="table" style="font-size: var(--text-sm);">
+                        <thead>
+                            <tr><th>Member</th><th>Role</th><th>Chairperson</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var member in committee.Members)
+                            {
+                                <tr>
+                                    <td style="font-weight: 500;">@member.UserName</td>
+                                    <td>@member.Role</td>
+                                    <td>
+                                        @if (member.IsChairperson)
+                                        {
+                                            <span class="badge badge-success">Chair</span>
+                                        }
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <button class="btn btn-ghost btn-sm" style="color: var(--danger-500);"
+                                                @onclick="() => RemoveMember(committee.Id, member.UserId)">
+                                            <span class="material-symbols-outlined" style="font-size: 14px;">close</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <p style="color: var(--gray-400); font-size: var(--text-sm);">No members assigned yet</p>
+                }
+            </div>
+        </div>
+    }
+}
+
+@if (showCommitteeModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 class="modal-title">@(isEditing ? "Edit Committee" : "Create Standing Committee")</h3>
+            <button class="btn btn-ghost btn-sm" @onclick="CloseModal">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Committee Name *</label>
+                <input type="text" class="form-control" @bind="formName" placeholder="e.g. Branch Credit Committee" />
+            </div>
+            @if (!isEditing)
+            {
+                <div class="form-group">
+                    <label class="form-label">Committee Type *</label>
+                    <select class="form-control" @bind="formType">
+                        <option value="">Select type</option>
+                        <option value="BranchCredit">Branch Credit</option>
+                        <option value="RegionalCredit">Regional Credit</option>
+                        <option value="HeadOfficeCredit">Head Office Credit</option>
+                        <option value="ManagementCredit">Management Credit</option>
+                        <option value="BoardCredit">Board Credit</option>
+                    </select>
+                </div>
+            }
+            <div class="grid grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label class="form-label">Min Amount (NGN) *</label>
+                    <input type="number" class="form-control" @bind="formMinAmount" min="0" step="1000000" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Max Amount (NGN)</label>
+                    <input type="number" class="form-control" @bind="formMaxAmount" min="0" step="1000000" />
+                    <small style="color: var(--gray-500);">Leave 0 for no upper limit</small>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-4">
+                <div class="form-group">
+                    <label class="form-label">Required Votes *</label>
+                    <input type="number" class="form-control" @bind="formRequiredVotes" min="1" max="20" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Min. Approval *</label>
+                    <input type="number" class="form-control" @bind="formMinApproval" min="1" max="20" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Deadline (hrs)</label>
+                    <input type="number" class="form-control" @bind="formDeadline" min="1" max="720" />
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(modalError))
+            {
+                <div style="color: var(--danger-600); font-size: var(--text-sm); margin-top: var(--space-2);">@modalError</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveCommittee" disabled="@isSaving">
+                @(isSaving ? "Saving..." : (isEditing ? "Update" : "Create"))
+            </button>
+        </div>
+    </div>
+}
+
+@if (showAddMemberModal)
+{
+    <div class="modal-backdrop" @onclick="CloseAddMemberModal"></div>
+    <div class="modal" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Add Member to @addMemberCommitteeName</h3>
+            <button class="btn btn-ghost btn-sm" @onclick="CloseAddMemberModal">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            @if (isLoadingUsers)
+            {
+                <div style="text-align: center; padding: var(--space-4);"><div class="spinner"></div></div>
+            }
+            else
+            {
+                <div class="form-group">
+                    <label class="form-label">User</label>
+                    <select class="form-control" @bind="memberUserId">
+                        <option value="">Select user...</option>
+                        @foreach (var user in availableUsers)
+                        {
+                            <option value="@user.Id">@user.FullName (@user.Email)</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role in Committee *</label>
+                    <input type="text" class="form-control" @bind="memberRole" placeholder="e.g. Chief Risk Officer" />
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: var(--space-2);">
+                    <input type="checkbox" @bind="memberIsChair" />
+                    <label class="form-label" style="margin: 0;">Chairperson</label>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(addMemberError))
+            {
+                <div style="color: var(--danger-600); font-size: var(--text-sm); margin-top: var(--space-2);">@addMemberError</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="CloseAddMemberModal">Cancel</button>
+            <button class="btn btn-primary" @onclick="AddMember" disabled="@isAddingMember">
+                @(isAddingMember ? "Adding..." : "Add Member")
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private List<StandingCommitteeInfo> committees = [];
+    private List<UserSummary> availableUsers = [];
+    private bool isLoading = true;
+    private bool isLoadingUsers;
+
+    private bool showCommitteeModal;
+    private bool isEditing;
+    private Guid editingId;
+    private string formName = "";
+    private string formType = "";
+    private decimal formMinAmount;
+    private decimal formMaxAmount;
+    private int formRequiredVotes = 3;
+    private int formMinApproval = 2;
+    private int formDeadline = 72;
+    private string? modalError;
+    private bool isSaving;
+
+    private bool showAddMemberModal;
+    private Guid addMemberCommitteeId;
+    private string addMemberCommitteeName = "";
+    private Guid memberUserId;
+    private string memberRole = "";
+    private bool memberIsChair;
+    private string? addMemberError;
+    private bool isAddingMember;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCommittees();
+    }
+
+    private async Task LoadCommittees()
+    {
+        isLoading = true;
+        committees = await AppService.GetStandingCommitteesAsync(includeInactive: true);
+        isLoading = false;
+    }
+
+    private void ShowCreateModal()
+    {
+        isEditing = false;
+        editingId = Guid.Empty;
+        formName = "";
+        formType = "";
+        formMinAmount = 0;
+        formMaxAmount = 0;
+        formRequiredVotes = 3;
+        formMinApproval = 2;
+        formDeadline = 72;
+        modalError = null;
+        showCommitteeModal = true;
+    }
+
+    private void ShowEditModal(StandingCommitteeInfo c)
+    {
+        isEditing = true;
+        editingId = c.Id;
+        formName = c.Name;
+        formType = c.CommitteeType;
+        formMinAmount = c.MinAmountThreshold;
+        formMaxAmount = c.MaxAmountThreshold ?? 0;
+        formRequiredVotes = c.RequiredVotes;
+        formMinApproval = c.MinimumApprovalVotes;
+        formDeadline = c.DefaultDeadlineHours;
+        modalError = null;
+        showCommitteeModal = true;
+    }
+
+    private void CloseModal() => showCommitteeModal = false;
+
+    private async Task SaveCommittee()
+    {
+        modalError = null;
+        isSaving = true;
+        try
+        {
+            decimal? max = formMaxAmount > 0 ? formMaxAmount : null;
+            if (isEditing)
+            {
+                var result = await AppService.UpdateStandingCommitteeAsync(
+                    editingId, formName, formRequiredVotes, formMinApproval, formDeadline, formMinAmount, max);
+                if (!result.Success) { modalError = result.Error; return; }
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(formType)) { modalError = "Please select a committee type"; return; }
+                var result = await AppService.CreateStandingCommitteeAsync(
+                    formName, formType, formRequiredVotes, formMinApproval, formDeadline, formMinAmount, max);
+                if (!result.Success) { modalError = result.Error; return; }
+            }
+            showCommitteeModal = false;
+            await LoadCommittees();
+        }
+        finally { isSaving = false; }
+    }
+
+    private async Task ToggleStatus(StandingCommitteeInfo c)
+    {
+        var result = await AppService.ToggleStandingCommitteeAsync(c.Id, !c.IsActive);
+        if (result.Success) await LoadCommittees();
+    }
+
+    private async Task ShowAddMemberModal(StandingCommitteeInfo c)
+    {
+        addMemberCommitteeId = c.Id;
+        addMemberCommitteeName = c.Name;
+        memberUserId = Guid.Empty;
+        memberRole = "Member";
+        memberIsChair = false;
+        addMemberError = null;
+        showAddMemberModal = true;
+
+        if (!availableUsers.Any())
+        {
+            isLoadingUsers = true;
+            availableUsers = await AppService.GetCommitteeMemberUsersAsync();
+            isLoadingUsers = false;
+        }
+    }
+
+    private void CloseAddMemberModal() => showAddMemberModal = false;
+
+    private async Task AddMember()
+    {
+        addMemberError = null;
+        if (memberUserId == Guid.Empty) { addMemberError = "Please select a user"; return; }
+        if (string.IsNullOrWhiteSpace(memberRole)) { addMemberError = "Role is required"; return; }
+
+        isAddingMember = true;
+        try
+        {
+            var user = availableUsers.FirstOrDefault(u => u.Id == memberUserId);
+            var userName = user?.FullName ?? "Unknown";
+            var result = await AppService.AddStandingCommitteeMemberAsync(
+                addMemberCommitteeId, memberUserId, userName, memberRole, memberIsChair);
+            if (!result.Success) { addMemberError = result.Error; return; }
+            showAddMemberModal = false;
+            await LoadCommittees();
+        }
+        finally { isAddingMember = false; }
+    }
+
+    private async Task RemoveMember(Guid committeeId, Guid userId)
+    {
+        var result = await AppService.RemoveStandingCommitteeMemberAsync(committeeId, userId);
+        if (result.Success) await LoadCommittees();
+    }
+
+    private static string FormatAmount(decimal amount) =>
+        amount >= 1_000_000_000 ? $"N{amount / 1_000_000_000:N1}B" :
+        amount >= 1_000_000 ? $"N{amount / 1_000_000:N0}M" :
+        $"N{amount:N0}";
+
+    private static string FormatType(string type) => type switch
+    {
+        "BranchCredit" => "Branch",
+        "RegionalCredit" => "Regional",
+        "HeadOfficeCredit" => "Head Office",
+        "ManagementCredit" => "Management",
+        "BoardCredit" => "Board",
+        _ => type
+    };
+
+    private static string GetTypeBadgeClass(string type) => type switch
+    {
+        "BranchCredit" => "badge-info",
+        "RegionalCredit" => "badge-warning",
+        "HeadOfficeCredit" => "badge-primary",
+        "ManagementCredit" => "badge-success",
+        "BoardCredit" => "badge-danger",
+        _ => "badge-gray"
+    };
+}

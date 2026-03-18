@@ -10,6 +10,8 @@ public class DashboardSummary
     public decimal AverageProcessingDays { get; set; }
     public int MyPendingTasks { get; set; }
     public int OverdueApplications { get; set; }
+    public int ApplicationsGrowthPercent { get; set; }
+    public int ApprovalRateChange { get; set; }
     public List<ApplicationByStatus> ApplicationsByStatus { get; set; } = [];
     public List<RecentActivity> RecentActivities { get; set; } = [];
 }

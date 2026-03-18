@@ -143,7 +143,7 @@ public class LocationRepository : ILocationRepository
 
     public async Task<Domain.Aggregates.Location.Location?> GetHierarchyTreeAsync(CancellationToken ct = default)
     {
-        // Get all locations and build the tree in memory
+        // Get all locations
         var allLocations = await _context.Locations
             .Where(x => x.IsActive)
             .OrderBy(x => x.Type)
@@ -151,7 +151,23 @@ public class LocationRepository : ILocationRepository
             .ThenBy(x => x.Name)
             .ToListAsync(ct);
 
-        // Find the root (HeadOffice)
+        if (allLocations.Count == 0)
+            return null;
+
+        // Build a lookup dictionary by ID
+        var locationById = allLocations.ToDictionary(x => x.Id);
+
+        // Build the tree by connecting parents to children
+        foreach (var location in allLocations)
+        {
+            if (location.ParentLocationId.HasValue && 
+                locationById.TryGetValue(location.ParentLocationId.Value, out var parent))
+            {
+                parent.AddChild(location);
+            }
+        }
+
+        // Find and return the root (HeadOffice)
         return allLocations.FirstOrDefault(x => x.Type == LocationType.HeadOffice);
     }
 

@@ -1,0 +1,303 @@
+@inject ApplicationService AppService
+
+<div class="modal-backdrop" @onclick="Close"></div>
+<div class="modal" style="max-width: 700px;">
+    <div class="modal-header">
+        <h3 class="modal-title">Setup Committee Review</h3>
+        <button class="btn btn-ghost btn-sm" @onclick="Close">
+            <span class="material-symbols-outlined">close</span>
+        </button>
+    </div>
+    <div class="modal-body">
+        @if (isLoadingStanding)
+        {
+            <div style="text-align: center; padding: var(--space-4);"><div class="spinner"></div></div>
+        }
+        else if (standingCommittee != null)
+        {
+            <div style="background: var(--success-50); border: 1px solid var(--success-200); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4);">
+                <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2);">
+                    <span class="material-symbols-outlined" style="color: var(--success-600); font-size: 20px;">check_circle</span>
+                    <strong>Auto-routed: @standingCommittee.Name</strong>
+                </div>
+                <div style="font-size: var(--text-sm); color: var(--gray-600);">
+                    Based on facility amount @FormatAmount(LoanAmount), this application routes to the <strong>@standingCommittee.Name</strong>.
+                    Members are pre-populated from the standing committee roster.
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4" style="margin-bottom: var(--space-4);">
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase;">Committee Type</div>
+                    <div style="font-weight: 600;">@FormatType(standingCommittee.CommitteeType)</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase;">Required Votes / Min Approval</div>
+                    <div style="font-weight: 600;">@standingCommittee.RequiredVotes / @standingCommittee.MinimumApprovalVotes</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase;">Deadline</div>
+                    <div style="font-weight: 600;">@standingCommittee.DefaultDeadlineHours hours</div>
+                </div>
+            </div>
+
+            @if (standingCommittee.Members.Any())
+            {
+                <label class="form-label">Committee Members (@standingCommittee.Members.Count)</label>
+                <table class="table" style="font-size: var(--text-sm);">
+                    <thead>
+                        <tr><th>Member</th><th>Role</th><th>Chairperson</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in standingCommittee.Members)
+                        {
+                            <tr>
+                                <td style="font-weight: 500;">@m.UserName</td>
+                                <td>@m.Role</td>
+                                <td>@(m.IsChairperson ? "Yes" : "")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div style="padding: var(--space-3); background: var(--warning-50); border-radius: var(--radius-md);">
+                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; color: var(--warning-600);">warning</span>
+                    No members configured on this standing committee. Add members in Admin &gt; Committees first.
+                </div>
+            }
+        }
+        else
+        {
+            <div style="background: var(--warning-50); border: 1px solid var(--warning-200); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4);">
+                <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2);">
+                    <span class="material-symbols-outlined" style="color: var(--warning-600); font-size: 20px;">info</span>
+                    <strong>No standing committee found for this amount</strong>
+                </div>
+                <div style="font-size: var(--text-sm); color: var(--gray-600);">
+                    No standing committee is configured for the facility amount @FormatAmount(LoanAmount).
+                    Configure committees in Admin &gt; Committees, or set up an ad-hoc committee below.
+                </div>
+            </div>
+
+            @* Fallback to manual setup *@
+            <h4 style="margin-bottom: var(--space-3); font-weight: 600;">Ad-Hoc Committee Setup</h4>
+            <div class="form-group">
+                <label class="form-label">Committee Type *</label>
+                <select class="form-control" @bind="manualType">
+                    <option value="">Select committee type</option>
+                    <option value="BranchCredit">Branch Credit Committee</option>
+                    <option value="RegionalCredit">Regional Credit Committee</option>
+                    <option value="HeadOfficeCredit">Head Office Credit Committee</option>
+                    <option value="ManagementCredit">Management Credit Committee</option>
+                    <option value="BoardCredit">Board Credit Committee</option>
+                </select>
+            </div>
+            <div class="grid grid-cols-3 gap-4">
+                <div class="form-group">
+                    <label class="form-label">Required Votes *</label>
+                    <input type="number" class="form-control" min="1" max="20" @bind="manualRequiredVotes" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Min. Approval Votes *</label>
+                    <input type="number" class="form-control" min="1" max="20" @bind="manualMinApproval" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Deadline (hours)</label>
+                    <input type="number" class="form-control" min="1" max="720" @bind="manualDeadline" />
+                </div>
+            </div>
+
+            @if (!isLoadingManualUsers)
+            {
+                <div class="form-group">
+                    <label class="form-label">Add Members</label>
+                    <div style="display: flex; gap: var(--space-2);">
+                        <select class="form-control" @bind="manualSelectedUser" style="flex: 1;">
+                            <option value="">Choose a user...</option>
+                            @foreach (var user in manualAvailableUsers.Where(u => !manualMembers.Any(m => m.UserId == u.Id)))
+                            {
+                                <option value="@user.Id">@user.FullName (@user.Email)</option>
+                            }
+                        </select>
+                        <button class="btn btn-primary" @onclick="AddManualMember" disabled="@(manualSelectedUser == Guid.Empty)">Add</button>
+                    </div>
+                </div>
+            }
+
+            @if (manualMembers.Any())
+            {
+                <table class="table" style="font-size: var(--text-sm);">
+                    <thead><tr><th>Member</th><th>Role</th><th>Chair</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var m in manualMembers)
+                        {
+                            <tr>
+                                <td style="font-weight: 500;">@m.Name</td>
+                                <td><input type="text" class="form-control" style="width: 160px;" @bind="m.Role" placeholder="e.g. CRO" /></td>
+                                <td><input type="checkbox" checked="@m.IsChair" @onchange="(e) => SetManualChair(m, (bool)(e.Value ?? false))" /></td>
+                                <td><button class="btn btn-ghost btn-sm" style="color: var(--danger-500);" @onclick="() => manualMembers.Remove(m)"><span class="material-symbols-outlined" style="font-size: 14px;">delete</span></button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div style="color: var(--danger-600); margin-top: var(--space-3); font-size: var(--text-sm);">@errorMessage</div>
+        }
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-secondary" @onclick="Close">Cancel</button>
+        <button class="btn btn-primary" @onclick="Submit" disabled="@(!CanSubmit || isSubmitting)">
+            @if (isSubmitting)
+            {
+                <span class="spinner" style="width: 16px; height: 16px;"></span>
+            }
+            Create Review & Assign Members
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid LoanApplicationId { get; set; }
+    [Parameter] public string ApplicationNumber { get; set; } = "";
+    [Parameter] public decimal LoanAmount { get; set; }
+    [Parameter] public EventCallback OnCreated { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private StandingCommitteeInfo? standingCommittee;
+    private bool isLoadingStanding = true;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    // Manual (ad-hoc) fallback
+    private string manualType = "";
+    private int manualRequiredVotes = 3;
+    private int manualMinApproval = 2;
+    private int manualDeadline = 72;
+    private List<UserSummary> manualAvailableUsers = [];
+    private List<ManualMember> manualMembers = [];
+    private Guid manualSelectedUser;
+    private bool isLoadingManualUsers;
+
+    private bool CanSubmit =>
+        standingCommittee != null
+            ? standingCommittee.Members.Any()
+            : (!string.IsNullOrEmpty(manualType) && manualMembers.Count >= manualRequiredVotes);
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoadingStanding = true;
+        standingCommittee = await AppService.GetStandingCommitteeForAmountAsync(LoanAmount);
+        isLoadingStanding = false;
+
+        if (standingCommittee == null)
+        {
+            isLoadingManualUsers = true;
+            manualAvailableUsers = await AppService.GetCommitteeMemberUsersAsync();
+            isLoadingManualUsers = false;
+        }
+    }
+
+    private void AddManualMember()
+    {
+        if (manualSelectedUser == Guid.Empty) return;
+        var user = manualAvailableUsers.FirstOrDefault(u => u.Id == manualSelectedUser);
+        if (user == null) return;
+        manualMembers.Add(new ManualMember { UserId = user.Id, Name = user.FullName, Role = "Member", IsChair = manualMembers.Count == 0 });
+        manualSelectedUser = Guid.Empty;
+    }
+
+    private void SetManualChair(ManualMember member, bool value)
+    {
+        if (value) { foreach (var m in manualMembers) m.IsChair = false; }
+        member.IsChair = value;
+    }
+
+    private async Task Submit()
+    {
+        errorMessage = null;
+        isSubmitting = true;
+        try
+        {
+            string type;
+            int reqVotes, minApproval, deadline;
+            List<(Guid userId, string name, string role, bool isChair)> members;
+
+            if (standingCommittee != null)
+            {
+                type = standingCommittee.CommitteeType;
+                reqVotes = standingCommittee.RequiredVotes;
+                minApproval = standingCommittee.MinimumApprovalVotes;
+                deadline = standingCommittee.DefaultDeadlineHours;
+                members = standingCommittee.Members.Select(m => (m.UserId, m.UserName, m.Role, m.IsChairperson)).ToList();
+            }
+            else
+            {
+                type = manualType;
+                reqVotes = manualRequiredVotes;
+                minApproval = manualMinApproval;
+                deadline = manualDeadline;
+                members = manualMembers.Select(m => (m.UserId, m.Name, m.Role, m.IsChair)).ToList();
+
+                if (!members.Any(m => m.isChair))
+                {
+                    errorMessage = "Please designate a chairperson";
+                    return;
+                }
+            }
+
+            var createResult = await AppService.CreateCommitteeReviewAsync(
+                LoanApplicationId, ApplicationNumber, type, reqVotes, minApproval, deadline, Guid.Empty);
+
+            if (!createResult.Success || createResult.Data == Guid.Empty)
+            {
+                errorMessage = createResult.Error ?? "Failed to create committee review";
+                return;
+            }
+
+            var reviewId = createResult.Data;
+            foreach (var (userId, name, role, isChair) in members)
+            {
+                var addResult = await AppService.AddCommitteeMemberAsync(reviewId, userId, name, role, isChair);
+                if (!addResult.Success)
+                {
+                    errorMessage = $"Review created but failed to add {name}: {addResult.Error}";
+                    return;
+                }
+            }
+
+            await OnCreated.InvokeAsync();
+        }
+        finally { isSubmitting = false; }
+    }
+
+    private void Close() => OnClose.InvokeAsync();
+
+    private static string FormatAmount(decimal amount) =>
+        amount >= 1_000_000_000 ? $"N{amount / 1_000_000_000:N1}B" :
+        amount >= 1_000_000 ? $"N{amount / 1_000_000:N0}M" :
+        $"N{amount:N0}";
+
+    private static string FormatType(string type) => type switch
+    {
+        "BranchCredit" => "Branch Credit",
+        "RegionalCredit" => "Regional Credit",
+        "HeadOfficeCredit" => "Head Office Credit",
+        "ManagementCredit" => "Management Credit",
+        "BoardCredit" => "Board Credit",
+        _ => type
+    };
+
+    private class ManualMember
+    {
+        public Guid UserId { get; set; }
+        public string Name { get; set; } = "";
+        public string Role { get; set; } = "Member";
+        public bool IsChair { get; set; }
+    }
+}

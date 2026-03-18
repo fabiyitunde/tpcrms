@@ -19,7 +19,7 @@ public record RegisterUserRequest(
     string LastName,
     string UserType,
     string? PhoneNumber,
-    Guid? BranchId,
+    Guid? LocationId,
     List<string>? Roles
 );
 
@@ -35,7 +35,8 @@ public record UserDto(
     string Type,
     string Status,
     string? PhoneNumber,
-    Guid? BranchId,
+    Guid? LocationId,
+    string? LocationName,
     DateTime? LastLoginAt,
     List<string> Roles,
     List<string> Permissions

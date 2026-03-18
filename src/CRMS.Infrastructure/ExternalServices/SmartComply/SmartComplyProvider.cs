@@ -104,8 +104,8 @@ public class SmartComplyProvider : ISmartComplyProvider
                 // Normalize 404 to include "not found" for consistent detection in handler
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     return Result.Failure<SmartComplyIndividualCreditReport>("Subject not found in credit bureau");
-                    
-                return Result.Failure<SmartComplyIndividualCreditReport>($"API request failed: {response.StatusCode}");
+                
+                return Result.Failure<SmartComplyIndividualCreditReport>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<IndividualCreditReportData>>(_jsonOptions, ct);
@@ -151,7 +151,8 @@ public class SmartComplyProvider : ISmartComplyProvider
             
             if (!response.IsSuccessStatusCode)
             {
-                return Result.Failure<SmartComplyCreditScore>($"API request failed: {response.StatusCode}");
+                var errorContent = await response.Content.ReadAsStringAsync(ct);
+                return Result.Failure<SmartComplyCreditScore>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<CreditScoreOnlyData>>(_jsonOptions, ct);
@@ -217,8 +218,8 @@ public class SmartComplyProvider : ISmartComplyProvider
                 // Normalize 404 to include "not found" for consistent detection in handler
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     return Result.Failure<SmartComplyBusinessCreditReport>("Business not found in credit bureau");
-                    
-                return Result.Failure<SmartComplyBusinessCreditReport>($"API request failed: {response.StatusCode}");
+                
+                return Result.Failure<SmartComplyBusinessCreditReport>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<BusinessCreditReportData>>(_jsonOptions, ct);
@@ -285,10 +286,11 @@ public class SmartComplyProvider : ISmartComplyProvider
             
             if (!response.IsSuccessStatusCode)
             {
+                var errorContent = await response.Content.ReadAsStringAsync(ct);
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     return Result.Failure<SmartComplyLoanFraudResult>("Applicant not found for fraud check");
                     
-                return Result.Failure<SmartComplyLoanFraudResult>($"API request failed: {response.StatusCode}");
+                return Result.Failure<SmartComplyLoanFraudResult>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<LoanFraudCheckData>>(_jsonOptions, ct);
@@ -344,10 +346,11 @@ public class SmartComplyProvider : ISmartComplyProvider
             
             if (!response.IsSuccessStatusCode)
             {
+                var errorContent = await response.Content.ReadAsStringAsync(ct);
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     return Result.Failure<SmartComplyLoanFraudResult>("Business not found for fraud check");
                     
-                return Result.Failure<SmartComplyLoanFraudResult>($"API request failed: {response.StatusCode}");
+                return Result.Failure<SmartComplyLoanFraudResult>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<LoanFraudCheckData>>(_jsonOptions, ct);
@@ -385,7 +388,8 @@ public class SmartComplyProvider : ISmartComplyProvider
             
             if (!response.IsSuccessStatusCode)
             {
-                return Result.Failure<SmartComplyBvnResult>($"API request failed: {response.StatusCode}");
+                var errorContent = await response.Content.ReadAsStringAsync(ct);
+                return Result.Failure<SmartComplyBvnResult>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<BvnVerificationData>>(_jsonOptions, ct);
@@ -425,7 +429,8 @@ public class SmartComplyProvider : ISmartComplyProvider
             
             if (!response.IsSuccessStatusCode)
             {
-                return Result.Failure<SmartComplyBvnAdvancedResult>($"API request failed: {response.StatusCode}");
+                var errorContent = await response.Content.ReadAsStringAsync(ct);
+                return Result.Failure<SmartComplyBvnAdvancedResult>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<BvnAdvancedData>>(_jsonOptions, ct);
@@ -468,7 +473,8 @@ public class SmartComplyProvider : ISmartComplyProvider
             
             if (!response.IsSuccessStatusCode)
             {
-                return Result.Failure<SmartComplyNinResult>($"API request failed: {response.StatusCode}");
+                var errorContent = await response.Content.ReadAsStringAsync(ct);
+                return Result.Failure<SmartComplyNinResult>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<NinVerificationData>>(_jsonOptions, ct);
@@ -506,7 +512,8 @@ public class SmartComplyProvider : ISmartComplyProvider
             
             if (!response.IsSuccessStatusCode)
             {
-                return Result.Failure<SmartComplyTinResult>($"API request failed: {response.StatusCode}");
+                var errorContent = await response.Content.ReadAsStringAsync(ct);
+                return Result.Failure<SmartComplyTinResult>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<TinVerificationData>>(_jsonOptions, ct);
@@ -543,7 +550,10 @@ public class SmartComplyProvider : ISmartComplyProvider
             var response = await _httpClient.PostAsJsonAsync(SmartComplyEndpoints.KycNigeria.CAC, request, ct);
 
             if (!response.IsSuccessStatusCode)
-                return Result.Failure<SmartComplyCacResult>($"API request failed: {response.StatusCode}");
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(ct);
+                return Result.Failure<SmartComplyCacResult>(FormatApiError(response.StatusCode, errorContent));
+            }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<CacVerificationData>>(_jsonOptions, ct);
 
@@ -610,7 +620,10 @@ public class SmartComplyProvider : ISmartComplyProvider
             var response = await _httpClient.PostAsJsonAsync(SmartComplyEndpoints.KycNigeria.CACAdvanced, request, ct);
 
             if (!response.IsSuccessStatusCode)
-                return Result.Failure<SmartComplyCacResult>($"API request failed: {response.StatusCode}");
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(ct);
+                return Result.Failure<SmartComplyCacResult>(FormatApiError(response.StatusCode, errorContent));
+            }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<CacAdvancedData>>(_jsonOptions, ct);
 
@@ -825,6 +838,13 @@ public class SmartComplyProvider : ISmartComplyProvider
         if (string.IsNullOrEmpty(bvn) || bvn.Length < 6)
             return "****";
         return $"****{bvn[^4..]}";
+    }
+
+    private static string FormatApiError(System.Net.HttpStatusCode statusCode, string? errorContent)
+    {
+        return string.IsNullOrWhiteSpace(errorContent) 
+            ? $"API request failed: {statusCode}"
+            : $"API request failed: {statusCode} - {errorContent}";
     }
 
     #endregion

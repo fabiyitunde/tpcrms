@@ -45,10 +45,10 @@ using (var scope = app.Services.CreateScope())
     
     // Seed data
     var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("SeedData");
-    await SeedData.SeedAsync(db, seedLogger);
+    var passwordHasher = scope.ServiceProvider.GetRequiredService<CRMS.Application.Identity.Interfaces.IPasswordHasher>();
+    await SeedData.SeedAsync(db, seedLogger, passwordHasher);
     
     // Seed comprehensive test data (users, applications, etc.)
-    var passwordHasher = scope.ServiceProvider.GetRequiredService<CRMS.Application.Identity.Interfaces.IPasswordHasher>();
     await ComprehensiveDataSeeder.SeedComprehensiveDataAsync(db, seedLogger, passwordHasher);
 }
 

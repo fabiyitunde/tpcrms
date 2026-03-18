@@ -9,6 +9,7 @@ public record UpdateUserCommand(
     string FirstName,
     string LastName,
     string? PhoneNumber,
+    Guid? LocationId,
     List<string>? Roles
 ) : IRequest<ApplicationResult<UserDto>>;
 
@@ -41,6 +42,9 @@ public class UpdateUserHandler : IRequestHandler<UpdateUserCommand, ApplicationR
         if (updateResult.IsFailure)
             return ApplicationResult<UserDto>.Failure(updateResult.Error);
 
+        // Update location if provided (null means clear location)
+        user.SetLocation(request.LocationId);
+
         if (request.Roles != null)
         {
             user.ClearRoles();
@@ -60,8 +64,8 @@ public class UpdateUserHandler : IRequestHandler<UpdateUserCommand, ApplicationR
 
         return ApplicationResult<UserDto>.Success(new UserDto(
             user.Id, user.Email, user.UserName, user.FirstName, user.LastName, user.FullName,
-            user.Type.ToString(), user.Status.ToString(), user.PhoneNumber, user.BranchId,
-            user.LastLoginAt, roles.Select(r => r.Name).ToList(), permissions.Select(p => p.Code).ToList()
+            user.Type.ToString(), user.Status.ToString(), user.PhoneNumber, user.LocationId,
+            user.Location?.Name, user.LastLoginAt, roles.Select(r => r.Name).ToList(), permissions.Select(p => p.Code).ToList()
         ));
     }
 }

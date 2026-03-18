@@ -387,7 +387,7 @@ public class CreditRegistryProvider : ICreditBureauProvider
             TotalAccounts: accounts.Count,
             ActiveLoans: activeCount,
             PerformingAccounts: performingCount,
-            NonPerformingAccounts: nonPerformingCount,
+            DelinquentFacilities: nonPerformingCount,
             ClosedAccounts: closedCount,
             WrittenOffAccounts: writtenOffCount,
             TotalOutstandingBalance: accounts.Sum(a => a.Balance),

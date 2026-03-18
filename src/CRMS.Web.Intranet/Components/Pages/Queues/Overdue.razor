@@ -109,14 +109,25 @@ else
     private async Task LoadOverdueItems()
     {
         isLoading = true;
-        await Task.Delay(300);
         
-        overdueItems =
-        [
-            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0158", CustomerName = "Beta Manufacturing", Stage = "Branch Review", AssignedTo = "John Adeyemi", SLABreachedAt = DateTime.Now.AddHours(-26) },
-            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0145", CustomerName = "Delta Holdings", Stage = "Credit Analysis", AssignedTo = "Credit Team", SLABreachedAt = DateTime.Now.AddHours(-8) },
-            new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0140", CustomerName = "Epsilon Services", Stage = "HO Review", AssignedTo = "", SLABreachedAt = DateTime.Now.AddDays(-2) }
-        ];
+        var overdueWorkflows = await AppService.GetOverdueWorkflowsAsync();
+        
+        if (overdueWorkflows.Any())
+        {
+            overdueItems = overdueWorkflows.Select(w => new OverdueItem
+            {
+                ApplicationId = w.ApplicationId,
+                ApplicationNumber = w.ApplicationNumber,
+                CustomerName = w.CustomerName,
+                Stage = w.Stage,
+                AssignedTo = w.AssignedTo,
+                SLABreachedAt = w.SLABreachedAt
+            }).ToList();
+        }
+        else
+        {
+            overdueItems = [];
+        }
         
         isLoading = false;
     }

@@ -5,6 +5,7 @@ using CRMS.Domain.Constants;
 using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Enums;
 using CRMS.Domain.ValueObjects;
+using CRMS.Application.Identity.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using InterestRateType = CRMS.Domain.ValueObjects.InterestRateType;
@@ -16,11 +17,16 @@ namespace CRMS.Infrastructure.Persistence;
 /// </summary>
 public static class SeedData
 {
-    public static async Task SeedAsync(CRMSDbContext context, ILogger logger)
+    public static async Task SeedAsync(CRMSDbContext context, ILogger logger, IPasswordHasher? passwordHasher = null)
     {
         await SeedLocationsAsync(context, logger);
         await SeedRolesAsync(context, logger);
         await SeedLoanProductsAsync(context, logger);
+        await SeedStandingCommitteesAsync(context, logger);
+        if (passwordHasher != null)
+        {
+            await SeedTestUsersAsync(context, logger, passwordHasher);
+        }
     }
 
     private static async Task SeedLocationsAsync(CRMSDbContext context, ILogger logger)
@@ -78,6 +84,7 @@ public static class SeedData
         var ssZone = ssZoneResult.Value;
         var ncZone = ncZoneResult.Value;
         var nwZone = nwZoneResult.Value;
+        var neZone = neZoneResult.Value;
 
         // Create Branches under South-West Zone (Lagos)
         var branches = new List<Result<Location>>
@@ -101,7 +108,11 @@ public static class SeedData
             
             // North-West Zone
             Location.CreateBranch("BR-KAN-001", "Kano Branch", nwZone.Id, "Murtala Mohammed Way, Kano", "Usman Yakubu", "08012345679", 1),
-            Location.CreateBranch("BR-KAD-001", "Kaduna Branch", nwZone.Id, "Ahmadu Bello Way, Kaduna", "Musa Garba", "08023456780", 2)
+            Location.CreateBranch("BR-KAD-001", "Kaduna Branch", nwZone.Id, "Ahmadu Bello Way, Kaduna", "Musa Garba", "08023456780", 2),
+            
+            // North-East Zone (GAP-5 fix: add branches under NE zone)
+            Location.CreateBranch("BR-MAI-001", "Maiduguri Branch", neZone.Id, "Bama Road, Maiduguri", "Ibrahim Shettima", "08034567891", 1),
+            Location.CreateBranch("BR-BAU-001", "Bauchi Branch", neZone.Id, "Jos Road, Bauchi", "Abubakar Tafawa", "08045678902", 2)
         };
 
         var branchCount = 0;
@@ -238,5 +249,167 @@ public static class SeedData
 
         await context.SaveChangesAsync();
         logger.LogInformation("Loan products seeded successfully ({Count} products)", seededCount);
+    }
+
+    private static async Task SeedTestUsersAsync(CRMSDbContext context, ILogger logger, IPasswordHasher passwordHasher)
+    {
+        if (await context.Users.AnyAsync())
+        {
+            logger.LogInformation("Users already seeded, skipping");
+            return;
+        }
+
+        logger.LogInformation("Seeding test users...");
+
+        // Get locations for assignment
+        var lagosMain = await context.Locations.FirstOrDefaultAsync(l => l.Code == "BR-LAG-001");
+        var abujaMain = await context.Locations.FirstOrDefaultAsync(l => l.Code == "BR-ABJ-001");
+        var swZone = await context.Locations.FirstOrDefaultAsync(l => l.Code == "ZN-SW");
+        var ho = await context.Locations.FirstOrDefaultAsync(l => l.Code == "HO");
+
+        // Get roles
+        var loanOfficerRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == Roles.LoanOfficer);
+        var branchApproverRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == Roles.BranchApprover);
+        var creditOfficerRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == Roles.CreditOfficer);
+        var hoReviewerRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == Roles.HOReviewer);
+        var sysAdminRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == Roles.SystemAdmin);
+
+        var seededCount = 0;
+        var defaultPassword = passwordHasher.HashPassword("Test@123");
+
+        // Test Loan Officer (Lagos Main Branch)
+        if (lagosMain != null && loanOfficerRole != null)
+        {
+            var userResult = ApplicationUser.Create(
+                "loanofficer@crms.test", "loanofficer", "Test", "LoanOfficer",
+                UserType.Staff, "08011111111", lagosMain.Id);
+            if (userResult.IsSuccess)
+            {
+                userResult.Value.SetPasswordHash(defaultPassword);
+                userResult.Value.AddRole(loanOfficerRole);
+                await context.Users.AddAsync(userResult.Value);
+                seededCount++;
+            }
+        }
+
+        // Test Branch Approver (Lagos Main Branch)
+        if (lagosMain != null && branchApproverRole != null)
+        {
+            var userResult = ApplicationUser.Create(
+                "branchapprover@crms.test", "branchapprover", "Test", "BranchApprover",
+                UserType.Staff, "08022222222", lagosMain.Id);
+            if (userResult.IsSuccess)
+            {
+                userResult.Value.SetPasswordHash(defaultPassword);
+                userResult.Value.AddRole(branchApproverRole);
+                await context.Users.AddAsync(userResult.Value);
+                seededCount++;
+            }
+        }
+
+        // Test Loan Officer (Abuja Main Branch - different location)
+        if (abujaMain != null && loanOfficerRole != null)
+        {
+            var userResult = ApplicationUser.Create(
+                "loanofficer.abuja@crms.test", "loanofficer_abuja", "Test", "LoanOfficerAbuja",
+                UserType.Staff, "08033333333", abujaMain.Id);
+            if (userResult.IsSuccess)
+            {
+                userResult.Value.SetPasswordHash(defaultPassword);
+                userResult.Value.AddRole(loanOfficerRole);
+                await context.Users.AddAsync(userResult.Value);
+                seededCount++;
+            }
+        }
+
+        // Test Credit Officer (Head Office - global visibility)
+        if (ho != null && creditOfficerRole != null)
+        {
+            var userResult = ApplicationUser.Create(
+                "creditofficer@crms.test", "creditofficer", "Test", "CreditOfficer",
+                UserType.Staff, "08044444444", ho.Id);
+            if (userResult.IsSuccess)
+            {
+                userResult.Value.SetPasswordHash(defaultPassword);
+                userResult.Value.AddRole(creditOfficerRole);
+                await context.Users.AddAsync(userResult.Value);
+                seededCount++;
+            }
+        }
+
+        // Test HO Reviewer (Head Office - global visibility)
+        if (ho != null && hoReviewerRole != null)
+        {
+            var userResult = ApplicationUser.Create(
+                "horeviewer@crms.test", "horeviewer", "Test", "HOReviewer",
+                UserType.Staff, "08055555555", ho.Id);
+            if (userResult.IsSuccess)
+            {
+                userResult.Value.SetPasswordHash(defaultPassword);
+                userResult.Value.AddRole(hoReviewerRole);
+                await context.Users.AddAsync(userResult.Value);
+                seededCount++;
+            }
+        }
+
+        // Test System Admin (Head Office - full access)
+        if (ho != null && sysAdminRole != null)
+        {
+            var userResult = ApplicationUser.Create(
+                "admin@crms.test", "admin", "System", "Administrator",
+                UserType.Staff, "08066666666", ho.Id);
+            if (userResult.IsSuccess)
+            {
+                userResult.Value.SetPasswordHash(defaultPassword);
+                userResult.Value.AddRole(sysAdminRole);
+                await context.Users.AddAsync(userResult.Value);
+                seededCount++;
+            }
+        }
+
+        await context.SaveChangesAsync();
+        logger.LogInformation("Test users seeded successfully ({Count} users). Default password: Test@123", seededCount);
+    }
+
+    private static async Task SeedStandingCommitteesAsync(CRMSDbContext context, ILogger logger)
+    {
+        if (await context.StandingCommittees.AnyAsync())
+        {
+            logger.LogInformation("Standing committees already seeded, skipping");
+            return;
+        }
+
+        logger.LogInformation("Seeding standing committees...");
+
+        var committees = new[]
+        {
+            (Name: "Branch Credit Committee", Type: CommitteeType.BranchCredit,
+             ReqVotes: 3, MinApproval: 2, Deadline: 48, Min: 0m, Max: (decimal?)50_000_000m),
+
+            (Name: "Regional Credit Committee", Type: CommitteeType.RegionalCredit,
+             ReqVotes: 3, MinApproval: 2, Deadline: 72, Min: 50_000_000m, Max: (decimal?)200_000_000m),
+
+            (Name: "Head Office Credit Committee", Type: CommitteeType.HeadOfficeCredit,
+             ReqVotes: 5, MinApproval: 3, Deadline: 72, Min: 200_000_000m, Max: (decimal?)500_000_000m),
+
+            (Name: "Management Credit Committee", Type: CommitteeType.ManagementCredit,
+             ReqVotes: 5, MinApproval: 4, Deadline: 120, Min: 500_000_000m, Max: (decimal?)2_000_000_000m),
+
+            (Name: "Board Credit Committee", Type: CommitteeType.BoardCredit,
+             ReqVotes: 7, MinApproval: 5, Deadline: 168, Min: 2_000_000_000m, Max: (decimal?)null),
+        };
+
+        foreach (var c in committees)
+        {
+            var result = Domain.Aggregates.Committee.StandingCommittee.Create(
+                c.Name, c.Type, c.ReqVotes, c.MinApproval, c.Deadline, c.Min, c.Max);
+            if (result.IsSuccess)
+                await context.StandingCommittees.AddAsync(result.Value);
+            else
+                logger.LogWarning("Failed to create standing committee {Name}: {Error}", c.Name, result.Error);
+        }
+
+        await context.SaveChangesAsync();
+        logger.LogInformation("Standing committees seeded successfully (5 committees)");
     }
 }

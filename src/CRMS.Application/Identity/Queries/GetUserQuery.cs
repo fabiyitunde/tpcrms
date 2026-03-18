@@ -41,7 +41,8 @@ public class GetUserByIdHandler : IRequestHandler<GetUserByIdQuery, ApplicationR
             user.Type.ToString(),
             user.Status.ToString(),
             user.PhoneNumber,
-            user.BranchId,
+            user.LocationId,
+            user.Location?.Name,
             user.LastLoginAt,
             roles.Select(r => r.Name).ToList(),
             permissions.Select(p => p.Code).ToList()

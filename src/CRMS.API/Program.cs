@@ -105,9 +105,10 @@ using (var scope = app.Services.CreateScope())
         dbContext.Database.Migrate();
         logger.LogInformation("Database migrations applied successfully.");
 
-        // Seed initial data (roles, products, templates)
+        // Seed initial data (roles, products, templates, test users)
         logger.LogInformation("Seeding initial data...");
-        await SeedData.SeedAsync(dbContext, logger);
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<CRMS.Application.Identity.Interfaces.IPasswordHasher>();
+        await SeedData.SeedAsync(dbContext, logger, passwordHasher);
         logger.LogInformation("Initial data seeded successfully.");
 
         // Seed comprehensive test data in Development

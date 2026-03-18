@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CRMS.Application.Advisory.Commands;
 using CRMS.Application.Advisory.DTOs;
+using CRMS.Application.Advisory.Queries;
 using CRMS.Application.Audit.DTOs;
 using CRMS.Application.Audit.Queries;
 using CRMS.Application.Collateral.Commands;
@@ -593,6 +594,45 @@ public partial class ApplicationService
         try
         {
             DashboardSummaryDto data = await _reporting.GetDashboardSummaryAsync();
+            
+            // Get applications by status breakdown
+            var applicationsByStatus = new List<ApplicationByStatus>();
+            var total = data.LoanFunnel.Submitted + data.LoanFunnel.InReview + data.LoanFunnel.Approved + data.LoanFunnel.Rejected + data.LoanFunnel.Disbursed;
+            if (total > 0)
+            {
+                if (data.LoanFunnel.InReview > 0)
+                    applicationsByStatus.Add(new ApplicationByStatus { Status = "In Progress", Count = data.LoanFunnel.InReview, Percentage = Math.Round((decimal)data.LoanFunnel.InReview / total * 100, 0) });
+                if (data.PendingActions.PendingApplications > 0)
+                    applicationsByStatus.Add(new ApplicationByStatus { Status = "Pending Review", Count = data.PendingActions.PendingApplications, Percentage = Math.Round((decimal)data.PendingActions.PendingApplications / total * 100, 0) });
+                if (data.LoanFunnel.Approved + data.LoanFunnel.Disbursed > 0)
+                    applicationsByStatus.Add(new ApplicationByStatus { Status = "Approved", Count = data.LoanFunnel.Approved + data.LoanFunnel.Disbursed, Percentage = Math.Round((decimal)(data.LoanFunnel.Approved + data.LoanFunnel.Disbursed) / total * 100, 0) });
+                if (data.LoanFunnel.Rejected > 0)
+                    applicationsByStatus.Add(new ApplicationByStatus { Status = "Rejected", Count = data.LoanFunnel.Rejected, Percentage = Math.Round((decimal)data.LoanFunnel.Rejected / total * 100, 0) });
+            }
+            
+            // Get recent activity from workflow transition logs
+            var recentActivities = new List<RecentActivity>();
+            try
+            {
+                var auditLogs = await GetAuditLogsAsync(null, DateTime.UtcNow.AddDays(-7), DateTime.UtcNow);
+                recentActivities = auditLogs
+                    .Where(l => l.EntityType == "LoanApplication" || l.EntityType == "Workflow")
+                    .Take(6)
+                    .Select(l => new RecentActivity
+                    {
+                        ApplicationId = Guid.TryParse(l.EntityId, out var id) ? id : Guid.Empty,
+                        ApplicationNumber = l.EntityId ?? "",
+                        Action = l.Action.ToLower().Replace("_", " "),
+                        PerformedBy = l.UserName,
+                        Timestamp = l.Timestamp
+                    })
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not fetch recent activities for dashboard");
+            }
+            
             return new DashboardSummary
             {
                 TotalApplications = data.LoanFunnel.Submitted + data.LoanFunnel.InReview + data.LoanFunnel.Approved,
@@ -603,8 +643,10 @@ public partial class ApplicationService
                 AverageProcessingDays = data.Performance.AverageProcessingTimeDays,
                 MyPendingTasks = data.PendingActions.PendingApplications,
                 OverdueApplications = data.PendingActions.OverdueSLAs,
-                ApplicationsByStatus = new List<ApplicationByStatus>(),
-                RecentActivities = new List<RecentActivity>()
+                ApplicationsGrowthPercent = (int)data.Performance.MonthOverMonthGrowth,
+                ApprovalRateChange = 0, // Would need historical data to calculate
+                ApplicationsByStatus = applicationsByStatus,
+                RecentActivities = recentActivities
             };
         }
         catch (Exception ex)
@@ -625,17 +667,25 @@ public partial class ApplicationService
             {
                 return new List<PendingTask>();
             }
-            return result.Data.Select((WorkflowInstanceSummaryDto t) => new PendingTask
+
+            var loanRepo = _sp.GetRequiredService<ILoanApplicationRepository>();
+            var tasks = new List<PendingTask>();
+            foreach (var t in result.Data)
             {
-                ApplicationId = t.LoanApplicationId,
-                ApplicationNumber = t.ApplicationNumber,
-                CustomerName = t.CustomerName,
-                Stage = t.CurrentStatus,
-                RequiredAction = t.CurrentStageDisplayName,
-                DueDate = (t.SLADueAt ?? DateTime.UtcNow.AddDays(3.0)),
-                Amount = 0m,
-                ProductName = ""
-            }).ToList();
+                var loan = await loanRepo.GetByIdAsync(t.LoanApplicationId);
+                tasks.Add(new PendingTask
+                {
+                    ApplicationId = t.LoanApplicationId,
+                    ApplicationNumber = t.ApplicationNumber,
+                    CustomerName = t.CustomerName,
+                    Stage = t.CurrentStatus,
+                    RequiredAction = t.CurrentStageDisplayName,
+                    DueDate = (t.SLADueAt ?? DateTime.UtcNow.AddDays(3.0)),
+                    Amount = loan?.RequestedAmount.Amount ?? 0m,
+                    ProductName = loan?.ProductCode ?? ""
+                });
+            }
+            return tasks;
         }
         catch (Exception ex)
         {
@@ -790,6 +840,10 @@ public partial class ApplicationService
             loanApplicationDetail4.FinancialStatements = await GetFinancialStatementsForApplicationAsync(id);
             loanApplicationDetail.CreatedAt = app.CreatedAt;
             loanApplicationDetail.LastUpdatedAt = app.ModifiedAt;
+            loanApplicationDetail.WorkflowHistory = await GetWorkflowHistoryForApplicationAsync(id);
+            loanApplicationDetail.Advisory = await GetAdvisoryForApplicationAsync(id);
+            loanApplicationDetail.Committee = await GetCommitteeForApplicationAsync(id);
+            loanApplicationDetail.Comments = await GetCommentsForApplicationAsync(id);
             return loanApplicationDetail;
         }
         catch (Exception ex)
@@ -816,10 +870,10 @@ public partial class ApplicationService
                 Type = c.Type,
                 Description = c.Description,
                 MarketValue = c.AcceptableValue.GetValueOrDefault(),
-                ForcedSaleValue = 0m,
+                ForcedSaleValue = c.AcceptableValue.GetValueOrDefault(),
                 LoanToValue = 0m,
                 Status = c.Status,
-                LastValuationDate = null
+                LastValuationDate = c.CreatedAt
             }).ToList();
         }
         catch (Exception ex)
@@ -888,7 +942,388 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse<Guid>> CreateApplicationAsync(CreateApplicationRequest request, Guid productId, string productCode, Guid userId)
+    private async Task<List<WorkflowHistoryItem>> GetWorkflowHistoryForApplicationAsync(Guid applicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetWorkflowByLoanApplicationHandler>();
+            var result = await handler.Handle(new GetWorkflowByLoanApplicationQuery(applicationId), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return [];
+
+            return result.Data.RecentHistory.Select(t => new WorkflowHistoryItem
+            {
+                FromStage = t.FromStatus ?? "",
+                ToStage = t.ToStatus,
+                Action = t.Action,
+                PerformedBy = t.PerformedByUserId.ToString(),
+                Timestamp = t.PerformedAt,
+                Comments = t.Comment
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching workflow history for application {Id}", applicationId);
+            return [];
+        }
+    }
+
+    private async Task<AdvisoryInfo?> GetAdvisoryForApplicationAsync(Guid applicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetLatestAdvisoryByLoanApplicationHandler>();
+            var result = await handler.Handle(new GetLatestAdvisoryByLoanApplicationQuery(applicationId), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return null;
+
+            var adv = result.Data;
+            return new AdvisoryInfo
+            {
+                OverallScore = adv.OverallScore,
+                RiskRating = adv.OverallRating ?? "",
+                GeneratedAt = adv.GeneratedAt,
+                Recommendations = !string.IsNullOrEmpty(adv.Recommendation) ? [adv.Recommendation] : [],
+                ScoreBreakdown = adv.RiskScores.Select(c => new ScoreCategory
+                {
+                    Category = c.Category,
+                    Score = c.Score,
+                    MaxScore = c.Weight > 0 ? (int)(c.Score / c.Weight * 100) : 100,
+                    Weight = c.Weight
+                }).ToList(),
+                RedFlags = adv.RedFlags.ToList(),
+                Strengths = !string.IsNullOrEmpty(adv.StrengthsAnalysis) ? [adv.StrengthsAnalysis] : []
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching advisory for application {Id}", applicationId);
+            return null;
+        }
+    }
+
+    private async Task<CommitteeInfo?> GetCommitteeForApplicationAsync(Guid applicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetCommitteeReviewByLoanApplicationHandler>();
+            var result = await handler.Handle(new GetCommitteeReviewByLoanApplicationQuery(applicationId), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return null;
+
+            var review = result.Data;
+            return new CommitteeInfo
+            {
+                ReviewId = review.Id,
+                CommitteeType = review.CommitteeType,
+                Status = review.Status,
+                Decision = review.FinalDecision,
+                DecisionComments = review.DecisionRationale,
+                DecisionDate = review.DecisionAt,
+                Members = review.Members.Select(m => new CommitteeMemberVote
+                {
+                    UserId = m.UserId,
+                    Name = m.UserName,
+                    Role = m.Role,
+                    Vote = m.Vote,
+                    VotedAt = m.VotedAt,
+                    Comments = m.VoteComment
+                }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching committee review for application {Id}", applicationId);
+            return null;
+        }
+    }
+
+    private async Task<List<CommentInfo>> GetCommentsForApplicationAsync(Guid applicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetCommitteeReviewByLoanApplicationHandler>();
+            var result = await handler.Handle(new GetCommitteeReviewByLoanApplicationQuery(applicationId), CancellationToken.None);
+            if (!result.IsSuccess || result.Data?.RecentComments == null)
+                return [];
+
+            return result.Data.RecentComments.Select(c => new CommentInfo
+            {
+                Id = c.Id,
+                Author = c.UserName,
+                Content = c.Content,
+                CreatedAt = c.CreatedAt,
+                IsInternal = c.Visibility == "Internal"
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching comments for application {Id}", applicationId);
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse> AddCommentAsync(Guid applicationId, string content, Guid userId)
+    {
+        try
+        {
+            var reviewHandler = _sp.GetRequiredService<GetCommitteeReviewByLoanApplicationHandler>();
+            var reviewResult = await reviewHandler.Handle(new GetCommitteeReviewByLoanApplicationQuery(applicationId), CancellationToken.None);
+            if (!reviewResult.IsSuccess || reviewResult.Data == null)
+                return ApiResponse.Fail("No committee review found for this application");
+
+            var handler = _sp.GetRequiredService<AddCommitteeCommentHandler>();
+            var result = await handler.Handle(
+                new AddCommitteeCommentCommand(reviewResult.Data.Id, userId, content, Domain.Enums.CommentVisibility.Committee),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to add comment");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding comment to application {Id}", applicationId);
+            return ApiResponse.Fail("Failed to add comment");
+        }
+    }
+
+    public async Task<ApiResponse<Guid>> CreateCommitteeReviewAsync(
+        Guid loanApplicationId, string applicationNumber, string committeeType,
+        int requiredVotes, int minimumApprovalVotes, int deadlineHours, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CreateCommitteeReviewHandler>();
+            var ctEnum = Enum.Parse<CommitteeType>(committeeType, ignoreCase: true);
+            var result = await handler.Handle(
+                new CreateCommitteeReviewCommand(loanApplicationId, applicationNumber, ctEnum, userId, requiredVotes, minimumApprovalVotes, deadlineHours),
+                CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return ApiResponse<Guid>.Fail(result.Error ?? "Failed to create committee review");
+            return ApiResponse<Guid>.Ok(result.Data.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating committee review for {LoanApplicationId}", loanApplicationId);
+            return ApiResponse<Guid>.Fail("Failed to create committee review");
+        }
+    }
+
+    public async Task<ApiResponse> AddCommitteeMemberAsync(Guid reviewId, Guid memberId, string memberName, string role, bool isChairperson)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<AddCommitteeMemberHandler>();
+            var result = await handler.Handle(
+                new AddCommitteeMemberCommand(reviewId, memberId, memberName, role, isChairperson),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to add member");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding committee member to review {ReviewId}", reviewId);
+            return ApiResponse.Fail("Failed to add committee member");
+        }
+    }
+
+    public async Task<List<UserSummary>> GetCommitteeMemberUsersAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetAllUsersHandler>();
+            var result = await handler.Handle(new GetAllUsersQuery(), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null) return [];
+
+            return result.Data
+                .Where(u => u.Status == "Active" && u.Roles.Contains("CommitteeMember"))
+                .Select(u =>
+                {
+                    var parts = u.FullName.Split(' ', 2);
+                    return new UserSummary
+                    {
+                        Id = u.Id,
+                        FirstName = parts.Length > 0 ? parts[0] : "",
+                        LastName = parts.Length > 1 ? parts[1] : "",
+                        Email = u.Email,
+                        Role = "CommitteeMember",
+                        IsActive = true
+                    };
+                }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching committee member users");
+            return [];
+        }
+    }
+
+    // Standing Committee Management
+    public async Task<List<StandingCommitteeInfo>> GetStandingCommitteesAsync(bool includeInactive = false)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Committee.Queries.GetAllStandingCommitteesHandler>();
+            var result = await handler.Handle(new Application.Committee.Queries.GetAllStandingCommitteesQuery(includeInactive), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null) return [];
+
+            return result.Data.Select(c => new StandingCommitteeInfo
+            {
+                Id = c.Id,
+                Name = c.Name,
+                CommitteeType = c.CommitteeType,
+                RequiredVotes = c.RequiredVotes,
+                MinimumApprovalVotes = c.MinimumApprovalVotes,
+                DefaultDeadlineHours = c.DefaultDeadlineHours,
+                MinAmountThreshold = c.MinAmountThreshold,
+                MaxAmountThreshold = c.MaxAmountThreshold,
+                IsActive = c.IsActive,
+                Members = c.Members.Select(m => new StandingMemberInfo
+                {
+                    Id = m.Id,
+                    UserId = m.UserId,
+                    UserName = m.UserName,
+                    Role = m.Role,
+                    IsChairperson = m.IsChairperson
+                }).ToList()
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching standing committees");
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse<Guid>> CreateStandingCommitteeAsync(
+        string name, string committeeType, int requiredVotes, int minimumApprovalVotes,
+        int deadlineHours, decimal minAmount, decimal? maxAmount)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Committee.Commands.CreateStandingCommitteeHandler>();
+            var ctEnum = Enum.Parse<CommitteeType>(committeeType, ignoreCase: true);
+            var result = await handler.Handle(
+                new Application.Committee.Commands.CreateStandingCommitteeCommand(
+                    name, ctEnum, requiredVotes, minimumApprovalVotes, deadlineHours, minAmount, maxAmount),
+                CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return ApiResponse<Guid>.Fail(result.Error ?? "Failed to create committee");
+            return ApiResponse<Guid>.Ok(result.Data.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating standing committee");
+            return ApiResponse<Guid>.Fail("Failed to create standing committee");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateStandingCommitteeAsync(
+        Guid id, string name, int requiredVotes, int minimumApprovalVotes,
+        int deadlineHours, decimal minAmount, decimal? maxAmount)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Committee.Commands.UpdateStandingCommitteeHandler>();
+            var result = await handler.Handle(
+                new Application.Committee.Commands.UpdateStandingCommitteeCommand(
+                    id, name, requiredVotes, minimumApprovalVotes, deadlineHours, minAmount, maxAmount),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating standing committee {Id}", id);
+            return ApiResponse.Fail("Failed to update standing committee");
+        }
+    }
+
+    public async Task<ApiResponse> ToggleStandingCommitteeAsync(Guid id, bool activate)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Committee.Commands.ToggleStandingCommitteeHandler>();
+            var result = await handler.Handle(
+                new Application.Committee.Commands.ToggleStandingCommitteeCommand(id, activate),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling standing committee {Id}", id);
+            return ApiResponse.Fail("Failed to toggle standing committee status");
+        }
+    }
+
+    public async Task<ApiResponse> AddStandingCommitteeMemberAsync(Guid committeeId, Guid userId, string userName, string role, bool isChairperson)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Committee.Commands.AddStandingCommitteeMemberHandler>();
+            var result = await handler.Handle(
+                new Application.Committee.Commands.AddStandingCommitteeMemberCommand(committeeId, userId, userName, role, isChairperson),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to add member");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding member to standing committee {Id}", committeeId);
+            return ApiResponse.Fail("Failed to add member");
+        }
+    }
+
+    public async Task<ApiResponse> RemoveStandingCommitteeMemberAsync(Guid committeeId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Committee.Commands.RemoveStandingCommitteeMemberHandler>();
+            var result = await handler.Handle(
+                new Application.Committee.Commands.RemoveStandingCommitteeMemberCommand(committeeId, userId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to remove member");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing member from standing committee {Id}", committeeId);
+            return ApiResponse.Fail("Failed to remove member");
+        }
+    }
+
+    public async Task<StandingCommitteeInfo?> GetStandingCommitteeForAmountAsync(decimal amount)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Committee.Queries.GetStandingCommitteeForAmountHandler>();
+            var result = await handler.Handle(new Application.Committee.Queries.GetStandingCommitteeForAmountQuery(amount), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null) return null;
+
+            var c = result.Data;
+            return new StandingCommitteeInfo
+            {
+                Id = c.Id,
+                Name = c.Name,
+                CommitteeType = c.CommitteeType,
+                RequiredVotes = c.RequiredVotes,
+                MinimumApprovalVotes = c.MinimumApprovalVotes,
+                DefaultDeadlineHours = c.DefaultDeadlineHours,
+                MinAmountThreshold = c.MinAmountThreshold,
+                MaxAmountThreshold = c.MaxAmountThreshold,
+                IsActive = c.IsActive,
+                Members = c.Members.Select(m => new StandingMemberInfo
+                {
+                    Id = m.Id,
+                    UserId = m.UserId,
+                    UserName = m.UserName,
+                    Role = m.Role,
+                    IsChairperson = m.IsChairperson
+                }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching standing committee for amount {Amount}", amount);
+            return null;
+        }
+    }
+
+    public async Task<ApiResponse<Guid>> CreateApplicationAsync(CreateApplicationRequest request, Guid productId, string productCode, Guid userId, Guid? userLocationId = null)
     {
         try
         {
@@ -929,7 +1364,7 @@ public partial class ApplicationService
                 InterestRatePerAnnum: request.InterestRate,
                 InterestRateType: rt == default ? InterestRateType.Flat : rt,
                 InitiatedByUserId: userId,
-                BranchId: null,
+                BranchId: userLocationId,
                 Purpose: request.Purpose,
                 RegistrationNumberOverride: request.RegistrationNumberOverride,
                 IncorporationDateOverride: request.IncorporationDateOverride,
@@ -1085,15 +1520,35 @@ public partial class ApplicationService
             {
                 return new List<CommitteeReviewSummary>();
             }
-            return result.Data.Select((CommitteeReviewSummaryDto r) => new CommitteeReviewSummary
+            
+            var loanRepo = _sp.GetRequiredService<ILoanApplicationRepository>();
+            var reviewRepo = _sp.GetRequiredService<ICommitteeReviewRepository>();
+            var summaries = new List<CommitteeReviewSummary>();
+            
+            foreach (var r in result.Data)
             {
-                ReviewId = r.Id,
-                ApplicationId = r.LoanApplicationId,
-                ApplicationNumber = r.ApplicationNumber,
-                CommitteeType = r.CommitteeType,
-                Status = r.Status,
-                DueDate = (r.DeadlineAt ?? DateTime.UtcNow.AddDays(7.0))
-            }).ToList();
+                var loan = await loanRepo.GetByIdAsync(r.LoanApplicationId, CancellationToken.None);
+                var review = await reviewRepo.GetByIdAsync(r.Id, CancellationToken.None);
+                var votesCast = r.ApprovalVotes + r.RejectionVotes;
+                var totalMembers = review?.Members.Count ?? (votesCast + r.PendingVotes);
+                
+                summaries.Add(new CommitteeReviewSummary
+                {
+                    ReviewId = r.Id,
+                    ApplicationId = r.LoanApplicationId,
+                    ApplicationNumber = r.ApplicationNumber,
+                    CustomerName = loan?.CustomerName ?? "",
+                    CommitteeType = r.CommitteeType,
+                    Status = r.Status,
+                    DueDate = r.DeadlineAt ?? DateTime.UtcNow.AddDays(7.0),
+                    RequestedAmount = loan?.RequestedAmount.Amount ?? 0m,
+                    Amount = loan?.RequestedAmount.Amount ?? 0m,
+                    VotesCast = votesCast,
+                    TotalMembers = totalMembers
+                });
+            }
+            
+            return summaries;
         }
         catch (Exception ex)
         {
@@ -1156,50 +1611,121 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<List<CommitteeReviewSummary>> GetCommitteeReviewsByStatusAsync(string? status)
+    public async Task<List<OverdueWorkflowItem>> GetOverdueWorkflowsAsync()
     {
         try
         {
-            if (string.IsNullOrEmpty(status))
+            var handler = _sp.GetRequiredService<GetOverdueWorkflowsHandler>();
+            var result = await handler.Handle(new GetOverdueWorkflowsQuery(), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
             {
-                GetCommitteeReviewsByStatusHandler handler = _sp.GetRequiredService<GetCommitteeReviewsByStatusHandler>();
-                CommitteeReviewStatus reviewStatus = CommitteeReviewStatus.InProgress;
-                ApplicationResult<List<CommitteeReviewSummaryDto>> result = await handler.Handle(new GetCommitteeReviewsByStatusQuery(reviewStatus), CancellationToken.None);
-                if (!result.IsSuccess || result.Data == null)
-                {
-                    return new List<CommitteeReviewSummary>();
-                }
-                return result.Data.Select((CommitteeReviewSummaryDto r) => new CommitteeReviewSummary
-                {
-                    ReviewId = r.Id,
-                    ApplicationId = r.LoanApplicationId,
-                    ApplicationNumber = r.ApplicationNumber,
-                    CommitteeType = r.CommitteeType,
-                    Status = r.Status,
-                    DueDate = (r.DeadlineAt ?? DateTime.UtcNow.AddDays(7.0))
-                }).ToList();
+                return new List<OverdueWorkflowItem>();
             }
-            CommitteeReviewStatus statusEnum = Enum.Parse<CommitteeReviewStatus>(status, ignoreCase: true);
-            GetCommitteeReviewsByStatusHandler statusHandler = _sp.GetRequiredService<GetCommitteeReviewsByStatusHandler>();
-            ApplicationResult<List<CommitteeReviewSummaryDto>> statusResult = await statusHandler.Handle(new GetCommitteeReviewsByStatusQuery(statusEnum), CancellationToken.None);
-            if (!statusResult.IsSuccess || statusResult.Data == null)
+            return result.Data.Select(t => new OverdueWorkflowItem
             {
-                return new List<CommitteeReviewSummary>();
-            }
-            return statusResult.Data.Select((CommitteeReviewSummaryDto r) => new CommitteeReviewSummary
-            {
-                ReviewId = r.Id,
-                ApplicationId = r.LoanApplicationId,
-                ApplicationNumber = r.ApplicationNumber,
-                CommitteeType = r.CommitteeType,
-                Status = r.Status,
-                DueDate = (r.DeadlineAt ?? DateTime.UtcNow.AddDays(7.0))
+                ApplicationId = t.LoanApplicationId,
+                ApplicationNumber = t.ApplicationNumber,
+                CustomerName = t.CustomerName,
+                Stage = t.CurrentStageDisplayName ?? t.CurrentStatus,
+                AssignedTo = t.AssignedRole ?? "",
+                SLABreachedAt = t.SLADueAt ?? DateTime.UtcNow.AddHours(-1)
             }).ToList();
         }
         catch (Exception ex)
         {
-            Exception ex2 = ex;
-            _logger.LogError(ex2, "Error fetching committee reviews by status");
+            _logger.LogError(ex, "Error fetching overdue workflows");
+            return new List<OverdueWorkflowItem>();
+        }
+    }
+
+    public async Task<int> GetOverdueCountAsync()
+    {
+        try
+        {
+            var overdueItems = await GetOverdueWorkflowsAsync();
+            return overdueItems.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching overdue count");
+            return 0;
+        }
+    }
+
+    public async Task<int> GetMyQueueCountAsync(Guid userId)
+    {
+        try
+        {
+            var tasks = await GetMyPendingTasksAsync(userId);
+            return tasks.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching my queue count");
+            return 0;
+        }
+    }
+
+    public async Task<int> GetMyPendingVotesCountAsync(Guid userId)
+    {
+        try
+        {
+            var votes = await GetMyPendingVotesAsync(userId);
+            return votes.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching pending votes count");
+            return 0;
+        }
+    }
+
+    public async Task<List<CommitteeReviewSummary>> GetCommitteeReviewsByStatusAsync(string? status)
+    {
+        try
+        {
+            CommitteeReviewStatus reviewStatus = string.IsNullOrEmpty(status) 
+                ? CommitteeReviewStatus.InProgress 
+                : Enum.Parse<CommitteeReviewStatus>(status, ignoreCase: true);
+            
+            var handler = _sp.GetRequiredService<GetCommitteeReviewsByStatusHandler>();
+            var result = await handler.Handle(new GetCommitteeReviewsByStatusQuery(reviewStatus), CancellationToken.None);
+            
+            if (!result.IsSuccess || result.Data == null)
+            {
+                return new List<CommitteeReviewSummary>();
+            }
+            
+            var loanRepo = _sp.GetRequiredService<ILoanApplicationRepository>();
+            var summaries = new List<CommitteeReviewSummary>();
+            
+            foreach (var r in result.Data)
+            {
+                var loan = await loanRepo.GetByIdAsync(r.LoanApplicationId, CancellationToken.None);
+                var votesCast = r.ApprovalVotes + r.RejectionVotes;
+                var totalMembers = votesCast + r.PendingVotes;
+                
+                summaries.Add(new CommitteeReviewSummary
+                {
+                    ReviewId = r.Id,
+                    ApplicationId = r.LoanApplicationId,
+                    ApplicationNumber = r.ApplicationNumber,
+                    CustomerName = loan?.CustomerName ?? "",
+                    CommitteeType = r.CommitteeType,
+                    Status = r.Status,
+                    DueDate = r.DeadlineAt ?? DateTime.UtcNow.AddDays(7.0),
+                    RequestedAmount = loan?.RequestedAmount.Amount ?? 0m,
+                    Amount = loan?.RequestedAmount.Amount ?? 0m,
+                    VotesCast = votesCast,
+                    TotalMembers = totalMembers > 0 ? totalMembers : 1
+                });
+            }
+            
+            return summaries;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching committee reviews by status");
             return new List<CommitteeReviewSummary>();
         }
     }
@@ -1225,6 +1751,72 @@ public partial class ApplicationService
             Exception ex2 = ex;
             _logger.LogError(ex2, "Error fetching reporting metrics");
             return new ReportingMetrics();
+        }
+    }
+
+    public async Task<EnhancedReportingData> GetEnhancedReportingDataAsync(int periodDays)
+    {
+        try
+        {
+            var toDate = DateTime.UtcNow;
+            var fromDate = toDate.AddDays(-periodDays);
+            var prevFrom = fromDate.AddDays(-periodDays);
+            var prevTo = fromDate;
+            
+            var funnel = await _reporting.GetLoanFunnelAsync(fromDate, toDate);
+            var prevFunnel = await _reporting.GetLoanFunnelAsync(prevFrom, prevTo);
+            var portfolio = await _reporting.GetPortfolioSummaryAsync();
+            var slaReport = await _reporting.GetSLAReportAsync(fromDate, toDate);
+            var performance = await _reporting.GetPerformanceMetricsAsync(fromDate, toDate);
+            
+            // Calculate growth
+            var applicationsGrowth = prevFunnel.Submitted > 0 
+                ? (int)Math.Round((decimal)(funnel.Submitted - prevFunnel.Submitted) / prevFunnel.Submitted * 100)
+                : 0;
+            var disbursementGrowth = prevFunnel.DisbursedAmount > 0
+                ? (int)Math.Round((funnel.DisbursedAmount - prevFunnel.DisbursedAmount) / prevFunnel.DisbursedAmount * 100)
+                : 0;
+            
+            // Build funnel data
+            var funnelStages = new List<FunnelStageData>();
+            var total = funnel.Submitted > 0 ? funnel.Submitted : 1;
+            funnelStages.Add(new FunnelStageData { Stage = "Received", Count = funnel.Submitted, Percentage = 100 });
+            funnelStages.Add(new FunnelStageData { Stage = "In Review", Count = funnel.InReview, Percentage = (int)Math.Round((decimal)funnel.InReview / total * 100) });
+            funnelStages.Add(new FunnelStageData { Stage = "Approved", Count = funnel.Approved, Percentage = (int)Math.Round((decimal)funnel.Approved / total * 100) });
+            funnelStages.Add(new FunnelStageData { Stage = "Disbursed", Count = funnel.Disbursed, Percentage = (int)Math.Round((decimal)funnel.Disbursed / total * 100) });
+            funnelStages.Add(new FunnelStageData { Stage = "Rejected", Count = funnel.Rejected, Percentage = (int)Math.Round((decimal)funnel.Rejected / total * 100) });
+            
+            // Build portfolio data
+            var portfolioData = portfolio.LoansByProduct.Select(kvp => new ProductPortfolioData
+            {
+                ProductName = kvp.Key,
+                Count = kvp.Value,
+                Amount = portfolio.OutstandingByProduct.GetValueOrDefault(kvp.Key, 0)
+            }).ToList();
+            
+            return new EnhancedReportingData
+            {
+                ApplicationsReceived = funnel.Submitted,
+                ApplicationsGrowth = applicationsGrowth,
+                Approved = funnel.Approved,
+                ApprovalRate = (int)funnel.ApprovalRate,
+                AvgProcessingDays = performance.AverageProcessingTimeDays,
+                ProcessingImprovement = (int)(5 - performance.AverageProcessingTimeDays), // Target is 5 days
+                DisbursedAmount = funnel.DisbursedAmount,
+                DisbursementGrowth = disbursementGrowth,
+                Rejected = funnel.Rejected,
+                InReview = funnel.InReview,
+                FunnelStages = funnelStages,
+                PortfolioByProduct = portfolioData,
+                SlaCompliance = (int)slaReport.OverallCompliance,
+                WithinSla = slaReport.OnTime,
+                BreachedSla = slaReport.Breached
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching enhanced reporting data");
+            return new EnhancedReportingData();
         }
     }
 
@@ -1309,13 +1901,13 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> UpdateUserAsync(Guid userId, string firstName, string lastName, string? phoneNumber, List<string> roles)
+    public async Task<ApiResponse> UpdateUserAsync(Guid userId, string firstName, string lastName, string? phoneNumber, Guid? locationId, List<string> roles)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Identity.Commands.UpdateUserHandler>();
             var result = await handler.Handle(new CRMS.Application.Identity.Commands.UpdateUserCommand(
-                userId, firstName, lastName, phoneNumber, roles
+                userId, firstName, lastName, phoneNumber, locationId, roles
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update user");
         }
@@ -1340,6 +1932,174 @@ public partial class ApplicationService
             return ApiResponse.Fail("Failed to update user status");
         }
     }
+
+    // ========== Location Management ==========
+
+    public async Task<List<LocationInfo>> GetAllLocationsAsync(bool includeInactive = false)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Location.Queries.GetAllLocationsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Location.Queries.GetAllLocationsQuery(includeInactive), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return [];
+            return result.Data.Select(l => new LocationInfo
+            {
+                Id = l.Id,
+                Code = l.Code,
+                Name = l.Name,
+                Type = l.Type,
+                ParentLocationId = l.ParentLocationId,
+                ParentLocationName = l.ParentLocationName,
+                IsActive = l.IsActive,
+                Address = l.Address,
+                ManagerName = l.ManagerName,
+                ContactPhone = l.ContactPhone,
+                ContactEmail = l.ContactEmail,
+                SortOrder = l.SortOrder
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching locations");
+            return [];
+        }
+    }
+
+    public async Task<LocationTreeNode?> GetLocationTreeAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Location.Queries.GetLocationTreeHandler>();
+            var result = await handler.Handle(new CRMS.Application.Location.Queries.GetLocationTreeQuery(), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return null;
+            return MapTreeNode(result.Data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching location tree");
+            return null;
+        }
+    }
+
+    private static LocationTreeNode MapTreeNode(CRMS.Application.Location.DTOs.LocationTreeNodeDto dto)
+    {
+        return new LocationTreeNode
+        {
+            Id = dto.Id,
+            Code = dto.Code,
+            Name = dto.Name,
+            Type = dto.Type,
+            IsActive = dto.IsActive,
+            ManagerName = dto.ManagerName,
+            SortOrder = dto.SortOrder,
+            Children = dto.Children.Select(MapTreeNode).ToList()
+        };
+    }
+
+    public async Task<ApiResponse<Guid>> CreateLocationAsync(string code, string name, string type, Guid? parentId, string? address, string? managerName, string? contactPhone, string? contactEmail, int sortOrder)
+    {
+        try
+        {
+            if (!Enum.TryParse<CRMS.Domain.Aggregates.Location.LocationType>(type, out var locationType))
+                return ApiResponse<Guid>.Fail($"Invalid location type: {type}");
+
+            var handler = _sp.GetRequiredService<CRMS.Application.Location.Commands.CreateLocationHandler>();
+            var result = await handler.Handle(new CRMS.Application.Location.Commands.CreateLocationCommand(
+                code, name, locationType, parentId, address, managerName, contactPhone, contactEmail, sortOrder
+            ), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<Guid>.Ok(result.Data!.Id)
+                : ApiResponse<Guid>.Fail(result.Error ?? "Failed to create location");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating location");
+            return ApiResponse<Guid>.Fail("Failed to create location");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateLocationAsync(Guid id, string name, string? address, string? managerName, string? contactPhone, string? contactEmail, int sortOrder)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Location.Commands.UpdateLocationHandler>();
+            var result = await handler.Handle(new CRMS.Application.Location.Commands.UpdateLocationCommand(
+                id, name, address, managerName, contactPhone, contactEmail, sortOrder
+            ), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update location");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating location {Id}", id);
+            return ApiResponse.Fail("Failed to update location");
+        }
+    }
+
+    public async Task<ApiResponse> ToggleLocationStatusAsync(Guid id, bool currentlyActive)
+    {
+        try
+        {
+            if (currentlyActive)
+            {
+                var handler = _sp.GetRequiredService<CRMS.Application.Location.Commands.DeactivateLocationHandler>();
+                var result = await handler.Handle(new CRMS.Application.Location.Commands.DeactivateLocationCommand(id), CancellationToken.None);
+                return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to deactivate location");
+            }
+            else
+            {
+                var handler = _sp.GetRequiredService<CRMS.Application.Location.Commands.ActivateLocationHandler>();
+                var result = await handler.Handle(new CRMS.Application.Location.Commands.ActivateLocationCommand(id), CancellationToken.None);
+                return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to activate location");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling location status {Id}", id);
+            return ApiResponse.Fail("Failed to update location status");
+        }
+    }
+
+    public async Task<List<LocationInfo>> GetLocationsByTypeAsync(string type)
+    {
+        try
+        {
+            if (!Enum.TryParse<CRMS.Domain.Aggregates.Location.LocationType>(type, out var locationType))
+                return [];
+
+            var handler = _sp.GetRequiredService<CRMS.Application.Location.Queries.GetLocationsByTypeHandler>();
+            var result = await handler.Handle(new CRMS.Application.Location.Queries.GetLocationsByTypeQuery(locationType), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return [];
+            return result.Data.Select(l => new LocationInfo
+            {
+                Id = l.Id,
+                Code = l.Code,
+                Name = l.Name,
+                Type = l.Type,
+                IsActive = l.IsActive
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching locations by type {Type}", type);
+            return [];
+        }
+    }
+
+    public async Task<List<LocationInfo>> GetBranchesAsync()
+    {
+        return await GetLocationsByTypeAsync("Branch");
+    }
+
+    public async Task<List<LocationInfo>> GetAllActiveLocationsForPickerAsync()
+    {
+        var locations = await GetAllLocationsAsync(false);
+        return locations.OrderBy(l => l.Type).ThenBy(l => l.Name).ToList();
+    }
+
+    // ========== End Location Management ==========
 
     public async Task<List<LoanProduct>> GetAllLoanProductsAsync()
     {
@@ -1741,9 +2501,23 @@ public partial class ApplicationService
 
     public async Task<byte[]?> DownloadDocumentAsync(Guid applicationId, Guid documentId)
     {
-        await Task.CompletedTask;
-        _logger.LogWarning("DownloadDocumentAsync not yet fully implemented - StoragePath needed in DTO");
-        return null;
+        try
+        {
+            var repo = _sp.GetRequiredService<ILoanApplicationRepository>();
+            var app = await repo.GetByIdAsync(applicationId);
+            if (app == null) return null;
+
+            var doc = app.Documents.FirstOrDefault(d => d.Id == documentId);
+            if (doc == null || string.IsNullOrEmpty(doc.FilePath)) return null;
+
+            var fileStorage = _sp.GetRequiredService<IFileStorageService>();
+            return await fileStorage.DownloadAsync(doc.FilePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error downloading document {DocumentId} for application {ApplicationId}", documentId, applicationId);
+            return null;
+        }
     }
 
     public async Task<ApiResponse<Guid>> CreateFinancialStatementAsync(Guid applicationId, int financialYear, DateTime yearEndDate, string yearType, string currency, string? auditorName, string? auditorFirm, DateTime? auditDate, string? auditOpinion, FinancialStatementModal.BalanceSheetInput bs, FinancialStatementModal.IncomeStatementInput inc, FinancialStatementModal.CashFlowInput cf, Guid userId)
@@ -2275,5 +3049,110 @@ public partial class ApplicationService
             _logger.LogError(ex, "Error cancelling parameter change {ParameterId}", parameterId);
             return ApiResponse.Fail("Failed to cancel change request");
         }
+    }
+
+    public async Task<PerformanceReportData> GetPerformanceReportDataAsync(int periodDays)
+    {
+        try
+        {
+            var toDate = DateTime.UtcNow;
+            var fromDate = toDate.AddDays(-periodDays);
+            var prevFrom = fromDate.AddDays(-periodDays);
+            var prevTo = fromDate;
+
+            var report = await _reporting.GetPerformanceReportAsync(fromDate, toDate);
+            var slaReport = await _reporting.GetSLAReportAsync(fromDate, toDate);
+            var prevPerf = await _reporting.GetPerformanceMetricsAsync(prevFrom, prevTo);
+
+            return new PerformanceReportData
+            {
+                AvgProcessingTimeDays = report.Overall.AverageProcessingTimeDays,
+                PrevAvgProcessingTimeDays = prevPerf.AverageProcessingTimeDays,
+                SlaComplianceRate = slaReport.OverallCompliance,
+                PrevSlaComplianceRate = prevPerf.SLAComplianceRate,
+                ApplicationsProcessed = report.Overall.TotalApplicationsThisMonth,
+                PrevApplicationsProcessed = prevPerf.TotalApplicationsThisMonth,
+                SlaBreaches = slaReport.Breached,
+                StagePerformance = slaReport.ByStage.Select(s => new StagePerformanceData
+                {
+                    Name = s.Stage,
+                    TargetHours = s.SLATargetHours,
+                    ActualHours = s.AverageTimeHours
+                }).ToList(),
+                TopPerformers = report.ByUser.Select(u => new PerformerData
+                {
+                    Name = u.UserName,
+                    Initials = GetInitials(u.UserName),
+                    ProcessedCount = u.ApplicationsProcessed,
+                    AvgHours = u.AverageProcessingTime,
+                    SlaCompliance = (int)u.SLACompliance
+                }).ToList(),
+                TeamPerformance = report.ByStage.Select(s => new TeamPerformanceData
+                {
+                    Name = s.Stage,
+                    TotalProcessed = s.Count,
+                    AvgHours = s.AverageTime,
+                    SlaCompliance = (int)s.SLACompliance,
+                    TrendUp = s.SLACompliance >= 80
+                }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching performance report data");
+            return new PerformanceReportData();
+        }
+    }
+
+    public async Task<CommitteeReportData> GetCommitteeReportDataAsync(int periodDays)
+    {
+        try
+        {
+            var toDate = DateTime.UtcNow;
+            var fromDate = toDate.AddDays(-periodDays);
+
+            var report = await _reporting.GetCommitteeReportAsync(fromDate, toDate);
+
+            return new CommitteeReportData
+            {
+                TotalReviews = report.TotalReviews,
+                Approved = report.Approved,
+                Rejected = report.Rejected,
+                ApprovalRate = report.ApprovalRate,
+                AvgReviewDays = report.AverageReviewDays,
+                ByCommitteeType = report.ByCommitteeType.Select(c => new CommitteeTypeData
+                {
+                    Name = c.CommitteeType,
+                    Reviews = c.Reviews,
+                    Approved = c.Approved,
+                    Rejected = c.Rejected,
+                    ApprovalRate = c.ApprovalRate,
+                    AvgReviewDays = c.AverageReviewDays
+                }).ToList(),
+                MemberStats = report.MemberStats.Select(m => new CommitteeMemberData
+                {
+                    Name = m.UserName,
+                    Initials = GetInitials(m.UserName),
+                    VotesCast = m.VotesCast,
+                    ApproveVotes = m.ApproveVotes,
+                    RejectVotes = m.RejectVotes,
+                    ParticipationRate = m.ParticipationRate
+                }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching committee report data");
+            return new CommitteeReportData();
+        }
+    }
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "??";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+            : name[..Math.Min(2, name.Length)].ToUpper();
     }
 }

@@ -1,4 +1,5 @@
 @page "/admin/users"
+@using CRMS.Web.Intranet.Models
 @inject ApplicationService AppService
 @inject NavigationManager Navigation
 
@@ -164,15 +165,15 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Branch</label>
-                    <select class="form-control" @bind="editingUser.Branch">
-                        <option value="">Head Office</option>
-                        <option value="Lagos Main">Lagos Main</option>
-                        <option value="Victoria Island">Victoria Island</option>
-                        <option value="Ikeja">Ikeja</option>
-                        <option value="Abuja">Abuja</option>
-                        <option value="Port Harcourt">Port Harcourt</option>
+                    <label class="form-label">Location</label>
+                    <select class="form-control" @bind="editingUser.LocationId">
+                        <option value="">No Location (Head Office Staff)</option>
+                        @foreach (var loc in availableLocations)
+                        {
+                            <option value="@loc.Id">@loc.DisplayName (@loc.Type)</option>
+                        }
                     </select>
+                    <small class="form-hint">Assign user to a branch for location-based visibility</small>
                 </div>
             </div>
             <div class="modal-footer">
@@ -205,9 +206,11 @@
     private string? saveError;
     private string newUserPassword = string.Empty;
     private UserModel editingUser = new();
+    private List<LocationInfo> availableLocations = [];
 
     protected override async Task OnInitializedAsync()
     {
+        availableLocations = await AppService.GetAllActiveLocationsForPickerAsync();
         await LoadUsers();
     }
 
@@ -295,7 +298,7 @@
             ApiResponse result;
             if (isEditing)
             {
-                result = await AppService.UpdateUserAsync(editingUser.Id, editingUser.FirstName, editingUser.LastName, null, roles);
+                result = await AppService.UpdateUserAsync(editingUser.Id, editingUser.FirstName, editingUser.LastName, null, editingUser.LocationId, roles);
             }
             else
             {
@@ -347,6 +350,7 @@
         public string Email { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
         public string? Branch { get; set; }
+        public Guid? LocationId { get; set; }
         public bool IsActive { get; set; }
         public DateTime? LastLogin { get; set; }
         public string FullName => $"{FirstName} {LastName}";

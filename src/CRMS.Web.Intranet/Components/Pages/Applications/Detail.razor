@@ -216,7 +216,11 @@ else
             <WorkflowTab History="application.WorkflowHistory" CurrentStatus="application.Status" />
             break;
         case "committee":
-            <CommitteeTab Committee="application.Committee" OnCastVote="CastVote" />
+            <CommitteeTab Committee="application.Committee"
+                             CurrentUserId="AuthService.CurrentUser?.Id"
+                             CanSetupCommittee="@CanSetupCommitteeReview"
+                             OnCastVote="CastVote"
+                             OnSetupCommittee="ShowSetupCommitteeModal" />
             break;
         case "comments":
             <CommentsTab Comments="application.Comments" OnAddComment="AddComment" />
@@ -887,6 +891,16 @@ else
     </div>
 }
 
+@if (showSetupCommitteeModal && application != null)
+{
+    <SetupCommitteeModal
+        LoanApplicationId="application.Id"
+        ApplicationNumber="@(application.ApplicationNumber ?? "")"
+        LoanAmount="application.Loan.RequestedAmount"
+        OnCreated="OnCommitteeCreated"
+        OnClose="CloseSetupCommitteeModal" />
+}
+
 @code {
     [Parameter] public Guid Id { get; set; }
 
@@ -899,6 +913,7 @@ else
     private ActionType currentAction;
     private string actionComments = string.Empty;
     private bool isExecutingAction;
+    private bool showSetupCommitteeModal;
 
     // Data entry modals
     private bool showCollateralModal;
@@ -968,6 +983,11 @@ else
     private bool ShowSubmitForReviewButton => application?.Status == "Draft" && 
         (AuthService.CurrentUser?.HasRole("LoanOfficer") ?? false);
     
+    private bool CanSetupCommitteeReview =>
+        application?.Status == "CommitteeCirculation" &&
+        application.Committee == null &&
+        (AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false);
+
     private bool ShowApproveButton => application?.Status switch
     {
         "BranchReview" => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
@@ -1099,7 +1119,8 @@ else
 
     private async Task AddComment(string content)
     {
-        // Comment functionality would need its own handler
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        await AppService.AddCommentAsync(Id, content, userId);
         await LoadApplication();
     }
 
@@ -1744,6 +1765,14 @@ else
     {
         showSubmitReviewModal = false;
         submitComments = string.Empty;
+    }
+
+    private void ShowSetupCommitteeModal() => showSetupCommitteeModal = true;
+    private void CloseSetupCommitteeModal() => showSetupCommitteeModal = false;
+    private async Task OnCommitteeCreated()
+    {
+        showSetupCommitteeModal = false;
+        await LoadApplication();
     }
 
     private List<string> ValidateForSubmission()

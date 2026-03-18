@@ -3,6 +3,7 @@ using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace CRMS.Application.CreditBureau.Commands;
@@ -75,6 +76,8 @@ public record BusinessCreditCheckResultDto(
 
 public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditChecksCommand, ApplicationResult<CreditCheckBatchResultDto>>
 {
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> _locks = new();
+
     private readonly ILoanApplicationRepository _loanAppRepository;
     private readonly IGuarantorRepository _guarantorRepository;
     private readonly ICollateralRepository _collateralRepository;
@@ -106,6 +109,23 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
 
     public async Task<ApplicationResult<CreditCheckBatchResultDto>> Handle(ProcessLoanCreditChecksCommand request, CancellationToken ct = default)
     {
+        var semaphore = _locks.GetOrAdd(request.LoanApplicationId, _ => new SemaphoreSlim(1, 1));
+        if (!await semaphore.WaitAsync(TimeSpan.Zero, ct))
+            return ApplicationResult<CreditCheckBatchResultDto>.Failure("Credit checks are already being processed for this application");
+
+        try
+        {
+            return await HandleInternal(request, ct);
+        }
+        finally
+        {
+            semaphore.Release();
+            _locks.TryRemove(request.LoanApplicationId, out _);
+        }
+    }
+
+    private async Task<ApplicationResult<CreditCheckBatchResultDto>> HandleInternal(ProcessLoanCreditChecksCommand request, CancellationToken ct)
+    {
         var loanApp = await _loanAppRepository.GetByIdWithPartiesAsync(request.LoanApplicationId, ct);
         if (loanApp == null)
             return ApplicationResult<CreditCheckBatchResultDto>.Failure("Loan application not found");
@@ -125,12 +145,12 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 existingReports.Count(r => r.Status == BureauReportStatus.NotFound),
                 existingReports.Where(r => r.SubjectType == SubjectType.Individual).Select(r => new IndividualCreditCheckResultDto(
                     r.PartyId ?? Guid.Empty, r.SubjectName, r.PartyType ?? "Unknown", r.BVN, r.Status == BureauReportStatus.Completed, r.Id,
-                    r.CreditScore, r.ScoreGrade, r.NonPerformingAccounts > 0, r.FraudRiskScore, r.FraudRecommendation, r.ErrorMessage
+                    r.CreditScore, r.ScoreGrade, r.DelinquentFacilities > 0, r.FraudRiskScore, r.FraudRecommendation, r.ErrorMessage
                 )).ToList(),
                 existingReports.Where(r => r.SubjectType == SubjectType.Business).Select(r => new BusinessCreditCheckResultDto(
                     r.TaxId, r.SubjectName, r.Status == BureauReportStatus.Completed, r.Id,
-                    r.TotalAccounts, r.ActiveLoans, r.NonPerformingAccounts, r.TotalOutstandingBalance, r.TotalOverdue,
-                    r.NonPerformingAccounts > 0, r.FraudRiskScore, r.FraudRecommendation, r.ErrorMessage
+                    r.TotalAccounts, r.ActiveLoans, r.DelinquentFacilities, r.TotalOutstandingBalance, r.TotalOverdue,
+                    r.DelinquentFacilities > 0, r.FraudRiskScore, r.FraudRecommendation, r.ErrorMessage
                 )).FirstOrDefault()
             ));
         }
@@ -216,7 +236,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 individualResults.Add(new IndividualCreditCheckResultDto(
                     party.Id, party.FullName, party.PartyType.ToString(), party.BVN,
                     existing.Status == BureauReportStatus.Completed, existing.Id,
-                    existing.CreditScore, existing.ScoreGrade, existing.NonPerformingAccounts > 0,
+                    existing.CreditScore, existing.ScoreGrade, existing.DelinquentFacilities > 0,
                     existing.FraudRiskScore, existing.FraudRecommendation, existing.ErrorMessage,
                     existingFailureReason
                 ));
@@ -269,7 +289,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 individualResults.Add(new IndividualCreditCheckResultDto(
                     guarantor.Id, guarantor.FullName, "Guarantor", guarantor.BVN,
                     existing.Status == BureauReportStatus.Completed, existing.Id,
-                    existing.CreditScore, existing.ScoreGrade, existing.NonPerformingAccounts > 0,
+                    existing.CreditScore, existing.ScoreGrade, existing.DelinquentFacilities > 0,
                     existing.FraudRiskScore, existing.FraudRecommendation, existing.ErrorMessage,
                     existingFailureReason
                 ));
@@ -330,8 +350,8 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 };
                 businessResult = new BusinessCreditCheckResultDto(
                     existing.TaxId, existing.SubjectName, existing.Status == BureauReportStatus.Completed, existing.Id,
-                    existing.TotalAccounts, existing.ActiveLoans, existing.NonPerformingAccounts,
-                    existing.TotalOutstandingBalance, existing.TotalOverdue, existing.NonPerformingAccounts > 0,
+                    existing.TotalAccounts, existing.ActiveLoans, existing.DelinquentFacilities,
+                    existing.TotalOutstandingBalance, existing.TotalOverdue, existing.DelinquentFacilities > 0,
                     existing.FraudRiskScore, existing.FraudRecommendation, existing.ErrorMessage,
                     existingFailureReason
                 );

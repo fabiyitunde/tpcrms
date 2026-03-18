@@ -81,7 +81,9 @@ public class AuthService : AuthenticationStateProvider
                 FirstName = appUser.FirstName,
                 LastName = appUser.LastName,
                 Roles = appUser.Roles,
-                Permissions = appUser.Permissions
+                Permissions = appUser.Permissions,
+                LocationId = appUser.LocationId,
+                LocationName = appUser.LocationName
             };
 
             await _localStorage.SetItemAsync(TokenKey, result.Data.AccessToken);

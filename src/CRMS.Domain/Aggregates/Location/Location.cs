@@ -162,6 +162,16 @@ public class Location : AggregateRoot
 
         return Result.Success();
     }
+
+    /// <summary>
+    /// Adds a child location to this location's children collection.
+    /// Used for building the hierarchy tree in memory.
+    /// </summary>
+    public void AddChild(Location child)
+    {
+        if (!_children.Contains(child))
+            _children.Add(child);
+    }
 }
 
 /// <summary>

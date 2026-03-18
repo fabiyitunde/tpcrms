@@ -359,7 +359,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
         // Derive worst status from delinquency days
         var worstStatus = report.MaxDelinquencyDays switch
         {
-            0 => report.NonPerformingAccounts > 0 ? "Non-Performing" : "Performing",
+            0 => report.DelinquentFacilities > 0 ? "Non-Performing" : "Performing",
             < 30 => "Overdue",
             < 90 => "Watch",
             _ => "Non-Performing"
@@ -373,8 +373,8 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
             ActiveLoansCount: report.ActiveLoans,
             TotalOutstandingDebt: report.TotalOutstandingBalance,
             PerformingLoansCount: report.PerformingAccounts,
-            DelinquentLoansCount: report.NonPerformingAccounts,
-            DefaultedLoansCount: report.MaxDelinquencyDays >= 90 && report.NonPerformingAccounts > 0 ? report.NonPerformingAccounts : 0,
+            DelinquentLoansCount: report.DelinquentFacilities,
+            DefaultedLoansCount: report.MaxDelinquencyDays >= 90 && report.DelinquentFacilities > 0 ? report.DelinquentFacilities : 0,
             WorstStatus: worstStatus,
             ReportDate: report.ReportDate ?? report.CompletedAt ?? report.RequestedAt,
             MaxDelinquencyDays: report.MaxDelinquencyDays,

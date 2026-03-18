@@ -88,6 +88,8 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<CM.CommitteeReview> CommitteeReviews => Set<CM.CommitteeReview>();
     public DbSet<CM.CommitteeMember> CommitteeMembers => Set<CM.CommitteeMember>();
     public DbSet<CM.CommitteeComment> CommitteeComments => Set<CM.CommitteeComment>();
+    public DbSet<CM.StandingCommittee> StandingCommittees => Set<CM.StandingCommittee>();
+    public DbSet<CM.StandingCommitteeMember> StandingCommitteeMembers => Set<CM.StandingCommitteeMember>();
     public DbSet<CM.CommitteeDocument> CommitteeDocuments => Set<CM.CommitteeDocument>();
 
     // Audit

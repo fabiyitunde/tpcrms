@@ -447,8 +447,11 @@ public class ReportingService : IReportingService
                              x.Status == LoanApplicationStatus.CreditAnalysis ||
                              x.Status == LoanApplicationStatus.HOReview, ct);
 
+        // Count workflows where SLA is overdue (SLADueAt < now) - don't rely on IsSLABreached flag
+        // as it requires a background job to update it
+        var now = DateTime.UtcNow;
         var overdueSlAs = await _context.WorkflowInstances
-            .CountAsync(x => x.IsSLABreached && x.CompletedAt == null, ct);
+            .CountAsync(x => !x.IsCompleted && x.SLADueAt.HasValue && x.SLADueAt < now, ct);
 
         var pendingVotes = await _context.CommitteeMembers
             .CountAsync(x => x.Vote == null, ct);

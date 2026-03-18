@@ -27,9 +27,16 @@
         <div class="stat-content">
             <div class="stat-label">Total Applications</div>
             <div class="stat-value">@summary.TotalApplications</div>
-            <div class="stat-change positive">
-                <span class="material-symbols-outlined" style="font-size: 16px;">trending_up</span>
-                +12% from last month
+            <div class="stat-change @(summary.ApplicationsGrowthPercent >= 0 ? "positive" : "negative")">
+                @if (summary.ApplicationsGrowthPercent != 0)
+                {
+                    <span class="material-symbols-outlined" style="font-size: 16px;">@(summary.ApplicationsGrowthPercent >= 0 ? "trending_up" : "trending_down")</span>
+                    <text>@(summary.ApplicationsGrowthPercent >= 0 ? "+" : "")@(summary.ApplicationsGrowthPercent)% vs last month</text>
+                }
+                else
+                {
+                    <span>No change vs last month</span>
+                }
             </div>
         </div>
     </div>
@@ -52,9 +59,12 @@
         <div class="stat-content">
             <div class="stat-label">Approved This Month</div>
             <div class="stat-value">@summary.ApprovedThisMonth</div>
-            <div class="stat-change positive">
-                <span class="material-symbols-outlined" style="font-size: 16px;">trending_up</span>
-                +8% approval rate
+            <div class="stat-change">
+                @{
+                    var total = summary.ApprovedThisMonth + summary.RejectedThisMonth;
+                    var rate = total > 0 ? (int)Math.Round((decimal)summary.ApprovedThisMonth / total * 100) : 0;
+                }
+                @rate% approval rate
             </div>
         </div>
     </div>

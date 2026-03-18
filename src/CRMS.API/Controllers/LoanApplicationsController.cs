@@ -150,7 +150,13 @@ public class LoanApplicationsController : ControllerBase
     [HttpGet("pending-branch-review")]
     public async Task<IActionResult> GetPendingBranchReview([FromQuery] Guid? branchId, CancellationToken ct)
     {
-        var result = await _getPendingBranchHandler.Handle(new GetPendingBranchReviewQuery(branchId), ct);
+        // Extract user location and role from JWT claims for visibility filtering
+        var userLocationIdClaim = User.FindFirst("LocationId")?.Value;
+        var userLocationId = Guid.TryParse(userLocationIdClaim, out var locId) ? locId : (Guid?)null;
+        var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        
+        var result = await _getPendingBranchHandler.Handle(
+            new GetPendingBranchReviewQuery(branchId, userLocationId, userRole), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 }

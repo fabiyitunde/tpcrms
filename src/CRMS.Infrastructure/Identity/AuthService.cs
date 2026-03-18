@@ -73,7 +73,8 @@ public class AuthService : IAuthService
             user.Type.ToString(),
             user.Status.ToString(),
             user.PhoneNumber,
-            user.BranchId,
+            user.LocationId,
+            user.Location?.Name,
             user.LastLoginAt,
             roleNames,
             permissionCodes
@@ -117,7 +118,8 @@ public class AuthService : IAuthService
             user.Type.ToString(),
             user.Status.ToString(),
             user.PhoneNumber,
-            user.BranchId,
+            user.LocationId,
+            user.Location?.Name,
             user.LastLoginAt,
             roleNames,
             permissionCodes

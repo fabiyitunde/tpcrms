@@ -44,7 +44,7 @@ public record BureauReportSummary(
     int TotalAccounts,
     int ActiveLoans,
     int PerformingAccounts,
-    int NonPerformingAccounts,
+    int DelinquentFacilities,
     int ClosedAccounts,
     int WrittenOffAccounts,
     decimal TotalOutstandingBalance,

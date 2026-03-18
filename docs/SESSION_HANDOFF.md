@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-03-16 (Session 17)
+**Last Updated:** 2026-03-18 (Session 23)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -104,16 +104,40 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **Industry/Sector classification on loan applications** | ✅ |
 | **Role-based workflow authorization aligned (UI ↔ Backend)** | ✅ |
 | **Location hierarchy (HO/Region/Zone/Branch) + role-based visibility filtering** | ✅ |
+| **Location/visibility bug fixes (8 bugs + 2 gaps fixed)** | ✅ |
+| **Test users seeded with LocationId assignments** | ✅ |
+| **Location CRUD Admin UI (`/admin/locations`) — tree view, create/edit/activate/deactivate** | ✅ |
+| **User Admin location picker dropdown (replaces hardcoded branch list)** | ✅ |
+| **Performance & Committee report pages wired to ReportingService** | ✅ |
+| **M-3: RequestBureauReportCommand migrated to ISmartComplyProvider** | ✅ |
+| **M-4: In-process concurrency lock in ProcessLoanCreditChecksCommand** | ✅ |
+| **M-5: NonPerformingAccounts → DelinquentFacilities rename (10 files + migration)** | ✅ |
+| **Product mock fallback removed from New.razor** | ✅ |
+| **Application Detail tabs wired to real backend (Workflow, Advisory, Committee, Comments)** | ✅ |
+| **DownloadDocumentAsync fully implemented (IFileStorageService)** | ✅ |
+| **GetMyPendingTasksAsync fixed (Amount, ProductName populated)** | ✅ |
+| **Collateral mapping fixed (ForcedSaleValue, LastValuationDate)** | ✅ |
+| **Committee voting authorization guard (role-based)** | ✅ |
+| **Committee setup UI (SetupCommitteeModal — create review + add members)** | ✅ |
+| **Standing Committee admin (`/admin/committees`) — permanent roster, amount-based routing** | ✅ |
+| **Automatic committee routing (amount → standing committee → auto-populate members)** | ✅ |
+| **5 standing committees seeded (Branch/Regional/HO/Management/Board with NGN thresholds)** | ✅ |
+| **Dashboard growth badges wired to real backend data** | ✅ |
+| **Reports Index page wired to ReportingService (growth %, funnel, portfolio, SLA)** | ✅ |
+| **Committee Reviews page votes progress wired to real data** | ✅ |
+| **My Pending Votes page wired to real backend** | ✅ |
+| **Overdue Queue page wired to real backend** | ✅ |
+| **Export buttons disabled with "coming soon" tooltip across all report pages** | ✅ |
+| **NavMenu badge counts wired to real backend (MyQueue, Overdue, PendingVotes)** | ✅ |
+| **Overdue functionality bug fixes (5 bugs: hardcoded counts, inconsistent queries)** | ✅ |
 
 ### What Is Pending
 
 | Feature | Priority | Notes |
-| Location CRUD UI (admin page for managing locations) | P2 | Domain + repository + seed data exist; need Application commands + UI page |
-| Connect report pages to ReportingService | P3 | Performance/Committee pages show mock data |
-| Seed default products in DB | P3 | New.razor mock fallback uses `Guid.NewGuid()` — invalid if DB empty; seed via `SeedData` class |
-| M-3: Migrate `RequestBureauReportCommand` to `ISmartComplyProvider` | P3 | Still uses legacy `ICreditBureauProvider`; deferred — complex API shape change |
-| M-4: Distributed lock in `ProcessLoanCreditChecksCommand` | P3 | Deferred — needs distributed lock infrastructure |
-| M-5: Rename `NonPerformingAccounts` → `DelinquentFacilities` | P3 | Deferred — 20+ references + DB migration column rename |
+|---------|----------|-------|
+| Template management CRUD (`/admin/templates`) | P3 | Display only — no edit functionality |
+| Guarantor credit check trigger UI | P3 | On hold pending provider decision |
+| Bureau report detail modal (click to expand) | P3 | View detail for individual bureau report |
 
 ---
 
@@ -205,8 +229,9 @@ src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/
 ├── UploadDocumentModal.razor
 ├── FinancialStatementModal.razor
 ├── UploadFinancialStatementModal.razor
-├── UploadExternalStatementModal.razor     ← NEW: upload other-bank statement
-└── FillPartyInfoModal.razor               ← NEW: fill null BVN/shareholding for a party
+├── UploadExternalStatementModal.razor     ← upload other-bank statement
+├── FillPartyInfoModal.razor               ← fill null BVN/shareholding for a party
+└── SetupCommitteeModal.razor              ← auto-routes from standing committee or falls back to ad-hoc
 ```
 
 ### Tabs Directory
@@ -233,7 +258,306 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-03-16 Session 17)
+## 5. Last Session Summary (2026-03-18 Session 23)
+
+### Completed — Overdue Functionality Bug Fix (Comprehensive Review)
+
+User reported: NavMenu shows "2" badge for Overdue, but clicking shows empty list. Performed comprehensive code review and found 5 bugs.
+
+#### Bugs Identified
+
+| Bug | Location | Issue |
+|-----|----------|-------|
+| **BUG-1** | `NavMenu.razor` line 145 | `OverdueCount`, `MyQueueCount`, `PendingVotesCount` were **hardcoded** (2, 5, 1) — never fetched from backend |
+| **BUG-2** | `ReportingService.cs` vs `WorkflowRepositories.cs` | Different query conditions: ReportingService used `IsSLABreached` flag, repository used `SLADueAt < now` |
+| **BUG-3** | `WorkflowInstance` | `IsSLABreached` flag only set when `CheckAndMarkSLABreachesAsync()` runs |
+| **BUG-4** | Entire codebase | `CheckAndMarkSLABreachesAsync()` is **never called** — no background job exists |
+| **BUG-5** | `NavMenu.razor` | No `OnInitializedAsync` — counts never loaded |
+
+#### Fixes Applied
+
+**1. NavMenu.razor — Wire to Real Backend**
+- Added `@inject ApplicationService AppService`
+- Added `OnInitializedAsync()` that calls `LoadCounts()`
+- Loads `MyQueueCount`, `OverdueCount`, `PendingVotesCount` in parallel
+- Removed hardcoded values
+
+**2. ApplicationService.cs — Added 3 Count Methods**
+```csharp
+public async Task<int> GetOverdueCountAsync()
+public async Task<int> GetMyQueueCountAsync(Guid userId)
+public async Task<int> GetMyPendingVotesCountAsync(Guid userId)
+```
+
+**3. ReportingService.cs — Aligned Overdue Query**
+- Changed from: `IsSLABreached && CompletedAt == null`
+- Changed to: `!IsCompleted && SLADueAt.HasValue && SLADueAt < now`
+- Now consistent with `GetOverdueSLAAsync()` in repository
+
+**Build:** 0 errors, 20 warnings (pre-existing). **Tests:** All pass.
+
+### Files Modified This Session
+- `src/CRMS.Web.Intranet/Components/Layout/NavMenu.razor` — Real counts from backend
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs` — 3 new count methods
+- `src/CRMS.Infrastructure/Services/ReportingService.cs` — Aligned overdue query
+
+### Note
+The `IsSLABreached` flag is still never set (no background job). However, this is now irrelevant because both NavMenu and Overdue page use `SLADueAt < now` consistently. If you want the flag set for audit purposes, add a background job calling `CheckAndMarkSLABreachesAsync()`.
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v4.2
+- [ ] `docs/ImplementationTracker.md` → not updated (bug fix only, no new features)
+
+---
+
+## 5. Previous Session Summary (2026-03-18 Session 22)
+
+### Completed — UI Wiring Audit: Mock Data Removal + Real Backend Integration
+
+Continued from Session 21's comprehensive UI wiring audit. Fixed all remaining pages that were displaying hardcoded mock data instead of real backend data. All report/queue pages now call the backend handlers.
+
+#### 1. Critical Fixes (C-1, C-2, C-3)
+
+**C-1: Dashboard RecentActivities & ApplicationsByStatus**
+- `GetDashboardSummaryAsync()` in `ApplicationService.cs` now populates `ApplicationsByStatus` from real loan funnel data
+- `RecentActivities` fetched from audit logs via `GetAuditLogsAsync()`
+
+**C-2: My Pending Votes Page**
+- Updated `MyVotes.razor` to call `AppService.GetMyPendingVotesAsync(userId)` instead of mock data
+- Updated `GetMyPendingVotesAsync()` to populate `VotesCast`, `TotalMembers`, `Amount`, and `CustomerName`
+- Added `VotesCast`, `TotalMembers`, `Amount` fields to `CommitteeReviewSummary` DTO
+
+**C-3: Overdue Queue Page**
+- Added `GetOverdueWorkflowsAsync()` method to `ApplicationService.cs` calling `GetOverdueWorkflowsHandler`
+- Added `OverdueWorkflowItem` DTO
+- Updated `Overdue.razor` to use real backend data
+
+#### 2. High Priority Fixes (H-1 to H-6)
+
+**Reports Index Page Wiring**
+- Added `GetEnhancedReportingDataAsync(int periodDays)` fetching:
+  - Growth percentages (current vs previous period calculation)
+  - Application funnel from `IReportingService.GetLoanFunnelAsync()`
+  - Portfolio by product from `IReportingService.GetPortfolioSummaryAsync()`
+  - SLA compliance from `IReportingService.GetSLAReportAsync()`
+- Added `EnhancedReportingData`, `FunnelStageData`, `ProductPortfolioData` DTOs
+- Updated `Reports/Index.razor` with period selector that triggers data reload
+
+**Export Buttons**
+- Disabled all export buttons across report pages with "coming soon" tooltip
+
+#### 3. Medium Priority Fixes (M-3, M-4)
+
+**M-3: Dashboard Growth Badges**
+- Added `ApplicationsGrowthPercent` and `ApprovalRateChange` to `DashboardSummary` model
+- `Dashboard/Index.razor` now shows real growth percentage with dynamic positive/negative styling
+- Approval rate calculated from real approved/rejected counts
+
+**M-4: Committee Reviews Votes Progress**
+- Updated `GetCommitteeReviewsByStatusAsync()` to populate `VotesCast`, `TotalMembers`, `Amount`, `CustomerName`
+- `Reviews.razor` now shows real vote progress bars
+
+#### 4. Low Priority Fixes (L-1)
+
+**Export Buttons Disabled**
+- `Reports/Performance.razor`, `Reports/Committee.razor`, `Reports/Audit.razor` - all export buttons disabled with tooltip
+
+**Build:** 0 errors, 17 warnings (pre-existing). **Tests:** All pass.
+
+---
+
+## 5. Previous Session Summary (2026-03-18 Session 21)
+
+### Completed — Standing Committee Infrastructure + Amount-Based Automatic Routing
+
+Replaced the ad-hoc per-application committee assignment with a proper standing committee system. Committees are now pre-configured at the institutional level with permanent member rosters and amount-based routing thresholds, matching standard Nigerian banking practice.
+
+#### 1. Domain Layer — StandingCommittee Aggregate
+
+- **`StandingCommittee.cs`** (new) — Aggregate with: `Name`, `CommitteeType`, `RequiredVotes`, `MinimumApprovalVotes`, `DefaultDeadlineHours`, `MinAmountThreshold`, `MaxAmountThreshold`, `IsActive`, and child `StandingCommitteeMember` entities (UserId, UserName, Role, IsChairperson)
+- Domain methods: `Create`, `Update`, `AddMember`, `RemoveMember`, `UpdateMember`, `Activate`, `Deactivate`
+- Chairperson is exclusive — setting a new one automatically clears the previous
+
+- **`IStandingCommitteeRepository.cs`** (new) — 6 methods including `GetForAmountAsync(amount)` for automatic routing
+
+#### 2. Infrastructure Layer
+
+- **`StandingCommitteeConfiguration.cs`** (new) — EF config for `StandingCommittees` + `StandingCommitteeMembers` tables; unique index on `CommitteeType`; composite unique on `(StandingCommitteeId, UserId)`
+- **`StandingCommitteeRepository.cs`** (new) — Implements `GetForAmountAsync` with `WHERE IsActive AND MinAmount <= amount AND (MaxAmount IS NULL OR MaxAmount >= amount) ORDER BY MinAmount DESC`
+- **`CRMSDbContext.cs`** — Added `StandingCommittees` and `StandingCommitteeMembers` DbSets
+- **`DependencyInjection.cs`** — Registered `IStandingCommitteeRepository`, 7 standing committee handlers
+- **Migration `20260318120000_AddStandingCommittees`** — Creates both tables with indexes
+
+#### 3. Application Layer
+
+- **`StandingCommitteeDtos.cs`** (new) — `StandingCommitteeDto`, `StandingCommitteeMemberDto`
+- **`StandingCommitteeCommands.cs`** (new) — 5 commands+handlers: `CreateStandingCommittee`, `UpdateStandingCommittee`, `ToggleStandingCommittee`, `AddStandingCommitteeMember`, `RemoveStandingCommitteeMember`
+- **`StandingCommitteeQueries.cs`** (new) — 2 queries: `GetAllStandingCommittees`, `GetStandingCommitteeForAmount`
+
+#### 4. Web.Intranet — Admin UI + Automatic Routing
+
+- **`Committees.razor`** (new, `/admin/committees`) — Full admin page:
+  - Card-per-committee layout with type badge, amount range, quorum rules, deadline, member table
+  - Create/edit committee modal (name, type, amount range, votes, deadline)
+  - Add/remove members with role and chairperson designation
+  - Activate/deactivate toggle
+- **`NavMenu.razor`** — Added "Committees" link under Administration
+- **`ApplicationService.cs`** — 8 new methods: `GetStandingCommitteesAsync`, `CreateStandingCommitteeAsync`, `UpdateStandingCommitteeAsync`, `ToggleStandingCommitteeAsync`, `AddStandingCommitteeMemberAsync`, `RemoveStandingCommitteeMemberAsync`, `GetStandingCommitteeForAmountAsync`
+- **`ApplicationModels.cs`** — Added `StandingCommitteeInfo`, `StandingMemberInfo` DTOs
+
+#### 5. Automatic Routing — Refactored SetupCommitteeModal
+
+- `SetupCommitteeModal.razor` completely rewritten to support two modes:
+  - **Auto-routed** — On open, calls `GetStandingCommitteeForAmountAsync(loanAmount)`. If a standing committee matches, shows green banner with pre-populated committee config and member roster. One-click to create the review.
+  - **Ad-hoc fallback** — If no standing committee matches, shows warning and manual setup (same as before)
+- `Detail.razor` now passes `LoanAmount="application.Loan.RequestedAmount"` to the modal
+
+#### 6. Seed Data
+
+5 standing committees with Nigerian banking standard thresholds:
+
+| Committee | Amount Range | Required/Min Approval | Deadline |
+|-----------|-------------|----------------------|----------|
+| Branch Credit | N0 — N50M | 3/2 | 48h |
+| Regional Credit | N50M — N200M | 3/2 | 72h |
+| Head Office Credit | N200M — N500M | 5/3 | 72h |
+| Management Credit | N500M — N2B | 5/4 | 120h |
+| Board Credit | N2B+ | 7/5 | 168h |
+
+**Build:** 0 errors, 19 warnings (all pre-existing). **Tests:** All pass (2/2).
+
+### Files Created This Session
+- `src/CRMS.Domain/Aggregates/Committee/StandingCommittee.cs`
+- `src/CRMS.Domain/Interfaces/IStandingCommitteeRepository.cs`
+- `src/CRMS.Application/Committee/DTOs/StandingCommitteeDtos.cs`
+- `src/CRMS.Application/Committee/Commands/StandingCommitteeCommands.cs`
+- `src/CRMS.Application/Committee/Queries/StandingCommitteeQueries.cs`
+- `src/CRMS.Infrastructure/Persistence/Configurations/Committee/StandingCommitteeConfiguration.cs`
+- `src/CRMS.Infrastructure/Persistence/Repositories/Committee/StandingCommitteeRepository.cs`
+- `src/CRMS.Infrastructure/Persistence/Migrations/20260318120000_AddStandingCommittees.cs`
+- `src/CRMS.Web.Intranet/Components/Pages/Admin/Committees.razor`
+
+### Files Modified This Session
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs` — 8 new standing committee methods
+- `src/CRMS.Web.Intranet/Models/ApplicationModels.cs` — `StandingCommitteeInfo`, `StandingMemberInfo`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/SetupCommitteeModal.razor` — Rewritten with auto-route + ad-hoc fallback
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` — Passes `LoanAmount` to modal
+- `src/CRMS.Web.Intranet/Components/Layout/NavMenu.razor` — Added Committees nav link
+- `src/CRMS.Infrastructure/Persistence/CRMSDbContext.cs` — Added `StandingCommittees`, `StandingCommitteeMembers` DbSets
+- `src/CRMS.Infrastructure/DependencyInjection.cs` — 8 new registrations (repository + 7 handlers)
+- `src/CRMS.Infrastructure/Persistence/SeedData.cs` — Added `SeedStandingCommitteesAsync()`
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v4.1
+- [x] `docs/ImplementationTracker.md` → v4.6
+
+---
+
+## 5. Previous Session Summary (2026-03-18 Session 20)
+
+### Completed — Comprehensive UI Wiring Audit + Critical Fixes + Committee Setup UI
+
+This session performed a full code audit of the intranet UI and ApplicationService, discovered significant gaps hidden by mock data fallbacks, and fixed all critical issues. Also built the missing Committee Review setup workflow. See Session 20 details for full implementation notes.
+
+**Build:** 0 errors, 19 warnings (all pre-existing). **Tests:** All pass (2/2).
+
+---
+
+## 5. Previous Session Summary (2026-03-16 Session 19)
+
+### Completed — Location CRUD Admin UI + User Location Picker
+
+Implemented the Location Management admin page (`/admin/locations`) with full CRUD functionality and updated the User Admin page with a dynamic location picker dropdown. See Session 19 details for full implementation notes.
+
+**Build:** 0 errors, 16 warnings (pre-existing). **Tests:** All 4 pass.
+
+---
+
+## 5. Previous Session Summary (2026-03-16 Session 18)
+
+### Completed — Location/Visibility Bug Fixes (8 Bugs + 2 Gaps)
+
+Fixed all identified bugs and gaps in the location hierarchy and visibility filtering system implemented in Session 17.
+
+#### BUG-1: AuthService.cs — UserInfo.LocationId never populated after login
+- **File:** `src/CRMS.Web.Intranet/Services/AuthService.cs`
+- **Fix:** Added `LocationId = appUser.LocationId` and `LocationName = appUser.LocationName` mapping in `LoginAsync()`
+
+#### BUG-2: ApplicationService.cs — New applications created with BranchId = null
+- **Files:** `src/CRMS.Web.Intranet/Services/ApplicationService.cs`, `src/CRMS.Web.Intranet/Components/Pages/Applications/New.razor`
+- **Fix:** Added optional `userLocationId` parameter to `CreateApplicationAsync()`; `New.razor` now passes `AuthService.CurrentUser?.LocationId`
+
+#### BUG-3: UserDto.BranchId → LocationId rename across auth chain
+- **Files:** `AuthDtos.cs`, `AuthService.cs` (Infrastructure), `RegisterUserCommand.cs`, `GetUserQuery.cs`, `UpdateUserCommand.cs`
+- **Fix:** Renamed `UserDto.BranchId` → `LocationId`, added `LocationName` field; updated all 5 files that construct `UserDto`
+
+#### BUG-4: LocationRepository.GetHierarchyTreeAsync returns empty children
+- **Files:** `src/CRMS.Domain/Aggregates/Location/Location.cs`, `src/CRMS.Infrastructure/Persistence/Repositories/Location/LocationRepository.cs`
+- **Fix:** Added `Location.AddChild()` public method; `GetHierarchyTreeAsync()` now builds parent-child relationships in-memory using dictionary lookup
+
+#### BUG-5: UpdateUserCommand missing LocationId field
+- **Files:** `src/CRMS.Application/Identity/Commands/UpdateUserCommand.cs`, `src/CRMS.Web.Intranet/Services/ApplicationService.cs`, `src/CRMS.Web.Intranet/Components/Pages/Admin/Users.razor`
+- **Fix:** Added `LocationId` parameter to command; handler calls `user.SetLocation()`; updated service and UI
+
+#### BUG-6: LoanApplicationsController.GetPendingBranchReview not using visibility
+- **File:** `src/CRMS.API/Controllers/LoanApplicationsController.cs`
+- **Fix:** Extracts `LocationId` and `Role` from JWT claims; passes to `GetPendingBranchReviewQuery`
+
+#### BUG-7: GetPendingBranchReviewHandler missing from Infrastructure DI
+- **File:** `src/CRMS.Infrastructure/DependencyInjection.cs`
+- **Fix:** Added `services.AddScoped<GetPendingBranchReviewHandler>()`
+
+#### BUG-8: VisibilityService return value ambiguity (empty list = two meanings)
+- **File:** `src/CRMS.Domain/Services/VisibilityService.cs`
+- **Fix:** Added extensive XML documentation explaining the semantic difference between empty list for "Own" scope vs "no access"
+
+#### GAP-2: No seeded users assigned to locations
+- **Files:** `src/CRMS.Infrastructure/Persistence/SeedData.cs`, `Program.cs` (Web.Intranet + API), `SeedController.cs`
+- **Fix:** Added `SeedTestUsersAsync()` creating 6 test users with locations:
+  - `loanofficer@crms.test` (Lagos Main Branch)
+  - `branchapprover@crms.test` (Lagos Main Branch)
+  - `loanofficer.abuja@crms.test` (Abuja Main Branch)
+  - `creditofficer@crms.test` (Head Office)
+  - `horeviewer@crms.test` (Head Office)
+  - `admin@crms.test` (Head Office)
+- Default password: `Test@123`
+
+#### GAP-5: North-East zone (ZN-NE) has no branches
+- **File:** `src/CRMS.Infrastructure/Persistence/SeedData.cs`
+- **Fix:** Added 2 branches: Maiduguri Branch (BR-MAI-001) and Bauchi Branch (BR-BAU-001)
+
+**Build:** 0 errors, 19 warnings (pre-existing). **Tests:** All 5 pass.
+
+### Files Modified This Session
+- `src/CRMS.Web.Intranet/Services/AuthService.cs` — LocationId/LocationName mapping
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs` — userLocationId param on CreateApplicationAsync, UpdateUserAsync
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/New.razor` — passes userLocationId
+- `src/CRMS.Web.Intranet/Components/Pages/Admin/Users.razor` — passes locationId to UpdateUserAsync
+- `src/CRMS.Application/Identity/DTOs/AuthDtos.cs` — BranchId→LocationId, added LocationName
+- `src/CRMS.Application/Identity/Commands/RegisterUserCommand.cs` — BranchId→LocationId
+- `src/CRMS.Application/Identity/Commands/UpdateUserCommand.cs` — added LocationId param + SetLocation()
+- `src/CRMS.Application/Identity/Queries/GetUserQuery.cs` — LocationId/LocationName in UserDto
+- `src/CRMS.Infrastructure/Identity/AuthService.cs` — LocationId/LocationName in UserDto
+- `src/CRMS.Infrastructure/DependencyInjection.cs` — registered GetPendingBranchReviewHandler
+- `src/CRMS.Infrastructure/Persistence/SeedData.cs` — SeedTestUsersAsync(), NE zone branches
+- `src/CRMS.Infrastructure/Persistence/Repositories/Location/LocationRepository.cs` — tree-building in GetHierarchyTreeAsync
+- `src/CRMS.Domain/Aggregates/Location/Location.cs` — AddChild() method
+- `src/CRMS.Domain/Services/VisibilityService.cs` — documentation for return value ambiguity
+- `src/CRMS.API/Controllers/LoanApplicationsController.cs` — visibility params from JWT
+- `src/CRMS.API/Controllers/SeedController.cs` — passes passwordHasher to SeedAsync
+- `src/CRMS.API/Program.cs` — passes passwordHasher to SeedAsync
+- `src/CRMS.Web.Intranet/Program.cs` — passes passwordHasher to SeedAsync
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v3.8
+- [x] `docs/ImplementationTracker.md` → v4.3
+
+---
+
+## 5. Previous Session Summary (2026-03-16 Session 17)
 
 ### Completed — Location Hierarchy + Role-Based Visibility Filtering
 
@@ -728,15 +1052,12 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ## 6. Suggested Next Task
 
-### Option A — Location Management Admin Page
+### Option A — Template Management CRUD (`/admin/templates`)
 
-Domain + repository + seed data all exist. Need:
-1. Application layer: `CreateLocationCommand`, `UpdateLocationCommand`, `DeactivateLocationCommand` + handlers
-2. Location query: `GetLocationsQuery` + handler
-3. Admin page `/admin/locations` with tree view (expand/collapse), add/edit/deactivate per level
-4. Update Users admin page to include location picker dropdown (currently BranchId is just a raw GUID)
-
-**Key context:** `ILocationRepository` has all 13 methods ready. `VisibilityService` is wired. `SeedData` creates 21 locations on first run.
+Notification templates page is display-only. Need:
+1. Check if `CreateNotificationTemplateCommand` / `UpdateNotificationTemplateCommand` handlers exist in Application layer
+2. Add `CreateTemplateAsync`, `UpdateTemplateAsync`, `DeleteTemplateAsync` to `ApplicationService`
+3. Wire the Templates page with create/edit modals
 
 ---
 
@@ -746,17 +1067,21 @@ Set real `BaseUrl`, `ClientId`, `ClientSecret` in appsettings (or user-secrets),
 
 ---
 
-### Option C — Fix Remaining Medium Issues (code quality, from Session 5 review)
+### Option C — Bureau Report Detail Modal
 
-1. **M-3**: Migrate `RequestBureauReportCommand` to use `ISmartComplyProvider` instead of legacy `ICreditBureauProvider`
-2. **M-4**: Add distributed/DB lock on `LoanApplicationId` in `ProcessLoanCreditChecksCommand`
-3. **M-5**: Rename `BureauReport.NonPerformingAccounts` → `DelinquentFacilities`
+Add a click-to-expand detail view for individual bureau reports in the BureauTab. Currently shows summary data in the table but no way to see full report details.
 
 ---
 
-### Option D — Connect Report Pages to ReportingService
+### Option D — Guarantor Credit Check Trigger UI
 
-Performance and Committee report pages show mock data. Wire them to the real `ReportingService` query handlers.
+Add a "Run Credit Check" button on the Guarantor tab that triggers bureau checks for individual guarantors. Backend handlers exist but no UI trigger.
+
+---
+
+### Option E — Populate Standing Committee Members from Seed
+
+The 5 standing committees are seeded but have no members assigned. Add test committee member assignments in SeedData using the seeded test users (e.g. `creditofficer@crms.test`, `horeviewer@crms.test`).
 
 **Note:** `dotnet ef database update` requires `Microsoft.EntityFrameworkCore.Design` — use `dotnet run` instead (app runs `MigrateAsync()` on startup automatically).
 

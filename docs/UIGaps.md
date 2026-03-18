@@ -1,8 +1,8 @@
 # CRMS Intranet UI - Gap Analysis
 
-**Document Version:** 3.7
-**Date:** 2026-03-16
-**Status:** Priority 1 RESOLVED | Priority 2 RESOLVED | Priority 3 Pending
+**Document Version:** 4.2
+**Date:** 2026-03-18
+**Status:** Priority 1 RESOLVED | Priority 2 RESOLVED | Priority 3 Mostly Resolved
 
 ---
 
@@ -186,18 +186,37 @@ Business age-based validation now implemented:
 
 | Page | Route | Status | Issues |
 |------|-------|--------|--------|
-| Scoring Config | `/admin/scoring` | Display Only | No edit functionality |
+| Scoring Config | `/admin/scoring` | ✅ Complete | Maker-checker editor, all 9 categories |
 | Templates | `/admin/templates` | Display Only | No CRUD operations |
 | Users | `/admin/users` | ✅ CRUD Complete | Create / Edit / Activate / Deactivate wired to real backend |
 | Products | `/admin/products` | ✅ CRUD Complete | Create / Edit / Enable / Disable wired to real backend |
+| Locations | `/admin/locations` | ✅ CRUD Complete | Tree/list view, create/edit/activate/deactivate |
+| Committees | `/admin/committees` | ✅ CRUD Complete | Standing committees with amount-based routing, member management |
 
 ### 3.2 Report Pages
 
 | Page | Route | Status | Issues |
 |------|-------|--------|--------|
-| Performance | `/reports/performance` | Mock Data | Not connected to `ReportingService` |
-| Committee | `/reports/committee` | Mock Data | Not connected to backend |
+| Performance | `/reports/performance` | ✅ Complete | Wired to ReportingService (Session 20) |
+| Committee | `/reports/committee` | ✅ Complete | Wired to ReportingService (Session 20) |
 | Audit | `/reports/audit` | Partial | Connected but limited filtering |
+
+### 3.3 Application Detail Tabs — All Wired (Session 20)
+
+| Tab | Status | Notes |
+|-----|--------|-------|
+| Overview | ✅ | Real data from GetApplicationDetailAsync |
+| Parties | ✅ | FillPartyInfoModal for null BVN/shareholding |
+| Documents | ✅ | Upload/view/download/verify/reject |
+| Financials | ✅ | 4-step manual entry + Excel upload |
+| Bureau | ✅ | SmartComply integration, fraud risk badges |
+| Statements | ✅ | Auto-fetch + external upload + transaction drill-down |
+| Collateral | ✅ | Full CRUD + valuation + approval + documents |
+| Guarantors | ✅ | Full CRUD + approve/reject |
+| Workflow | ✅ | Wired to GetWorkflowByLoanApplicationHandler (Session 20) |
+| Advisory | ✅ | Wired to GetLatestAdvisoryByLoanApplicationHandler (Session 20) |
+| Committee | ✅ | Wired to backend + voting auth guard + setup modal (Session 20) |
+| Comments | ✅ | Wired to AddCommitteeCommentHandler (Session 20) |
 
 ---
 
@@ -302,10 +321,14 @@ Business age-based validation now implemented:
 1. ~~User management CRUD (create, edit, deactivate)~~ ✅ Done
 2. ~~Product edit/delete~~ ✅ Done
 3. ~~Scoring configuration editor~~ ✅ Done
-4. Template management CRUD
-5. Connect performance/committee report pages to `ReportingService`
-6. Location management admin page (`/admin/locations`) — tree view, add/edit/deactivate
-7. User admin page — location picker dropdown (replace raw GUID BranchId)
+4. Template management CRUD — **Remaining**
+5. ~~Connect performance/committee report pages to `ReportingService`~~ ✅ Done (Session 20)
+6. ~~Location management admin page (`/admin/locations`)~~ ✅ Done
+7. ~~User admin page — location picker dropdown~~ ✅ Done
+8. ~~Application Detail tabs wired to real backend~~ ✅ Done (Session 20 — Workflow, Advisory, Committee, Comments)
+9. ~~Committee voting authorization guard~~ ✅ Done (Session 20)
+10. ~~Committee setup UI (create review + add members)~~ ✅ Done (Session 20)
+11. ~~Standing committee admin + automatic routing~~ ✅ Done (Session 21)
 
 ---
 
@@ -323,3 +346,8 @@ Business age-based validation now implemented:
 | 3.6 | 2026-03-09 | Code quality (M-1 NIN index, M-2 ConsentRecordId index). User CRUD: `UpdateUserCommand`, `ToggleUserStatusCommand`, `ClearRoles()` on `ApplicationUser`; `CreateUserAsync`, `UpdateUserAsync`, `ToggleUserStatusAsync` in `ApplicationService`; `Users.razor` fully wired. Product CRUD: `SuspendLoanProductCommand`, `LoanProductSuspendedEvent`; `CreateLoanProductAsync`, `UpdateLoanProductAsync`, `ToggleLoanProductAsync` in `ApplicationService`; `Products.razor` fully wired. Bug fix: `LoanProductSummaryDto` missing `MinTenorMonths`/`MaxTenorMonths`/`BaseInterestRate` caused hardcoded values in product dropdown — fixed in DTO, mapper, and both service methods. Build: 0 errors. |
 | 3.5 | 2026-03-09 | Bank statement transaction drill-down: `ViewStatementModal.razor` (new) — per-statement transaction list with filter (All/Credits/Debits), live search by description/reference, color-coded category badges, recurring badge, negative balance highlight. `StatementTransactionInfo` model added. `GetStatementTransactionsAsync` added to `ApplicationService`. "View" button added to own-bank card and every external statement row in `StatementsTab`. `Detail.razor` wired. No backend changes needed — `GetStatementTransactionsHandler` was already registered in DI. Build: 0 errors. |
 | 3.7 | 2026-03-16 | Location hierarchy + visibility filtering: `Location` aggregate (4-level: HO→Region→Zone→Branch), `VisibilityScope` enum, `VisibilityService` domain service, `LocationRepository`, EF migration `AddLocationHierarchy`, seed data (21 Nigeria locations). `ApplicationUser.LocationId` replaces `BranchId`. Query handlers filter by visibility scope. `UserInfo.LocationId`/`PrimaryRole` added. `ApplicationService.GetApplicationsByStatusAsync` visibility-aware overload. Applications Index passes user context. Pending: Location admin page, user location picker. Build: 0 errors. |
+| 3.8 | 2026-03-16 | Location/visibility bug fixes (8 bugs + 2 gaps): BUG-1 UserInfo.LocationId populated; BUG-2 new apps get user's branch; BUG-3 UserDto.BranchId→LocationId renamed; BUG-4 GetHierarchyTreeAsync builds tree; BUG-5 UpdateUserCommand has LocationId; BUG-6 API endpoint uses visibility; BUG-7 GetPendingBranchReviewHandler registered in Infrastructure DI; BUG-8 VisibilityService documented; GAP-2 test users seeded with locations (6 users, default pwd Test@123); GAP-5 NE zone now has 2 branches (Maiduguri, Bauchi). Build: 0 errors, tests pass. |
+| 3.9 | 2026-03-16 | Location CRUD Admin UI + User location picker: New `Locations.razor` page at `/admin/locations` with tree view (collapsible hierarchy with icons), list view, search/filter, create/edit/activate/deactivate modals. Application layer: `LocationDtos.cs`, `LocationCommands.cs` (4 commands), `LocationQueries.cs` (5 queries). 9 handlers registered in DI. `ApplicationService` + 8 new methods. `Users.razor` updated with dynamic location picker dropdown replacing hardcoded branch list. Build: 0 errors, tests pass. |
+| 4.0 | 2026-03-18 | Comprehensive UI wiring audit + critical fixes + committee setup. Phase 1: Report pages wired to ReportingService (Performance + Committee); M-3 RequestBureauReportCommand migrated to ISmartComplyProvider; M-5 NonPerformingAccounts→DelinquentFacilities rename (10 files + migration); M-4 in-process concurrency lock; removed mock product fallback. Phase 2: 4 Detail tabs wired to real backend (Workflow, Advisory, Committee, Comments); DownloadDocumentAsync implemented; GetMyPendingTasksAsync fixed (Amount/ProductName); collateral mapping fixed. Phase 3: Committee voting authorization guard (role-based, 3 states); SetupCommitteeModal (2-step wizard: configure committee + add members with roles/chairperson); `CanSetupCommitteeReview` for CreditOfficer role at CommitteeCirculation status. 6 new DI registrations. Build: 0 errors, tests pass. |
+| 4.1 | 2026-03-18 | Standing committee infrastructure + automatic routing. New `StandingCommittee` aggregate with amount thresholds, permanent member rosters, quorum rules. `Committees.razor` admin page at `/admin/committees` with CRUD + member management. `SetupCommitteeModal` rewritten: auto-routes to matching standing committee by loan amount, pre-populates members; falls back to ad-hoc if no match. 5 standing committees seeded (Branch N0-50M, Regional N50-200M, HO N200-500M, Management N500M-2B, Board N2B+). Migration `20260318120000_AddStandingCommittees`. 8 new DI registrations. Build: 0 errors, tests pass. |
+| 4.2 | 2026-03-18 | Overdue functionality bug fix (5 bugs). BUG-1: NavMenu badge counts hardcoded (2,5,1) — now fetched from backend. BUG-2: ReportingService used `IsSLABreached` flag vs repository `SLADueAt < now` — aligned to use `SLADueAt < now`. BUG-3/4: `IsSLABreached` flag never set (no background job) — now irrelevant. BUG-5: NavMenu had no `OnInitializedAsync`. Added 3 count methods to ApplicationService (`GetOverdueCountAsync`, `GetMyQueueCountAsync`, `GetMyPendingVotesCountAsync`). NavMenu now loads real counts on init. Build: 0 errors, tests pass. |

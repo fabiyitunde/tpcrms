@@ -34,7 +34,7 @@ public class BureauReport : AggregateRoot
     public int TotalAccounts { get; private set; }
     public int ActiveLoans { get; private set; } // Currently open facilities (active, not closed)
     public int PerformingAccounts { get; private set; } // Open facilities with no delinquency
-    public int NonPerformingAccounts { get; private set; }
+    public int DelinquentFacilities { get; private set; }
     public int ClosedAccounts { get; private set; }
     public decimal TotalOutstandingBalance { get; private set; }
     public decimal TotalOverdue { get; private set; }
@@ -168,7 +168,7 @@ public class BureauReport : AggregateRoot
         int totalAccounts,
         int activeLoans,
         int performingAccounts,
-        int nonPerformingAccounts,
+        int delinquentFacilities,
         int closedAccounts,
         decimal totalOutstandingBalance,
         decimal totalOverdue,
@@ -185,7 +185,7 @@ public class BureauReport : AggregateRoot
         TotalAccounts = totalAccounts;
         ActiveLoans = activeLoans;
         PerformingAccounts = performingAccounts;
-        NonPerformingAccounts = nonPerformingAccounts;
+        DelinquentFacilities = delinquentFacilities;
         ClosedAccounts = closedAccounts;
         TotalOutstandingBalance = totalOutstandingBalance;
         TotalOverdue = totalOverdue;

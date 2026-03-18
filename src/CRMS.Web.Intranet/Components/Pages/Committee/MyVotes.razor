@@ -254,14 +254,30 @@ else
     private async Task LoadPendingVotes()
     {
         isLoading = true;
-        await Task.Delay(300); // Simulate API call
         
-        pendingVotes =
-        [
-            new() { ApplicationId = Guid.NewGuid(), ReviewId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0156", CustomerName = "Acme Corporation Ltd", Amount = 250_000_000m, CommitteeType = "Credit Committee", RiskRating = "Medium", VotesCast = 2, TotalMembers = 5, Deadline = DateTime.Now.AddDays(1) },
-            new() { ApplicationId = Guid.NewGuid(), ReviewId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0150", CustomerName = "Delta Holdings Plc", Amount = 1_000_000_000m, CommitteeType = "Management Committee", RiskRating = "Low", VotesCast = 1, TotalMembers = 3, Deadline = DateTime.Now.AddDays(2) },
-            new() { ApplicationId = Guid.NewGuid(), ReviewId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0148", CustomerName = "Epsilon Industries", Amount = 500_000_000m, CommitteeType = "Credit Committee", RiskRating = "High", VotesCast = 3, TotalMembers = 5, Deadline = DateTime.Now.AddHours(-5) }
-        ];
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        var reviews = await AppService.GetMyPendingVotesAsync(userId);
+        
+        if (reviews.Any())
+        {
+            pendingVotes = reviews.Select(r => new PendingVote
+            {
+                ApplicationId = r.ApplicationId,
+                ReviewId = r.ReviewId,
+                ApplicationNumber = r.ApplicationNumber,
+                CustomerName = r.CustomerName ?? "N/A",
+                Amount = r.Amount,
+                CommitteeType = r.CommitteeType,
+                RiskRating = "Medium", // TODO: Get from advisory when available
+                VotesCast = r.VotesCast,
+                TotalMembers = r.TotalMembers,
+                Deadline = r.DueDate
+            }).ToList();
+        }
+        else
+        {
+            pendingVotes = [];
+        }
         
         isLoading = false;
     }

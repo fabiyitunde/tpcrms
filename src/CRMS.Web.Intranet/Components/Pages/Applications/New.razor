@@ -680,17 +680,6 @@
     protected override async Task OnInitializedAsync()
     {
         products = await AppService.GetLoanProductsAsync();
-        
-        // Mock products if empty
-        if (!products.Any())
-        {
-            products = 
-            [
-                new() { Id = Guid.NewGuid(), Name = "Corporate Term Loan", Code = "CTL", MinAmount = 10_000_000, MaxAmount = 5_000_000_000, MinTenorMonths = 12, MaxTenorMonths = 60, BaseInterestRate = 18.5m, IsActive = true },
-                new() { Id = Guid.NewGuid(), Name = "Working Capital Finance", Code = "WCF", MinAmount = 5_000_000, MaxAmount = 500_000_000, MinTenorMonths = 3, MaxTenorMonths = 12, BaseInterestRate = 20m, IsActive = true },
-                new() { Id = Guid.NewGuid(), Name = "Asset Finance", Code = "ASF", MinAmount = 20_000_000, MaxAmount = 2_000_000_000, MinTenorMonths = 24, MaxTenorMonths = 84, BaseInterestRate = 17m, IsActive = true }
-            ];
-        }
     }
 
     private void GoBack() => Navigation.NavigateTo("/applications");
@@ -828,7 +817,8 @@
                 }).ToList();
             }
 
-            var result = await AppService.CreateApplicationAsync(request, request.ProductId, productCode, userId);
+            var userLocationId = AuthService.CurrentUser?.LocationId;
+            var result = await AppService.CreateApplicationAsync(request, request.ProductId, productCode, userId, userLocationId);
             
             if (result.Success)
             {

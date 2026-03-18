@@ -15,7 +15,7 @@ public record BureauReportDto(
     int TotalAccounts,
     int ActiveLoans,
     int PerformingAccounts,
-    int NonPerformingAccounts,
+    int DelinquentFacilities,
     int ClosedAccounts,
     decimal TotalOutstandingBalance,
     decimal TotalOverdue,

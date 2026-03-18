@@ -11,7 +11,7 @@ public record RequestBureauReportCommand(
     string SubjectName,
     Guid RequestedByUserId,
     Guid ConsentRecordId,
-    CreditBureauProvider Provider = CreditBureauProvider.CreditRegistry,
+    CreditBureauProvider Provider = CreditBureauProvider.SmartComply,
     Guid? LoanApplicationId = null,
     bool IncludePdf = false
 ) : IRequest<ApplicationResult<BureauReportDto>>;
@@ -20,24 +20,23 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
 {
     private readonly IBureauReportRepository _repository;
     private readonly IConsentRecordRepository _consentRepository;
-    private readonly ICreditBureauProvider _bureauProvider;
+    private readonly ISmartComplyProvider _smartComplyProvider;
     private readonly IUnitOfWork _unitOfWork;
 
     public RequestBureauReportHandler(
         IBureauReportRepository repository,
         IConsentRecordRepository consentRepository,
-        ICreditBureauProvider bureauProvider,
+        ISmartComplyProvider smartComplyProvider,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
         _consentRepository = consentRepository;
-        _bureauProvider = bureauProvider;
+        _smartComplyProvider = smartComplyProvider;
         _unitOfWork = unitOfWork;
     }
 
     public async Task<ApplicationResult<BureauReportDto>> Handle(RequestBureauReportCommand request, CancellationToken ct = default)
     {
-        // NDPA Compliance: Validate consent before any bureau access
         var consent = await _consentRepository.GetByIdAsync(request.ConsentRecordId, ct);
         if (consent == null)
             return ApplicationResult<BureauReportDto>.Failure(
@@ -51,9 +50,8 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
             return ApplicationResult<BureauReportDto>.Failure(
                 "Consent type does not authorize credit bureau access. Required: CreditBureauCheck.");
 
-        // Create the report entity (consent ID is required for NDPA compliance)
         var reportResult = BureauReport.Create(
-            request.Provider,
+            CreditBureauProvider.SmartComply,
             SubjectType.Individual,
             request.SubjectName,
             request.BVN,
@@ -61,7 +59,7 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
             request.ConsentRecordId,
             request.LoanApplicationId,
             taxId: null,
-            partyId: null, // Not available in this context
+            partyId: null,
             partyType: null
         );
 
@@ -74,93 +72,69 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
         await _repository.AddAsync(report, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        // Search for subject by BVN
-        var searchResult = await _bureauProvider.SearchByBVNAsync(request.BVN, ct);
-        if (searchResult.IsFailure)
+        var creditResult = await _smartComplyProvider.GetCRCFullAsync(request.BVN, ct);
+        if (creditResult.IsFailure)
         {
-            report.MarkFailed(searchResult.Error);
+            report.MarkFailed(creditResult.Error);
             _repository.Update(report);
             await _unitOfWork.SaveChangesAsync(ct);
-            return ApplicationResult<BureauReportDto>.Failure(searchResult.Error);
+            return ApplicationResult<BureauReportDto>.Failure(creditResult.Error);
         }
 
-        if (!searchResult.Value.Found || string.IsNullOrEmpty(searchResult.Value.RegistryId))
-        {
-            report.MarkNotFound();
-            _repository.Update(report);
-            await _unitOfWork.SaveChangesAsync(ct);
-            return ApplicationResult<BureauReportDto>.Failure("Subject not found in credit bureau");
-        }
+        var creditData = creditResult.Value;
+        var summary = creditData.Summary;
 
-        // Get full credit report
-        var reportDataResult = await _bureauProvider.GetCreditReportAsync(searchResult.Value.RegistryId, request.IncludePdf, ct);
-        if (reportDataResult.IsFailure)
-        {
-            report.MarkFailed(reportDataResult.Error);
-            _repository.Update(report);
-            await _unitOfWork.SaveChangesAsync(ct);
-            return ApplicationResult<BureauReportDto>.Failure(reportDataResult.Error);
-        }
-
-        var reportData = reportDataResult.Value;
-
-        // Complete the report with data
         report.CompleteWithData(
-            registryId: reportData.RegistryId,
-            creditScore: reportData.CreditScore,
-            scoreGrade: reportData.ScoreGrade,
-            reportDate: reportData.ReportDate,
-            rawResponseJson: reportData.RawJson,
-            pdfReportBase64: reportData.PdfBase64,
-            totalAccounts: reportData.Summary.TotalAccounts,
-            activeLoans: reportData.Summary.ActiveLoans,
-            performingAccounts: reportData.Summary.PerformingAccounts,
-            nonPerformingAccounts: reportData.Summary.NonPerformingAccounts,
-            closedAccounts: reportData.Summary.ClosedAccounts,
-            totalOutstandingBalance: reportData.Summary.TotalOutstandingBalance,
-            totalOverdue: reportData.Summary.TotalOverdue,
-            totalCreditLimit: reportData.Summary.TotalCreditLimit,
-            maxDelinquencyDays: reportData.Summary.MaxDelinquencyDays,
-            hasLegalActions: reportData.Summary.HasLegalActions
+            registryId: creditData.Id ?? request.BVN,
+            creditScore: null,
+            scoreGrade: null,
+            reportDate: creditData.SearchedDate ?? DateTime.UtcNow,
+            rawResponseJson: null,
+            pdfReportBase64: null,
+            totalAccounts: summary.TotalNoOfLoans,
+            activeLoans: summary.TotalNoOfActiveLoans,
+            performingAccounts: summary.TotalNoOfPerformingLoans,
+            delinquentFacilities: summary.TotalNoOfDelinquentFacilities,
+            closedAccounts: summary.TotalNoOfClosedLoans,
+            totalOutstandingBalance: summary.TotalOutstanding,
+            totalOverdue: summary.TotalOverdue,
+            totalCreditLimit: summary.TotalBorrowed,
+            maxDelinquencyDays: summary.MaxNoOfDays,
+            hasLegalActions: false
         );
 
-        // Add accounts
-        foreach (var acc in reportData.Accounts)
+        foreach (var loan in creditData.LoanPerformance)
         {
+            var status = loan.PerformanceStatus?.ToLowerInvariant() switch
+            {
+                "performing" => AccountStatus.Performing,
+                "non-performing" or "nonperforming" or "delinquent" => AccountStatus.NonPerforming,
+                "closed" => AccountStatus.Closed,
+                "written off" or "writtenoff" => AccountStatus.WrittenOff,
+                _ => AccountStatus.Unknown
+            };
+
             var account = BureauAccount.Create(
                 report.Id,
-                acc.AccountNumber,
-                acc.CreditorName,
-                acc.AccountType,
-                ParseAccountStatus(acc.Status),
-                ParseDelinquencyLevel(acc.DelinquencyDays),
-                acc.CreditLimit,
-                acc.Balance,
-                acc.MinimumPayment,
-                acc.DateOpened,
-                acc.DateClosed,
-                acc.LastPaymentDate,
-                acc.LastPaymentAmount,
-                acc.PaymentProfile,
-                ParseLegalStatus(acc.LegalStatus),
-                acc.LegalStatusDate,
-                acc.Currency,
-                acc.LastUpdated
+                loan.AccountNumber ?? "N/A",
+                loan.LoanProvider,
+                loan.Type,
+                status,
+                ParseDelinquencyLevel(0),
+                loan.LoanAmount,
+                loan.OutstandingBalance,
+                null,
+                loan.DateAccountOpened,
+                null,
+                loan.LastUpdatedAt,
+                null,
+                loan.PaymentProfile,
+                LegalStatus.None,
+                null,
+                "NGN",
+                loan.LastUpdatedAt ?? DateTime.UtcNow
             );
             report.AddAccount(account);
-        }
-
-        // Add score factors
-        foreach (var factor in reportData.ScoreFactors)
-        {
-            var scoreFactor = BureauScoreFactor.Create(
-                report.Id,
-                factor.FactorCode,
-                factor.Description,
-                factor.Impact,
-                factor.Rank
-            );
-            report.AddScoreFactor(scoreFactor);
         }
 
         _repository.Update(report);
@@ -168,15 +142,6 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
 
         return ApplicationResult<BureauReportDto>.Success(MapToDto(report));
     }
-
-    private static AccountStatus ParseAccountStatus(string status) => status switch
-    {
-        "Performing" => AccountStatus.Performing,
-        "NonPerforming" => AccountStatus.NonPerforming,
-        "WrittenOff" => AccountStatus.WrittenOff,
-        "Closed" => AccountStatus.Closed,
-        _ => AccountStatus.Unknown
-    };
 
     private static DelinquencyLevel ParseDelinquencyLevel(int days) => days switch
     {
@@ -189,15 +154,6 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
         <= 180 => DelinquencyLevel.Days151To180,
         <= 360 => DelinquencyLevel.Days181To360,
         _ => DelinquencyLevel.Over360Days
-    };
-
-    private static LegalStatus ParseLegalStatus(string? status) => status?.ToLowerInvariant() switch
-    {
-        "litigation" => LegalStatus.Litigation,
-        "foreclosure" => LegalStatus.Foreclosure,
-        "bankruptcy" => LegalStatus.Bankruptcy,
-        null or "" or "none" => LegalStatus.None,
-        _ => LegalStatus.Other
     };
 
     private static BureauReportDto MapToDto(BureauReport r) => new(
@@ -215,7 +171,7 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
         r.TotalAccounts,
         r.ActiveLoans,
         r.PerformingAccounts,
-        r.NonPerformingAccounts,
+        r.DelinquentFacilities,
         r.ClosedAccounts,
         r.TotalOutstandingBalance,
         r.TotalOverdue,

@@ -10,13 +10,13 @@
         <p class="page-subtitle">Portfolio performance and insights</p>
     </div>
     <div style="display: flex; gap: var(--space-3);">
-        <select class="form-control" style="width: 150px;" @bind="selectedPeriod">
+        <select class="form-control" style="width: 150px;" value="@selectedPeriod" @onchange="OnPeriodChanged">
             <option value="7">Last 7 days</option>
             <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
             <option value="365">Last year</option>
         </select>
-        <button class="btn btn-secondary">
+        <button class="btn btn-secondary" disabled title="Export functionality coming soon">
             <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
             Export
         </button>
@@ -31,7 +31,7 @@
         <div class="stat-content">
             <div class="stat-label">Applications Received</div>
             <div class="stat-value">@metrics.ApplicationsReceived</div>
-            <div class="stat-change positive">+@metrics.ApplicationsGrowth% vs prev period</div>
+            <div class="stat-change @(metrics.ApplicationsGrowth >= 0 ? "positive" : "negative")">@(metrics.ApplicationsGrowth >= 0 ? "+" : "")@metrics.ApplicationsGrowth% vs prev period</div>
         </div>
     </div>
     <div class="stat-card">
@@ -63,7 +63,7 @@
         <div class="stat-content">
             <div class="stat-label">Disbursed Amount</div>
             <div class="stat-value">₦@FormatAmount(metrics.DisbursedAmount)</div>
-            <div class="stat-change positive">+@metrics.DisbursementGrowth% vs prev period</div>
+            <div class="stat-change @(metrics.DisbursementGrowth >= 0 ? "positive" : "negative")">@(metrics.DisbursementGrowth >= 0 ? "+" : "")@metrics.DisbursementGrowth% vs prev period</div>
         </div>
     </div>
 </div>
@@ -320,33 +320,71 @@
     private List<FunnelStage> funnelData = [];
     private List<ProductPortfolio> portfolioByProduct = [];
     private DecisionDistribution decisionDistribution = new();
-    private int slaCompliance = 87;
-    private int withinSla = 145;
-    private int breachedSla = 22;
+    private int slaCompliance = 100;
+    private int withinSla = 0;
+    private int breachedSla = 0;
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadReportingDataAsync();
     }
 
+    private async Task OnPeriodChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var period))
+        {
+            selectedPeriod = period;
+            await LoadReportingDataAsync();
+        }
+    }
+
     private async Task LoadReportingDataAsync()
     {
+        isLoading = true;
         try
         {
-            var dbMetrics = await AppService.GetReportingMetricsAsync();
-            if (dbMetrics.ApplicationsReceived > 0)
+            var data = await AppService.GetEnhancedReportingDataAsync(selectedPeriod);
+            if (data.ApplicationsReceived > 0)
             {
                 metrics = new()
                 {
-                    ApplicationsReceived = dbMetrics.ApplicationsReceived,
-                    ApplicationsGrowth = 12, // Calculated from trend
-                    Approved = dbMetrics.Approved,
-                    ApprovalRate = dbMetrics.ApprovalRate,
-                    AvgProcessingDays = dbMetrics.AvgProcessingDays,
-                    ProcessingImprovement = 1,
-                    DisbursedAmount = dbMetrics.DisbursedAmount,
-                    DisbursementGrowth = 18
+                    ApplicationsReceived = data.ApplicationsReceived,
+                    ApplicationsGrowth = data.ApplicationsGrowth,
+                    Approved = data.Approved,
+                    ApprovalRate = data.ApprovalRate,
+                    AvgProcessingDays = data.AvgProcessingDays,
+                    ProcessingImprovement = data.ProcessingImprovement,
+                    DisbursedAmount = data.DisbursedAmount,
+                    DisbursementGrowth = data.DisbursementGrowth
                 };
+                
+                // Use real funnel data if available
+                funnelData = data.FunnelStages.Any() 
+                    ? data.FunnelStages.Select(f => new FunnelStage { Stage = f.Stage, Count = f.Count, Percentage = f.Percentage }).ToList()
+                    : GetDefaultFunnelData();
+                
+                // Use real portfolio data if available
+                portfolioByProduct = data.PortfolioByProduct.Any()
+                    ? data.PortfolioByProduct.Select(p => new ProductPortfolio { ProductName = p.ProductName, Count = p.Count, Amount = p.Amount }).ToList()
+                    : GetDefaultPortfolioData();
+                
+                // Calculate decision distribution from real data
+                var total = data.ApplicationsReceived > 0 ? data.ApplicationsReceived : 1;
+                decisionDistribution = new()
+                {
+                    Approved = data.Approved,
+                    Rejected = data.Rejected,
+                    Pending = data.InReview,
+                    ApprovedPercent = (int)Math.Round((decimal)data.Approved / total * 100),
+                    RejectedPercent = (int)Math.Round((decimal)data.Rejected / total * 100),
+                    PendingPercent = (int)Math.Round((decimal)data.InReview / total * 100)
+                };
+                
+                // SLA metrics from real data
+                slaCompliance = data.SlaCompliance;
+                withinSla = data.WithinSla;
+                breachedSla = data.BreachedSla;
             }
             else
             {
@@ -357,38 +395,24 @@
         {
             LoadMockData();
         }
-        
-        // These would need additional service methods to fully populate
-        funnelData =
-        [
-            new() { Stage = "Received", Count = metrics.ApplicationsReceived, Percentage = 100 },
-            new() { Stage = "Branch Review", Count = (int)(metrics.ApplicationsReceived * 0.91), Percentage = 91 },
-            new() { Stage = "Credit Analysis", Count = (int)(metrics.ApplicationsReceived * 0.80), Percentage = 80 },
-            new() { Stage = "Committee", Count = (int)(metrics.ApplicationsReceived * 0.63), Percentage = 63 },
-            new() { Stage = "Approved", Count = metrics.Approved, Percentage = metrics.ApprovalRate },
-            new() { Stage = "Disbursed", Count = (int)(metrics.Approved * 0.76), Percentage = 33 }
-        ];
-
-        portfolioByProduct =
-        [
-            new() { ProductName = "Corporate Term Loan", Count = 45, Amount = 1_250_000_000m },
-            new() { ProductName = "Working Capital", Count = 62, Amount = 680_000_000m },
-            new() { ProductName = "Asset Finance", Count = 28, Amount = 420_000_000m },
-            new() { ProductName = "Trade Finance", Count = 21, Amount = 100_000_000m }
-        ];
-
-        var total = metrics.ApplicationsReceived > 0 ? metrics.ApplicationsReceived : 156;
-        var rejected = total - metrics.Approved - (int)(total * 0.43);
-        decisionDistribution = new()
-        {
-            Approved = metrics.Approved,
-            Rejected = rejected > 0 ? rejected : 20,
-            Pending = (int)(total * 0.43),
-            ApprovedPercent = metrics.ApprovalRate > 0 ? metrics.ApprovalRate : 44,
-            RejectedPercent = 13,
-            PendingPercent = 43
-        };
+        isLoading = false;
     }
+
+    private List<FunnelStage> GetDefaultFunnelData() =>
+    [
+        new() { Stage = "Received", Count = metrics.ApplicationsReceived, Percentage = 100 },
+        new() { Stage = "In Review", Count = (int)(metrics.ApplicationsReceived * 0.85), Percentage = 85 },
+        new() { Stage = "Approved", Count = metrics.Approved, Percentage = metrics.ApprovalRate },
+        new() { Stage = "Disbursed", Count = (int)(metrics.Approved * 0.76), Percentage = 33 }
+    ];
+
+    private List<ProductPortfolio> GetDefaultPortfolioData() =>
+    [
+        new() { ProductName = "Corporate Term Loan", Count = 45, Amount = 1_250_000_000m },
+        new() { ProductName = "Working Capital", Count = 62, Amount = 680_000_000m },
+        new() { ProductName = "Asset Finance", Count = 28, Amount = 420_000_000m },
+        new() { ProductName = "Trade Finance", Count = 21, Amount = 100_000_000m }
+    ];
 
     private void LoadMockData()
     {
@@ -403,6 +427,22 @@
             DisbursedAmount = 2_450_000_000m,
             DisbursementGrowth = 18
         };
+        funnelData = GetDefaultFunnelData();
+        portfolioByProduct = GetDefaultPortfolioData();
+        
+        decisionDistribution = new()
+        {
+            Approved = 68,
+            Rejected = 20,
+            Pending = 68,
+            ApprovedPercent = 44,
+            RejectedPercent = 13,
+            PendingPercent = 43
+        };
+        
+        slaCompliance = 87;
+        withinSla = 145;
+        breachedSla = 22;
     }
 
     private static string FormatAmount(decimal amount)

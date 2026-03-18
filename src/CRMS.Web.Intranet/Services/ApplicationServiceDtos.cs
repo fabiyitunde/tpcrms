@@ -354,6 +354,36 @@
 
         public decimal DisbursedAmount { get; set; }
     }
+    public class EnhancedReportingData
+    {
+        public int ApplicationsReceived { get; set; }
+        public int ApplicationsGrowth { get; set; }
+        public int Approved { get; set; }
+        public int ApprovalRate { get; set; }
+        public decimal AvgProcessingDays { get; set; }
+        public int ProcessingImprovement { get; set; }
+        public decimal DisbursedAmount { get; set; }
+        public int DisbursementGrowth { get; set; }
+        public int Rejected { get; set; }
+        public int InReview { get; set; }
+        public List<FunnelStageData> FunnelStages { get; set; } = new();
+        public List<ProductPortfolioData> PortfolioByProduct { get; set; } = new();
+        public int SlaCompliance { get; set; }
+        public int WithinSla { get; set; }
+        public int BreachedSla { get; set; }
+    }
+    public class FunnelStageData
+    {
+        public string Stage { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public int Percentage { get; set; }
+    }
+    public class ProductPortfolioData
+    {
+        public string ProductName { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal Amount { get; set; }
+    }
     public class CommitteeReviewSummary
     {
         public Guid ReviewId { get; set; }
@@ -366,6 +396,8 @@
 
         public decimal RequestedAmount { get; set; }
 
+        public decimal Amount { get; set; }
+
         public string CommitteeType { get; set; } = string.Empty;
 
         public string Status { get; set; } = string.Empty;
@@ -377,6 +409,10 @@
         public bool HasVoted { get; set; }
 
         public string? MyVote { get; set; }
+
+        public int VotesCast { get; set; }
+
+        public int TotalMembers { get; set; }
     }
     public class WorkflowQueueItem
     {
@@ -399,6 +435,20 @@
         public int Count { get; set; }
 
         public int OverdueCount { get; set; }
+    }
+    public class OverdueWorkflowItem
+    {
+        public Guid ApplicationId { get; set; }
+
+        public string ApplicationNumber { get; set; } = string.Empty;
+
+        public string CustomerName { get; set; } = string.Empty;
+
+        public string Stage { get; set; } = string.Empty;
+
+        public string AssignedTo { get; set; } = string.Empty;
+
+        public DateTime SLABreachedAt { get; set; }
     }
     public class LoanPackResult
     {
@@ -622,6 +672,77 @@
         public bool IsVerified { get; set; }
 
         public DateTime UploadedAt { get; set; }
+    }
+
+    public class PerformanceReportData
+    {
+        public decimal AvgProcessingTimeDays { get; set; }
+        public decimal PrevAvgProcessingTimeDays { get; set; }
+        public decimal SlaComplianceRate { get; set; }
+        public decimal PrevSlaComplianceRate { get; set; }
+        public int ApplicationsProcessed { get; set; }
+        public int PrevApplicationsProcessed { get; set; }
+        public int SlaBreaches { get; set; }
+        public List<StagePerformanceData> StagePerformance { get; set; } = [];
+        public List<PerformerData> TopPerformers { get; set; } = [];
+        public List<TeamPerformanceData> TeamPerformance { get; set; } = [];
+    }
+
+    public class StagePerformanceData
+    {
+        public string Name { get; set; } = string.Empty;
+        public decimal TargetHours { get; set; }
+        public decimal ActualHours { get; set; }
+    }
+
+    public class PerformerData
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Initials { get; set; } = string.Empty;
+        public int ProcessedCount { get; set; }
+        public decimal AvgHours { get; set; }
+        public int SlaCompliance { get; set; }
+    }
+
+    public class TeamPerformanceData
+    {
+        public string Name { get; set; } = string.Empty;
+        public int MemberCount { get; set; }
+        public int TotalProcessed { get; set; }
+        public decimal AvgHours { get; set; }
+        public int SlaCompliance { get; set; }
+        public bool TrendUp { get; set; }
+    }
+
+    public class CommitteeReportData
+    {
+        public int TotalReviews { get; set; }
+        public int Approved { get; set; }
+        public int Rejected { get; set; }
+        public decimal ApprovalRate { get; set; }
+        public decimal AvgReviewDays { get; set; }
+        public List<CommitteeTypeData> ByCommitteeType { get; set; } = [];
+        public List<CommitteeMemberData> MemberStats { get; set; } = [];
+    }
+
+    public class CommitteeTypeData
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Reviews { get; set; }
+        public int Approved { get; set; }
+        public int Rejected { get; set; }
+        public decimal ApprovalRate { get; set; }
+        public decimal AvgReviewDays { get; set; }
+    }
+
+    public class CommitteeMemberData
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Initials { get; set; } = string.Empty;
+        public int VotesCast { get; set; }
+        public int ApproveVotes { get; set; }
+        public int RejectVotes { get; set; }
+        public decimal ParticipationRate { get; set; }
     }
 
 

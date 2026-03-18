@@ -40,7 +40,7 @@ public class GetBureauReportByIdHandler : IRequestHandler<GetBureauReportByIdQue
         r.TotalAccounts,
         r.ActiveLoans,
         r.PerformingAccounts,
-        r.NonPerformingAccounts,
+        r.DelinquentFacilities,
         r.ClosedAccounts,
         r.TotalOutstandingBalance,
         r.TotalOverdue,
@@ -110,30 +110,33 @@ public record SearchBureauByBVNQuery(string BVN) : IRequest<ApplicationResult<Bu
 
 public class SearchBureauByBVNHandler : IRequestHandler<SearchBureauByBVNQuery, ApplicationResult<BureauSearchResultDto>>
 {
-    private readonly ICreditBureauProvider _bureauProvider;
+    private readonly ISmartComplyProvider _smartComplyProvider;
 
-    public SearchBureauByBVNHandler(ICreditBureauProvider bureauProvider)
+    public SearchBureauByBVNHandler(ISmartComplyProvider smartComplyProvider)
     {
-        _bureauProvider = bureauProvider;
+        _smartComplyProvider = smartComplyProvider;
     }
 
     public async Task<ApplicationResult<BureauSearchResultDto>> Handle(SearchBureauByBVNQuery request, CancellationToken ct = default)
     {
-        var result = await _bureauProvider.SearchByBVNAsync(request.BVN, ct);
+        var result = await _smartComplyProvider.VerifyBvnAsync(request.BVN, ct);
         if (result.IsFailure)
             return ApplicationResult<BureauSearchResultDto>.Failure(result.Error);
 
-        var search = result.Value;
+        var bvnData = result.Value;
+        var fullName = string.Join(" ", new[] { bvnData.FirstName, bvnData.MiddleName, bvnData.LastName }
+            .Where(n => !string.IsNullOrWhiteSpace(n)));
+
         return ApplicationResult<BureauSearchResultDto>.Success(new BureauSearchResultDto(
-            search.Found,
-            search.RegistryId,
-            search.FullName,
-            search.BVN,
-            search.DateOfBirth,
-            search.Gender,
-            search.Phone,
-            search.Email,
-            search.Address
+            Found: !string.IsNullOrWhiteSpace(fullName),
+            RegistryId: request.BVN,
+            FullName: fullName,
+            BVN: request.BVN,
+            DateOfBirth: bvnData.DateOfBirth,
+            Gender: null,
+            Phone: bvnData.PhoneNumber,
+            Email: null,
+            Address: null
         ));
     }
 }

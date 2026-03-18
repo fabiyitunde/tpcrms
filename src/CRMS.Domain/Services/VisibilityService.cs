@@ -22,7 +22,16 @@ public class VisibilityService
     /// <param name="userLocationId">The user's assigned location ID (can be null for HO users)</param>
     /// <param name="userRole">The user's primary role</param>
     /// <param name="ct">Cancellation token</param>
-    /// <returns>List of branch IDs the user can access. Empty list means NO access, null means GLOBAL access.</returns>
+    /// <returns>
+    /// - null: GLOBAL access (no branch filtering needed, show all)
+    /// - empty list []: Two possible meanings depending on context:
+    ///   1. VisibilityScope.Own: Filter by InitiatedByUserId at query level, not by branch
+    ///   2. User has no LocationId assigned with Branch/Zone/Region scope: No access, show nothing
+    /// - non-empty list: Filter by BranchId IN (list)
+    /// 
+    /// IMPORTANT: Callers must check VisibilityScope BEFORE interpreting an empty list.
+    /// For Own scope, empty list means "filter by user"; for Branch+ scopes with no location, it means "no access".
+    /// </returns>
     public async Task<IReadOnlyList<Guid>?> GetVisibleBranchIdsAsync(
         Guid? userLocationId,
         string userRole,
@@ -35,12 +44,13 @@ public class VisibilityService
             return null;
 
         // Own visibility - this should be handled at the query level by filtering by InitiatedByUserId
+        // Callers MUST check the scope before calling this method and handle Own scope separately
         if (scope == VisibilityScope.Own)
-            return []; // Empty list means filter by user, not branch
+            return []; // Empty list for Own scope - caller must filter by user instead
 
-        // Branch-level visibility
+        // Branch/Zone/Region visibility
         if (!userLocationId.HasValue)
-            return []; // No location assigned - can't see anything
+            return []; // No location assigned - can't see anything (empty = no access)
 
         // Get all descendant branches from the user's location
         return await _locationRepository.GetDescendantBranchIdsAsync(userLocationId.Value, ct);

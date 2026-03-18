@@ -11,132 +11,172 @@ namespace CRMS.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.RenameColumn(
-                name: "BranchId",
-                table: "Users",
-                newName: "LocationId");
+            // All operations are idempotent to handle partial migration runs
+            
+            // 1. Handle Users.BranchId -> LocationId rename/add
+            migrationBuilder.Sql(@"
+                SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users' AND COLUMN_NAME = 'BranchId');
+                SET @sql = IF(@col_exists > 0, 
+                    'ALTER TABLE `Users` RENAME COLUMN `BranchId` TO `LocationId`',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
+            
+            migrationBuilder.Sql(@"
+                SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users' AND COLUMN_NAME = 'LocationId');
+                SET @sql = IF(@col_exists = 0, 
+                    'ALTER TABLE `Users` ADD COLUMN `LocationId` char(36) NULL',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            migrationBuilder.AlterColumn<decimal>(
-                name: "TotalOverdue",
-                table: "BureauReports",
-                type: "decimal(18,2)",
-                precision: 18,
-                scale: 2,
-                nullable: false,
-                oldClrType: typeof(decimal),
-                oldType: "decimal(65,30)");
+            // 2. Create Locations table if not exists
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS `Locations` (
+                    `Id` char(36) COLLATE ascii_general_ci NOT NULL,
+                    `Code` varchar(20) CHARACTER SET utf8mb4 NOT NULL,
+                    `Name` varchar(100) CHARACTER SET utf8mb4 NOT NULL,
+                    `Type` int NOT NULL,
+                    `ParentLocationId` char(36) COLLATE ascii_general_ci NULL,
+                    `IsActive` tinyint(1) NOT NULL,
+                    `Address` varchar(500) CHARACTER SET utf8mb4 NULL,
+                    `ManagerName` varchar(100) CHARACTER SET utf8mb4 NULL,
+                    `ContactPhone` varchar(20) CHARACTER SET utf8mb4 NULL,
+                    `ContactEmail` varchar(100) CHARACTER SET utf8mb4 NULL,
+                    `SortOrder` int NOT NULL DEFAULT 0,
+                    `CreatedAt` datetime(6) NOT NULL,
+                    `CreatedBy` longtext CHARACTER SET utf8mb4 NOT NULL,
+                    `ModifiedAt` datetime(6) NULL,
+                    `ModifiedBy` longtext CHARACTER SET utf8mb4 NULL,
+                    CONSTRAINT `PK_Locations` PRIMARY KEY (`Id`)
+                ) CHARACTER SET=utf8mb4;
+            ");
 
-            migrationBuilder.AlterColumn<string>(
-                name: "FraudRecommendation",
-                table: "BureauReports",
-                type: "varchar(1000)",
-                maxLength: 1000,
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "longtext",
-                oldNullable: true)
-                .Annotation("MySql:CharSet", "utf8mb4")
-                .OldAnnotation("MySql:CharSet", "utf8mb4");
+            // 3. Add FK on Locations.ParentLocationId if not exists
+            migrationBuilder.Sql(@"
+                SET @fk_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Locations' AND CONSTRAINT_NAME = 'FK_Locations_Locations_ParentLocationId');
+                SET @sql = IF(@fk_exists = 0, 
+                    'ALTER TABLE `Locations` ADD CONSTRAINT `FK_Locations_Locations_ParentLocationId` FOREIGN KEY (`ParentLocationId`) REFERENCES `Locations` (`Id`) ON DELETE RESTRICT',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            migrationBuilder.AlterColumn<string>(
-                name: "FraudCheckRawJson",
-                table: "BureauReports",
-                type: "LONGTEXT",
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "longtext",
-                oldNullable: true)
-                .Annotation("MySql:CharSet", "utf8mb4")
-                .OldAnnotation("MySql:CharSet", "utf8mb4");
+            // 4. Create indexes if not exist (MySQL ignores CREATE INDEX IF NOT EXISTS, use procedure)
+            migrationBuilder.Sql(@"
+                SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users' AND INDEX_NAME = 'IX_Users_LocationId');
+                SET @sql = IF(@idx_exists = 0, 
+                    'CREATE INDEX `IX_Users_LocationId` ON `Users` (`LocationId`)',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            migrationBuilder.CreateTable(
-                name: "Locations",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    Code = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Name = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Type = table.Column<int>(type: "int", nullable: false),
-                    ParentLocationId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "ascii_general_ci"),
-                    IsActive = table.Column<bool>(type: "tinyint(1)", nullable: false),
-                    Address = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    ManagerName = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    ContactPhone = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    ContactEmail = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    SortOrder = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
-                    CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
-                    CreatedBy = table.Column<string>(type: "longtext", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    ModifiedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
-                    ModifiedBy = table.Column<string>(type: "longtext", nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4")
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Locations", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_Locations_Locations_ParentLocationId",
-                        column: x => x.ParentLocationId,
-                        principalTable: "Locations",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                })
-                .Annotation("MySql:CharSet", "utf8mb4");
+            migrationBuilder.Sql(@"
+                SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ConsentRecords' AND INDEX_NAME = 'IX_ConsentRecords_NIN');
+                SET @sql = IF(@idx_exists = 0, 
+                    'CREATE INDEX `IX_ConsentRecords_NIN` ON `ConsentRecords` (`NIN`)',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_LocationId",
-                table: "Users",
-                column: "LocationId");
+            migrationBuilder.Sql(@"
+                SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'BureauReports' AND INDEX_NAME = 'IX_BureauReports_ConsentRecordId');
+                SET @sql = IF(@idx_exists = 0, 
+                    'CREATE INDEX `IX_BureauReports_ConsentRecordId` ON `BureauReports` (`ConsentRecordId`)',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_ConsentRecords_NIN",
-                table: "ConsentRecords",
-                column: "NIN");
+            migrationBuilder.Sql(@"
+                SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Locations' AND INDEX_NAME = 'IX_Locations_Code');
+                SET @sql = IF(@idx_exists = 0, 
+                    'CREATE UNIQUE INDEX `IX_Locations_Code` ON `Locations` (`Code`)',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_BureauReports_ConsentRecordId",
-                table: "BureauReports",
-                column: "ConsentRecordId");
+            migrationBuilder.Sql(@"
+                SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Locations' AND INDEX_NAME = 'IX_Locations_IsActive');
+                SET @sql = IF(@idx_exists = 0, 
+                    'CREATE INDEX `IX_Locations_IsActive` ON `Locations` (`IsActive`)',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Locations_Code",
-                table: "Locations",
-                column: "Code",
-                unique: true);
+            migrationBuilder.Sql(@"
+                SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Locations' AND INDEX_NAME = 'IX_Locations_ParentLocationId');
+                SET @sql = IF(@idx_exists = 0, 
+                    'CREATE INDEX `IX_Locations_ParentLocationId` ON `Locations` (`ParentLocationId`)',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Locations_IsActive",
-                table: "Locations",
-                column: "IsActive");
+            migrationBuilder.Sql(@"
+                SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Locations' AND INDEX_NAME = 'IX_Locations_Type');
+                SET @sql = IF(@idx_exists = 0, 
+                    'CREATE INDEX `IX_Locations_Type` ON `Locations` (`Type`)',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Locations_ParentLocationId",
-                table: "Locations",
-                column: "ParentLocationId");
+            migrationBuilder.Sql(@"
+                SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Locations' AND INDEX_NAME = 'IX_Locations_Type_IsActive');
+                SET @sql = IF(@idx_exists = 0, 
+                    'CREATE INDEX `IX_Locations_Type_IsActive` ON `Locations` (`Type`, `IsActive`)',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Locations_Type",
-                table: "Locations",
-                column: "Type");
+            // 5. Clear orphan LocationId values in Users that don't exist in Locations
+            migrationBuilder.Sql(@"
+                UPDATE `Users` SET `LocationId` = NULL 
+                WHERE `LocationId` IS NOT NULL 
+                AND `LocationId` NOT IN (SELECT `Id` FROM `Locations`);
+            ");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Locations_Type_IsActive",
-                table: "Locations",
-                columns: new[] { "Type", "IsActive" });
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_Users_Locations_LocationId",
-                table: "Users",
-                column: "LocationId",
-                principalTable: "Locations",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+            // 6. Add FK from Users to Locations if not exists
+            migrationBuilder.Sql(@"
+                SET @fk_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users' AND CONSTRAINT_NAME = 'FK_Users_Locations_LocationId');
+                SET @sql = IF(@fk_exists = 0, 
+                    'ALTER TABLE `Users` ADD CONSTRAINT `FK_Users_Locations_LocationId` FOREIGN KEY (`LocationId`) REFERENCES `Locations` (`Id`) ON DELETE SET NULL',
+                    'SELECT 1');
+                PREPARE stmt FROM @sql;
+                EXECUTE stmt;
+                DEALLOCATE PREPARE stmt;
+            ");
         }
 
         /// <inheritdoc />

@@ -118,7 +118,7 @@ public class SeedController : ControllerBase
         try
         {
             _logger.LogInformation("Starting basic data seeding via API...");
-            await SeedData.SeedAsync(_context, _logger);
+            await SeedData.SeedAsync(_context, _logger, _passwordHasher);
             return Ok(new { 
                 success = true, 
                 message = "Basic data seeding completed successfully",

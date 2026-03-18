@@ -284,6 +284,29 @@ public class CommentInfo
     public bool IsInternal { get; set; }
 }
 
+public class StandingCommitteeInfo
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string CommitteeType { get; set; } = string.Empty;
+    public int RequiredVotes { get; set; }
+    public int MinimumApprovalVotes { get; set; }
+    public int DefaultDeadlineHours { get; set; }
+    public decimal MinAmountThreshold { get; set; }
+    public decimal? MaxAmountThreshold { get; set; }
+    public bool IsActive { get; set; }
+    public List<StandingMemberInfo> Members { get; set; } = [];
+}
+
+public class StandingMemberInfo
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public bool IsChairperson { get; set; }
+}
+
 public class CreateApplicationRequest
 {
     public string AccountNumber { get; set; } = string.Empty;
@@ -531,4 +554,52 @@ public class FinancialStatementInfo
     public decimal Revenue { get; set; }
 
     public decimal NetProfit { get; set; }
+}
+
+public class LocationInfo
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public Guid? ParentLocationId { get; set; }
+    public string? ParentLocationName { get; set; }
+    public bool IsActive { get; set; }
+    public string? Address { get; set; }
+    public string? ManagerName { get; set; }
+    public string? ContactPhone { get; set; }
+    public string? ContactEmail { get; set; }
+    public int SortOrder { get; set; }
+
+    public string DisplayName => $"{Code} - {Name}";
+    public string TypeBadgeClass => Type switch
+    {
+        "HeadOffice" => "badge-primary",
+        "Region" => "badge-info",
+        "Zone" => "badge-warning",
+        "Branch" => "badge-success",
+        _ => "badge-secondary"
+    };
+}
+
+public class LocationTreeNode
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public string? ManagerName { get; set; }
+    public int SortOrder { get; set; }
+    public List<LocationTreeNode> Children { get; set; } = [];
+
+    public bool IsExpanded { get; set; } = true;
+    public string TypeIcon => Type switch
+    {
+        "HeadOffice" => "🏛️",
+        "Region" => "🗺️",
+        "Zone" => "📍",
+        "Branch" => "🏢",
+        _ => "📁"
+    };
 }

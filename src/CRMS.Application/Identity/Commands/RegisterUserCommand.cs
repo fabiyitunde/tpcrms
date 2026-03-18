@@ -14,7 +14,7 @@ public record RegisterUserCommand(
     string LastName,
     UserType Type,
     string? PhoneNumber,
-    Guid? BranchId,
+    Guid? LocationId,
     List<string>? Roles
 ) : IRequest<ApplicationResult<UserDto>>;
 
@@ -52,7 +52,7 @@ public class RegisterUserHandler : IRequestHandler<RegisterUserCommand, Applicat
             request.LastName,
             request.Type,
             request.PhoneNumber,
-            request.BranchId
+            request.LocationId
         );
 
         if (userResult.IsFailure)
@@ -87,7 +87,8 @@ public class RegisterUserHandler : IRequestHandler<RegisterUserCommand, Applicat
             user.Type.ToString(),
             user.Status.ToString(),
             user.PhoneNumber,
-            user.BranchId,
+            user.LocationId,
+            null, // LocationName - not loaded here
             user.LastLoginAt,
             roles.Select(r => r.Name).ToList(),
             permissions.Select(p => p.Code).ToList()

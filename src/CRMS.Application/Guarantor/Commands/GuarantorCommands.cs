@@ -166,12 +166,12 @@ public class RunGuarantorCreditCheckHandler : IRequestHandler<RunGuarantorCredit
         var report = reportResult.Value;
 
         // Analyze credit issues
-        var hasCreditIssues = report.Summary.NonPerformingAccounts > 0 || 
+        var hasCreditIssues = report.Summary.DelinquentFacilities > 0 || 
                              report.Summary.MaxDelinquencyDays > 60 ||
                              report.Summary.HasLegalActions;
 
         var issuesSummary = hasCreditIssues
-            ? $"NPL: {report.Summary.NonPerformingAccounts}, Max Delinquency: {report.Summary.MaxDelinquencyDays} days, Legal: {report.Summary.HasLegalActions}"
+            ? $"NPL: {report.Summary.DelinquentFacilities}, Max Delinquency: {report.Summary.MaxDelinquencyDays} days, Legal: {report.Summary.HasLegalActions}"
             : "No significant issues";
 
         // Get existing guarantee count for this BVN
@@ -197,7 +197,7 @@ public class RunGuarantorCreditCheckHandler : IRequestHandler<RunGuarantorCredit
             bureauReport.CompleteWithData(
                 report.RegistryId, report.CreditScore, report.ScoreGrade, report.ReportDate,
                 report.RawJson, null, report.Summary.TotalAccounts, report.Summary.ActiveLoans,
-                report.Summary.PerformingAccounts, report.Summary.NonPerformingAccounts, report.Summary.ClosedAccounts,
+                report.Summary.PerformingAccounts, report.Summary.DelinquentFacilities, report.Summary.ClosedAccounts,
                 report.Summary.TotalOutstandingBalance, report.Summary.TotalOverdue, report.Summary.TotalCreditLimit,
                 report.Summary.MaxDelinquencyDays, report.Summary.HasLegalActions
             );
