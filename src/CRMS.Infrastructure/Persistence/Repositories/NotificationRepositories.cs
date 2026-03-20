@@ -119,6 +119,13 @@ public class NotificationTemplateRepository : INotificationTemplateRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<NotificationTemplate>> GetAllAsync(CancellationToken ct = default)
+    {
+        return await _context.NotificationTemplates
+            .OrderBy(x => x.Code)
+            .ToListAsync(ct);
+    }
+
     public async Task AddAsync(NotificationTemplate template, CancellationToken ct = default)
     {
         await _context.NotificationTemplates.AddAsync(template, ct);

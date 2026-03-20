@@ -13,6 +13,7 @@ public record LoanProductDto(
     int MaxTenorMonths,
     string Status,
     DateTime CreatedAt,
+    int? FineractProductId,
     List<PricingTierDto> PricingTiers,
     List<EligibilityRuleDto> EligibilityRules,
     List<DocumentRequirementDto> DocumentRequirements
@@ -29,7 +30,8 @@ public record LoanProductSummaryDto(
     string Status,
     int MinTenorMonths,
     int MaxTenorMonths,
-    decimal BaseInterestRate
+    decimal BaseInterestRate,
+    int? FineractProductId
 );
 
 public record PricingTierDto(

@@ -1,0 +1,3802 @@
+@page "/help"
+@page "/help/{Section}"
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Help &amp; User Guide - CRMS</PageTitle>
+
+<div class="help-container">
+    @* Hero Section for Overview *@
+    @if (string.IsNullOrEmpty(Section) || CurrentSection == "overview")
+    {
+        <div class="help-hero">
+            <div class="hero-content">
+                <div class="hero-icon">
+                    <span class="material-symbols-outlined">school</span>
+                </div>
+                <h1>Welcome to CRMS Help Center</h1>
+                <p>Your complete guide to the Credit Risk Management System</p>
+                <div class="hero-role">
+                    <span class="material-symbols-outlined">person</span>
+                    You are logged in as <strong>@CurrentRoleName</strong>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="help-layout">
+        @* Left Sidebar Navigation *@
+        <aside class="help-sidebar">
+            <div class="sidebar-search">
+                <span class="material-symbols-outlined">search</span>
+                <input type="text" placeholder="Search help topics..." @bind="searchQuery" @bind:event="oninput" />
+            </div>
+            
+            <nav class="sidebar-nav">
+                @* Getting Started *@
+                <div class="nav-category">
+                    <div class="nav-category-header">
+                        <span class="material-symbols-outlined">rocket_launch</span>
+                        Getting Started
+                    </div>
+                    <a class="nav-item @IsActive("overview")" href="/help/overview">
+                        <span class="nav-dot"></span>System Overview
+                    </a>
+                    <a class="nav-item @IsActive("your-role")" href="/help/your-role">
+                        <span class="nav-dot"></span>Your Role Guide
+                        <span class="nav-badge role">@GetRoleAbbrev()</span>
+                    </a>
+                </div>
+
+                @* Menu Items Guide *@
+                <div class="nav-category">
+                    <div class="nav-category-header">
+                        <span class="material-symbols-outlined">menu</span>
+                        Menu Items Explained
+                    </div>
+                    <a class="nav-item @IsActive("menu-dashboard")" href="/help/menu-dashboard">
+                        <span class="nav-dot"></span>Dashboard
+                    </a>
+                    <a class="nav-item @IsActive("menu-applications")" href="/help/menu-applications">
+                        <span class="nav-dot"></span>Applications
+                    </a>
+                    <a class="nav-item @IsActive("menu-new-application")" href="/help/menu-new-application">
+                        <span class="nav-dot"></span>New Application
+                    </a>
+                    <a class="nav-item @IsActive("menu-my-queue")" href="/help/menu-my-queue">
+                        <span class="nav-dot"></span>My Queue
+                    </a>
+                    <a class="nav-item @IsActive("menu-all-queues")" href="/help/menu-all-queues">
+                        <span class="nav-dot"></span>All Queues
+                    </a>
+                    <a class="nav-item @IsActive("menu-overdue")" href="/help/menu-overdue">
+                        <span class="nav-dot"></span>Overdue
+                    </a>
+                    <a class="nav-item @IsActive("menu-pending-votes")" href="/help/menu-pending-votes">
+                        <span class="nav-dot"></span>My Pending Votes
+                    </a>
+                    <a class="nav-item @IsActive("menu-committee-reviews")" href="/help/menu-committee-reviews">
+                        <span class="nav-dot"></span>Committee Reviews
+                    </a>
+                    <a class="nav-item @IsActive("menu-reports")" href="/help/menu-reports">
+                        <span class="nav-dot"></span>Reports
+                    </a>
+                    <a class="nav-item @IsActive("menu-audit-trail")" href="/help/menu-audit-trail">
+                        <span class="nav-dot"></span>Audit Trail
+                    </a>
+                </div>
+
+                @* Administration Menu *@
+                <div class="nav-category">
+                    <div class="nav-category-header">
+                        <span class="material-symbols-outlined">settings</span>
+                        Administration
+                    </div>
+                    <a class="nav-item @IsActive("admin-users")" href="/help/admin-users">
+                        <span class="nav-dot"></span>Users Management
+                    </a>
+                    <a class="nav-item @IsActive("admin-products")" href="/help/admin-products">
+                        <span class="nav-dot"></span>Products
+                    </a>
+                    <a class="nav-item @IsActive("admin-locations")" href="/help/admin-locations">
+                        <span class="nav-dot"></span>Locations
+                    </a>
+                    <a class="nav-item @IsActive("admin-committees")" href="/help/admin-committees">
+                        <span class="nav-dot"></span>Committees
+                    </a>
+                    <a class="nav-item @IsActive("admin-scoring")" href="/help/admin-scoring">
+                        <span class="nav-dot"></span>Scoring Config
+                    </a>
+                    <a class="nav-item @IsActive("admin-templates")" href="/help/admin-templates">
+                        <span class="nav-dot"></span>Templates
+                    </a>
+                </div>
+
+                @* Loan Process *@
+                <div class="nav-category">
+                    <div class="nav-category-header">
+                        <span class="material-symbols-outlined">account_balance</span>
+                        Loan Process
+                    </div>
+                    <a class="nav-item @IsActive("workflow")" href="/help/workflow">
+                        <span class="nav-dot"></span>Complete Workflow
+                    </a>
+                    <a class="nav-item @IsActive("creating-application")" href="/help/creating-application">
+                        <span class="nav-dot"></span>Creating Applications
+                    </a>
+                    <a class="nav-item @IsActive("application-statuses")" href="/help/application-statuses">
+                        <span class="nav-dot"></span>Application Statuses
+                    </a>
+                    <a class="nav-item @IsActive("workflow-actions")" href="/help/workflow-actions">
+                        <span class="nav-dot"></span>Workflow Actions
+                    </a>
+                </div>
+
+                @* Application Tabs *@
+                <div class="nav-category">
+                    <div class="nav-category-header">
+                        <span class="material-symbols-outlined">tab</span>
+                        Application Tabs
+                    </div>
+                    <a class="nav-item @IsActive("tab-overview")" href="/help/tab-overview">
+                        <span class="nav-dot"></span>Overview Tab
+                    </a>
+                    <a class="nav-item @IsActive("tab-documents")" href="/help/tab-documents">
+                        <span class="nav-dot"></span>Documents Tab
+                    </a>
+                    <a class="nav-item @IsActive("tab-collateral")" href="/help/tab-collateral">
+                        <span class="nav-dot"></span>Collateral Tab
+                    </a>
+                    <a class="nav-item @IsActive("tab-guarantors")" href="/help/tab-guarantors">
+                        <span class="nav-dot"></span>Guarantors Tab
+                    </a>
+                    <a class="nav-item @IsActive("tab-financials")" href="/help/tab-financials">
+                        <span class="nav-dot"></span>Financials Tab
+                    </a>
+                    <a class="nav-item @IsActive("tab-statements")" href="/help/tab-statements">
+                        <span class="nav-dot"></span>Bank Statements Tab
+                    </a>
+                    <a class="nav-item @IsActive("tab-bureau")" href="/help/tab-bureau">
+                        <span class="nav-dot"></span>Bureau Tab
+                    </a>
+                    <a class="nav-item @IsActive("tab-advisory")" href="/help/tab-advisory">
+                        <span class="nav-dot"></span>Advisory Tab
+                    </a>
+                    <a class="nav-item @IsActive("tab-committee")" href="/help/tab-committee">
+                        <span class="nav-dot"></span>Committee Tab
+                    </a>
+                    <a class="nav-item @IsActive("tab-workflow")" href="/help/tab-workflow">
+                        <span class="nav-dot"></span>Workflow Tab
+                    </a>
+                </div>
+
+                @* Credit Assessment *@
+                <div class="nav-category">
+                    <div class="nav-category-header">
+                        <span class="material-symbols-outlined">psychology</span>
+                        Credit Assessment
+                    </div>
+                    <a class="nav-item @IsActive("scoring-algorithm")" href="/help/scoring-algorithm">
+                        <span class="nav-dot"></span>Scoring Algorithm
+                    </a>
+                    <a class="nav-item @IsActive("ai-advisory")" href="/help/ai-advisory">
+                        <span class="nav-dot"></span>AI Advisory System
+                    </a>
+                    <a class="nav-item @IsActive("credit-bureau")" href="/help/credit-bureau">
+                        <span class="nav-dot"></span>Credit Bureau Checks
+                    </a>
+                    <a class="nav-item @IsActive("risk-categories")" href="/help/risk-categories">
+                        <span class="nav-dot"></span>Risk Categories
+                    </a>
+                </div>
+
+                @* Reference *@
+                <div class="nav-category">
+                    <div class="nav-category-header">
+                        <span class="material-symbols-outlined">menu_book</span>
+                        Reference
+                    </div>
+                    <a class="nav-item @IsActive("glossary")" href="/help/glossary">
+                        <span class="nav-dot"></span>Glossary
+                    </a>
+                    <a class="nav-item @IsActive("faq")" href="/help/faq">
+                        <span class="nav-dot"></span>FAQ
+                    </a>
+                    <a class="nav-item @IsActive("shortcuts")" href="/help/shortcuts">
+                        <span class="nav-dot"></span>Keyboard Shortcuts
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        @* Main Content Area *@
+        <main class="help-content">
+            @switch (CurrentSection)
+            {
+                case "overview":
+                    @RenderOverview()
+                    break;
+                case "your-role":
+                    @RenderYourRole()
+                    break;
+                case "menu-dashboard":
+                    @RenderMenuDashboard()
+                    break;
+                case "menu-applications":
+                    @RenderMenuApplications()
+                    break;
+                case "menu-new-application":
+                    @RenderMenuNewApplication()
+                    break;
+                case "menu-my-queue":
+                    @RenderMenuMyQueue()
+                    break;
+                case "menu-all-queues":
+                    @RenderMenuAllQueues()
+                    break;
+                case "menu-overdue":
+                    @RenderMenuOverdue()
+                    break;
+                case "menu-pending-votes":
+                    @RenderMenuPendingVotes()
+                    break;
+                case "menu-committee-reviews":
+                    @RenderMenuCommitteeReviews()
+                    break;
+                case "menu-reports":
+                    @RenderMenuReports()
+                    break;
+                case "menu-audit-trail":
+                    @RenderMenuAuditTrail()
+                    break;
+                case "admin-users":
+                    @RenderAdminUsers()
+                    break;
+                case "admin-products":
+                    @RenderAdminProducts()
+                    break;
+                case "admin-locations":
+                    @RenderAdminLocations()
+                    break;
+                case "admin-committees":
+                    @RenderAdminCommittees()
+                    break;
+                case "admin-scoring":
+                    @RenderAdminScoring()
+                    break;
+                case "admin-templates":
+                    @RenderAdminTemplates()
+                    break;
+                case "workflow":
+                    @RenderWorkflow()
+                    break;
+                case "creating-application":
+                    @RenderCreatingApplication()
+                    break;
+                case "application-statuses":
+                    @RenderApplicationStatuses()
+                    break;
+                case "workflow-actions":
+                    @RenderWorkflowActions()
+                    break;
+                case "tab-overview":
+                    @RenderTabOverview()
+                    break;
+                case "tab-documents":
+                    @RenderTabDocuments()
+                    break;
+                case "tab-collateral":
+                    @RenderTabCollateral()
+                    break;
+                case "tab-guarantors":
+                    @RenderTabGuarantors()
+                    break;
+                case "tab-financials":
+                    @RenderTabFinancials()
+                    break;
+                case "tab-statements":
+                    @RenderTabStatements()
+                    break;
+                case "tab-bureau":
+                    @RenderTabBureau()
+                    break;
+                case "tab-advisory":
+                    @RenderTabAdvisory()
+                    break;
+                case "tab-committee":
+                    @RenderTabCommittee()
+                    break;
+                case "tab-workflow":
+                    @RenderTabWorkflow()
+                    break;
+                case "scoring-algorithm":
+                    @RenderScoringAlgorithm()
+                    break;
+                case "ai-advisory":
+                    @RenderAIAdvisory()
+                    break;
+                case "credit-bureau":
+                    @RenderCreditBureau()
+                    break;
+                case "risk-categories":
+                    @RenderRiskCategories()
+                    break;
+                case "glossary":
+                    @RenderGlossary()
+                    break;
+                case "faq":
+                    @RenderFAQ()
+                    break;
+                case "shortcuts":
+                    @RenderShortcuts()
+                    break;
+                default:
+                    @RenderOverview()
+                    break;
+            }
+        </main>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Section { get; set; }
+    
+    private string searchQuery = "";
+    private string CurrentSection => string.IsNullOrEmpty(Section) ? "overview" : Section.ToLower();
+    private UserInfo? User => AuthService.CurrentUser;
+    
+    private string CurrentRoleName => User?.PrimaryRole switch
+    {
+        "LoanOfficer" => "Loan Officer",
+        "BranchApprover" => "Branch Approver",
+        "CreditOfficer" => "Credit Officer",
+        "HOReviewer" => "HO Reviewer",
+        "CommitteeMember" => "Committee Member",
+        "FinalApprover" => "Final Approver",
+        "Operations" => "Operations",
+        "RiskManager" => "Risk Manager",
+        "Auditor" => "Auditor",
+        "SystemAdmin" => "System Administrator",
+        _ => "Staff Member"
+    };
+
+    private string GetRoleAbbrev() => User?.PrimaryRole switch
+    {
+        "LoanOfficer" => "LO",
+        "BranchApprover" => "BA",
+        "CreditOfficer" => "CO",
+        "HOReviewer" => "HO",
+        "CommitteeMember" => "CM",
+        "FinalApprover" => "FA",
+        "Operations" => "OP",
+        "RiskManager" => "RM",
+        "Auditor" => "AU",
+        "SystemAdmin" => "SA",
+        _ => "?"
+    };
+
+    private string IsActive(string section) => CurrentSection == section ? "active" : "";
+
+    // ==================== OVERVIEW ====================
+    private RenderFragment RenderOverview() => __builder =>
+    {
+        <div class="content-card">
+            <h2>What is CRMS?</h2>
+            <p class="intro-text">CRMS (Credit Risk Management System) is a comprehensive corporate loan origination platform that handles the complete lifecycle of loan applications - from customer inquiry through final disbursement.</p>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon blue">
+                        <span class="material-symbols-outlined">cloud_sync</span>
+                    </div>
+                    <h4>Automated Data Collection</h4>
+                    <p>Pulls customer data from Core Banking and directors from CAC via SmartComply</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon green">
+                        <span class="material-symbols-outlined">verified_user</span>
+                    </div>
+                    <h4>Credit Bureau Integration</h4>
+                    <p>Automatic credit checks for all directors, signatories, and guarantors</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon purple">
+                        <span class="material-symbols-outlined">psychology</span>
+                    </div>
+                    <h4>AI-Powered Risk Assessment</h4>
+                    <p>Rule-based scoring algorithm with configurable thresholds</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon orange">
+                        <span class="material-symbols-outlined">groups</span>
+                    </div>
+                    <h4>Committee Workflow</h4>
+                    <p>Amount-based routing to appropriate approval committees</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>How Loan Processing Works</h2>
+            <p>Every corporate loan application flows through these stages:</p>
+            
+            <div class="visual-workflow">
+                <div class="workflow-step">
+                    <div class="step-circle draft">
+                        <span class="material-symbols-outlined">edit_note</span>
+                    </div>
+                    <div class="step-info">
+                        <h4>1. Draft</h4>
+                        <p>Loan Officer creates application, uploads documents, adds collateral and guarantors</p>
+                        <span class="step-actor">Loan Officer</span>
+                    </div>
+                </div>
+                
+                <div class="workflow-connector">
+                    <div class="connector-line"></div>
+                    <span class="connector-action">Submit</span>
+                </div>
+                
+                <div class="workflow-step">
+                    <div class="step-circle review">
+                        <span class="material-symbols-outlined">fact_check</span>
+                    </div>
+                    <div class="step-info">
+                        <h4>2. Branch Review</h4>
+                        <p>Branch Approver verifies completeness and validates documents</p>
+                        <span class="step-actor">Branch Approver</span>
+                    </div>
+                </div>
+                
+                <div class="workflow-connector">
+                    <div class="connector-line"></div>
+                    <span class="connector-action">Approve</span>
+                </div>
+                
+                <div class="workflow-step">
+                    <div class="step-circle analysis">
+                        <span class="material-symbols-outlined">analytics</span>
+                    </div>
+                    <div class="step-info">
+                        <h4>3. Credit Analysis</h4>
+                        <p>Credit Officer analyzes risk, valuates collateral, generates AI advisory</p>
+                        <span class="step-actor">Credit Officer</span>
+                    </div>
+                </div>
+                
+                <div class="workflow-connector">
+                    <div class="connector-line"></div>
+                    <span class="connector-action">Setup Committee</span>
+                </div>
+                
+                <div class="workflow-step">
+                    <div class="step-circle committee">
+                        <span class="material-symbols-outlined">how_to_vote</span>
+                    </div>
+                    <div class="step-info">
+                        <h4>4. Committee Review</h4>
+                        <p>Committee members review loan pack and cast votes</p>
+                        <span class="step-actor">Committee Members</span>
+                    </div>
+                </div>
+                
+                <div class="workflow-connector">
+                    <div class="connector-line"></div>
+                    <span class="connector-action">Decision</span>
+                </div>
+                
+                <div class="workflow-step">
+                    <div class="step-circle approval">
+                        <span class="material-symbols-outlined">verified</span>
+                    </div>
+                    <div class="step-info">
+                        <h4>5. Final Approval</h4>
+                        <p>Final Approver confirms terms and authorizes disbursement</p>
+                        <span class="step-actor">Final Approver</span>
+                    </div>
+                </div>
+                
+                <div class="workflow-connector">
+                    <div class="connector-line"></div>
+                    <span class="connector-action">Approve</span>
+                </div>
+                
+                <div class="workflow-step">
+                    <div class="step-circle disbursed">
+                        <span class="material-symbols-outlined">payments</span>
+                    </div>
+                    <div class="step-info">
+                        <h4>6. Disbursement</h4>
+                        <p>Operations books loan in Core Banking and processes disbursement</p>
+                        <span class="step-actor">Operations</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Quick Navigation</h2>
+            <p>Jump to the section most relevant to you:</p>
+            
+            <div class="quick-nav-grid">
+                <a href="/help/your-role" class="quick-nav-card">
+                    <span class="material-symbols-outlined">person</span>
+                    <span class="quick-nav-title">Your Role Guide</span>
+                    <span class="quick-nav-desc">Learn what you can do</span>
+                </a>
+                <a href="/help/menu-my-queue" class="quick-nav-card">
+                    <span class="material-symbols-outlined">inbox</span>
+                    <span class="quick-nav-title">My Queue</span>
+                    <span class="quick-nav-desc">Your pending work</span>
+                </a>
+                <a href="/help/creating-application" class="quick-nav-card">
+                    <span class="material-symbols-outlined">add_circle</span>
+                    <span class="quick-nav-title">Create Application</span>
+                    <span class="quick-nav-desc">Step-by-step guide</span>
+                </a>
+                <a href="/help/scoring-algorithm" class="quick-nav-card">
+                    <span class="material-symbols-outlined">psychology</span>
+                    <span class="quick-nav-title">Scoring Algorithm</span>
+                    <span class="quick-nav-desc">How risk is calculated</span>
+                </a>
+                <a href="/help/glossary" class="quick-nav-card">
+                    <span class="material-symbols-outlined">menu_book</span>
+                    <span class="quick-nav-title">Glossary</span>
+                    <span class="quick-nav-desc">Terms explained</span>
+                </a>
+                <a href="/help/faq" class="quick-nav-card">
+                    <span class="material-symbols-outlined">help</span>
+                    <span class="quick-nav-title">FAQ</span>
+                    <span class="quick-nav-desc">Common questions</span>
+                </a>
+            </div>
+        </div>
+    };
+
+    // ==================== YOUR ROLE ====================
+    private RenderFragment RenderYourRole() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">badge</span></span>
+            <div>
+                <h1>Your Role: @CurrentRoleName</h1>
+                <p>What you can see and do in CRMS</p>
+            </div>
+        </div>
+
+        @if (User?.HasRole("LoanOfficer") == true)
+        {
+            @RenderLoanOfficerRole()
+        }
+        else if (User?.HasRole("BranchApprover") == true)
+        {
+            @RenderBranchApproverRole()
+        }
+        else if (User?.HasRole("CreditOfficer") == true)
+        {
+            @RenderCreditOfficerRole()
+        }
+        else if (User?.HasRole("CommitteeMember") == true)
+        {
+            @RenderCommitteeMemberRole()
+        }
+        else if (User?.HasRole("FinalApprover") == true)
+        {
+            @RenderFinalApproverRole()
+        }
+        else if (User?.HasRole("Operations") == true)
+        {
+            @RenderOperationsRole()
+        }
+        else if (User?.HasRole("RiskManager") == true)
+        {
+            @RenderRiskManagerRole()
+        }
+        else if (User?.HasRole("SystemAdmin") == true)
+        {
+            @RenderSystemAdminRole()
+        }
+        else if (User?.HasRole("Auditor") == true)
+        {
+            @RenderAuditorRole()
+        }
+        else
+        {
+            <div class="content-card">
+                <p>Your role-specific guide will appear here once your role is properly assigned.</p>
+            </div>
+        }
+    };
+
+    private RenderFragment RenderLoanOfficerRole() => __builder =>
+    {
+        <div class="role-header-card loan-officer">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">edit_document</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Create loan applications and ensure all required information is complete before submission</p>
+                <div class="role-tags">
+                    <span class="tag">Create Applications</span>
+                    <span class="tag">Upload Documents</span>
+                    <span class="tag">Add Collateral</span>
+                    <span class="tag">Add Guarantors</span>
+                    <span class="tag">Enter Financials</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What You Can Access</h2>
+            <div class="access-grid">
+                <div class="access-item can">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <div>
+                        <strong>Dashboard</strong>
+                        <span>Your personal metrics and tasks</span>
+                    </div>
+                </div>
+                <div class="access-item can">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <div>
+                        <strong>Applications</strong>
+                        <span>View applications from your branch</span>
+                    </div>
+                </div>
+                <div class="access-item can">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <div>
+                        <strong>New Application</strong>
+                        <span>Create new loan applications</span>
+                    </div>
+                </div>
+                <div class="access-item can">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <div>
+                        <strong>My Queue</strong>
+                        <span>Applications returned to you</span>
+                    </div>
+                </div>
+                <div class="access-item cannot">
+                    <span class="material-symbols-outlined">block</span>
+                    <div>
+                        <strong>All Queues</strong>
+                        <span>Not available for your role</span>
+                    </div>
+                </div>
+                <div class="access-item cannot">
+                    <span class="material-symbols-outlined">block</span>
+                    <div>
+                        <strong>Reports</strong>
+                        <span>Not available for your role</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Your Daily Workflow</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Check My Queue</h4>
+                        <p>See if any applications were returned for corrections. Fix issues and resubmit.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Create New Applications</h4>
+                        <p>For new customer requests, go to New Application to start the process.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Complete Pending Drafts</h4>
+                        <p>Check Applications list for drafts that need documents, collateral, or financials.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Submit for Review</h4>
+                        <p>Once complete, submit applications for Branch Approver review.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderBranchApproverRole() => __builder =>
+    {
+        <div class="role-header-card branch-approver">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">verified</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>First-level review of applications - verify completeness and validate documents before credit analysis</p>
+                <div class="role-tags">
+                    <span class="tag">Verify Documents</span>
+                    <span class="tag">Validate Data</span>
+                    <span class="tag">Approve/Return/Reject</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Your Review Checklist</h2>
+            <div class="checklist-visual">
+                <div class="checklist-group">
+                    <h4><span class="material-symbols-outlined">description</span> Documents</h4>
+                    <ul>
+                        <li>Board Resolution authorizing the loan</li>
+                        <li>Company Registration (CAC certificate)</li>
+                        <li>Identity documents for all directors</li>
+                        <li>Audited financial statements</li>
+                        <li>Tax clearance certificate</li>
+                    </ul>
+                </div>
+                <div class="checklist-group">
+                    <h4><span class="material-symbols-outlined">data_check</span> Data Completeness</h4>
+                    <ul>
+                        <li>All directors have BVN entered</li>
+                        <li>All signatories are listed</li>
+                        <li>At least one collateral item added</li>
+                        <li>Financial statements cover required years</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Your Actions</h2>
+            <div class="action-cards">
+                <div class="action-card approve">
+                    <div class="action-icon"><span class="material-symbols-outlined">check_circle</span></div>
+                    <h4>Approve</h4>
+                    <p>Application is complete. Sends to Credit Analysis. <strong>Credit checks auto-trigger.</strong></p>
+                </div>
+                <div class="action-card return">
+                    <div class="action-icon"><span class="material-symbols-outlined">undo</span></div>
+                    <h4>Return</h4>
+                    <p>Missing info that Loan Officer can fix. Returns to Draft status.</p>
+                </div>
+                <div class="action-card reject">
+                    <div class="action-icon"><span class="material-symbols-outlined">cancel</span></div>
+                    <h4>Reject</h4>
+                    <p>Fundamental issues. Application is permanently closed.</p>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderCreditOfficerRole() => __builder =>
+    {
+        <div class="role-header-card credit-officer">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">analytics</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Perform detailed credit analysis, evaluate risk using AI advisory, and setup committee reviews</p>
+                <div class="role-tags">
+                    <span class="tag">Credit Analysis</span>
+                    <span class="tag">Collateral Valuation</span>
+                    <span class="tag">AI Advisory</span>
+                    <span class="tag">Committee Setup</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Your Analysis Workflow</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Review Credit Bureau Reports</h4>
+                        <p>Bureau tab shows auto-fetched credit reports for all directors, signatories, and guarantors.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Analyze Bank Statements</h4>
+                        <p>Statements tab shows cashflow analysis - check net cashflow, volatility, and red flags.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Set Collateral Valuations</h4>
+                        <p>For each collateral: set Market Value, Forced Sale Value, and Haircut percentage.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Approve/Reject Guarantors</h4>
+                        <p>Review each guarantor's credit report and approve or reject with reason.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">5</div>
+                    <div class="step-content">
+                        <h4>Generate AI Advisory</h4>
+                        <p>Click Generate Advisory to get comprehensive risk assessment with recommendation.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">6</div>
+                    <div class="step-content">
+                        <h4>Setup Committee Review</h4>
+                        <p>For applications requiring committee approval, setup the committee and notify members.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderCommitteeMemberRole() => __builder =>
+    {
+        <div class="role-header-card committee-member">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">how_to_vote</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Review loan applications assigned to your committee and cast informed votes</p>
+                <div class="role-tags">
+                    <span class="tag">Review Loan Pack</span>
+                    <span class="tag">Add Comments</span>
+                    <span class="tag">Cast Vote</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Voting Process</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Check My Pending Votes</h4>
+                        <p>Go to Committee &gt; My Pending Votes to see applications awaiting your vote.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Download Loan Pack</h4>
+                        <p>From Overview tab, download the comprehensive PDF containing all analysis.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Review Key Information</h4>
+                        <p>Check AI Advisory recommendation, bureau reports, collateral coverage, and financials.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Cast Your Vote</h4>
+                        <p>Go to Committee tab and click Cast Vote. Choose Approve, Reject (reason required), or Abstain.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Vote Options</h2>
+            <div class="vote-options">
+                <div class="vote-option approve">
+                    <span class="material-symbols-outlined">thumb_up</span>
+                    <h4>Approve</h4>
+                    <p>You support granting this facility</p>
+                </div>
+                <div class="vote-option reject">
+                    <span class="material-symbols-outlined">thumb_down</span>
+                    <h4>Reject</h4>
+                    <p>You oppose this facility (reason required)</p>
+                </div>
+                <div class="vote-option abstain">
+                    <span class="material-symbols-outlined">do_not_disturb</span>
+                    <h4>Abstain</h4>
+                    <p>Conflict of interest or insufficient info</p>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderFinalApproverRole() => __builder =>
+    {
+        <div class="role-header-card final-approver">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">task_alt</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Give final approval on committee-approved applications and authorize disbursement</p>
+                <div class="role-tags">
+                    <span class="tag">Final Review</span>
+                    <span class="tag">Confirm Terms</span>
+                    <span class="tag">Authorize Disbursement</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Final Approval Process</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Check My Queue</h4>
+                        <p>Filter for applications with "Committee Approved" status awaiting your sign-off.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Review Committee Decision</h4>
+                        <p>Check the Committee tab to see the vote tally and approved terms.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Approve or Reject</h4>
+                        <p>Click Approve to authorize disbursement, or Reject if there are concerns.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderOperationsRole() => __builder =>
+    {
+        <div class="role-header-card operations">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">payments</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Process approved loans for disbursement and coordinate with Core Banking</p>
+                <div class="role-tags">
+                    <span class="tag">Verify Conditions</span>
+                    <span class="tag">Book Loan</span>
+                    <span class="tag">Process Disbursement</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Disbursement Process</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Check Approved Applications</h4>
+                        <p>Filter My Queue for applications with "Approved" status.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Verify Pre-Disbursement Conditions</h4>
+                        <p>Ensure all conditions are met: documents verified, liens perfected, offer accepted.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Book Loan in Core Banking</h4>
+                        <p>Create the loan account in Fineract (Core Banking System) - this is manual.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Update CRMS &amp; Mark Disbursed</h4>
+                        <p>Enter the loan account reference in CRMS and mark as disbursed.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="info-box">
+                <span class="material-symbols-outlined">info</span>
+                <p><strong>Note:</strong> Disbursement is intentionally manual for audit controls. The system does not automatically transfer funds.</p>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderRiskManagerRole() => __builder =>
+    {
+        <div class="role-header-card risk-manager">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">security</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Monitor portfolio risk, handle escalations, and ensure SLA compliance</p>
+                <div class="role-tags">
+                    <span class="tag">Monitor Overdue</span>
+                    <span class="tag">Override Decisions</span>
+                    <span class="tag">Approve Scoring Changes</span>
+                    <span class="tag">Risk Reports</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Key Responsibilities</h2>
+            <div class="responsibility-cards">
+                <div class="responsibility-card">
+                    <span class="material-symbols-outlined">schedule</span>
+                    <h4>Overdue Monitoring</h4>
+                    <p>Check Overdue queue for SLA breaches. Escalate or override as needed.</p>
+                </div>
+                <div class="responsibility-card">
+                    <span class="material-symbols-outlined">tune</span>
+                    <h4>Scoring Configuration</h4>
+                    <p>Approve changes to AI scoring parameters (maker-checker process).</p>
+                </div>
+                <div class="responsibility-card">
+                    <span class="material-symbols-outlined">bar_chart</span>
+                    <h4>Risk Reports</h4>
+                    <p>Access comprehensive reports on portfolio performance and SLA compliance.</p>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderSystemAdminRole() => __builder =>
+    {
+        <div class="role-header-card system-admin">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">settings</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Configure and maintain the CRMS system - users, products, committees, and settings</p>
+                <div class="role-tags">
+                    <span class="tag">User Management</span>
+                    <span class="tag">Product Config</span>
+                    <span class="tag">Committees</span>
+                    <span class="tag">Scoring Config</span>
+                    <span class="tag">Templates</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Administration Areas</h2>
+            <div class="admin-area-grid">
+                <a href="/help/admin-users" class="admin-area-card">
+                    <span class="material-symbols-outlined">people</span>
+                    <h4>Users</h4>
+                    <p>Create accounts, assign roles, set locations</p>
+                </a>
+                <a href="/help/admin-products" class="admin-area-card">
+                    <span class="material-symbols-outlined">inventory_2</span>
+                    <h4>Products</h4>
+                    <p>Configure loan products with parameters</p>
+                </a>
+                <a href="/help/admin-locations" class="admin-area-card">
+                    <span class="material-symbols-outlined">location_city</span>
+                    <h4>Locations</h4>
+                    <p>Manage HO-Region-Zone-Branch hierarchy</p>
+                </a>
+                <a href="/help/admin-committees" class="admin-area-card">
+                    <span class="material-symbols-outlined">groups</span>
+                    <h4>Committees</h4>
+                    <p>Setup standing committees and members</p>
+                </a>
+                <a href="/help/admin-scoring" class="admin-area-card">
+                    <span class="material-symbols-outlined">tune</span>
+                    <h4>Scoring Config</h4>
+                    <p>Adjust AI scoring thresholds</p>
+                </a>
+                <a href="/help/admin-templates" class="admin-area-card">
+                    <span class="material-symbols-outlined">mail</span>
+                    <h4>Templates</h4>
+                    <p>Manage notification templates</p>
+                </a>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderAuditorRole() => __builder =>
+    {
+        <div class="role-header-card auditor">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">history</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Review audit trails and ensure compliance with policies and regulations</p>
+                <div class="role-tags">
+                    <span class="tag">View All Applications</span>
+                    <span class="tag">Audit Trail</span>
+                    <span class="tag">Reports</span>
+                    <span class="tag">Read-Only Access</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Your Access</h2>
+            <div class="info-box">
+                <span class="material-symbols-outlined">visibility</span>
+                <p>You have <strong>read-only access</strong> to all applications and a complete audit trail. You cannot make changes but can review all decisions and actions.</p>
+            </div>
+            <div class="access-grid">
+                <div class="access-item can">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <div>
+                        <strong>Applications</strong>
+                        <span>View all applications globally</span>
+                    </div>
+                </div>
+                <div class="access-item can">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <div>
+                        <strong>Reports</strong>
+                        <span>Full analytics access</span>
+                    </div>
+                </div>
+                <div class="access-item can">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <div>
+                        <strong>Audit Trail</strong>
+                        <span>Complete action history</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    // ==================== MENU ITEMS ====================
+    private RenderFragment RenderMenuDashboard() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">dashboard</span></span>
+            <div>
+                <h1>Dashboard</h1>
+                <p>Your personal home page with key metrics and pending tasks</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What You'll See</h2>
+            <p>The Dashboard provides an at-a-glance view of your workload and system status:</p>
+            
+            <div class="dashboard-preview">
+                <div class="preview-card">
+                    <span class="material-symbols-outlined">pending_actions</span>
+                    <h4>Pending Actions</h4>
+                    <p>Count of items in your queue that need attention</p>
+                </div>
+                <div class="preview-card">
+                    <span class="material-symbols-outlined">schedule</span>
+                    <h4>SLA Status</h4>
+                    <p>Applications approaching or breaching deadlines</p>
+                </div>
+                <div class="preview-card">
+                    <span class="material-symbols-outlined">trending_up</span>
+                    <h4>Recent Activity</h4>
+                    <p>Latest actions on applications you're involved with</p>
+                </div>
+                <div class="preview-card">
+                    <span class="material-symbols-outlined">analytics</span>
+                    <h4>Quick Stats</h4>
+                    <p>Applications processed, approved rate, average time</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge all">
+                <span class="material-symbols-outlined">groups</span>
+                All logged-in users
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderMenuApplications() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">description</span></span>
+            <div>
+                <h1>Applications</h1>
+                <p>List of all loan applications you have access to view</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What This Page Shows</h2>
+            <p>A searchable, filterable list of loan applications. What you see depends on your role:</p>
+            
+            <div class="visibility-table">
+                <div class="visibility-row">
+                    <span class="role-name">Loan Officer, Branch Approver</span>
+                    <span class="visibility-scope branch">Branch Only</span>
+                    <span class="visibility-desc">Applications from your assigned branch</span>
+                </div>
+                <div class="visibility-row">
+                    <span class="role-name">Credit Officer, Risk Manager, Auditor, etc.</span>
+                    <span class="visibility-scope global">Global</span>
+                    <span class="visibility-desc">All applications across all branches</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Available Filters</h2>
+            <div class="filter-list">
+                <div class="filter-item">
+                    <span class="material-symbols-outlined">search</span>
+                    <strong>Search</strong> - Find by customer name or application ID
+                </div>
+                <div class="filter-item">
+                    <span class="material-symbols-outlined">filter_list</span>
+                    <strong>Status</strong> - Filter by Draft, Branch Review, Credit Analysis, etc.
+                </div>
+                <div class="filter-item">
+                    <span class="material-symbols-outlined">date_range</span>
+                    <strong>Date Range</strong> - Filter by creation date
+                </div>
+                <div class="filter-item">
+                    <span class="material-symbols-outlined">inventory_2</span>
+                    <strong>Product</strong> - Filter by loan product type
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>How to Use</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Find Your Application</h4>
+                        <p>Use search or filters to locate the application you need</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Click to Open</h4>
+                        <p>Click any row to open the Application Detail page with all tabs</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderMenuNewApplication() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">add_circle</span></span>
+            <div>
+                <h1>New Application</h1>
+                <p>Create a new corporate loan application</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge restricted">
+                <span class="material-symbols-outlined">lock</span>
+                Loan Officers and System Admins only
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Step-by-Step Process</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Enter Customer Account Number (NUBAN)</h4>
+                        <p>Enter the 10-digit account number and click <strong>Fetch Customer Data</strong></p>
+                        <div class="what-happens">
+                            <span class="material-symbols-outlined">bolt</span>
+                            <div>
+                                <strong>System fetches from Core Banking:</strong>
+                                <ul>
+                                    <li>Customer name and address</li>
+                                    <li>Account signatories (mandate holders)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Enter RC Number &amp; Fetch Directors</h4>
+                        <p>Enter the CAC registration number and click <strong>Fetch Directors</strong></p>
+                        <div class="what-happens">
+                            <span class="material-symbols-outlined">bolt</span>
+                            <div>
+                                <strong>System fetches from SmartComply (CAC):</strong>
+                                <ul>
+                                    <li>Official director list</li>
+                                    <li>Company registration details</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="action-required">
+                            <span class="material-symbols-outlined">warning</span>
+                            <strong>Your action:</strong> Enter BVN for each director (required for credit checks)
+                        </div>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Select Loan Product</h4>
+                        <p>Choose the appropriate product. Each has specific parameters:</p>
+                        <ul>
+                            <li>Minimum/Maximum amount</li>
+                            <li>Tenor range (months)</li>
+                            <li>Base interest rate</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Enter Loan Details</h4>
+                        <ul>
+                            <li><strong>Requested Amount</strong> - Within product limits</li>
+                            <li><strong>Requested Tenor</strong> - Duration in months</li>
+                            <li><strong>Loan Purpose</strong> - Why customer needs the loan</li>
+                            <li><strong>Industry Sector</strong> - CBN classification</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">5</div>
+                    <div class="step-content">
+                        <h4>Create Application</h4>
+                        <p>Click <strong>Create Application</strong>. You'll be redirected to the Application Detail page to add documents, collateral, guarantors, and financials.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderMenuMyQueue() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">inbox</span></span>
+            <div>
+                <h1>My Queue</h1>
+                <p>Applications waiting for YOUR action</p>
+            </div>
+        </div>
+
+        <div class="content-card highlight-card">
+            <div class="highlight-icon">
+                <span class="material-symbols-outlined">priority_high</span>
+            </div>
+            <div>
+                <h3>This is your primary work list!</h3>
+                <p>Check My Queue first thing every day. The badge in the menu shows how many items need your attention.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What Appears in My Queue</h2>
+            <p>Depends on your role:</p>
+            
+            <div class="queue-by-role">
+                <div class="queue-role-card">
+                    <h4><span class="material-symbols-outlined">edit_document</span> Loan Officer</h4>
+                    <ul>
+                        <li>Applications <strong>returned</strong> to you for corrections</li>
+                        <li>Draft applications you created (not yet submitted)</li>
+                    </ul>
+                </div>
+                <div class="queue-role-card">
+                    <h4><span class="material-symbols-outlined">verified</span> Branch Approver</h4>
+                    <ul>
+                        <li>Applications in <strong>Branch Review</strong> status from your branch</li>
+                    </ul>
+                </div>
+                <div class="queue-role-card">
+                    <h4><span class="material-symbols-outlined">analytics</span> Credit Officer</h4>
+                    <ul>
+                        <li>Applications in <strong>Credit Analysis</strong> status</li>
+                    </ul>
+                </div>
+                <div class="queue-role-card">
+                    <h4><span class="material-symbols-outlined">task_alt</span> Final Approver</h4>
+                    <ul>
+                        <li>Applications in <strong>Committee Approved</strong> or <strong>Final Approval</strong> status</li>
+                    </ul>
+                </div>
+                <div class="queue-role-card">
+                    <h4><span class="material-symbols-outlined">payments</span> Operations</h4>
+                    <ul>
+                        <li>Applications in <strong>Approved</strong> status ready for disbursement</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge all">
+                <span class="material-symbols-outlined">groups</span>
+                All logged-in users
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderMenuAllQueues() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">view_list</span></span>
+            <div>
+                <h1>All Queues</h1>
+                <p>View work queues across all roles and stages</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What This Page Shows</h2>
+            <p>A consolidated view of all application queues grouped by workflow stage. Useful for:</p>
+            <ul>
+                <li>Identifying bottlenecks in the process</li>
+                <li>Monitoring workload distribution</li>
+                <li>Finding applications that may need reassignment</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge restricted">
+                <span class="material-symbols-outlined">lock</span>
+                System Admins, Risk Managers, Credit Officers, HO Reviewers
+            </div>
+            <p class="visibility-note">Branch-level roles (Loan Officer, Branch Approver) cannot see this page.</p>
+        </div>
+    };
+
+    private RenderFragment RenderMenuOverdue() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon overdue"><span class="material-symbols-outlined">schedule</span></span>
+            <div>
+                <h1>Overdue</h1>
+                <p>Applications that have breached their SLA (Service Level Agreement)</p>
+            </div>
+        </div>
+
+        <div class="content-card warning-card">
+            <div class="warning-icon">
+                <span class="material-symbols-outlined">warning</span>
+            </div>
+            <div>
+                <h3>Urgent Attention Required</h3>
+                <p>Applications in this queue have exceeded their maximum processing time and require immediate action or escalation.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>SLA Deadlines by Stage</h2>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Stage</th>
+                        <th>SLA</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Branch Review</td><td>24 hours</td></tr>
+                    <tr><td>Credit Analysis</td><td>48 hours</td></tr>
+                    <tr><td>Committee Voting</td><td>48-168 hours (varies by committee)</td></tr>
+                    <tr><td>Final Approval</td><td>24 hours</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Actions for Overdue Items</h2>
+            <ul>
+                <li><strong>Escalate</strong> - Notify supervisors about the delay</li>
+                <li><strong>Override</strong> - Risk Manager can force a decision if justified</li>
+                <li><strong>Reassign</strong> - Assign to another officer if current owner is unavailable</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge restricted">
+                <span class="material-symbols-outlined">lock</span>
+                Risk Managers and System Admins only
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderMenuPendingVotes() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">how_to_vote</span></span>
+            <div>
+                <h1>My Pending Votes</h1>
+                <p>Committee reviews waiting for your vote</p>
+            </div>
+        </div>
+
+        <div class="content-card highlight-card">
+            <div class="highlight-icon">
+                <span class="material-symbols-outlined">priority_high</span>
+            </div>
+            <div>
+                <h3>Vote before the deadline!</h3>
+                <p>Committee reviews have deadlines. Your vote may be needed to reach quorum.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What This Page Shows</h2>
+            <ul>
+                <li>Applications assigned to committees you're a member of</li>
+                <li>Only applications where you <strong>haven't voted yet</strong></li>
+                <li>Voting deadline for each application</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>How to Vote</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Click the Application</h4>
+                        <p>Open the application detail page</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Review the Loan Pack</h4>
+                        <p>Download from Overview tab - contains all analysis</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Go to Committee Tab</h4>
+                        <p>Click <strong>Cast Vote</strong></p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Select Your Vote</h4>
+                        <p>Approve, Reject (reason required), or Abstain</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge restricted">
+                <span class="material-symbols-outlined">lock</span>
+                Committee Members only
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderMenuCommitteeReviews() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">groups</span></span>
+            <div>
+                <h1>Committee Reviews</h1>
+                <p>All applications currently in committee review stage</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What This Page Shows</h2>
+            <ul>
+                <li>All applications in <strong>Committee Circulation</strong> status</li>
+                <li>Committee name and deadline for each</li>
+                <li>Current vote count (X of Y voted)</li>
+                <li>Quorum status</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Difference from My Pending Votes</h2>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>My Pending Votes</th>
+                        <th>Committee Reviews</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Only shows where YOU need to vote</td>
+                        <td>Shows ALL committee reviews</td>
+                    </tr>
+                    <tr>
+                        <td>Filtered to your committees</td>
+                        <td>All committees visible</td>
+                    </tr>
+                    <tr>
+                        <td>Your primary voting queue</td>
+                        <td>Overview/monitoring view</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge restricted">
+                <span class="material-symbols-outlined">lock</span>
+                Committee Members, Credit Officers, Risk Managers, System Admins
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderMenuReports() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">bar_chart</span></span>
+            <div>
+                <h1>Reports</h1>
+                <p>Business analytics and performance metrics</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Available Reports</h2>
+            <div class="report-grid">
+                <div class="report-card">
+                    <span class="material-symbols-outlined">pie_chart</span>
+                    <h4>Portfolio Summary</h4>
+                    <p>Total applications by status, product type, branch</p>
+                </div>
+                <div class="report-card">
+                    <span class="material-symbols-outlined">speed</span>
+                    <h4>SLA Compliance</h4>
+                    <p>Processing times vs SLA targets by stage</p>
+                </div>
+                <div class="report-card">
+                    <span class="material-symbols-outlined">gavel</span>
+                    <h4>Decision Analysis</h4>
+                    <p>Approval rates, rejection reasons, committee decisions</p>
+                </div>
+                <div class="report-card">
+                    <span class="material-symbols-outlined">trending_up</span>
+                    <h4>Volume Trends</h4>
+                    <p>Application volume over time, seasonal patterns</p>
+                </div>
+                <div class="report-card">
+                    <span class="material-symbols-outlined">account_balance</span>
+                    <h4>Amount Analysis</h4>
+                    <p>Requested vs approved amounts, average loan size</p>
+                </div>
+                <div class="report-card">
+                    <span class="material-symbols-outlined">psychology</span>
+                    <h4>Risk Distribution</h4>
+                    <p>AI Advisory scores, risk category breakdown</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge restricted">
+                <span class="material-symbols-outlined">lock</span>
+                Credit Officers, Risk Managers, Auditors, System Admins
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderMenuAuditTrail() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">history</span></span>
+            <div>
+                <h1>Audit Trail</h1>
+                <p>Complete history of all system actions</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What Gets Logged</h2>
+            <p>Every action in the system is recorded with:</p>
+            <ul>
+                <li><strong>Who</strong> - User who performed the action</li>
+                <li><strong>What</strong> - Type of action (Create, Update, Approve, Reject, etc.)</li>
+                <li><strong>When</strong> - Exact timestamp</li>
+                <li><strong>Where</strong> - Which application or record was affected</li>
+                <li><strong>Details</strong> - Specific changes made</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Common Use Cases</h2>
+            <div class="use-case-list">
+                <div class="use-case">
+                    <span class="material-symbols-outlined">search</span>
+                    <div>
+                        <strong>Investigate Decisions</strong>
+                        <p>See who approved/rejected and when</p>
+                    </div>
+                </div>
+                <div class="use-case">
+                    <span class="material-symbols-outlined">track_changes</span>
+                    <div>
+                        <strong>Track Changes</strong>
+                        <p>See what data was modified and by whom</p>
+                    </div>
+                </div>
+                <div class="use-case">
+                    <span class="material-symbols-outlined">gavel</span>
+                    <div>
+                        <strong>Compliance Review</strong>
+                        <p>Verify process was followed correctly</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge restricted">
+                <span class="material-symbols-outlined">lock</span>
+                Risk Managers, Auditors, System Admins
+            </div>
+        </div>
+    };
+
+    // ==================== ADMIN SECTIONS ====================
+    private RenderFragment RenderAdminUsers() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">people</span></span>
+            <div>
+                <h1>Users Management</h1>
+                <p>Create and manage user accounts</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What You Can Do</h2>
+            <ul>
+                <li><strong>Create Users</strong> - Add new staff accounts</li>
+                <li><strong>Assign Roles</strong> - Set primary and secondary roles</li>
+                <li><strong>Set Location</strong> - Assign to branch/region/HO</li>
+                <li><strong>Activate/Deactivate</strong> - Enable or disable accounts</li>
+                <li><strong>Reset Password</strong> - Help users who forgot password</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Available Roles</h2>
+            <div class="roles-grid">
+                <div class="role-chip">Loan Officer</div>
+                <div class="role-chip">Branch Approver</div>
+                <div class="role-chip">Credit Officer</div>
+                <div class="role-chip">HO Reviewer</div>
+                <div class="role-chip">Committee Member</div>
+                <div class="role-chip">Final Approver</div>
+                <div class="role-chip">Operations</div>
+                <div class="role-chip">Risk Manager</div>
+                <div class="role-chip">Auditor</div>
+                <div class="role-chip">System Admin</div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Admins only
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderAdminProducts() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">inventory_2</span></span>
+            <div>
+                <h1>Products</h1>
+                <p>Configure loan products available in the system</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Product Configuration</h2>
+            <p>Each loan product has these parameters:</p>
+            <table class="info-table">
+                <tbody>
+                    <tr><td><strong>Product Name</strong></td><td>Display name shown to users</td></tr>
+                    <tr><td><strong>Product Code</strong></td><td>Unique identifier</td></tr>
+                    <tr><td><strong>Minimum Amount</strong></td><td>Smallest loan allowed</td></tr>
+                    <tr><td><strong>Maximum Amount</strong></td><td>Largest loan allowed</td></tr>
+                    <tr><td><strong>Min Tenor</strong></td><td>Shortest term (months)</td></tr>
+                    <tr><td><strong>Max Tenor</strong></td><td>Longest term (months)</td></tr>
+                    <tr><td><strong>Base Interest Rate</strong></td><td>Starting rate (adjustable by risk)</td></tr>
+                    <tr><td><strong>Required Documents</strong></td><td>Document types needed</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Admins only
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderAdminLocations() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">location_city</span></span>
+            <div>
+                <h1>Locations</h1>
+                <p>Manage the organizational hierarchy</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Location Hierarchy</h2>
+            <p>CRMS uses a 4-level location structure:</p>
+            <div class="hierarchy-visual">
+                <div class="hierarchy-level">
+                    <span class="level-marker">1</span>
+                    <strong>Head Office</strong>
+                    <span class="level-desc">Top level - global visibility</span>
+                </div>
+                <div class="hierarchy-arrow">
+                    <span class="material-symbols-outlined">arrow_downward</span>
+                </div>
+                <div class="hierarchy-level">
+                    <span class="level-marker">2</span>
+                    <strong>Region</strong>
+                    <span class="level-desc">Geographic region</span>
+                </div>
+                <div class="hierarchy-arrow">
+                    <span class="material-symbols-outlined">arrow_downward</span>
+                </div>
+                <div class="hierarchy-level">
+                    <span class="level-marker">3</span>
+                    <strong>Zone</strong>
+                    <span class="level-desc">Cluster of branches</span>
+                </div>
+                <div class="hierarchy-arrow">
+                    <span class="material-symbols-outlined">arrow_downward</span>
+                </div>
+                <div class="hierarchy-level">
+                    <span class="level-marker">4</span>
+                    <strong>Branch</strong>
+                    <span class="level-desc">Physical branch location</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Admins only
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderAdminCommittees() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">groups</span></span>
+            <div>
+                <h1>Committees</h1>
+                <p>Setup standing committees and member rosters</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Standing Committees</h2>
+            <p>The system has 5 standing committees, each handling different loan amounts:</p>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Committee</th>
+                        <th>Amount Range (NGN)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Branch Credit Committee</td><td>0 - 50 Million</td></tr>
+                    <tr><td>Regional Credit Committee</td><td>50M - 200 Million</td></tr>
+                    <tr><td>Head Office Credit Committee</td><td>200M - 500 Million</td></tr>
+                    <tr><td>Management Credit Committee</td><td>500M - 2 Billion</td></tr>
+                    <tr><td>Board Credit Committee</td><td>Above 2 Billion</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Committee Settings</h2>
+            <ul>
+                <li><strong>Members</strong> - Add users with CommitteeMember role</li>
+                <li><strong>Chairperson</strong> - Designate who records final decision</li>
+                <li><strong>Required Votes</strong> - Minimum members who must vote (quorum)</li>
+                <li><strong>Min Approval Votes</strong> - Approve votes needed to pass</li>
+                <li><strong>Default Deadline</strong> - Hours allowed for voting</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Admins only
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderAdminScoring() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">tune</span></span>
+            <div>
+                <h1>Scoring Config</h1>
+                <p>Configure the AI Advisory scoring algorithm parameters</p>
+            </div>
+        </div>
+
+        <div class="content-card highlight-card">
+            <div class="highlight-icon">
+                <span class="material-symbols-outlined">security</span>
+            </div>
+            <div>
+                <h3>Maker-Checker Required</h3>
+                <p>Changes to scoring configuration require approval from Risk Manager before they take effect. This ensures proper oversight of risk parameters.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What You Can Configure</h2>
+            <div class="config-sections">
+                <div class="config-section">
+                    <h4><span class="material-symbols-outlined">balance</span> Category Weights</h4>
+                    <p>How much each risk category contributes to the overall score (must total 100%)</p>
+                    <ul>
+                        <li>Credit History Weight (default: 25%)</li>
+                        <li>Financial Health Weight (default: 25%)</li>
+                        <li>Cashflow Stability Weight (default: 15%)</li>
+                        <li>Debt Service Capacity Weight (default: 20%)</li>
+                        <li>Collateral Coverage Weight (default: 15%)</li>
+                    </ul>
+                </div>
+                <div class="config-section">
+                    <h4><span class="material-symbols-outlined">trending_up</span> Recommendation Thresholds</h4>
+                    <p>Score ranges that trigger each recommendation</p>
+                    <ul>
+                        <li>Strong Approve: 75+ with 0 red flags</li>
+                        <li>Approve: 65+ with ≤1 red flag</li>
+                        <li>Approve with Conditions: 50+</li>
+                        <li>Refer: 35-50</li>
+                        <li>Decline: Below 35 or 3+ red flags</li>
+                    </ul>
+                </div>
+                <div class="config-section">
+                    <h4><span class="material-symbols-outlined">flag</span> Red Flag Rules</h4>
+                    <p>Conditions that automatically trigger red flags</p>
+                    <ul>
+                        <li>Fraud risk score thresholds</li>
+                        <li>Delinquency thresholds</li>
+                        <li>Financial ratio limits</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Change Process</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Admin Makes Changes</h4>
+                        <p>System Admin adjusts configuration values</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Submit for Approval</h4>
+                        <p>Changes are saved as "Pending Approval"</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Risk Manager Reviews</h4>
+                        <p>Risk Manager approves or rejects the changes</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Changes Take Effect</h4>
+                        <p>Once approved, new parameters are used for future advisories</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Admins (edit) | Risk Managers (approve)
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderAdminTemplates() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">mail</span></span>
+            <div>
+                <h1>Templates</h1>
+                <p>Manage notification templates for emails, SMS, and in-app messages</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Template Types</h2>
+            <div class="template-types">
+                <div class="template-type">
+                    <span class="material-symbols-outlined">email</span>
+                    <h4>Email Templates</h4>
+                    <p>HTML-formatted emails with subject line</p>
+                </div>
+                <div class="template-type">
+                    <span class="material-symbols-outlined">sms</span>
+                    <h4>SMS Templates</h4>
+                    <p>Short text messages (160 char limit)</p>
+                </div>
+                <div class="template-type">
+                    <span class="material-symbols-outlined">notifications</span>
+                    <h4>In-App Templates</h4>
+                    <p>Notifications shown in the system</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Common Templates</h2>
+            <ul>
+                <li><strong>Application Submitted</strong> - Sent when Loan Officer submits</li>
+                <li><strong>Application Approved</strong> - Sent when Branch Approver approves</li>
+                <li><strong>Application Returned</strong> - Sent when returned for corrections</li>
+                <li><strong>Application Rejected</strong> - Sent when application is rejected</li>
+                <li><strong>Committee Vote Request</strong> - Sent to committee members</li>
+                <li><strong>Vote Reminder</strong> - Sent when deadline approaches</li>
+                <li><strong>Disbursement Complete</strong> - Sent when loan is disbursed</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Template Variables</h2>
+            <p>Templates can include dynamic variables like:</p>
+            <div class="variable-list">
+                <code>@("{CustomerName}")</code>
+                <code>@("{ApplicationId}")</code>
+                <code>@("{Amount}")</code>
+                <code>@("{Status}")</code>
+                <code>@("{LoanOfficer}")</code>
+                <code>@("{Deadline}")</code>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Admins only
+            </div>
+        </div>
+    };
+
+    // ==================== WORKFLOW & PROCESS ====================
+    private RenderFragment RenderWorkflow() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">account_tree</span></span>
+            <div>
+                <h1>Complete Loan Workflow</h1>
+                <p>End-to-end corporate loan processing flow</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Visual Workflow</h2>
+            <div class="full-workflow">
+                <div class="workflow-row">
+                    <div class="workflow-box draft">
+                        <div class="box-icon"><span class="material-symbols-outlined">edit_note</span></div>
+                        <h4>Draft</h4>
+                        <p>Loan Officer creates application</p>
+                        <span class="box-actor">Loan Officer</span>
+                    </div>
+                    <div class="workflow-arrow">
+                        <span class="arrow-label">Submit</span>
+                    </div>
+                    <div class="workflow-box review">
+                        <div class="box-icon"><span class="material-symbols-outlined">fact_check</span></div>
+                        <h4>Branch Review</h4>
+                        <p>First-level verification</p>
+                        <span class="box-actor">Branch Approver</span>
+                    </div>
+                    <div class="workflow-arrow">
+                        <span class="arrow-label">Approve</span>
+                    </div>
+                    <div class="workflow-box analysis">
+                        <div class="box-icon"><span class="material-symbols-outlined">analytics</span></div>
+                        <h4>Credit Analysis</h4>
+                        <p>Risk assessment &amp; valuation</p>
+                        <span class="box-actor">Credit Officer</span>
+                    </div>
+                </div>
+                
+                <div class="workflow-row">
+                    <div class="workflow-box committee">
+                        <div class="box-icon"><span class="material-symbols-outlined">how_to_vote</span></div>
+                        <h4>Committee</h4>
+                        <p>Members vote on facility</p>
+                        <span class="box-actor">Committee</span>
+                    </div>
+                    <div class="workflow-arrow reverse">
+                        <span class="arrow-label">Setup</span>
+                    </div>
+                    <div class="workflow-spacer"></div>
+                    <div class="workflow-arrow">
+                        <span class="arrow-label">Decision</span>
+                    </div>
+                    <div class="workflow-box approval">
+                        <div class="box-icon"><span class="material-symbols-outlined">verified</span></div>
+                        <h4>Final Approval</h4>
+                        <p>Authorize disbursement</p>
+                        <span class="box-actor">Final Approver</span>
+                    </div>
+                    <div class="workflow-arrow">
+                        <span class="arrow-label">Approve</span>
+                    </div>
+                    <div class="workflow-box disbursed">
+                        <div class="box-icon"><span class="material-symbols-outlined">payments</span></div>
+                        <h4>Disbursed</h4>
+                        <p>Loan booked &amp; disbursed</p>
+                        <span class="box-actor">Operations</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Return &amp; Rejection Paths</h2>
+            <div class="alternate-paths">
+                <div class="path-card return">
+                    <span class="material-symbols-outlined">undo</span>
+                    <h4>Return Path</h4>
+                    <p>At any approval stage, the application can be <strong>returned</strong> to the previous stage for corrections. This is recoverable - the Loan Officer can fix issues and resubmit.</p>
+                </div>
+                <div class="path-card reject">
+                    <span class="material-symbols-outlined">cancel</span>
+                    <h4>Rejection Path</h4>
+                    <p>At any stage, the application can be <strong>rejected</strong> permanently. This terminates the application - it cannot be reopened or resubmitted.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Automatic System Actions</h2>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Trigger Event</th>
+                        <th>Automatic Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Application Created</td>
+                        <td>6-month bank statement fetched from Core Banking</td>
+                    </tr>
+                    <tr>
+                        <td>Branch Approver Approves</td>
+                        <td>Credit bureau checks run for all related parties</td>
+                    </tr>
+                    <tr>
+                        <td>Committee Setup</td>
+                        <td>Automatic routing to appropriate committee by amount</td>
+                    </tr>
+                    <tr>
+                        <td>Any Status Change</td>
+                        <td>Notifications sent, audit log created</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    };
+
+    private RenderFragment RenderCreatingApplication() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">add_circle</span></span>
+            <div>
+                <h1>Creating an Application</h1>
+                <p>Complete guide to starting a new loan application</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Prerequisites</h2>
+            <ul>
+                <li>You must have <strong>Loan Officer</strong> or <strong>System Admin</strong> role</li>
+                <li>Customer must have an existing account in Core Banking</li>
+                <li>Company must be registered with CAC (RC number required)</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Data Sources</h2>
+            <p>The application pulls data from multiple systems:</p>
+            <div class="data-source-cards">
+                <div class="source-card">
+                    <div class="source-icon blue">
+                        <span class="material-symbols-outlined">account_balance</span>
+                    </div>
+                    <h4>Core Banking</h4>
+                    <ul>
+                        <li>Customer name &amp; address</li>
+                        <li>Account signatories</li>
+                        <li>6-month bank statement</li>
+                    </ul>
+                </div>
+                <div class="source-card">
+                    <div class="source-icon green">
+                        <span class="material-symbols-outlined">business</span>
+                    </div>
+                    <h4>SmartComply (CAC)</h4>
+                    <ul>
+                        <li>Company registration details</li>
+                        <li>Official director list</li>
+                        <li>Shareholding structure</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Director Discrepancy Check</h2>
+            <div class="info-box warning">
+                <span class="material-symbols-outlined">compare_arrows</span>
+                <p>The system compares directors from Core Banking with directors from CAC. Any mismatch is flagged as a <strong>discrepancy indicator</strong>. Always use CAC directors as the authoritative source.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>After Creation</h2>
+            <p>Once created, the application is in <strong>Draft</strong> status. You must complete:</p>
+            <div class="completion-checklist">
+                <div class="checklist-item">
+                    <span class="material-symbols-outlined">description</span>
+                    <span>Upload all required documents</span>
+                </div>
+                <div class="checklist-item">
+                    <span class="material-symbols-outlined">real_estate_agent</span>
+                    <span>Add collateral with details</span>
+                </div>
+                <div class="checklist-item">
+                    <span class="material-symbols-outlined">person_add</span>
+                    <span>Add guarantors with BVN</span>
+                </div>
+                <div class="checklist-item">
+                    <span class="material-symbols-outlined">calculate</span>
+                    <span>Enter financial statements</span>
+                </div>
+            </div>
+            <p>Then click <strong>Submit for Review</strong> to send to Branch Approver.</p>
+        </div>
+    };
+
+    private RenderFragment RenderApplicationStatuses() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">list_alt</span></span>
+            <div>
+                <h1>Application Statuses</h1>
+                <p>Complete reference of all status states</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Status Reference</h2>
+            <div class="status-cards">
+                <div class="status-card draft">
+                    <div class="status-header">
+                        <span class="status-dot"></span>
+                        <h4>Draft</h4>
+                    </div>
+                    <p>Initial data entry. Application can be edited freely.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Loan Officer</span>
+                        <span><strong>Actions:</strong> Submit for Review</span>
+                    </div>
+                </div>
+                
+                <div class="status-card review">
+                    <div class="status-header">
+                        <span class="status-dot"></span>
+                        <h4>Branch Review</h4>
+                    </div>
+                    <p>Awaiting first-level approval and document verification.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Branch Approver</span>
+                        <span><strong>Actions:</strong> Approve, Return, Reject</span>
+                    </div>
+                </div>
+                
+                <div class="status-card returned">
+                    <div class="status-header">
+                        <span class="status-dot"></span>
+                        <h4>Branch Returned</h4>
+                    </div>
+                    <p>Returned for corrections. Check workflow tab for reason.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Loan Officer</span>
+                        <span><strong>Actions:</strong> Edit and Resubmit</span>
+                    </div>
+                </div>
+                
+                <div class="status-card analysis">
+                    <div class="status-header">
+                        <span class="status-dot"></span>
+                        <h4>Credit Analysis</h4>
+                    </div>
+                    <p>Under detailed credit review. Bureau checks running.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Credit Officer</span>
+                        <span><strong>Actions:</strong> Approve, Setup Committee, Reject</span>
+                    </div>
+                </div>
+                
+                <div class="status-card committee">
+                    <div class="status-header">
+                        <span class="status-dot"></span>
+                        <h4>Committee Circulation</h4>
+                    </div>
+                    <p>Committee members are voting on the facility.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Committee Members</span>
+                        <span><strong>Actions:</strong> Cast Vote</span>
+                    </div>
+                </div>
+                
+                <div class="status-card approved">
+                    <div class="status-header">
+                        <span class="status-dot"></span>
+                        <h4>Committee Approved</h4>
+                    </div>
+                    <p>Committee has approved. Awaiting final sign-off.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Final Approver</span>
+                        <span><strong>Actions:</strong> Final Approve, Reject</span>
+                    </div>
+                </div>
+                
+                <div class="status-card final">
+                    <div class="status-header">
+                        <span class="status-dot"></span>
+                        <h4>Approved</h4>
+                    </div>
+                    <p>Ready for disbursement processing.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Operations</span>
+                        <span><strong>Actions:</strong> Process Disbursement</span>
+                    </div>
+                </div>
+                
+                <div class="status-card disbursed">
+                    <div class="status-header">
+                        <span class="status-dot"></span>
+                        <h4>Disbursed</h4>
+                    </div>
+                    <p>Loan booked and funds disbursed. Terminal state.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> None</span>
+                        <span><strong>Actions:</strong> None (Complete)</span>
+                    </div>
+                </div>
+                
+                <div class="status-card rejected">
+                    <div class="status-header">
+                        <span class="status-dot"></span>
+                        <h4>Rejected</h4>
+                    </div>
+                    <p>Application rejected. Cannot be reopened. Terminal state.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> None</span>
+                        <span><strong>Actions:</strong> None (Closed)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderWorkflowActions() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">touch_app</span></span>
+            <div>
+                <h1>Workflow Actions</h1>
+                <p>Actions available at each stage of the process</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Action Reference</h2>
+            <div class="action-reference">
+                <div class="action-ref-card approve">
+                    <div class="action-ref-icon">
+                        <span class="material-symbols-outlined">check_circle</span>
+                    </div>
+                    <div class="action-ref-content">
+                        <h4>Approve</h4>
+                        <p>Moves application forward to the next stage</p>
+                        <div class="action-ref-meta">
+                            <span><strong>Comment:</strong> Optional</span>
+                            <span><strong>Used by:</strong> Branch Approver, Credit Officer, Chairperson, Final Approver</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="action-ref-card return">
+                    <div class="action-ref-icon">
+                        <span class="material-symbols-outlined">undo</span>
+                    </div>
+                    <div class="action-ref-content">
+                        <h4>Return</h4>
+                        <p>Sends back to previous stage for corrections (recoverable)</p>
+                        <div class="action-ref-meta">
+                            <span><strong>Comment:</strong> Required</span>
+                            <span><strong>Used by:</strong> Branch Approver, Credit Officer</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="action-ref-card reject">
+                    <div class="action-ref-icon">
+                        <span class="material-symbols-outlined">cancel</span>
+                    </div>
+                    <div class="action-ref-content">
+                        <h4>Reject</h4>
+                        <p>Terminates application permanently (not recoverable)</p>
+                        <div class="action-ref-meta">
+                            <span><strong>Comment:</strong> Required</span>
+                            <span><strong>Used by:</strong> Branch Approver, Credit Officer, Final Approver</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="action-ref-card submit">
+                    <div class="action-ref-icon">
+                        <span class="material-symbols-outlined">send</span>
+                    </div>
+                    <div class="action-ref-content">
+                        <h4>Submit</h4>
+                        <p>Sends draft application for Branch Review</p>
+                        <div class="action-ref-meta">
+                            <span><strong>Comment:</strong> Optional</span>
+                            <span><strong>Used by:</strong> Loan Officer</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    // ==================== APPLICATION TABS ====================
+    private RenderFragment RenderTabOverview() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">dashboard</span></span>
+            <div>
+                <h1>Overview Tab</h1>
+                <p>Application summary and key actions</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What You'll See</h2>
+            <ul>
+                <li><strong>Application Status</strong> - Current workflow state</li>
+                <li><strong>Customer Information</strong> - Name, account, address</li>
+                <li><strong>Loan Details</strong> - Product, amount, tenor, purpose</li>
+                <li><strong>Directors &amp; Signatories</strong> - Related parties summary</li>
+                <li><strong>Quick Metrics</strong> - Collateral coverage, guarantor count</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Available Actions</h2>
+            <div class="tab-actions">
+                <div class="tab-action">
+                    <span class="material-symbols-outlined">picture_as_pdf</span>
+                    <strong>Generate Loan Pack</strong>
+                    <p>Creates comprehensive PDF for committee review</p>
+                </div>
+                <div class="tab-action">
+                    <span class="material-symbols-outlined">send</span>
+                    <strong>Workflow Actions</strong>
+                    <p>Submit, Approve, Return, or Reject (based on your role)</p>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderTabDocuments() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">folder</span></span>
+            <div>
+                <h1>Documents Tab</h1>
+                <p>Upload and manage loan documents</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Document Categories</h2>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Description</th>
+                        <th>Required</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Board Resolution</td><td>Authorization to borrow</td><td>Always</td></tr>
+                    <tr><td>Company Registration</td><td>CAC certificate</td><td>Always</td></tr>
+                    <tr><td>Audited Financials</td><td>Certified statements</td><td>Business &gt; 2 years</td></tr>
+                    <tr><td>Tax Clearance</td><td>Tax compliance certificate</td><td>Always</td></tr>
+                    <tr><td>Identity Documents</td><td>Director IDs/passports</td><td>Always</td></tr>
+                    <tr><td>Collateral Documents</td><td>Titles, valuations</td><td>When collateral pledged</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Document Statuses</h2>
+            <div class="doc-status-list">
+                <div class="doc-status pending">
+                    <span class="material-symbols-outlined">hourglass_empty</span>
+                    <strong>Pending</strong> - Uploaded, awaiting verification
+                </div>
+                <div class="doc-status verified">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <strong>Verified</strong> - Reviewed and accepted
+                </div>
+                <div class="doc-status rejected">
+                    <span class="material-symbols-outlined">cancel</span>
+                    <strong>Rejected</strong> - Not acceptable (reason provided)
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Do What</h2>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Action</th>
+                        <th>Loan Officer</th>
+                        <th>Branch Approver</th>
+                        <th>Credit Officer</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Upload</td>
+                        <td class="yes">Yes (Draft only)</td>
+                        <td class="no">No</td>
+                        <td class="no">No</td>
+                    </tr>
+                    <tr>
+                        <td>View/Download</td>
+                        <td class="yes">Yes</td>
+                        <td class="yes">Yes</td>
+                        <td class="yes">Yes</td>
+                    </tr>
+                    <tr>
+                        <td>Verify</td>
+                        <td class="no">No</td>
+                        <td class="yes">Yes</td>
+                        <td class="yes">Yes</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    };
+
+    private RenderFragment RenderTabCollateral() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">real_estate_agent</span></span>
+            <div>
+                <h1>Collateral Tab</h1>
+                <p>Manage pledged security for the loan</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Collateral Types</h2>
+            <div class="collateral-types">
+                <div class="collateral-type">
+                    <span class="material-symbols-outlined">home</span>
+                    <span>Real Estate</span>
+                    <span class="ltv">LTV: 70%</span>
+                </div>
+                <div class="collateral-type">
+                    <span class="material-symbols-outlined">directions_car</span>
+                    <span>Vehicle</span>
+                    <span class="ltv">LTV: 60%</span>
+                </div>
+                <div class="collateral-type">
+                    <span class="material-symbols-outlined">precision_manufacturing</span>
+                    <span>Equipment</span>
+                    <span class="ltv">LTV: 50%</span>
+                </div>
+                <div class="collateral-type">
+                    <span class="material-symbols-outlined">savings</span>
+                    <span>Cash Deposit</span>
+                    <span class="ltv">LTV: 100%</span>
+                </div>
+                <div class="collateral-type">
+                    <span class="material-symbols-outlined">description</span>
+                    <span>Treasury Bills</span>
+                    <span class="ltv">LTV: 95%</span>
+                </div>
+                <div class="collateral-type">
+                    <span class="material-symbols-outlined">trending_up</span>
+                    <span>Stocks</span>
+                    <span class="ltv">LTV: 50%</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Collateral Workflow</h2>
+            <div class="collateral-flow">
+                <div class="flow-step"><span class="flow-badge proposed">Proposed</span>Loan Officer adds</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge valuation">Under Valuation</span>CO reviews</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge valued">Valued</span>Values set</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge approved">Approved</span>Accepted</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge perfected">Perfected</span>Lien registered</div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Valuation Process</h2>
+            <p>Credit Officer sets these values:</p>
+            <ul>
+                <li><strong>Market Value</strong> - Current fair market price</li>
+                <li><strong>Forced Sale Value (FSV)</strong> - Quick sale price (60-80% of market)</li>
+                <li><strong>Haircut %</strong> - Additional risk discount</li>
+            </ul>
+            <div class="formula-box">
+                <strong>Acceptable Value</strong> = FSV × (1 - Haircut%)
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderTabGuarantors() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">person_add</span></span>
+            <div>
+                <h1>Guarantors Tab</h1>
+                <p>Manage loan guarantors</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Guarantee Types</h2>
+            <table class="info-table">
+                <tbody>
+                    <tr><td><strong>Unlimited</strong></td><td>Liable for full amount plus interest and charges</td></tr>
+                    <tr><td><strong>Limited</strong></td><td>Liable only up to a specified maximum</td></tr>
+                    <tr><td><strong>Joint</strong></td><td>Multiple guarantors share liability equally</td></tr>
+                    <tr><td><strong>Joint and Several</strong></td><td>Each guarantor individually liable for full amount</td></tr>
+                    <tr><td><strong>Continuing</strong></td><td>Covers future facilities, not just current one</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Guarantor Workflow</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Add Guarantor</h4>
+                        <p>Loan Officer adds guarantor with BVN and details</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Credit Check (Automatic)</h4>
+                        <p>When Branch Approver approves, credit check runs automatically</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Review &amp; Approve</h4>
+                        <p>Credit Officer reviews bureau report and approves or rejects</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderTabFinancials() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">calculate</span></span>
+            <div>
+                <h1>Financials Tab</h1>
+                <p>Enter and analyze financial statements</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Requirements by Business Age</h2>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Business Age</th>
+                        <th>Requirement</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Less than 1 year</td><td>3 years Projected financials</td></tr>
+                    <tr><td>1 year</td><td>1 Actual + 2 Projected</td></tr>
+                    <tr><td>2 years</td><td>2 Actuals (1 Audited) + 1 Projected</td></tr>
+                    <tr><td>3+ years</td><td>3 years Audited</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>4-Step Entry Wizard</h2>
+            <div class="wizard-steps">
+                <div class="wizard-step">
+                    <span class="wizard-num">1</span>
+                    <span>Header</span>
+                    <span class="wizard-desc">Year, Type</span>
+                </div>
+                <div class="wizard-step">
+                    <span class="wizard-num">2</span>
+                    <span>Balance Sheet</span>
+                    <span class="wizard-desc">Assets, Liabilities</span>
+                </div>
+                <div class="wizard-step">
+                    <span class="wizard-num">3</span>
+                    <span>Profit &amp; Loss</span>
+                    <span class="wizard-desc">Revenue, Expenses</span>
+                </div>
+                <div class="wizard-step">
+                    <span class="wizard-num">4</span>
+                    <span>Cash Flow</span>
+                    <span class="wizard-desc">Operations, Investing</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Key Ratios Calculated</h2>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Ratio</th>
+                        <th>Good Range</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Current Ratio</td><td>&gt; 1.5</td></tr>
+                    <tr><td>Debt-to-Equity</td><td>&lt; 2.0</td></tr>
+                    <tr><td>Net Profit Margin</td><td>&gt; 5%</td></tr>
+                    <tr><td>DSCR</td><td>&gt; 1.25</td></tr>
+                    <tr><td>Interest Coverage</td><td>&gt; 3.0</td></tr>
+                </tbody>
+            </table>
+        </div>
+    };
+
+    private RenderFragment RenderTabStatements() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">account_balance</span></span>
+            <div>
+                <h1>Bank Statements Tab</h1>
+                <p>Cashflow analysis from bank statements</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Statement Sources &amp; Trust</h2>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Source</th>
+                        <th>Trust Weight</th>
+                        <th>How Obtained</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Core Banking (Own Bank)</td><td>100%</td><td>Auto-fetched on creation</td></tr>
+                    <tr><td>External Bank (Verified)</td><td>85%</td><td>Uploaded &amp; verified</td></tr>
+                    <tr><td>External Bank (Unverified)</td><td>70%</td><td>Uploaded, not verified</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Metrics Analyzed</h2>
+            <div class="metrics-grid">
+                <div class="metric">
+                    <span class="material-symbols-outlined">trending_up</span>
+                    <strong>Net Monthly Cashflow</strong>
+                </div>
+                <div class="metric">
+                    <span class="material-symbols-outlined">show_chart</span>
+                    <strong>Cashflow Volatility</strong>
+                </div>
+                <div class="metric">
+                    <span class="material-symbols-outlined">account_balance_wallet</span>
+                    <strong>Average Balance</strong>
+                </div>
+                <div class="metric">
+                    <span class="material-symbols-outlined">warning</span>
+                    <strong>Bounced Transactions</strong>
+                </div>
+                <div class="metric">
+                    <span class="material-symbols-outlined">casino</span>
+                    <strong>Gambling Transactions</strong>
+                </div>
+                <div class="metric">
+                    <span class="material-symbols-outlined">trending_down</span>
+                    <strong>Days with Negative Balance</strong>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderTabBureau() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">credit_score</span></span>
+            <div>
+                <h1>Bureau Tab</h1>
+                <p>Credit bureau reports for all related parties</p>
+            </div>
+        </div>
+
+        <div class="content-card highlight-card">
+            <div class="highlight-icon">
+                <span class="material-symbols-outlined">bolt</span>
+            </div>
+            <div>
+                <h3>Automatic Credit Checks</h3>
+                <p>Credit bureau checks are <strong>automatically triggered</strong> when Branch Approver approves the application. No manual action needed.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Gets Checked</h2>
+            <ul>
+                <li><strong>All Directors</strong> - Company directors from CAC</li>
+                <li><strong>All Signatories</strong> - Account mandate holders</li>
+                <li><strong>All Guarantors</strong> - Individuals guaranteeing the loan</li>
+                <li><strong>The Business</strong> - Corporate credit check</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Report Information</h2>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Field</th>
+                        <th>Red Flag If</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Credit Score</td><td>Below 600</td></tr>
+                    <tr><td>Delinquent Facilities</td><td>Any &gt; 0</td></tr>
+                    <tr><td>Max Delinquency Days</td><td>&gt; 90 days</td></tr>
+                    <tr><td>Defaulted Loans</td><td>Any &gt; 0</td></tr>
+                    <tr><td>Legal Actions</td><td>Yes</td></tr>
+                    <tr><td>Fraud Risk Score</td><td>&gt; 50</td></tr>
+                </tbody>
+            </table>
+        </div>
+    };
+
+    private RenderFragment RenderTabAdvisory() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">psychology</span></span>
+            <div>
+                <h1>Advisory Tab</h1>
+                <p>AI-powered risk assessment and recommendation</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What the Advisory Provides</h2>
+            <ul>
+                <li><strong>Overall Risk Score</strong> - Composite score 0-100</li>
+                <li><strong>Category Scores</strong> - Individual scores for each risk dimension</li>
+                <li><strong>Recommendation</strong> - Strong Approve, Approve, Conditions, Refer, Decline</li>
+                <li><strong>Red Flags</strong> - Specific concerns needing attention</li>
+                <li><strong>Suggested Terms</strong> - Recommended amount, tenor, rate</li>
+                <li><strong>Conditions &amp; Covenants</strong> - Suggested requirements</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>How to Generate</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Ensure Data is Complete</h4>
+                        <p>Credit checks done, financials entered, collateral valued</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Click Generate Advisory</h4>
+                        <p>System analyzes all available data</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Review Results</h4>
+                        <p>Understand scores, flags, and recommendation</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Generate</h2>
+            <div class="visibility-badge restricted">
+                <span class="material-symbols-outlined">lock</span>
+                Credit Officers only
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderTabCommittee() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">groups</span></span>
+            <div>
+                <h1>Committee Tab</h1>
+                <p>Committee review and voting</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What You'll See</h2>
+            <ul>
+                <li><strong>Committee Name</strong> - Which committee is reviewing</li>
+                <li><strong>Voting Deadline</strong> - When votes are due</li>
+                <li><strong>Vote Status</strong> - Who has voted, who hasn't</li>
+                <li><strong>Current Tally</strong> - Approve vs Reject vs Abstain count</li>
+                <li><strong>Quorum Status</strong> - Whether minimum votes are reached</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Available Actions</h2>
+            <div class="tab-actions">
+                <div class="tab-action">
+                    <span class="material-symbols-outlined">how_to_vote</span>
+                    <strong>Cast Vote</strong>
+                    <p>Committee members vote Approve, Reject, or Abstain</p>
+                </div>
+                <div class="tab-action">
+                    <span class="material-symbols-outlined">gavel</span>
+                    <strong>Record Decision</strong>
+                    <p>Chairperson records final committee decision</p>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderTabWorkflow() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">history</span></span>
+            <div>
+                <h1>Workflow Tab</h1>
+                <p>Complete history of application actions</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What's Shown</h2>
+            <p>A chronological timeline of every action taken on this application:</p>
+            <ul>
+                <li>Who performed the action</li>
+                <li>What action was taken</li>
+                <li>When it happened</li>
+                <li>Comments or reasons provided</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Common Uses</h2>
+            <div class="use-case-list">
+                <div class="use-case">
+                    <span class="material-symbols-outlined">search</span>
+                    <div>
+                        <strong>Find Return Reason</strong>
+                        <p>If application was returned, see why</p>
+                    </div>
+                </div>
+                <div class="use-case">
+                    <span class="material-symbols-outlined">timeline</span>
+                    <div>
+                        <strong>Track Progress</strong>
+                        <p>See how long each stage took</p>
+                    </div>
+                </div>
+                <div class="use-case">
+                    <span class="material-symbols-outlined">gavel</span>
+                    <div>
+                        <strong>Audit Trail</strong>
+                        <p>Complete record for compliance</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    // ==================== CREDIT ASSESSMENT ====================
+    private RenderFragment RenderScoringAlgorithm() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">calculate</span></span>
+            <div>
+                <h1>Scoring Algorithm - Complete Reference</h1>
+                <p>Full documentation for audit and verification purposes</p>
+            </div>
+        </div>
+
+        <div class="content-card highlight-card">
+            <div class="highlight-icon">
+                <span class="material-symbols-outlined">verified</span>
+            </div>
+            <div>
+                <h3>Auditable &amp; Deterministic</h3>
+                <p>This scoring algorithm is <strong>rule-based</strong> (not machine learning). Every calculation follows the exact rules below. Same inputs always produce the same outputs. All thresholds are configurable via Scoring Config.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Overall Score Calculation</h2>
+            <p>The overall score is a weighted average of 5 risk categories:</p>
+            <div class="formula-box large">
+                <strong>Overall Score</strong> = (Credit History × 25%) + (Financial Health × 25%) + (Cashflow × 15%) + (DSCR × 20%) + (Collateral × 15%)
+            </div>
+            <table class="info-table">
+                <thead>
+                    <tr><th>Category</th><th>Weight</th><th>Default Base Score</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Credit History</td><td>25%</td><td>70</td></tr>
+                    <tr><td>Financial Health</td><td>25%</td><td>60</td></tr>
+                    <tr><td>Cashflow Stability</td><td>15%</td><td>60</td></tr>
+                    <tr><td>Debt Service Capacity</td><td>20%</td><td>Calculated from DSCR</td></tr>
+                    <tr><td>Collateral Coverage</td><td>15%</td><td>Calculated from LTV</td></tr>
+                </tbody>
+            </table>
+            <p><strong>Note:</strong> Each category score is clamped to range 0-100 before weighting.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>1. Credit History Score (Weight: 25%)</h2>
+            <p><strong>Data Source:</strong> Credit bureau reports for all directors, signatories, guarantors, and the business entity</p>
+            <p><strong>Base Score:</strong> 70 points</p>
+            
+            <h4>Bonuses (Added to Base)</h4>
+            <table class="scoring-table">
+                <thead>
+                    <tr><th>Condition</th><th>Points</th><th>Config Parameter</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="bonus"><td>Average credit score ≥ 700 (Excellent)</td><td>+20</td><td>ExcellentCreditScoreBonus</td></tr>
+                    <tr class="bonus"><td>Average credit score ≥ 650 (Good)</td><td>+10</td><td>GoodCreditScoreBonus</td></tr>
+                    <tr class="bonus"><td>3+ performing loans on record</td><td>+5</td><td>PerformingLoansBonus</td></tr>
+                </tbody>
+            </table>
+
+            <h4>Penalties (Subtracted from Base)</h4>
+            <table class="scoring-table">
+                <thead>
+                    <tr><th>Condition</th><th>Points</th><th>Config Parameter</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="penalty"><td>Average credit score &lt; 600 (Poor)</td><td>-20</td><td>PoorCreditScorePenalty</td></tr>
+                    <tr class="penalty"><td>Any defaulted loans on record</td><td>-30</td><td>DefaultPenalty</td></tr>
+                    <tr class="penalty"><td>Any delinquent loans on record</td><td>-15</td><td>DelinquencyPenalty</td></tr>
+                    <tr class="penalty"><td>Legal actions on record</td><td>-20</td><td>LegalActionsPenalty</td></tr>
+                    <tr class="penalty"><td>Max delinquency ≥ 90 days (Severe)</td><td>-15</td><td>SevereDelinquencyPenalty</td></tr>
+                    <tr class="penalty"><td>Max delinquency ≥ 30 days (Watch List)</td><td>-8</td><td>WatchListPenalty</td></tr>
+                    <tr class="penalty"><td>Fraud risk score ≥ 70 (High)</td><td>-25</td><td>HighFraudRiskPenalty</td></tr>
+                    <tr class="penalty"><td>Fraud risk score ≥ 50 (Elevated)</td><td>-10</td><td>ElevatedFraudRiskPenalty</td></tr>
+                    <tr class="penalty"><td>Missing bureau data (per party)</td><td>-5 each</td><td>MissingBureauDataPenaltyPerParty</td></tr>
+                </tbody>
+            </table>
+            <p><strong>Red Flags Triggered:</strong> Defaults, low credit scores, legal actions, high fraud risk, missing data</p>
+        </div>
+
+        <div class="content-card">
+            <h2>2. Financial Health Score (Weight: 25%)</h2>
+            <p><strong>Data Source:</strong> Most recent year's financial statements (Balance Sheet, P&amp;L)</p>
+            <p><strong>Base Score:</strong> 60 points</p>
+
+            <h4>Bonuses (Added to Base)</h4>
+            <table class="scoring-table">
+                <thead>
+                    <tr><th>Condition</th><th>Points</th><th>Config Parameter</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="bonus"><td>Current Ratio ≥ 2.0 (Strong Liquidity)</td><td>+10</td><td>StrongCurrentRatioBonus</td></tr>
+                    <tr class="bonus"><td>Debt-to-Equity ≤ 1.0 (Conservative Leverage)</td><td>+10</td><td>ConservativeLeverageBonus</td></tr>
+                    <tr class="bonus"><td>Net Profit Margin ≥ 10% (Strong Profitability)</td><td>+15</td><td>StrongNetMarginBonus</td></tr>
+                    <tr class="bonus"><td>Return on Equity (ROE) ≥ 15%</td><td>+10</td><td>StrongROEBonus</td></tr>
+                </tbody>
+            </table>
+
+            <h4>Penalties (Subtracted from Base)</h4>
+            <table class="scoring-table">
+                <thead>
+                    <tr><th>Condition</th><th>Points</th><th>Config Parameter</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="penalty"><td>Current Ratio &lt; 1.0 (Weak Liquidity)</td><td>-15</td><td>WeakCurrentRatioPenalty</td></tr>
+                    <tr class="penalty"><td>Debt-to-Equity &gt; 3.0 (High Leverage)</td><td>-20</td><td>HighLeveragePenalty</td></tr>
+                    <tr class="penalty"><td>Net Profit Margin &lt; 0% (Loss-Making)</td><td>-25</td><td>LossMakingPenalty</td></tr>
+                </tbody>
+            </table>
+            <p><strong>Red Flags Triggered:</strong> Liquidity below 1.0, D/E above 3.0, loss-making operations</p>
+        </div>
+
+        <div class="content-card">
+            <h2>3. Cashflow Stability Score (Weight: 15%)</h2>
+            <p><strong>Data Source:</strong> Bank statement analysis (internal from Core Banking + external uploads)</p>
+            <p><strong>Base Score:</strong> 60 points</p>
+
+            <h4>Bonuses (Added to Base)</h4>
+            <table class="scoring-table">
+                <thead>
+                    <tr><th>Condition</th><th>Points</th><th>Config Parameter</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="bonus"><td>Internal bank statement provided (our Core Banking)</td><td>+10</td><td>InternalStatementBonus</td></tr>
+                    <tr class="bonus"><td>All external statements verified</td><td>+5</td><td>VerifiedExternalBonus</td></tr>
+                    <tr class="bonus"><td>Positive net monthly cashflow</td><td>+15</td><td>PositiveCashflowBonus</td></tr>
+                    <tr class="bonus"><td>Low volatility (&lt; 30%)</td><td>+10</td><td>LowVolatilityBonus</td></tr>
+                    <tr class="bonus"><td>12+ months statement coverage</td><td>+5</td><td>IdealCoverageBonus</td></tr>
+                </tbody>
+            </table>
+
+            <h4>Penalties (Subtracted from Base)</h4>
+            <table class="scoring-table">
+                <thead>
+                    <tr><th>Condition</th><th>Points</th><th>Config Parameter</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="penalty"><td>No internal bank statement</td><td>-15</td><td>MissingInternalPenalty</td></tr>
+                    <tr class="penalty"><td>Negative net monthly cashflow</td><td>-20</td><td>NegativeCashflowPenalty</td></tr>
+                    <tr class="penalty"><td>High volatility (&gt; 50%)</td><td>-10</td><td>HighVolatilityPenalty</td></tr>
+                    <tr class="penalty"><td>Gambling transactions detected</td><td>-15</td><td>GamblingPenalty</td></tr>
+                    <tr class="penalty"><td>Bounced/failed transactions detected</td><td>-20</td><td>BouncedTransactionPenalty</td></tr>
+                    <tr class="penalty"><td>Negative balance &gt; 10 days</td><td>-15</td><td>HighNegativeBalancePenalty</td></tr>
+                    <tr class="penalty"><td>Negative balance &gt; 5 days</td><td>-5</td><td>ModerateNegativeBalancePenalty</td></tr>
+                    <tr class="penalty"><td>Less than 6 months statement coverage</td><td>-10</td><td>InsufficientCoveragePenalty</td></tr>
+                </tbody>
+            </table>
+            <p><strong>Red Flags Triggered:</strong> Missing internal statement, negative cashflow, gambling, bounced transactions</p>
+        </div>
+
+        <div class="content-card">
+            <h2>4. Debt Service Capacity Score (Weight: 20%)</h2>
+            <p><strong>Data Source:</strong> Calculated DSCR from financial statements</p>
+            <div class="formula-box">
+                <strong>DSCR</strong> = EBITDA ÷ Annual Debt Service (Principal + Interest)
+            </div>
+
+            <h4>Base Score by DSCR Range</h4>
+            <table class="scoring-table">
+                <thead>
+                    <tr><th>DSCR Range</th><th>Base Score</th><th>Interpretation</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="bonus"><td>≥ 2.0</td><td>90</td><td>Excellent - strong debt coverage</td></tr>
+                    <tr class="bonus"><td>≥ 1.5</td><td>75</td><td>Good - comfortable coverage</td></tr>
+                    <tr><td>≥ 1.25</td><td>60</td><td>Adequate - acceptable minimum</td></tr>
+                    <tr class="penalty"><td>≥ 1.0</td><td>45</td><td>Marginal - tight coverage</td></tr>
+                    <tr class="penalty"><td>&lt; 1.0</td><td>25</td><td>Insufficient - cannot service debt</td></tr>
+                </tbody>
+            </table>
+
+            <h4>Additional Adjustments (Interest Coverage Ratio)</h4>
+            <table class="scoring-table">
+                <thead>
+                    <tr><th>Condition</th><th>Points</th><th>Config Parameter</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="bonus"><td>Interest Coverage ≥ 5.0x (Strong)</td><td>+5</td><td>StrongInterestCoverageBonus</td></tr>
+                    <tr class="penalty"><td>Interest Coverage &lt; 2.0x (Weak)</td><td>-10</td><td>WeakInterestCoveragePenalty</td></tr>
+                </tbody>
+            </table>
+            <p><strong>Red Flags Triggered:</strong> DSCR below 1.0</p>
+        </div>
+
+        <div class="content-card">
+            <h2>5. Collateral Coverage Score (Weight: 15%)</h2>
+            <p><strong>Data Source:</strong> Collateral valuations (Forced Sale Value)</p>
+            <div class="formula-box">
+                <strong>LTV (Loan-to-Value)</strong> = Requested Loan Amount ÷ Total Forced Sale Value × 100%
+            </div>
+
+            <h4>Base Score by LTV Range</h4>
+            <table class="scoring-table">
+                <thead>
+                    <tr><th>LTV Range</th><th>Base Score</th><th>Interpretation</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="bonus"><td>≤ 50%</td><td>90</td><td>Excellent coverage (2x collateral)</td></tr>
+                    <tr class="bonus"><td>≤ 70%</td><td>75</td><td>Good coverage</td></tr>
+                    <tr><td>≤ 100%</td><td>55</td><td>Adequate coverage</td></tr>
+                    <tr class="penalty"><td>&gt; 100%</td><td>35</td><td>Under-collateralized</td></tr>
+                </tbody>
+            </table>
+
+            <h4>Lien Status Adjustments</h4>
+            <table class="scoring-table">
+                <thead>
+                    <tr><th>Condition</th><th>Points</th><th>Config Parameter</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="bonus"><td>All liens perfected</td><td>+5</td><td>PerfectedLienBonus</td></tr>
+                    <tr class="penalty"><td>Liens pending perfection</td><td>-10</td><td>UnperfectedLienPenalty</td></tr>
+                </tbody>
+            </table>
+            <p><strong>Red Flags Triggered:</strong> LTV exceeds 100%, liens not perfected</p>
+        </div>
+
+        <div class="content-card">
+            <h2>Final Recommendation Logic</h2>
+            <p>The recommendation is determined by the overall score and red flag count:</p>
+            <table class="info-table">
+                <thead>
+                    <tr><th>Recommendation</th><th>Score Criteria</th><th>Red Flag Criteria</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><span class="rec-badge strong">Strong Approve</span></td><td>≥ 75</td><td>Exactly 0 red flags</td></tr>
+                    <tr><td><span class="rec-badge approve">Approve</span></td><td>≥ 65</td><td>≤ 1 red flag</td></tr>
+                    <tr><td><span class="rec-badge conditional">Approve with Conditions</span></td><td>≥ 50</td><td>Any number</td></tr>
+                    <tr><td><span class="rec-badge refer">Refer</span></td><td>≥ 35</td><td>Any number</td></tr>
+                    <tr><td><span class="rec-badge decline">Decline</span></td><td>&lt; 35 OR any score with 3+ red flags</td><td>≥ 3 forces Decline</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Loan Term Adjustments</h2>
+            <p>Based on the overall score, the system suggests adjusted loan terms:</p>
+            <table class="info-table">
+                <thead>
+                    <tr><th>Score Range</th><th>Amount Multiplier</th><th>Interest Rate Adjustment</th><th>Tenor Restriction</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>80+</td><td>100% of requested</td><td>-2% (discount)</td><td>No restriction</td></tr>
+                    <tr><td>70-79</td><td>90% of requested</td><td>-1% (discount)</td><td>No restriction</td></tr>
+                    <tr><td>60-69</td><td>75% of requested</td><td>Base rate (0%)</td><td>No restriction</td></tr>
+                    <tr><td>50-59</td><td>60% of requested</td><td>+2% (premium)</td><td>Max 36 months</td></tr>
+                    <tr><td>&lt; 50</td><td>50% of requested</td><td>+4% (premium)</td><td>Max 36 months</td></tr>
+                </tbody>
+            </table>
+            <p><strong>Base Interest Rate:</strong> 18% (configurable)</p>
+        </div>
+
+        <div class="content-card">
+            <h2>Bank Statement Trust Weights</h2>
+            <p>Different statement sources have different trust levels for cashflow analysis:</p>
+            <table class="info-table">
+                <thead>
+                    <tr><th>Source</th><th>Trust Weight</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Core Banking (Internal)</td><td>100%</td><td>Our own bank's records - highest trust</td></tr>
+                    <tr><td>Open Banking API</td><td>95%</td><td>Direct API connection to other banks</td></tr>
+                    <tr><td>Mono Connect</td><td>90%</td><td>Third-party aggregator</td></tr>
+                    <tr><td>Manual Upload (Verified)</td><td>85%</td><td>PDF uploaded and verified by officer</td></tr>
+                    <tr><td>Manual Upload (Pending)</td><td>70%</td><td>PDF uploaded but not yet verified</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>How to Verify the Scoring</h2>
+            <p>To audit a specific advisory result:</p>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Check Bureau Tab</h4>
+                        <p>Verify credit scores, defaults, delinquencies, fraud scores for each party</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Check Financials Tab</h4>
+                        <p>Verify Current Ratio, D/E Ratio, Net Profit Margin, ROE from latest year</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Check Statements Tab</h4>
+                        <p>Verify net cashflow, volatility, bounced/gambling flags, coverage period</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Check Collateral Tab</h4>
+                        <p>Verify total FSV, calculate LTV, check lien status</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">5</div>
+                    <div class="step-content">
+                        <h4>Apply Rules Above</h4>
+                        <p>Manually calculate each category score using the rules above and compare with advisory output</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderAIAdvisory() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">psychology</span></span>
+            <div>
+                <h1>AI Advisory System</h1>
+                <p>Understanding the automated risk assessment</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What is the AI Advisory?</h2>
+            <p>An automated risk assessment tool that analyzes all available data and provides objective scoring and recommendations. It uses a <strong>rule-based algorithm</strong> (not machine learning), meaning:</p>
+            <ul>
+                <li>Every calculation is deterministic and explainable</li>
+                <li>Same inputs always produce same outputs</li>
+                <li>All thresholds are configurable</li>
+                <li>Decisions can be audited and justified</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Advisory Components</h2>
+            <div class="component-cards">
+                <div class="component-card">
+                    <span class="material-symbols-outlined">speed</span>
+                    <h4>Overall Risk Score</h4>
+                    <p>Composite score 0-100</p>
+                </div>
+                <div class="component-card">
+                    <span class="material-symbols-outlined">category</span>
+                    <h4>Category Scores</h4>
+                    <p>Score for each risk dimension</p>
+                </div>
+                <div class="component-card">
+                    <span class="material-symbols-outlined">thumb_up</span>
+                    <h4>Recommendation</h4>
+                    <p>Suggested decision</p>
+                </div>
+                <div class="component-card">
+                    <span class="material-symbols-outlined">flag</span>
+                    <h4>Red Flags</h4>
+                    <p>Specific concerns</p>
+                </div>
+                <div class="component-card">
+                    <span class="material-symbols-outlined">tune</span>
+                    <h4>Suggested Terms</h4>
+                    <p>Amount, tenor, rate</p>
+                </div>
+                <div class="component-card">
+                    <span class="material-symbols-outlined">checklist</span>
+                    <h4>Conditions</h4>
+                    <p>Requirements if approved</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Important Note</h2>
+            <div class="info-box">
+                <span class="material-symbols-outlined">info</span>
+                <p>The AI Advisory is a <strong>decision support tool</strong>, not a decision maker. It provides objective analysis to help humans make informed decisions. The final decision always rests with the committee and approvers.</p>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderCreditBureau() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">credit_score</span></span>
+            <div>
+                <h1>Credit Bureau Checks</h1>
+                <p>Automated credit assessment for all parties</p>
+            </div>
+        </div>
+
+        <div class="content-card highlight-card">
+            <div class="highlight-icon">
+                <span class="material-symbols-outlined">bolt</span>
+            </div>
+            <div>
+                <h3>Automatic Trigger</h3>
+                <p>Credit checks run <strong>automatically</strong> when Branch Approver approves. No manual action required.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Gets Checked</h2>
+            <div class="party-list">
+                <div class="party-item">
+                    <span class="material-symbols-outlined">business</span>
+                    <strong>The Business</strong>
+                    <p>Corporate credit check by RC number</p>
+                </div>
+                <div class="party-item">
+                    <span class="material-symbols-outlined">supervisor_account</span>
+                    <strong>All Directors</strong>
+                    <p>From CAC registration</p>
+                </div>
+                <div class="party-item">
+                    <span class="material-symbols-outlined">edit</span>
+                    <strong>All Signatories</strong>
+                    <p>Account mandate holders</p>
+                </div>
+                <div class="party-item">
+                    <span class="material-symbols-outlined">handshake</span>
+                    <strong>All Guarantors</strong>
+                    <p>Loan guarantors</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Red Flags to Watch</h2>
+            <table class="info-table">
+                <tbody>
+                    <tr><td>Credit Score below 600</td><td class="flag">RED FLAG</td></tr>
+                    <tr><td>Any delinquent facilities</td><td class="flag">RED FLAG</td></tr>
+                    <tr><td>Delinquency &gt; 90 days</td><td class="flag">RED FLAG</td></tr>
+                    <tr><td>Any defaulted loans</td><td class="flag">RED FLAG</td></tr>
+                    <tr><td>Active legal actions</td><td class="flag">RED FLAG</td></tr>
+                    <tr><td>Fraud risk score &gt; 50</td><td class="flag">RED FLAG</td></tr>
+                </tbody>
+            </table>
+        </div>
+    };
+
+    private RenderFragment RenderRiskCategories() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">warning</span></span>
+            <div>
+                <h1>Risk Categories</h1>
+                <p>Understanding each dimension of credit risk</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Risk Rating Scale</h2>
+            <div class="risk-scale">
+                <div class="risk-level very-low">
+                    <span class="risk-score">80-100</span>
+                    <span class="risk-name">Very Low</span>
+                    <span class="risk-desc">Excellent - minimal risk</span>
+                </div>
+                <div class="risk-level low">
+                    <span class="risk-score">65-79</span>
+                    <span class="risk-name">Low</span>
+                    <span class="risk-desc">Good - acceptable risk</span>
+                </div>
+                <div class="risk-level medium">
+                    <span class="risk-score">50-64</span>
+                    <span class="risk-name">Medium</span>
+                    <span class="risk-desc">Moderate - requires monitoring</span>
+                </div>
+                <div class="risk-level high">
+                    <span class="risk-score">35-49</span>
+                    <span class="risk-name">High</span>
+                    <span class="risk-desc">Elevated - significant concerns</span>
+                </div>
+                <div class="risk-level very-high">
+                    <span class="risk-score">0-34</span>
+                    <span class="risk-name">Very High</span>
+                    <span class="risk-desc">Critical - strong red flags</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What Each Category Tells You</h2>
+            <div class="category-cards">
+                <div class="category-card">
+                    <h4>Credit History</h4>
+                    <p><strong>Question:</strong> Have the people behind this company managed credit responsibly?</p>
+                    <p><strong>Watch for:</strong> Defaults, delinquencies, legal actions, fraud indicators</p>
+                </div>
+                <div class="category-card">
+                    <h4>Financial Health</h4>
+                    <p><strong>Question:</strong> Is the business financially stable and profitable?</p>
+                    <p><strong>Watch for:</strong> Low current ratio, high leverage, negative margins</p>
+                </div>
+                <div class="category-card">
+                    <h4>Cashflow Stability</h4>
+                    <p><strong>Question:</strong> Does the business have consistent, reliable cash?</p>
+                    <p><strong>Watch for:</strong> Negative cashflow, high volatility, bounced transactions</p>
+                </div>
+                <div class="category-card">
+                    <h4>Debt Service Capacity</h4>
+                    <p><strong>Question:</strong> Can the business afford to repay this loan?</p>
+                    <p><strong>Watch for:</strong> DSCR below 1.25, weak interest coverage</p>
+                </div>
+                <div class="category-card">
+                    <h4>Collateral Coverage</h4>
+                    <p><strong>Question:</strong> If they default, can we recover our money?</p>
+                    <p><strong>Watch for:</strong> LTV above 100%, unperfected liens</p>
+                </div>
+            </div>
+        </div>
+    };
+
+    // ==================== REFERENCE ====================
+    private RenderFragment RenderGlossary() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">menu_book</span></span>
+            <div>
+                <h1>Glossary</h1>
+                <p>Definitions of key terms</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <div class="glossary-grid">
+                <div class="glossary-item">
+                    <dt>BVN</dt>
+                    <dd>Bank Verification Number - 11-digit unique biometric identifier for Nigerian bank customers</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>CAC</dt>
+                    <dd>Corporate Affairs Commission - Nigerian government agency for company registration</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>DSCR</dt>
+                    <dd>Debt Service Coverage Ratio - EBITDA ÷ annual debt service. Measures ability to repay. Minimum 1.25 typically required.</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>EBITDA</dt>
+                    <dd>Earnings Before Interest, Taxes, Depreciation, and Amortization - measure of operating profitability</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>FSV</dt>
+                    <dd>Forced Sale Value - price collateral could be quickly sold at in distress. Typically 60-80% of market value.</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>Haircut</dt>
+                    <dd>Percentage reduction to collateral value to account for risk. 30% haircut = only 70% of value counted.</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>LTV</dt>
+                    <dd>Loan-to-Value Ratio - loan amount ÷ collateral value. Lower = better coverage.</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>NUBAN</dt>
+                    <dd>Nigeria Uniform Bank Account Number - 10-digit standardized account number</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>Quorum</dt>
+                    <dd>Minimum number of committee members who must vote for a valid decision</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>RC Number</dt>
+                    <dd>Registration Certificate Number - unique identifier from CAC for incorporated companies</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>SLA</dt>
+                    <dd>Service Level Agreement - maximum time allowed for a workflow stage before it's overdue</dd>
+                </div>
+                <div class="glossary-item">
+                    <dt>Tenor</dt>
+                    <dd>Loan duration in months. 36-month tenor = 3 year loan.</dd>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderFAQ() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">help</span></span>
+            <div>
+                <h1>Frequently Asked Questions</h1>
+                <p>Common questions answered</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <div class="faq-list">
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span class="material-symbols-outlined">help_outline</span>
+                        <h4>Why can't I see certain applications?</h4>
+                    </div>
+                    <p>Your visibility depends on your role. <strong>Branch-level roles</strong> (Loan Officer, Branch Approver) see only their branch. <strong>HO roles</strong> have global visibility.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span class="material-symbols-outlined">help_outline</span>
+                        <h4>When are credit checks run?</h4>
+                    </div>
+                    <p>Automatically when Branch Approver approves. No manual action needed.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span class="material-symbols-outlined">help_outline</span>
+                        <h4>Why is my application stuck?</h4>
+                    </div>
+                    <p>Check the Workflow tab to see current status and who needs to act. If SLA breached, it appears in Overdue queue.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span class="material-symbols-outlined">help_outline</span>
+                        <h4>Can I edit after submission?</h4>
+                    </div>
+                    <p>No. Once submitted, you cannot edit. Branch Approver must <strong>Return</strong> it to put back in Draft status.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span class="material-symbols-outlined">help_outline</span>
+                        <h4>Which committee reviews my application?</h4>
+                    </div>
+                    <p>Automatic based on loan amount. When Credit Officer clicks "Setup Committee", system routes to appropriate committee.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span class="material-symbols-outlined">help_outline</span>
+                        <h4>Is disbursement automatic?</h4>
+                    </div>
+                    <p>No. Intentionally manual for audit controls. Operations must book in Core Banking after final approval.</p>
+                </div>
+                
+                <div class="faq-item">
+                    <div class="faq-question">
+                        <span class="material-symbols-outlined">help_outline</span>
+                        <h4>Who can change scoring configuration?</h4>
+                    </div>
+                    <p>System Admin proposes changes; Risk Manager must approve (maker-checker process).</p>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderShortcuts() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">keyboard</span></span>
+            <div>
+                <h1>Keyboard Shortcuts</h1>
+                <p>Quick navigation tips</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Navigation</h2>
+            <div class="shortcut-list">
+                <div class="shortcut">
+                    <kbd>Alt</kbd> + <kbd>D</kbd>
+                    <span>Go to Dashboard</span>
+                </div>
+                <div class="shortcut">
+                    <kbd>Alt</kbd> + <kbd>A</kbd>
+                    <span>Go to Applications</span>
+                </div>
+                <div class="shortcut">
+                    <kbd>Alt</kbd> + <kbd>N</kbd>
+                    <span>New Application</span>
+                </div>
+                <div class="shortcut">
+                    <kbd>Alt</kbd> + <kbd>Q</kbd>
+                    <span>My Queue</span>
+                </div>
+                <div class="shortcut">
+                    <kbd>Alt</kbd> + <kbd>H</kbd>
+                    <span>Help &amp; Guide</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Application Detail</h2>
+            <div class="shortcut-list">
+                <div class="shortcut">
+                    <kbd>1</kbd> - <kbd>9</kbd>
+                    <span>Switch to tab 1-9</span>
+                </div>
+                <div class="shortcut">
+                    <kbd>Ctrl</kbd> + <kbd>S</kbd>
+                    <span>Save changes</span>
+                </div>
+                <div class="shortcut">
+                    <kbd>Esc</kbd>
+                    <span>Close modal/dialog</span>
+                </div>
+            </div>
+        </div>
+    };
+}

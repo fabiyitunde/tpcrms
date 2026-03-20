@@ -182,7 +182,7 @@ else
                 OnDeleteAll="DeleteAllFinancialStatements" />
             break;
         case "bureau":
-            <BureauTab Reports="application.BureauReports" />
+            <BureauTab Reports="application.BureauReports" OnViewReport="ShowBureauReportModal" />
             break;
         case "collateral":
             <CollateralTab
@@ -625,6 +625,14 @@ else
             Statement="stmtForView"
             OnClose="CloseViewStatementTransactionsModal" />
     }
+}
+
+@if (showBureauReportModal && viewingBureauReport != null)
+{
+    <ViewBureauReportModal
+        Report="viewingBureauReport"
+        Accounts="viewingBureauAccounts"
+        OnClose="CloseBureauReportModal" />
 }
 
 @if (showRejectStatementModal && rejectingStatementId.HasValue)
@@ -1750,6 +1758,29 @@ else
         {
             isDeleting = false;
         }
+    }
+
+    // Bureau report detail modal
+    private bool showBureauReportModal;
+    private BureauReportInfo? viewingBureauReport;
+    private List<BureauAccountInfo> viewingBureauAccounts = [];
+
+    private async Task ShowBureauReportModal(Guid reportId)
+    {
+        var (report, accounts) = await AppService.GetBureauReportDetailAsync(reportId);
+        if (report != null)
+        {
+            viewingBureauReport = report;
+            viewingBureauAccounts = accounts;
+            showBureauReportModal = true;
+        }
+    }
+
+    private void CloseBureauReportModal()
+    {
+        showBureauReportModal = false;
+        viewingBureauReport = null;
+        viewingBureauAccounts = [];
     }
 
     // Submit for Review handlers

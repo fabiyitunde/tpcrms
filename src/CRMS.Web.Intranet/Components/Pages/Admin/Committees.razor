@@ -115,8 +115,8 @@ else
 
 @if (showCommitteeModal)
 {
-    <div class="modal-backdrop" @onclick="CloseModal"></div>
-    <div class="modal" style="max-width: 600px;">
+    <div class="modal-backdrop show" @onclick="CloseModal">
+    <div class="modal" style="max-width: 600px;" @onclick:stopPropagation>
         <div class="modal-header">
             <h3 class="modal-title">@(isEditing ? "Edit Committee" : "Create Standing Committee")</h3>
             <button class="btn btn-ghost btn-sm" @onclick="CloseModal">
@@ -179,12 +179,13 @@ else
             </button>
         </div>
     </div>
+    </div>
 }
 
 @if (showAddMemberModal)
 {
-    <div class="modal-backdrop" @onclick="CloseAddMemberModal"></div>
-    <div class="modal" style="max-width: 500px;">
+    <div class="modal-backdrop show" @onclick="CloseAddMemberModal">
+    <div class="modal" style="max-width: 500px;" @onclick:stopPropagation>
         <div class="modal-header">
             <h3 class="modal-title">Add Member to @addMemberCommitteeName</h3>
             <button class="btn btn-ghost btn-sm" @onclick="CloseAddMemberModal">
@@ -228,6 +229,7 @@ else
                 @(isAddingMember ? "Adding..." : "Add Member")
             </button>
         </div>
+    </div>
     </div>
 }
 

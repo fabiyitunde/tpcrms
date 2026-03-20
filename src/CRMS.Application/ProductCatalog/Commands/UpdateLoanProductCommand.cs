@@ -11,5 +11,6 @@ public record UpdateLoanProductCommand(
     decimal MaxAmount,
     string Currency,
     int MinTenorMonths,
-    int MaxTenorMonths
+    int MaxTenorMonths,
+    int? FineractProductId = null
 ) : IRequest<ApplicationResult<LoanProductDto>>;

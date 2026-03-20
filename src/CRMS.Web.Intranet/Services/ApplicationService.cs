@@ -2121,7 +2121,8 @@ public partial class ApplicationService
                 MinTenorMonths = p.MinTenorMonths,
                 MaxTenorMonths = p.MaxTenorMonths,
                 BaseInterestRate = p.BaseInterestRate,
-                IsActive = (p.Status == "Active")
+                IsActive = (p.Status == "Active"),
+                FineractProductId = p.FineractProductId
             }).ToList();
         }
         catch (Exception ex)
@@ -2150,13 +2151,13 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths)
+    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, int? fineractProductId = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.UpdateLoanProductHandler>();
             var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.UpdateLoanProductCommand(
-                id, name, description ?? string.Empty, minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths
+                id, name, description ?? string.Empty, minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, fineractProductId
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update product");
         }
@@ -3154,5 +3155,172 @@ public partial class ApplicationService
         return parts.Length >= 2
             ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
             : name[..Math.Min(2, name.Length)].ToUpper();
+    }
+
+    // ==================== Bureau Report Detail ====================
+
+    public async Task<(BureauReportInfo? Report, List<BureauAccountInfo> Accounts)> GetBureauReportDetailAsync(Guid reportId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetBureauReportByIdHandler>();
+            var result = await handler.Handle(new GetBureauReportByIdQuery(reportId), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+            {
+                return (null, new List<BureauAccountInfo>());
+            }
+
+            var r = result.Data;
+            var report = new BureauReportInfo
+            {
+                Id = r.Id,
+                SubjectName = r.SubjectName,
+                SubjectType = r.SubjectType,
+                Provider = r.Provider,
+                Status = r.Status,
+                CreditScore = r.CreditScore,
+                Rating = GetScoreGrade(r.CreditScore),
+                ActiveLoans = r.ActiveLoans,
+                TotalExposure = r.TotalOutstandingBalance,
+                TotalOverdue = r.TotalOverdue,
+                MaxDelinquencyDays = r.MaxDelinquencyDays,
+                HasLegalIssues = r.HasLegalActions,
+                ReportDate = r.CompletedAt ?? r.RequestedAt,
+                FraudRiskScore = r.FraudRiskScore,
+                FraudRecommendation = r.FraudRecommendation,
+                PartyId = r.PartyId,
+                PartyType = r.PartyType
+            };
+
+            var accounts = r.Accounts.Select(a => new BureauAccountInfo
+            {
+                Id = a.Id,
+                AccountNumber = a.AccountNumber,
+                CreditorName = a.CreditorName,
+                AccountType = a.AccountType,
+                Status = a.Status,
+                DelinquencyLevel = a.DelinquencyLevel,
+                CreditLimit = a.CreditLimit,
+                Balance = a.Balance,
+                DateOpened = a.DateOpened,
+                LastPaymentDate = a.LastPaymentDate
+            }).ToList();
+
+            return (report, accounts);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching bureau report detail {Id}", reportId);
+            return (null, new List<BureauAccountInfo>());
+        }
+    }
+
+    // ==================== Notification Templates ====================
+
+    public async Task<List<NotificationTemplateInfo>> GetNotificationTemplatesAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Notification.Queries.GetAllNotificationTemplatesHandler>();
+            var result = await handler.Handle(new Application.Notification.Queries.GetAllNotificationTemplatesQuery(true), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return new List<NotificationTemplateInfo>();
+
+            return result.Data.Select(t => new NotificationTemplateInfo
+            {
+                Id = t.Id,
+                Code = t.Code,
+                Name = t.Name,
+                Description = t.Description,
+                Type = t.Type,
+                Channel = t.Channel,
+                Language = t.Language,
+                Subject = t.Subject,
+                BodyTemplate = t.BodyTemplate,
+                BodyHtmlTemplate = t.BodyHtmlTemplate,
+                IsActive = t.IsActive,
+                Version = t.Version
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching notification templates");
+            return new List<NotificationTemplateInfo>();
+        }
+    }
+
+    public async Task<ApiResponse> CreateNotificationTemplateAsync(CreateTemplateRequest request, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Notification.Commands.CreateNotificationTemplateHandler>();
+            var result = await handler.Handle(new Application.Notification.Commands.CreateNotificationTemplateCommand(
+                request.Code,
+                request.Name,
+                request.Description ?? "",
+                request.Type,
+                request.Channel,
+                request.BodyTemplate,
+                userId,
+                request.Subject,
+                request.BodyHtmlTemplate,
+                null,
+                "en"
+            ), CancellationToken.None);
+
+            return result.IsSuccess
+                ? ApiResponse.Ok()
+                : ApiResponse.Fail(result.Error ?? "Failed to create template");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating notification template");
+            return ApiResponse.Fail("An error occurred while creating the template");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateNotificationTemplateAsync(Guid id, UpdateTemplateRequest request, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Notification.Commands.UpdateNotificationTemplateHandler>();
+            var result = await handler.Handle(new Application.Notification.Commands.UpdateNotificationTemplateCommand(
+                id,
+                request.Name,
+                request.Description ?? "",
+                request.BodyTemplate,
+                userId,
+                request.Subject,
+                request.BodyHtmlTemplate,
+                null
+            ), CancellationToken.None);
+
+            return result.IsSuccess
+                ? ApiResponse.Ok()
+                : ApiResponse.Fail(result.Error ?? "Failed to update template");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating notification template {Id}", id);
+            return ApiResponse.Fail("An error occurred while updating the template");
+        }
+    }
+
+    public async Task<ApiResponse> ToggleNotificationTemplateAsync(Guid id, bool activate)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Notification.Commands.ToggleNotificationTemplateHandler>();
+            var result = await handler.Handle(new Application.Notification.Commands.ToggleNotificationTemplateCommand(id, activate), CancellationToken.None);
+
+            return result.IsSuccess
+                ? ApiResponse.Ok()
+                : ApiResponse.Fail(result.Error ?? "Failed to toggle template status");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling notification template {Id}", id);
+            return ApiResponse.Fail("An error occurred while updating template status");
+        }
     }
 }

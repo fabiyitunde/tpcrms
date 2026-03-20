@@ -20,6 +20,7 @@ public static class LoanProductMappings
             product.MaxTenorMonths,
             product.Status.ToString(),
             product.CreatedAt,
+            product.FineractProductId,
             product.PricingTiers.Select(t => t.ToDto()).ToList(),
             product.EligibilityRules.Select(r => r.ToDto()).ToList(),
             product.DocumentRequirements.Select(d => d.ToDto()).ToList()
@@ -40,7 +41,8 @@ public static class LoanProductMappings
             product.Status.ToString(),
             product.MinTenorMonths,
             product.MaxTenorMonths,
-            baseRate
+            baseRate,
+            product.FineractProductId
         );
     }
 

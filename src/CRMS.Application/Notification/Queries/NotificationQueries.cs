@@ -155,7 +155,7 @@ public class GetNotificationTemplateByIdHandler : IRequestHandler<GetNotificatio
     }
 }
 
-public record GetAllNotificationTemplatesQuery : IRequest<ApplicationResult<List<NotificationTemplateDto>>>;
+public record GetAllNotificationTemplatesQuery(bool IncludeInactive = true) : IRequest<ApplicationResult<List<NotificationTemplateDto>>>;
 
 public class GetAllNotificationTemplatesHandler : IRequestHandler<GetAllNotificationTemplatesQuery, ApplicationResult<List<NotificationTemplateDto>>>
 {
@@ -168,7 +168,9 @@ public class GetAllNotificationTemplatesHandler : IRequestHandler<GetAllNotifica
 
     public async Task<ApplicationResult<List<NotificationTemplateDto>>> Handle(GetAllNotificationTemplatesQuery request, CancellationToken ct = default)
     {
-        var templates = await _repository.GetAllActiveAsync(ct);
+        var templates = request.IncludeInactive 
+            ? await _repository.GetAllAsync(ct)
+            : await _repository.GetAllActiveAsync(ct);
         var dtos = templates.Select(t => new NotificationTemplateDto(
             t.Id,
             t.Code,

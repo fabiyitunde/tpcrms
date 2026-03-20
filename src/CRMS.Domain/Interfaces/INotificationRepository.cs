@@ -22,6 +22,7 @@ public interface INotificationTemplateRepository
     Task<NotificationTemplate?> GetByCodeAsync(string code, NotificationChannel channel, string language = "en", CancellationToken ct = default);
     Task<IReadOnlyList<NotificationTemplate>> GetByTypeAsync(NotificationType type, CancellationToken ct = default);
     Task<IReadOnlyList<NotificationTemplate>> GetAllActiveAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<NotificationTemplate>> GetAllAsync(CancellationToken ct = default);
     Task AddAsync(NotificationTemplate template, CancellationToken ct = default);
     void Update(NotificationTemplate template);
 }

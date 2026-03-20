@@ -32,7 +32,8 @@ public class UpdateLoanProductHandler : IRequestHandler<UpdateLoanProductCommand
             minAmount,
             maxAmount,
             request.MinTenorMonths,
-            request.MaxTenorMonths
+            request.MaxTenorMonths,
+            request.FineractProductId
         );
 
         if (result.IsFailure)

@@ -20,6 +20,7 @@ using CRMS.Infrastructure.ExternalServices.AI;
 using CRMS.Infrastructure.ExternalServices.AIServices;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
 using CRMS.Infrastructure.ExternalServices.CreditBureau;
+using CRMS.Infrastructure.ExternalServices.FineractDirect;
 using CRMS.Infrastructure.ExternalServices.SmartComply;
 using CRMS.Infrastructure.ExternalServices.Notifications;
 using CRMS.Application.Configuration.Commands;
@@ -34,6 +35,7 @@ using Microsoft.Extensions.Configuration;
 using Polly;
 using Polly.Extensions.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace CRMS.Infrastructure;
 
@@ -99,6 +101,31 @@ public static class DependencyInjection
             services.AddScoped<ICoreBankingService, MockCoreBankingService>();
         }
 
+        // Fineract Direct — direct Fineract API for schedule preview + customer exposure
+        var fineractSection = configuration.GetSection(FineractDirectSettings.SectionName);
+        if (fineractSection.Exists() && !fineractSection.GetValue<bool>("UseMock"))
+        {
+            services.Configure<FineractDirectSettings>(fineractSection);
+            services.AddTransient<FineractDirectAuthHandler>();
+            services.AddHttpClient<IFineractDirectService, FineractDirectService>(client =>
+                {
+                    client.BaseAddress = new Uri(fineractSection.GetValue<string>("BaseUrl") ?? "");
+                    client.Timeout = TimeSpan.FromSeconds(fineractSection.GetValue<int>("TimeoutSeconds", 30));
+                })
+                .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
+                        errors == System.Net.Security.SslPolicyErrors.None ||
+                        errors == System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch
+                })
+                .AddHttpMessageHandler<FineractDirectAuthHandler>()
+                .AddPolicyHandler(GetCoreBankingRetryPolicy());
+        }
+        else
+        {
+            services.AddScoped<IFineractDirectService, MockFineractDirectService>();
+        }
+
         // LoanApplication
         services.AddScoped<ILoanApplicationRepository, LoanApplicationRepository>();
         services.AddScoped<ILoanApplicationDocumentRepository, LoanApplicationDocumentRepository>();
@@ -150,7 +177,31 @@ public static class DependencyInjection
 
         // Advisory
         services.AddScoped<ICreditAdvisoryRepository, CreditAdvisoryRepository>();
-        services.AddScoped<IAIAdvisoryService, MockAIAdvisoryService>();
+        
+        // AI Advisory Service — Hybrid (rule-based scoring + optional LLM narratives)
+        services.Configure<AIAdvisorySettings>(configuration.GetSection(AIAdvisorySettings.SectionName));
+        services.AddScoped<RuleBasedScoringEngine>();
+        
+        var aiAdvisorySection = configuration.GetSection(AIAdvisorySettings.SectionName);
+        var useLLMNarrative = aiAdvisorySection.GetValue<bool>("UseLLMNarrative");
+        
+        if (useLLMNarrative)
+        {
+            // Register LLM narrative generator when LLM is enabled
+            services.AddScoped<LLMNarrativeGenerator>();
+            services.AddScoped<IAIAdvisoryService, HybridAIAdvisoryService>();
+        }
+        else
+        {
+            // LLM disabled — use hybrid service without narrative generator (rule-based only)
+            services.AddScoped<IAIAdvisoryService>(sp => new HybridAIAdvisoryService(
+                sp.GetRequiredService<ScoringConfigurationService>(),
+                sp.GetRequiredService<RuleBasedScoringEngine>(),
+                Microsoft.Extensions.Options.Options.Create(new AIAdvisorySettings { UseLLMNarrative = false }),
+                sp.GetRequiredService<ILogger<HybridAIAdvisoryService>>(),
+                narrativeGenerator: null
+            ));
+        }
 
         // Scoring Configuration (database-driven with maker-checker workflow)
         services.AddScoped<IScoringParameterRepository, ScoringParameterRepository>();
@@ -339,6 +390,13 @@ public static class DependencyInjection
         
         // Audit
         services.AddScoped<Application.Audit.Queries.GetRecentAuditLogsHandler>();
+        
+        // Notification Templates
+        services.AddScoped<Application.Notification.Queries.GetAllNotificationTemplatesHandler>();
+        services.AddScoped<Application.Notification.Queries.GetNotificationTemplateByIdHandler>();
+        services.AddScoped<Application.Notification.Commands.CreateNotificationTemplateHandler>();
+        services.AddScoped<Application.Notification.Commands.UpdateNotificationTemplateHandler>();
+        services.AddScoped<Application.Notification.Commands.ToggleNotificationTemplateHandler>();
         
         // Identity
         services.AddScoped<Application.Identity.Queries.GetAllUsersHandler>();

@@ -1,5 +1,7 @@
 @page "/admin/templates"
 @inject NavigationManager Navigation
+@inject ApplicationService AppService
+@inject AuthService AuthService
 
 <PageTitle>Notification Templates - CRMS</PageTitle>
 
@@ -19,7 +21,7 @@
         <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 1; min-width: 200px;">
                 <label class="form-label">Search</label>
-                <input type="text" class="form-control" placeholder="Template name..." @bind="searchTerm" />
+                <input type="text" class="form-control" placeholder="Template name or code..." @bind="searchTerm" @bind:event="oninput" />
             </div>
             <div style="width: 150px;">
                 <label class="form-label">Channel</label>
@@ -28,74 +30,101 @@
                     <option value="Email">Email</option>
                     <option value="SMS">SMS</option>
                     <option value="WhatsApp">WhatsApp</option>
+                    <option value="InApp">In-App</option>
                 </select>
             </div>
             <div style="width: 150px;">
-                <label class="form-label">Category</label>
-                <select class="form-control" @bind="selectedCategory">
-                    <option value="">All Categories</option>
-                    <option value="Workflow">Workflow</option>
-                    <option value="Committee">Committee</option>
-                    <option value="System">System</option>
+                <label class="form-label">Status</label>
+                <select class="form-control" @bind="selectedStatus">
+                    <option value="">All</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
                 </select>
             </div>
-            <button class="btn btn-primary" @onclick="Search">Search</button>
         </div>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-body" style="padding: 0;">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Template Name</th>
-                    <th>Channel</th>
-                    <th>Category</th>
-                    <th>Last Updated</th>
-                    <th>Status</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var template in templates)
-                {
-                    <tr>
-                        <td>
-                            <div style="font-weight: 500;">@template.Name</div>
-                            <div style="font-size: var(--text-xs); color: var(--gray-500);">@template.Code</div>
-                        </td>
-                        <td>
-                            <span class="badge @GetChannelBadgeClass(template.Channel)">
-                                <span class="material-symbols-outlined" style="font-size: 14px;">@GetChannelIcon(template.Channel)</span>
-                                @template.Channel
-                            </span>
-                        </td>
-                        <td>@template.Category</td>
-                        <td>
-                            <span style="font-size: var(--text-sm);">@template.UpdatedAt.ToString("MMM dd, yyyy")</span>
-                        </td>
-                        <td>
-                            <span class="badge @(template.IsActive ? "badge-success" : "badge-gray")">
-                                @(template.IsActive ? "Active" : "Inactive")
-                            </span>
-                        </td>
-                        <td>
-                            <div style="display: flex; gap: var(--space-2);">
-                                <button class="btn btn-ghost btn-sm" @onclick="() => EditTemplate(template)" title="Edit">
-                                    <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
-                                </button>
-                                <button class="btn btn-ghost btn-sm" @onclick="() => PreviewTemplate(template)" title="Preview">
-                                    <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+@if (isLoading)
+{
+    <div class="card">
+        <div class="card-body" style="text-align: center; padding: var(--space-8);">
+            <div class="spinner"></div>
+            <p style="margin-top: var(--space-4); color: var(--gray-500);">Loading templates...</p>
+        </div>
     </div>
-</div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body" style="padding: 0;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Template Name</th>
+                        <th>Channel</th>
+                        <th>Type</th>
+                        <th>Version</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!FilteredTemplates.Any())
+                    {
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: var(--space-8); color: var(--gray-500);">
+                                No templates found matching your criteria.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var template in FilteredTemplates)
+                        {
+                            <tr>
+                                <td>
+                                    <div style="font-weight: 500;">@template.Name</div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">@template.Code</div>
+                                </td>
+                                <td>
+                                    <span class="badge @GetChannelBadgeClass(template.Channel)">
+                                        <span class="material-symbols-outlined" style="font-size: 14px;">@GetChannelIcon(template.Channel)</span>
+                                        @template.Channel
+                                    </span>
+                                </td>
+                                <td style="font-size: var(--text-sm);">@FormatType(template.Type)</td>
+                                <td>
+                                    <span class="badge badge-gray">v@template.Version</span>
+                                </td>
+                                <td>
+                                    <span class="badge @(template.IsActive ? "badge-success" : "badge-gray")">
+                                        @(template.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                                <td>
+                                    <div style="display: flex; gap: var(--space-2);">
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => EditTemplate(template)" title="Edit">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                                        </button>
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => PreviewTemplate(template)" title="Preview">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                        </button>
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => ToggleTemplate(template)" title="@(template.IsActive ? "Deactivate" : "Activate")">
+                                            <span class="material-symbols-outlined" style="font-size: 18px; color: @(template.IsActive ? "var(--danger-600)" : "var(--success-600)");">
+                                                @(template.IsActive ? "toggle_off" : "toggle_on")
+                                            </span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
 
 <div class="card mt-6">
     <div class="card-header">
@@ -132,41 +161,72 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Template Code *</label>
-                        <input type="text" class="form-control" @bind="editingTemplate.Code" />
+                        <input type="text" class="form-control" @bind="editingTemplate.Code" disabled="@isEditing" />
+                        @if (!isEditing)
+                        {
+                            <small style="color: var(--gray-500);">Unique identifier, cannot be changed later</small>
+                        }
                     </div>
                     <div class="form-group">
                         <label class="form-label">Channel *</label>
-                        <select class="form-control" @bind="editingTemplate.Channel">
+                        <select class="form-control" @bind="editingTemplate.Channel" disabled="@isEditing">
                             <option value="">Select Channel</option>
                             <option value="Email">Email</option>
                             <option value="SMS">SMS</option>
                             <option value="WhatsApp">WhatsApp</option>
+                            <option value="InApp">In-App</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Category *</label>
-                        <select class="form-control" @bind="editingTemplate.Category">
-                            <option value="">Select Category</option>
-                            <option value="Workflow">Workflow</option>
-                            <option value="Committee">Committee</option>
-                            <option value="System">System</option>
+                        <label class="form-label">Type *</label>
+                        <select class="form-control" @bind="editingTemplate.Type" disabled="@isEditing">
+                            <option value="">Select Type</option>
+                            <option value="ApplicationSubmitted">Application Submitted</option>
+                            <option value="ApplicationApproved">Application Approved</option>
+                            <option value="ApplicationRejected">Application Rejected</option>
+                            <option value="ApplicationReturned">Application Returned</option>
+                            <option value="WorkflowAssigned">Workflow Assigned</option>
+                            <option value="WorkflowSLAWarning">SLA Warning</option>
+                            <option value="WorkflowSLABreached">SLA Breached</option>
+                            <option value="CommitteeVoteRequired">Committee Vote Required</option>
+                            <option value="CommitteeDecisionMade">Committee Decision Made</option>
+                            <option value="CreditCheckCompleted">Credit Check Completed</option>
+                            <option value="DocumentRequired">Document Required</option>
+                            <option value="SystemAlert">System Alert</option>
+                            <option value="Custom">Custom</option>
                         </select>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-control" @bind="editingTemplate.Description" placeholder="Brief description of when this template is used" />
                 </div>
                 @if (editingTemplate.Channel == "Email")
                 {
                     <div class="form-group">
                         <label class="form-label">Subject *</label>
-                        <input type="text" class="form-control" @bind="editingTemplate.Subject" />
+                        <input type="text" class="form-control" @bind="editingTemplate.Subject" placeholder="Email subject line with {{variables}}" />
                     </div>
                 }
                 <div class="form-group">
-                    <label class="form-label">Body *</label>
-                    <textarea class="form-control" rows="8" @bind="editingTemplate.Body" 
+                    <label class="form-label">Body Template *</label>
+                    <textarea class="form-control" rows="8" @bind="editingTemplate.BodyTemplate" 
                               placeholder="Use {{variable}} syntax for dynamic content..."></textarea>
                 </div>
+                @if (editingTemplate.Channel == "Email")
+                {
+                    <div class="form-group">
+                        <label class="form-label">HTML Body (Optional)</label>
+                        <textarea class="form-control" rows="6" @bind="editingTemplate.BodyHtmlTemplate" 
+                                  placeholder="HTML version of the email body (optional)"></textarea>
+                    </div>
+                }
             </div>
             <div class="modal-footer">
+                @if (!string.IsNullOrEmpty(saveError))
+                {
+                    <div style="color: var(--danger-600); font-size: var(--text-sm); margin-right: auto;">@saveError</div>
+                }
                 <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
                 <button class="btn btn-primary" @onclick="SaveTemplate" disabled="@isSaving">
                     @if (isSaving)
@@ -175,6 +235,47 @@
                     }
                     @(isEditing ? "Update" : "Create") Template
                 </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showPreviewModal)
+{
+    <div class="modal-backdrop show" @onclick="ClosePreviewModal">
+        <div class="modal" style="max-width: 600px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Template Preview: @previewTemplate?.Name</h3>
+                <button class="modal-close" @onclick="ClosePreviewModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @if (previewTemplate != null)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Channel</label>
+                        <span class="badge @GetChannelBadgeClass(previewTemplate.Channel)">@previewTemplate.Channel</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(previewTemplate.Subject))
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Subject</label>
+                            <div style="background: var(--gray-50); padding: var(--space-3); border-radius: var(--radius-md); font-family: monospace;">
+                                @previewTemplate.Subject
+                            </div>
+                        </div>
+                    }
+                    <div class="form-group">
+                        <label class="form-label">Body</label>
+                        <div style="background: var(--gray-50); padding: var(--space-3); border-radius: var(--radius-md); white-space: pre-wrap; font-family: monospace; max-height: 300px; overflow-y: auto;">
+                            @previewTemplate.BodyTemplate
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="ClosePreviewModal">Close</button>
             </div>
         </div>
     </div>
@@ -212,14 +313,18 @@
 </style>
 
 @code {
-    private List<TemplateModel> templates = [];
+    private List<NotificationTemplateInfo> templates = [];
     private string searchTerm = string.Empty;
     private string selectedChannel = string.Empty;
-    private string selectedCategory = string.Empty;
+    private string selectedStatus = string.Empty;
     private bool showTemplateModal;
+    private bool showPreviewModal;
     private bool isEditing;
     private bool isSaving;
-    private TemplateModel editingTemplate = new();
+    private bool isLoading = true;
+    private string? saveError;
+    private NotificationTemplateInfo editingTemplate = new();
+    private NotificationTemplateInfo? previewTemplate;
 
     private List<VariableInfo> availableVariables =
     [
@@ -230,60 +335,169 @@
         new() { Name = "AssignedTo", Description = "Assigned user name" },
         new() { Name = "DueDate", Description = "SLA due date" },
         new() { Name = "CommitteeName", Description = "Committee name" },
-        new() { Name = "VoteDeadline", Description = "Voting deadline" }
+        new() { Name = "VoteDeadline", Description = "Voting deadline" },
+        new() { Name = "UserName", Description = "Recipient's name" },
+        new() { Name = "ActionUrl", Description = "Link to take action" }
     ];
 
-    protected override void OnInitialized()
+    private IEnumerable<NotificationTemplateInfo> FilteredTemplates => templates
+        .Where(t => string.IsNullOrEmpty(searchTerm) || 
+                    t.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    t.Code.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+        .Where(t => string.IsNullOrEmpty(selectedChannel) || t.Channel == selectedChannel)
+        .Where(t => string.IsNullOrEmpty(selectedStatus) || 
+                    (selectedStatus == "Active" && t.IsActive) ||
+                    (selectedStatus == "Inactive" && !t.IsActive))
+        .OrderBy(t => t.Code);
+
+    protected override async Task OnInitializedAsync()
     {
-        templates =
-        [
-            new() { Id = Guid.NewGuid(), Name = "Application Submitted", Code = "APP_SUBMITTED", Channel = "Email", Category = "Workflow", Subject = "New Application {{ApplicationNumber}} Submitted", Body = "Dear {{AssignedTo}},\n\nA new loan application has been submitted...", IsActive = true, UpdatedAt = DateTime.Now.AddDays(-5) },
-            new() { Id = Guid.NewGuid(), Name = "Branch Approval Required", Code = "BRANCH_APPROVAL", Channel = "Email", Category = "Workflow", Subject = "Action Required: {{ApplicationNumber}}", Body = "Application {{ApplicationNumber}} requires your approval...", IsActive = true, UpdatedAt = DateTime.Now.AddDays(-3) },
-            new() { Id = Guid.NewGuid(), Name = "Committee Vote Request", Code = "COMMITTEE_VOTE", Channel = "Email", Category = "Committee", Subject = "Committee Vote Required: {{ApplicationNumber}}", Body = "Dear Committee Member,\n\nYour vote is required...", IsActive = true, UpdatedAt = DateTime.Now.AddDays(-2) },
-            new() { Id = Guid.NewGuid(), Name = "SLA Breach Alert", Code = "SLA_BREACH", Channel = "SMS", Category = "System", Subject = "", Body = "ALERT: Application {{ApplicationNumber}} has breached SLA.", IsActive = true, UpdatedAt = DateTime.Now.AddDays(-1) },
-            new() { Id = Guid.NewGuid(), Name = "Application Approved", Code = "APP_APPROVED", Channel = "WhatsApp", Category = "Workflow", Subject = "", Body = "Congratulations! Your loan application {{ApplicationNumber}} has been approved.", IsActive = true, UpdatedAt = DateTime.Now }
-        ];
+        await LoadTemplates();
     }
 
-    private void Search() { }
+    private async Task LoadTemplates()
+    {
+        isLoading = true;
+        templates = await AppService.GetNotificationTemplatesAsync();
+        isLoading = false;
+    }
 
     private void OpenCreateModal()
     {
-        editingTemplate = new();
+        editingTemplate = new NotificationTemplateInfo();
         isEditing = false;
+        saveError = null;
         showTemplateModal = true;
     }
 
-    private void EditTemplate(TemplateModel template)
+    private void EditTemplate(NotificationTemplateInfo template)
     {
-        editingTemplate = new()
+        editingTemplate = new NotificationTemplateInfo
         {
             Id = template.Id,
-            Name = template.Name,
             Code = template.Code,
+            Name = template.Name,
+            Description = template.Description,
+            Type = template.Type,
             Channel = template.Channel,
-            Category = template.Category,
             Subject = template.Subject,
-            Body = template.Body
+            BodyTemplate = template.BodyTemplate,
+            BodyHtmlTemplate = template.BodyHtmlTemplate
         };
         isEditing = true;
+        saveError = null;
         showTemplateModal = true;
     }
 
-    private void PreviewTemplate(TemplateModel template) { }
+    private void PreviewTemplate(NotificationTemplateInfo template)
+    {
+        previewTemplate = template;
+        showPreviewModal = true;
+    }
 
     private void CloseModal()
     {
         showTemplateModal = false;
         editingTemplate = new();
+        saveError = null;
+    }
+
+    private void ClosePreviewModal()
+    {
+        showPreviewModal = false;
+        previewTemplate = null;
     }
 
     private async Task SaveTemplate()
     {
+        if (string.IsNullOrWhiteSpace(editingTemplate.Name))
+        {
+            saveError = "Template name is required";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(editingTemplate.Code))
+        {
+            saveError = "Template code is required";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(editingTemplate.Channel))
+        {
+            saveError = "Channel is required";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(editingTemplate.Type))
+        {
+            saveError = "Type is required";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(editingTemplate.BodyTemplate))
+        {
+            saveError = "Body template is required";
+            return;
+        }
+        if (editingTemplate.Channel == "Email" && string.IsNullOrWhiteSpace(editingTemplate.Subject))
+        {
+            saveError = "Subject is required for email templates";
+            return;
+        }
+
         isSaving = true;
-        await Task.Delay(500);
-        isSaving = false;
-        CloseModal();
+        saveError = null;
+        
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            ApiResponse result;
+
+            if (isEditing)
+            {
+                result = await AppService.UpdateNotificationTemplateAsync(editingTemplate.Id, new UpdateTemplateRequest
+                {
+                    Name = editingTemplate.Name,
+                    Description = editingTemplate.Description,
+                    Subject = editingTemplate.Subject,
+                    BodyTemplate = editingTemplate.BodyTemplate,
+                    BodyHtmlTemplate = editingTemplate.BodyHtmlTemplate
+                }, userId);
+            }
+            else
+            {
+                result = await AppService.CreateNotificationTemplateAsync(new CreateTemplateRequest
+                {
+                    Code = editingTemplate.Code,
+                    Name = editingTemplate.Name,
+                    Description = editingTemplate.Description,
+                    Type = editingTemplate.Type,
+                    Channel = editingTemplate.Channel,
+                    Subject = editingTemplate.Subject,
+                    BodyTemplate = editingTemplate.BodyTemplate,
+                    BodyHtmlTemplate = editingTemplate.BodyHtmlTemplate
+                }, userId);
+            }
+
+            if (result.Success)
+            {
+                CloseModal();
+                await LoadTemplates();
+            }
+            else
+            {
+                saveError = result.Error ?? "Failed to save template";
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ToggleTemplate(NotificationTemplateInfo template)
+    {
+        var result = await AppService.ToggleNotificationTemplateAsync(template.Id, !template.IsActive);
+        if (result.Success)
+        {
+            await LoadTemplates();
+        }
     }
 
     private static string GetChannelBadgeClass(string channel) => channel switch
@@ -291,6 +505,7 @@
         "Email" => "badge-primary",
         "SMS" => "badge-success",
         "WhatsApp" => "badge-success",
+        "InApp" => "badge-info",
         _ => "badge-gray"
     };
 
@@ -299,21 +514,26 @@
         "Email" => "mail",
         "SMS" => "sms",
         "WhatsApp" => "chat",
+        "InApp" => "notifications",
         _ => "notifications"
     };
 
-    private class TemplateModel
+    private static string FormatType(string type) => type switch
     {
-        public Guid Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Code { get; set; } = string.Empty;
-        public string Channel { get; set; } = string.Empty;
-        public string Category { get; set; } = string.Empty;
-        public string Subject { get; set; } = string.Empty;
-        public string Body { get; set; } = string.Empty;
-        public bool IsActive { get; set; }
-        public DateTime UpdatedAt { get; set; }
-    }
+        "ApplicationSubmitted" => "App Submitted",
+        "ApplicationApproved" => "App Approved",
+        "ApplicationRejected" => "App Rejected",
+        "ApplicationReturned" => "App Returned",
+        "WorkflowAssigned" => "Workflow Assigned",
+        "WorkflowSLAWarning" => "SLA Warning",
+        "WorkflowSLABreached" => "SLA Breached",
+        "CommitteeVoteRequired" => "Vote Required",
+        "CommitteeDecisionMade" => "Committee Decision",
+        "CreditCheckCompleted" => "Credit Check",
+        "DocumentRequired" => "Doc Required",
+        "SystemAlert" => "System Alert",
+        _ => type
+    };
 
     private class VariableInfo
     {

@@ -81,6 +81,9 @@
                                     <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: auto;">
                                         @report.Provider | @report.ReportDate.ToString("MMM dd, yyyy")
                                     </span>
+                                    <button class="btn btn-ghost btn-sm" style="margin-left: var(--space-2);" @onclick="() => OnViewReport.InvokeAsync(report.Id)" title="View Details">
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">open_in_new</span>
+                                    </button>
                                 </div>
                             </div>
                         }
@@ -260,6 +263,7 @@
 
 @code {
     [Parameter] public List<BureauReportInfo> Reports { get; set; } = [];
+    [Parameter] public EventCallback<Guid> OnViewReport { get; set; }
 
     private List<BureauReportInfo> BusinessReports => Reports
         .Where(r => r.SubjectType == "Business" || r.PartyType == "Business")

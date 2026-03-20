@@ -1,8 +1,8 @@
 # CRMS Intranet UI - Gap Analysis
 
-**Document Version:** 4.2
+**Document Version:** 4.4
 **Date:** 2026-03-18
-**Status:** Priority 1 RESOLVED | Priority 2 RESOLVED | Priority 3 Mostly Resolved
+**Status:** Priority 1 RESOLVED | Priority 2 RESOLVED | Priority 3 RESOLVED
 
 ---
 
@@ -122,8 +122,8 @@ Business age-based validation now implemented:
 | View guarantor detail | ✅ Done | Full detail modal |
 | Approve guarantor | ✅ Done | Confirmation modal; `CanManageGuarantors` gate; status `CreditCheckCompleted` only |
 | Reject guarantor | ✅ Done | Modal with mandatory reason; statuses `Proposed`, `PendingVerification`, `CreditCheckCompleted` |
-| Run credit check | ❌ Pending | On hold pending credit bureau provider decision |
-| View credit report | ❌ Pending | No detail modal |
+| Run credit check | N/A | Auto-triggered after branch approval via `ProcessLoanCreditChecksCommand` |
+| View credit report | ✅ Done | `ViewBureauReportModal` — full detail with accounts, fraud risk, alerts (Session 24) |
 
 `CanManageGuarantors` is `true` when the application is actively in review (not Draft, Approved, CommitteeApproved, Rejected, or Disbursed).
 
@@ -149,8 +149,8 @@ Business age-based validation now implemented:
 | Party grouping | ✅ Done | Directors, Signatories, Guarantors in separate sections |
 | New metrics | ✅ Done | Total Overdue, Max Delinquency Days, Provider name |
 | Failed check indicator | ✅ Done | Shows "Check Failed" badge for failed reports |
-| Request check | ⏸️ On Hold | Manual re-check button not yet implemented |
-| View report detail | ❌ Pending | No detail modal (click to expand) |
+| Request check | ⏸️ On Hold | Manual re-check button not needed — auto-triggered after branch approval |
+| View report detail | ✅ Done | `ViewBureauReportModal` — click any card to see full detail (Session 24) |
 
 ### 2.5 Directors/Signatories Management - ✅ Core Complete
 
@@ -187,7 +187,7 @@ Business age-based validation now implemented:
 | Page | Route | Status | Issues |
 |------|-------|--------|--------|
 | Scoring Config | `/admin/scoring` | ✅ Complete | Maker-checker editor, all 9 categories |
-| Templates | `/admin/templates` | Display Only | No CRUD operations |
+| Templates | `/admin/templates` | ✅ CRUD Complete | Create / Edit / Toggle / Preview wired to real backend |
 | Users | `/admin/users` | ✅ CRUD Complete | Create / Edit / Activate / Deactivate wired to real backend |
 | Products | `/admin/products` | ✅ CRUD Complete | Create / Edit / Enable / Disable wired to real backend |
 | Locations | `/admin/locations` | ✅ CRUD Complete | Tree/list view, create/edit/activate/deactivate |
@@ -209,7 +209,7 @@ Business age-based validation now implemented:
 | Parties | ✅ | FillPartyInfoModal for null BVN/shareholding |
 | Documents | ✅ | Upload/view/download/verify/reject |
 | Financials | ✅ | 4-step manual entry + Excel upload |
-| Bureau | ✅ | SmartComply integration, fraud risk badges |
+| Bureau | ✅ | SmartComply integration, fraud risk badges, click-to-expand detail modal |
 | Statements | ✅ | Auto-fetch + external upload + transaction drill-down |
 | Collateral | ✅ | Full CRUD + valuation + approval + documents |
 | Guarantors | ✅ | Full CRUD + approve/reject |
@@ -317,11 +317,11 @@ Business age-based validation now implemented:
 5. ~~Collateral document upload/view/delete~~ ✅ Done
 6. ~~Credit bureau check UI~~ ✅ Done (SmartComply integration)
 
-### Priority 3 (Admin & Reports)
+### Priority 3 (Admin & Reports) — ALL RESOLVED
 1. ~~User management CRUD (create, edit, deactivate)~~ ✅ Done
 2. ~~Product edit/delete~~ ✅ Done
 3. ~~Scoring configuration editor~~ ✅ Done
-4. Template management CRUD — **Remaining**
+4. ~~Template management CRUD~~ ✅ Done (Session 24)
 5. ~~Connect performance/committee report pages to `ReportingService`~~ ✅ Done (Session 20)
 6. ~~Location management admin page (`/admin/locations`)~~ ✅ Done
 7. ~~User admin page — location picker dropdown~~ ✅ Done
@@ -329,6 +329,7 @@ Business age-based validation now implemented:
 9. ~~Committee voting authorization guard~~ ✅ Done (Session 20)
 10. ~~Committee setup UI (create review + add members)~~ ✅ Done (Session 20)
 11. ~~Standing committee admin + automatic routing~~ ✅ Done (Session 21)
+12. ~~Bureau report detail modal~~ ✅ Done (Session 24)
 
 ---
 
@@ -351,3 +352,5 @@ Business age-based validation now implemented:
 | 4.0 | 2026-03-18 | Comprehensive UI wiring audit + critical fixes + committee setup. Phase 1: Report pages wired to ReportingService (Performance + Committee); M-3 RequestBureauReportCommand migrated to ISmartComplyProvider; M-5 NonPerformingAccounts→DelinquentFacilities rename (10 files + migration); M-4 in-process concurrency lock; removed mock product fallback. Phase 2: 4 Detail tabs wired to real backend (Workflow, Advisory, Committee, Comments); DownloadDocumentAsync implemented; GetMyPendingTasksAsync fixed (Amount/ProductName); collateral mapping fixed. Phase 3: Committee voting authorization guard (role-based, 3 states); SetupCommitteeModal (2-step wizard: configure committee + add members with roles/chairperson); `CanSetupCommitteeReview` for CreditOfficer role at CommitteeCirculation status. 6 new DI registrations. Build: 0 errors, tests pass. |
 | 4.1 | 2026-03-18 | Standing committee infrastructure + automatic routing. New `StandingCommittee` aggregate with amount thresholds, permanent member rosters, quorum rules. `Committees.razor` admin page at `/admin/committees` with CRUD + member management. `SetupCommitteeModal` rewritten: auto-routes to matching standing committee by loan amount, pre-populates members; falls back to ad-hoc if no match. 5 standing committees seeded (Branch N0-50M, Regional N50-200M, HO N200-500M, Management N500M-2B, Board N2B+). Migration `20260318120000_AddStandingCommittees`. 8 new DI registrations. Build: 0 errors, tests pass. |
 | 4.2 | 2026-03-18 | Overdue functionality bug fix (5 bugs). BUG-1: NavMenu badge counts hardcoded (2,5,1) — now fetched from backend. BUG-2: ReportingService used `IsSLABreached` flag vs repository `SLADueAt < now` — aligned to use `SLADueAt < now`. BUG-3/4: `IsSLABreached` flag never set (no background job) — now irrelevant. BUG-5: NavMenu had no `OnInitializedAsync`. Added 3 count methods to ApplicationService (`GetOverdueCountAsync`, `GetMyQueueCountAsync`, `GetMyPendingVotesCountAsync`). NavMenu now loads real counts on init. Build: 0 errors, tests pass. |
+| 4.3 | 2026-03-18 | P3 gaps resolved. Template CRUD: `NotificationTemplateCommands.cs` (3 commands+handlers), `INotificationTemplateRepository.GetAllAsync()`, 5 DI registrations, `Templates.razor` rewrite with real backend. Bureau report detail modal: `ViewBureauReportModal.razor` (new) with accounts, fraud risk, alerts; `BureauTab.razor` OnViewReport param + view buttons; `Detail.razor` wired. Guarantor credit check trigger confirmed N/A (auto-triggered via `ProcessLoanCreditChecksCommand`). Build: 0 errors, tests pass. |
+| 4.4 | 2026-03-18 | Hybrid AI Advisory architecture: `RuleBasedScoringEngine.cs` (deterministic scoring), `LLMNarrativeGenerator.cs` (prompt building + OpenAI calls), `HybridAIAdvisoryService.cs` (orchestration + fallback), `AIAdvisorySettings.cs` (config). DI updated with config toggle (`UseLLMNarrative`). appsettings.json updated (API + Web.Intranet). LLM enhances narrative text only — never changes scores or recommendations. Build: 0 errors, tests pass. |

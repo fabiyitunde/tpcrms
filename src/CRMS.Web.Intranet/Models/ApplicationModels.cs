@@ -529,6 +529,8 @@ public class LoanProduct
     public decimal BaseInterestRate { get; set; }
 
     public bool IsActive { get; set; }
+
+    public int? FineractProductId { get; set; }
 }
 
 public class FinancialStatementInfo
@@ -602,4 +604,57 @@ public class LocationTreeNode
         "Branch" => "🏢",
         _ => "📁"
     };
+}
+
+// Notification Template Models
+public class NotificationTemplateInfo
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string Channel { get; set; } = string.Empty;
+    public string Language { get; set; } = "en";
+    public string? Subject { get; set; }
+    public string BodyTemplate { get; set; } = string.Empty;
+    public string? BodyHtmlTemplate { get; set; }
+    public bool IsActive { get; set; }
+    public int Version { get; set; }
+}
+
+public class CreateTemplateRequest
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public string Channel { get; set; } = string.Empty;
+    public string? Subject { get; set; }
+    public string BodyTemplate { get; set; } = string.Empty;
+    public string? BodyHtmlTemplate { get; set; }
+}
+
+public class UpdateTemplateRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Subject { get; set; }
+    public string BodyTemplate { get; set; } = string.Empty;
+    public string? BodyHtmlTemplate { get; set; }
+}
+
+// Bureau Account Info for detail modal
+public class BureauAccountInfo
+{
+    public Guid Id { get; set; }
+    public string AccountNumber { get; set; } = string.Empty;
+    public string? CreditorName { get; set; }
+    public string? AccountType { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string DelinquencyLevel { get; set; } = string.Empty;
+    public decimal CreditLimit { get; set; }
+    public decimal Balance { get; set; }
+    public DateTime? DateOpened { get; set; }
+    public DateTime? LastPaymentDate { get; set; }
 }

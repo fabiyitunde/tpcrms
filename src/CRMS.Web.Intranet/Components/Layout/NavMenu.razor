@@ -137,6 +137,17 @@
             </NavLink>
         </div>
     }
+
+    <div class="nav-section">
+        @if (!Collapsed)
+        {
+            <div class="nav-section-title">Support</div>
+        }
+        <NavLink href="/help" class="nav-item">
+            <span class="material-symbols-outlined nav-item-icon">help</span>
+            @if (!Collapsed) { <span class="nav-item-text">Help & Guide</span> }
+        </NavLink>
+    </div>
 </nav>
 
 @code {

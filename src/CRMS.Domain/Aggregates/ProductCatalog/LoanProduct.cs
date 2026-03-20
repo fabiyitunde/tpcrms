@@ -15,6 +15,13 @@ public class LoanProduct : AggregateRoot
     public int MinTenorMonths { get; private set; }
     public int MaxTenorMonths { get; private set; }
     public ProductStatus Status { get; private set; }
+    
+    /// <summary>
+    /// The corresponding loan product ID in Fineract core banking.
+    /// Used for repayment schedule calculation via Fineract API.
+    /// Null means the product has not been mapped to a Fineract product yet (in-house calculation will be used).
+    /// </summary>
+    public int? FineractProductId { get; private set; }
 
     private readonly List<PricingTier> _pricingTiers = [];
     private readonly List<EligibilityRule> _eligibilityRules = [];
@@ -69,7 +76,7 @@ public class LoanProduct : AggregateRoot
         return Result.Success(product);
     }
 
-    public Result Update(string name, string description, Money minAmount, Money maxAmount, int minTenorMonths, int maxTenorMonths)
+    public Result Update(string name, string description, Money minAmount, Money maxAmount, int minTenorMonths, int maxTenorMonths, int? fineractProductId = null)
     {
         if (Status == ProductStatus.Discontinued)
             return Result.Failure("Cannot update a discontinued product");
@@ -92,6 +99,7 @@ public class LoanProduct : AggregateRoot
         MaxAmount = maxAmount;
         MinTenorMonths = minTenorMonths;
         MaxTenorMonths = maxTenorMonths;
+        FineractProductId = fineractProductId;
 
         return Result.Success();
     }

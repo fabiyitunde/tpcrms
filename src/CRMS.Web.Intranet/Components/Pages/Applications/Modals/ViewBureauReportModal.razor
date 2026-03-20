@@ -1,0 +1,339 @@
+@using CRMS.Web.Intranet.Models
+
+<div class="modal-backdrop show" @onclick="OnClose">
+    <div class="modal" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <span class="material-symbols-outlined" style="vertical-align: middle;">fact_check</span>
+                Credit Bureau Report
+            </h3>
+            <button class="modal-close" @onclick="OnClose">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body" style="overflow-y: auto; flex: 1;">
+            @if (Report == null)
+            {
+                <div style="text-align: center; padding: var(--space-8);">
+                    <div class="spinner"></div>
+                </div>
+            }
+            else
+            {
+                <!-- Header Info -->
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: var(--space-4); margin-bottom: var(--space-6);">
+                    <div>
+                        <h4 style="margin: 0; font-size: var(--text-xl);">@Report.SubjectName</h4>
+                        <div style="color: var(--gray-500); font-size: var(--text-sm);">
+                            @Report.PartyType • @Report.SubjectType
+                        </div>
+                        <div style="margin-top: var(--space-2);">
+                            <span class="badge @GetStatusBadgeClass(Report.Status)">@Report.Status</span>
+                            <span style="margin-left: var(--space-2); font-size: var(--text-xs); color: var(--gray-500);">
+                                @Report.Provider • @Report.ReportDate.ToString("MMM dd, yyyy HH:mm")
+                            </span>
+                        </div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div class="score-circle @GetScoreClass(Report.CreditScore)">
+                            @(Report.CreditScore?.ToString() ?? "N/A")
+                        </div>
+                        <div style="font-size: var(--text-sm); font-weight: 600; margin-top: var(--space-1);">
+                            @Report.Rating
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Key Metrics -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">@Report.ActiveLoans</div>
+                        <div class="metric-label">Active Loans</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">₦@FormatAmount(Report.TotalExposure)</div>
+                        <div class="metric-label">Total Exposure</div>
+                    </div>
+                    <div class="metric-card @(Report.TotalOverdue > 0 ? "metric-warning" : "")">
+                        <div class="metric-value">₦@FormatAmount(Report.TotalOverdue)</div>
+                        <div class="metric-label">Total Overdue</div>
+                    </div>
+                    <div class="metric-card @(Report.MaxDelinquencyDays > 30 ? "metric-danger" : "")">
+                        <div class="metric-value">@Report.MaxDelinquencyDays</div>
+                        <div class="metric-label">Max Delinquency (Days)</div>
+                    </div>
+                </div>
+
+                <!-- Fraud Risk Section -->
+                @if (Report.FraudRiskScore.HasValue)
+                {
+                    <div class="section-card @GetFraudSectionClass(Report.FraudRiskScore)">
+                        <h5>
+                            <span class="material-symbols-outlined">security</span>
+                            Fraud Risk Assessment
+                        </h5>
+                        <div style="display: flex; align-items: center; gap: var(--space-4);">
+                            <div class="fraud-score @GetFraudScoreClass(Report.FraudRiskScore)">
+                                @Report.FraudRiskScore
+                            </div>
+                            <div>
+                                <div style="font-weight: 600;">@GetFraudRiskLabel(Report.FraudRiskScore)</div>
+                                @if (!string.IsNullOrEmpty(Report.FraudRecommendation))
+                                {
+                                    <div style="font-size: var(--text-sm); color: var(--gray-600);">@Report.FraudRecommendation</div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- Alerts Section -->
+                @if (Report.HasLegalIssues || Report.MaxDelinquencyDays > 90 || Report.TotalOverdue > 0)
+                {
+                    <div class="section-card section-danger">
+                        <h5>
+                            <span class="material-symbols-outlined">warning</span>
+                            Alerts & Red Flags
+                        </h5>
+                        <ul style="margin: 0; padding-left: var(--space-6);">
+                            @if (Report.HasLegalIssues)
+                            {
+                                <li style="color: var(--danger-600);">Legal actions recorded against this subject</li>
+                            }
+                            @if (Report.MaxDelinquencyDays > 90)
+                            {
+                                <li style="color: var(--danger-600);">Severe delinquency: @Report.MaxDelinquencyDays days past due</li>
+                            }
+                            @if (Report.TotalOverdue > 0)
+                            {
+                                <li style="color: var(--warning-600);">Outstanding overdue amount: ₦@FormatAmount(Report.TotalOverdue)</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                <!-- Accounts Section (if available) -->
+                @if (Accounts.Any())
+                {
+                    <div class="section-card">
+                        <h5>
+                            <span class="material-symbols-outlined">account_balance</span>
+                            Credit Accounts (@Accounts.Count)
+                        </h5>
+                        <table class="table" style="margin: 0;">
+                            <thead>
+                                <tr>
+                                    <th>Creditor</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Balance</th>
+                                    <th>Limit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var account in Accounts)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div style="font-weight: 500;">@account.CreditorName</div>
+                                            <div style="font-size: var(--text-xs); color: var(--gray-500);">@account.AccountNumber</div>
+                                        </td>
+                                        <td>@account.AccountType</td>
+                                        <td>
+                                            <span class="badge @GetAccountStatusBadge(account.Status)">@account.Status</span>
+                                        </td>
+                                        <td style="font-weight: 500;">₦@FormatAmount(account.Balance)</td>
+                                        <td>₦@FormatAmount(account.CreditLimit)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="OnClose">Close</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .score-circle {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--text-2xl);
+        font-weight: 700;
+        color: white;
+    }
+    .score-circle.excellent { background: var(--success-500); }
+    .score-circle.good { background: #22c55e; }
+    .score-circle.fair { background: var(--warning-500); }
+    .score-circle.poor { background: var(--danger-500); }
+    .score-circle:not(.excellent):not(.good):not(.fair):not(.poor) { background: var(--gray-400); }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--space-4);
+        margin-bottom: var(--space-6);
+    }
+    
+    .metric-card {
+        background: var(--gray-50);
+        padding: var(--space-4);
+        border-radius: var(--radius-lg);
+        text-align: center;
+    }
+    
+    .metric-card.metric-warning {
+        background: var(--warning-50);
+        border: 1px solid var(--warning-200);
+    }
+    
+    .metric-card.metric-danger {
+        background: var(--danger-50);
+        border: 1px solid var(--danger-200);
+    }
+    
+    .metric-value {
+        font-size: var(--text-xl);
+        font-weight: 700;
+        color: var(--gray-900);
+    }
+    
+    .metric-label {
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+        margin-top: var(--space-1);
+    }
+
+    .section-card {
+        background: var(--gray-50);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+        margin-bottom: var(--space-4);
+    }
+    
+    .section-card h5 {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin: 0 0 var(--space-3) 0;
+        font-size: var(--text-sm);
+        font-weight: 600;
+        color: var(--gray-700);
+    }
+    
+    .section-card.section-danger {
+        background: var(--danger-50);
+        border: 1px solid var(--danger-200);
+    }
+    
+    .section-card.section-warning {
+        background: var(--warning-50);
+        border: 1px solid var(--warning-200);
+    }
+    
+    .section-card.section-success {
+        background: var(--success-50);
+        border: 1px solid var(--success-200);
+    }
+
+    .fraud-score {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: var(--text-lg);
+        font-weight: 700;
+        color: white;
+    }
+    
+    .fraud-score.low { background: var(--success-500); }
+    .fraud-score.medium { background: var(--warning-500); }
+    .fraud-score.high { background: var(--danger-500); }
+</style>
+
+@code {
+    [Parameter] public BureauReportInfo? Report { get; set; }
+    [Parameter] public List<BureauAccountInfo> Accounts { get; set; } = [];
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private static string GetScoreClass(int? score)
+    {
+        if (!score.HasValue) return "";
+        return score.Value switch
+        {
+            >= 750 => "excellent",
+            >= 700 => "good",
+            >= 650 => "fair",
+            _ => "poor"
+        };
+    }
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "Completed" => "badge-success",
+        "Processing" => "badge-warning",
+        "Failed" => "badge-danger",
+        "NotFound" => "badge-gray",
+        _ => "badge-gray"
+    };
+
+    private static string GetFraudSectionClass(int? score)
+    {
+        if (!score.HasValue) return "";
+        return score.Value switch
+        {
+            <= 30 => "section-success",
+            <= 60 => "section-warning",
+            _ => "section-danger"
+        };
+    }
+
+    private static string GetFraudScoreClass(int? score)
+    {
+        if (!score.HasValue) return "";
+        return score.Value switch
+        {
+            <= 30 => "low",
+            <= 60 => "medium",
+            _ => "high"
+        };
+    }
+
+    private static string GetFraudRiskLabel(int? score)
+    {
+        if (!score.HasValue) return "Unknown";
+        return score.Value switch
+        {
+            <= 30 => "Low Risk",
+            <= 60 => "Medium Risk",
+            _ => "High Risk"
+        };
+    }
+
+    private static string GetAccountStatusBadge(string status) => status switch
+    {
+        "Performing" => "badge-success",
+        "NonPerforming" => "badge-danger",
+        "Closed" => "badge-gray",
+        "WrittenOff" => "badge-danger",
+        _ => "badge-warning"
+    };
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        if (amount >= 1_000) return $"{amount / 1_000:0.#}K";
+        return $"{amount:N0}";
+    }
+}

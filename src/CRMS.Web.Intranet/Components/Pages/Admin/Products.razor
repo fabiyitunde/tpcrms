@@ -108,6 +108,11 @@
                             <option value="TradeFinance">Trade Finance</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Fineract Product ID</label>
+                        <input type="number" class="form-control" @bind="editingProduct.FineractProductId" placeholder="e.g. 1" />
+                        <small style="color: var(--gray-500);">Maps to core banking loan product. Leave blank for in-house schedule calculation.</small>
+                    </div>
                     <div class="form-group" style="grid-column: span 2;">
                         <label class="form-label">Description</label>
                         <textarea class="form-control" rows="2" @bind="editingProduct.Description"></textarea>
@@ -231,7 +236,8 @@
                     MinTenorMonths = p.MinTenorMonths,
                     MaxTenorMonths = p.MaxTenorMonths,
                     BaseInterestRate = p.BaseInterestRate,
-                    IsActive = p.IsActive
+                    IsActive = p.IsActive,
+                    FineractProductId = p.FineractProductId
                 }).ToList();
             }
             else
@@ -273,7 +279,8 @@
             MaxTenorMonths = product.MaxTenorMonths,
             BaseInterestRate = product.BaseInterestRate,
             ProductType = product.ProductType,
-            Description = product.Description
+            Description = product.Description,
+            FineractProductId = product.FineractProductId
         };
         isEditing = true;
         showProductModal = true;
@@ -302,7 +309,8 @@
                     editingProduct.MinAmount,
                     editingProduct.MaxAmount,
                     editingProduct.MinTenorMonths,
-                    editingProduct.MaxTenorMonths);
+                    editingProduct.MaxTenorMonths,
+                    editingProduct.FineractProductId);
             }
             else
             {
@@ -360,5 +368,6 @@
         public string? Description { get; set; }
         public bool IsActive { get; set; }
         public int ApplicationCount { get; set; }
+        public int? FineractProductId { get; set; }
     }
 }
