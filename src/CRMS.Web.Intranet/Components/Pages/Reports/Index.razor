@@ -1,5 +1,6 @@
 @page "/reports"
 @inject ApplicationService AppService
+@inject AuthService AuthService
 @inject NavigationManager Navigation
 
 <PageTitle>Reports - CRMS</PageTitle>
@@ -386,14 +387,16 @@
                 withinSla = data.WithinSla;
                 breachedSla = data.BreachedSla;
             }
-            else
+            else if (AuthService.CurrentUser?.Username == "admin")
             {
+                // Mock data only for the seeded admin demo account
                 LoadMockData();
             }
         }
         catch
         {
-            LoadMockData();
+            if (AuthService.CurrentUser?.Username == "admin")
+                LoadMockData();
         }
         isLoading = false;
     }

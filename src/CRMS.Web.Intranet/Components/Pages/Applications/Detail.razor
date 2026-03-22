@@ -73,6 +73,20 @@ else
                     Loan Pack
                 </button>
             }
+            @if (CanGenerateOfferLetter)
+            {
+                <button class="btn btn-primary" @onclick="GenerateOfferLetter" disabled="@isGeneratingOfferLetter">
+                    @if (isGeneratingOfferLetter)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">mail</span>
+                    }
+                    Offer Letter
+                </button>
+            }
             @if (ShowApproveButton)
             {
                 <button class="btn btn-success" @onclick="() => ShowActionModal(ActionType.Approve)">
@@ -138,6 +152,17 @@ else
         <div class="tab @(activeTab == "committee" ? "active" : "")" @onclick='() => activeTab = "committee"'>Committee</div>
         <div class="tab @(activeTab == "comments" ? "active" : "")" @onclick='() => activeTab = "comments"'>Comments</div>
     </div>
+
+    @if (inlineActionError != null)
+    {
+        <div class="alert alert-danger" style="margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-2);">
+            <span class="material-symbols-outlined" style="font-size: 18px;">error</span>
+            @inlineActionError
+            <button type="button" style="margin-left: auto; background: none; border: none; cursor: pointer;" @onclick="() => inlineActionError = null">
+                <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+            </button>
+        </div>
+    }
 
     @switch (activeTab)
     {
@@ -243,6 +268,10 @@ else
                     <label class="form-label">Comments @(currentAction == ActionType.Approve ? "(Optional)" : "(Required)")</label>
                     <textarea class="form-control" rows="4" @bind="actionComments" placeholder="Enter your comments..."></textarea>
                 </div>
+                @if (actionError != null)
+                {
+                    <div class="alert alert-danger mt-3">@actionError</div>
+                }
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" @onclick="CloseActionModal">Cancel</button>
@@ -921,6 +950,7 @@ else
     private ActionType currentAction;
     private string actionComments = string.Empty;
     private bool isExecutingAction;
+    private string? actionError;
     private bool showSetupCommitteeModal;
 
     // Data entry modals
@@ -962,14 +992,15 @@ else
     private async Task LoadApplication()
     {
         isLoading = true;
+        inlineActionError = null;
         application = await AppService.GetApplicationDetailAsync(Id);
         
-        // Mock data for demo
-        if (application == null)
+        // Mock data only for the seeded admin demo account
+        if (application == null && AuthService.CurrentUser?.Username == "admin")
         {
             application = GenerateMockApplication();
         }
-        else
+        else if (application != null)
         {
             // Fetch real bureau reports from database
             application.BureauReports = await AppService.GetBureauReportsAsync(Id);
@@ -983,6 +1014,7 @@ else
     private void GoBack() => Navigation.NavigateTo("/applications");
 
     private bool CanGeneratePack => application?.Status is "Approved" or "CommitteeApproved" or "Disbursed";
+    private bool CanGenerateOfferLetter => application?.Status is "Approved" or "Disbursed";
     
     // Application is editable only in Draft status
     private bool IsApplicationEditable => application?.Status == "Draft";
@@ -1025,6 +1057,7 @@ else
     {
         currentAction = action;
         actionComments = string.Empty;
+        actionError = null;
         showActionModal = true;
     }
 
@@ -1032,6 +1065,7 @@ else
     {
         showActionModal = false;
         actionComments = string.Empty;
+        actionError = null;
     }
 
     private string GetActionTitle() => currentAction switch
@@ -1058,6 +1092,18 @@ else
         _ => "Submit"
     };
 
+    private bool EnsureAuthenticated(out Guid userId)
+    {
+        if (AuthService.CurrentUser == null)
+        {
+            Navigation.NavigateTo("/login", true);
+            userId = Guid.Empty;
+            return false;
+        }
+        userId = AuthService.CurrentUser.Id;
+        return true;
+    }
+
     private async Task ExecuteAction()
     {
         if (currentAction != ActionType.Approve && string.IsNullOrWhiteSpace(actionComments))
@@ -1067,8 +1113,8 @@ else
 
         isExecutingAction = true;
         
-        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
-        var userRole = AuthService.CurrentUser?.Roles.FirstOrDefault() ?? "User";
+        if (!EnsureAuthenticated(out var userId)) return;
+        var userRole = AuthService.CurrentUser!.Roles.FirstOrDefault() ?? "User";
         
         ApiResponse result = currentAction switch
         {
@@ -1079,18 +1125,22 @@ else
         };
 
         isExecutingAction = false;
-        
+
         if (result.Success)
         {
             CloseActionModal();
             await LoadApplication();
+        }
+        else
+        {
+            actionError = result.Error ?? "Action failed. Please try again.";
         }
     }
 
     private async Task GenerateLoanPack()
     {
         isGeneratingPack = true;
-        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        if (!EnsureAuthenticated(out var userId)) return;
         var userName = AuthService.CurrentUser?.FullName ?? "System";
         var result = await AppService.GenerateLoanPackAsync(Id, userId, userName);
         isGeneratingPack = false;
@@ -1102,15 +1152,50 @@ else
         }
     }
 
+    private bool isGeneratingOfferLetter;
+
+    private async Task GenerateOfferLetter()
+    {
+        isGeneratingOfferLetter = true;
+        try
+        {
+            if (!EnsureAuthenticated(out var userId)) return;
+            var userName = AuthService.CurrentUser?.FullName ?? "System";
+            var result = await AppService.GenerateOfferLetterAsync(Id, userId, userName);
+            if (result.Success && result.Data != null)
+            {
+                await JS.InvokeVoidAsync("alert", $"Offer letter generated: {result.Data.FileName}");
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", $"Failed: {result.Error}");
+            }
+        }
+        finally
+        {
+            isGeneratingOfferLetter = false;
+        }
+    }
+
+    private bool isRunningBureauChecks;
+
     private async Task RequestBureauCheck(Guid partyId)
     {
-        // Bureau check requires consent record - simplified for now
-        await LoadApplication();
+        inlineActionError = null;
+        isRunningBureauChecks = true;
+        StateHasChanged();
+        if (!EnsureAuthenticated(out var userId)) return;
+        var result = await AppService.RequestBureauChecksAsync(Id, userId);
+        isRunningBureauChecks = false;
+        if (result.Success)
+            await LoadApplication();
+        else
+            inlineActionError = result.Error ?? "Failed to run credit checks.";
     }
 
     private async Task GenerateAdvisory()
     {
-        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        if (!EnsureAuthenticated(out var userId)) return;
         await AppService.GenerateAdvisoryAsync(Id, userId);
         await LoadApplication();
     }
@@ -1119,7 +1204,7 @@ else
     {
         if (application?.Committee != null)
         {
-            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            if (!EnsureAuthenticated(out var userId)) return;
             await AppService.CastVoteAsync(application.Committee.ReviewId, args.vote, args.comments, userId);
             await LoadApplication();
         }
@@ -1127,7 +1212,7 @@ else
 
     private async Task AddComment(string content)
     {
-        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        if (!EnsureAuthenticated(out var userId)) return;
         await AppService.AddCommentAsync(Id, content, userId);
         await LoadApplication();
     }
@@ -1268,7 +1353,7 @@ else
         approveCollateralError = null;
         try
         {
-            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            if (!EnsureAuthenticated(out var userId)) return;
             var result = await AppService.ApproveCollateralAsync(approvingCollateralId.Value, userId);
             if (result.Success)
             {
@@ -1425,7 +1510,7 @@ else
         approveGuarantorError = null;
         try
         {
-            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            if (!EnsureAuthenticated(out var userId)) return;
             var result = await AppService.ApproveGuarantorAsync(approvingGuarantorId.Value, userId);
             if (result.Success)
             {
@@ -1468,7 +1553,7 @@ else
         rejectGuarantorError = null;
         try
         {
-            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            if (!EnsureAuthenticated(out var userId)) return;
             var result = await AppService.RejectGuarantorAsync(rejectingGuarantorId.Value, userId, rejectGuarantorReason);
             if (result.Success)
             {
@@ -1501,18 +1586,20 @@ else
     private string rejectDocumentReason = string.Empty;
     private string? rejectDocumentError;
     private bool isProcessingDocument;
+    private string? inlineActionError;
 
     private async Task VerifyDocument(Guid documentId)
     {
+        inlineActionError = null;
         isProcessingDocument = true;
-        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        if (!EnsureAuthenticated(out var userId)) return;
         var result = await AppService.VerifyDocumentAsync(Id, documentId, userId);
         isProcessingDocument = false;
 
         if (result.Success)
-        {
             await LoadApplication();
-        }
+        else
+            inlineActionError = result.Error ?? "Failed to verify document.";
     }
 
     private void ShowRejectDocumentModal(Guid documentId)
@@ -1539,7 +1626,7 @@ else
         rejectDocumentError = null;
         try
         {
-            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            if (!EnsureAuthenticated(out var userId)) return;
             var result = await AppService.RejectDocumentAsync(Id, rejectingDocumentId.Value, userId, rejectDocumentReason);
             if (result.Success)
             {
@@ -1587,11 +1674,15 @@ else
 
     private async Task VerifyStatement(Guid statementId)
     {
+        inlineActionError = null;
         isProcessingStatement = true;
-        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        if (!EnsureAuthenticated(out var userId)) return;
         var result = await AppService.VerifyStatementAsync(statementId, userId);
         isProcessingStatement = false;
-        if (result.Success) await LoadApplication();
+        if (result.Success)
+            await LoadApplication();
+        else
+            inlineActionError = result.Error ?? "Failed to verify statement.";
     }
 
     private void ShowRejectStatementModal(Guid statementId)
@@ -1617,7 +1708,7 @@ else
         rejectStatementError = null;
         try
         {
-            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            if (!EnsureAuthenticated(out var userId)) return;
             var result = await AppService.RejectStatementAsync(rejectingStatementId.Value, userId, rejectStatementReason);
             if (result.Success) { showRejectStatementModal = false; rejectingStatementId = null; await LoadApplication(); }
             else rejectStatementError = result.Error ?? "Failed to reject statement.";
@@ -1627,8 +1718,12 @@ else
 
     private async Task AnalyzeStatement(Guid statementId)
     {
+        inlineActionError = null;
         var result = await AppService.AnalyzeStatementAsync(statementId);
-        if (result.Success) await LoadApplication();
+        if (result.Success)
+            await LoadApplication();
+        else
+            inlineActionError = result.Error ?? "Failed to analyze statement.";
     }
 
     // Fill party info modal
@@ -1898,7 +1993,7 @@ else
 
         try
         {
-            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            if (!EnsureAuthenticated(out var userId)) return;
             var result = await AppService.SubmitApplicationAsync(Id, userId);
 
             if (result.Success)

@@ -1,6 +1,7 @@
 @page "/settings"
 @inject AuthService AuthService
 @inject NavigationManager Navigation
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 
 <PageTitle>Settings - CRMS</PageTitle>
 
@@ -163,9 +164,15 @@
             </div>
         </div>
 
+        @if (saveSuccess)
+        {
+            <div class="alert alert-success mt-3" style="margin-top: var(--space-4);">Settings saved successfully.</div>
+        }
         <div style="margin-top: var(--space-6); display: flex; justify-content: flex-end; gap: var(--space-3);">
-            <button class="btn btn-secondary" @onclick="ResetToDefaults">Reset to Defaults</button>
-            <button class="btn btn-primary" @onclick="SaveSettings">Save Settings</button>
+            <button class="btn btn-secondary" @onclick="ResetToDefaults" disabled="@isSaving">Reset to Defaults</button>
+            <button class="btn btn-primary" @onclick="SaveSettings" disabled="@isSaving">
+                @if (isSaving) { <span class="spinner"></span> } Save Settings
+            </button>
         </div>
     </div>
 </div>
@@ -289,6 +296,8 @@
 </style>
 
 @code {
+    private const string SettingsKey = "userSettings";
+
     private string selectedTheme = "light";
     private bool compactMode;
     private bool sidebarCollapsed;
@@ -299,7 +308,31 @@
     private bool reduceMotion;
     private string fontSize = "medium";
 
-    private void ResetToDefaults()
+    private bool isSaving;
+    private bool saveSuccess;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var saved = await LocalStorage.GetItemAsync<UserSettings>(SettingsKey);
+            if (saved != null)
+            {
+                selectedTheme = saved.Theme ?? "light";
+                compactMode = saved.CompactMode;
+                sidebarCollapsed = saved.SidebarCollapsed;
+                defaultPageSize = saved.DefaultPageSize > 0 ? saved.DefaultPageSize : 20;
+                dateFormat = saved.DateFormat ?? "dd/MM/yyyy";
+                currencyFormat = saved.CurrencyFormat ?? "symbol";
+                highContrast = saved.HighContrast;
+                reduceMotion = saved.ReduceMotion;
+                fontSize = saved.FontSize ?? "medium";
+            }
+        }
+        catch { /* use defaults on error */ }
+    }
+
+    private async Task ResetToDefaults()
     {
         selectedTheme = "light";
         compactMode = false;
@@ -310,10 +343,48 @@
         highContrast = false;
         reduceMotion = false;
         fontSize = "medium";
+        saveSuccess = false;
+        await SaveSettings();
     }
 
     private async Task SaveSettings()
     {
-        await Task.Delay(300);
+        isSaving = true;
+        saveSuccess = false;
+        try
+        {
+            var settings = new UserSettings
+            {
+                Theme = selectedTheme,
+                CompactMode = compactMode,
+                SidebarCollapsed = sidebarCollapsed,
+                DefaultPageSize = defaultPageSize,
+                DateFormat = dateFormat,
+                CurrencyFormat = currencyFormat,
+                HighContrast = highContrast,
+                ReduceMotion = reduceMotion,
+                FontSize = fontSize
+            };
+            await LocalStorage.SetItemAsync(SettingsKey, settings);
+            saveSuccess = true;
+        }
+        catch { /* silently fail — preferences are non-critical */ }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private class UserSettings
+    {
+        public string? Theme { get; set; }
+        public bool CompactMode { get; set; }
+        public bool SidebarCollapsed { get; set; }
+        public int DefaultPageSize { get; set; }
+        public string? DateFormat { get; set; }
+        public string? CurrencyFormat { get; set; }
+        public bool HighContrast { get; set; }
+        public bool ReduceMotion { get; set; }
+        public string? FontSize { get; set; }
     }
 }

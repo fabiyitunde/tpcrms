@@ -16,6 +16,7 @@ using LO = CRMS.Domain.Aggregates.Location;
 using LP = CRMS.Domain.Aggregates.LoanPack;
 using NF = CRMS.Domain.Aggregates.Notification;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
+using OL = CRMS.Domain.Aggregates.OfferLetter;
 using WF = CRMS.Domain.Aggregates.Workflow;
 
 namespace CRMS.Infrastructure.Persistence;
@@ -98,6 +99,9 @@ public class CRMSDbContext : DbContext, IUnitOfWork
 
     // LoanPack
     public DbSet<LP.LoanPack> LoanPacks => Set<LP.LoanPack>();
+
+    // OfferLetter
+    public DbSet<OL.OfferLetter> OfferLetters => Set<OL.OfferLetter>();
 
     // Notification
     public DbSet<NF.Notification> Notifications => Set<NF.Notification>();

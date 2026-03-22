@@ -1,5 +1,6 @@
 @page "/profile"
 @inject AuthService AuthService
+@inject ApplicationService AppService
 @inject NavigationManager Navigation
 
 <PageTitle>My Profile - CRMS</PageTitle>
@@ -60,11 +61,21 @@
                         <input type="tel" class="form-control" @bind="editPhone" disabled="@(!isEditingProfile)" />
                     </div>
                 </div>
+                @if (profileError != null)
+                {
+                    <div class="alert alert-danger mt-3">@profileError</div>
+                }
+                @if (profileSuccess)
+                {
+                    <div class="alert alert-success mt-3">Profile updated successfully.</div>
+                }
                 @if (isEditingProfile)
                 {
                     <div style="margin-top: var(--space-4); display: flex; justify-content: flex-end; gap: var(--space-3);">
-                        <button class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
-                        <button class="btn btn-primary" @onclick="SaveProfile">Save Changes</button>
+                        <button class="btn btn-secondary" @onclick="CancelEdit" disabled="@isSavingProfile">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveProfile" disabled="@isSavingProfile">
+                            @if (isSavingProfile) { <span class="spinner"></span> } Save Changes
+                        </button>
                     </div>
                 }
             </div>
@@ -89,9 +100,18 @@
                         <input type="password" class="form-control" @bind="confirmPassword" />
                     </div>
                 </div>
+                @if (passwordError != null)
+                {
+                    <div class="alert alert-danger mt-3">@passwordError</div>
+                }
+                @if (passwordSuccess)
+                {
+                    <div class="alert alert-success mt-3">Password changed successfully.</div>
+                }
                 <div style="margin-top: var(--space-4);">
-                    <button class="btn btn-primary" @onclick="ChangePassword" disabled="@(string.IsNullOrEmpty(currentPassword) || string.IsNullOrEmpty(newPassword))">
-                        Update Password
+                    <button class="btn btn-primary" @onclick="ChangePassword"
+                        disabled="@(isSavingPassword || string.IsNullOrEmpty(currentPassword) || string.IsNullOrEmpty(newPassword))">
+                        @if (isSavingPassword) { <span class="spinner"></span> } Update Password
                     </button>
                 </div>
             </div>
@@ -225,11 +245,17 @@
     private string editFirstName = string.Empty;
     private string editLastName = string.Empty;
     private string editPhone = string.Empty;
-    
+    private bool isSavingProfile;
+    private string? profileError;
+    private bool profileSuccess;
+
     private string currentPassword = string.Empty;
     private string newPassword = string.Empty;
     private string confirmPassword = string.Empty;
-    
+    private bool isSavingPassword;
+    private string? passwordError;
+    private bool passwordSuccess;
+
     private bool emailNotifications = true;
     private bool smsNotifications = true;
     private bool applicationUpdates = true;
@@ -241,8 +267,8 @@
     private string UserEmail => AuthService.CurrentUser?.Email ?? "user@bank.com";
     private string UserInitials => AuthService.CurrentUser?.Initials ?? "U";
     private string UserRole => AuthService.CurrentUser?.Roles.FirstOrDefault() ?? "Staff";
-    private string? UserBranch => null;
-    private string UserPhone => "+234 800 000 0000";
+    private string? UserBranch => AuthService.CurrentUser?.LocationName;
+    private string UserPhone => AuthService.CurrentUser?.PhoneNumber ?? string.Empty;
 
     protected override void OnInitialized()
     {
@@ -254,6 +280,8 @@
     private void CancelEdit()
     {
         isEditingProfile = false;
+        profileError = null;
+        profileSuccess = false;
         editFirstName = UserFirstName;
         editLastName = UserLastName;
         editPhone = UserPhone;
@@ -261,20 +289,58 @@
 
     private async Task SaveProfile()
     {
-        await Task.Delay(300);
-        isEditingProfile = false;
+        profileError = null;
+        profileSuccess = false;
+        if (string.IsNullOrWhiteSpace(editFirstName) || string.IsNullOrWhiteSpace(editLastName))
+        {
+            profileError = "First name and last name are required.";
+            return;
+        }
+        isSavingProfile = true;
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        var roles = AuthService.CurrentUser?.Roles ?? [];
+        var locationId = AuthService.CurrentUser?.LocationId;
+        var result = await AppService.UpdateUserAsync(userId, editFirstName, editLastName, editPhone, locationId, roles);
+        isSavingProfile = false;
+        if (result.Success)
+        {
+            await AuthService.UpdateLocalUserAsync(editFirstName, editLastName, editPhone);
+            isEditingProfile = false;
+            profileSuccess = true;
+        }
+        else
+        {
+            profileError = result.Error ?? "Failed to save profile.";
+        }
     }
 
     private async Task ChangePassword()
     {
+        passwordError = null;
+        passwordSuccess = false;
         if (newPassword != confirmPassword)
         {
+            passwordError = "New password and confirmation do not match.";
             return;
         }
-        
-        await Task.Delay(300);
-        currentPassword = string.Empty;
-        newPassword = string.Empty;
-        confirmPassword = string.Empty;
+        if (newPassword.Length < 6)
+        {
+            passwordError = "New password must be at least 6 characters.";
+            return;
+        }
+        isSavingPassword = true;
+        var result = await AuthService.ChangePasswordAsync(currentPassword, newPassword);
+        isSavingPassword = false;
+        if (result.Success)
+        {
+            currentPassword = string.Empty;
+            newPassword = string.Empty;
+            confirmPassword = string.Empty;
+            passwordSuccess = true;
+        }
+        else
+        {
+            passwordError = result.Error ?? "Failed to change password.";
+        }
     }
 }

@@ -458,6 +458,15 @@
 
         public string? StoragePath { get; set; }
     }
+
+    public class OfferLetterResult
+    {
+        public Guid OfferLetterId { get; set; }
+
+        public string FileName { get; set; } = string.Empty;
+
+        public string? StoragePath { get; set; }
+    }
     public class UpdateGuarantorRequest
     {
         public string FullName { get; set; } = string.Empty;

@@ -295,8 +295,9 @@
         summary = await summaryTask;
         pendingTasks = await tasksTask;
         
-        // Mock data for demo
-        if (summary.TotalApplications == 0)
+        // Mock data only for the seeded admin demo account
+        bool isAdminUser = AuthService.CurrentUser?.Username == "admin";
+        if (isAdminUser && summary.TotalApplications == 0)
         {
             summary = new DashboardSummary
             {
@@ -322,7 +323,7 @@
             };
         }
 
-        if (!pendingTasks.Any())
+        if (isAdminUser && !pendingTasks.Any())
         {
             pendingTasks =
             [

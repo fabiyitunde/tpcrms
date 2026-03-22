@@ -1,6 +1,7 @@
 @page "/admin/users"
 @using CRMS.Web.Intranet.Models
 @inject ApplicationService AppService
+@inject AuthService AuthService
 @inject NavigationManager Navigation
 
 <PageTitle>User Management - CRMS</PageTitle>
@@ -232,9 +233,9 @@
                     IsActive = u.IsActive
                 }).ToList();
             }
-            else
+            else if (AuthService.CurrentUser?.Username == "admin")
             {
-                // Fallback mock data if no users in DB
+                // Mock data only for the seeded admin demo account
                 users =
                 [
                     new() { Id = Guid.NewGuid(), FirstName = "John", LastName = "Adeyemi", Email = "john.adeyemi@bank.com", Role = "BranchApprover", Branch = "Lagos Main", IsActive = true, LastLogin = DateTime.Now.AddHours(-2) },

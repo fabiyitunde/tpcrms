@@ -329,39 +329,198 @@ public static class ComprehensiveDataSeeder
             return;
         }
 
-        logger.LogInformation("Seeding scoring parameters...");
-        var parameters = new[]
+        logger.LogInformation("Seeding comprehensive scoring parameters (all categories)...");
+        
+        // All parameters: (Category, Key, DisplayName, Description, DataType, Value, MinValue, MaxValue, SortOrder)
+        var allParameters = new List<(string Category, string Key, string DisplayName, string Description, ParameterDataType DataType, decimal Value, decimal? Min, decimal? Max, int Sort)>
         {
-            ("CREDIT_SCORE_WEIGHT", "Credit Score Weight", RiskCategory.CreditHistory, 0.20m, ParameterDataType.Percentage),
-            ("FINANCIAL_HEALTH_WEIGHT", "Financial Health Weight", RiskCategory.FinancialHealth, 0.15m, ParameterDataType.Percentage),
-            ("CASHFLOW_WEIGHT", "Cashflow Stability Weight", RiskCategory.CashflowStability, 0.15m, ParameterDataType.Percentage),
-            ("DSCR_WEIGHT", "Debt Service Capacity Weight", RiskCategory.DebtServiceCapacity, 0.20m, ParameterDataType.Percentage),
-            ("COLLATERAL_WEIGHT", "Collateral Coverage Weight", RiskCategory.CollateralCoverage, 0.15m, ParameterDataType.Percentage),
-            ("MANAGEMENT_WEIGHT", "Management Risk Weight", RiskCategory.ManagementRisk, 0.05m, ParameterDataType.Percentage),
-            ("INDUSTRY_WEIGHT", "Industry Risk Weight", RiskCategory.IndustryRisk, 0.05m, ParameterDataType.Percentage),
-            ("CONCENTRATION_WEIGHT", "Concentration Risk Weight", RiskCategory.ConcentrationRisk, 0.05m, ParameterDataType.Percentage),
-            ("MIN_CREDIT_SCORE", "Minimum Credit Score", RiskCategory.CreditHistory, 500m, ParameterDataType.Score),
-            ("MIN_DSCR", "Minimum DSCR", RiskCategory.DebtServiceCapacity, 1.25m, ParameterDataType.Decimal),
-            ("MAX_LTV", "Maximum LTV Ratio", RiskCategory.CollateralCoverage, 70m, ParameterDataType.Percentage),
-            ("MAX_DTI", "Maximum DTI Ratio", RiskCategory.DebtServiceCapacity, 40m, ParameterDataType.Percentage)
+            // ══════════════════════════════════════════════════════════════════════════════
+            // WEIGHTS - Category weights (must sum to 1.0)
+            // ══════════════════════════════════════════════════════════════════════════════
+            ("Weights", "CreditHistory", "Credit History Weight", "Weight for credit history scoring category", ParameterDataType.Percentage, 0.25m, 0m, 1m, 1),
+            ("Weights", "FinancialHealth", "Financial Health Weight", "Weight for financial health scoring category", ParameterDataType.Percentage, 0.25m, 0m, 1m, 2),
+            ("Weights", "CashflowStability", "Cashflow Stability Weight", "Weight for cashflow stability scoring category", ParameterDataType.Percentage, 0.15m, 0m, 1m, 3),
+            ("Weights", "DebtServiceCapacity", "Debt Service Capacity Weight", "Weight for debt service capacity scoring category", ParameterDataType.Percentage, 0.20m, 0m, 1m, 4),
+            ("Weights", "CollateralCoverage", "Collateral Coverage Weight", "Weight for collateral coverage scoring category", ParameterDataType.Percentage, 0.15m, 0m, 1m, 5),
+
+            // ══════════════════════════════════════════════════════════════════════════════
+            // CREDIT HISTORY - Bureau data scoring
+            // ══════════════════════════════════════════════════════════════════════════════
+            ("CreditHistory", "BaseScore", "Base Score", "Starting score before adjustments", ParameterDataType.Score, 70m, 0m, 100m, 1),
+            // Credit score thresholds
+            ("CreditHistory", "ExcellentCreditScoreThreshold", "Excellent Credit Score Threshold", "Minimum score to qualify as excellent credit", ParameterDataType.Integer, 700m, 300m, 850m, 2),
+            ("CreditHistory", "GoodCreditScoreThreshold", "Good Credit Score Threshold", "Minimum score to qualify as good credit", ParameterDataType.Integer, 650m, 300m, 850m, 3),
+            ("CreditHistory", "PoorCreditScoreThreshold", "Poor Credit Score Threshold", "Scores below this are considered poor", ParameterDataType.Integer, 600m, 300m, 850m, 4),
+            // Score adjustments (bonuses)
+            ("CreditHistory", "ExcellentCreditScoreBonus", "Excellent Credit Score Bonus", "Points added for excellent credit score (>=700)", ParameterDataType.Score, 20m, 0m, 50m, 5),
+            ("CreditHistory", "GoodCreditScoreBonus", "Good Credit Score Bonus", "Points added for good credit score (>=650)", ParameterDataType.Score, 10m, 0m, 50m, 6),
+            ("CreditHistory", "PerformingLoansBonus", "Performing Loans Bonus", "Points added for 3+ performing loans on record", ParameterDataType.Score, 5m, 0m, 20m, 7),
+            ("CreditHistory", "MinPerformingLoansForBonus", "Min Performing Loans for Bonus", "Number of performing loans required for bonus", ParameterDataType.Integer, 3m, 1m, 10m, 8),
+            // Score adjustments (penalties)
+            ("CreditHistory", "PoorCreditScorePenalty", "Poor Credit Score Penalty", "Points deducted for poor credit score (<600)", ParameterDataType.Score, 20m, 0m, 50m, 9),
+            ("CreditHistory", "DefaultPenalty", "Default Penalty", "Points deducted for any defaulted loans on record", ParameterDataType.Score, 30m, 0m, 50m, 10),
+            ("CreditHistory", "DelinquencyPenalty", "Delinquency Penalty", "Points deducted for any delinquent loans on record", ParameterDataType.Score, 15m, 0m, 50m, 11),
+            ("CreditHistory", "LegalActionsPenalty", "Legal Actions Penalty", "Points deducted for legal actions on record", ParameterDataType.Score, 20m, 0m, 50m, 12),
+            // Delinquency thresholds
+            ("CreditHistory", "SevereDelinquencyDaysThreshold", "Severe Delinquency Days Threshold", "Days overdue to trigger severe delinquency penalty", ParameterDataType.Integer, 90m, 30m, 180m, 13),
+            ("CreditHistory", "SevereDelinquencyPenalty", "Severe Delinquency Penalty", "Points deducted for severe delinquency (>=90 days)", ParameterDataType.Score, 15m, 0m, 50m, 14),
+            ("CreditHistory", "WatchListDaysThreshold", "Watch List Days Threshold", "Days overdue to trigger watch list penalty", ParameterDataType.Integer, 30m, 7m, 90m, 15),
+            ("CreditHistory", "WatchListPenalty", "Watch List Penalty", "Points deducted for watch list status (>=30 days)", ParameterDataType.Score, 8m, 0m, 30m, 16),
+            // Fraud risk thresholds
+            ("CreditHistory", "HighFraudRiskScoreThreshold", "High Fraud Risk Score Threshold", "Bureau fraud score threshold for high risk", ParameterDataType.Integer, 70m, 50m, 100m, 17),
+            ("CreditHistory", "HighFraudRiskPenalty", "High Fraud Risk Penalty", "Points deducted for high fraud risk (>=70)", ParameterDataType.Score, 25m, 0m, 50m, 18),
+            ("CreditHistory", "ElevatedFraudRiskScoreThreshold", "Elevated Fraud Risk Score Threshold", "Bureau fraud score threshold for elevated risk", ParameterDataType.Integer, 50m, 30m, 70m, 19),
+            ("CreditHistory", "ElevatedFraudRiskPenalty", "Elevated Fraud Risk Penalty", "Points deducted for elevated fraud risk (>=50)", ParameterDataType.Score, 10m, 0m, 30m, 20),
+            // Missing data
+            ("CreditHistory", "MissingBureauDataPenaltyPerParty", "Missing Bureau Data Penalty (Per Party)", "Points deducted per party with missing bureau data", ParameterDataType.Score, 5m, 0m, 20m, 21),
+
+            // ══════════════════════════════════════════════════════════════════════════════
+            // FINANCIAL HEALTH - Balance sheet and profitability
+            // ══════════════════════════════════════════════════════════════════════════════
+            ("FinancialHealth", "BaseScore", "Base Score", "Starting score before adjustments", ParameterDataType.Score, 60m, 0m, 100m, 1),
+            // Liquidity thresholds
+            ("FinancialHealth", "StrongCurrentRatio", "Strong Current Ratio", "Current ratio threshold for strong liquidity bonus", ParameterDataType.Decimal, 2.0m, 1m, 5m, 2),
+            ("FinancialHealth", "WeakCurrentRatio", "Weak Current Ratio", "Current ratio below this triggers liquidity penalty", ParameterDataType.Decimal, 1.0m, 0.5m, 2m, 3),
+            ("FinancialHealth", "StrongCurrentRatioBonus", "Strong Current Ratio Bonus", "Points added for strong liquidity (CR>=2.0)", ParameterDataType.Score, 10m, 0m, 30m, 4),
+            ("FinancialHealth", "WeakCurrentRatioPenalty", "Weak Current Ratio Penalty", "Points deducted for weak liquidity (CR<1.0)", ParameterDataType.Score, 15m, 0m, 30m, 5),
+            // Leverage thresholds
+            ("FinancialHealth", "ConservativeDebtToEquity", "Conservative Debt-to-Equity", "D/E ratio threshold for conservative leverage bonus", ParameterDataType.Decimal, 1.0m, 0.5m, 2m, 6),
+            ("FinancialHealth", "HighDebtToEquity", "High Debt-to-Equity", "D/E ratio above this triggers high leverage penalty", ParameterDataType.Decimal, 3.0m, 2m, 5m, 7),
+            ("FinancialHealth", "ConservativeLeverageBonus", "Conservative Leverage Bonus", "Points added for conservative leverage (D/E<=1.0)", ParameterDataType.Score, 10m, 0m, 30m, 8),
+            ("FinancialHealth", "HighLeveragePenalty", "High Leverage Penalty", "Points deducted for high leverage (D/E>3.0)", ParameterDataType.Score, 20m, 0m, 40m, 9),
+            // Profitability thresholds
+            ("FinancialHealth", "StrongNetMarginPercent", "Strong Net Margin %", "Net profit margin threshold for strong profitability bonus", ParameterDataType.Percentage, 10m, 5m, 30m, 10),
+            ("FinancialHealth", "StrongNetMarginBonus", "Strong Net Margin Bonus", "Points added for strong profitability (NPM>=10%)", ParameterDataType.Score, 15m, 0m, 30m, 11),
+            ("FinancialHealth", "LossMakingPenalty", "Loss-Making Penalty", "Points deducted if company is loss-making", ParameterDataType.Score, 25m, 0m, 50m, 12),
+            // ROE
+            ("FinancialHealth", "StrongROE", "Strong ROE %", "Return on Equity threshold for bonus", ParameterDataType.Percentage, 15m, 5m, 50m, 13),
+            ("FinancialHealth", "StrongROEBonus", "Strong ROE Bonus", "Points added for strong ROE (>=15%)", ParameterDataType.Score, 10m, 0m, 30m, 14),
+
+            // ══════════════════════════════════════════════════════════════════════════════
+            // CASHFLOW - Bank statement analysis
+            // ══════════════════════════════════════════════════════════════════════════════
+            ("Cashflow", "BaseScore", "Base Score", "Starting score before adjustments", ParameterDataType.Score, 60m, 0m, 100m, 1),
+            // Statement source adjustments
+            ("Cashflow", "InternalStatementBonus", "Internal Statement Bonus", "Points added when own-bank statement is provided", ParameterDataType.Score, 10m, 0m, 30m, 2),
+            ("Cashflow", "MissingInternalPenalty", "Missing Internal Statement Penalty", "Points deducted when own-bank statement is missing", ParameterDataType.Score, 15m, 0m, 30m, 3),
+            ("Cashflow", "VerifiedExternalBonus", "Verified External Statement Bonus", "Points added for verified external bank statements", ParameterDataType.Score, 5m, 0m, 20m, 4),
+            // Cashflow metrics
+            ("Cashflow", "PositiveCashflowBonus", "Positive Cashflow Bonus", "Points added for positive net monthly cashflow", ParameterDataType.Score, 15m, 0m, 30m, 5),
+            ("Cashflow", "NegativeCashflowPenalty", "Negative Cashflow Penalty", "Points deducted for negative net monthly cashflow", ParameterDataType.Score, 20m, 0m, 40m, 6),
+            // Volatility thresholds
+            ("Cashflow", "LowVolatilityThreshold", "Low Volatility Threshold", "Cashflow volatility below this is considered stable", ParameterDataType.Percentage, 30m, 10m, 50m, 7),
+            ("Cashflow", "HighVolatilityThreshold", "High Volatility Threshold", "Cashflow volatility above this is considered unstable", ParameterDataType.Percentage, 50m, 30m, 80m, 8),
+            ("Cashflow", "LowVolatilityBonus", "Low Volatility Bonus", "Points added for stable cashflow (volatility<30%)", ParameterDataType.Score, 10m, 0m, 30m, 9),
+            ("Cashflow", "HighVolatilityPenalty", "High Volatility Penalty", "Points deducted for unstable cashflow (volatility>50%)", ParameterDataType.Score, 10m, 0m, 30m, 10),
+            // Risk indicators
+            ("Cashflow", "GamblingPenalty", "Gambling Transactions Penalty", "Points deducted for gambling activity detected", ParameterDataType.Score, 15m, 0m, 40m, 11),
+            ("Cashflow", "BouncedTransactionPenalty", "Bounced Transaction Penalty", "Points deducted for bounced/failed transactions", ParameterDataType.Score, 20m, 0m, 40m, 12),
+            ("Cashflow", "HighNegativeBalanceDaysThreshold", "High Negative Balance Days Threshold", "Days with negative balance to trigger high penalty", ParameterDataType.Integer, 10m, 5m, 30m, 13),
+            ("Cashflow", "ModerateNegativeBalanceDaysThreshold", "Moderate Negative Balance Days Threshold", "Days with negative balance to trigger moderate penalty", ParameterDataType.Integer, 5m, 1m, 15m, 14),
+            ("Cashflow", "HighNegativeBalancePenalty", "High Negative Balance Penalty", "Points deducted for frequent negative balance (>10 days)", ParameterDataType.Score, 15m, 0m, 30m, 15),
+            ("Cashflow", "ModerateNegativeBalancePenalty", "Moderate Negative Balance Penalty", "Points deducted for some negative balance (>5 days)", ParameterDataType.Score, 5m, 0m, 20m, 16),
+            // Period coverage
+            ("Cashflow", "MinimumMonthsRequired", "Minimum Months Required", "Minimum months of statement history required", ParameterDataType.Integer, 6m, 3m, 12m, 17),
+            ("Cashflow", "IdealMonthsCoverage", "Ideal Months Coverage", "Ideal months of statement history for bonus", ParameterDataType.Integer, 12m, 6m, 24m, 18),
+            ("Cashflow", "InsufficientCoveragePenalty", "Insufficient Coverage Penalty", "Points deducted for less than minimum months", ParameterDataType.Score, 10m, 0m, 30m, 19),
+            ("Cashflow", "IdealCoverageBonus", "Ideal Coverage Bonus", "Points added for ideal statement coverage", ParameterDataType.Score, 5m, 0m, 20m, 20),
+
+            // ══════════════════════════════════════════════════════════════════════════════
+            // DSCR - Debt Service Coverage Ratio
+            // ══════════════════════════════════════════════════════════════════════════════
+            ("DSCR", "ExcellentDSCR", "Excellent DSCR", "DSCR threshold for excellent rating", ParameterDataType.Decimal, 2.0m, 1.5m, 5m, 1),
+            ("DSCR", "GoodDSCR", "Good DSCR", "DSCR threshold for good rating", ParameterDataType.Decimal, 1.5m, 1.25m, 3m, 2),
+            ("DSCR", "AdequateDSCR", "Adequate DSCR", "DSCR threshold for adequate rating", ParameterDataType.Decimal, 1.25m, 1m, 2m, 3),
+            ("DSCR", "MinimumDSCR", "Minimum DSCR", "Minimum acceptable DSCR for approval", ParameterDataType.Decimal, 1.0m, 0.8m, 1.5m, 4),
+            // DSCR scores
+            ("DSCR", "ExcellentDSCRScore", "Excellent DSCR Score", "Score awarded for excellent DSCR (>=2.0)", ParameterDataType.Score, 90m, 70m, 100m, 5),
+            ("DSCR", "GoodDSCRScore", "Good DSCR Score", "Score awarded for good DSCR (>=1.5)", ParameterDataType.Score, 75m, 60m, 90m, 6),
+            ("DSCR", "AdequateDSCRScore", "Adequate DSCR Score", "Score awarded for adequate DSCR (>=1.25)", ParameterDataType.Score, 60m, 40m, 80m, 7),
+            ("DSCR", "MinimumDSCRScore", "Minimum DSCR Score", "Score awarded for minimum DSCR (>=1.0)", ParameterDataType.Score, 45m, 30m, 60m, 8),
+            ("DSCR", "BelowMinimumDSCRScore", "Below Minimum DSCR Score", "Score awarded for DSCR below minimum (<1.0)", ParameterDataType.Score, 25m, 0m, 40m, 9),
+            // Interest coverage
+            ("DSCR", "StrongInterestCoverage", "Strong Interest Coverage", "Interest coverage ratio for strong rating", ParameterDataType.Decimal, 5.0m, 3m, 10m, 10),
+            ("DSCR", "WeakInterestCoverage", "Weak Interest Coverage", "Interest coverage ratio below this is weak", ParameterDataType.Decimal, 2.0m, 1m, 3m, 11),
+            ("DSCR", "StrongInterestCoverageBonus", "Strong Interest Coverage Bonus", "Points added for strong interest coverage (>=5x)", ParameterDataType.Score, 5m, 0m, 20m, 12),
+            ("DSCR", "WeakInterestCoveragePenalty", "Weak Interest Coverage Penalty", "Points deducted for weak interest coverage (<2x)", ParameterDataType.Score, 10m, 0m, 30m, 13),
+
+            // ══════════════════════════════════════════════════════════════════════════════
+            // COLLATERAL - Loan-to-Value and lien status
+            // ══════════════════════════════════════════════════════════════════════════════
+            ("Collateral", "ExcellentLTV", "Excellent LTV %", "LTV threshold for excellent collateral coverage", ParameterDataType.Percentage, 50m, 30m, 70m, 1),
+            ("Collateral", "GoodLTV", "Good LTV %", "LTV threshold for good collateral coverage", ParameterDataType.Percentage, 70m, 50m, 90m, 2),
+            ("Collateral", "AdequateLTV", "Adequate LTV %", "LTV threshold for adequate collateral coverage", ParameterDataType.Percentage, 100m, 80m, 120m, 3),
+            // LTV scores
+            ("Collateral", "ExcellentLTVScore", "Excellent LTV Score", "Score awarded for excellent LTV (<=50%)", ParameterDataType.Score, 90m, 70m, 100m, 4),
+            ("Collateral", "GoodLTVScore", "Good LTV Score", "Score awarded for good LTV (<=70%)", ParameterDataType.Score, 75m, 60m, 90m, 5),
+            ("Collateral", "AdequateLTVScore", "Adequate LTV Score", "Score awarded for adequate LTV (<=100%)", ParameterDataType.Score, 55m, 40m, 70m, 6),
+            ("Collateral", "UnderCollateralizedScore", "Under-Collateralized Score", "Score awarded when LTV exceeds 100%", ParameterDataType.Score, 35m, 0m, 50m, 7),
+            // Lien status
+            ("Collateral", "PerfectedLienBonus", "Perfected Lien Bonus", "Points added when all liens are perfected", ParameterDataType.Score, 5m, 0m, 20m, 8),
+            ("Collateral", "UnperfectedLienPenalty", "Unperfected Lien Penalty", "Points deducted when liens are not perfected", ParameterDataType.Score, 10m, 0m, 30m, 9),
+
+            // ══════════════════════════════════════════════════════════════════════════════
+            // RECOMMENDATIONS - Decision thresholds
+            // ══════════════════════════════════════════════════════════════════════════════
+            ("Recommendations", "StrongApproveMinScore", "Strong Approve Min Score", "Minimum score for strong approval recommendation", ParameterDataType.Score, 75m, 60m, 90m, 1),
+            ("Recommendations", "StrongApproveMaxRedFlags", "Strong Approve Max Red Flags", "Maximum red flags allowed for strong approval", ParameterDataType.Integer, 0m, 0m, 2m, 2),
+            ("Recommendations", "ApproveMinScore", "Approve Min Score", "Minimum score for approval recommendation", ParameterDataType.Score, 65m, 50m, 80m, 3),
+            ("Recommendations", "ApproveMaxRedFlags", "Approve Max Red Flags", "Maximum red flags allowed for approval", ParameterDataType.Integer, 1m, 0m, 3m, 4),
+            ("Recommendations", "ApproveWithConditionsMinScore", "Approve With Conditions Min Score", "Minimum score for conditional approval", ParameterDataType.Score, 50m, 40m, 70m, 5),
+            ("Recommendations", "ReferMinScore", "Refer Min Score", "Minimum score for refer recommendation (below this = decline)", ParameterDataType.Score, 35m, 20m, 50m, 6),
+            ("Recommendations", "CriticalRedFlagsThreshold", "Critical Red Flags Threshold", "Number of red flags that triggers automatic decline", ParameterDataType.Integer, 3m, 2m, 5m, 7),
+
+            // ══════════════════════════════════════════════════════════════════════════════
+            // LOAN ADJUSTMENTS - Amount and rate modifications
+            // ══════════════════════════════════════════════════════════════════════════════
+            ("LoanAdjustments", "Score80PlusMultiplier", "Score 80+ Amount Multiplier", "Loan amount multiplier for scores >= 80", ParameterDataType.Decimal, 1.0m, 0.8m, 1.2m, 1),
+            ("LoanAdjustments", "Score70PlusMultiplier", "Score 70+ Amount Multiplier", "Loan amount multiplier for scores >= 70", ParameterDataType.Decimal, 0.9m, 0.7m, 1.1m, 2),
+            ("LoanAdjustments", "Score60PlusMultiplier", "Score 60+ Amount Multiplier", "Loan amount multiplier for scores >= 60", ParameterDataType.Decimal, 0.75m, 0.5m, 1.0m, 3),
+            ("LoanAdjustments", "Score50PlusMultiplier", "Score 50+ Amount Multiplier", "Loan amount multiplier for scores >= 50", ParameterDataType.Decimal, 0.6m, 0.4m, 0.9m, 4),
+            ("LoanAdjustments", "BelowScore50Multiplier", "Below Score 50 Amount Multiplier", "Loan amount multiplier for scores < 50", ParameterDataType.Decimal, 0.5m, 0.3m, 0.7m, 5),
+            // Interest rate adjustments
+            ("LoanAdjustments", "BaseInterestRate", "Base Interest Rate %", "Base annual interest rate before adjustments", ParameterDataType.Percentage, 18.0m, 10m, 30m, 6),
+            ("LoanAdjustments", "Score80PlusRateAdjustment", "Score 80+ Rate Adjustment", "Interest rate adjustment for scores >= 80 (negative = discount)", ParameterDataType.Decimal, -2.0m, -5m, 0m, 7),
+            ("LoanAdjustments", "Score70PlusRateAdjustment", "Score 70+ Rate Adjustment", "Interest rate adjustment for scores >= 70", ParameterDataType.Decimal, -1.0m, -3m, 0m, 8),
+            ("LoanAdjustments", "Score60PlusRateAdjustment", "Score 60+ Rate Adjustment", "Interest rate adjustment for scores >= 60", ParameterDataType.Decimal, 0m, -2m, 2m, 9),
+            ("LoanAdjustments", "Score50PlusRateAdjustment", "Score 50+ Rate Adjustment", "Interest rate adjustment for scores >= 50", ParameterDataType.Decimal, 2.0m, 0m, 5m, 10),
+            ("LoanAdjustments", "BelowScore50RateAdjustment", "Below Score 50 Rate Adjustment", "Interest rate adjustment for scores < 50", ParameterDataType.Decimal, 4.0m, 2m, 8m, 11),
+            // Tenor restrictions
+            ("LoanAdjustments", "MaxTenorForLowScores", "Max Tenor for Low Scores (months)", "Maximum loan tenor allowed for low-scoring applications", ParameterDataType.Integer, 36m, 12m, 60m, 12),
+            ("LoanAdjustments", "LowScoreThresholdForTenorRestriction", "Low Score Threshold for Tenor Restriction", "Score below which tenor restriction applies", ParameterDataType.Score, 70m, 50m, 80m, 13),
+
+            // ══════════════════════════════════════════════════════════════════════════════
+            // STATEMENT TRUST - Trust weights for different statement sources
+            // ══════════════════════════════════════════════════════════════════════════════
+            ("StatementTrust", "CoreBanking", "Core Banking Trust Weight", "Trust weight for statements from own core banking system", ParameterDataType.Decimal, 1.0m, 0.8m, 1m, 1),
+            ("StatementTrust", "OpenBanking", "Open Banking Trust Weight", "Trust weight for statements via Open Banking API", ParameterDataType.Decimal, 0.95m, 0.7m, 1m, 2),
+            ("StatementTrust", "MonoConnect", "Mono Connect Trust Weight", "Trust weight for statements from Mono Connect", ParameterDataType.Decimal, 0.90m, 0.7m, 1m, 3),
+            ("StatementTrust", "ManualUploadVerified", "Manual Upload (Verified) Trust Weight", "Trust weight for manually uploaded and verified statements", ParameterDataType.Decimal, 0.85m, 0.6m, 1m, 4),
+            ("StatementTrust", "ManualUploadPending", "Manual Upload (Pending) Trust Weight", "Trust weight for manually uploaded statements pending verification", ParameterDataType.Decimal, 0.70m, 0.4m, 0.9m, 5),
         };
 
-        foreach (var (code, name, category, value, dataType) in parameters)
+        int paramCount = 0;
+        foreach (var (category, key, displayName, description, dataType, value, min, max, sortOrder) in allParameters)
         {
-            var param = ScoringParameter.Create(category.ToString(), code, name, $"Scoring parameter: {name}", dataType, value, createdByUserId);
+            var param = ScoringParameter.Create(category, key, displayName, description, dataType, value, createdByUserId, min, max, sortOrder);
             if (param.IsSuccess)
             {
                 await context.ScoringParameters.AddAsync(param.Value);
                 
                 // Add ScoringParameterHistory for creation
                 var history = ScoringParameterHistory.RecordCreation(
-                    param.Value.Id, category.ToString(), code, value, createdByUserId);
+                    param.Value.Id, category, key, value, createdByUserId);
                 await context.ScoringParameterHistory.AddAsync(history);
+                paramCount++;
+            }
+            else
+            {
+                logger.LogWarning("Failed to create parameter {Category}.{Key}: {Error}", category, key, param.Error);
             }
         }
 
         await context.SaveChangesAsync();
-        logger.LogInformation("Scoring parameters and history seeded successfully");
+        logger.LogInformation("Scoring parameters seeded successfully ({Count} parameters across 9 categories)", paramCount);
     }
 
     private static async Task SeedLoanApplicationsAsync(

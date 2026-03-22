@@ -202,8 +202,8 @@
         // Get user's own applications (includes Drafts)
         var myApps = await AppService.GetMyApplicationsAsync(userId);
 
-        // Fallback to mock data when the database is empty (same pattern as Dashboard)
-        if (!myApps.Any())
+        // Mock data only for the seeded admin demo account
+        if (!myApps.Any() && AuthService.CurrentUser?.Username == "admin")
         {
             myApps = GenerateMockApplications();
         }

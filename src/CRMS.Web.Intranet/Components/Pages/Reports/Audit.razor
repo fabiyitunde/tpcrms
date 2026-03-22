@@ -1,5 +1,6 @@
 @page "/reports/audit"
 @inject ApplicationService AppService
+@inject AuthService AuthService
 @inject NavigationManager Navigation
 
 <PageTitle>Audit Trail - CRMS</PageTitle>
@@ -110,14 +111,14 @@
             
             <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-size: var(--text-sm); color: var(--gray-500);">
-                    Showing 1-@auditLogs.Count of @totalCount entries
+                    Showing @((currentPage - 1) * pageSize + 1)-@((currentPage - 1) * pageSize + auditLogs.Count) of @totalCount entries
                 </span>
                 <div style="display: flex; gap: var(--space-2);">
-                    <button class="btn btn-outline btn-sm" disabled="@(currentPage <= 1)">
+                    <button class="btn btn-outline btn-sm" disabled="@(currentPage <= 1)" @onclick="PreviousPage">
                         <span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>
                         Previous
                     </button>
-                    <button class="btn btn-outline btn-sm" disabled="@(currentPage >= totalPages)">
+                    <button class="btn btn-outline btn-sm" disabled="@(currentPage >= totalPages)" @onclick="NextPage">
                         Next
                         <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
                     </button>
@@ -135,8 +136,9 @@
     private DateTime? dateTo;
     private bool isLoading = true;
     private int currentPage = 1;
-    private int totalCount = 150;
-    private int totalPages = 8;
+    private int pageSize = 20;
+    private int totalCount;
+    private int totalPages;
 
     protected override async Task OnInitializedAsync()
     {
@@ -148,15 +150,17 @@
         isLoading = true;
         try
         {
-            var dbLogs = await AppService.GetAuditLogsAsync(
+            var (items, count, pages) = await AppService.SearchAuditLogsAsync(
                 string.IsNullOrEmpty(selectedAction) ? null : selectedAction,
                 dateFrom,
-                dateTo
+                dateTo,
+                currentPage,
+                pageSize
             );
-            
-            if (dbLogs.Count > 0)
+
+            if (items.Count > 0)
             {
-                auditLogs = dbLogs.Select(l => new AuditLog
+                auditLogs = items.Select(l => new AuditLog
                 {
                     Timestamp = l.Timestamp,
                     UserName = l.UserName,
@@ -166,11 +170,12 @@
                     Details = l.Details,
                     IpAddress = l.IpAddress
                 }).ToList();
-                totalCount = auditLogs.Count;
+                totalCount = count;
+                totalPages = pages;
             }
-            else
+            else if (AuthService.CurrentUser?.Username == "admin")
             {
-                // Fallback mock data
+                // Mock data only for the seeded admin demo account
                 auditLogs =
                 [
                     new() { Timestamp = DateTime.Now.AddMinutes(-5), UserName = "John Adeyemi", Action = "Approve", EntityType = "LoanApplication", EntityId = "CL-2026-0156", Details = "Application approved at branch level", IpAddress = "192.168.1.100" },
@@ -182,6 +187,21 @@
                     new() { Timestamp = DateTime.Now.AddHours(-4), UserName = "Risk Committee", Action = "Approve", EntityType = "CommitteeReview", EntityId = "CR-2026-0088", Details = "Committee approved application CL-2026-0145", IpAddress = "192.168.1.120" },
                     new() { Timestamp = DateTime.Now.AddHours(-5), UserName = "Operations", Action = "Update", EntityType = "LoanApplication", EntityId = "CL-2026-0140", Details = "Marked as disbursed", IpAddress = "192.168.1.115" }
                 ];
+                totalCount = auditLogs.Count;
+                totalPages = 1;
+            }
+
+            // Client-side search term filter (applied after loading)
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var term = searchTerm.Trim().ToLowerInvariant();
+                auditLogs = auditLogs.Where(l =>
+                    l.UserName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    l.Action.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    l.EntityType.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    l.EntityId.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    l.Details.Contains(term, StringComparison.OrdinalIgnoreCase)
+                ).ToList();
             }
         }
         finally
@@ -192,7 +212,26 @@
 
     private async Task Search()
     {
+        currentPage = 1;
         await LoadAuditLogs();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await LoadAuditLogs();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            await LoadAuditLogs();
+        }
     }
 
     private static string GetInitials(string name)

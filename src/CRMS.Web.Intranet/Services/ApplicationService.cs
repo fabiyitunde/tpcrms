@@ -101,6 +101,23 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse> RequestBureauChecksAsync(Guid applicationId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CreditBureau.Commands.ProcessLoanCreditChecksHandler>();
+            var result = await handler.Handle(new CRMS.Application.CreditBureau.Commands.ProcessLoanCreditChecksCommand(applicationId, userId), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse.Ok()
+                : ApiResponse.Fail(result.Error ?? "Failed to run credit checks");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error running credit checks for application {Id}", applicationId);
+            return ApiResponse.Fail("Failed to run credit checks: " + ex.Message);
+        }
+    }
+
     private static string GetScoreGrade(int? score)
     {
         if (!score.HasValue) return "N/A";
@@ -833,7 +850,7 @@ public partial class ApplicationService
                 }).ToList()
             };
             LoanApplicationDetail loanApplicationDetail2 = loanApplicationDetail;
-            loanApplicationDetail2.Collaterals = await GetCollateralsForApplicationAsync(id);
+            loanApplicationDetail2.Collaterals = await GetCollateralsForApplicationAsync(id, app.RequestedAmount);
             LoanApplicationDetail loanApplicationDetail3 = loanApplicationDetail;
             loanApplicationDetail3.Guarantors = await GetGuarantorsForApplicationAsync(id);
             LoanApplicationDetail loanApplicationDetail4 = loanApplicationDetail;
@@ -854,32 +871,60 @@ public partial class ApplicationService
         }
     }
 
-    private async Task<List<CollateralInfo>> GetCollateralsForApplicationAsync(Guid applicationId)
+    private async Task<List<CollateralInfo>> GetCollateralsForApplicationAsync(Guid applicationId, decimal loanAmount = 0m)
     {
         try
         {
-            GetCollateralByLoanApplicationHandler handler = _sp.GetRequiredService<GetCollateralByLoanApplicationHandler>();
-            ApplicationResult<List<CollateralSummaryDto>> result = await handler.Handle(new GetCollateralByLoanApplicationQuery(applicationId), CancellationToken.None);
-            if (!result.IsSuccess || result.Data == null)
-            {
+            var summaryHandler = _sp.GetRequiredService<GetCollateralByLoanApplicationHandler>();
+            var summaryResult = await summaryHandler.Handle(new GetCollateralByLoanApplicationQuery(applicationId), CancellationToken.None);
+            if (!summaryResult.IsSuccess || summaryResult.Data == null)
                 return new List<CollateralInfo>();
-            }
-            return result.Data.Select((CollateralSummaryDto c) => new CollateralInfo
+
+            var detailHandler = _sp.GetRequiredService<Application.Collateral.Queries.GetCollateralByIdHandler>();
+            var items = new List<CollateralInfo>();
+            foreach (var summary in summaryResult.Data)
             {
-                Id = c.Id,
-                Type = c.Type,
-                Description = c.Description,
-                MarketValue = c.AcceptableValue.GetValueOrDefault(),
-                ForcedSaleValue = c.AcceptableValue.GetValueOrDefault(),
-                LoanToValue = 0m,
-                Status = c.Status,
-                LastValuationDate = c.CreatedAt
-            }).ToList();
+                var detailResult = await detailHandler.Handle(new Application.Collateral.Queries.GetCollateralByIdQuery(summary.Id), CancellationToken.None);
+                if (detailResult.IsSuccess && detailResult.Data != null)
+                {
+                    var c = detailResult.Data;
+                    var acceptableValue = c.AcceptableValue.GetValueOrDefault();
+                    var ltv = loanAmount > 0 && acceptableValue > 0
+                        ? Math.Round((loanAmount / acceptableValue) * 100, 2)
+                        : 0m;
+                    items.Add(new CollateralInfo
+                    {
+                        Id = c.Id,
+                        Type = c.Type,
+                        Description = c.Description,
+                        MarketValue = c.MarketValue.GetValueOrDefault(),
+                        ForcedSaleValue = c.ForcedSaleValue.GetValueOrDefault(),
+                        LoanToValue = ltv,
+                        Status = c.Status,
+                        LastValuationDate = c.LastValuationDate
+                    });
+                }
+                else
+                {
+                    // Fall back to summary data if detail fetch fails
+                    items.Add(new CollateralInfo
+                    {
+                        Id = summary.Id,
+                        Type = summary.Type,
+                        Description = summary.Description,
+                        MarketValue = summary.AcceptableValue.GetValueOrDefault(),
+                        ForcedSaleValue = summary.AcceptableValue.GetValueOrDefault(),
+                        LoanToValue = 0m,
+                        Status = summary.Status,
+                        LastValuationDate = summary.CreatedAt
+                    });
+                }
+            }
+            return items;
         }
         catch (Exception ex)
         {
-            Exception ex2 = ex;
-            _logger.LogError(ex2, "Error fetching collaterals for application {Id}", applicationId);
+            _logger.LogError(ex, "Error fetching collaterals for application {Id}", applicationId);
             return new List<CollateralInfo>();
         }
     }
@@ -1492,6 +1537,29 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse<OfferLetterResult>> GenerateOfferLetterAsync(Guid applicationId, Guid userId, string userName)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.OfferLetter.Commands.GenerateOfferLetterHandler>();
+            var command = new CRMS.Application.OfferLetter.Commands.GenerateOfferLetterCommand(applicationId, userId, userName);
+            var result = await handler.Handle(command, CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return ApiResponse<OfferLetterResult>.Fail(result.Error ?? "Offer letter generation failed");
+            return ApiResponse<OfferLetterResult>.Ok(new OfferLetterResult
+            {
+                OfferLetterId = result.Data.OfferLetterId,
+                FileName = result.Data.FileName,
+                StoragePath = result.Data.StoragePath
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating offer letter");
+            return ApiResponse<OfferLetterResult>.Fail("Failed to generate offer letter");
+        }
+    }
+
     public async Task<ApiResponse> CastVoteAsync(Guid reviewId, string vote, string? comments, Guid userId)
     {
         try
@@ -1847,6 +1915,55 @@ public partial class ApplicationService
             Exception ex2 = ex;
             _logger.LogError(ex2, "Error fetching audit logs");
             return new List<AuditLogSummary>();
+        }
+    }
+
+    public async Task<(List<AuditLogSummary> Items, int TotalCount, int TotalPages)> SearchAuditLogsAsync(
+        string? actionFilter = null,
+        DateTime? from = null,
+        DateTime? to = null,
+        int pageNumber = 1,
+        int pageSize = 20)
+    {
+        try
+        {
+            CRMS.Domain.Enums.AuditAction? auditAction = null;
+            if (!string.IsNullOrEmpty(actionFilter) &&
+                Enum.TryParse<CRMS.Domain.Enums.AuditAction>(actionFilter, true, out var parsed))
+            {
+                auditAction = parsed;
+            }
+
+            var handler = _sp.GetRequiredService<Application.Audit.Queries.SearchAuditLogsHandler>();
+            var query = new Application.Audit.Queries.SearchAuditLogsQuery(
+                Action: auditAction,
+                From: from,
+                To: to,
+                PageNumber: pageNumber,
+                PageSize: pageSize
+            );
+            var result = await handler.Handle(query, CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return ([], 0, 0);
+
+            var items = result.Data.Items.Select(l => new AuditLogSummary
+            {
+                Id = l.Id,
+                Timestamp = l.Timestamp,
+                UserName = l.UserName ?? "System",
+                Action = l.Action,
+                EntityType = l.EntityType,
+                EntityId = l.EntityReference ?? "",
+                Details = l.Description,
+                IpAddress = ""
+            }).ToList();
+
+            return (items, result.Data.TotalCount, result.Data.TotalPages);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching audit logs");
+            return ([], 0, 0);
         }
     }
 
@@ -2535,21 +2652,21 @@ public partial class ApplicationService
             }
             Guid statementId = createResult.Data.Id;
             SetBalanceSheetHandler bsHandler = _sp.GetRequiredService<SetBalanceSheetHandler>();
-            SubmitBalanceSheetRequest bsRequest = new SubmitBalanceSheetRequest(bs.CashAndCashEquivalents, bs.TradeReceivables, bs.Inventory, bs.PrepaidExpenses, bs.OtherCurrentAssets, bs.PropertyPlantEquipment, bs.IntangibleAssets, bs.LongTermInvestments, bs.DeferredTaxAssets, bs.OtherNonCurrentAssets, bs.TradePayables, bs.ShortTermBorrowings, bs.CurrentPortionLongTermDebt, bs.AccruedExpenses, bs.TaxPayable, bs.OtherCurrentLiabilities, bs.LongTermDebt, bs.DeferredTaxLiabilities, bs.Provisions, bs.OtherNonCurrentLiabilities, bs.ShareCapital, bs.SharePremium, bs.RetainedEarnings, bs.OtherReserves);
+            SubmitBalanceSheetRequest bsRequest = new SubmitBalanceSheetRequest(bs.CashAndCashEquivalents * 1000m, bs.TradeReceivables * 1000m, bs.Inventory * 1000m, bs.PrepaidExpenses * 1000m, bs.OtherCurrentAssets * 1000m, bs.PropertyPlantEquipment * 1000m, bs.IntangibleAssets * 1000m, bs.LongTermInvestments * 1000m, bs.DeferredTaxAssets * 1000m, bs.OtherNonCurrentAssets * 1000m, bs.TradePayables * 1000m, bs.ShortTermBorrowings * 1000m, bs.CurrentPortionLongTermDebt * 1000m, bs.AccruedExpenses * 1000m, bs.TaxPayable * 1000m, bs.OtherCurrentLiabilities * 1000m, bs.LongTermDebt * 1000m, bs.DeferredTaxLiabilities * 1000m, bs.Provisions * 1000m, bs.OtherNonCurrentLiabilities * 1000m, bs.ShareCapital * 1000m, bs.SharePremium * 1000m, bs.RetainedEarnings * 1000m, bs.OtherReserves * 1000m);
             ApplicationResult<FinancialStatementDto> bsResult = await bsHandler.Handle(new SetBalanceSheetCommand(statementId, bsRequest), CancellationToken.None);
             if (!bsResult.IsSuccess)
             {
                 return ApiResponse<Guid>.Fail(bsResult.Error ?? "Failed to save balance sheet");
             }
             SetIncomeStatementHandler incHandler = _sp.GetRequiredService<SetIncomeStatementHandler>();
-            SubmitIncomeStatementRequest incRequest = new SubmitIncomeStatementRequest(inc.Revenue, inc.OtherOperatingIncome, inc.CostOfSales, inc.SellingExpenses, inc.AdministrativeExpenses, inc.DepreciationAmortization, inc.OtherOperatingExpenses, inc.InterestIncome, inc.InterestExpense, inc.OtherFinanceCosts, inc.IncomeTaxExpense, inc.DividendsDeclared);
+            SubmitIncomeStatementRequest incRequest = new SubmitIncomeStatementRequest(inc.Revenue * 1000m, inc.OtherOperatingIncome * 1000m, inc.CostOfSales * 1000m, inc.SellingExpenses * 1000m, inc.AdministrativeExpenses * 1000m, inc.DepreciationAmortization * 1000m, inc.OtherOperatingExpenses * 1000m, inc.InterestIncome * 1000m, inc.InterestExpense * 1000m, inc.OtherFinanceCosts * 1000m, inc.IncomeTaxExpense * 1000m, inc.DividendsDeclared * 1000m);
             ApplicationResult<FinancialStatementDto> incResult = await incHandler.Handle(new SetIncomeStatementCommand(statementId, incRequest), CancellationToken.None);
             if (!incResult.IsSuccess)
             {
                 return ApiResponse<Guid>.Fail(incResult.Error ?? "Failed to save income statement");
             }
             SetCashFlowStatementHandler cfHandler = _sp.GetRequiredService<SetCashFlowStatementHandler>();
-            SubmitCashFlowStatementRequest cfRequest = new SubmitCashFlowStatementRequest(cf.ProfitBeforeTax, cf.DepreciationAmortization, cf.InterestExpenseAddBack, cf.ChangesInWorkingCapital, cf.TaxPaid, cf.OtherOperatingAdjustments, cf.PurchaseOfPPE, cf.SaleOfPPE, cf.PurchaseOfInvestments, cf.SaleOfInvestments, cf.InterestReceived, cf.DividendsReceived, 0m, cf.ProceedsFromBorrowings, cf.RepaymentOfBorrowings, cf.InterestPaid, cf.DividendsPaid, cf.ProceedsFromShareIssue, 0m, cf.OpeningCashBalance);
+            SubmitCashFlowStatementRequest cfRequest = new SubmitCashFlowStatementRequest(cf.ProfitBeforeTax * 1000m, cf.DepreciationAmortization * 1000m, cf.InterestExpenseAddBack * 1000m, cf.ChangesInWorkingCapital * 1000m, cf.TaxPaid * 1000m, cf.OtherOperatingAdjustments * 1000m, cf.PurchaseOfPPE * 1000m, cf.SaleOfPPE * 1000m, cf.PurchaseOfInvestments * 1000m, cf.SaleOfInvestments * 1000m, cf.InterestReceived * 1000m, cf.DividendsReceived * 1000m, 0m, cf.ProceedsFromBorrowings * 1000m, cf.RepaymentOfBorrowings * 1000m, cf.InterestPaid * 1000m, cf.DividendsPaid * 1000m, cf.ProceedsFromShareIssue * 1000m, 0m, cf.OpeningCashBalance * 1000m);
             ApplicationResult<FinancialStatementDto> cfResult = await cfHandler.Handle(new SetCashFlowStatementCommand(statementId, cfRequest), CancellationToken.None);
             if (!cfResult.IsSuccess)
             {

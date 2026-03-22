@@ -236,6 +236,10 @@ public static class DependencyInjection
         services.AddScoped<ILoanPackRepository, LoanPackRepository>();
         services.AddScoped<Application.LoanPack.Interfaces.ILoanPackGenerator, Documents.LoanPackPdfGenerator>();
 
+        // OfferLetter
+        services.AddScoped<IOfferLetterRepository, OfferLetterRepository>();
+        services.AddScoped<Application.OfferLetter.Interfaces.IOfferLetterPdfGenerator, Documents.OfferLetterPdfGenerator>();
+
         // File Storage (configurable: Local or S3)
         var storageProvider = configuration.GetValue<string>("FileStorage:Provider") ?? "Local";
         if (storageProvider.Equals("S3", StringComparison.OrdinalIgnoreCase))
@@ -281,9 +285,10 @@ public static class DependencyInjection
         
         // Credit Check Handlers
         services.AddScoped<Application.Common.IRequestHandler<
-            Application.CreditBureau.Commands.ProcessLoanCreditChecksCommand, 
-            Application.Common.ApplicationResult<Application.CreditBureau.Commands.CreditCheckBatchResultDto>>, 
+            Application.CreditBureau.Commands.ProcessLoanCreditChecksCommand,
+            Application.Common.ApplicationResult<Application.CreditBureau.Commands.CreditCheckBatchResultDto>>,
             Application.CreditBureau.Commands.ProcessLoanCreditChecksHandler>();
+        services.AddScoped<Application.CreditBureau.Commands.ProcessLoanCreditChecksHandler>();
         
         // Ad-hoc bureau report requests (uses CreditRegistry provider)
         services.AddScoped<Application.Common.IRequestHandler<
@@ -372,6 +377,9 @@ public static class DependencyInjection
         // LoanPack
         services.AddScoped<Application.LoanPack.Commands.GenerateLoanPackHandler>();
         
+        // OfferLetter
+        services.AddScoped<Application.OfferLetter.Commands.GenerateOfferLetterHandler>();
+        
         // Collateral
         services.AddScoped<Application.Collateral.Commands.AddCollateralHandler>();
         services.AddScoped<Application.Collateral.Commands.SetCollateralValuationHandler>();
@@ -390,6 +398,7 @@ public static class DependencyInjection
         
         // Audit
         services.AddScoped<Application.Audit.Queries.GetRecentAuditLogsHandler>();
+        services.AddScoped<Application.Audit.Queries.SearchAuditLogsHandler>();
         
         // Notification Templates
         services.AddScoped<Application.Notification.Queries.GetAllNotificationTemplatesHandler>();

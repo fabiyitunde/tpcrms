@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using CRMS.Application.Identity.Interfaces;
 using CRMS.Web.Intranet.Models;
 using AppLoginRequest = CRMS.Application.Identity.DTOs.LoginRequest;
+using AppChangePasswordRequest = CRMS.Application.Identity.DTOs.ChangePasswordRequest;
 
 namespace CRMS.Web.Intranet.Services;
 
@@ -78,8 +79,10 @@ public class AuthService : AuthenticationStateProvider
             {
                 Id = appUser.Id,
                 Email = appUser.Email,
+                Username = appUser.UserName,
                 FirstName = appUser.FirstName,
                 LastName = appUser.LastName,
+                PhoneNumber = appUser.PhoneNumber,
                 Roles = appUser.Roles,
                 Permissions = appUser.Permissions,
                 LocationId = appUser.LocationId,
@@ -128,6 +131,34 @@ public class AuthService : AuthenticationStateProvider
         _authState = new AuthState();
         
         NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+    }
+
+    public async Task<LoginResponse> ChangePasswordAsync(string currentPassword, string newPassword)
+    {
+        if (_authState.User == null)
+            return new LoginResponse { Success = false, Error = "Not authenticated" };
+        try
+        {
+            var request = new AppChangePasswordRequest(currentPassword, newPassword);
+            var result = await _authService.ChangePasswordAsync(_authState.User.Id, request);
+            return result.IsSuccess
+                ? new LoginResponse { Success = true }
+                : new LoginResponse { Success = false, Error = result.Error ?? "Failed to change password" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error changing password");
+            return new LoginResponse { Success = false, Error = "Failed to change password. Please try again." };
+        }
+    }
+
+    public async Task UpdateLocalUserAsync(string firstName, string lastName, string? phoneNumber)
+    {
+        if (_authState.User == null) return;
+        _authState.User.FirstName = firstName;
+        _authState.User.LastName = lastName;
+        _authState.User.PhoneNumber = phoneNumber;
+        await _localStorage.SetItemAsync(UserKey, _authState.User);
     }
 
     public async Task<bool> HasRoleAsync(string role)

@@ -117,8 +117,8 @@ else
         var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
         tasks = await AppService.GetMyPendingTasksAsync(userId);
         
-        // Mock data
-        if (!tasks.Any())
+        // Mock data only for the seeded admin demo account
+        if (!tasks.Any() && AuthService.CurrentUser?.Username == "admin")
         {
             tasks = GenerateMockTasks();
         }

@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-03-18 (Session 25)
+**Last Updated:** 2026-03-21 (Session 29)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -133,12 +133,21 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **Template management CRUD (`/admin/templates`) — create/edit/toggle/preview, wired to real backend** | ✅ |
 | **Bureau report detail modal (click to expand) — accounts, fraud risk, alerts** | ✅ |
 | **Hybrid AI Advisory (rule-based scoring + optional LLM narrative generation)** | ✅ |
+| **Fineract Direct API integration (Basic Auth + tenant header)** | ✅ |
+| **Repayment schedule preview (hybrid: Fineract API first, in-house fallback)** | ✅ |
+| **Customer exposure via Fineract (clientId → active loans → outstanding balances)** | ✅ |
+| **FineractProductId mapping on LoanProduct (admin-editable, optional)** | ✅ |
+| **Offer letter PDF generation with proposed repayment schedule** | ✅ |
+| **OfferLetter domain entity with versioning and schedule summary** | ✅ |
+| **Offer Letter button on Detail page (Approved/Disbursed status)** | ✅ |
+| **Help & Guide page updated with Offer Letter section** | ✅ |
 
 ### What Is Pending
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Guarantor credit check trigger UI | P3 | N/A — credit checks auto-triggered after branch approval via `ProcessLoanCreditChecksCommand`; manual re-trigger not needed |
+| Wire customer exposure into AI Advisory (replace bureau-derived exposure) | P2 | `IFineractDirectService.GetCustomerExposureAsync` ready; needs wiring into `GenerateCreditAdvisoryHandler` to replace/supplement `corporateBureauReport.TotalOutstandingBalance` |
+| Offer letter download (file retrieval from storage) | P3 | Currently shows alert with filename; needs download via `IFileStorageService` similar to `DownloadDocumentAsync` |
 
 ---
 
@@ -322,7 +331,240 @@ Credit checks are already auto-triggered after branch approval via `ProcessLoanC
 
 ---
 
-## 5. Last Session Summary (2026-03-18 Session 25)
+## 5. Last Session Summary (2026-03-20 Session 26)
+
+### Completed — Fineract Direct API Integration (Schedule Preview + Customer Exposure)
+
+Implemented a direct Fineract API client for two critical capabilities: (1) repayment schedule preview for offer letter generation, and (2) customer existing loan exposure aggregation. This is separate from the existing middleware (`CoreBankingService`) which handles account details and transactions.
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Existing Middleware (CoreBankingService)                     │
+│  Auth: OAuth 2.0 Client Credentials (bearer token)          │
+│  Endpoints: /core/account/fulldetailsbynuban, /transactions │
+│  Purpose: Account details, directors, signatories, txns     │
+└─────────────────────────────────────────────────────────────┘
+                              +
+┌─────────────────────────────────────────────────────────────┐
+│  NEW: Fineract Direct (FineractDirectService)                │
+│  Auth: HTTP Basic Auth + fineract-platform-tenantid header   │
+│  Endpoints:                                                  │
+│    POST /loans?command=calculateLoanSchedule (schedule)      │
+│    GET /clients/{id}/accounts (all accounts)                 │
+│    GET /loans/{id}?associations=repaymentSchedule (detail)   │
+│  Purpose: Schedule preview, customer loan exposure           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Hybrid Schedule Calculation
+
+| Scenario | Behavior |
+|----------|----------|
+| `FineractProductId` set on CRMS product + Fineract API reachable | Calls Fineract API — exact schedule matching core banking |
+| `FineractProductId` set but Fineract API fails | Falls back to in-house financial math |
+| `FineractProductId` not set (null) | Uses in-house calculation directly (EMI/flat/equal-principal) |
+
+#### Customer Exposure Flow
+
+```
+clientDetails.id (from middleware) → GET /clients/{id}/accounts → filter loanAccounts by status=300 (Active) → GET /loans/{id} for each → aggregate outstanding balances
+```
+
+#### FineractProductId on LoanProduct
+
+Added `int? FineractProductId` to the `LoanProduct` domain entity. Editable in `/admin/products` page. Maps a CRMS product to its Fineract counterpart. When set, enables Fineract API schedule calculation. When null, in-house calculation is used.
+
+#### Files Created
+
+| File | Purpose |
+|------|---------|
+| `src/CRMS.Domain/Interfaces/IFineractDirectService.cs` | Interface: 4 methods + all domain records (schedule, installments, loan detail, exposure) |
+| `src/CRMS.Infrastructure/ExternalServices/FineractDirect/FineractDirectSettings.cs` | Config class (BaseUrl, Username, Password, TenantId, UseMock) |
+| `src/CRMS.Infrastructure/ExternalServices/FineractDirect/FineractDirectDtos.cs` | Fineract JSON response DTOs (dates as `[year,month,day]` arrays, status objects) |
+| `src/CRMS.Infrastructure/ExternalServices/FineractDirect/FineractDirectAuthHandler.cs` | `POST /authentication` → caches `base64EncodedAuthenticationKey`; SSL cert tolerance |
+| `src/CRMS.Infrastructure/ExternalServices/FineractDirect/FineractDirectService.cs` | Real HTTP client with hybrid fallback |
+| `src/CRMS.Infrastructure/ExternalServices/FineractDirect/MockFineractDirectService.cs` | Mock with real financial math (PMT formula, flat, equal-principal) |
+| `src/CRMS.Infrastructure/Persistence/Migrations/20260320100000_AddFineractProductIdToLoanProduct.cs` | Adds nullable INT column to LoanProducts |
+
+#### Files Modified
+
+| File | Change |
+|------|--------|
+| `src/CRMS.Domain/Aggregates/ProductCatalog/LoanProduct.cs` | Added `FineractProductId` property + `Update()` parameter |
+| `src/CRMS.Application/ProductCatalog/DTOs/LoanProductDto.cs` | Added `FineractProductId` to both `LoanProductDto` and `LoanProductSummaryDto` |
+| `src/CRMS.Application/ProductCatalog/Mappings/LoanProductMappings.cs` | Maps `FineractProductId` in both `ToDto()` and `ToSummaryDto()` |
+| `src/CRMS.Application/ProductCatalog/Commands/UpdateLoanProductCommand.cs` | Added `FineractProductId` parameter |
+| `src/CRMS.Application/ProductCatalog/Commands/UpdateLoanProductHandler.cs` | Passes `FineractProductId` to `product.Update()` |
+| `src/CRMS.Infrastructure/DependencyInjection.cs` | Registered `IFineractDirectService` with UseMock toggle, SSL handler, retry policy |
+| `src/CRMS.Web.Intranet/appsettings.json` | Added `FineractDirect` config section |
+| `src/CRMS.API/appsettings.json` | Added `FineractDirect` config section |
+| `src/CRMS.Web.Intranet/Models/ApplicationModels.cs` | Added `FineractProductId` to `LoanProduct` model |
+| `src/CRMS.Web.Intranet/Services/ApplicationService.cs` | `UpdateLoanProductAsync` + `GetAllLoanProductsAsync` map `FineractProductId` |
+| `src/CRMS.Web.Intranet/Components/Pages/Admin/Products.razor` | Added FineractProductId input field in product modal |
+
+#### Configuration
+
+```json
+// appsettings.json
+{
+  "FineractDirect": {
+    "BaseUrl": "https://<host>:8443/core_banking/api",
+    "Username": "<AdminUser>",
+    "Password": "<AdminOffset>",
+    "TenantId": "default",
+    "TimeoutSeconds": 30,
+    "UseMock": true
+  }
+}
+```
+
+To enable real Fineract: set `UseMock: false` and fill in credentials matching `TPDirectConfig` values from the TPM codebase.
+
+**Build:** 0 errors. **Tests:** Domain + Application pass (2/2).
+
+#### Offer Letter Generation (Session 27 continuation)
+
+Complete end-to-end offer letter generation with proposed repayment schedule.
+
+**Domain:** `OfferLetter` aggregate (versioning, schedule summary tracking: TotalInterest, TotalRepayment, MonthlyInstallment, InstallmentCount, ScheduleSource). `IOfferLetterRepository` interface.
+
+**Application:** `GenerateOfferLetterCommand` + handler — loads approved application, resolves `FineractProductId` from product, calls `IFineractDirectService.CalculateRepaymentScheduleAsync` (hybrid), extracts committee conditions from `ApprovalConditions`, generates PDF, stores to file storage.
+
+**Infrastructure:** `OfferLetterPdfGenerator` (QuestPDF) — professional PDF with: header, addressee, facility details table, **full repayment schedule table** (installment #, due date, principal, interest, total, outstanding), schedule summary box, numbered conditions, acceptance/signature section, footer. `OfferLetterRepository`. `OfferLetterConfiguration` (EF Core). Migration `20260320110000_AddOfferLettersTable`.
+
+**UI:** "Offer Letter" button on Detail.razor action bar — visible only when `status == "Approved" || status == "Disbursed"`. Uses same pattern as Loan Pack button.
+
+**Help page:** Added "Offer Letter" section under Loan Process sidebar nav. Full documentation covering: what it contains, how to generate, repayment schedule calculation (hybrid), versioning, who can generate, admin Fineract product mapping. Updated Operations role workflow to include offer letter step. Updated Approved status card to mention offer letter.
+
+**Files created:** `OfferLetter.cs` (domain), `IOfferLetterRepository.cs`, `OfferLetterRepository.cs`, `OfferLetterConfiguration.cs`, `GenerateOfferLetterCommand.cs`, `IOfferLetterPdfGenerator.cs`, `OfferLetterPdfGenerator.cs`, `20260320110000_AddOfferLettersTable.cs`
+
+**Files modified:** `DependencyInjection.cs` (4 registrations), `ApplicationService.cs`, `ApplicationServiceDtos.cs`, `Detail.razor`, `CRMSDbContext.cs`, `Help/Index.razor`
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v4.6
+- [x] `docs/ImplementationTracker.md` → v5.0
+
+---
+
+## 5. Last Session Summary (2026-03-21 Session 29)
+
+### Completed — Comprehensive Scoring Parameters Seeder + Consent Flow Review
+
+#### 1. Scoring Parameters Seeder Enhancement
+
+**Problem:** The `/admin/scoring` page only showed 12 basic parameters (e.g., "Credit Score Weight", "Minimum Credit Score"), but the `ScoringConfigurationService` and `RuleBasedScoringEngine` expect ~80 parameters across 9 categories. Missing parameters fell back to hardcoded defaults and were NOT visible/editable in the admin UI.
+
+**Solution:** Completely rewrote `ComprehensiveDataSeeder.SeedScoringParametersAsync()` to seed all 82 scoring parameters:
+
+| Category | Count | Examples |
+|----------|-------|----------|
+| Weights | 5 | Category weights (must sum to 1.0) |
+| CreditHistory | 21 | ExcellentCreditScoreBonus (+20), DefaultPenalty (-30), DelinquencyPenalty (-15), HighFraudRiskPenalty (-25), MissingBureauDataPenaltyPerParty (-5), etc. |
+| FinancialHealth | 14 | StrongCurrentRatioBonus, HighLeveragePenalty, LossMakingPenalty, etc. |
+| Cashflow | 20 | InternalStatementBonus, NegativeCashflowPenalty, GamblingPenalty, etc. |
+| DSCR | 13 | ExcellentDSCR threshold, DSCR scores, InterestCoverage adjustments |
+| Collateral | 9 | LTV thresholds and scores, lien status adjustments |
+| Recommendations | 7 | StrongApproveMinScore, ApproveMaxRedFlags, CriticalRedFlagsThreshold |
+| LoanAdjustments | 13 | Amount multipliers, interest rate adjustments, tenor restrictions |
+| StatementTrust | 5 | Trust weights for CoreBanking, OpenBanking, MonoConnect, ManualUpload |
+
+All parameters include proper min/max constraints and sort order for consistent UI display.
+
+**To apply new parameters on existing database:**
+1. Clear tables: `DELETE FROM ScoringParameterHistory; DELETE FROM ScoringParameters;`
+2. Restart application — seeder will populate all 82 parameters
+3. OR use "Seed Default Parameters" button in `/admin/scoring` (only works if table is empty)
+
+#### 2. Consent Flow Review
+
+Reviewed the `CRMS.Application.Consent.Commands` namespace and clarified its role:
+
+- **`RecordConsentCommand`** — Records consent for a single party (individual or business)
+- **`RecordBulkConsentCommand`** — Records consent for ALL parties in a loan application (directors, signatories, guarantors, business entity)
+- **Integration:** `ProcessLoanCreditChecksCommand` verifies consent exists before calling credit bureau APIs (NDPA compliance)
+
+**Current approach:** Offline consent (paper forms signed by parties, loan officer records in system). This is acceptable for banks still using physical consent forms.
+
+**Future enhancement (not implemented):** OTP-based consent verification where system sends SMS to party's phone, party provides OTP to loan officer, system validates and activates consent. Infrastructure is ready to extend when needed.
+
+**Build:** 0 errors. **Tests:** All pass.
+
+### Files Modified This Session
+- `src/CRMS.Infrastructure/Persistence/ComprehensiveDataSeeder.cs` — Complete rewrite of `SeedScoringParametersAsync()` (12 → 82 parameters)
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/ImplementationTracker.md` → v5.2
+- [ ] `docs/UIGaps.md` → not updated (no UI changes)
+
+---
+
+## 5. Previous Session Summary (2026-03-21 Session 28)
+
+### Completed — Critical Migration Bug Fix (4 Missing Designer.cs Files)
+
+User reported: "I can't see the Offer Letter and Loan Pack buttons on the Detail page even for an Approved application."
+
+#### Root Cause
+
+Four hand-crafted EF Core migrations were missing their `.Designer.cs` files. Without these files, EF Core does not recognize the migrations, so they were **never applied to the database**. This caused `Unknown column` errors on every query touching the affected tables:
+
+| Migration | Missing Column | Impact |
+|-----------|---------------|--------|
+| `20260316120000_AddIndustrySectorToLoanApplication` | `IndustrySector` on `LoanApplications` | **ALL loan application queries failed** — `GetApplicationDetailAsync` returned null → Detail page fell back to mock data (status `"HOReview"`) → buttons hidden |
+| `20260318100000_RenameNonPerformingToDelinquentFacilities` | `DelinquentFacilities` on `BureauReports` | Bureau report queries failed |
+| `20260320100000_AddFineractProductIdToLoanProduct` | `FineractProductId` on `LoanProducts` | Product listing queries failed (seeder crash) |
+| `20260320110000_AddOfferLettersTable` | Entire `OfferLetters` table | Offer letter generation would have failed |
+
+The `IndustrySector` migration was the critical one: since every `LoanApplication` query includes this column, the Detail page always caught the exception in its try/catch and returned `null`, causing the mock fallback with `"HOReview"` status — which doesn't show Loan Pack or Offer Letter buttons.
+
+#### Fix Applied
+
+1. Created 4 missing Designer.cs files (matching the empty `BuildTargetModel` pattern used by all other migrations in this project)
+2. Updated `CRMSDbContextModelSnapshot.cs` to include `FineractProductId` on `LoanProduct` and full `OfferLetter` entity
+3. Made `RenameNonPerformingToDelinquentFacilities` migration safe (conditional rename via `INFORMATION_SCHEMA` check)
+4. Made `AddOfferLettersTable` migration safe (`DROP TABLE IF EXISTS` guard for orphaned table from prior failed attempt)
+5. Removed invalid `IsDeleted` column from OfferLetters migration (not part of domain model)
+
+#### Verification
+
+- All 4 migrations applied successfully on startup
+- Zero `Unknown column` errors in logs
+- Application starts and runs cleanly on `http://localhost:5292`
+- Build: 0 errors. Tests: Domain + Application pass (2/2)
+
+#### Files Created
+
+| File | Purpose |
+|------|---------|
+| `20260316120000_AddIndustrySectorToLoanApplication.Designer.cs` | Designer file for IndustrySector migration |
+| `20260318100000_RenameNonPerformingToDelinquentFacilities.Designer.cs` | Designer file for DelinquentFacilities rename migration |
+| `20260320100000_AddFineractProductIdToLoanProduct.Designer.cs` | Designer file for FineractProductId migration |
+| `20260320110000_AddOfferLettersTable.Designer.cs` | Designer file for OfferLetters table migration |
+
+#### Files Modified
+
+| File | Change |
+|------|--------|
+| `CRMSDbContextModelSnapshot.cs` | Added `FineractProductId` on LoanProduct + full `OfferLetter` entity definition |
+| `20260320110000_AddOfferLettersTable.cs` | Added `DROP TABLE IF EXISTS` guard; removed invalid `IsDeleted` column |
+| `20260318100000_RenameNonPerformingToDelinquentFacilities.cs` | Conditional rename via `INFORMATION_SCHEMA` check |
+
+#### Key Lesson
+
+When hand-crafting EF Core migrations (instead of using `dotnet ef migrations add`), always create the companion `.Designer.cs` file with the `[Migration("...")]` attribute. Without it, EF Core silently ignores the migration.
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v4.7
+- [x] `docs/ImplementationTracker.md` → v5.1
+
+---
+
+## 5. Previous Session Summary (2026-03-18 Session 25)
 
 ### Completed — Hybrid AI Advisory Architecture (Rule-Based Scoring + Optional LLM Narratives)
 

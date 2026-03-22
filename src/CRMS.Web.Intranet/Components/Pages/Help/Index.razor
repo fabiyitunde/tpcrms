@@ -130,6 +130,10 @@
                     <a class="nav-item @IsActive("workflow-actions")" href="/help/workflow-actions">
                         <span class="nav-dot"></span>Workflow Actions
                     </a>
+                    <a class="nav-item @IsActive("offer-letter")" href="/help/offer-letter">
+                        <span class="nav-dot"></span>Offer Letter
+                        <span class="nav-badge" style="background: var(--success-50); color: var(--success-700);">New</span>
+                    </a>
                 </div>
 
                 @* Application Tabs *@
@@ -278,6 +282,9 @@
                     break;
                 case "workflow-actions":
                     @RenderWorkflowActions()
+                    break;
+                case "offer-letter":
+                    @RenderOfferLetter()
                     break;
                 case "tab-overview":
                     @RenderTabOverview()
@@ -989,19 +996,26 @@
                 <div class="numbered-step">
                     <div class="step-num">2</div>
                     <div class="step-content">
-                        <h4>Verify Pre-Disbursement Conditions</h4>
-                        <p>Ensure all conditions are met: documents verified, liens perfected, offer accepted.</p>
+                        <h4>Generate Offer Letter</h4>
+                        <p>Click the <strong>Offer Letter</strong> button to generate a formal offer with proposed repayment schedule. The system calculates the schedule using the approved loan terms. Send to the customer for acceptance.</p>
                     </div>
                 </div>
                 <div class="numbered-step">
                     <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Verify Pre-Disbursement Conditions</h4>
+                        <p>Ensure all conditions are met: documents verified, liens perfected, offer letter signed and accepted by customer.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
                     <div class="step-content">
                         <h4>Book Loan in Core Banking</h4>
                         <p>Create the loan account in Fineract (Core Banking System) - this is manual.</p>
                     </div>
                 </div>
                 <div class="numbered-step">
-                    <div class="step-num">4</div>
+                    <div class="step-num">5</div>
                     <div class="step-content">
                         <h4>Update CRMS &amp; Mark Disbursed</h4>
                         <p>Enter the loan account reference in CRMS and mark as disbursed.</p>
@@ -2414,10 +2428,10 @@
                         <span class="status-dot"></span>
                         <h4>Approved</h4>
                     </div>
-                    <p>Ready for disbursement processing.</p>
+                    <p>Ready for offer letter generation and disbursement processing.</p>
                     <div class="status-meta">
                         <span><strong>Owner:</strong> Operations</span>
-                        <span><strong>Actions:</strong> Process Disbursement</span>
+                        <span><strong>Actions:</strong> Generate Offer Letter, Process Disbursement</span>
                     </div>
                 </div>
                 
@@ -2520,6 +2534,167 @@
         </div>
     };
 
+    // ==================== OFFER LETTER ====================
+    private RenderFragment RenderOfferLetter() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">mail</span></span>
+            <div>
+                <h1>Offer Letter Generation</h1>
+                <p>Automated offer letter with proposed repayment schedule</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What is the Offer Letter?</h2>
+            <p>The offer letter is a formal document generated after final approval, containing the approved loan terms and a <strong>proposed repayment schedule</strong>. It is sent to the customer for review and acceptance before disbursement.</p>
+            
+            <div class="info-box">
+                <span class="material-symbols-outlined">info</span>
+                <p>The offer letter is available only when the application reaches <strong>Approved</strong> or <strong>Disbursed</strong> status.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What the Offer Letter Contains</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon blue">
+                        <span class="material-symbols-outlined">account_balance</span>
+                    </div>
+                    <h4>Facility Details</h4>
+                    <p>Product name, approved amount, tenor, interest rate, repayment frequency, and amortization method</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon green">
+                        <span class="material-symbols-outlined">table_chart</span>
+                    </div>
+                    <h4>Repayment Schedule</h4>
+                    <p>Full installment-by-installment table showing: due date, principal, interest, total payment, and outstanding balance</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon purple">
+                        <span class="material-symbols-outlined">summarize</span>
+                    </div>
+                    <h4>Schedule Summary</h4>
+                    <p>Total principal, total interest, total repayment amount, and monthly installment figure</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon orange">
+                        <span class="material-symbols-outlined">checklist</span>
+                    </div>
+                    <h4>Conditions</h4>
+                    <p>Committee-approved conditions that must be met, plus standard lending terms</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>How to Generate</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Open the Approved Application</h4>
+                        <p>Navigate to the application detail page. The application must be in <strong>Approved</strong> status.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Click "Offer Letter" Button</h4>
+                        <p>The <strong>Offer Letter</strong> button appears in the action bar at the top of the page, next to the Loan Pack button.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>System Calculates Repayment Schedule</h4>
+                        <p>The system uses the approved terms (amount, tenor, interest rate) to calculate a complete repayment schedule. If the loan product is mapped to a Core Banking product, the schedule is calculated by the Core Banking system for exact accuracy. Otherwise, the system uses its own financial calculation engine.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>PDF Generated and Stored</h4>
+                        <p>A professional PDF offer letter is generated and stored in the system. The file name is displayed on completion.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Repayment Schedule Calculation</h2>
+            <p>The repayment schedule is calculated using the <strong>Equal Installments (EMI)</strong> method with <strong>Declining Balance</strong> interest by default:</p>
+            
+            <div class="checklist-visual">
+                <div class="checklist-group">
+                    <h4><span class="material-symbols-outlined">calculate</span> Inputs Used</h4>
+                    <ul>
+                        <li><strong>Approved Amount</strong> - The committee/final-approved principal</li>
+                        <li><strong>Approved Tenor</strong> - Number of months (or requested if not overridden)</li>
+                        <li><strong>Approved Interest Rate</strong> - Annual rate (or product base rate)</li>
+                        <li><strong>Repayment Frequency</strong> - Monthly</li>
+                    </ul>
+                </div>
+                <div class="checklist-group">
+                    <h4><span class="material-symbols-outlined">sync</span> Hybrid Calculation</h4>
+                    <ul>
+                        <li>If the CRMS product has a <strong>Fineract Product ID</strong> mapped, the schedule is calculated directly by the Core Banking system (Fineract API)</li>
+                        <li>If Core Banking is unavailable, the system <strong>falls back</strong> to its own financial calculation engine</li>
+                        <li>If no Fineract Product ID is mapped, the in-house engine is used directly</li>
+                        <li>The schedule source (Fineract or InHouse) is recorded for audit</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Versioning</h2>
+            <p>Each time you generate an offer letter for the same application, a new version is created. Previous versions are preserved for audit purposes. The version number and generation date are printed on the document.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Generate</h2>
+            <div class="visibility-badge all">
+                <span class="material-symbols-outlined">groups</span>
+                Any user who can view the application (typically Operations, Final Approver, or System Admin)
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Admin: Fineract Product Mapping</h2>
+            <p>To enable Core Banking-based schedule calculation, a System Administrator must map each CRMS loan product to its corresponding Fineract product:</p>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Go to Administration &gt; Products</h4>
+                        <p>Open the product management page at <code>/admin/products</code></p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Edit the Product</h4>
+                        <p>Click Edit on the loan product you want to map</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Enter Fineract Product ID</h4>
+                        <p>Enter the numeric product ID from Core Banking. This can be found in the Fineract admin interface.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="info-box">
+                <span class="material-symbols-outlined">lightbulb</span>
+                <p>This mapping is optional. If left blank, the system will use its own calculation engine which produces accurate results for standard EMI, flat, and equal-principal amortization methods.</p>
+            </div>
+        </div>
+    };
+
     // ==================== APPLICATION TABS ====================
     private RenderFragment RenderTabOverview() => __builder =>
     {
@@ -2548,7 +2723,12 @@
                 <div class="tab-action">
                     <span class="material-symbols-outlined">picture_as_pdf</span>
                     <strong>Generate Loan Pack</strong>
-                    <p>Creates comprehensive PDF for committee review</p>
+                    <p>Creates comprehensive PDF for committee review. Available at Committee Approved and Approved stages.</p>
+                </div>
+                <div class="tab-action">
+                    <span class="material-symbols-outlined">mail</span>
+                    <strong>Generate Offer Letter</strong>
+                    <p>Creates formal offer letter with proposed repayment schedule. Available after final approval (Approved status).</p>
                 </div>
                 <div class="tab-action">
                     <span class="material-symbols-outlined">send</span>

@@ -189,9 +189,9 @@
                     OverdueCount = q.OverdueCount
                 }).ToList();
             }
-            else
+            else if (AuthService.CurrentUser?.Username == "admin")
             {
-                // Fallback mock data
+                // Mock data only for the seeded admin demo account
                 queueSummary =
                 [
                     new() { Stage = "Branch Review", Count = 12, OverdueCount = 2 },
@@ -205,15 +205,19 @@
         }
         catch
         {
-            queueSummary =
-            [
-                new() { Stage = "Branch Review", Count = 12, OverdueCount = 2 },
-                new() { Stage = "Credit Analysis", Count = 8, OverdueCount = 1 },
-                new() { Stage = "HO Review", Count = 5, OverdueCount = 0 },
-                new() { Stage = "Committee", Count = 3, OverdueCount = 0 },
-                new() { Stage = "Final Approval", Count = 2, OverdueCount = 0 },
-                new() { Stage = "Documentation", Count = 4, OverdueCount = 1 }
-            ];
+            // Swallow error — real users see empty queue, admin sees mock
+            if (AuthService.CurrentUser?.Username == "admin")
+            {
+                queueSummary =
+                [
+                    new() { Stage = "Branch Review", Count = 12, OverdueCount = 2 },
+                    new() { Stage = "Credit Analysis", Count = 8, OverdueCount = 1 },
+                    new() { Stage = "HO Review", Count = 5, OverdueCount = 0 },
+                    new() { Stage = "Committee", Count = 3, OverdueCount = 0 },
+                    new() { Stage = "Final Approval", Count = 2, OverdueCount = 0 },
+                    new() { Stage = "Documentation", Count = 4, OverdueCount = 1 }
+                ];
+            }
         }
     }
 
@@ -237,14 +241,15 @@
                     AssignedTo = i.AssignedTo ?? ""
                 }).ToList();
             }
-            else
+            else if (AuthService.CurrentUser?.Username == "admin")
             {
                 queueItems = GenerateMockQueueItems(stage);
             }
         }
         catch
         {
-            queueItems = GenerateMockQueueItems(stage);
+            if (AuthService.CurrentUser?.Username == "admin")
+                queueItems = GenerateMockQueueItems(stage);
         }
         finally
         {
