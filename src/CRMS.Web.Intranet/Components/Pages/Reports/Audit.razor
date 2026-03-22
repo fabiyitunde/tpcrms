@@ -155,7 +155,8 @@
                 dateFrom,
                 dateTo,
                 currentPage,
-                pageSize
+                pageSize,
+                string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm
             );
 
             if (items.Count > 0)
@@ -191,18 +192,6 @@
                 totalPages = 1;
             }
 
-            // Client-side search term filter (applied after loading)
-            if (!string.IsNullOrWhiteSpace(searchTerm))
-            {
-                var term = searchTerm.Trim().ToLowerInvariant();
-                auditLogs = auditLogs.Where(l =>
-                    l.UserName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    l.Action.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    l.EntityType.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    l.EntityId.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    l.Details.Contains(term, StringComparison.OrdinalIgnoreCase)
-                ).ToList();
-            }
         }
         finally
         {

@@ -4,7 +4,8 @@
       "Bash(dir:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet:*)",
-      "Bash(cd \"C:\\\\Users\\\\fabiy\\\\source\\\\repos\\\\crms\" && sed -i 's/{{!-- \\\\\\(.*\\\\\\) --}}/@* \\\\1 *@/g' src/CRMS.Web.Intranet/Components/Pages/Applications/New.razor)"
+      "Bash(cd \"C:\\\\Users\\\\fabiy\\\\source\\\\repos\\\\crms\" && sed -i 's/{{!-- \\\\\\(.*\\\\\\) --}}/@* \\\\1 *@/g' src/CRMS.Web.Intranet/Components/Pages/Applications/New.razor)",
+      "Bash(grep:*)"
     ]
   }
 }

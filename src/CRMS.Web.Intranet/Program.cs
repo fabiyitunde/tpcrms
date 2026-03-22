@@ -28,6 +28,8 @@ builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddAuthorizationCore();
 
 // Application service (direct calls to handlers - no HTTP)
+builder.Services.Configure<CRMS.Web.Intranet.Services.BankSettings>(builder.Configuration.GetSection(CRMS.Web.Intranet.Services.BankSettings.SectionName));
+builder.Services.Configure<CRMS.Web.Intranet.Services.CollateralHaircutSettings>(builder.Configuration.GetSection(CRMS.Web.Intranet.Services.CollateralHaircutSettings.SectionName));
 builder.Services.AddScoped<ApplicationService>();
 
 // Auth service for Blazor auth state

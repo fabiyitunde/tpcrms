@@ -9,9 +9,17 @@
             </div>
             <div class="empty-state-title">AI Advisory not generated</div>
             <div class="empty-state-text">Generate an AI-powered risk assessment and recommendations.</div>
-            <button class="btn btn-primary" @onclick="OnGenerateAdvisory">
-                <span class="material-symbols-outlined" style="font-size: 18px;">auto_awesome</span>
-                Generate Advisory
+            <button class="btn btn-primary" @onclick="OnGenerateAdvisory" disabled="@IsGenerating">
+                @if (IsGenerating)
+                {
+                    <span class="spinner"></span>
+                    <span>Generating...</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined" style="font-size: 18px;">auto_awesome</span>
+                    <span>Generate Advisory</span>
+                }
             </button>
         </div>
     </div>
@@ -157,6 +165,7 @@ else
 @code {
     [Parameter] public AdvisoryInfo? Advisory { get; set; }
     [Parameter] public EventCallback OnGenerateAdvisory { get; set; }
+    [Parameter] public bool IsGenerating { get; set; }
 
     private static string GetRiskClass(string rating) => rating.ToLower() switch
     {

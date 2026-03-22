@@ -139,7 +139,8 @@ public record SearchAuditLogsQuery(
     DateTime? To = null,
     bool? IsSuccess = null,
     int PageNumber = 1,
-    int PageSize = 50
+    int PageSize = 50,
+    string? SearchTerm = null
 ) : IRequest<ApplicationResult<AuditSearchResultDto>>;
 
 public class SearchAuditLogsHandler : IRequestHandler<SearchAuditLogsQuery, ApplicationResult<AuditSearchResultDto>>
@@ -164,6 +165,7 @@ public class SearchAuditLogsHandler : IRequestHandler<SearchAuditLogsQuery, Appl
             request.IsSuccess,
             request.PageNumber,
             request.PageSize,
+            request.SearchTerm,
             ct);
 
         var totalCount = await _repository.GetCountAsync(

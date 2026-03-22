@@ -33,6 +33,27 @@
             </div>
             
             <nav class="sidebar-nav">
+                @if (!string.IsNullOrEmpty(searchQuery))
+                {
+                    <div class="nav-category">
+                        <div class="nav-category-header">
+                            <span class="material-symbols-outlined">search</span>
+                            Search Results
+                        </div>
+                        @if (!SearchResults.Any())
+                        {
+                            <div style="padding: var(--space-2) var(--space-4); font-size: var(--text-sm); color: var(--gray-500);">No results found</div>
+                        }
+                        @foreach (var item in SearchResults)
+                        {
+                            <a class="nav-item @IsActive(item.Key)" href="/help/@item.Key">
+                                <span class="nav-dot"></span>@item.Label
+                            </a>
+                        }
+                    </div>
+                }
+                else
+                {
                 @* Getting Started *@
                 <div class="nav-category">
                     <div class="nav-category-header">
@@ -210,6 +231,7 @@
                         <span class="nav-dot"></span>Keyboard Shortcuts
                     </a>
                 </div>
+                }
             </nav>
         </aside>
 
@@ -383,6 +405,54 @@
     };
 
     private string IsActive(string section) => CurrentSection == section ? "active" : "";
+
+    private static readonly List<(string Key, string Label)> HelpNavItems =
+    [
+        ("overview", "System Overview"),
+        ("your-role", "Your Role Guide"),
+        ("menu-dashboard", "Dashboard"),
+        ("menu-applications", "Applications"),
+        ("menu-new-application", "New Application"),
+        ("menu-my-queue", "My Queue"),
+        ("menu-all-queues", "All Queues"),
+        ("menu-overdue", "Overdue"),
+        ("menu-pending-votes", "My Pending Votes"),
+        ("menu-committee-reviews", "Committee Reviews"),
+        ("menu-reports", "Reports"),
+        ("menu-audit-trail", "Audit Trail"),
+        ("admin-users", "Users Management"),
+        ("admin-products", "Products"),
+        ("admin-locations", "Locations"),
+        ("admin-committees", "Committees"),
+        ("admin-scoring", "Scoring Config"),
+        ("admin-templates", "Templates"),
+        ("workflow", "Complete Workflow"),
+        ("creating-application", "Creating Applications"),
+        ("application-statuses", "Application Statuses"),
+        ("workflow-actions", "Workflow Actions"),
+        ("offer-letter", "Offer Letter"),
+        ("tab-overview", "Overview Tab"),
+        ("tab-documents", "Documents Tab"),
+        ("tab-collateral", "Collateral Tab"),
+        ("tab-guarantors", "Guarantors Tab"),
+        ("tab-financials", "Financials Tab"),
+        ("tab-statements", "Bank Statements Tab"),
+        ("tab-bureau", "Bureau Tab"),
+        ("tab-advisory", "Advisory Tab"),
+        ("tab-committee", "Committee Tab"),
+        ("tab-workflow", "Workflow Tab"),
+        ("scoring-algorithm", "Scoring Algorithm"),
+        ("ai-advisory", "AI Advisory System"),
+        ("credit-bureau", "Credit Bureau Checks"),
+        ("risk-categories", "Risk Categories"),
+        ("glossary", "Glossary"),
+        ("faq", "FAQ"),
+        ("shortcuts", "Keyboard Shortcuts"),
+    ];
+
+    private IEnumerable<(string Key, string Label)> SearchResults =>
+        string.IsNullOrWhiteSpace(searchQuery) ? [] :
+        HelpNavItems.Where(item => item.Label.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
 
     // ==================== OVERVIEW ====================
     private RenderFragment RenderOverview() => __builder =>

@@ -106,6 +106,9 @@ public class SetBalanceSheetHandler : IRequestHandler<SetBalanceSheetCommand, Ap
             d.ShareCapital, d.SharePremium, d.RetainedEarnings, d.OtherReserves
         );
 
+        if (!bs.IsBalanced())
+            return ApplicationResult<FinancialStatementDto>.Failure("Balance sheet does not balance: Total Assets must equal Total Liabilities plus Equity. Please correct the values before saving.");
+
         var result = statement.SetBalanceSheet(bs);
         if (result.IsFailure)
             return ApplicationResult<FinancialStatementDto>.Failure(result.Error);

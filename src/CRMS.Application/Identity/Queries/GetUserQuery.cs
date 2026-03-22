@@ -77,7 +77,8 @@ public class GetAllUsersHandler : IRequestHandler<GetAllUsersQuery, ApplicationR
                 user.FullName,
                 user.Type.ToString(),
                 user.Status.ToString(),
-                roles.Select(r => r.Name).ToList()
+                roles.Select(r => r.Name).ToList(),
+                user.LocationId
             ));
         }
 

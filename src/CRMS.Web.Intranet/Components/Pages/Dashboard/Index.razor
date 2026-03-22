@@ -295,44 +295,6 @@
         summary = await summaryTask;
         pendingTasks = await tasksTask;
         
-        // Mock data only for the seeded admin demo account
-        bool isAdminUser = AuthService.CurrentUser?.Username == "admin";
-        if (isAdminUser && summary.TotalApplications == 0)
-        {
-            summary = new DashboardSummary
-            {
-                TotalApplications = 156,
-                PendingApplications = 23,
-                ApprovedThisMonth = 42,
-                RejectedThisMonth = 8,
-                TotalDisbursedAmount = 2_450_000_000m,
-                MyPendingTasks = 5,
-                ApplicationsByStatus =
-                [
-                    new() { Status = "In Progress", Count = 45, Percentage = 29 },
-                    new() { Status = "Pending Review", Count = 23, Percentage = 15 },
-                    new() { Status = "Approved", Count = 68, Percentage = 44 },
-                    new() { Status = "Rejected", Count = 20, Percentage = 12 }
-                ],
-                RecentActivities =
-                [
-                    new() { ApplicationNumber = "CL-2026-0156", CustomerName = "Acme Corp", Action = "approved", PerformedBy = "John Doe", Timestamp = DateTime.UtcNow.AddMinutes(-15) },
-                    new() { ApplicationNumber = "CL-2026-0155", CustomerName = "Beta Industries", Action = "submitted for review", PerformedBy = "Jane Smith", Timestamp = DateTime.UtcNow.AddHours(-2) },
-                    new() { ApplicationNumber = "CL-2026-0154", CustomerName = "Gamma Ltd", Action = "returned for correction", PerformedBy = "Mike Johnson", Timestamp = DateTime.UtcNow.AddHours(-4) }
-                ]
-            };
-        }
-
-        if (isAdminUser && !pendingTasks.Any())
-        {
-            pendingTasks =
-            [
-                new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0152", CustomerName = "Delta Corp", Stage = "Branch Review", DueDate = DateTime.UtcNow.AddDays(1), Amount = 150_000_000m },
-                new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0148", CustomerName = "Epsilon Ltd", Stage = "Credit Analysis", DueDate = DateTime.UtcNow.AddDays(-1), Amount = 75_000_000m },
-                new() { ApplicationId = Guid.NewGuid(), ApplicationNumber = "CL-2026-0145", CustomerName = "Zeta Industries", Stage = "Committee", DueDate = DateTime.UtcNow.AddDays(3), Amount = 500_000_000m }
-            ];
-        }
-        
         isLoading = false;
     }
 

@@ -155,8 +155,8 @@
     // Can delete only if Proposed — Draft applications will only ever have Proposed guarantors
     private static bool CanDeleteGuarantor(string status) => status is "Proposed";
 
-    // Can approve only when credit check is completed
-    private static bool CanApproveGuarantor(string status) => status is "CreditCheckCompleted";
+    // Can approve when credit check completed or pending verification (mirrors domain rule)
+    private static bool CanApproveGuarantor(string status) => status is "CreditCheckCompleted" or "PendingVerification";
 
     // Can reject at various early stages before approval
     private static bool CanRejectGuarantor(string status) => status is "Proposed" or "PendingVerification" or "CreditCheckCompleted";

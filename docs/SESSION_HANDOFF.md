@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-03-21 (Session 29)
+**Last Updated:** 2026-03-22 (Session 31)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -141,6 +141,17 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **OfferLetter domain entity with versioning and schedule summary** | ✅ |
 | **Offer Letter button on Detail page (Approved/Disbursed status)** | ✅ |
 | **Help & Guide page updated with Offer Letter section** | ✅ |
+| **Mock data scoped to `admin` user only — all other users see real DB data** | ✅ |
+| **TabModalReview C1-C5: ExecuteAction/VerifyDocument/VerifyStatement error feedback wired** | ✅ |
+| **TabModalReview C2: RequestBureauCheck wired to ProcessLoanCreditChecksCommand** | ✅ |
+| **TabModalReview C5: Financial Statement ×1000 on create path fixed** | ✅ |
+| **Settings page persistence via localStorage (C7)** | ✅ |
+| **Audit trail pagination + search wired to SearchAuditLogsHandler (C8)** | ✅ |
+| **AuthService.ChangePasswordAsync + UpdateLocalUserAsync wired to real backend (C6)** | ✅ |
+| **Profile page: SaveProfile + ChangePassword use real handlers, no Task.Delay stubs** | ✅ |
+| **Null-user auth guard on all workflow actions in Detail.razor (C-4)** | ✅ |
+| **Collateral MarketValue/ForcedSaleValue correctly mapped from full CollateralDto (C-5)** | ✅ |
+| **Per-item LTV calculated from real loan amount and acceptable value (C-6)** | ✅ |
 
 ### What Is Pending
 
@@ -204,7 +215,7 @@ private async Task ConfirmXyz()
     isProcessingXyz = true; xyzError = null;
     try
     {
-        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        if (!EnsureAuthenticated(out var userId)) return;
         var result = await AppService.XyzAsync(xyzTargetId.Value, userId);
         if (result.Success) { showXyzModal = false; await LoadApplication(); }
         else xyzError = result.Error ?? "Failed.";
@@ -449,7 +460,155 @@ Complete end-to-end offer letter generation with proposed repayment schedule.
 
 ---
 
-## 5. Last Session Summary (2026-03-21 Session 29)
+## 5. Last Session Summary (2026-03-22 Session 31)
+
+### Completed — M-Series + L-Series Bug Fixes (All 19 M + All 8 L)
+
+Two-session run that addressed all 19 M-series bugs and all 8 L-series quality issues identified in a comprehensive bug review. All confirmed build-clean (0 errors).
+
+#### M-Series Highlights (19 bugs)
+
+| ID | Fix |
+|----|-----|
+| M-1 | FSV > MV validation in `SetCollateralValuationModal.razor` |
+| M-2 | Committee setup `CanSubmit` guard: `manualMinApproval <= manualRequiredVotes` |
+| M-3 | `SetupCommitteeModal` uses `AuthService.CurrentUser?.Id` instead of `Guid.Empty` |
+| M-4 | Collateral haircut defaults read from `CollateralHaircutSettings` (injected via `IOptions<T>`) |
+| M-5 | `FillPartyInfoModal.IsValid` false-return removed — form is valid when no required fields remain |
+| M-6 | Committee vote amount/tenor/rate range validation before `RecordDecision()` |
+| M-7 | Offer letter status check uses `LoanApplicationStatus` enum instead of magic strings |
+| M-8 | Offer letter `GenerateOfferLetterCommand` accepts `BankName`/`BranchName`; `BankSettings` config class; `IOptions<BankSettings>` injected in `ApplicationService` |
+| M-9 | Balance sheet save guarded: fails with clear message if `Assets ≠ Liabilities + Equity` |
+| M-10 | `MandateType` mapping reverted to `p.Designation` (domain entity only has `Designation`; was a false positive) |
+| M-12 | Audit trail free-text search extended through all 5 layers: `IAuditLogRepository.SearchAsync` → Application query → `ApplicationService` → `Audit.razor` |
+| M-13 | Dashboard fake demo data removed (no longer fabricates 156 applications + 8 pending tasks) |
+| M-14 | `UpdateCollateralHandler` created + DI registered; `UpdateCollateralAsync` wired in `ApplicationService` |
+| M-15 | `UpdateGuarantorHandler` created + DI registered (decimal params — domain takes raw values, not Money objects) |
+| M-16 | All 6 admin pages protected with `[Authorize(Roles = "SystemAdmin")]` |
+| M-17 | `GetUsersAsync` maps `LocationId`; `UserSummaryDto`/`UserSummary` carry `LocationId`; Users admin wires it |
+| M-18 | Committee context `RiskRating` changed from `"Medium"` to `"N/A"` (advisory data not available there) |
+| M-19 | `CommitteeReviewSummaryDto` + `CommitteeReviewSummary` carry `FinalDecision`; Reviews page uses it |
+| M-20 | Overdue items skip null `SLADueAt` before mapping `SLABreachedAt` |
+
+**New files (M-series):** `BankSettings.cs`, `CollateralHaircutSettings.cs`, `AppStatus.cs` (started for L-3)
+
+#### L-Series Highlights (8 issues)
+
+| ID | Fix |
+|----|-----|
+| L-1 | Profile/Settings already use real backend (confirmed in code review — no fix needed) |
+| L-2 | `CommentsTab.razor` already uses `DateTime.UtcNow` (confirmed — no fix needed) |
+| L-3 | `AppStatus.cs` constants class created; all status string literals in `Detail.razor` replaced — `ShowApproveButton`, `ShowRejectButton`, `ShowReturnButton`, `CanGeneratePack`, `CanGenerateOfferLetter`, `IsApplicationEditable`, `ShowSubmitForReviewButton`, `CanSetupCommitteeReview`, `CanManageValuation`, `CanManageGuarantors`, `FormatStatus()`, `GetStatusBadgeClass()` |
+| L-4 | Client-side pagination (page size 15) added to `Users.razor`, `Products.razor`, `Templates.razor`, `Committees.razor`; filter changes reset to page 1 |
+| L-5 | Help page `searchQuery` now filters nav items via `HelpNavItems` list (40 entries) + `SearchResults` computed property; shows "Search Results" category when non-empty |
+| L-6 | `AddComment` in `Detail.razor` has try/catch, `isAddingComment` loading state, `commentError` field; `CommentsTab` accepts `IsSubmitting`/`SubmitError` params; textarea + button disable while submitting |
+| L-7 | Two-transaction pattern confirmed correct by design (application create + optional bank statement) |
+| L-8 | Calendar month diff in `UploadExternalStatementModal.periodError` — uses `Year*12 + Month` diff with day adjustment, not `TotalDays/30` |
+
+### Files Created This Session
+- `src/CRMS.Web.Intranet/Models/AppStatus.cs` — status string constants
+- `src/CRMS.Web.Intranet/Services/BankSettings.cs` — bank name/branch config
+- `src/CRMS.Web.Intranet/Services/CollateralHaircutSettings.cs` — collateral haircut % by type
+
+### Files Modified This Session (key)
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` — AppStatus constants, auth guard, error handling
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/CommentsTab.razor` — IsSubmitting/SubmitError params
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/UploadExternalStatementModal.razor` — calendar month calc
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/SetCollateralValuationModal.razor` — FSV validation, haircut from settings
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/SetupCommitteeModal.razor` — CanSubmit guard, auth
+- `src/CRMS.Web.Intranet/Components/Pages/Admin/Users.razor` — pagination, LocationId
+- `src/CRMS.Web.Intranet/Components/Pages/Admin/Products.razor` — pagination
+- `src/CRMS.Web.Intranet/Components/Pages/Admin/Templates.razor` — pagination with property-setter filter reset
+- `src/CRMS.Web.Intranet/Components/Pages/Admin/Committees.razor` — pagination
+- `src/CRMS.Web.Intranet/Components/Pages/Help/Index.razor` — search filtering (HelpNavItems + SearchResults)
+- `src/CRMS.Application/Collateral/Commands/CollateralCommands.cs` — UpdateCollateralHandler
+- `src/CRMS.Application/Guarantor/Commands/GuarantorCommands.cs` — UpdateGuarantorHandler
+- `src/CRMS.Application/Committee/Commands/CommitteeCommands.cs` — vote range validation
+- `src/CRMS.Application/FinancialAnalysis/Commands/FinancialStatementCommands.cs` — balance sheet validation
+- `src/CRMS.Application/Committee/DTOs/CommitteeDtos.cs` — FinalDecision field
+- `src/CRMS.Application/Identity/DTOs/AuthDtos.cs` — LocationId field
+- `src/CRMS.Domain/Interfaces/IAuditRepository.cs` — searchTerm param
+- `src/CRMS.Infrastructure/Persistence/Repositories/AuditRepositories.cs` — searchTerm filter
+- `src/CRMS.Infrastructure/DependencyInjection.cs` — UpdateCollateralHandler + UpdateGuarantorHandler
+- `src/CRMS.Web.Intranet/Program.cs` — BankSettings + CollateralHaircutSettings config
+- `src/CRMS.Web.Intranet/appsettings.json` — BankSettings + CollateralHaircuts sections
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v4.9
+- [x] `docs/ImplementationTracker.md` → v5.4
+
+---
+
+## 5. Previous Session Summary (2026-03-22 Session 30)
+
+### Completed — Bug Fixes: Settings Persistence, Audit Pagination, Auth Guard, Collateral Mapping
+
+Addressed 6 outstanding bugs from `TabModalReviewReport.md` (C-4, C-5, C-6) and prior session's C6/C7/C8 list. All confirmed build-clean.
+
+#### 1. Settings Page Persistence (C7)
+
+**Previously:** `SaveSettings()` was `await Task.Delay(300)` — settings were never saved.
+
+**Now:** `Settings/Index.razor` uses `ILocalStorageService`:
+- `OnInitializedAsync` loads saved settings from `localStorage["userSettings"]`
+- `SaveSettings()` serializes all 9 settings fields to localStorage; shows success banner
+- `ResetToDefaults()` resets in-memory state then calls `SaveSettings()` to persist the reset
+
+#### 2. Audit Trail Pagination + Search (C8)
+
+**Previously:** `totalCount = 150`, `totalPages = 8` hardcoded; Previous/Next buttons had no `@onclick`.
+
+**Now:**
+- Added `SearchAuditLogsAsync()` to `ApplicationService.cs` using existing `SearchAuditLogsHandler`
+  - Passes action filter, date range, `pageNumber`, `pageSize` to backend
+  - `SearchAuditLogsHandler` registered in `DependencyInjection.cs` (was missing)
+- `totalCount` / `totalPages` populated from real backend result
+- `PreviousPage()` and `NextPage()` methods wired to buttons; Search resets to page 1
+- Free-text search term applied client-side (backend query has no free-text param)
+
+#### 3. Null User Auth Guard on Workflow Actions (C-4)
+
+**Previously:** 15+ places had `var userId = AuthService.CurrentUser?.Id ?? Guid.Empty` — if session expired, actions would fire with `Guid.Empty` userId and `"User"` role.
+
+**Now:**
+- Added `EnsureAuthenticated(out Guid userId)` helper in `Detail.razor`: if `CurrentUser == null`, navigates to `/login` with `forceLoad: true` and returns false
+- All 15 occurrences replaced with `if (!EnsureAuthenticated(out var userId)) return;` via `replace_all`
+- Single `userRole` line changed to `AuthService.CurrentUser!.Roles.FirstOrDefault() ?? "User"` (non-null after guard)
+
+#### 4. Collateral MarketValue/ForcedSaleValue Mapping (C-5)
+
+**Previously:** `GetCollateralsForApplicationAsync` used `GetCollateralByLoanApplicationHandler` which returns `CollateralSummaryDto` — this DTO only has `AcceptableValue`. Both `MarketValue` and `ForcedSaleValue` were mapped from `AcceptableValue` (wrong).
+
+**Now:** Fetches summary list first (for IDs), then calls `GetCollateralByIdHandler` per item to get full `CollateralDto`. `MarketValue` = `c.MarketValue.GetValueOrDefault()`, `ForcedSaleValue` = `c.ForcedSaleValue.GetValueOrDefault()`.
+
+#### 5. Per-Item LTV Calculation (C-6)
+
+**Previously:** `LoanToValue = 0m` hardcoded on every collateral.
+
+**Now:** `GetCollateralsForApplicationAsync` accepts `decimal loanAmount` (caller passes `app.RequestedAmount`). LTV = `Math.Round((loanAmount / acceptableValue) * 100, 2)` per item.
+
+#### 6. ProcessLoanCreditChecksHandler Namespace Fix
+
+`RequestBureauChecksAsync` in `ApplicationService.cs` used unqualified `ProcessLoanCreditChecksHandler` and `ProcessLoanCreditChecksCommand` — these aren't imported. Fixed with fully qualified names (`CRMS.Application.CreditBureau.Commands.*`).
+
+**Build:** 0 errors. All fixes confirmed clean.
+
+### Files Modified This Session
+- `src/CRMS.Web.Intranet/Components/Pages/Settings/Index.razor` — localStorage load/save
+- `src/CRMS.Web.Intranet/Components/Pages/Reports/Audit.razor` — SearchAuditLogsAsync + pagination
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs` — SearchAuditLogsAsync, GetCollateralsForApplicationAsync refactor (full CollateralDto + LTV), namespace fix
+- `src/CRMS.Infrastructure/DependencyInjection.cs` — SearchAuditLogsHandler registration
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` — EnsureAuthenticated helper + 15 userId guard replacements
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v4.8
+- [x] `docs/ImplementationTracker.md` → v5.3
+
+---
+
+## 5. Previous Session Summary (2026-03-21 Session 29)
 
 ### Completed — Comprehensive Scoring Parameters Seeder + Consent Flow Review
 
@@ -1475,38 +1634,45 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ## 6. Suggested Next Task
 
-### Option A — Template Management CRUD (`/admin/templates`)
+### Option A — TabModalReviewReport H1: PartiesTab Bureau Report View Button
 
-Notification templates page is display-only. Need:
-1. Check if `CreateNotificationTemplateCommand` / `UpdateNotificationTemplateCommand` handlers exist in Application layer
-2. Add `CreateTemplateAsync`, `UpdateTemplateAsync`, `DeleteTemplateAsync` to `ApplicationService`
-3. Wire the Templates page with create/edit modals
-
----
-
-### Option B — Configure Real CBS Credentials & Test Live
-
-Set real `BaseUrl`, `ClientId`, `ClientSecret` in appsettings (or user-secrets), flip `UseMock: false`, and test the full flow against the CBS sandbox. Verify: account lookup, director fetch, 6-month statement pull, discrepancy indicator.
+**File:** `PartiesTab.razor`
+**Issue:** When `director.HasBureauReport == true`, a visibility icon button is rendered with **no `@onclick`** handler. Same for signatories.
+**Fix:**
+1. Add `OnViewPartyBureauReport` EventCallback<Guid> parameter to `PartiesTab.razor`
+2. In `Detail.razor`, wire this to `ShowBureauReportModal(reportId)` — but we need the bureau report ID for a party. Check if `PartyInfo` model has a `BureauReportId` field; if not, add it by fetching from `GetBureauReportsByApplicationHandler` and matching by party name/ID.
+3. The `ViewBureauReportModal` already exists and is fully functional.
 
 ---
 
-### Option C — Bureau Report Detail Modal
+### Option B — TabModalReviewReport H2 + H8: Committee Voting UX + Modal Close Race
 
-Add a click-to-expand detail view for individual bureau reports in the BureauTab. Currently shows summary data in the table but no way to see full report details.
+**H2** (`CommitteeTab.razor`): Add `isVoting` loading state to Submit Vote button, double-click guard, and error display on failure.
+**H8** (`SetupCommitteeModal.razor`): Change `private void Close() => OnClose.InvokeAsync()` to `private async Task Close() => await OnClose.InvokeAsync()` to prevent fire-and-forget race condition.
 
----
-
-### Option D — Guarantor Credit Check Trigger UI
-
-Add a "Run Credit Check" button on the Guarantor tab that triggers bureau checks for individual guarantors. Backend handlers exist but no UI trigger.
+Both are small targeted fixes.
 
 ---
 
-### Option E — Populate Standing Committee Members from Seed
+### Option C — TabModalReviewReport H7: Collateral Column Header Fix
 
-The 5 standing committees are seeded but have no members assigned. Add test committee member assignments in SeedData using the seeded test users (e.g. `creditofficer@crms.test`, `horeviewer@crms.test`).
+**File:** `CollateralTab.razor`
+**Issue:** Table header says "Acceptable Value" but the column data shows `collateral.MarketValue`. Footer sums `MarketValue` but labels it "Total Acceptable Collateral Value".
+**Fix:** Change the column to display `AcceptableValue` (now correctly mapped after C-5/C-6 fixes), or rename the header to "Market Value" to match what is shown. Verify the footer sum is also consistent.
 
-**Note:** `dotnet ef database update` requires `Microsoft.EntityFrameworkCore.Design` — use `dotnet run` instead (app runs `MigrateAsync()` on startup automatically).
+---
+
+### Option D — Wire Fineract Customer Exposure into AI Advisory
+
+**Status:** `IFineractDirectService.GetCustomerExposureAsync` is implemented and registered.
+**What's needed:** In `GenerateCreditAdvisoryHandler`, replace/supplement `corporateBureauReport.TotalOutstandingBalance` with the Fineract-derived exposure figure. This gives the advisory engine real existing-loan data from core banking rather than the bureau-reported balance.
+
+---
+
+### Option E — Offer Letter File Download
+
+**Status:** Offer letter button shows `alert(filename)`.
+**What's needed:** Retrieve the generated PDF from `IFileStorageService` and stream it to the browser, same pattern as `DownloadDocumentAsync` in `ApplicationService.cs`.
 
 ---
 

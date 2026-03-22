@@ -44,7 +44,10 @@ public record CommitteeReviewSummaryDto(
     int RejectionVotes,
     int PendingVotes,
     bool IsOverdue,
-    bool HasUserVoted
+    bool HasUserVoted,
+    DateTime CirculatedAt,
+    string? UserVote,
+    string? FinalDecision = null
 );
 
 public record CommitteeMemberDto(

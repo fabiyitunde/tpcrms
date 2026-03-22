@@ -320,6 +320,8 @@
 
         public bool IsActive { get; set; }
 
+        public Guid? LocationId { get; set; }
+
         public string FullName => FirstName + " " + LastName;
 
         public string Initials => $"{FirstName?.FirstOrDefault()}{LastName?.FirstOrDefault()}";
@@ -413,6 +415,8 @@
         public int VotesCast { get; set; }
 
         public int TotalMembers { get; set; }
+
+        public string? FinalDecision { get; set; }
     }
     public class WorkflowQueueItem
     {

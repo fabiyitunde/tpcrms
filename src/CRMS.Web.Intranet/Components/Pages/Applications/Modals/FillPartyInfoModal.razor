@@ -75,7 +75,6 @@
         get
         {
             if (showBvn && !string.IsNullOrEmpty(bvn) && bvn.Length != 11) return false;
-            if (!showBvn && !showShareholding) return false;
             return true;
         }
     }

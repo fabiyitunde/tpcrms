@@ -31,16 +31,26 @@ public record AddIndividualGuarantorCommand(
 public class AddIndividualGuarantorHandler : IRequestHandler<AddIndividualGuarantorCommand, ApplicationResult<GuarantorDto>>
 {
     private readonly IGuarantorRepository _repository;
+    private readonly ILoanApplicationRepository _loanRepo;
     private readonly IUnitOfWork _unitOfWork;
 
-    public AddIndividualGuarantorHandler(IGuarantorRepository repository, IUnitOfWork unitOfWork)
+    public AddIndividualGuarantorHandler(IGuarantorRepository repository, ILoanApplicationRepository loanRepo, IUnitOfWork unitOfWork)
     {
         _repository = repository;
+        _loanRepo = loanRepo;
         _unitOfWork = unitOfWork;
     }
 
     public async Task<ApplicationResult<GuarantorDto>> Handle(AddIndividualGuarantorCommand request, CancellationToken ct = default)
     {
+        var loan = await _loanRepo.GetByIdAsync(request.LoanApplicationId, ct);
+        if (loan == null)
+            return ApplicationResult<GuarantorDto>.Failure("Loan application not found.");
+
+        var blockedStatuses = new[] { "Approved", "CommitteeApproved", "Rejected", "CommitteeRejected", "Disbursed", "Closed", "Cancelled" };
+        if (blockedStatuses.Contains(loan.Status.ToString()))
+            return ApplicationResult<GuarantorDto>.Failure("Guarantors cannot be added to an application that has already been approved, rejected, or disbursed.");
+
         var guaranteeLimit = request.GuaranteeLimit.HasValue 
             ? Money.Create(request.GuaranteeLimit.Value, request.Currency) 
             : null;
@@ -95,6 +105,71 @@ public class AddIndividualGuarantorHandler : IRequestHandler<AddIndividualGuaran
         g.Documents.Select(d => new GuarantorDocumentDto(d.Id, d.DocumentType, d.FileName,
             d.FileSizeBytes, d.IsVerified, d.UploadedAt)).ToList()
     );
+}
+
+public record UpdateGuarantorCommand(
+    Guid GuarantorId,
+    GuaranteeType GuaranteeType,
+    string FullName,
+    string? BVN = null,
+    string? Email = null,
+    string? Phone = null,
+    string? Address = null,
+    string? Relationship = null,
+    bool IsDirector = false,
+    bool IsShareholder = false,
+    decimal? ShareholdingPercentage = null,
+    string? Occupation = null,
+    string? EmployerName = null,
+    decimal? MonthlyIncome = null,
+    decimal? DeclaredNetWorth = null,
+    decimal? GuaranteeLimit = null
+) : IRequest<ApplicationResult>;
+
+public class UpdateGuarantorHandler : IRequestHandler<UpdateGuarantorCommand, ApplicationResult>
+{
+    private readonly IGuarantorRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public UpdateGuarantorHandler(IGuarantorRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult> Handle(UpdateGuarantorCommand request, CancellationToken ct = default)
+    {
+        var guarantor = await _repository.GetByIdAsync(request.GuarantorId, ct);
+        if (guarantor == null)
+            return ApplicationResult.Failure("Guarantor not found");
+
+        if (guarantor.Status != GuarantorStatus.Proposed && guarantor.Status != GuarantorStatus.PendingVerification)
+            return ApplicationResult.Failure("Cannot update guarantor that has been verified or approved");
+
+        var result = guarantor.UpdateBasicInfo(
+            fullName: request.FullName,
+            bvn: request.BVN,
+            email: request.Email,
+            phone: request.Phone,
+            address: request.Address,
+            relationship: request.Relationship,
+            guaranteeType: request.GuaranteeType,
+            isDirector: request.IsDirector,
+            isShareholder: request.IsShareholder,
+            shareholdingPercentage: request.ShareholdingPercentage,
+            occupation: request.Occupation,
+            employerName: request.EmployerName,
+            monthlyIncome: request.MonthlyIncome,
+            declaredNetWorth: request.DeclaredNetWorth,
+            guaranteeLimit: request.GuaranteeLimit);
+
+        if (result.IsFailure)
+            return ApplicationResult.Failure(result.Error);
+
+        _repository.Update(guarantor);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return ApplicationResult.Success();
+    }
 }
 
 /// <summary>

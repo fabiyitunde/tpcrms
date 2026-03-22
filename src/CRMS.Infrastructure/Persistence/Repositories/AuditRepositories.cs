@@ -126,6 +126,7 @@ public class AuditLogRepository : IAuditLogRepository
         bool? isSuccess = null,
         int pageNumber = 1,
         int pageSize = 50,
+        string? searchTerm = null,
         CancellationToken ct = default)
     {
         var query = _context.AuditLogs.AsQueryable();
@@ -153,6 +154,13 @@ public class AuditLogRepository : IAuditLogRepository
 
         if (isSuccess.HasValue)
             query = query.Where(x => x.IsSuccess == isSuccess.Value);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+            query = query.Where(x =>
+                x.UserName.Contains(searchTerm) ||
+                x.Description.Contains(searchTerm) ||
+                x.EntityType.Contains(searchTerm) ||
+                x.EntityReference != null && x.EntityReference.Contains(searchTerm));
 
         return await query
             .OrderByDescending(x => x.Timestamp)

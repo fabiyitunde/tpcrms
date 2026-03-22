@@ -48,7 +48,8 @@ public record UserSummaryDto(
     string FullName,
     string Type,
     string Status,
-    List<string> Roles
+    List<string> Roles,
+    Guid? LocationId = null
 );
 
 public record RoleDto(

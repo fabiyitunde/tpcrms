@@ -235,7 +235,7 @@ else
                 OnRejectGuarantor="ShowRejectGuarantorModal" />
             break;
         case "advisory":
-            <AdvisoryTab Advisory="application.Advisory" OnGenerateAdvisory="GenerateAdvisory" />
+            <AdvisoryTab Advisory="application.Advisory" OnGenerateAdvisory="GenerateAdvisory" IsGenerating="isGeneratingAdvisory" />
             break;
         case "workflow":
             <WorkflowTab History="application.WorkflowHistory" CurrentStatus="application.Status" />
@@ -248,7 +248,7 @@ else
                              OnSetupCommittee="ShowSetupCommitteeModal" />
             break;
         case "comments":
-            <CommentsTab Comments="application.Comments" OnAddComment="AddComment" />
+            <CommentsTab Comments="application.Comments" OnAddComment="AddComment" IsSubmitting="isAddingComment" SubmitError="commentError" />
             break;
     }
 }
@@ -1013,43 +1013,46 @@ else
 
     private void GoBack() => Navigation.NavigateTo("/applications");
 
-    private bool CanGeneratePack => application?.Status is "Approved" or "CommitteeApproved" or "Disbursed";
-    private bool CanGenerateOfferLetter => application?.Status is "Approved" or "Disbursed";
-    
+    private bool CanGeneratePack => application?.Status is AppStatus.Approved or AppStatus.CommitteeApproved or AppStatus.Disbursed;
+    private bool CanGenerateOfferLetter => application?.Status is AppStatus.Approved or AppStatus.Disbursed;
+
     // Application is editable only in Draft status
-    private bool IsApplicationEditable => application?.Status == "Draft";
-    
+    private bool IsApplicationEditable => application?.Status == AppStatus.Draft;
+
     // Show Submit for Review button only for Draft applications owned by current user (Loan Officer)
-    private bool ShowSubmitForReviewButton => application?.Status == "Draft" && 
+    private bool ShowSubmitForReviewButton => application?.Status == AppStatus.Draft &&
         (AuthService.CurrentUser?.HasRole("LoanOfficer") ?? false);
-    
+
     private bool CanSetupCommitteeReview =>
-        application?.Status == "CommitteeCirculation" &&
+        application?.Status == AppStatus.CommitteeCirculation &&
         application.Committee == null &&
         (AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false);
 
+    private bool IsAssignedCommitteeMember =>
+        application?.Committee?.Members.Any(m => m.UserId == (AuthService.CurrentUser?.Id ?? Guid.Empty)) == true;
+
     private bool ShowApproveButton => application?.Status switch
     {
-        "BranchReview" => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        "HOReview" => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
-        "CommitteeCirculation" => AuthService.CurrentUser?.HasRole("CommitteeMember") ?? false,
-        "CommitteeApproved" => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
+        AppStatus.BranchReview => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        AppStatus.HOReview => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        AppStatus.CommitteeCirculation => (AuthService.CurrentUser?.HasRole("CommitteeMember") ?? false) && IsAssignedCommitteeMember,
+        AppStatus.CommitteeApproved => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
         _ => false
     };
 
     private bool ShowReturnButton => application?.Status switch
     {
-        "BranchReview" => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        "HOReview" => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        AppStatus.BranchReview => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        AppStatus.HOReview => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
         _ => false
     };
 
     private bool ShowRejectButton => application?.Status switch
     {
-        "BranchReview" => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        "HOReview" => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
-        "CommitteeCirculation" => AuthService.CurrentUser?.HasRole("CommitteeMember") ?? false,
-        "CommitteeApproved" => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
+        AppStatus.BranchReview => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        AppStatus.HOReview => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        AppStatus.CommitteeCirculation => (AuthService.CurrentUser?.HasRole("CommitteeMember") ?? false) && IsAssignedCommitteeMember,
+        AppStatus.CommitteeApproved => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
         _ => false
     };
 
@@ -1140,15 +1143,28 @@ else
     private async Task GenerateLoanPack()
     {
         isGeneratingPack = true;
-        if (!EnsureAuthenticated(out var userId)) return;
-        var userName = AuthService.CurrentUser?.FullName ?? "System";
-        var result = await AppService.GenerateLoanPackAsync(Id, userId, userName);
-        isGeneratingPack = false;
-        
-        if (result.Success && result.Data != null)
+        try
         {
-            // For now, show success message - actual file download would need storage retrieval
-            await JS.InvokeVoidAsync("alert", $"Loan pack generated: {result.Data.FileName}");
+            if (!EnsureAuthenticated(out var userId)) return;
+            var userName = AuthService.CurrentUser?.FullName ?? "System";
+            var result = await AppService.GenerateLoanPackAsync(Id, userId, userName);
+
+            if (result.Success && result.Data != null)
+            {
+                var bytes = await AppService.DownloadGeneratedFileAsync(result.Data.StoragePath);
+                if (bytes != null)
+                    await JS.InvokeVoidAsync("downloadFileFromBytes", result.Data.FileName, "application/pdf", bytes);
+                else
+                    inlineActionError = "Loan pack generated but could not be downloaded.";
+            }
+            else
+            {
+                inlineActionError = result.Error ?? "Failed to generate loan pack.";
+            }
+        }
+        finally
+        {
+            isGeneratingPack = false;
         }
     }
 
@@ -1164,11 +1180,15 @@ else
             var result = await AppService.GenerateOfferLetterAsync(Id, userId, userName);
             if (result.Success && result.Data != null)
             {
-                await JS.InvokeVoidAsync("alert", $"Offer letter generated: {result.Data.FileName}");
+                var bytes = await AppService.DownloadGeneratedFileAsync(result.Data.StoragePath);
+                if (bytes != null)
+                    await JS.InvokeVoidAsync("downloadFileFromBytes", result.Data.FileName, "application/pdf", bytes);
+                else
+                    inlineActionError = "Offer letter generated but could not be downloaded.";
             }
             else
             {
-                await JS.InvokeVoidAsync("alert", $"Failed: {result.Error}");
+                inlineActionError = result.Error ?? "Failed to generate offer letter.";
             }
         }
         finally
@@ -1193,11 +1213,26 @@ else
             inlineActionError = result.Error ?? "Failed to run credit checks.";
     }
 
+    private bool isGeneratingAdvisory;
+
     private async Task GenerateAdvisory()
     {
         if (!EnsureAuthenticated(out var userId)) return;
-        await AppService.GenerateAdvisoryAsync(Id, userId);
-        await LoadApplication();
+        isGeneratingAdvisory = true;
+        inlineActionError = null;
+        StateHasChanged();
+        try
+        {
+            var result = await AppService.GenerateAdvisoryAsync(Id, userId);
+            if (result.Success)
+                await LoadApplication();
+            else
+                inlineActionError = result.Error ?? "Advisory generation failed.";
+        }
+        finally
+        {
+            isGeneratingAdvisory = false;
+        }
     }
 
     private async Task CastVote((string vote, string? comments) args)
@@ -1210,11 +1245,34 @@ else
         }
     }
 
+    private bool isAddingComment;
+    private string? commentError;
+
     private async Task AddComment(string content)
     {
         if (!EnsureAuthenticated(out var userId)) return;
-        await AppService.AddCommentAsync(Id, content, userId);
-        await LoadApplication();
+        isAddingComment = true;
+        commentError = null;
+        try
+        {
+            var result = await AppService.AddCommentAsync(Id, content, userId);
+            if (result.Success)
+            {
+                await LoadApplication();
+            }
+            else
+            {
+                commentError = result.Error ?? "Failed to add comment.";
+            }
+        }
+        catch
+        {
+            commentError = "An error occurred while adding the comment.";
+        }
+        finally
+        {
+            isAddingComment = false;
+        }
     }
 
     // Modal handlers - Collateral
@@ -1310,7 +1368,7 @@ else
     private string? approveCollateralError;
     private bool isApprovingCollateral;
 
-    private bool CanManageValuation => application?.Status is not (null or "Draft" or "Approved" or "CommitteeApproved" or "Rejected" or "Disbursed");
+    private bool CanManageValuation => application?.Status is not (null or AppStatus.Draft or AppStatus.Approved or AppStatus.CommitteeApproved or AppStatus.Rejected or AppStatus.Disbursed);
 
     private void ShowSetValuationModal(Guid collateralId)
     {
@@ -1486,7 +1544,7 @@ else
     private bool isApprovingGuarantor;
     private bool isRejectingGuarantor;
 
-    private bool CanManageGuarantors => application?.Status is not (null or "Draft" or "Approved" or "CommitteeApproved" or "Rejected" or "Disbursed");
+    private bool CanManageGuarantors => application?.Status is not (null or AppStatus.Draft or AppStatus.Approved or AppStatus.CommitteeApproved or AppStatus.Rejected or AppStatus.Disbursed);
 
     private void ShowApproveGuarantorModal(Guid guarantorId)
     {
@@ -2010,18 +2068,18 @@ else
 
     private static string FormatStatus(string status) => status switch
     {
-        "BranchReview" => "Branch Review",
-        "HOReview" => "HO Review",
-        "CommitteeCirculation" => "Committee Review",
-        "CreditAnalysis" => "Credit Analysis",
+        AppStatus.BranchReview => "Branch Review",
+        AppStatus.HOReview => "HO Review",
+        AppStatus.CommitteeCirculation => "Committee Review",
+        AppStatus.CreditAnalysis => "Credit Analysis",
         _ => status
     };
 
     private static string GetStatusBadgeClass(string status) => status switch
     {
-        "Draft" => "badge-gray",
-        "Approved" or "Disbursed" => "badge-success",
-        "Rejected" => "badge-danger",
+        AppStatus.Draft => "badge-gray",
+        AppStatus.Approved or AppStatus.Disbursed => "badge-success",
+        AppStatus.Rejected => "badge-danger",
         _ => "badge-primary"
     };
 

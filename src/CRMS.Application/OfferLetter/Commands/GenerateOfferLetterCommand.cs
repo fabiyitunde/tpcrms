@@ -1,5 +1,6 @@
 using CRMS.Application.Common;
 using CRMS.Application.OfferLetter.Interfaces;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 using OL = CRMS.Domain.Aggregates.OfferLetter;
 
@@ -8,7 +9,9 @@ namespace CRMS.Application.OfferLetter.Commands;
 public record GenerateOfferLetterCommand(
     Guid LoanApplicationId,
     Guid GeneratedByUserId,
-    string GeneratedByUserName
+    string GeneratedByUserName,
+    string BankName = "The Bank",
+    string BranchName = ""
 ) : IRequest<ApplicationResult<OfferLetterResultDto>>;
 
 public record OfferLetterResultDto(
@@ -58,7 +61,7 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         if (loanApp == null)
             return ApplicationResult<OfferLetterResultDto>.Failure("Loan application not found");
 
-        if (loanApp.Status.ToString() != "Approved" && loanApp.Status.ToString() != "Disbursed")
+        if (loanApp.Status != LoanApplicationStatus.Approved && loanApp.Status != LoanApplicationStatus.Disbursed)
             return ApplicationResult<OfferLetterResultDto>.Failure("Offer letter can only be generated for approved applications");
 
         var product = await _productRepository.GetByIdAsync(loanApp.LoanProductId, ct);
@@ -154,8 +157,8 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
                 TotalRepayment: schedule.TotalRepayment,
                 MonthlyInstallment: Math.Round(monthlyInstallment, 2),
                 Conditions: conditions,
-                BankName: "The Bank",
-                BranchName: "",
+                BankName: request.BankName,
+                BranchName: request.BranchName,
                 ScheduleSource: scheduleSource,
                 Version: existingVersion + 1
             );

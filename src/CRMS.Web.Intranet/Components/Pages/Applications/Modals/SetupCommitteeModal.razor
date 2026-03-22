@@ -1,4 +1,5 @@
 @inject ApplicationService AppService
+@inject AuthService AuthService
 
 <div class="modal-backdrop" @onclick="Close"></div>
 <div class="modal" style="max-width: 700px;">
@@ -187,7 +188,7 @@
     private bool CanSubmit =>
         standingCommittee != null
             ? standingCommittee.Members.Any()
-            : (!string.IsNullOrEmpty(manualType) && manualMembers.Count >= manualRequiredVotes);
+            : (!string.IsNullOrEmpty(manualType) && manualMembers.Count >= manualRequiredVotes && manualMinApproval <= manualRequiredVotes);
 
     protected override async Task OnInitializedAsync()
     {
@@ -252,7 +253,7 @@
             }
 
             var createResult = await AppService.CreateCommitteeReviewAsync(
-                LoanApplicationId, ApplicationNumber, type, reqVotes, minApproval, deadline, Guid.Empty);
+                LoanApplicationId, ApplicationNumber, type, reqVotes, minApproval, deadline, AuthService.CurrentUser?.Id ?? Guid.Empty);
 
             if (!createResult.Success || createResult.Data == Guid.Empty)
             {

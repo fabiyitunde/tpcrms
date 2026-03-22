@@ -9,35 +9,35 @@
             <div class="info-grid">
                 <div class="info-item">
                     <span class="info-label">Company Name</span>
-                    <span class="info-value">@Application.Customer.CompanyName</span>
+                    <span class="info-value">@Application.Customer?.CompanyName</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Account Number</span>
-                    <span class="info-value">@Application.Customer.AccountNumber</span>
+                    <span class="info-value">@Application.Customer?.AccountNumber</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Registration Number</span>
-                    <span class="info-value">@Application.Customer.RegistrationNumber</span>
+                    <span class="info-value">@Application.Customer?.RegistrationNumber</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Industry</span>
-                    <span class="info-value">@Application.Customer.Industry</span>
+                    <span class="info-value">@Application.Customer?.Industry</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Incorporation Date</span>
-                    <span class="info-value">@(Application.Customer.IncorporationDate?.ToString("MMM dd, yyyy") ?? "N/A")</span>
+                    <span class="info-value">@(Application.Customer?.IncorporationDate?.ToString("MMM dd, yyyy") ?? "N/A")</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Address</span>
-                    <span class="info-value">@Application.Customer.Address</span>
+                    <span class="info-value">@Application.Customer?.Address</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Email</span>
-                    <span class="info-value">@Application.Customer.Email</span>
+                    <span class="info-value">@Application.Customer?.Email</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Phone</span>
-                    <span class="info-value">@Application.Customer.Phone</span>
+                    <span class="info-value">@Application.Customer?.Phone</span>
                 </div>
             </div>
         </div>

@@ -1,4 +1,5 @@
 @inject ApplicationService AppService
+@inject Microsoft.Extensions.Options.IOptions<CRMS.Web.Intranet.Services.CollateralHaircutSettings> HaircutOptions
 
 <div class="modal-backdrop show" @onclick="Close">
     <div class="modal" style="max-width: 540px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
@@ -130,6 +131,13 @@
     {
         if (marketValue <= 0) return;
 
+        var fsv = forcedSaleValue ?? (marketValue * 0.7m);
+        if (fsv > marketValue)
+        {
+            errorMessage = "Forced Sale Value cannot exceed Market Value.";
+            return;
+        }
+
         isSubmitting = true;
         errorMessage = null;
         try
@@ -161,17 +169,23 @@
 
     private async Task Close() => await OnClose.InvokeAsync();
 
-    private static decimal GetDefaultHaircut(string type) => type switch
+    private decimal GetDefaultHaircut(string type)
     {
-        "CashDeposit" => 0,
-        "FixedDeposit" or "TreasuryBills" => 5,
-        "Bonds" => 10,
-        "RealEstate" => 20,
-        "Vehicle" or "Stocks" => 30,
-        "Equipment" => 40,
-        "Inventory" => 50,
-        _ => 20
-    };
+        var h = HaircutOptions.Value;
+        return type switch
+        {
+            "CashDeposit" => h.CashDeposit,
+            "FixedDeposit" => h.FixedDeposit,
+            "TreasuryBills" => h.TreasuryBills,
+            "Bonds" => h.Bonds,
+            "RealEstate" => h.RealEstate,
+            "Vehicle" => h.Vehicle,
+            "Stocks" => h.Stocks,
+            "Equipment" => h.Equipment,
+            "Inventory" => h.Inventory,
+            _ => h.Default
+        };
+    }
 
     private static string FormatCollateralType(string type) => type switch
     {

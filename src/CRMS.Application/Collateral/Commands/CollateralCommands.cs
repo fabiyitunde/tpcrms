@@ -21,16 +21,26 @@ public record AddCollateralCommand(
 public class AddCollateralHandler : IRequestHandler<AddCollateralCommand, ApplicationResult<CollateralDto>>
 {
     private readonly ICollateralRepository _repository;
+    private readonly ILoanApplicationRepository _loanRepo;
     private readonly IUnitOfWork _unitOfWork;
 
-    public AddCollateralHandler(ICollateralRepository repository, IUnitOfWork unitOfWork)
+    public AddCollateralHandler(ICollateralRepository repository, ILoanApplicationRepository loanRepo, IUnitOfWork unitOfWork)
     {
         _repository = repository;
+        _loanRepo = loanRepo;
         _unitOfWork = unitOfWork;
     }
 
     public async Task<ApplicationResult<CollateralDto>> Handle(AddCollateralCommand request, CancellationToken ct = default)
     {
+        var loan = await _loanRepo.GetByIdAsync(request.LoanApplicationId, ct);
+        if (loan == null)
+            return ApplicationResult<CollateralDto>.Failure("Loan application not found.");
+
+        var blockedStatuses = new[] { "Approved", "CommitteeApproved", "Rejected", "CommitteeRejected", "Disbursed", "Closed", "Cancelled" };
+        if (blockedStatuses.Contains(loan.Status.ToString()))
+            return ApplicationResult<CollateralDto>.Failure("Collateral cannot be added to an application that has already been approved, rejected, or disbursed.");
+
         var result = Domain.Aggregates.Collateral.Collateral.Create(
             request.LoanApplicationId,
             request.Type,
@@ -60,6 +70,46 @@ public class AddCollateralHandler : IRequestHandler<AddCollateralCommand, Applic
         c.InsurancePolicyNumber, c.InsuredValue?.Amount, c.InsuranceExpiryDate, c.CreatedAt, c.ApprovedAt,
         c.RejectionReason, [], []
     );
+}
+
+public record UpdateCollateralCommand(
+    Guid CollateralId,
+    CollateralType Type,
+    string Description,
+    string? AssetIdentifier = null,
+    string? Location = null,
+    string? OwnerName = null,
+    string? OwnershipType = null
+) : IRequest<ApplicationResult>;
+
+public class UpdateCollateralHandler : IRequestHandler<UpdateCollateralCommand, ApplicationResult>
+{
+    private readonly ICollateralRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public UpdateCollateralHandler(ICollateralRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult> Handle(UpdateCollateralCommand request, CancellationToken ct = default)
+    {
+        var collateral = await _repository.GetByIdAsync(request.CollateralId, ct);
+        if (collateral == null)
+            return ApplicationResult.Failure("Collateral not found");
+
+        if (collateral.Status != CollateralStatus.Proposed && collateral.Status != CollateralStatus.UnderValuation)
+            return ApplicationResult.Failure("Cannot update collateral that has been valued or approved");
+
+        var result = collateral.UpdateBasicInfo(request.Type, request.Description, request.AssetIdentifier, request.Location, request.OwnerName, request.OwnershipType);
+        if (result.IsFailure)
+            return ApplicationResult.Failure(result.Error);
+
+        _repository.Update(collateral);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return ApplicationResult.Success();
+    }
 }
 
 public record SetCollateralValuationCommand(

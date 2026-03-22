@@ -28,6 +28,9 @@ public class UpdatePartyInfoHandler : IRequestHandler<UpdatePartyInfoCommand, Ap
         if (application == null)
             return ApplicationResult.Failure("Application not found");
 
+        if (application.Status.ToString() != "Draft")
+            return ApplicationResult.Failure("Party information can only be updated while the application is in Draft status.");
+
         var result = application.UpdatePartyFields(request.PartyId, request.BVN, request.ShareholdingPercent);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);

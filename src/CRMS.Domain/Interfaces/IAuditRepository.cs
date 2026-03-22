@@ -28,6 +28,7 @@ public interface IAuditLogRepository
         bool? isSuccess = null,
         int pageNumber = 1,
         int pageSize = 50,
+        string? searchTerm = null,
         CancellationToken ct = default);
     
     Task<int> GetCountAsync(

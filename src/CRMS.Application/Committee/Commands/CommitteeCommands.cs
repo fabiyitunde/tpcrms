@@ -223,6 +223,13 @@ public class RecordCommitteeDecisionHandler : IRequestHandler<RecordCommitteeDec
         if (review == null)
             return ApplicationResult<CommitteeReviewDto>.Failure("Committee review not found");
 
+        if (request.ApprovedAmount.HasValue && request.ApprovedAmount.Value <= 0)
+            return ApplicationResult<CommitteeReviewDto>.Failure("Approved amount must be greater than zero.");
+        if (request.ApprovedTenorMonths.HasValue && (request.ApprovedTenorMonths.Value < 1 || request.ApprovedTenorMonths.Value > 360))
+            return ApplicationResult<CommitteeReviewDto>.Failure("Approved tenor must be between 1 and 360 months.");
+        if (request.ApprovedInterestRate.HasValue && (request.ApprovedInterestRate.Value < 0 || request.ApprovedInterestRate.Value > 100))
+            return ApplicationResult<CommitteeReviewDto>.Failure("Approved interest rate must be between 0% and 100%.");
+
         var result = review.RecordDecision(
             request.DecidedByUserId,
             request.Decision,

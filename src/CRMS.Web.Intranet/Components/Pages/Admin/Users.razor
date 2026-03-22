@@ -1,4 +1,5 @@
 @page "/admin/users"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
 @using CRMS.Web.Intranet.Models
 @inject ApplicationService AppService
 @inject AuthService AuthService
@@ -73,7 +74,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var user in users)
+                    @foreach (var user in PagedUsers)
                     {
                         <tr>
                             <td>
@@ -122,6 +123,21 @@
                     }
                 </tbody>
             </table>
+            @if (TotalPages > 1)
+            {
+                <div class="pagination-bar">
+                    <span class="pagination-info">@((currentPage - 1) * PageSize + 1)–@(Math.Min(currentPage * PageSize, users.Count)) of @users.Count</span>
+                    <div class="pagination-controls">
+                        <button class="btn btn-ghost btn-sm" @onclick="() => currentPage--" disabled="@(currentPage == 1)">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>
+                        </button>
+                        <span style="font-size: var(--text-sm); padding: 0 var(--space-2);">@currentPage / @TotalPages</span>
+                        <button class="btn btn-ghost btn-sm" @onclick="() => currentPage++" disabled="@(currentPage == TotalPages)">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
+                        </button>
+                    </div>
+                </div>
+            }
         }
     </div>
 </div>
@@ -195,12 +211,28 @@
     </div>
 }
 
+<style>
+    .pagination-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-3) var(--space-4);
+        border-top: 1px solid var(--gray-100);
+    }
+    .pagination-info { font-size: var(--text-sm); color: var(--gray-500); }
+    .pagination-controls { display: flex; align-items: center; gap: var(--space-1); }
+</style>
+
 @code {
     private List<UserModel> users = [];
     private string searchTerm = string.Empty;
     private string selectedRole = string.Empty;
     private string selectedStatus = string.Empty;
     private bool isLoading = true;
+    private int currentPage = 1;
+    private const int PageSize = 15;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(users.Count / (double)PageSize));
+    private IEnumerable<UserModel> PagedUsers => users.Skip((currentPage - 1) * PageSize).Take(PageSize);
     private bool showUserModal;
     private bool isEditing;
     private bool isSaving;
@@ -218,19 +250,41 @@
     private async Task LoadUsers()
     {
         isLoading = true;
+        currentPage = 1;
         try
         {
             var dbUsers = await AppService.GetUsersAsync();
             if (dbUsers.Count > 0)
             {
-                users = dbUsers.Select(u => new UserModel
+                var query = dbUsers.AsEnumerable();
+
+                if (!string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    var term = searchTerm.Trim().ToLowerInvariant();
+                    query = query.Where(u =>
+                        u.FirstName.ToLowerInvariant().Contains(term) ||
+                        u.LastName.ToLowerInvariant().Contains(term) ||
+                        u.Email.ToLowerInvariant().Contains(term));
+                }
+
+                if (!string.IsNullOrWhiteSpace(selectedRole))
+                    query = query.Where(u => u.Role == selectedRole);
+
+                if (!string.IsNullOrWhiteSpace(selectedStatus))
+                {
+                    var isActive = selectedStatus == "Active";
+                    query = query.Where(u => u.IsActive == isActive);
+                }
+
+                users = query.Select(u => new UserModel
                 {
                     Id = u.Id,
                     FirstName = u.FirstName,
                     LastName = u.LastName,
                     Email = u.Email,
                     Role = u.Role,
-                    IsActive = u.IsActive
+                    IsActive = u.IsActive,
+                    LocationId = u.LocationId
                 }).ToList();
             }
             else if (AuthService.CurrentUser?.Username == "admin")
@@ -275,7 +329,8 @@
             LastName = user.LastName,
             Email = user.Email,
             Role = user.Role,
-            Branch = user.Branch
+            Branch = user.Branch,
+            LocationId = user.LocationId
         };
         isEditing = true;
         showUserModal = true;

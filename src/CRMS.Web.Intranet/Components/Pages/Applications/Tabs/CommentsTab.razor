@@ -6,12 +6,23 @@
         <span class="badge badge-gray">@Comments.Count</span>
     </div>
     <div class="card-body">
+        @if (!string.IsNullOrEmpty(SubmitError))
+        {
+            <div class="alert alert-danger mb-3" style="font-size: var(--text-sm);">@SubmitError</div>
+        }
         <div class="form-group">
-            <textarea class="form-control" rows="3" @bind="newComment" placeholder="Add a comment..."></textarea>
+            <textarea class="form-control" rows="3" @bind="newComment" placeholder="Add a comment..." disabled="@IsSubmitting"></textarea>
         </div>
         <div style="display: flex; justify-content: flex-end;">
-            <button class="btn btn-primary" @onclick="AddComment" disabled="@(string.IsNullOrWhiteSpace(newComment))">
-                <span class="material-symbols-outlined" style="font-size: 18px;">send</span>
+            <button class="btn btn-primary" @onclick="AddComment" disabled="@(string.IsNullOrWhiteSpace(newComment) || IsSubmitting)">
+                @if (IsSubmitting)
+                {
+                    <span class="spinner"></span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined" style="font-size: 18px;">send</span>
+                }
                 Add Comment
             </button>
         </div>
@@ -115,6 +126,8 @@
 @code {
     [Parameter] public List<CommentInfo> Comments { get; set; } = [];
     [Parameter] public EventCallback<string> OnAddComment { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? SubmitError { get; set; }
 
     private string newComment = string.Empty;
 

@@ -52,6 +52,7 @@ using CRMS.Application.Configuration.Queries;
 using CRMS.Web.Intranet.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CRMS.Web.Intranet.Services;
 
@@ -62,6 +63,8 @@ public partial class ApplicationService
     private readonly IReportingService _reporting;
 
     private readonly ILogger<ApplicationService> _logger;
+
+    private readonly BankSettings _bankSettings;
 
     public async Task<List<BureauReportInfo>> GetBureauReportsAsync(Guid loanApplicationId)
     {
@@ -480,31 +483,21 @@ public partial class ApplicationService
     {
         try
         {
-            ICollateralRepository repository = _sp.GetRequiredService<ICollateralRepository>();
-            IUnitOfWork unitOfWork = _sp.GetRequiredService<IUnitOfWork>();
-            Collateral collateral = await repository.GetByIdAsync(collateralId, CancellationToken.None);
-            if (collateral == null)
-            {
-                return ApiResponse.Fail("Collateral not found");
-            }
-            if (collateral.Status != CollateralStatus.Proposed && collateral.Status != CollateralStatus.UnderValuation)
-            {
-                return ApiResponse.Fail("Cannot update collateral that has been valued or approved");
-            }
-            CollateralType collateralType = Enum.Parse<CollateralType>(request.Type, ignoreCase: true);
-            Result updateResult = collateral.UpdateBasicInfo(collateralType, request.Description, request.AssetIdentifier, request.Location, request.OwnerName, request.OwnershipType);
-            if (updateResult.IsFailure)
-            {
-                return ApiResponse.Fail(updateResult.Error);
-            }
-            repository.Update(collateral);
-            await unitOfWork.SaveChangesAsync(CancellationToken.None);
-            return ApiResponse.Ok();
+            var handler = _sp.GetRequiredService<Application.Collateral.Commands.UpdateCollateralHandler>();
+            var command = new Application.Collateral.Commands.UpdateCollateralCommand(
+                collateralId,
+                Enum.Parse<CollateralType>(request.Type, ignoreCase: true),
+                request.Description,
+                request.AssetIdentifier,
+                request.Location,
+                request.OwnerName,
+                request.OwnershipType);
+            var result = await handler.Handle(command, CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update collateral");
         }
         catch (Exception ex)
         {
-            Exception ex2 = ex;
-            _logger.LogError(ex2, "Error updating collateral {CollateralId}", collateralId);
+            _logger.LogError(ex, "Error updating collateral {CollateralId}", collateralId);
             return ApiResponse.Fail("Failed to update collateral");
         }
     }
@@ -571,39 +564,40 @@ public partial class ApplicationService
     {
         try
         {
-            IGuarantorRepository repository = _sp.GetRequiredService<IGuarantorRepository>();
-            IUnitOfWork unitOfWork = _sp.GetRequiredService<IUnitOfWork>();
-            Guarantor guarantor = await repository.GetByIdAsync(guarantorId, CancellationToken.None);
-            if (guarantor == null)
-            {
-                return ApiResponse.Fail("Guarantor not found");
-            }
-            if (guarantor.Status != GuarantorStatus.Proposed && guarantor.Status != GuarantorStatus.PendingVerification)
-            {
-                return ApiResponse.Fail("Cannot update guarantor that has been verified or approved");
-            }
-            Result updateResult = guarantor.UpdateBasicInfo(guaranteeType: Enum.Parse<GuaranteeType>(request.GuaranteeType, ignoreCase: true), fullName: request.FullName, bvn: request.BVN, email: request.Email, phone: request.Phone, address: request.Address, relationship: request.Relationship, isDirector: request.IsDirector, isShareholder: request.IsShareholder, shareholdingPercentage: request.ShareholdingPercentage, occupation: request.Occupation, employerName: request.EmployerName, monthlyIncome: request.MonthlyIncome, declaredNetWorth: request.DeclaredNetWorth, guaranteeLimit: request.GuaranteeLimit);
-            if (updateResult.IsFailure)
-            {
-                return ApiResponse.Fail(updateResult.Error);
-            }
-            repository.Update(guarantor);
-            await unitOfWork.SaveChangesAsync(CancellationToken.None);
-            return ApiResponse.Ok();
+            var handler = _sp.GetRequiredService<Application.Guarantor.Commands.UpdateGuarantorHandler>();
+            var command = new Application.Guarantor.Commands.UpdateGuarantorCommand(
+                guarantorId,
+                Enum.Parse<GuaranteeType>(request.GuaranteeType, ignoreCase: true),
+                request.FullName,
+                request.BVN,
+                request.Email,
+                request.Phone,
+                request.Address,
+                request.Relationship,
+                request.IsDirector,
+                request.IsShareholder,
+                request.ShareholdingPercentage,
+                request.Occupation,
+                request.EmployerName,
+                request.MonthlyIncome,
+                request.DeclaredNetWorth,
+                request.GuaranteeLimit);
+            var result = await handler.Handle(command, CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update guarantor");
         }
         catch (Exception ex)
         {
-            Exception ex2 = ex;
-            _logger.LogError(ex2, "Error updating guarantor {GuarantorId}", guarantorId);
+            _logger.LogError(ex, "Error updating guarantor {GuarantorId}", guarantorId);
             return ApiResponse.Fail("Failed to update guarantor");
         }
     }
 
-    public ApplicationService(IServiceProvider sp, IReportingService reporting, ILogger<ApplicationService> logger)
+    public ApplicationService(IServiceProvider sp, IReportingService reporting, ILogger<ApplicationService> logger, IOptions<BankSettings> bankSettings)
     {
         _sp = sp;
         _reporting = reporting;
         _logger = logger;
+        _bankSettings = bankSettings.Value;
     }
 
     public async Task<DashboardSummary> GetDashboardSummaryAsync()
@@ -1542,7 +1536,7 @@ public partial class ApplicationService
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.OfferLetter.Commands.GenerateOfferLetterHandler>();
-            var command = new CRMS.Application.OfferLetter.Commands.GenerateOfferLetterCommand(applicationId, userId, userName);
+            var command = new CRMS.Application.OfferLetter.Commands.GenerateOfferLetterCommand(applicationId, userId, userName, _bankSettings.BankName, _bankSettings.BranchName);
             var result = await handler.Handle(command, CancellationToken.None);
             if (!result.IsSuccess || result.Data == null)
                 return ApiResponse<OfferLetterResult>.Fail(result.Error ?? "Offer letter generation failed");
@@ -1557,6 +1551,20 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error generating offer letter");
             return ApiResponse<OfferLetterResult>.Fail("Failed to generate offer letter");
+        }
+    }
+
+    public async Task<byte[]?> DownloadGeneratedFileAsync(string storagePath)
+    {
+        try
+        {
+            var fileStorage = _sp.GetRequiredService<IFileStorageService>();
+            return await fileStorage.DownloadAsync(storagePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error downloading generated file {Path}", storagePath);
+            return null;
         }
     }
 
@@ -1590,16 +1598,14 @@ public partial class ApplicationService
             }
             
             var loanRepo = _sp.GetRequiredService<ILoanApplicationRepository>();
-            var reviewRepo = _sp.GetRequiredService<ICommitteeReviewRepository>();
             var summaries = new List<CommitteeReviewSummary>();
-            
+
             foreach (var r in result.Data)
             {
                 var loan = await loanRepo.GetByIdAsync(r.LoanApplicationId, CancellationToken.None);
-                var review = await reviewRepo.GetByIdAsync(r.Id, CancellationToken.None);
                 var votesCast = r.ApprovalVotes + r.RejectionVotes;
-                var totalMembers = review?.Members.Count ?? (votesCast + r.PendingVotes);
-                
+                var totalMembers = votesCast + r.PendingVotes;
+
                 summaries.Add(new CommitteeReviewSummary
                 {
                     ReviewId = r.Id,
@@ -1612,7 +1618,10 @@ public partial class ApplicationService
                     RequestedAmount = loan?.RequestedAmount.Amount ?? 0m,
                     Amount = loan?.RequestedAmount.Amount ?? 0m,
                     VotesCast = votesCast,
-                    TotalMembers = totalMembers
+                    TotalMembers = totalMembers,
+                    HasVoted = r.HasUserVoted,
+                    MyVote = r.UserVote,
+                    CirculatedAt = r.CirculatedAt
                 });
             }
             
@@ -1689,15 +1698,17 @@ public partial class ApplicationService
             {
                 return new List<OverdueWorkflowItem>();
             }
-            return result.Data.Select(t => new OverdueWorkflowItem
-            {
-                ApplicationId = t.LoanApplicationId,
-                ApplicationNumber = t.ApplicationNumber,
-                CustomerName = t.CustomerName,
-                Stage = t.CurrentStageDisplayName ?? t.CurrentStatus,
-                AssignedTo = t.AssignedRole ?? "",
-                SLABreachedAt = t.SLADueAt ?? DateTime.UtcNow.AddHours(-1)
-            }).ToList();
+            return result.Data
+                .Where(t => t.SLADueAt.HasValue)
+                .Select(t => new OverdueWorkflowItem
+                {
+                    ApplicationId = t.LoanApplicationId,
+                    ApplicationNumber = t.ApplicationNumber,
+                    CustomerName = t.CustomerName,
+                    Stage = t.CurrentStageDisplayName ?? t.CurrentStatus,
+                    AssignedTo = t.AssignedRole ?? "",
+                    SLABreachedAt = t.SLADueAt!.Value
+                }).ToList();
         }
         catch (Exception ex)
         {
@@ -1785,7 +1796,8 @@ public partial class ApplicationService
                     RequestedAmount = loan?.RequestedAmount.Amount ?? 0m,
                     Amount = loan?.RequestedAmount.Amount ?? 0m,
                     VotesCast = votesCast,
-                    TotalMembers = totalMembers > 0 ? totalMembers : 1
+                    TotalMembers = totalMembers > 0 ? totalMembers : 1,
+                    FinalDecision = r.FinalDecision
                 });
             }
             
@@ -1923,7 +1935,8 @@ public partial class ApplicationService
         DateTime? from = null,
         DateTime? to = null,
         int pageNumber = 1,
-        int pageSize = 20)
+        int pageSize = 20,
+        string? searchTerm = null)
     {
         try
         {
@@ -1940,7 +1953,8 @@ public partial class ApplicationService
                 From: from,
                 To: to,
                 PageNumber: pageNumber,
-                PageSize: pageSize
+                PageSize: pageSize,
+                SearchTerm: string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm
             );
             var result = await handler.Handle(query, CancellationToken.None);
             if (!result.IsSuccess || result.Data == null)
@@ -1987,7 +2001,8 @@ public partial class ApplicationService
                     LastName = ((array.Length > 1) ? array[1] : ""),
                     Email = u.Email,
                     Role = (u.Roles.FirstOrDefault() ?? ""),
-                    IsActive = (u.Status == "Active")
+                    IsActive = (u.Status == "Active"),
+                    LocationId = u.LocationId
                 };
             }).ToList();
         }

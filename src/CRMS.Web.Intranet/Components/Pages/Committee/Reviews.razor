@@ -170,7 +170,7 @@
                     Status = r.Status,
                     VotesCast = r.VotesCast,
                     TotalMembers = r.TotalMembers > 0 ? r.TotalMembers : 1,
-                    Decision = "" // Would need to fetch from full review if needed
+                    Decision = r.FinalDecision ?? ""
                 }).ToList();
             }
             else

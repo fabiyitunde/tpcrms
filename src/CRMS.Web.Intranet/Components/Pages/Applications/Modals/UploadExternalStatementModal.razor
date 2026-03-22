@@ -91,8 +91,10 @@
     {
         get
         {
-            var months = (model.PeriodTo - model.PeriodFrom).TotalDays / 30.0;
-            if (model.PeriodTo > model.PeriodFrom && months < 3)
+            if (model.PeriodTo <= model.PeriodFrom) return null;
+            var months = ((model.PeriodTo.Year - model.PeriodFrom.Year) * 12) + model.PeriodTo.Month - model.PeriodFrom.Month;
+            if (model.PeriodTo.Day < model.PeriodFrom.Day) months--;
+            if (months < 3)
                 return "Statement period must be at least 3 months.";
             return null;
         }

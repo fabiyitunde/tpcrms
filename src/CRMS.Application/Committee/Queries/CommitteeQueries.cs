@@ -66,19 +66,24 @@ public class GetMyPendingVotesHandler : IRequestHandler<GetMyPendingVotesQuery, 
     {
         var reviews = await _repository.GetPendingVotesByUserIdAsync(request.UserId, ct);
         
-        var summaries = reviews.Select(r => new CommitteeReviewSummaryDto(
-            r.Id,
-            r.LoanApplicationId,
-            r.ApplicationNumber,
-            r.CommitteeType.ToString(),
-            r.Status.ToString(),
-            r.DeadlineAt,
-            r.ApprovalVotes,
-            r.RejectionVotes,
-            r.PendingVotes,
-            r.IsOverdue,
-            false // User hasn't voted
-        )).ToList();
+        var summaries = reviews.Select(r => {
+            var member = r.Members.FirstOrDefault(m => m.UserId == request.UserId);
+            return new CommitteeReviewSummaryDto(
+                r.Id,
+                r.LoanApplicationId,
+                r.ApplicationNumber,
+                r.CommitteeType.ToString(),
+                r.Status.ToString(),
+                r.DeadlineAt,
+                r.ApprovalVotes,
+                r.RejectionVotes,
+                r.PendingVotes,
+                r.IsOverdue,
+                member?.HasVoted ?? false,
+                r.CirculatedAt,
+                member?.Vote?.ToString()
+            );
+        }).ToList();
 
         return ApplicationResult<List<CommitteeReviewSummaryDto>>.Success(summaries);
     }
@@ -113,7 +118,9 @@ public class GetMyCommitteeReviewsHandler : IRequestHandler<GetMyCommitteeReview
                 r.RejectionVotes,
                 r.PendingVotes,
                 r.IsOverdue,
-                member?.HasVoted ?? false
+                member?.HasVoted ?? false,
+                r.CirculatedAt,
+                member?.Vote?.ToString()
             );
         }).ToList();
 
@@ -148,7 +155,10 @@ public class GetCommitteeReviewsByStatusHandler : IRequestHandler<GetCommitteeRe
             r.RejectionVotes,
             r.PendingVotes,
             r.IsOverdue,
-            false
+            false,
+            r.CirculatedAt,
+            null,
+            r.FinalDecision?.ToString()
         )).ToList();
 
         return ApplicationResult<List<CommitteeReviewSummaryDto>>.Success(summaries);
@@ -182,7 +192,10 @@ public class GetOverdueCommitteeReviewsHandler : IRequestHandler<GetOverdueCommi
             r.RejectionVotes,
             r.PendingVotes,
             true,
-            false
+            false,
+            r.CirculatedAt,
+            null,
+            r.FinalDecision?.ToString()
         )).ToList();
 
         return ApplicationResult<List<CommitteeReviewSummaryDto>>.Success(summaries);
