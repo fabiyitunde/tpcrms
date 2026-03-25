@@ -297,7 +297,13 @@
 
             var result = await AppService.AddStatementTransactionsAsync(Statement.Id, rows);
             if (result.Success)
-                await OnSuccess.InvokeAsync();
+            {
+                // If some rows were skipped (outside period), show a warning before closing
+                if (!string.IsNullOrEmpty(result.Message))
+                    error = $"⚠ {result.Message}";
+                else
+                    await OnSuccess.InvokeAsync();
+            }
             else
                 error = result.Error ?? "Failed to save transactions.";
         }

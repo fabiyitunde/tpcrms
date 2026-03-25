@@ -494,25 +494,14 @@ public class ApplicationFilter
 public class ApiResponse
 {
     public bool Success { get; set; }
-
     public string? Error { get; set; }
+    /// <summary>Non-fatal informational message (e.g. partial success warning).</summary>
+    public string? Message { get; set; }
 
-    public static ApiResponse Ok()
-    {
-        return new ApiResponse
-        {
-            Success = true
-        };
-    }
+    public static ApiResponse Ok() => new ApiResponse { Success = true };
+    public static ApiResponse Ok(string message) => new ApiResponse { Success = true, Message = message };
 
-    public static ApiResponse Fail(string error)
-    {
-        return new ApiResponse
-        {
-            Success = false,
-            Error = error
-        };
-    }
+    public static ApiResponse Fail(string error) => new ApiResponse { Success = false, Error = error };
 }
 public class ApiResponse<T> : ApiResponse
 {

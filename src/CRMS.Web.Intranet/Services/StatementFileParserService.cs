@@ -77,44 +77,85 @@ public class StatementFileParserService
         {
             if (ws.Row(r).IsEmpty()) continue;
 
-            string? Cell(int oneBasedCol) => oneBasedCol > 0 ? ws.Cell(r, oneBasedCol).GetString().Trim() : null;
+            // Read a cell as a trimmed string, using cached value for formula cells
+            string? Cell(int oneBasedCol)
+            {
+                if (oneBasedCol <= 0) return null;
+                var cell = ws.Cell(r, oneBasedCol);
+                // For formula cells, use the cached (computed) numeric/text value
+                if (cell.DataType == XLDataType.Number)
+                    return cell.GetDouble().ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return cell.GetString().Trim();
+            }
 
-            if (!TryParseDate(Cell(colMap[0]), out var date)) { skipped++; continue; }
+            // Read date cell: handles OA serial numbers (Excel date-as-number) and DateTime cells
+            DateTime? ReadCellDate(int oneBasedCol)
+            {
+                if (oneBasedCol <= 0) return null;
+                var cell = ws.Cell(r, oneBasedCol);
+                try
+                {
+                    if (cell.DataType == XLDataType.DateTime)
+                        return cell.GetDateTime();
+                    if (cell.DataType == XLDataType.Number)
+                    {
+                        var num = cell.GetDouble();
+                        if (num > 1 && num < 2958466) // valid OA date range (Jan 1900 – Dec 9999)
+                            return DateTime.FromOADate(num);
+                    }
+                }
+                catch { }
+                return TryParseDate(cell.GetString().Trim(), out var d) ? d : null;
+            }
+
+            // Read a cell as a decimal, preferring direct numeric access over string parsing
+            decimal ReadCellDecimal(int oneBasedCol)
+            {
+                if (oneBasedCol <= 0) return 0;
+                var cell = ws.Cell(r, oneBasedCol);
+                if (cell.DataType == XLDataType.Number)
+                    return (decimal)cell.GetDouble();
+                return decimal.TryParse(CleanAmount(cell.GetString().Trim()), out var d) ? d : 0;
+            }
+
+            var date = ReadCellDate(colMap[0]);
+            if (date == null) { skipped++; continue; }
             // Allow ±5 days tolerance for statement boundary dates
-            if (date < periodStart.AddDays(-5) || date > periodEnd.AddDays(5)) { skipped++; continue; }
+            if (date.Value < periodStart.AddDays(-5) || date.Value > periodEnd.AddDays(5)) { skipped++; continue; }
 
             var desc = Cell(colMap[1]);
             if (string.IsNullOrWhiteSpace(desc)) { skipped++; continue; }
 
-            decimal debit = 0, credit = 0;
-            decimal.TryParse(CleanAmount(Cell(colMap[2])), out debit);
-            decimal.TryParse(CleanAmount(Cell(colMap[3])), out credit);
+            decimal debit = ReadCellDecimal(colMap[2]);
+            decimal credit = ReadCellDecimal(colMap[3]);
 
             if (debit == 0 && credit == 0 && colMap[4] > 0)
             {
-                if (decimal.TryParse(CleanAmount(Cell(colMap[4])), out var amt))
-                {
-                    if (amt >= 0) credit = amt;
-                    else debit = Math.Abs(amt);
-                }
+                var amt = ReadCellDecimal(colMap[4]);
+                if (amt >= 0) credit = amt;
+                else debit = Math.Abs(amt);
             }
 
             if (debit == 0 && credit == 0) { skipped++; continue; }
 
             decimal balance;
-            if (colMap[5] > 0 && decimal.TryParse(CleanAmount(Cell(colMap[5])), out var fileBal))
-                balance = fileBal;
+            if (colMap[5] > 0)
+            {
+                var fileBal = ReadCellDecimal(colMap[5]);
+                balance = fileBal != 0 ? fileBal : runBal + credit - debit;
+            }
             else
             {
                 runBal += credit - debit;
                 balance = runBal;
             }
+            runBal = balance;
 
             var refVal = Cell(colMap[6]);
 
             rows.Add(new StatementTransactionRow
             {
-                Date = date,
+                Date = date.Value,
                 Description = desc,
                 Reference = string.IsNullOrWhiteSpace(refVal) ? null : refVal,
                 DebitAmount = debit > 0 ? debit : null,

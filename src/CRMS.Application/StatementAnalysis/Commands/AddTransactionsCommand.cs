@@ -51,6 +51,10 @@ public class AddTransactionsHandler : IRequestHandler<AddTransactionsCommand, Ap
                 addedCount++;
         }
 
+        if (addedCount == 0)
+            return ApplicationResult<int>.Failure(
+                "No transactions could be saved. Check that all transaction dates fall within the statement period.");
+
         // Run data integrity check so BalanceReconciled is set (needed for Verify)
         statement.ValidateDataIntegrity();
 

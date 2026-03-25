@@ -165,24 +165,34 @@
 
     private static string FormatCategory(string category) => category switch
     {
-        "SalaryIncome" => "Salary",
-        "BusinessIncome" => "Income",
-        "LoanRepayment" => "Loan Repayment",
-        "UtilityPayment" => "Utility",
-        "RentPayment" => "Rent",
-        "GamblingTransaction" => "Gambling",
-        "BouncedCheque" => "Bounced",
-        "TransferIn" => "Transfer In",
-        "TransferOut" => "Transfer Out",
-        "Unknown" => "Other",
+        "Salary"          => "Salary",
+        "BusinessIncome"  => "Income",
+        "Investment"      => "Investment",
+        "LoanInflow"      => "Loan Inflow",
+        "TransferIn"      => "Transfer In",
+        "Reversal"        => "Reversal",
+        "OtherIncome"     => "Other Income",
+        "LoanRepayment"   => "Loan Repayment",
+        "RentOrMortgage"  => "Rent",
+        "Utilities"       => "Utility",
+        "Gambling"        => "Gambling",
+        "Entertainment"   => "Entertainment",
+        "TransferOut"     => "Transfer Out",
+        "BankCharges"     => "Bank Charges",
+        "CardPayment"     => "Card Payment",
+        "CashWithdrawal"  => "Cash Withdrawal",
+        "OtherExpense"    => "Other Expense",
+        "SelfTransfer"    => "Self Transfer",
+        "Unknown"         => "Other",
         _ => category
     };
 
     private static string CategoryBadgeClass(string category) => category switch
     {
-        "GamblingTransaction" or "BouncedCheque" => "badge-danger",
-        "SalaryIncome" or "BusinessIncome" or "TransferIn" => "badge-success",
-        "LoanRepayment" or "RentPayment" or "UtilityPayment" => "badge-warning",
+        "Gambling"                                            => "badge-danger",
+        "Salary" or "BusinessIncome" or "TransferIn"
+            or "Investment" or "LoanInflow" or "Reversal"    => "badge-success",
+        "LoanRepayment" or "RentOrMortgage" or "Utilities"   => "badge-warning",
         _ => "badge-gray"
     };
 }

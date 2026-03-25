@@ -206,6 +206,15 @@ public partial class ApplicationService
                 originalFileName = request.File.Name;
             }
 
+            var fileFormat = request.File?.Name != null
+                ? Path.GetExtension(request.File.Name).ToLowerInvariant() switch
+                {
+                    ".xlsx" or ".xls" => CRMS.Domain.Enums.StatementFormat.Excel,
+                    ".csv"            => CRMS.Domain.Enums.StatementFormat.CSV,
+                    _                 => CRMS.Domain.Enums.StatementFormat.PDF
+                }
+                : CRMS.Domain.Enums.StatementFormat.PDF;
+
             var handler = _sp.GetRequiredService<CRMS.Application.StatementAnalysis.Commands.UploadStatementHandler>();
             var command = new CRMS.Application.StatementAnalysis.Commands.UploadStatementCommand(
                 request.AccountNumber,
@@ -215,7 +224,7 @@ public partial class ApplicationService
                 request.PeriodTo,
                 request.OpeningBalance,
                 request.ClosingBalance,
-                CRMS.Domain.Enums.StatementFormat.PDF,
+                fileFormat,
                 CRMS.Domain.Enums.StatementSource.ManualUpload,
                 userId,
                 originalFileName,
@@ -271,9 +280,14 @@ public partial class ApplicationService
 
             var command = new CRMS.Application.StatementAnalysis.Commands.AddTransactionsCommand(statementId, transactions);
             var result = await handler.Handle(command, CancellationToken.None);
-            return result.IsSuccess
-                ? ApiResponse.Ok()
-                : ApiResponse.Fail(result.Error ?? "Failed to add transactions");
+            if (!result.IsSuccess)
+                return ApiResponse.Fail(result.Error ?? "Failed to add transactions");
+
+            var savedCount = result.Data;
+            var skipped = transactions.Count - savedCount;
+            return skipped > 0
+                ? ApiResponse.Ok($"{savedCount} transaction(s) saved; {skipped} were skipped because their dates fall outside the statement period.")
+                : ApiResponse.Ok();
         }
         catch (Exception ex)
         {

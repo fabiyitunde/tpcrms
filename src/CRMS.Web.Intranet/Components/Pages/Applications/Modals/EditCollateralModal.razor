@@ -1,5 +1,6 @@
 @inject ApplicationService AppService
 @inject AuthService AuthService
+@inject Microsoft.Extensions.Options.IOptions<CRMS.Web.Intranet.Services.CollateralHaircutSettings> HaircutOptions
 
 <div class="modal-backdrop show" @onclick="Close">
     <div class="modal" style="max-width: 600px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
@@ -73,7 +74,7 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-group">
                         <label class="form-label">Owner Name</label>
-                        <input type="text" class="form-control" @bind="model.OwnerName" 
+                        <input type="text" class="form-control" @bind="model.OwnerName"
                             placeholder="Legal owner of the asset" />
                     </div>
                     <div class="form-group">
@@ -85,6 +86,45 @@
                             <option value="Corporate">Corporate Ownership</option>
                             <option value="ThirdParty">Third Party</option>
                         </select>
+                    </div>
+                </div>
+
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin: var(--space-4) 0 var(--space-3);">VALUATION</h4>
+
+                <div class="form-group">
+                    <label class="form-label">Market Value (₦)</label>
+                    <input type="number" class="form-control" @bind="model.MarketValue" min="0" step="1000"
+                        placeholder="Professional valuation amount" />
+                    <div class="form-hint">Independent professional valuation amount</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Forced Sale Value (₦)</label>
+                    <input type="number" class="form-control" @bind="model.ForcedSaleValue" min="0" step="1000"
+                        placeholder="Defaults to 70% of market value" />
+                    <div class="form-hint">Leave blank to auto-calculate as 70% of market value</div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Haircut (%)</label>
+                        <input type="number" class="form-control" @bind="model.HaircutPercentage"
+                            min="0" max="100" step="0.5" />
+                        <div class="form-hint">Risk discount applied to market value</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Acceptable Value</label>
+                        <div style="padding: var(--space-2) var(--space-3); background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600; color: var(--success-600); min-height: 42px; display: flex; align-items: center;">
+                            @if (model.MarketValue > 0)
+                            {
+                                <span>₦@FormatAmount(model.MarketValue * (1 - model.HaircutPercentage / 100))</span>
+                            }
+                            else
+                            {
+                                <span style="font-weight: 400; font-size: var(--text-sm); color: var(--gray-500);">Enter market value</span>
+                            }
+                        </div>
+                        <div class="form-hint">Market Value × (1 − Haircut%)</div>
                     </div>
                 </div>
             }
@@ -131,6 +171,7 @@
         var collateral = await AppService.GetCollateralDetailAsync(CollateralId);
         if (collateral != null)
         {
+            var defaultHaircut = GetDefaultHaircut(collateral.Type);
             model = new CollateralEditModel
             {
                 Type = collateral.Type,
@@ -138,7 +179,10 @@
                 AssetIdentifier = collateral.AssetIdentifier,
                 Location = collateral.Location,
                 OwnerName = collateral.OwnerName,
-                OwnershipType = collateral.OwnershipType
+                OwnershipType = collateral.OwnershipType,
+                MarketValue = collateral.MarketValue ?? 0,
+                ForcedSaleValue = collateral.ForcedSaleValue,
+                HaircutPercentage = collateral.HaircutPercentage ?? defaultHaircut
             };
         }
         isLoading = false;
@@ -175,14 +219,27 @@
                 OwnershipType = model.OwnershipType
             });
 
-            if (result.Success)
-            {
-                await OnSuccess.InvokeAsync();
-            }
-            else
+            if (!result.Success)
             {
                 errorMessage = result.Error ?? "Failed to update collateral";
+                return;
             }
+
+            if (model.MarketValue > 0)
+            {
+                var fsv = model.ForcedSaleValue.HasValue && model.ForcedSaleValue > 0
+                    ? model.ForcedSaleValue
+                    : null;
+                var valResult = await AppService.SetCollateralValuationAsync(
+                    CollateralId, model.MarketValue, fsv, model.HaircutPercentage);
+                if (!valResult.Success)
+                {
+                    errorMessage = valResult.Error ?? "Basic info saved but valuation update failed";
+                    return;
+                }
+            }
+
+            await OnSuccess.InvokeAsync();
         }
         catch (Exception ex)
         {
@@ -196,6 +253,31 @@
 
     private async Task Close() => await OnClose.InvokeAsync();
 
+    private decimal GetDefaultHaircut(string type)
+    {
+        var h = HaircutOptions.Value;
+        return type switch
+        {
+            "CashDeposit"   => h.CashDeposit,
+            "FixedDeposit"  => h.FixedDeposit,
+            "TreasuryBills" => h.TreasuryBills,
+            "Bonds"         => h.Bonds,
+            "RealEstate"    => h.RealEstate,
+            "Vehicle"       => h.Vehicle,
+            "Stocks"        => h.Stocks,
+            "Equipment"     => h.Equipment,
+            "Inventory"     => h.Inventory,
+            _               => h.Default
+        };
+    }
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000)     return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
+    }
+
     private class CollateralEditModel
     {
         public string Type { get; set; } = string.Empty;
@@ -204,5 +286,8 @@
         public string? Location { get; set; }
         public string? OwnerName { get; set; }
         public string? OwnershipType { get; set; }
+        public decimal MarketValue { get; set; }
+        public decimal? ForcedSaleValue { get; set; }
+        public decimal HaircutPercentage { get; set; }
     }
 }

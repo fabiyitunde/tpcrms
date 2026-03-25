@@ -28,6 +28,7 @@ public class BankStatementRepository : IBankStatementRepository
     public async Task<IReadOnlyList<BankStatement>> GetByLoanApplicationIdAsync(Guid loanApplicationId, CancellationToken ct = default)
     {
         return await _context.BankStatements
+            .Include(x => x.Transactions)
             .Where(x => x.LoanApplicationId == loanApplicationId)
             .OrderByDescending(x => x.PeriodEnd)
             .ToListAsync(ct);
