@@ -58,7 +58,7 @@
             </div>
         </div>
 
-        <div style="overflow-y: auto; flex: 1; padding: var(--space-4);">
+        <div style="overflow-y: auto; flex: 1; min-height: 0; padding: var(--space-4);">
             @if (!string.IsNullOrEmpty(ParseMessage))
             {
                 bool parsedOk = rows.Any() && PreloadedTransactions?.Any() == true;
@@ -127,14 +127,14 @@
                             </td>
                             <td>
                                 <input type="number" class="form-control form-control-sm" style="text-align: right;"
-                                       value="@(row.DebitAmount > 0 ? row.DebitAmount?.ToString("N2") : "")"
+                                       value="@(row.DebitAmount > 0 ? row.DebitAmount.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "")"
                                        step="0.01" min="0"
                                        placeholder="0.00"
                                        @onchange="e => OnDebitChanged(row, e.Value?.ToString())" />
                             </td>
                             <td>
                                 <input type="number" class="form-control form-control-sm" style="text-align: right;"
-                                       value="@(row.CreditAmount > 0 ? row.CreditAmount?.ToString("N2") : "")"
+                                       value="@(row.CreditAmount > 0 ? row.CreditAmount.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "")"
                                        step="0.01" min="0"
                                        placeholder="0.00"
                                        @onchange="e => OnCreditChanged(row, e.Value?.ToString())" />
@@ -175,13 +175,19 @@
                 }
             </div>
             <button type="button" class="btn btn-secondary" @onclick="Close" disabled="@isSaving">Cancel</button>
-            <button type="button" class="btn btn-primary" @onclick="Save" disabled="@(!CanSave || isSaving)">
-                @if (isSaving)
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+                <button type="button" class="btn btn-primary" @onclick="Save" disabled="@(!CanSave || isSaving)">
+                    @if (isSaving)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    Save @rows.Count Transaction(s)
+                </button>
+                @if (!CanSave && rows.Any())
                 {
-                    <span class="spinner"></span>
+                    <span style="font-size: var(--text-xs); color: var(--gray-400);">All rows need a description and at least one amount.</span>
                 }
-                Save @rows.Count Transaction(s)
-            </button>
+            </div>
         </div>
     </div>
 </div>
@@ -285,6 +291,7 @@
     {
         error = null;
         isSaving = true;
+        StateHasChanged();
         try
         {
             // Stamp final running balances before sending
@@ -306,6 +313,10 @@
             }
             else
                 error = result.Error ?? "Failed to save transactions.";
+        }
+        catch (Exception ex)
+        {
+            error = $"Unexpected error: {ex.Message}";
         }
         finally { isSaving = false; }
     }
