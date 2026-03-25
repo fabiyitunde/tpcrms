@@ -9,11 +9,16 @@ public record SubmitLoanApplicationCommand(Guid ApplicationId, Guid UserId) : IR
 public class SubmitLoanApplicationHandler : IRequestHandler<SubmitLoanApplicationCommand, ApplicationResult>
 {
     private readonly ILoanApplicationRepository _repository;
+    private readonly IBankStatementRepository _statementRepository;
     private readonly IUnitOfWork _unitOfWork;
 
-    public SubmitLoanApplicationHandler(ILoanApplicationRepository repository, IUnitOfWork unitOfWork)
+    public SubmitLoanApplicationHandler(
+        ILoanApplicationRepository repository,
+        IBankStatementRepository statementRepository,
+        IUnitOfWork unitOfWork)
     {
         _repository = repository;
+        _statementRepository = statementRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -22,6 +27,11 @@ public class SubmitLoanApplicationHandler : IRequestHandler<SubmitLoanApplicatio
         var application = await _repository.GetByIdAsync(request.ApplicationId, ct);
         if (application == null)
             return ApplicationResult.Failure("Loan application not found");
+
+        // Bank statements are a separate aggregate — validate cross-aggregate requirement here
+        var statements = await _statementRepository.GetByLoanApplicationIdAsync(request.ApplicationId, ct);
+        if (!statements.Any())
+            return ApplicationResult.Failure("At least one bank statement is required");
 
         var result = application.Submit(request.UserId);
         if (result.IsFailure)

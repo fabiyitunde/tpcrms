@@ -1050,6 +1050,13 @@ else
                         This application will be submitted to Branch Review for approval.
                     </div>
                 }
+                @if (!string.IsNullOrEmpty(submitError))
+                {
+                    <div class="alert alert-danger mb-4">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">error</span>
+                        @submitError
+                    </div>
+                }
                 
                 <div class="form-group">
                     <label class="form-label">Comments (Optional)</label>
@@ -1124,6 +1131,7 @@ else
     private bool isSubmittingForReview;
     private string submitComments = string.Empty;
     private List<string> validationErrors = [];
+    private string? submitError;
 
     private enum ActionType { Approve, Return, Reject }
 
@@ -2183,9 +2191,9 @@ else
     // Submit for Review handlers
     private void ShowSubmitForReviewModal()
     {
-        // Validate required data
         validationErrors = ValidateForSubmission();
         submitComments = string.Empty;
+        submitError = null;
         showSubmitReviewModal = true;
     }
 
@@ -2193,6 +2201,7 @@ else
     {
         showSubmitReviewModal = false;
         submitComments = string.Empty;
+        submitError = null;
     }
 
     private void ShowSetupCommitteeModal() => showSetupCommitteeModal = true;
@@ -2214,11 +2223,12 @@ else
         {
             errors.Add("At least one document must be uploaded");
         }
-        else
+
+        // Bank statements live in the Statements tab (application.BankStatements),
+        // not in application.Documents — check the right collection.
+        if (!application.BankStatements.Any())
         {
-            var hasBankStatement = application.Documents.Any(d => d.Category == "BankStatement");
-            if (!hasBankStatement)
-                errors.Add("Bank statement is required");
+            errors.Add("Bank statement is required");
         }
 
         // Check for directors/signatories
@@ -2291,6 +2301,7 @@ else
     {
         if (validationErrors.Any()) return;
 
+        submitError = null;
         isSubmittingForReview = true;
 
         try
@@ -2302,6 +2313,10 @@ else
             {
                 showSubmitReviewModal = false;
                 await LoadApplication();
+            }
+            else
+            {
+                submitError = result.Error ?? "Failed to submit application. Please try again.";
             }
         }
         finally

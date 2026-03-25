@@ -123,7 +123,28 @@ public class LoanApplicationRepository : ILoanApplicationRepository
 
     public void Update(LA.LoanApplication application)
     {
+        // Capture new (untracked) child entities BEFORE Update() processes the graph.
+        // EF Core marks entities with non-empty Guid keys as Modified (not Added),
+        // because it can't distinguish "new with user-assigned key" from "existing".
+        var newStatusHistory = application.StatusHistory
+            .Where(h => _context.Entry(h).State == EntityState.Detached)
+            .ToList();
+        var newComments = application.Comments
+            .Where(c => _context.Entry(c).State == EntityState.Detached)
+            .ToList();
+        var newDocuments = application.Documents
+            .Where(d => _context.Entry(d).State == EntityState.Detached)
+            .ToList();
+
         _context.LoanApplications.Update(application);
+
+        // Re-mark new children as Added so they get INSERTed, not UPDATE-ignored.
+        foreach (var h in newStatusHistory)
+            _context.Entry(h).State = EntityState.Added;
+        foreach (var c in newComments)
+            _context.Entry(c).State = EntityState.Added;
+        foreach (var d in newDocuments)
+            _context.Entry(d).State = EntityState.Added;
     }
 }
 

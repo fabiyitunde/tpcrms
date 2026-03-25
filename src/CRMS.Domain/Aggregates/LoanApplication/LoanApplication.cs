@@ -141,8 +141,8 @@ public class LoanApplication : AggregateRoot
         if (Status != LoanApplicationStatus.Draft && Status != LoanApplicationStatus.BranchReturned)
             return Result.Failure("Application can only be submitted from Draft or Returned status");
 
-        if (!_documents.Any(d => d.Category == DocumentCategory.BankStatement && d.Status == DocumentStatus.Uploaded))
-            return Result.Failure("At least one bank statement is required");
+        // Bank statements are managed via the BankStatement aggregate (Statements tab),
+        // not as LoanApplicationDocuments. Cross-aggregate validation is handled by the handler.
 
         Status = LoanApplicationStatus.Submitted;
         SubmittedAt = DateTime.UtcNow;
