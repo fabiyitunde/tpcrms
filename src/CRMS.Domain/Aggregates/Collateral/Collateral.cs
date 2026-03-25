@@ -235,11 +235,12 @@ public class Collateral : AggregateRoot
         _documents.Remove(document);
     }
 
-    public Result UpdateBasicInfo(CollateralType type, string description, string? assetIdentifier, 
+    public Result UpdateBasicInfo(CollateralType type, string description, string? assetIdentifier,
         string? location, string? ownerName, string? ownershipType)
     {
-        if (Status != CollateralStatus.Proposed && Status != CollateralStatus.UnderValuation)
-            return Result.Failure("Can only update collateral in Proposed or UnderValuation status");
+        if (Status == CollateralStatus.Approved || Status == CollateralStatus.Perfected ||
+            Status == CollateralStatus.Rejected || Status == CollateralStatus.Released)
+            return Result.Failure("Cannot update collateral that has been approved, perfected, or rejected");
 
         if (string.IsNullOrWhiteSpace(description))
             return Result.Failure("Description is required");
@@ -250,7 +251,10 @@ public class Collateral : AggregateRoot
         Location = location;
         OwnerName = ownerName;
         OwnershipType = ownershipType;
-        HaircutPercentage = GetDefaultHaircut(type);
+        // Only reset the default haircut if no valuation has been entered yet —
+        // preserve any custom haircut set during the valuation step
+        if (MarketValue == null)
+            HaircutPercentage = GetDefaultHaircut(type);
         ModifiedAt = DateTime.UtcNow;
 
         return Result.Success();

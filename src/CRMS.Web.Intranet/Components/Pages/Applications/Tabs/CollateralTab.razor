@@ -209,9 +209,11 @@ else
         return $"{amount:N0}";
     }
 
-    // Can edit if in an early status (application is already gated to Draft by IsEditable)
-    private static bool CanEditCollateral(string status) => status is "Proposed" or "UnderValuation";
+    // Can edit/delete unless collateral has been formally approved or rejected
+    // IsEditable (Draft) is the outer gate — these only exclude terminal states
+    private static bool CanEditCollateral(string status) =>
+        status is not ("Approved" or "Perfected" or "Rejected" or "Released");
 
-    // Can delete only if Proposed — Draft applications will only ever have Proposed collateral
-    private static bool CanDeleteCollateral(string status) => status is "Proposed";
+    private static bool CanDeleteCollateral(string status) =>
+        status is not ("Approved" or "Perfected" or "Rejected" or "Released");
 }

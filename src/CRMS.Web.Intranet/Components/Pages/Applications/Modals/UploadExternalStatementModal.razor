@@ -3,14 +3,14 @@
 @inject AuthService AuthService
 
 <div class="modal-backdrop show" @onclick="Close">
-    <div class="modal" style="max-width: 600px;" @onclick:stopPropagation>
+    <div class="modal" style="max-width: 600px; max-height: 92vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
         <div class="modal-header">
             <h3 class="modal-title">Upload External Bank Statement</h3>
             <button type="button" class="modal-close" @onclick="Close">
                 <span class="material-symbols-outlined">close</span>
             </button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body" style="overflow-y: auto; flex: 1;">
             <div class="grid grid-cols-2 gap-4">
                 <div class="form-group">
                     <label class="form-label">Bank Name *</label>

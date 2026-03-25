@@ -327,6 +327,28 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse> DeleteExternalStatementAsync(Guid statementId)
+    {
+        try
+        {
+            var repository = _sp.GetRequiredService<CRMS.Domain.Interfaces.IBankStatementRepository>();
+            var unitOfWork = _sp.GetRequiredService<CRMS.Domain.Interfaces.IUnitOfWork>();
+            var statement = await repository.GetByIdAsync(statementId);
+            if (statement == null)
+                return ApiResponse.Fail("Statement not found");
+            if (statement.IsInternal)
+                return ApiResponse.Fail("The own-bank statement cannot be deleted");
+            repository.Delete(statement);
+            await unitOfWork.SaveChangesAsync(CancellationToken.None);
+            return ApiResponse.Ok();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting bank statement {Id}", statementId);
+            return ApiResponse.Fail("Failed to delete statement");
+        }
+    }
+
     public async Task<List<StatementTransactionInfo>> GetStatementTransactionsAsync(Guid statementId)
     {
         try

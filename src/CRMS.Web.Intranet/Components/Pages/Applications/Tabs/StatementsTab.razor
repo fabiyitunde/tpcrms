@@ -185,6 +185,14 @@
                                             <span class="material-symbols-outlined" style="font-size: 16px;">analytics</span>
                                         </button>
                                     }
+                                    @if (IsEditable)
+                                    {
+                                        <button class="btn btn-sm btn-ghost" style="color: var(--danger-500);"
+                                                @onclick="() => OnDelete.InvokeAsync(stmt.Id)"
+                                                title="Delete this statement">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                        </button>
+                                    }
                                 </div>
                             </td>
                         </tr>
@@ -204,6 +212,7 @@
     [Parameter] public EventCallback<Guid> OnReject { get; set; }
     [Parameter] public EventCallback<Guid> OnAnalyze { get; set; }
     [Parameter] public EventCallback<Guid> OnViewTransactions { get; set; }
+    [Parameter] public EventCallback<Guid> OnDelete { get; set; }
 
     private static string FormatAmount(decimal amount) =>
         amount >= 1_000_000_000 ? $"{amount / 1_000_000_000:N2}B"

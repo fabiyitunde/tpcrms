@@ -50,4 +50,9 @@ public class BankStatementRepository : IBankStatementRepository
     {
         _context.BankStatements.Update(statement);
     }
+
+    public void Delete(BankStatement statement)
+    {
+        _context.BankStatements.Remove(statement);
+    }
 }

@@ -99,9 +99,6 @@ public class UpdateCollateralHandler : IRequestHandler<UpdateCollateralCommand, 
         if (collateral == null)
             return ApplicationResult.Failure("Collateral not found");
 
-        if (collateral.Status != CollateralStatus.Proposed && collateral.Status != CollateralStatus.UnderValuation)
-            return ApplicationResult.Failure("Cannot update collateral that has been valued or approved");
-
         var result = collateral.UpdateBasicInfo(request.Type, request.Description, request.AssetIdentifier, request.Location, request.OwnerName, request.OwnershipType);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
