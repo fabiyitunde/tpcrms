@@ -18,6 +18,14 @@ public class OfferLetterRepository : IOfferLetterRepository
         return await _context.OfferLetters.FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
+    public async Task<List<OfferLetter>> GetAllByLoanApplicationIdAsync(Guid loanApplicationId, CancellationToken ct = default)
+    {
+        return await _context.OfferLetters
+            .Where(x => x.LoanApplicationId == loanApplicationId)
+            .OrderByDescending(x => x.Version)
+            .ToListAsync(ct);
+    }
+
     public async Task<OfferLetter?> GetLatestByLoanApplicationIdAsync(Guid loanApplicationId, CancellationToken ct = default)
     {
         return await _context.OfferLetters

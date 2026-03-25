@@ -659,6 +659,19 @@ public class UpdateTemplateRequest
     public string? BodyHtmlTemplate { get; set; }
 }
 
+// Offer Letter history
+public class OfferLetterInfo
+{
+    public Guid Id { get; set; }
+    public int Version { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public long FileSizeBytes { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string GeneratedByUserName { get; set; } = string.Empty;
+    public DateTime GeneratedAt { get; set; }
+    public string StoragePath { get; set; } = string.Empty;
+}
+
 // Bureau Account Info for detail modal
 public class BureauAccountInfo
 {

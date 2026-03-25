@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-03-25 (Session 32)
+**Last Updated:** 2026-03-25 (Session 34)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -157,13 +157,13 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **Upload modal collapsible format guide panel (column name table, sample header, link to Help)** | ✅ |
 | **Help page Bank Statements section rewritten — format guide, bank export instructions, troubleshooting** | ✅ |
 | **`AddStatementTransactionsAsync` + `ValidateDataIntegrity()` call — enables Verify and Analyze after entry** | ✅ |
+| **Offer letter download + history tab (re-download any version, per-row spinner, empty state)** | ✅ |
 
 ### What Is Pending
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
 | Wire customer exposure into AI Advisory (replace bureau-derived exposure) | P2 | `IFineractDirectService.GetCustomerExposureAsync` ready; needs wiring into `GenerateCreditAdvisoryHandler` to replace/supplement `corporateBureauReport.TotalOutstandingBalance` |
-| Offer letter download (file retrieval from storage) | P3 | Currently shows alert with filename; needs download via `IFileStorageService` similar to `DownloadDocumentAsync` |
 
 ---
 
@@ -466,7 +466,93 @@ Complete end-to-end offer letter generation with proposed repayment schedule.
 
 ---
 
-## 5. Last Session Summary (2026-03-25 Session 32)
+## 5. Last Session Summary (2026-03-25 Session 34)
+
+### Completed — Offer Letter Download + History Tab
+
+Implemented comprehensive offer letter download: both immediate download after generation (already partially wired) and re-download of any previously generated version via a new "Offer Letters" tab.
+
+#### What Was Missing
+
+The `GenerateOfferLetter` button already called `DownloadGeneratedFileAsync` + `downloadFileFromBytes` for immediate download. However:
+- No history was shown — once the user left the page, there was no way to download a previously generated offer letter without regenerating it.
+- The SESSION_HANDOFF described this as "shows alert with filename" which was superseded by earlier work, but the re-download gap remained.
+
+#### Architecture
+
+```
+IOfferLetterRepository.GetAllByLoanApplicationIdAsync (new)
+→ GetOfferLettersByApplicationQuery / Handler (new Application layer)
+→ ApplicationService.GetOfferLettersByApplicationAsync + DownloadOfferLetterAsync
+→ Detail.razor "Offer Letters" tab
+```
+
+#### Files Created
+- `src/CRMS.Application/OfferLetter/Queries/OfferLetterQueries.cs` — `GetOfferLettersByApplicationQuery` + `GetOfferLettersByApplicationHandler` returning `List<OfferLetterSummaryDto>`
+
+#### Files Modified
+- `src/CRMS.Domain/Interfaces/IOfferLetterRepository.cs` — added `GetAllByLoanApplicationIdAsync`
+- `src/CRMS.Infrastructure/Persistence/Repositories/OfferLetterRepository.cs` — implemented it (ordered by version desc)
+- `src/CRMS.Infrastructure/DependencyInjection.cs` — registered `GetOfferLettersByApplicationHandler`
+- `src/CRMS.Web.Intranet/Models/ApplicationModels.cs` — added `OfferLetterInfo` model
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs` — added `GetOfferLettersByApplicationAsync` + `DownloadOfferLetterAsync(offerLetterId)`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor`:
+  - `offerLetters` list loaded in `LoadApplication()` for Approved/Disbursed
+  - After generate: list refreshed before auto-download
+  - "Offer Letters" tab (only when `CanGenerateOfferLetter`) with count badge
+  - Table: version badge, filename, size, status badge, generated-by, timestamp, per-row download with individual spinner
+  - `DownloadOfferLetter(Guid)` method + `FormatFileSize` helper
+
+**Build:** 0 errors.
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v5.2
+- [x] `docs/ImplementationTracker.md` → v5.7
+
+---
+
+## 5. Last Session Summary (2026-03-25 Session 33)
+
+### Completed — Bank Statement Save Button Fix + Display/UX Hardening
+
+Four bugs in `ManageStatementTransactionsModal.razor` were identified and fixed. All are in the same file.
+
+#### Root Causes and Fixes
+
+| Bug | Symptom | Fix |
+|-----|---------|-----|
+| `ToString("N2")` on `<input type="number">` | Comma-formatted strings (e.g. `"2,300,000.00"`) are invalid for number inputs — browser silently discards → field shows placeholder "0.00" → preloaded debit/credit appear blank → `CanSave = false` → button disabled | Changed to `ToString("F2", CultureInfo.InvariantCulture)` (plain decimal, no commas) |
+| Missing `StateHasChanged()` after `isSaving = true` | Spinner never appeared because Blazor wouldn't re-render until the first `await` returned — by which time saving was complete | Added `StateHasChanged()` immediately after `isSaving = true` |
+| No `catch` block in `Save()` | Unhandled exceptions (DI resolution failure, network error, etc.) propagated to Blazor circuit — crashed silently with no user feedback | Added `catch (Exception ex)` → sets `error` field with readable message |
+| Modal body missing `min-height: 0` | Flex child without `min-height: 0` can overflow its container in some browsers → footer (Save button) scrolled off-screen | Added `min-height: 0` to the scrollable body div |
+
+Also added a disabled-state hint: when Save is disabled and rows exist, a small note says "All rows need a description and at least one amount." so users know what's blocking them.
+
+#### Why `CanSave` Was Consistently False
+
+The `ToString("N2")` bug caused a cascade:
+1. Preloaded rows displayed as empty in the number inputs (placeholder "0.00" visible)
+2. If user ever focused and blurred those inputs, `@onchange` fired with an empty string → `OnDebitChanged`/`OnCreditChanged` set both amounts to `null`
+3. `CanSave` requires `DebitAmount > 0 OR CreditAmount > 0` per row → false → button disabled
+4. Disabled HTML buttons silently swallow all click events — no transition, no error
+
+### Files Modified This Session
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/ManageStatementTransactionsModal.razor`
+  - `value=` for debit/credit inputs: `"N2"` → `"F2"` with `CultureInfo.InvariantCulture`
+  - `Save()`: added `StateHasChanged()` after `isSaving = true`
+  - `Save()`: added `catch (Exception ex)` block
+  - Modal body div: added `min-height: 0` to flex style
+  - Footer: disabled-state hint below Save button
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v5.1
+- [x] `docs/ImplementationTracker.md` → v5.6
+
+---
+
+## 5. Previous Session Summary (2026-03-25 Session 32)
 
 ### Completed — External Bank Statement Transaction Entry Pipeline + CSV/Excel Auto-Parsing + Format Guidance
 
@@ -1716,7 +1802,15 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ## 6. Suggested Next Task
 
-### Option A — TabModalReviewReport H1: PartiesTab Bureau Report View Button
+### Option A — Wire Fineract Customer Exposure into AI Advisory
+
+**Status:** `IFineractDirectService.GetCustomerExposureAsync` is implemented and registered. This is the only remaining P2 item.
+**What's needed:** In `GenerateCreditAdvisoryHandler.cs`, after loading the corporate bureau report, call `_fineractService.GetCustomerExposureAsync(clientId, ct)` where `clientId` comes from `loanApp.CoreBankingClientId` (or equivalent field). Replace/supplement `corporateBureauReport.TotalOutstandingBalance` with the Fineract-derived `TotalOutstanding` figure. If Fineract call fails, fall back to bureau balance.
+**Files:** `src/CRMS.Application/AIAdvisory/Commands/GenerateCreditAdvisoryHandler.cs` is the main file. Check `loanApp` for the client ID field name.
+
+---
+
+### Option B — TabModalReviewReport H1: PartiesTab Bureau Report View Button
 
 **File:** `PartiesTab.razor`
 **Issue:** When `director.HasBureauReport == true`, a visibility icon button is rendered with **no `@onclick`** handler. Same for signatories.
@@ -1727,31 +1821,10 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ---
 
-### Option B — TabModalReviewReport H2 + H8: Committee Voting UX + Modal Close Race
+### Option C — TabModalReviewReport H2 + H8: Committee Voting UX + Modal Close Race
 
 **H2** (`CommitteeTab.razor`): Add `isVoting` loading state to Submit Vote button, double-click guard, and error display on failure.
 **H8** (`SetupCommitteeModal.razor`): Change `private void Close() => OnClose.InvokeAsync()` to `private async Task Close() => await OnClose.InvokeAsync()` to prevent fire-and-forget race condition.
-
----
-
-### Option C — Offer Letter Download
-
-**Issue:** After generation, the offer letter is stored in file storage but the UI only shows an alert with the filename — there is no download button.
-**Fix:** Add `DownloadOfferLetterAsync(Guid offerLetterId)` to `ApplicationService`, similar to `DownloadDocumentAsync`. The `OfferLetter` domain entity has a `StoragePath` field. Add a `/api/offer-letters/{id}/download` endpoint in `Program.cs`. Wire in `Detail.razor`.
-
----
-
-### Option D — Wire Fineract Customer Exposure into AI Advisory
-
-**Status:** `IFineractDirectService.GetCustomerExposureAsync` is implemented and registered.
-**What's needed:** In `GenerateCreditAdvisoryHandler`, replace/supplement `corporateBureauReport.TotalOutstandingBalance` with the Fineract-derived exposure figure. This gives the advisory engine real existing-loan data from core banking rather than the bureau-reported balance.
-
----
-
-### Option E — Offer Letter File Download
-
-**Status:** Offer letter button shows `alert(filename)`.
-**What's needed:** Retrieve the generated PDF from `IFileStorageService` and stream it to the browser, same pattern as `DownloadDocumentAsync` in `ApplicationService.cs`.
 
 ---
 

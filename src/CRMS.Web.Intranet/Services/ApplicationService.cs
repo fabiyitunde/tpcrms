@@ -1660,6 +1660,54 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<List<OfferLetterInfo>> GetOfferLettersByApplicationAsync(Guid applicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.OfferLetter.Queries.GetOfferLettersByApplicationHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.OfferLetter.Queries.GetOfferLettersByApplicationQuery(applicationId),
+                CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return [];
+            return result.Data.Select(l => new OfferLetterInfo
+            {
+                Id = l.Id,
+                Version = l.Version,
+                FileName = l.FileName,
+                FileSizeBytes = l.FileSizeBytes,
+                Status = l.Status,
+                GeneratedByUserName = l.GeneratedByUserName,
+                GeneratedAt = l.GeneratedAt,
+                StoragePath = l.StoragePath
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching offer letters for application {Id}", applicationId);
+            return [];
+        }
+    }
+
+    public async Task<(byte[]? Bytes, string? FileName)> DownloadOfferLetterAsync(Guid offerLetterId)
+    {
+        try
+        {
+            var repo = _sp.GetRequiredService<IOfferLetterRepository>();
+            var letter = await repo.GetByIdAsync(offerLetterId);
+            if (letter == null || string.IsNullOrEmpty(letter.StoragePath))
+                return (null, null);
+            var fileStorage = _sp.GetRequiredService<IFileStorageService>();
+            var bytes = await fileStorage.DownloadAsync(letter.StoragePath);
+            return (bytes, letter.FileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error downloading offer letter {Id}", offerLetterId);
+            return (null, null);
+        }
+    }
+
     public async Task<byte[]?> DownloadGeneratedFileAsync(string storagePath)
     {
         try

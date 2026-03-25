@@ -49,7 +49,19 @@ public class BankStatementRepository : IBankStatementRepository
 
     public void Update(BankStatement statement)
     {
+        // Identify new (untracked) transactions BEFORE Update() processes the graph.
+        // EF Core marks entities with non-empty Guid keys as Modified (not Added),
+        // because it can't distinguish "new with user-assigned key" from "existing".
+        // Capturing them first lets us correct their state after Update() runs.
+        var newTransactions = statement.Transactions
+            .Where(t => _context.Entry(t).State == EntityState.Detached)
+            .ToList();
+
         _context.BankStatements.Update(statement);
+
+        // Re-mark the new transactions as Added so they get INSERTed, not UPDATE-ignored.
+        foreach (var txn in newTransactions)
+            _context.Entry(txn).State = EntityState.Added;
     }
 
     public void Delete(BankStatement statement)

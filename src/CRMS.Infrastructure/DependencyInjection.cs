@@ -379,6 +379,7 @@ public static class DependencyInjection
         
         // OfferLetter
         services.AddScoped<Application.OfferLetter.Commands.GenerateOfferLetterHandler>();
+        services.AddScoped<Application.OfferLetter.Queries.GetOfferLettersByApplicationHandler>();
         
         // Collateral
         services.AddScoped<Application.Collateral.Commands.AddCollateralHandler>();
