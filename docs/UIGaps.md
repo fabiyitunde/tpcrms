@@ -1,7 +1,7 @@
 # CRMS Intranet UI - Gap Analysis
 
-**Document Version:** 4.9
-**Date:** 2026-03-22
+**Document Version:** 5.0
+**Date:** 2026-03-25
 **Status:** Priority 1 RESOLVED | Priority 2 RESOLVED | Priority 3 RESOLVED
 
 ---
@@ -171,12 +171,19 @@ Business age-based validation now implemented:
 |---------|--------|-------|
 | Auto-fetch on application create | ✅ Done | `InitiateCorporateLoanCommand` persists CoreBanking statement (6-month) on create |
 | View own-bank statement | ✅ Done | `StatementsTab` — Own Bank section with trust badge, cashflow metrics |
-| Upload external statement | ✅ Done | `UploadExternalStatementModal` — bank name, account, period, balances |
-| Verify external statement | ✅ Done | Inline button; calls `VerifyStatementAsync`; trust weight → 85% |
+| Upload external statement | ✅ Done | `UploadExternalStatementModal` — bank name, account, period, balances, optional file upload |
+| File attachment on upload | ✅ Done | `InputFile` accepts `.pdf,.csv,.xlsx,.xls`; stored via `IFileStorageService` |
+| CSV/Excel transaction parsing | ✅ Done | `StatementFileParserService` — auto column detection, 18 date formats, 40+ column name aliases |
+| Transaction entry grid | ✅ Done | `ManageStatementTransactionsModal` — date, description, debit/credit (mutually exclusive), running balance; Add/Delete rows |
+| Live reconciliation display | ✅ Done | Computed vs Expected closing balance; ±₦1 tolerance; green/orange color coding |
+| Pre-populate grid from file | ✅ Done | After CSV/Excel upload, grid auto-populated with parsed transactions + parse message banner |
+| Verify external statement | ✅ Done | Inline button; calls `VerifyStatementAsync`; trust weight → 85%; disabled until transactions entered |
 | Reject external statement | ✅ Done | Reason modal; calls `RejectStatementAsync` |
-| Trigger cashflow analysis | ✅ Done | "Analyze" button per statement; calls `AnalyzeStatementAsync` |
+| Trigger cashflow analysis | ✅ Done | "Analyze" button per statement; calls `AnalyzeStatementAsync`; disabled until transactions entered |
 | Cashflow metrics display | ✅ Done | Credits, Debits, Avg Balance, Net Cashflow, Bounced/Gambling tx counts |
 | View individual transactions | ✅ Done | `ViewStatementModal` — filter (All/Credits/Debits), live search, color-coded category badges, recurring badge, negative balance highlight |
+| Upload format guidance | ✅ Done | Collapsible panel in upload modal with column name table, sample CSV header row, link to Help |
+| Help page format guide | ✅ Done | Full CSV/Excel format guide, 6 bank export instructions, troubleshooting section in `/help` |
 
 ---
 
@@ -357,5 +364,6 @@ Business age-based validation now implemented:
 | 4.5 | 2026-03-20 | Fineract Direct API integration: `IFineractDirectService` (schedule preview + customer exposure), `FineractDirectAuthHandler` (Basic Auth + tenant header), `FineractDirectService` (hybrid: Fineract API first, in-house fallback), `MockFineractDirectService` (real financial math). `FineractProductId` added to `LoanProduct` entity/DTOs/admin UI. Migration `20260320100000_AddFineractProductIdToLoanProduct`. Config: `FineractDirect` section in appsettings.json. Products admin page updated with Fineract Product ID field. Build: 0 errors, tests pass. |
 | 4.7 | 2026-03-21 | Critical migration bug fix: 4 missing Designer.cs files caused EF Core to skip migrations. `IndustrySector` column absent from DB broke all loan application queries — Detail page fell back to mock data (status "HOReview"), hiding Loan Pack and Offer Letter buttons. Fixed by creating Designer.cs files, updating model snapshot, and making migrations idempotent. All 4 migrations now apply on startup. |
 | 4.8 | 2026-03-22 | Bug fixes from TabModalReviewReport: (C7) Settings persistence via localStorage — `SaveSettings`/`ResetToDefaults` now read/write `localStorage["userSettings"]`. (C8) Audit trail pagination wired to `SearchAuditLogsHandler` — real `totalCount`/`totalPages`, Previous/Next buttons functional. (C-4) Null-user auth guard in Detail.razor — `EnsureAuthenticated` helper redirects to `/login` on expired session; 15 occurrences replaced. (C-5) Collateral `MarketValue`/`ForcedSaleValue` now fetched from full `CollateralDto` via `GetCollateralByIdHandler` per item. (C-6) Per-item LTV computed from real `loanAmount / acceptableValue`. Build: 0 errors. |
+| 5.0 | 2026-03-25 | External bank statement transaction pipeline complete: `StatementFileParserService` (CSV/Excel auto-parsing, 18 date formats, 40+ column aliases), `ManageStatementTransactionsModal` (entry grid + live reconciliation), `AddStatementTransactionsAsync` + `ValidateDataIntegrity()` call (unblocks Verify + Analyze), `InputFile` on upload modal + format guide panel, Help page Bank Statements section rewritten (5 sections: workflow, format guide, export instructions, troubleshooting). |
 | 4.9 | 2026-03-22 | M-series + L-series bug fixes (all 19 M + all 8 L). M: FSV validation, committee min-approval guard, auth in SetupCommitteeModal, configurable collateral haircuts (IOptions<CollateralHaircutSettings>), FillPartyInfoModal IsValid fix, vote range validation, offer letter enum status check, BankSettings config, balance sheet validation, UpdateCollateralHandler/UpdateGuarantorHandler (new), admin pages SystemAdmin authorization, LocationId on UserSummary/Users, committee FinalDecision, overdue null SLADueAt guard, audit free-text search through all layers, dashboard demo data removed. L: AppStatus constants class — all status strings in Detail.razor replaced (CanManageValuation, CanManageGuarantors, FormatStatus, GetStatusBadgeClass, action buttons); client-side pagination (page size 15) added to Users/Products/Templates/Committees admin pages; Help page search now filters via HelpNavItems list (40 entries); AddComment loading state + error handling (CommentsTab IsSubmitting/SubmitError params); calendar month calculation fix in UploadExternalStatementModal. Build: 0 errors. |
 | 4.6 | 2026-03-20 | Offer letter generation: `OfferLetter` aggregate (versioning, schedule summary). `GenerateOfferLetterCommand` + handler. `OfferLetterPdfGenerator` (QuestPDF: facility details, full repayment schedule table, conditions, acceptance section). `OfferLetterRepository` + EF config. Migration `20260320110000_AddOfferLettersTable`. Detail.razor "Offer Letter" button (Approved/Disbursed). Help page updated: new "Offer Letter" section, Operations workflow updated with offer letter step, Approved status card updated. Build: 0 errors. |

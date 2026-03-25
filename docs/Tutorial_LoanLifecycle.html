@@ -1,0 +1,1922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRMS Tutorial — Complete Corporate Loan Lifecycle</title>
+    <style>
+        :root {
+            --primary: #1e40af;
+            --primary-light: #dbeafe;
+            --primary-dark: #1e3a8a;
+            --success: #16a34a;
+            --success-light: #dcfce7;
+            --warning: #d97706;
+            --warning-light: #fef3c7;
+            --danger: #dc2626;
+            --danger-light: #fee2e2;
+            --info: #0891b2;
+            --info-light: #cffafe;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-500: #6b7280;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: var(--gray-800);
+            line-height: 1.7;
+            background: var(--gray-50);
+        }
+
+        .page-wrapper {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 320px;
+            background: white;
+            border-right: 1px solid var(--gray-200);
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 24px 0;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 0 24px 20px;
+            border-bottom: 1px solid var(--gray-200);
+            margin-bottom: 16px;
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+
+        .nav-section {
+            padding: 8px 24px;
+        }
+
+        .nav-section-title {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--gray-500);
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            margin-bottom: 2px;
+            border-radius: 6px;
+            text-decoration: none;
+            color: var(--gray-700);
+            font-size: 13px;
+            transition: all 0.15s;
+        }
+
+        .nav-link:hover {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .nav-link .step-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--gray-200);
+            color: var(--gray-700);
+            font-size: 11px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .nav-link.role-lo .step-num { background: #dbeafe; color: #1e40af; }
+        .nav-link.role-ba .step-num { background: #fef3c7; color: #92400e; }
+        .nav-link.role-co .step-num { background: #d1fae5; color: #065f46; }
+        .nav-link.role-ho .step-num { background: #ede9fe; color: #5b21b6; }
+        .nav-link.role-cm .step-num { background: #fce7f3; color: #9d174d; }
+        .nav-link.role-fa .step-num { background: #ffedd5; color: #9a3412; }
+        .nav-link.role-op .step-num { background: #cffafe; color: #155e75; }
+        .nav-link.role-sa .step-num { background: #fee2e2; color: #991b1b; }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 320px;
+            padding: 40px 60px 80px;
+            max-width: 1000px;
+            flex: 1;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 48px;
+            border-radius: 16px;
+            margin-bottom: 48px;
+        }
+
+        .hero h1 {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+
+        .hero p {
+            font-size: 16px;
+            opacity: 0.9;
+            max-width: 700px;
+        }
+
+        .hero .badge-row {
+            margin-top: 20px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .hero .badge-row span {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+
+        /* Section */
+        .section {
+            margin-bottom: 56px;
+            scroll-margin-top: 24px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .section-header .section-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .section-header h2 {
+            font-size: 24px;
+            color: var(--gray-900);
+        }
+
+        .section-header h2 small {
+            display: block;
+            font-size: 13px;
+            color: var(--gray-500);
+            font-weight: 400;
+            margin-top: 2px;
+        }
+
+        /* Role Badge */
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .role-badge.lo { background: #dbeafe; color: #1e40af; }
+        .role-badge.ba { background: #fef3c7; color: #92400e; }
+        .role-badge.co { background: #d1fae5; color: #065f46; }
+        .role-badge.ho { background: #ede9fe; color: #5b21b6; }
+        .role-badge.cm { background: #fce7f3; color: #9d174d; }
+        .role-badge.fa { background: #ffedd5; color: #9a3412; }
+        .role-badge.op { background: #cffafe; color: #155e75; }
+        .role-badge.sa { background: #fee2e2; color: #991b1b; }
+
+        .icon-lo { background: #dbeafe; color: #1e40af; }
+        .icon-ba { background: #fef3c7; color: #92400e; }
+        .icon-co { background: #d1fae5; color: #065f46; }
+        .icon-ho { background: #ede9fe; color: #5b21b6; }
+        .icon-cm { background: #fce7f3; color: #9d174d; }
+        .icon-fa { background: #ffedd5; color: #9a3412; }
+        .icon-op { background: #cffafe; color: #155e75; }
+        .icon-sa { background: #fee2e2; color: #991b1b; }
+
+        /* Step Card */
+        .step-card {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .step-card h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: var(--gray-800);
+        }
+
+        .step-card p, .step-card li {
+            font-size: 14px;
+            color: var(--gray-700);
+        }
+
+        .step-card ol, .step-card ul {
+            padding-left: 20px;
+            margin-top: 8px;
+        }
+
+        .step-card li {
+            margin-bottom: 8px;
+        }
+
+        /* Instruction list */
+        .instruction-list {
+            list-style: none;
+            padding: 0;
+            counter-reset: inst;
+        }
+
+        .instruction-list > li {
+            counter-increment: inst;
+            padding: 12px 12px 12px 48px;
+            position: relative;
+            border-left: 2px solid var(--gray-200);
+            margin-bottom: 0;
+        }
+
+        .instruction-list > li::before {
+            content: counter(inst);
+            position: absolute;
+            left: -13px;
+            top: 12px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .instruction-list > li:last-child {
+            border-left-color: transparent;
+        }
+
+        /* Form Table */
+        .form-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            font-size: 14px;
+        }
+
+        .form-table th, .form-table td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .form-table th {
+            background: var(--gray-100);
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-table td:first-child {
+            font-weight: 600;
+            color: var(--gray-800);
+            white-space: nowrap;
+        }
+
+        .form-table code {
+            background: var(--gray-100);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 13px;
+            color: var(--primary);
+        }
+
+        /* Alert boxes */
+        .alert {
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 14px;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .alert-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+        .alert-info { background: var(--info-light); border-left: 4px solid var(--info); }
+        .alert-warning { background: var(--warning-light); border-left: 4px solid var(--warning); }
+        .alert-success { background: var(--success-light); border-left: 4px solid var(--success); }
+        .alert-danger { background: var(--danger-light); border-left: 4px solid var(--danger); }
+
+        /* Button mockup */
+        .btn-mock {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: default;
+        }
+
+        .btn-primary-mock { background: var(--primary); color: white; }
+        .btn-success-mock { background: var(--success); color: white; }
+        .btn-danger-mock { background: var(--danger); color: white; }
+        .btn-secondary-mock { background: var(--gray-200); color: var(--gray-700); }
+        .btn-outline-mock { background: white; color: var(--primary); border: 1px solid var(--primary); }
+
+        /* Workflow Diagram */
+        .workflow-diagram {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            padding: 24px;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            margin: 16px 0;
+        }
+
+        .wf-stage {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            min-width: 100px;
+        }
+
+        .wf-arrow {
+            font-size: 18px;
+            color: var(--gray-400);
+        }
+
+        /* Login Table */
+        .login-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+        }
+
+        .login-table th, .login-table td {
+            padding: 10px 14px;
+            text-align: left;
+            border: 1px solid var(--gray-200);
+            font-size: 13px;
+        }
+
+        .login-table th {
+            background: var(--gray-100);
+            font-weight: 600;
+        }
+
+        .login-table tr:nth-child(even) { background: var(--gray-50); }
+
+        /* Transition box */
+        .transition-box {
+            background: linear-gradient(90deg, var(--gray-100), white);
+            border-left: 4px solid var(--primary);
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 20px 0;
+        }
+
+        .transition-box strong { color: var(--primary); }
+
+        /* Screenshot placeholder */
+        .screen-ref {
+            background: var(--gray-100);
+            border: 1px dashed var(--gray-300);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 13px;
+            color: var(--gray-500);
+            margin: 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .screen-ref::before {
+            content: "🖥️";
+            font-size: 16px;
+        }
+
+        kbd {
+            background: var(--gray-100);
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+
+        .divider {
+            border: none;
+            border-top: 2px dashed var(--gray-200);
+            margin: 48px 0;
+        }
+
+        /* Print */
+        @media print {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; padding: 20px; }
+        }
+
+        /* Responsive */
+        @media (max-width: 960px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; padding: 24px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="page-wrapper">
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h2>CRMS Tutorial</h2>
+            <p>Corporate Loan Lifecycle Guide</p>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">Getting Started</div>
+            <a href="#overview" class="nav-link"><span class="step-num">i</span> Overview &amp; Workflow</a>
+            <a href="#prerequisites" class="nav-link role-sa"><span class="step-num">0</span> Prerequisites</a>
+            <a href="#admin-setup" class="nav-link role-sa"><span class="step-num">A</span> Admin: Create Users</a>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">Loan Officer (Data Entry)</div>
+            <a href="#step1" class="nav-link role-lo"><span class="step-num">1</span> Create Application</a>
+            <a href="#step2" class="nav-link role-lo"><span class="step-num">2</span> Add Collateral</a>
+            <a href="#step3" class="nav-link role-lo"><span class="step-num">3</span> Add Guarantors</a>
+            <a href="#step4" class="nav-link role-lo"><span class="step-num">4</span> Upload Documents</a>
+            <a href="#step5" class="nav-link role-lo"><span class="step-num">5</span> Enter Financials</a>
+            <a href="#step6" class="nav-link role-lo"><span class="step-num">6</span> Submit for Review</a>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">Review &amp; Approval Flow</div>
+            <a href="#step7" class="nav-link role-ba"><span class="step-num">7</span> Branch Approver Review</a>
+            <a href="#step8" class="nav-link role-co"><span class="step-num">8</span> Credit Analysis</a>
+            <a href="#step9" class="nav-link role-co"><span class="step-num">9</span> Move to HO Review</a>
+            <a href="#step10" class="nav-link role-ho"><span class="step-num">10</span> HO Reviewer Approval</a>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">Committee &amp; Final</div>
+            <a href="#step11" class="nav-link role-co"><span class="step-num">11</span> Setup Committee</a>
+            <a href="#step12" class="nav-link role-cm"><span class="step-num">12</span> Committee Voting</a>
+            <a href="#step13" class="nav-link role-fa"><span class="step-num">13</span> Final Approval</a>
+            <a href="#step14" class="nav-link role-op"><span class="step-num">14</span> Loan Pack &amp; Offer</a>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">Reference</div>
+            <a href="#mock-data" class="nav-link"><span class="step-num">R</span> Mock Data Reference</a>
+            <a href="#troubleshooting" class="nav-link"><span class="step-num">?</span> Troubleshooting</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Hero -->
+        <div class="hero">
+            <h1>CRMS — Complete Loan Lifecycle Tutorial</h1>
+            <p>
+                This step-by-step guide walks you through the entire corporate loan application process,
+                from creation to offer letter generation. Every button click, form field, and role transition
+                is documented with exact values to enter.
+            </p>
+            <div class="badge-row">
+                <span>14 Steps</span>
+                <span>7 Roles Involved</span>
+                <span>Mock-Service Compatible</span>
+                <span>~45 min end-to-end</span>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- OVERVIEW -->
+        <!-- ============================================================ -->
+        <div class="section" id="overview">
+            <div class="section-header">
+                <div class="section-icon" style="background:var(--gray-100);color:var(--gray-700);">&#9432;</div>
+                <h2>Overview &amp; Workflow<small>Understand the full lifecycle before you begin</small></h2>
+            </div>
+
+            <p>A corporate loan in CRMS flows through the following stages. Each stage is owned by a specific role. The application cannot move forward until the responsible role takes action.</p>
+
+            <div class="workflow-diagram">
+                <div class="wf-stage icon-lo">Draft<br><small>Loan Officer</small></div>
+                <div class="wf-arrow">&#8594;</div>
+                <div class="wf-stage icon-lo">Submitted<br><small>Loan Officer</small></div>
+                <div class="wf-arrow">&#8594;</div>
+                <div class="wf-stage icon-ba">Branch Review<br><small>Branch Approver</small></div>
+                <div class="wf-arrow">&#8594;</div>
+                <div class="wf-stage icon-co">Credit Analysis<br><small>Credit Officer</small></div>
+                <div class="wf-arrow">&#8594;</div>
+                <div class="wf-stage icon-ho">HO Review<br><small>HO Reviewer</small></div>
+                <div class="wf-arrow">&#8594;</div>
+                <div class="wf-stage icon-cm">Committee<br><small>Committee Members</small></div>
+                <div class="wf-arrow">&#8594;</div>
+                <div class="wf-stage icon-fa">Final Approval<br><small>Final Approver</small></div>
+                <div class="wf-arrow">&#8594;</div>
+                <div class="wf-stage icon-op">Approved<br><small>Operations</small></div>
+            </div>
+
+            <div class="alert alert-info">
+                <span class="alert-icon">&#9432;</span>
+                <div>
+                    <strong>Mock Services:</strong> This tutorial is designed to work with mock external services (Core Banking, SmartComply CAC, Credit Bureau, Fineract). All services are configured with <code>UseMock: true</code> in <code>appsettings.json</code>. The mock data values specified in this tutorial will produce correct responses from these services.
+                </div>
+            </div>
+
+            <h3 style="margin-top:24px;">Roles Summary</h3>
+            <table class="form-table">
+                <thead>
+                    <tr><th>Role</th><th>Responsibility</th><th>Visibility</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Loan Officer</td><td>Creates applications, enters data, submits for review</td><td>Own branch only</td></tr>
+                    <tr><td>Branch Approver</td><td>First-level review: approve, return, or reject</td><td>Own branch only</td></tr>
+                    <tr><td>Credit Officer</td><td>Credit analysis, sets up committee, moves to HO review</td><td>Global (all branches)</td></tr>
+                    <tr><td>HO Reviewer</td><td>Head Office review: approve to committee or reject</td><td>Global</td></tr>
+                    <tr><td>Committee Member</td><td>Votes on loan (Approve/Reject/Abstain)</td><td>Global</td></tr>
+                    <tr><td>Final Approver</td><td>Ultimate approval authority (typically MD/ED)</td><td>Global</td></tr>
+                    <tr><td>Operations</td><td>Generates loan pack, offer letter, records disbursement</td><td>Global</td></tr>
+                    <tr><td>System Admin</td><td>Manages users, products, locations, committees, scoring</td><td>Global</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- PREREQUISITES -->
+        <!-- ============================================================ -->
+        <div class="section" id="prerequisites">
+            <div class="section-header">
+                <div class="section-icon icon-sa">0</div>
+                <h2>Prerequisites<small>What you need before starting</small></h2>
+            </div>
+
+            <div class="step-card">
+                <h3>System Requirements</h3>
+                <ul>
+                    <li>The CRMS application must be running (default: <code>http://localhost:5292</code>)</li>
+                    <li>The database must be seeded (happens automatically on first startup)</li>
+                    <li>All external services must be in mock mode (<code>UseMock: true</code> in <code>appsettings.json</code>)</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>Seeded Test Accounts (Available by Default)</h3>
+                <p>These 6 accounts are auto-created by the system seeder. All use the same password.</p>
+                <table class="login-table">
+                    <thead>
+                        <tr><th>Username</th><th>Password</th><th>Role</th><th>Location</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>loanofficer</code></td><td><code>Test@123</code></td><td>Loan Officer</td><td>Lagos Main Branch</td></tr>
+                        <tr><td><code>branchapprover</code></td><td><code>Test@123</code></td><td>Branch Approver</td><td>Lagos Main Branch</td></tr>
+                        <tr><td><code>creditofficer</code></td><td><code>Test@123</code></td><td>Credit Officer</td><td>Head Office</td></tr>
+                        <tr><td><code>horeviewer</code></td><td><code>Test@123</code></td><td>HO Reviewer</td><td>Head Office</td></tr>
+                        <tr><td><code>admin</code></td><td><code>Test@123</code></td><td>System Admin</td><td>Head Office</td></tr>
+                        <tr><td><code>loanofficer_abuja</code></td><td><code>Test@123</code></td><td>Loan Officer</td><td>Abuja Main Branch</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="alert alert-warning">
+                <span class="alert-icon">&#9888;</span>
+                <div>
+                    <strong>Missing Roles:</strong> The default seeder does NOT create users for: <strong>Committee Member</strong>, <strong>Final Approver</strong>, or <strong>Operations</strong>. You must create these through the Admin UI before you can complete the full lifecycle. See the next section (Admin Setup) for instructions.
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- ADMIN SETUP — CREATE MISSING USERS -->
+        <!-- ============================================================ -->
+        <div class="section" id="admin-setup">
+            <div class="section-header">
+                <div class="section-icon icon-sa">A</div>
+                <h2>Admin Setup: Create Required Users<small>Log in as System Admin to create missing role accounts</small></h2>
+            </div>
+
+            <span class="role-badge sa">&#128100; Role: System Admin &mdash; Username: <code>admin</code></span>
+
+            <div class="step-card">
+                <h3>Login as Admin</h3>
+                <ol class="instruction-list">
+                    <li>Open the application in your browser: <code>http://localhost:5292</code></li>
+                    <li>You will see the <strong>Login</strong> page. Enter:<br>
+                        <table class="form-table" style="max-width:400px">
+                            <tr><td>Username</td><td><code>admin</code></td></tr>
+                            <tr><td>Password</td><td><code>Test@123</code></td></tr>
+                        </table>
+                    </li>
+                    <li>Click the <span class="btn-mock btn-primary-mock">Login</span> button.</li>
+                    <li>You will be redirected to the <strong>Dashboard</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Navigate to User Management</h3>
+                <ol class="instruction-list">
+                    <li>In the left sidebar, expand the <strong>Administration</strong> section.</li>
+                    <li>Click <strong>Users</strong> (route: <code>/admin/users</code>).</li>
+                    <li>You will see the list of existing users.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Create Committee Member 1</h3>
+                <ol class="instruction-list">
+                    <li>Click the <span class="btn-mock btn-primary-mock">+ Create User</span> button in the top right.</li>
+                    <li>Fill in the form with these exact values:
+                        <table class="form-table">
+                            <tr><td>Username</td><td><code>committee1</code></td></tr>
+                            <tr><td>Email</td><td><code>committee1@crms.test</code></td></tr>
+                            <tr><td>First Name</td><td><code>Emeka</code></td></tr>
+                            <tr><td>Last Name</td><td><code>Nnamdi</code></td></tr>
+                            <tr><td>Phone</td><td><code>08077777771</code></td></tr>
+                            <tr><td>Role</td><td>Select <strong>CommitteeMember</strong></td></tr>
+                            <tr><td>Location</td><td>Select <strong>Head Office</strong></td></tr>
+                            <tr><td>Password</td><td><code>Test@123</code></td></tr>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Save</span>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Create Committee Member 2</h3>
+                <ol class="instruction-list">
+                    <li>Click <span class="btn-mock btn-primary-mock">+ Create User</span> again.</li>
+                    <li>Fill in:
+                        <table class="form-table">
+                            <tr><td>Username</td><td><code>committee2</code></td></tr>
+                            <tr><td>Email</td><td><code>committee2@crms.test</code></td></tr>
+                            <tr><td>First Name</td><td><code>Blessing</code></td></tr>
+                            <tr><td>Last Name</td><td><code>Okafor</code></td></tr>
+                            <tr><td>Phone</td><td><code>08077777772</code></td></tr>
+                            <tr><td>Role</td><td>Select <strong>CommitteeMember</strong></td></tr>
+                            <tr><td>Location</td><td>Select <strong>Head Office</strong></td></tr>
+                            <tr><td>Password</td><td><code>Test@123</code></td></tr>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Save</span>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Create Committee Member 3</h3>
+                <ol class="instruction-list">
+                    <li>Click <span class="btn-mock btn-primary-mock">+ Create User</span> again.</li>
+                    <li>Fill in:
+                        <table class="form-table">
+                            <tr><td>Username</td><td><code>committee3</code></td></tr>
+                            <tr><td>Email</td><td><code>committee3@crms.test</code></td></tr>
+                            <tr><td>First Name</td><td><code>Tunde</code></td></tr>
+                            <tr><td>Last Name</td><td><code>Bakare</code></td></tr>
+                            <tr><td>Phone</td><td><code>08077777773</code></td></tr>
+                            <tr><td>Role</td><td>Select <strong>CommitteeMember</strong></td></tr>
+                            <tr><td>Location</td><td>Select <strong>Head Office</strong></td></tr>
+                            <tr><td>Password</td><td><code>Test@123</code></td></tr>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Save</span>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Create Final Approver</h3>
+                <ol class="instruction-list">
+                    <li>Click <span class="btn-mock btn-primary-mock">+ Create User</span>.</li>
+                    <li>Fill in:
+                        <table class="form-table">
+                            <tr><td>Username</td><td><code>finalapprover</code></td></tr>
+                            <tr><td>Email</td><td><code>finalapprover@crms.test</code></td></tr>
+                            <tr><td>First Name</td><td><code>Yusuf</code></td></tr>
+                            <tr><td>Last Name</td><td><code>Mohammed</code></td></tr>
+                            <tr><td>Phone</td><td><code>08077777774</code></td></tr>
+                            <tr><td>Role</td><td>Select <strong>FinalApprover</strong></td></tr>
+                            <tr><td>Location</td><td>Select <strong>Head Office</strong></td></tr>
+                            <tr><td>Password</td><td><code>Test@123</code></td></tr>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Save</span>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Create Operations User</h3>
+                <ol class="instruction-list">
+                    <li>Click <span class="btn-mock btn-primary-mock">+ Create User</span>.</li>
+                    <li>Fill in:
+                        <table class="form-table">
+                            <tr><td>Username</td><td><code>operations</code></td></tr>
+                            <tr><td>Email</td><td><code>operations@crms.test</code></td></tr>
+                            <tr><td>First Name</td><td><code>Folake</code></td></tr>
+                            <tr><td>Last Name</td><td><code>Balogun</code></td></tr>
+                            <tr><td>Phone</td><td><code>08077777775</code></td></tr>
+                            <tr><td>Role</td><td>Select <strong>Operations</strong></td></tr>
+                            <tr><td>Location</td><td>Select <strong>Head Office</strong></td></tr>
+                            <tr><td>Password</td><td><code>Test@123</code></td></tr>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Save</span>.</li>
+                </ol>
+            </div>
+
+            <div class="alert alert-info">
+                <span class="alert-icon">&#9432;</span>
+                <div>
+                    <strong>Standing Committees:</strong> The system auto-seeds 5 standing committees with amount thresholds. However, they have no members yet. You will also need to navigate to <strong>Administration &rarr; Committees</strong> (<code>/admin/committees</code>) and add the 3 committee members you just created to the appropriate committee. For this tutorial (loan amount &#8358;150,000,000), add them to the <strong>Regional Credit Committee</strong> (&#8358;50M&ndash;&#8358;200M). Click the committee card, then click <strong>Add Member</strong> for each of the 3 users. Designate <code>committee1</code> (Emeka Nnamdi) as the <strong>Chairperson</strong>.
+                </div>
+            </div>
+
+            <div class="step-card">
+                <h3>Add Members to Regional Credit Committee</h3>
+                <ol class="instruction-list">
+                    <li>In the left sidebar, click <strong>Administration &rarr; Committees</strong>.</li>
+                    <li>Find the <strong>Regional Credit Committee</strong> card (&#8358;50M &ndash; &#8358;200M).</li>
+                    <li>Click the <span class="btn-mock btn-primary-mock">Add Member</span> button on that card.</li>
+                    <li>Select user <strong>Emeka Nnamdi</strong> (committee1), set Role to <strong>Chairperson</strong>, and click <strong>Add</strong>.</li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Add Member</span> again. Select <strong>Blessing Okafor</strong> (committee2), set Role to <strong>Member</strong>, click <strong>Add</strong>.</li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Add Member</span> again. Select <strong>Tunde Bakare</strong> (committee3), set Role to <strong>Member</strong>, click <strong>Add</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="transition-box">
+                <strong>Admin setup is complete.</strong> You now have all the user accounts and committee configuration needed to run through the entire loan lifecycle. Log out of the admin account.
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- ============================================================ -->
+        <!-- STEP 1: CREATE APPLICATION -->
+        <!-- ============================================================ -->
+        <div class="section" id="step1">
+            <div class="section-header">
+                <div class="section-icon icon-lo">1</div>
+                <h2>Create a New Loan Application<small>Loan Officer initiates the corporate loan</small></h2>
+            </div>
+
+            <span class="role-badge lo">&#128100; Role: Loan Officer &mdash; Username: <code>loanofficer</code></span>
+
+            <div class="step-card">
+                <h3>Login as Loan Officer</h3>
+                <ol class="instruction-list">
+                    <li>Navigate to <code>http://localhost:5292/login</code>.</li>
+                    <li>Enter credentials:
+                        <table class="form-table" style="max-width:400px">
+                            <tr><td>Username</td><td><code>loanofficer</code></td></tr>
+                            <tr><td>Password</td><td><code>Test@123</code></td></tr>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Login</span>. You will land on the Dashboard.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Start New Application</h3>
+                <ol class="instruction-list">
+                    <li>In the left sidebar, click <strong>Applications</strong>.</li>
+                    <li>On the Applications list page, click the <span class="btn-mock btn-primary-mock">+ New Application</span> button in the top-right corner.</li>
+                    <li>You are now on the <strong>New Loan Application</strong> wizard page (<code>/applications/new</code>). It has 3 steps: <strong>Customer &rarr; Loan Details &rarr; Review</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Step 1 of 3: Customer Selection</h3>
+                <ol class="instruction-list">
+                    <li>In the <strong>Corporate Account Number</strong> field, type: <code>1234567890</code></li>
+                    <li>Click the <span class="btn-mock btn-primary-mock">Fetch</span> button.</li>
+                    <li>The system calls the Core Banking mock service. After a moment, a green card appears showing:
+                        <ul>
+                            <li>Company Name: <strong>Acme Industries Ltd</strong></li>
+                            <li>Account Number: <strong>1234567890</strong></li>
+                            <li>Status badge: <strong>Verified</strong></li>
+                        </ul>
+                    </li>
+                    <li>Next, enter the RC Number in the <strong>RC Number</strong> field: <code>RC123456</code></li>
+                    <li>Click the <span class="btn-mock btn-secondary-mock">Fetch Directors</span> button.</li>
+                    <li>The system calls the SmartComply CAC Advanced mock. It returns:
+                        <ul>
+                            <li>Company: <strong>CAPITALFIELD ASSET MGT LTD</strong> (this is the CAC-registered name; the discrepancy with Core Banking name is expected and flagged)</li>
+                            <li>RC: RC123456 | Status: <strong>Active</strong></li>
+                            <li>3 Directors from CAC (each with a BVN input field)</li>
+                        </ul>
+                    </li>
+                    <li>Enter BVNs for each director. These BVNs must match the mock credit bureau data:
+                        <table class="form-table">
+                            <thead><tr><th>Director</th><th>BVN to Enter</th></tr></thead>
+                            <tbody>
+                                <tr><td>JOHN OLUMIDE ADEBAYO (Chairman)</td><td><code>22234567890</code></td></tr>
+                                <tr><td>AMINA IBRAHIM</td><td><code>22234567891</code></td></tr>
+                                <tr><td>CHUKWUMA EMEKA OKONKWO</td><td><code>22234567892</code></td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>Below the directors, you will see the <strong>Director Source Comparison</strong> panel. It compares SmartComply CAC directors with Core Banking directors. Click it to expand and review. The names match across both sources.</li>
+                    <li>Below that, you will see the <strong>Signatories</strong> section (from Core Banking). There are 2 signatories:
+                        <table class="form-table">
+                            <thead><tr><th>Signatory</th><th>BVN Status</th></tr></thead>
+                            <tbody>
+                                <tr><td>John Adebayo</td><td>Already on file: <code>22234567890</code></td></tr>
+                                <tr><td>Fatima Bello</td><td>Enter: <code>22234567893</code></td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>Click the <span class="btn-mock btn-primary-mock">Next</span> button (bottom-right).</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Step 2 of 3: Loan Details</h3>
+                <ol class="instruction-list">
+                    <li>Fill in the loan details form with these values:
+                        <table class="form-table">
+                            <thead><tr><th>Field</th><th>Value to Enter</th><th>Notes</th></tr></thead>
+                            <tbody>
+                                <tr><td>Loan Product</td><td>Select <strong>Corporate Term Loan (CORP-TERM-001)</strong></td><td>Range: &#8358;50M&ndash;&#8358;5B</td></tr>
+                                <tr><td>Requested Amount (&#8358;)</td><td><code>150000000</code></td><td>&#8358;150 million</td></tr>
+                                <tr><td>Tenor (Months)</td><td><code>36</code></td><td>3 years (range: 12&ndash;84)</td></tr>
+                                <tr><td>Interest Rate (%)</td><td><code>18.5</code></td><td>Base rate is 16.5% (auto-populated)</td></tr>
+                                <tr><td>Interest Rate Type</td><td>Select <strong>Reducing Balance</strong></td><td></td></tr>
+                                <tr><td>Industry / Sector</td><td>Select <strong>Manufacturing</strong></td><td>CBN classification</td></tr>
+                                <tr><td>Purpose</td><td><code>Expansion of manufacturing plant at Lekki Free Trade Zone. Funds will be used for procurement of industrial equipment, facility construction, and initial working capital for the new production line.</code></td><td>Be detailed</td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>Click the <span class="btn-mock btn-primary-mock">Next</span> button.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Step 3 of 3: Review &amp; Create</h3>
+                <ol class="instruction-list">
+                    <li>Review all the information displayed:
+                        <ul>
+                            <li><strong>Customer Information</strong>: Company Name, Account Number, Industry</li>
+                            <li><strong>Loan Details</strong>: Product, Amount (&#8358;150,000,000), Tenor (36 months), Rate (18.5% Reducing), Sector (Manufacturing), Purpose</li>
+                        </ul>
+                    </li>
+                    <li>Tick the checkbox: <em>"I confirm that the basic information provided is accurate..."</em></li>
+                    <li>Click the <span class="btn-mock btn-primary-mock">Create Application</span> button.</li>
+                    <li>The application is created in <strong>Draft</strong> status. You are automatically redirected to the <strong>Application Detail</strong> page (<code>/applications/{id}</code>).</li>
+                </ol>
+            </div>
+
+            <div class="screen-ref">
+                Screen: Application Detail page showing Draft status with tabs: Overview, Parties, Documents, Financials, Bureau, Statements, Collateral, Guarantors, Workflow, Advisory, Committee, Comments
+            </div>
+
+            <div class="alert alert-success">
+                <span class="alert-icon">&#10004;</span>
+                <div><strong>Application created.</strong> Status is <strong>Draft</strong>. You can now add collateral, guarantors, documents, and financial statements before submitting for review.</div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 2: ADD COLLATERAL -->
+        <!-- ============================================================ -->
+        <div class="section" id="step2">
+            <div class="section-header">
+                <div class="section-icon icon-lo">2</div>
+                <h2>Add Collateral<small>Loan Officer adds collateral security to the application</small></h2>
+            </div>
+
+            <span class="role-badge lo">&#128100; Role: Loan Officer &mdash; Username: <code>loanofficer</code> (still logged in)</span>
+
+            <div class="step-card">
+                <h3>Navigate to Collateral Tab</h3>
+                <ol class="instruction-list">
+                    <li>On the Application Detail page, click the <strong>Collateral</strong> tab.</li>
+                    <li>The tab shows "No collateral added yet".</li>
+                    <li>Click the <span class="btn-mock btn-primary-mock">+ Add Collateral</span> button.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Add Collateral Item 1: Real Estate</h3>
+                <ol class="instruction-list">
+                    <li>The <strong>Add Collateral</strong> modal opens. Fill in:
+                        <table class="form-table">
+                            <thead><tr><th>Field</th><th>Value</th></tr></thead>
+                            <tbody>
+                                <tr><td>Collateral Type</td><td>Select <strong>RealEstate</strong></td></tr>
+                                <tr><td>Description</td><td><code>4-storey commercial building on 2 plots of land at Lekki Phase 1, Lagos. Certificate of Occupancy available.</code></td></tr>
+                                <tr><td>Location</td><td><code>Plot 15, Admiralty Way, Lekki Phase 1, Lagos</code></td></tr>
+                                <tr><td>Owner Name</td><td><code>Acme Industries Ltd</code></td></tr>
+                                <tr><td>Estimated Value (&#8358;)</td><td><code>250000000</code></td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Save</span>.</li>
+                    <li>The collateral appears in the list with status <strong>Proposed</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Add Collateral Item 2: Fixed Deposit</h3>
+                <ol class="instruction-list">
+                    <li>Click <span class="btn-mock btn-primary-mock">+ Add Collateral</span> again.</li>
+                    <li>Fill in:
+                        <table class="form-table">
+                            <tbody>
+                                <tr><td>Collateral Type</td><td>Select <strong>FixedDeposit</strong></td></tr>
+                                <tr><td>Description</td><td><code>Fixed deposit account with 12-month tenor at First Bank. Lien to be placed in favour of the lending bank.</code></td></tr>
+                                <tr><td>Location</td><td><code>First Bank, Victoria Island Branch</code></td></tr>
+                                <tr><td>Owner Name</td><td><code>John Olumide Adebayo</code></td></tr>
+                                <tr><td>Estimated Value (&#8358;)</td><td><code>50000000</code></td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Save</span>.</li>
+                </ol>
+            </div>
+
+            <div class="alert alert-info">
+                <span class="alert-icon">&#9432;</span>
+                <div>Collateral valuation and approval happen <strong>later</strong> during the review stages (not in Draft). The Branch Approver or Credit Officer will set the valuation and approve the collateral.</div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 3: ADD GUARANTORS -->
+        <!-- ============================================================ -->
+        <div class="section" id="step3">
+            <div class="section-header">
+                <div class="section-icon icon-lo">3</div>
+                <h2>Add Guarantors<small>Loan Officer adds personal guarantors</small></h2>
+            </div>
+
+            <span class="role-badge lo">&#128100; Role: Loan Officer &mdash; Username: <code>loanofficer</code></span>
+
+            <div class="step-card">
+                <h3>Navigate to Guarantors Tab and Add a Guarantor</h3>
+                <ol class="instruction-list">
+                    <li>Click the <strong>Guarantors</strong> tab on the Detail page.</li>
+                    <li>Click <span class="btn-mock btn-primary-mock">+ Add Guarantor</span>.</li>
+                    <li>Fill in the <strong>Add Guarantor</strong> modal:
+                        <table class="form-table">
+                            <thead><tr><th>Field</th><th>Value</th></tr></thead>
+                            <tbody>
+                                <tr><td>Guarantor Type</td><td>Select <strong>Director</strong></td></tr>
+                                <tr><td>First Name</td><td><code>John</code></td></tr>
+                                <tr><td>Last Name</td><td><code>Adebayo</code></td></tr>
+                                <tr><td>BVN</td><td><code>22234567890</code></td></tr>
+                                <tr><td>Phone</td><td><code>08012345001</code></td></tr>
+                                <tr><td>Email</td><td><code>john.adebayo@acmeindustries.com</code></td></tr>
+                                <tr><td>Guarantee Type</td><td>Select <strong>JointAndSeveral</strong></td></tr>
+                                <tr><td>Guarantee Amount (&#8358;)</td><td><code>150000000</code></td></tr>
+                                <tr><td>Net Worth (&#8358;)</td><td><code>500000000</code></td></tr>
+                                <tr><td>Relationship</td><td><code>Managing Director / Chairman</code></td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Save</span>.</li>
+                    <li>The guarantor appears with status <strong>Proposed</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="alert alert-info">
+                <span class="alert-icon">&#9432;</span>
+                <div>The BVN <code>22234567890</code> is recognized by the mock credit bureau. After branch approval, credit checks will automatically run against all directors, signatories, and guarantors. The guarantor's credit report will show up in the <strong>Bureau</strong> tab.</div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 4: UPLOAD DOCUMENTS -->
+        <!-- ============================================================ -->
+        <div class="section" id="step4">
+            <div class="section-header">
+                <div class="section-icon icon-lo">4</div>
+                <h2>Upload Documents<small>Loan Officer uploads required supporting documents</small></h2>
+            </div>
+
+            <span class="role-badge lo">&#128100; Role: Loan Officer &mdash; Username: <code>loanofficer</code></span>
+
+            <div class="step-card">
+                <h3>Upload Required Documents</h3>
+                <p>The system requires at least a <strong>Bank Statement</strong> to submit. However, it is best practice to upload all required documents. Navigate to the <strong>Documents</strong> tab.</p>
+                <ol class="instruction-list">
+                    <li>Click the <strong>Documents</strong> tab.</li>
+                    <li>Click <span class="btn-mock btn-primary-mock">+ Upload Document</span>.</li>
+                    <li>In the modal:
+                        <table class="form-table">
+                            <tbody>
+                                <tr><td>Category</td><td>Select <strong>BankStatement</strong></td></tr>
+                                <tr><td>File</td><td>Choose any PDF file from your computer (the file content does not matter for the mock)</td></tr>
+                                <tr><td>Description</td><td><code>6-month bank statement for account 1234567890</code></td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Upload</span>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Upload Additional Documents</h3>
+                <p>Repeat the upload process for each of these documents:</p>
+                <table class="form-table">
+                    <thead><tr><th>Category</th><th>Description</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>CompanyRegistration</strong></td><td><code>CAC Certificate of Incorporation - RC123456</code></td></tr>
+                        <tr><td><strong>BoardResolution</strong></td><td><code>Board resolution authorising borrowing of N150M for plant expansion</code></td></tr>
+                        <tr><td><strong>AuditedFinancials</strong></td><td><code>Audited financial statements for 2023, 2024, 2025</code></td></tr>
+                        <tr><td><strong>IdentityDocument</strong></td><td><code>International passport of MD - John Adebayo</code></td></tr>
+                        <tr><td><strong>TaxClearance</strong></td><td><code>Tax clearance certificate for 2024-2025</code></td></tr>
+                    </tbody>
+                </table>
+                <p style="margin-top:12px">All documents will show status <strong>Pending</strong> (waiting for verification by the reviewer).</p>
+            </div>
+
+            <div class="alert alert-info">
+                <span class="alert-icon">&#9432;</span>
+                <div>
+                    <strong>Bank Statement Auto-Fetch:</strong> The system automatically fetched a 6-month bank statement from the Core Banking mock when the application was created. Check the <strong>Statements</strong> tab to see it under "Own Bank Statements". You can still upload additional external bank statements there.
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 5: ENTER FINANCIAL STATEMENTS -->
+        <!-- ============================================================ -->
+        <div class="section" id="step5">
+            <div class="section-header">
+                <div class="section-icon icon-lo">5</div>
+                <h2>Enter Financial Statements<small>Loan Officer enters 3 years of audited financials</small></h2>
+            </div>
+
+            <span class="role-badge lo">&#128100; Role: Loan Officer &mdash; Username: <code>loanofficer</code></span>
+
+            <div class="step-card">
+                <h3>Navigate to Financials Tab</h3>
+                <ol class="instruction-list">
+                    <li>Click the <strong>Financials</strong> tab on the Detail page.</li>
+                    <li>The system will indicate the required financial statements based on the company's age. For a company incorporated in 2003 (CAPITALFIELD), you will need <strong>3 years of Audited statements</strong>.</li>
+                    <li>Click <span class="btn-mock btn-primary-mock">+ Add Financial Year</span>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Enter Year 1: FY 2025 (Most Recent)</h3>
+                <p>The Financial Statement Modal is a 4-step wizard: <strong>Header &rarr; Balance Sheet &rarr; Profit &amp; Loss &rarr; Cash Flow</strong>.</p>
+                <p><strong>Step 1 &mdash; Header:</strong></p>
+                <table class="form-table">
+                    <tbody>
+                        <tr><td>Financial Year</td><td><code>2025</code></td></tr>
+                        <tr><td>Year Type</td><td>Select <strong>Audited</strong></td></tr>
+                        <tr><td>Period Start</td><td><code>2025-01-01</code></td></tr>
+                        <tr><td>Period End</td><td><code>2025-12-31</code></td></tr>
+                        <tr><td>Currency</td><td><code>NGN</code></td></tr>
+                        <tr><td>Auditor Name</td><td><code>PricewaterhouseCoopers (PwC)</code></td></tr>
+                    </tbody>
+                </table>
+                <p>Click <strong>Next</strong>.</p>
+
+                <p><strong>Step 2 &mdash; Balance Sheet</strong> (all values in Naira &mdash; enter without commas):</p>
+                <table class="form-table">
+                    <thead><tr><th>Field</th><th>Value (&#8358;)</th></tr></thead>
+                    <tbody>
+                        <tr><td>Total Assets</td><td><code>2500000000</code></td></tr>
+                        <tr><td>Current Assets</td><td><code>800000000</code></td></tr>
+                        <tr><td>Fixed Assets</td><td><code>1700000000</code></td></tr>
+                        <tr><td>Total Liabilities</td><td><code>1200000000</code></td></tr>
+                        <tr><td>Current Liabilities</td><td><code>450000000</code></td></tr>
+                        <tr><td>Long Term Liabilities</td><td><code>750000000</code></td></tr>
+                        <tr><td>Total Equity</td><td><code>1300000000</code></td></tr>
+                    </tbody>
+                </table>
+                <div class="alert alert-warning">
+                    <span class="alert-icon">&#9888;</span>
+                    <div><strong>Validation:</strong> Total Assets MUST equal Total Liabilities + Total Equity. In this case: 2,500,000,000 = 1,200,000,000 + 1,300,000,000. If they do not balance, the save will fail.</div>
+                </div>
+                <p>Click <strong>Next</strong>.</p>
+
+                <p><strong>Step 3 &mdash; Profit &amp; Loss (Income Statement):</strong></p>
+                <table class="form-table">
+                    <tbody>
+                        <tr><td>Revenue</td><td><code>1800000000</code></td></tr>
+                        <tr><td>Cost of Goods Sold</td><td><code>1080000000</code></td></tr>
+                        <tr><td>Gross Profit</td><td><code>720000000</code></td></tr>
+                        <tr><td>Operating Expenses</td><td><code>350000000</code></td></tr>
+                        <tr><td>Operating Profit (EBIT)</td><td><code>370000000</code></td></tr>
+                        <tr><td>Interest Expense</td><td><code>85000000</code></td></tr>
+                        <tr><td>Tax Expense</td><td><code>71250000</code></td></tr>
+                        <tr><td>Net Profit</td><td><code>213750000</code></td></tr>
+                        <tr><td>Depreciation</td><td><code>95000000</code></td></tr>
+                    </tbody>
+                </table>
+                <p>Click <strong>Next</strong>.</p>
+
+                <p><strong>Step 4 &mdash; Cash Flow Statement:</strong></p>
+                <table class="form-table">
+                    <tbody>
+                        <tr><td>Operating Cash Flow</td><td><code>380000000</code></td></tr>
+                        <tr><td>Investing Cash Flow</td><td><code>-200000000</code></td></tr>
+                        <tr><td>Financing Cash Flow</td><td><code>-100000000</code></td></tr>
+                        <tr><td>Net Cash Flow</td><td><code>80000000</code></td></tr>
+                    </tbody>
+                </table>
+                <p>Click <span class="btn-mock btn-primary-mock">Save</span>.</p>
+            </div>
+
+            <div class="step-card">
+                <h3>Enter Year 2: FY 2024 and Year 3: FY 2023</h3>
+                <p>Repeat the same process for FY 2024 and FY 2023 using similar but slightly lower numbers. You can reduce each year's revenue/profit by approximately 10-15% to show growth trajectory. The key requirements are:</p>
+                <ul>
+                    <li>Year Type must be <strong>Audited</strong> for all 3 years</li>
+                    <li>Balance Sheet must balance (Assets = Liabilities + Equity)</li>
+                    <li>All monetary values must be positive (except investing/financing cash flows which can be negative)</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 6: SUBMIT FOR REVIEW -->
+        <!-- ============================================================ -->
+        <div class="section" id="step6">
+            <div class="section-header">
+                <div class="section-icon icon-lo">6</div>
+                <h2>Submit for Review<small>Loan Officer submits the application for branch approval</small></h2>
+            </div>
+
+            <span class="role-badge lo">&#128100; Role: Loan Officer &mdash; Username: <code>loanofficer</code></span>
+
+            <div class="step-card">
+                <h3>Pre-Submission Validation</h3>
+                <p>Before submitting, the system validates that you have:</p>
+                <ul>
+                    <li>At least one document uploaded (including a Bank Statement) &#10004;</li>
+                    <li>Directors or Signatories information present &#10004;</li>
+                    <li>Financial statements meeting the business-age requirement &#10004;</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>Submit the Application</h3>
+                <ol class="instruction-list">
+                    <li>On the Application Detail page, look at the action bar at the top. You will see a <span class="btn-mock btn-primary-mock">Submit for Review</span> button (visible only when status is <strong>Draft</strong> and you are a Loan Officer).</li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Submit for Review</span>.</li>
+                    <li>A modal appears showing any validation warnings. If all checks pass, you will see a green success message. If there are warnings, they will be listed (you can still proceed).</li>
+                    <li>In the <strong>Comments</strong> field, enter: <code>Application complete with all required documents, financials, collateral, and guarantor. Ready for branch review.</code></li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Confirm Submit</span>.</li>
+                    <li>The status changes from <strong>Draft</strong> &rarr; <strong>BranchReview</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="transition-box">
+                <strong>Status: BranchReview</strong> &mdash; The application is now in the Branch Approver's queue. Log out of the Loan Officer account. The next action must be taken by a <strong>Branch Approver</strong>.
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- ============================================================ -->
+        <!-- STEP 7: BRANCH APPROVER REVIEW -->
+        <!-- ============================================================ -->
+        <div class="section" id="step7">
+            <div class="section-header">
+                <div class="section-icon icon-ba">7</div>
+                <h2>Branch Approver Review<small>Branch Approver reviews and approves the application</small></h2>
+            </div>
+
+            <span class="role-badge ba">&#128100; Role: Branch Approver &mdash; Username: <code>branchapprover</code></span>
+
+            <div class="step-card">
+                <h3>Login and Find the Application</h3>
+                <ol class="instruction-list">
+                    <li>Log out of the current session.</li>
+                    <li>Login as: <code>branchapprover</code> / <code>Test@123</code></li>
+                    <li>On the Dashboard, check <strong>My Queue</strong> in the left sidebar &mdash; the application should appear here.</li>
+                    <li>Alternatively, go to <strong>Applications</strong> and find the application in the list. Click on it to open the Detail page.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Review the Application</h3>
+                <ol class="instruction-list">
+                    <li>Review the <strong>Overview</strong> tab: customer details, loan amount, tenor, purpose.</li>
+                    <li>Review the <strong>Parties</strong> tab: directors (3) and signatories (2).</li>
+                    <li>Review the <strong>Documents</strong> tab: verify documents are present.
+                        <ul>
+                            <li>For each document, click the <strong>eye icon</strong> to view it.</li>
+                            <li>Click the <span class="btn-mock btn-success-mock">&#10004; Verify</span> button on each document you find satisfactory.</li>
+                            <li>If any document is unsatisfactory, click <span class="btn-mock btn-danger-mock">&#10008; Reject</span> and provide a reason.</li>
+                        </ul>
+                    </li>
+                    <li>Review the <strong>Collateral</strong> tab: 2 items listed (Real Estate + Fixed Deposit). Since the application is now in review, you can set valuations:
+                        <ul>
+                            <li>Click <strong>Set Valuation</strong> on the Real Estate collateral.</li>
+                            <li>In the modal, enter:
+                                <table class="form-table">
+                                    <tbody>
+                                        <tr><td>Market Value (&#8358;)</td><td><code>220000000</code></td></tr>
+                                        <tr><td>Forced Sale Value (&#8358;)</td><td><code>165000000</code></td></tr>
+                                        <tr><td>Haircut (%)</td><td><code>25</code> (auto-calculated acceptable value shown)</td></tr>
+                                    </tbody>
+                                </table>
+                            </li>
+                            <li>Click <span class="btn-mock btn-primary-mock">Save Valuation</span>.</li>
+                            <li>Repeat for the Fixed Deposit: Market Value <code>50000000</code>, FSV <code>50000000</code>, Haircut <code>10</code>.</li>
+                        </ul>
+                    </li>
+                    <li>Review the <strong>Financials</strong> tab: 3 years of audited statements. Click to view each year.</li>
+                    <li>Review the <strong>Guarantors</strong> tab: 1 guarantor listed.</li>
+                    <li>Review the <strong>Statements</strong> tab: auto-fetched bank statement available.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Approve the Application</h3>
+                <ol class="instruction-list">
+                    <li>In the action bar at the top, you will see three buttons: <span class="btn-mock btn-success-mock">Approve</span> <span class="btn-mock btn-secondary-mock">Return</span> <span class="btn-mock btn-danger-mock">Reject</span></li>
+                    <li>Click <span class="btn-mock btn-success-mock">Approve</span>.</li>
+                    <li>A modal appears asking for comments.</li>
+                    <li>Enter: <code>Application reviewed. Customer profile is satisfactory. Collateral coverage adequate. Financials indicate healthy business. Recommend proceeding to credit analysis.</code></li>
+                    <li>Click <span class="btn-mock btn-success-mock">Confirm Approve</span>.</li>
+                    <li>The status changes from <strong>BranchReview</strong> &rarr; <strong>BranchApproved</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="alert alert-success">
+                <span class="alert-icon">&#10004;</span>
+                <div>
+                    <strong>Automatic Credit Checks Triggered:</strong> When the branch approves, the system automatically triggers credit bureau checks (via SmartComply) for ALL directors, signatories, and guarantors. Individual credit reports and fraud checks will be generated in the background. The business entity also gets a credit check using the RC number.
+                </div>
+            </div>
+
+            <div class="transition-box">
+                <strong>Status: BranchApproved &rarr; CreditAnalysis</strong> &mdash; The application moves to the Credit Officer's queue. Log out. Next role: <strong>Credit Officer</strong>.
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 8: CREDIT ANALYSIS -->
+        <!-- ============================================================ -->
+        <div class="section" id="step8">
+            <div class="section-header">
+                <div class="section-icon icon-co">8</div>
+                <h2>Credit Analysis<small>Credit Officer reviews bureau reports and generates AI advisory</small></h2>
+            </div>
+
+            <span class="role-badge co">&#128100; Role: Credit Officer &mdash; Username: <code>creditofficer</code></span>
+
+            <div class="step-card">
+                <h3>Login and Open the Application</h3>
+                <ol class="instruction-list">
+                    <li>Login as: <code>creditofficer</code> / <code>Test@123</code></li>
+                    <li>Go to <strong>My Queue</strong> or <strong>Applications</strong> and find the application.</li>
+                    <li>Open the Application Detail page.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Review Credit Bureau Reports</h3>
+                <ol class="instruction-list">
+                    <li>Click the <strong>Bureau</strong> tab.</li>
+                    <li>You will see credit reports organized by party type:
+                        <ul>
+                            <li><strong>Business Credit Report</strong>: Shows CAPITALFIELD ASSET MGT LTD with 24 total loans, 7 active, &#8358;19,732 outstanding.</li>
+                            <li><strong>Directors</strong>: Individual reports for John Adebayo (low risk, score ~720), Amina Ibrahim (medium risk, 60-day delinquency), Chukwuma Okonkwo (high risk, 180-day delinquency).</li>
+                            <li><strong>Signatories</strong>: Reports for signatories with BVNs.</li>
+                            <li><strong>Guarantors</strong>: Report for John Adebayo (guarantor).</li>
+                        </ul>
+                    </li>
+                    <li>Click the <strong>View</strong> button on any report card to open the <strong>Bureau Report Detail Modal</strong>. This shows:
+                        <ul>
+                            <li>Credit score circle</li>
+                            <li>Key metrics (active loans, total exposure, overdue, max delinquency)</li>
+                            <li>Fraud risk assessment with score and recommendation</li>
+                            <li>Credit accounts table</li>
+                        </ul>
+                    </li>
+                    <li>Close the modal when done reviewing.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Approve Collateral</h3>
+                <ol class="instruction-list">
+                    <li>Click the <strong>Collateral</strong> tab.</li>
+                    <li>If valuations were set by the Branch Approver (Step 7), the collateral items will show status <strong>Valued</strong>.</li>
+                    <li>Click <span class="btn-mock btn-success-mock">Approve</span> on each collateral item.</li>
+                    <li>A confirmation modal appears. Click <span class="btn-mock btn-success-mock">Confirm Approve</span>.</li>
+                    <li>Status changes to <strong>Approved</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Approve Guarantor</h3>
+                <ol class="instruction-list">
+                    <li>Click the <strong>Guarantors</strong> tab.</li>
+                    <li>The guarantor's status should now be <strong>CreditCheckCompleted</strong> (auto-triggered after branch approval).</li>
+                    <li>Click <span class="btn-mock btn-success-mock">Approve</span> on the guarantor.</li>
+                    <li>Confirm the approval in the modal.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Generate AI Advisory</h3>
+                <ol class="instruction-list">
+                    <li>Click the <strong>Advisory</strong> tab.</li>
+                    <li>Click the <span class="btn-mock btn-primary-mock">Generate Advisory</span> button.</li>
+                    <li>The system aggregates all data (bureau reports, financials, cashflow, collateral, guarantors) and generates a comprehensive risk assessment. This includes:
+                        <ul>
+                            <li>Score matrix across 5 risk categories (Credit History, Financial Health, Cashflow, DSCR, Collateral)</li>
+                            <li>Overall recommendation (Approve/Decline/Refer)</li>
+                            <li>Red flags and mitigating factors</li>
+                            <li>Recommended terms (amount, tenor, interest rate)</li>
+                        </ul>
+                    </li>
+                    <li>Review the advisory report displayed in the tab.</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 9: MOVE TO HO REVIEW -->
+        <!-- ============================================================ -->
+        <div class="section" id="step9">
+            <div class="section-header">
+                <div class="section-icon icon-co">9</div>
+                <h2>Move to HO Review<small>Credit Officer advances the application to Head Office</small></h2>
+            </div>
+
+            <span class="role-badge co">&#128100; Role: Credit Officer &mdash; Username: <code>creditofficer</code> (still logged in)</span>
+
+            <div class="step-card">
+                <h3>Advance to HO Review</h3>
+                <ol class="instruction-list">
+                    <li>In the action bar, click <span class="btn-mock btn-success-mock">Approve</span>.</li>
+                    <li>Enter comments: <code>Credit analysis complete. Bureau reports reviewed - one director flagged as high risk but overall exposure is manageable with strong collateral coverage. AI advisory recommends approval with conditions. Moving to HO Review.</code></li>
+                    <li>Click <span class="btn-mock btn-success-mock">Confirm Approve</span>.</li>
+                    <li>Status changes from <strong>CreditAnalysis</strong> &rarr; <strong>HOReview</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="transition-box">
+                <strong>Status: HOReview</strong> &mdash; The application is now in the HO Reviewer's queue. Log out. Next role: <strong>HO Reviewer</strong>.
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 10: HO REVIEWER APPROVAL -->
+        <!-- ============================================================ -->
+        <div class="section" id="step10">
+            <div class="section-header">
+                <div class="section-icon icon-ho">10</div>
+                <h2>HO Reviewer Approval<small>Head Office reviewer advances to committee</small></h2>
+            </div>
+
+            <span class="role-badge ho">&#128100; Role: HO Reviewer &mdash; Username: <code>horeviewer</code></span>
+
+            <div class="step-card">
+                <h3>Login, Review, and Approve</h3>
+                <ol class="instruction-list">
+                    <li>Login as: <code>horeviewer</code> / <code>Test@123</code></li>
+                    <li>Find the application in <strong>My Queue</strong> or <strong>Applications</strong>. Open the Detail page.</li>
+                    <li>Review all tabs (Overview, Bureau, Advisory, Collateral, Financials, Statements) to form a complete picture.</li>
+                    <li>In the action bar, click <span class="btn-mock btn-success-mock">Approve</span>.</li>
+                    <li>Enter comments: <code>HO review complete. Application fundamentals are sound. Collateral coverage is adequate. Recommending for committee review.</code></li>
+                    <li>Click <span class="btn-mock btn-success-mock">Confirm Approve</span>.</li>
+                    <li>Status changes from <strong>HOReview</strong> &rarr; <strong>CommitteeCirculation</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="transition-box">
+                <strong>Status: CommitteeCirculation</strong> &mdash; The application needs a committee to be set up. Log out. Next role: <strong>Credit Officer</strong> (to set up the committee).
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 11: SETUP COMMITTEE -->
+        <!-- ============================================================ -->
+        <div class="section" id="step11">
+            <div class="section-header">
+                <div class="section-icon icon-co">11</div>
+                <h2>Setup Committee<small>Credit Officer configures the review committee</small></h2>
+            </div>
+
+            <span class="role-badge co">&#128100; Role: Credit Officer &mdash; Username: <code>creditofficer</code></span>
+
+            <div class="step-card">
+                <h3>Login and Setup the Committee</h3>
+                <ol class="instruction-list">
+                    <li>Login as: <code>creditofficer</code> / <code>Test@123</code></li>
+                    <li>Open the application Detail page.</li>
+                    <li>Click the <strong>Committee</strong> tab.</li>
+                    <li>You will see a <span class="btn-mock btn-primary-mock">Setup Committee</span> button (visible only for Credit Officer when status is CommitteeCirculation and no committee exists yet).</li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Setup Committee</span>.</li>
+                    <li>The <strong>Setup Committee Modal</strong> opens. Since the loan amount is &#8358;150M, the system automatically matches the <strong>Regional Credit Committee</strong> (&#8358;50M&ndash;&#8358;200M). You will see a green banner:
+                        <div class="alert alert-success" style="margin:8px 0">
+                            <span class="alert-icon">&#10004;</span>
+                            <div><strong>Auto-routed:</strong> Regional Credit Committee matched. Members pre-populated from standing roster.</div>
+                        </div>
+                    </li>
+                    <li>The committee configuration is pre-filled:
+                        <table class="form-table">
+                            <tbody>
+                                <tr><td>Committee Type</td><td>Regional Credit (auto-selected)</td></tr>
+                                <tr><td>Required Votes</td><td>3</td></tr>
+                                <tr><td>Minimum Approval Votes</td><td>2</td></tr>
+                                <tr><td>Voting Deadline</td><td>72 hours from now (auto-calculated)</td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>The members list shows the 3 committee members you added in Admin Setup:
+                        <ul>
+                            <li>Emeka Nnamdi (Chairperson)</li>
+                            <li>Blessing Okafor (Member)</li>
+                            <li>Tunde Bakare (Member)</li>
+                        </ul>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Create Committee Review</span>.</li>
+                    <li>The committee is now set up and waiting for votes.</li>
+                </ol>
+            </div>
+
+            <div class="transition-box">
+                <strong>Status: CommitteeCirculation (with active committee)</strong> &mdash; Committee members can now log in and cast their votes. Log out. Next role: <strong>Committee Members</strong>.
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 12: COMMITTEE VOTING -->
+        <!-- ============================================================ -->
+        <div class="section" id="step12">
+            <div class="section-header">
+                <div class="section-icon icon-cm">12</div>
+                <h2>Committee Voting<small>Three committee members review and cast votes</small></h2>
+            </div>
+
+            <span class="role-badge cm">&#128100; Role: Committee Members &mdash; 3 separate logins required</span>
+
+            <div class="alert alert-warning">
+                <span class="alert-icon">&#9888;</span>
+                <div>Each committee member must log in separately to cast their vote. The quorum requires 3 votes with at least 2 approvals for the application to pass.</div>
+            </div>
+
+            <div class="step-card">
+                <h3>Committee Member 1 (Chairperson): Emeka Nnamdi</h3>
+                <ol class="instruction-list">
+                    <li>Login as: <code>committee1</code> / <code>Test@123</code></li>
+                    <li>Check <strong>My Pending Votes</strong> in the sidebar (under Committees). The application should appear.</li>
+                    <li>Click on the application to open the Detail page.</li>
+                    <li>Review all tabs (Overview, Bureau, Advisory, Financials, Collateral, etc.).</li>
+                    <li>Click the <strong>Committee</strong> tab.</li>
+                    <li>You will see a voting section. Select your vote: <span class="btn-mock btn-success-mock">Approve</span></li>
+                    <li>Enter comment: <code>Strong business fundamentals. Adequate collateral coverage. One director with high-risk profile noted but mitigated by joint-and-several guarantee. Approve with condition: quarterly financial reporting.</code></li>
+                    <li>Enter recommended terms (optional):
+                        <table class="form-table">
+                            <tbody>
+                                <tr><td>Approved Amount</td><td><code>142500000</code> (95% of requested)</td></tr>
+                                <tr><td>Tenor</td><td><code>36</code> months</td></tr>
+                                <tr><td>Interest Rate</td><td><code>19.0</code>%</td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Cast Vote</span>.</li>
+                    <li>Log out.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Committee Member 2: Blessing Okafor</h3>
+                <ol class="instruction-list">
+                    <li>Login as: <code>committee2</code> / <code>Test@123</code></li>
+                    <li>Navigate to the application (via My Pending Votes or Applications).</li>
+                    <li>Go to <strong>Committee</strong> tab.</li>
+                    <li>Vote: <span class="btn-mock btn-success-mock">Approve</span></li>
+                    <li>Comment: <code>Concur with chairperson's assessment. Good collateral position. Approve.</code></li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Cast Vote</span>. Log out.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Committee Member 3: Tunde Bakare</h3>
+                <ol class="instruction-list">
+                    <li>Login as: <code>committee3</code> / <code>Test@123</code></li>
+                    <li>Navigate to the application.</li>
+                    <li>Go to <strong>Committee</strong> tab.</li>
+                    <li>Vote: <span class="btn-mock btn-success-mock">Approve</span></li>
+                    <li>Comment: <code>Manufacturing sector is performing well. Approve subject to standard conditions.</code></li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Cast Vote</span>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Chairperson Records Committee Decision</h3>
+                <ol class="instruction-list">
+                    <li>Log back in as: <code>committee1</code> / <code>Test@123</code> (Chairperson)</li>
+                    <li>Open the application's <strong>Committee</strong> tab.</li>
+                    <li>With all 3 votes cast (3/3 Approve = quorum met), the Chairperson can now record the final decision.</li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Record Decision</span>.</li>
+                    <li>Fill in:
+                        <table class="form-table">
+                            <tbody>
+                                <tr><td>Decision</td><td>Select <strong>Approved</strong></td></tr>
+                                <tr><td>Approved Amount</td><td><code>142500000</code></td></tr>
+                                <tr><td>Approved Tenor</td><td><code>36</code></td></tr>
+                                <tr><td>Approved Rate</td><td><code>19.0</code></td></tr>
+                                <tr><td>Conditions</td><td><code>1. Quarterly financial reporting required. 2. C of O for Lekki property to be perfected within 60 days. 3. Fixed deposit lien letter to be obtained from First Bank. 4. Directors' personal guarantees to be executed.</code></td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Confirm Decision</span>.</li>
+                    <li>Status changes from <strong>CommitteeCirculation</strong> &rarr; <strong>CommitteeApproved</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="transition-box">
+                <strong>Status: CommitteeApproved</strong> &mdash; The application now needs final approval. Log out. Next role: <strong>Final Approver</strong>.
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 13: FINAL APPROVAL -->
+        <!-- ============================================================ -->
+        <div class="section" id="step13">
+            <div class="section-header">
+                <div class="section-icon icon-fa">13</div>
+                <h2>Final Approval<small>Final Approver (MD/ED) grants ultimate approval</small></h2>
+            </div>
+
+            <span class="role-badge fa">&#128100; Role: Final Approver &mdash; Username: <code>finalapprover</code></span>
+
+            <div class="step-card">
+                <h3>Login and Grant Final Approval</h3>
+                <ol class="instruction-list">
+                    <li>Login as: <code>finalapprover</code> / <code>Test@123</code></li>
+                    <li>Find the application in <strong>My Queue</strong> or <strong>Applications</strong>.</li>
+                    <li>Open the Detail page.</li>
+                    <li>Review the <strong>Committee</strong> tab to see the committee decision, approved terms, and conditions.</li>
+                    <li>Review the <strong>Advisory</strong> tab for the AI risk assessment.</li>
+                    <li>In the action bar, click <span class="btn-mock btn-success-mock">Approve</span>.</li>
+                    <li>Enter comments: <code>Final approval granted. Committee recommendations accepted. Approved amount N142,500,000 at 19% reducing over 36 months subject to stated conditions.</code></li>
+                    <li>Click <span class="btn-mock btn-success-mock">Confirm Approve</span>.</li>
+                    <li>Status changes from <strong>CommitteeApproved</strong> &rarr; <strong>Approved</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="alert alert-success">
+                <span class="alert-icon">&#127881;</span>
+                <div><strong>The loan is approved!</strong> The application has passed through all review stages. The Operations team can now generate the Loan Pack and Offer Letter.</div>
+            </div>
+
+            <div class="transition-box">
+                <strong>Status: Approved</strong> &mdash; Log out. Next role: <strong>Operations</strong>.
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 14: LOAN PACK & OFFER LETTER -->
+        <!-- ============================================================ -->
+        <div class="section" id="step14">
+            <div class="section-header">
+                <div class="section-icon icon-op">14</div>
+                <h2>Generate Loan Pack &amp; Offer Letter<small>Operations generates final documents</small></h2>
+            </div>
+
+            <span class="role-badge op">&#128100; Role: Operations &mdash; Username: <code>operations</code></span>
+
+            <div class="step-card">
+                <h3>Login and Open the Approved Application</h3>
+                <ol class="instruction-list">
+                    <li>Login as: <code>operations</code> / <code>Test@123</code></li>
+                    <li>Find the application (status: <strong>Approved</strong>).</li>
+                    <li>Open the Detail page.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Generate Loan Pack PDF</h3>
+                <ol class="instruction-list">
+                    <li>In the action bar, you will see a <span class="btn-mock btn-outline-mock">Loan Pack</span> button (visible when status is Approved, CommitteeApproved, or Disbursed).</li>
+                    <li>Click <span class="btn-mock btn-outline-mock">Loan Pack</span>.</li>
+                    <li>The system generates a comprehensive PDF containing:
+                        <ul>
+                            <li>Executive Summary</li>
+                            <li>Customer Profile</li>
+                            <li>Directors &amp; Signatories</li>
+                            <li>Credit Bureau Reports</li>
+                            <li>Financial Analysis &amp; Ratios</li>
+                            <li>Cashflow Analysis</li>
+                            <li>Collateral Details</li>
+                            <li>Guarantor Information</li>
+                            <li>AI Advisory Report</li>
+                            <li>Workflow History</li>
+                            <li>Committee Comments &amp; Decision</li>
+                        </ul>
+                    </li>
+                    <li>A success message appears with the generated PDF filename. The PDF is stored in the file storage system.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Generate Offer Letter PDF</h3>
+                <ol class="instruction-list">
+                    <li>In the action bar, click the <span class="btn-mock btn-primary-mock">Offer Letter</span> button (visible only when status is Approved or Disbursed).</li>
+                    <li>The system generates a professional Offer Letter PDF containing:
+                        <ul>
+                            <li>Bank header and addressee details</li>
+                            <li>Facility details table (amount, tenor, rate, type)</li>
+                            <li><strong>Full repayment schedule</strong> with monthly breakdown (installment number, due date, principal, interest, total payment, outstanding balance)</li>
+                            <li>Summary box (total interest, total repayment, monthly installment)</li>
+                            <li>Numbered conditions from the committee approval</li>
+                            <li>Acceptance and signature section</li>
+                        </ul>
+                    </li>
+                    <li>A success message appears confirming the offer letter was generated.</li>
+                </ol>
+            </div>
+
+            <div class="alert alert-info">
+                <span class="alert-icon">&#9432;</span>
+                <div>
+                    <strong>Repayment Schedule Calculation:</strong> The system uses a hybrid approach. If the loan product has a <code>FineractProductId</code> mapped and the Fineract API is reachable, it uses the Fineract API for exact schedule calculation. Otherwise, it falls back to in-house financial math (EMI formula for reducing balance). In mock mode, the in-house calculation is used.
+                </div>
+            </div>
+
+            <div class="step-card">
+                <h3>What Happens Next (Production)</h3>
+                <p>In a production environment, after generating the offer letter:</p>
+                <ol>
+                    <li>The offer letter PDF is printed and sent to the customer for signature.</li>
+                    <li>Once the customer accepts and signs, the Operations team manually books the loan in the core banking system (Fineract).</li>
+                    <li>After booking, the Operations user can update the status to <strong>Disbursed</strong> by recording the core banking loan reference number.</li>
+                </ol>
+                <p>Automated disbursement via API is available in the system but intentionally not exposed in the UI for audit/compliance reasons.</p>
+            </div>
+
+            <div class="alert alert-success">
+                <span class="alert-icon">&#127881;</span>
+                <div>
+                    <strong>Tutorial Complete!</strong> You have successfully walked through the entire corporate loan lifecycle from initial application creation through to offer letter generation. The application has passed through all 7 roles and every major screen in the system.
+                </div>
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- ============================================================ -->
+        <!-- MOCK DATA REFERENCE -->
+        <!-- ============================================================ -->
+        <div class="section" id="mock-data">
+            <div class="section-header">
+                <div class="section-icon" style="background:var(--gray-100);color:var(--gray-700);">R</div>
+                <h2>Mock Data Reference<small>All mock values that produce correct responses</small></h2>
+            </div>
+
+            <div class="step-card">
+                <h3>Core Banking Mock (Account Lookup)</h3>
+                <table class="form-table">
+                    <thead><tr><th>Account Number</th><th>Company Name</th><th>Type</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>1234567890</code></td><td>Acme Industries Ltd</td><td>Corporate (BUSINESS)</td></tr>
+                        <tr><td><code>0987654321</code></td><td>Oluwaseun Bakare</td><td>Individual (PERSON)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="step-card">
+                <h3>SmartComply CAC Mock (Director Lookup)</h3>
+                <p>Any RC number returns directors. These two have specific business data:</p>
+                <table class="form-table">
+                    <thead><tr><th>RC Number</th><th>Company</th><th>Directors</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>RC123456</code></td><td>CAPITALFIELD ASSET MGT LTD</td><td>3 directors (Adebayo, Ibrahim, Okonkwo)</td></tr>
+                        <tr><td><code>RC654321</code></td><td>ACME INDUSTRIES LIMITED</td><td>3 directors (same mock set)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="step-card">
+                <h3>Credit Bureau Mock (BVN Lookup)</h3>
+                <table class="form-table">
+                    <thead><tr><th>BVN</th><th>Name</th><th>Risk Level</th><th>Score</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>22234567890</code></td><td>JOHN ADEBAYO</td><td style="color:var(--success)">Low</td><td>~720</td></tr>
+                        <tr><td><code>22234567891</code></td><td>AMINA IBRAHIM</td><td style="color:var(--warning)">Medium</td><td>~540</td></tr>
+                        <tr><td><code>22234567892</code></td><td>CHUKWUMA OKONKWO</td><td style="color:var(--danger)">High</td><td>~360</td></tr>
+                        <tr><td><code>22234567893</code></td><td>Not in mock data</td><td>N/A</td><td>N/A</td></tr>
+                        <tr><td><code>22212345678</code></td><td>OLUWASEUN BAKARE</td><td style="color:var(--success)">Low</td><td>~720</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="step-card">
+                <h3>All Test User Accounts</h3>
+                <table class="login-table">
+                    <thead><tr><th>Username</th><th>Password</th><th>Role</th><th>Source</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>loanofficer</code></td><td><code>Test@123</code></td><td>Loan Officer</td><td>Auto-seeded</td></tr>
+                        <tr><td><code>branchapprover</code></td><td><code>Test@123</code></td><td>Branch Approver</td><td>Auto-seeded</td></tr>
+                        <tr><td><code>creditofficer</code></td><td><code>Test@123</code></td><td>Credit Officer</td><td>Auto-seeded</td></tr>
+                        <tr><td><code>horeviewer</code></td><td><code>Test@123</code></td><td>HO Reviewer</td><td>Auto-seeded</td></tr>
+                        <tr><td><code>admin</code></td><td><code>Test@123</code></td><td>System Admin</td><td>Auto-seeded</td></tr>
+                        <tr><td><code>committee1</code></td><td><code>Test@123</code></td><td>Committee Member</td><td>Created in Admin Setup</td></tr>
+                        <tr><td><code>committee2</code></td><td><code>Test@123</code></td><td>Committee Member</td><td>Created in Admin Setup</td></tr>
+                        <tr><td><code>committee3</code></td><td><code>Test@123</code></td><td>Committee Member</td><td>Created in Admin Setup</td></tr>
+                        <tr><td><code>finalapprover</code></td><td><code>Test@123</code></td><td>Final Approver</td><td>Created in Admin Setup</td></tr>
+                        <tr><td><code>operations</code></td><td><code>Test@123</code></td><td>Operations</td><td>Created in Admin Setup</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="step-card">
+                <h3>Standing Committees (Auto-Seeded)</h3>
+                <table class="form-table">
+                    <thead><tr><th>Committee</th><th>Amount Range</th><th>Votes Required</th><th>Min Approval</th></tr></thead>
+                    <tbody>
+                        <tr><td>Branch Credit</td><td>&#8358;0 &ndash; &#8358;50M</td><td>3</td><td>2</td></tr>
+                        <tr><td>Regional Credit</td><td>&#8358;50M &ndash; &#8358;200M</td><td>3</td><td>2</td></tr>
+                        <tr><td>Head Office Credit</td><td>&#8358;200M &ndash; &#8358;500M</td><td>5</td><td>3</td></tr>
+                        <tr><td>Management Credit</td><td>&#8358;500M &ndash; &#8358;2B</td><td>5</td><td>4</td></tr>
+                        <tr><td>Board Credit</td><td>&#8358;2B+</td><td>7</td><td>5</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="step-card">
+                <h3>Loan Products (Auto-Seeded)</h3>
+                <table class="form-table">
+                    <thead><tr><th>Code</th><th>Name</th><th>Amount Range</th><th>Tenor</th><th>Base Rate</th></tr></thead>
+                    <tbody>
+                        <tr><td>CORP-TERM-001</td><td>Corporate Term Loan</td><td>&#8358;50M &ndash; &#8358;5B</td><td>12&ndash;84 mo</td><td>16.5%</td></tr>
+                        <tr><td>CORP-WC-001</td><td>Working Capital Finance</td><td>&#8358;10M &ndash; &#8358;500M</td><td>3&ndash;12 mo</td><td>16.5%</td></tr>
+                        <tr><td>CORP-OD-001</td><td>Corporate Overdraft</td><td>&#8358;5M &ndash; &#8358;200M</td><td>1&ndash;12 mo</td><td>16.5%</td></tr>
+                        <tr><td>CORP-AF-001</td><td>Asset Finance</td><td>&#8358;20M &ndash; &#8358;1B</td><td>24&ndash;60 mo</td><td>16.5%</td></tr>
+                        <tr><td>CORP-PF-001</td><td>Project Finance</td><td>&#8358;500M &ndash; &#8358;50B</td><td>36&ndash;120 mo</td><td>16.5%</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TROUBLESHOOTING -->
+        <!-- ============================================================ -->
+        <div class="section" id="troubleshooting">
+            <div class="section-header">
+                <div class="section-icon" style="background:var(--warning-light);color:var(--warning);">?</div>
+                <h2>Troubleshooting<small>Common issues and solutions</small></h2>
+            </div>
+
+            <div class="step-card">
+                <h3>Cannot see "Submit for Review" button</h3>
+                <ul>
+                    <li>The button only appears when status is <strong>Draft</strong> and you are logged in as a <strong>Loan Officer</strong>.</li>
+                    <li>Check that you are on the correct application's Detail page.</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>Cannot see Approve/Reject/Return buttons</h3>
+                <ul>
+                    <li>These buttons are role-specific:
+                        <ul>
+                            <li><strong>BranchReview</strong>: only visible to <code>BranchApprover</code></li>
+                            <li><strong>HOReview</strong>: only visible to <code>CreditOfficer</code></li>
+                            <li><strong>CommitteeApproved</strong>: Approve visible to <code>FinalApprover</code></li>
+                        </ul>
+                    </li>
+                    <li>Make sure you are logged in with the correct role for the current status.</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>"Setup Committee" button not showing</h3>
+                <ul>
+                    <li>This button only appears when:
+                        <ul>
+                            <li>Status is <strong>CommitteeCirculation</strong></li>
+                            <li>No committee review exists yet for this application</li>
+                            <li>You are logged in as <strong>Credit Officer</strong></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>"Loan Pack" or "Offer Letter" button not visible</h3>
+                <ul>
+                    <li><strong>Loan Pack</strong>: visible when status is <code>Approved</code>, <code>CommitteeApproved</code>, or <code>Disbursed</code></li>
+                    <li><strong>Offer Letter</strong>: visible when status is <code>Approved</code> or <code>Disbursed</code></li>
+                    <li>If you just changed the status, refresh the page.</li>
+                    <li>If buttons still do not appear, check the browser console for errors. The most common cause is a missing database column (migration not applied).</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>Account number "1234567890" returns error</h3>
+                <ul>
+                    <li>Ensure <code>CoreBanking:UseMock</code> is set to <code>true</code> in <code>appsettings.json</code>.</li>
+                    <li>If using the real API, this account number will not exist in the real core banking system.</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>Credit checks not running after branch approval</h3>
+                <ul>
+                    <li>Credit checks are triggered automatically by a background process after branch approval.</li>
+                    <li>Ensure <code>SmartComply:UseMock</code> is set to <code>true</code> in <code>appsettings.json</code>.</li>
+                    <li>The BVNs entered for directors/signatories/guarantors must match the mock data BVNs listed in the Mock Data Reference section.</li>
+                    <li>Wait a few seconds after branch approval, then refresh the page and check the Bureau tab.</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>Balance sheet validation fails</h3>
+                <ul>
+                    <li>Total Assets MUST exactly equal Total Liabilities + Total Equity.</li>
+                    <li>Example: Assets=2,500,000,000 must equal Liabilities=1,200,000,000 + Equity=1,300,000,000.</li>
+                    <li>Double-check your numbers. The system does not allow rounding differences.</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>Committee vote validation errors</h3>
+                <ul>
+                    <li>Approved Amount must be positive and within a reasonable range of the requested amount.</li>
+                    <li>Tenor and Interest Rate must be within valid ranges.</li>
+                    <li>Minimum approval votes cannot exceed required votes in committee setup.</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>Application shows mock/demo data instead of real data</h3>
+                <ul>
+                    <li>If logged in as <code>admin</code>, the system may show mock demonstration data. Log in as the appropriate role-specific user instead.</li>
+                    <li>If the Detail page shows status "HOReview" when you expect "Draft", this usually means the database query is failing silently. Check that all EF Core migrations have been applied.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="margin-top:80px; padding:24px; text-align:center; color:var(--gray-500); font-size:13px; border-top:1px solid var(--gray-200);">
+            CRMS Tutorial Guide &mdash; Generated for development and training purposes.<br>
+            All mock data values are for testing only. Do not use in production.
+        </div>
+    </main>
+</div>
+
+</body>
+</html>

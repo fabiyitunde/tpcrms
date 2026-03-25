@@ -31,6 +31,7 @@ builder.Services.AddAuthorizationCore();
 builder.Services.Configure<CRMS.Web.Intranet.Services.BankSettings>(builder.Configuration.GetSection(CRMS.Web.Intranet.Services.BankSettings.SectionName));
 builder.Services.Configure<CRMS.Web.Intranet.Services.CollateralHaircutSettings>(builder.Configuration.GetSection(CRMS.Web.Intranet.Services.CollateralHaircutSettings.SectionName));
 builder.Services.AddScoped<ApplicationService>();
+builder.Services.AddSingleton<CRMS.Web.Intranet.Services.StatementFileParserService>();
 
 // Auth service for Blazor auth state
 builder.Services.AddScoped<AuthService>();

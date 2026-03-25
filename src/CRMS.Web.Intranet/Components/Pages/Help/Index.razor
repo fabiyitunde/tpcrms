@@ -3115,8 +3115,177 @@
                 </thead>
                 <tbody>
                     <tr><td>Core Banking (Own Bank)</td><td>100%</td><td>Auto-fetched on creation</td></tr>
-                    <tr><td>External Bank (Verified)</td><td>85%</td><td>Uploaded &amp; verified</td></tr>
-                    <tr><td>External Bank (Unverified)</td><td>70%</td><td>Uploaded, not verified</td></tr>
+                    <tr><td>External Bank (Verified)</td><td>85%</td><td>Uploaded &amp; verified by reviewer</td></tr>
+                    <tr><td>External Bank (Unverified)</td><td>70%</td><td>Uploaded, pending verification</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>How to Add an External Bank Statement</h2>
+            <div class="step-list">
+                <div class="step-item">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Open the Statements tab (Draft status only)</h4>
+                        <p>Click <strong>Upload Statement</strong> under "Other Bank Statements".</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Fill in header details</h4>
+                        <p>Enter Bank Name, Account Number, Account Name, statement period dates, and the Opening and Closing balances exactly as printed on the statement.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Attach the file (CSV or Excel recommended)</h4>
+                        <p>Export the statement from the customer's internet banking as CSV or Excel. The system will automatically detect the columns and pre-fill transactions. PDF files are saved for reference only — transactions must be entered manually for PDF.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Review and save transactions</h4>
+                        <p>After upload, the transaction entry grid opens. If the file was parsed, rows will be pre-filled — review them and correct any errors. Check that the <strong>Computed Closing</strong> balance matches the <strong>Expected Closing</strong> (reconciled). Click <strong>Save Transactions</strong>.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-num">5</div>
+                    <div class="step-content">
+                        <h4>Verify and Analyze</h4>
+                        <p>Once transactions are saved and reconciled, a reviewer can click ✓ to <strong>Verify</strong> the statement. After verification, click <strong>Analyze</strong> to run cashflow analysis.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>File Format Guide — CSV &amp; Excel</h2>
+            <p style="color: var(--gray-600); margin-bottom: var(--space-4);">
+                The system auto-detects column layout by reading the header row. Use any of the recognised column names below.
+                Extra columns (e.g. bank logos, summary rows) are ignored automatically.
+            </p>
+
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>Column</th>
+                        <th>Required?</th>
+                        <th>Recognised Header Names</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Date</strong></td>
+                        <td><span class="badge badge-danger">Yes</span></td>
+                        <td><code>Date</code>, <code>Transaction Date</code>, <code>Trans Date</code>, <code>Value Date</code>, <code>Posting Date</code>, <code>Txn Date</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Description</strong></td>
+                        <td><span class="badge badge-danger">Yes</span></td>
+                        <td><code>Description</code>, <code>Narration</code>, <code>Narr</code>, <code>Details</code>, <code>Particulars</code>, <code>Remarks</code>, <code>Memo</code>, <code>Payee</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Debit</strong></td>
+                        <td><span class="badge badge-warning">One of Debit/Credit or Amount</span></td>
+                        <td><code>Debit</code>, <code>DR</code>, <code>Debit Amount</code>, <code>Withdrawal</code>, <code>Amount Out</code>, <code>Money Out</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Credit</strong></td>
+                        <td><span class="badge badge-warning">One of Debit/Credit or Amount</span></td>
+                        <td><code>Credit</code>, <code>CR</code>, <code>Credit Amount</code>, <code>Deposit</code>, <code>Amount In</code>, <code>Money In</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Amount</strong></td>
+                        <td><span class="badge badge-secondary">Alternative</span></td>
+                        <td><code>Amount</code>, <code>Trans Amount</code>, <code>Transaction Amount</code> — positive = credit, negative = debit</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Balance</strong></td>
+                        <td><span class="badge badge-secondary">Recommended</span></td>
+                        <td><code>Balance</code>, <code>Bal</code>, <code>Running Balance</code>, <code>Closing Balance</code>, <code>Ledger Balance</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Reference</strong></td>
+                        <td><span class="badge badge-secondary">Optional</span></td>
+                        <td><code>Reference</code>, <code>Ref No</code>, <code>Cheque</code>, <code>Tran ID</code>, <code>Trans ID</code>, <code>Trxn</code>, <code>Transaction ID</code></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 style="margin-top: var(--space-6); margin-bottom: var(--space-3);">Accepted Date Formats</h3>
+            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                @foreach (var fmt in new[] { "01/12/2024", "01-12-2024", "1 Dec 2024", "01 Dec 2024", "01-Dec-2024", "2024-12-01", "12/01/2024", "01/12/24", "01/Dec/2024" })
+                {
+                    <code style="background: var(--gray-100); padding: 2px 8px; border-radius: 4px; font-size: var(--text-sm);">@fmt</code>
+                }
+            </div>
+
+            <h3 style="margin-top: var(--space-6); margin-bottom: var(--space-3);">Amount Formatting</h3>
+            <p style="color: var(--gray-600); font-size: var(--text-sm);">
+                Amounts may include the ₦ symbol, comma thousand separators, and spaces — these are stripped automatically.
+                Examples: <code>₦1,250,000.00</code> → <code>1250000.00</code>, <code>500,000</code> → <code>500000</code>.
+            </p>
+
+            <h3 style="margin-top: var(--space-6); margin-bottom: var(--space-3);">Sample CSV Layout</h3>
+            <pre style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-4); font-size: var(--text-xs); overflow-x: auto; line-height: 1.6;">Date,Narration,Reference,Debit,Credit,Balance
+01/01/2024,Opening Balance,,,0.00,5000000.00
+05/01/2024,TRANSFER FROM ACME INTL,TRF/2024/001,,2500000.00,7500000.00
+10/01/2024,PAYROLL PROCESSING,SAL/JAN,,0.00,7500000.00
+12/01/2024,VENDOR PAYMENT - SUPPLIES,PO-00123,850000.00,,6650000.00
+15/01/2024,UTILITY BILLS - EKEDC,EKEDC/JAN,45000.00,,6605000.00
+20/01/2024,RENT PAYMENT Q1,CHQ-001234,1500000.00,,5105000.00
+25/01/2024,SALES COLLECTION,COL/2024/012,,3200000.00,8305000.00</pre>
+
+            <div class="content-card" style="background: var(--primary-50); border-color: var(--primary-200); margin-top: var(--space-4);">
+                <h3 style="color: var(--primary-700);">How to Export from Common Banks</h3>
+                <table class="info-table" style="margin-top: var(--space-3);">
+                    <thead>
+                        <tr><th>Bank</th><th>Steps to export CSV/Excel</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>GTBank</strong></td><td>Internet banking → Accounts → Statement → Select period → Download → Choose Excel/CSV</td></tr>
+                        <tr><td><strong>Zenith Bank</strong></td><td>EazyBanking → Account → Statement → Set date range → Export to Excel</td></tr>
+                        <tr><td><strong>Access Bank</strong></td><td>AccessMore / Internet banking → Accounts → Statement → Export → CSV</td></tr>
+                        <tr><td><strong>First Bank</strong></td><td>FirstOnline → Account → e-Statement → Download → Excel format</td></tr>
+                        <tr><td><strong>UBA</strong></td><td>UBA Internet banking → Accounts → Account Statement → Download → Excel</td></tr>
+                        <tr><td><strong>Stanbic IBTC</strong></td><td>Online banking → Accounts → Statement → Export to CSV</td></tr>
+                        <tr><td><strong>Others</strong></td><td>Any internet banking "Download Statement" option — select Excel (.xlsx) or CSV format</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Troubleshooting — File Not Parsed</h2>
+            <table class="info-table">
+                <thead>
+                    <tr><th>Message shown</th><th>Cause</th><th>Fix</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Could not find a header row</td>
+                        <td>The system scanned 20 rows and found no recognisable column headers</td>
+                        <td>Open the file, add a header row with column names from the table above, then re-upload</td>
+                    </tr>
+                    <tr>
+                        <td>No transactions could be extracted</td>
+                        <td>Header found but all data rows were skipped (bad dates, blank amounts)</td>
+                        <td>Check date format is one of the accepted formats above; check amount cells contain numbers not text</td>
+                    </tr>
+                    <tr>
+                        <td>File saved — no transactions extracted (PDF uploaded)</td>
+                        <td>PDF files cannot be parsed automatically</td>
+                        <td>Export as CSV or Excel from internet banking. The PDF is saved as a reference document.</td>
+                    </tr>
+                    <tr>
+                        <td>Statement not reconciled after entry</td>
+                        <td>Opening + Credits − Debits ≠ Closing balance by more than ₦1</td>
+                        <td>Check for missing rows, duplicate entries, or wrong opening/closing balance in the header. You can still save and add more rows later.</td>
+                    </tr>
                 </tbody>
             </table>
         </div>

@@ -152,12 +152,25 @@
                             <td>@stmt.TransactionCount</td>
                             <td>
                                 <div style="display: flex; gap: var(--space-2);">
-                                    <button class="btn btn-sm btn-outline" @onclick="() => OnViewTransactions.InvokeAsync(stmt.Id)" title="View transactions">
-                                        <span class="material-symbols-outlined" style="font-size: 16px;">list</span>
-                                    </button>
+                                    @if (IsEditable && stmt.VerificationStatus != "Rejected")
+                                    {
+                                        <button class="btn btn-sm btn-primary" @onclick="() => OnEnterTransactions.InvokeAsync(stmt.Id)"
+                                                title="@(stmt.TransactionCount == 0 ? "Enter transactions" : "Add more transactions")">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">edit_note</span>
+                                            @(stmt.TransactionCount == 0 ? "Enter Txns" : "Add Txns")
+                                        </button>
+                                    }
+                                    @if (stmt.TransactionCount > 0)
+                                    {
+                                        <button class="btn btn-sm btn-outline" @onclick="() => OnViewTransactions.InvokeAsync(stmt.Id)" title="View transactions">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">list</span>
+                                        </button>
+                                    }
                                     @if (stmt.VerificationStatus == "Pending")
                                     {
-                                        <button class="btn btn-sm btn-success" @onclick="() => OnVerify.InvokeAsync(stmt.Id)" title="Verify">
+                                        <button class="btn btn-sm btn-success" @onclick="() => OnVerify.InvokeAsync(stmt.Id)"
+                                                title="@(stmt.TransactionCount == 0 ? "Cannot verify — no transactions entered" : "Verify statement")"
+                                                disabled="@(stmt.TransactionCount == 0)">
                                             <span class="material-symbols-outlined" style="font-size: 16px;">check</span>
                                         </button>
                                         <button class="btn btn-sm btn-danger" @onclick="() => OnReject.InvokeAsync(stmt.Id)" title="Reject">
@@ -166,7 +179,9 @@
                                     }
                                     @if (stmt.AnalysisStatus == "Pending" && stmt.VerificationStatus != "Rejected")
                                     {
-                                        <button class="btn btn-sm btn-outline" @onclick="() => OnAnalyze.InvokeAsync(stmt.Id)" title="Analyze">
+                                        <button class="btn btn-sm btn-outline" @onclick="() => OnAnalyze.InvokeAsync(stmt.Id)"
+                                                title="@(stmt.TransactionCount == 0 ? "Cannot analyze — no transactions entered" : "Run cashflow analysis")"
+                                                disabled="@(stmt.TransactionCount == 0)">
                                             <span class="material-symbols-outlined" style="font-size: 16px;">analytics</span>
                                         </button>
                                     }
@@ -184,6 +199,7 @@
     [Parameter] public List<BankStatementInfo> Statements { get; set; } = [];
     [Parameter] public bool IsEditable { get; set; }
     [Parameter] public EventCallback OnUpload { get; set; }
+    [Parameter] public EventCallback<Guid> OnEnterTransactions { get; set; }
     [Parameter] public EventCallback<Guid> OnVerify { get; set; }
     [Parameter] public EventCallback<Guid> OnReject { get; set; }
     [Parameter] public EventCallback<Guid> OnAnalyze { get; set; }

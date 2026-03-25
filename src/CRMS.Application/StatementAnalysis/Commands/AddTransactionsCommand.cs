@@ -31,7 +31,7 @@ public class AddTransactionsHandler : IRequestHandler<AddTransactionsCommand, Ap
 
     public async Task<ApplicationResult<int>> Handle(AddTransactionsCommand request, CancellationToken ct = default)
     {
-        var statement = await _repository.GetByIdAsync(request.StatementId, ct);
+        var statement = await _repository.GetByIdWithTransactionsAsync(request.StatementId, ct);
         if (statement == null)
             return ApplicationResult<int>.Failure("Statement not found");
 
@@ -50,6 +50,9 @@ public class AddTransactionsHandler : IRequestHandler<AddTransactionsCommand, Ap
             if (result.IsSuccess)
                 addedCount++;
         }
+
+        // Run data integrity check so BalanceReconciled is set (needed for Verify)
+        statement.ValidateDataIntegrity();
 
         _repository.Update(statement);
         await _unitOfWork.SaveChangesAsync(ct);

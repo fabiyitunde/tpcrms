@@ -180,6 +180,7 @@ else
                 Statements="application.BankStatements"
                 IsEditable="IsApplicationEditable"
                 OnUpload="ShowUploadStatementModal"
+                OnEnterTransactions="ShowManageStatementTransactionsModal"
                 OnVerify="VerifyStatement"
                 OnReject="ShowRejectStatementModal"
                 OnAnalyze="AnalyzeStatement"
@@ -643,6 +644,20 @@ else
         ApplicationId="Id"
         OnClose="CloseUploadStatementModal"
         OnSuccess="OnBankStatementUploaded" />
+}
+
+@if (showManageStatementTransactionsModal && managingStatementId.HasValue)
+{
+    var stmtForManage = application?.BankStatements.FirstOrDefault(s => s.Id == managingStatementId.Value);
+    if (stmtForManage != null)
+    {
+        <ManageStatementTransactionsModal
+            Statement="stmtForManage"
+            OnClose="CloseManageStatementTransactionsModal"
+            OnSuccess="OnStatementTransactionsSaved"
+            PreloadedTransactions="preloadedStatementTransactions"
+            ParseMessage="statementParseMessage" />
+    }
 }
 
 @if (showViewStatementTransactionsModal && viewingStatementTransactionsId.HasValue)
@@ -1720,6 +1735,10 @@ else
     }
 
     private bool showUploadBankStatementModal;
+    private bool showManageStatementTransactionsModal;
+    private Guid? managingStatementId;
+    private List<StatementTransactionRow>? preloadedStatementTransactions;
+    private string? statementParseMessage;
     private bool showRejectStatementModal;
     private Guid? rejectingStatementId;
     private string rejectStatementReason = string.Empty;
@@ -1728,7 +1747,39 @@ else
 
     private void ShowUploadStatementModal() { showUploadBankStatementModal = true; }
     private void CloseUploadStatementModal() { showUploadBankStatementModal = false; }
-    private async Task OnBankStatementUploaded() { showUploadBankStatementModal = false; await LoadApplication(); }
+    private async Task OnBankStatementUploaded(StatementUploadResult result)
+    {
+        showUploadBankStatementModal = false;
+        await LoadApplication();
+        // If transactions were parsed from the file, immediately open the entry modal pre-populated
+        preloadedStatementTransactions = result.ParsedTransactions.Any() ? result.ParsedTransactions : null;
+        statementParseMessage = result.ParseMessage;
+        managingStatementId = result.StatementId;
+        showManageStatementTransactionsModal = true;
+    }
+
+    private void ShowManageStatementTransactionsModal(Guid statementId)
+    {
+        managingStatementId = statementId;
+        showManageStatementTransactionsModal = true;
+    }
+
+    private void CloseManageStatementTransactionsModal()
+    {
+        showManageStatementTransactionsModal = false;
+        managingStatementId = null;
+        preloadedStatementTransactions = null;
+        statementParseMessage = null;
+    }
+
+    private async Task OnStatementTransactionsSaved()
+    {
+        showManageStatementTransactionsModal = false;
+        managingStatementId = null;
+        preloadedStatementTransactions = null;
+        statementParseMessage = null;
+        await LoadApplication();
+    }
 
     private async Task VerifyStatement(Guid statementId)
     {

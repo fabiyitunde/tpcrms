@@ -49,6 +49,77 @@
                 </div>
             </div>
 
+            <div class="form-group">
+                <label class="form-label">
+                    Statement File
+                    <span style="color: var(--gray-400); font-weight: normal;">(optional)</span>
+                </label>
+                <InputFile OnChange="HandleFileSelected" accept=".pdf,.csv,.xlsx,.xls" class="form-control" style="padding: var(--space-2);" />
+                @if (model.File != null)
+                {
+                    <div class="form-hint" style="color: var(--success-600);">
+                        <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">attach_file</span>
+                        @model.File.Name (@FormatFileSize(model.File.Size))
+                    </div>
+                }
+                else
+                {
+                    <div class="form-hint">
+                        CSV or Excel files will have transactions auto-detected. PDF files are saved for reference only — transactions must be entered manually.
+                    </div>
+                }
+            </div>
+
+            <!-- Collapsible format guide -->
+            <div style="border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-3);">
+                <div style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3); cursor: pointer; user-select: none;"
+                     @onclick="() => showFormatGuide = !showFormatGuide">
+                    <span class="material-symbols-outlined" style="font-size: 18px; color: var(--primary-500);">help_outline</span>
+                    <span style="font-size: var(--text-sm); font-weight: 500; color: var(--primary-700);">CSV / Excel Format Guide</span>
+                    <span class="material-symbols-outlined" style="margin-left: auto; font-size: 18px; color: var(--gray-400);">
+                        @(showFormatGuide ? "expand_less" : "expand_more")
+                    </span>
+                </div>
+
+                @if (showFormatGuide)
+                {
+                    <div style="padding: 0 var(--space-3) var(--space-3); border-top: 1px solid var(--gray-100);">
+                        <p style="font-size: var(--text-sm); color: var(--gray-600); margin: var(--space-3) 0 var(--space-2);">
+                            The system reads your file's <strong>header row</strong> and maps columns automatically. Any of the names below are recognised:
+                        </p>
+                        <table style="width: 100%; font-size: var(--text-xs); border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: var(--gray-50);">
+                                    <th style="padding: 4px 8px; text-align: left; border-bottom: 1px solid var(--gray-200);">Column</th>
+                                    <th style="padding: 4px 8px; text-align: left; border-bottom: 1px solid var(--gray-200);">Recognised names</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in _formatGuideRows)
+                                {
+                                    <tr style="border-bottom: 1px solid var(--gray-100);">
+                                        <td style="padding: 4px 8px; font-weight: 600; white-space: nowrap; color: var(--gray-700);">@row.col</td>
+                                        <td style="padding: 4px 8px; color: var(--gray-500);">@row.names</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <div style="margin-top: var(--space-3); background: var(--gray-50); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3);">
+                            <div style="font-size: var(--text-xs); font-weight: 600; color: var(--gray-600); margin-bottom: var(--space-1);">Sample header row (CSV):</div>
+                            <code style="font-size: var(--text-xs); color: var(--gray-700);">Date, Narration, Reference, Debit, Credit, Balance</code>
+                        </div>
+
+                        <div style="margin-top: var(--space-2); font-size: var(--text-xs); color: var(--gray-500);">
+                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">info</span>
+                            Amounts may include ₦, commas, and spaces — stripped automatically.
+                            Dates accepted: <code>01/12/2024</code>, <code>01 Dec 2024</code>, <code>2024-12-01</code>, and more.
+                            For a full list see <a href="/help/tab-statements" target="_blank" style="color: var(--primary-600);">Help → Bank Statements</a>.
+                        </div>
+                    </div>
+                }
+            </div>
+
             @if (periodError != null)
             {
                 <div class="alert alert-warning" style="margin-top: var(--space-2);">
@@ -81,11 +152,23 @@
 @code {
     [Parameter] public Guid ApplicationId { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnSuccess { get; set; }
+    [Parameter] public EventCallback<StatementUploadResult> OnSuccess { get; set; }
 
     private UploadExternalStatementRequest model = new();
     private bool isSaving;
     private string? error;
+    private bool showFormatGuide;
+
+    private static readonly (string col, string names)[] _formatGuideRows =
+    [
+        ("Date *",        "Date, Transaction Date, Trans Date, Value Date, Posting Date, Txn Date"),
+        ("Description *", "Description, Narration, Narr, Details, Particulars, Remarks, Memo, Payee"),
+        ("Debit",         "Debit, DR, Debit Amount, Withdrawal, Amount Out, Money Out"),
+        ("Credit",        "Credit, CR, Credit Amount, Deposit, Amount In, Money In"),
+        ("Amount",        "Amount, Trans Amount — positive = credit, negative = debit"),
+        ("Balance",       "Balance, Bal, Running Balance, Closing Balance, Ledger Balance"),
+        ("Reference",     "Reference, Ref No, Cheque, Tran ID, Trans ID, Trxn, Transaction ID"),
+    ];
 
     private string? periodError
     {
@@ -99,6 +182,13 @@
             return null;
         }
     }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e) => model.File = e.File;
+
+    private static string FormatFileSize(long bytes) =>
+        bytes >= 1_048_576 ? $"{bytes / 1_048_576.0:N1} MB"
+        : bytes >= 1_024 ? $"{bytes / 1_024.0:N1} KB"
+        : $"{bytes} B";
 
     private bool IsValid =>
         !string.IsNullOrWhiteSpace(model.BankName) &&
@@ -115,8 +205,8 @@
         var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
         var result = await AppService.UploadExternalStatementAsync(ApplicationId, model, userId);
         isSaving = false;
-        if (result.Success)
-            await OnSuccess.InvokeAsync();
+        if (result.Success && result.Data != null)
+            await OnSuccess.InvokeAsync(result.Data);
         else
             error = result.Error ?? "Failed to upload statement.";
     }

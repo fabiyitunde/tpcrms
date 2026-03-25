@@ -182,10 +182,30 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> UploadExternalStatementAsync(Guid applicationId, UploadExternalStatementRequest request, Guid userId)
+    public async Task<ApiResponse<StatementUploadResult>> UploadExternalStatementAsync(Guid applicationId, UploadExternalStatementRequest request, Guid userId)
     {
         try
         {
+            string? filePath = null;
+            string? originalFileName = null;
+            byte[]? fileBytes = null;
+
+            if (request.File != null)
+            {
+                // Read into memory once — used for both storage upload and parsing
+                const long maxSize = 10 * 1024 * 1024; // 10 MB
+                using var ms = new System.IO.MemoryStream();
+                using (var readStream = request.File.OpenReadStream(maxAllowedSize: maxSize))
+                    await readStream.CopyToAsync(ms);
+                fileBytes = ms.ToArray();
+
+                var fileStorage = _sp.GetRequiredService<IFileStorageService>();
+                var containerName = $"applications/{applicationId}/statements";
+                using var uploadStream = new System.IO.MemoryStream(fileBytes);
+                filePath = await fileStorage.UploadAsync(containerName, request.File.Name, uploadStream, request.File.ContentType);
+                originalFileName = request.File.Name;
+            }
+
             var handler = _sp.GetRequiredService<CRMS.Application.StatementAnalysis.Commands.UploadStatementHandler>();
             var command = new CRMS.Application.StatementAnalysis.Commands.UploadStatementCommand(
                 request.AccountNumber,
@@ -198,17 +218,67 @@ public partial class ApplicationService
                 CRMS.Domain.Enums.StatementFormat.PDF,
                 CRMS.Domain.Enums.StatementSource.ManualUpload,
                 userId,
-                request.File?.Name,
-                null,
+                originalFileName,
+                filePath,
                 applicationId
             );
             var result = await handler.Handle(command, CancellationToken.None);
-            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to upload statement");
+            if (!result.IsSuccess)
+                return ApiResponse<StatementUploadResult>.Fail(result.Error ?? "Failed to upload statement");
+
+            var uploadResult = new StatementUploadResult { StatementId = result.Data!.Id };
+
+            // Parse transactions from the file if one was provided
+            if (fileBytes != null && request.File != null)
+            {
+                var parser = _sp.GetRequiredService<StatementFileParserService>();
+                using var parseStream = new System.IO.MemoryStream(fileBytes);
+                var parseResult = parser.Parse(parseStream, request.File.Name, request.PeriodFrom, request.PeriodTo, request.OpeningBalance);
+
+                uploadResult.ParsedTransactions = parseResult.Transactions;
+                uploadResult.ParseMessage = parseResult.Success && parseResult.Transactions.Any()
+                    ? $"{parseResult.Transactions.Count} transactions parsed from {parseResult.DetectedFormat}" +
+                      (parseResult.SkippedRows > 0 ? $" ({parseResult.SkippedRows} rows skipped)" : "")
+                    : parseResult.Error ?? "File saved — no transactions could be extracted automatically. Enter them manually.";
+            }
+
+            return ApiResponse<StatementUploadResult>.Ok(uploadResult);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading external statement for application {Id}", applicationId);
-            return ApiResponse.Fail("Failed to upload statement");
+            return ApiResponse<StatementUploadResult>.Fail("Failed to upload statement");
+        }
+    }
+
+    public async Task<ApiResponse> AddStatementTransactionsAsync(Guid statementId, List<StatementTransactionRow> rows)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.StatementAnalysis.Commands.AddTransactionsHandler>();
+            var transactions = rows.Select(r =>
+            {
+                bool isDebit = (r.DebitAmount ?? 0m) > 0;
+                return new CRMS.Application.StatementAnalysis.Commands.TransactionInput(
+                    r.Date,
+                    r.Description,
+                    isDebit ? r.DebitAmount!.Value : r.CreditAmount!.Value,
+                    isDebit ? CRMS.Domain.Enums.StatementTransactionType.Debit : CRMS.Domain.Enums.StatementTransactionType.Credit,
+                    r.RunningBalance,
+                    r.Reference
+                );
+            }).ToList();
+
+            var command = new CRMS.Application.StatementAnalysis.Commands.AddTransactionsCommand(statementId, transactions);
+            var result = await handler.Handle(command, CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse.Ok()
+                : ApiResponse.Fail(result.Error ?? "Failed to add transactions");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding transactions to statement {Id}", statementId);
+            return ApiResponse.Fail("Failed to add transactions");
         }
     }
 

@@ -453,6 +453,32 @@ public class UploadExternalStatementRequest
     public IBrowserFile? File { get; set; }
 }
 
+public class StatementTransactionRow
+{
+    public DateTime Date { get; set; } = DateTime.Today;
+    public string Description { get; set; } = string.Empty;
+    public string? Reference { get; set; }
+    public decimal? DebitAmount { get; set; }
+    public decimal? CreditAmount { get; set; }
+    public decimal RunningBalance { get; set; }
+}
+
+public class StatementUploadResult
+{
+    public Guid StatementId { get; set; }
+    public List<StatementTransactionRow> ParsedTransactions { get; set; } = [];
+    public string? ParseMessage { get; set; }
+}
+
+public class StatementParseResult
+{
+    public List<StatementTransactionRow> Transactions { get; set; } = [];
+    public int SkippedRows { get; set; }
+    public string DetectedFormat { get; set; } = string.Empty;
+    public string? Error { get; set; }
+    public bool Success => Error == null;
+}
+
 public class ApplicationFilter
 {
     public string? Status { get; set; }

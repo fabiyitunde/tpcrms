@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-03-22 (Session 31)
+**Last Updated:** 2026-03-25 (Session 32)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -152,6 +152,11 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **Null-user auth guard on all workflow actions in Detail.razor (C-4)** | ✅ |
 | **Collateral MarketValue/ForcedSaleValue correctly mapped from full CollateralDto (C-5)** | ✅ |
 | **Per-item LTV calculated from real loan amount and acceptable value (C-6)** | ✅ |
+| **External bank statement transaction entry — `ManageStatementTransactionsModal` with live reconciliation** | ✅ |
+| **CSV/Excel bank statement file parsing — `StatementFileParserService` auto column detection, 18 date formats** | ✅ |
+| **Upload modal collapsible format guide panel (column name table, sample header, link to Help)** | ✅ |
+| **Help page Bank Statements section rewritten — format guide, bank export instructions, troubleshooting** | ✅ |
+| **`AddStatementTransactionsAsync` + `ValidateDataIntegrity()` call — enables Verify and Analyze after entry** | ✅ |
 
 ### What Is Pending
 
@@ -250,7 +255,8 @@ src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/
 ├── UploadDocumentModal.razor
 ├── FinancialStatementModal.razor
 ├── UploadFinancialStatementModal.razor
-├── UploadExternalStatementModal.razor     ← upload other-bank statement
+├── UploadExternalStatementModal.razor     ← upload other-bank statement (InputFile + format guide panel)
+├── ManageStatementTransactionsModal.razor ← transaction entry grid with live reconciliation, preload support
 ├── FillPartyInfoModal.razor               ← fill null BVN/shareholding for a party
 ├── SetupCommitteeModal.razor              ← auto-routes from standing committee or falls back to ad-hoc
 └── ViewBureauReportModal.razor            ← bureau report detail with accounts, fraud, alerts
@@ -460,7 +466,83 @@ Complete end-to-end offer letter generation with proposed repayment schedule.
 
 ---
 
-## 5. Last Session Summary (2026-03-22 Session 31)
+## 5. Last Session Summary (2026-03-25 Session 32)
+
+### Completed — External Bank Statement Transaction Entry Pipeline + CSV/Excel Auto-Parsing + Format Guidance
+
+This session completed the missing half of the Other Bank Statements feature: previously only header details (bank name, account, period, balances) could be saved. Now loan officers can upload a file, have transactions auto-detected, review/correct rows in a grid, and save them — making Verify and Analyze functional.
+
+#### 1. Transaction Entry Pipeline (Four Root Causes Fixed)
+
+| Root cause | Fix |
+|---|---|
+| No `<InputFile>` in upload modal | Added `InputFile` accepting `.pdf,.csv,.xlsx,.xls`; `HandleFileSelected`; file size hint |
+| File path always `null` in storage | Read file into `byte[]` once; upload via `IFileStorageService.UploadAsync` |
+| No mechanism to enter/save transactions | Created `ManageStatementTransactionsModal.razor` + `AddStatementTransactionsAsync` |
+| `Verify` always failed (`BalanceReconciled` never set); `Analyze` always failed (0 transactions) | Called `ValidateDataIntegrity()` at end of `AddTransactionsCommand` handler |
+
+#### 2. CSV/Excel Auto-Parsing (`StatementFileParserService.cs` — NEW)
+
+Stateless singleton. Routes to `ParseExcel` (ClosedXML) or `ParseCsv` by extension. No new NuGet packages needed — ClosedXML was already in `CRMS.Web.Intranet.csproj`.
+
+Key capabilities:
+- Scans up to 20 rows to find header row
+- Auto-detects CSV delimiter (comma, pipe, tab, semicolon) from first 5 lines
+- Recognises 40+ column name variants across 7 fields (Date, Description, Debit, Credit, Amount, Balance, Reference)
+- 18 Nigerian bank date formats (`TryParseDate`)
+- `CleanAmount` strips ₦, #, commas, leading currency letters
+- ±5 day tolerance on period boundary validation
+
+#### 3. `ManageStatementTransactionsModal.razor` (NEW)
+
+Full transaction entry grid with:
+- Balance summary bar: Opening, Total Credits, Total Debits, Computed Closing (color-coded green/orange), Expected Closing, Discrepancy
+- Row-by-row: Date (constrained to period), Description, Reference, Debit, Credit (mutually exclusive), Running Balance (auto-computed, read-only)
+- Live reconciliation: `|ComputedClosing − ExpectedClosing| ≤ ₦1`
+- Parse message banner (green when rows auto-populated, yellow for manual entry)
+- `OnInitialized` seeds from `PreloadedTransactions` if provided, else adds one blank row
+- `Save()` stamps running balances before calling `AppService.AddStatementTransactionsAsync`
+
+#### 4. UX Flow
+
+Upload modal → if CSV/Excel: auto-parse → `OnSuccess(StatementUploadResult)` → Detail.razor reloads → auto-opens `ManageStatementTransactionsModal` with pre-populated rows and parse message banner. If PDF or unparseable: modal opens with one blank row and informational note.
+
+#### 5. Help Page — `RenderTabStatements()` Rewritten (5 sections)
+
+1. Statement Sources & Trust (updated)
+2. How to Add an External Bank Statement (5-step workflow)
+3. File Format Guide (column table, 10 date format examples, sample CSV, export instructions for 6 Nigerian banks)
+4. Troubleshooting (4 error messages with cause and fix)
+5. Metrics Analyzed (retained)
+
+#### 6. `AddTransactionsCommand.cs` Fix
+
+Changed `GetByIdAsync` → `GetByIdWithTransactionsAsync` (safe with existing transactions). Added `statement.ValidateDataIntegrity()` after all transactions added — this sets `BalanceReconciled = true` when closing balance matches, which unblocks `VerifyStatementCommand` downstream.
+
+### Files Created This Session
+- `src/CRMS.Web.Intranet/Services/StatementFileParserService.cs`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/ManageStatementTransactionsModal.razor`
+
+### Files Modified This Session
+- `src/CRMS.Application/StatementAnalysis/Commands/AddTransactionsCommand.cs` — `GetByIdWithTransactionsAsync` + `ValidateDataIntegrity()`
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs` — `UploadExternalStatementAsync` returns `ApiResponse<StatementUploadResult>`; new `AddStatementTransactionsAsync`
+- `src/CRMS.Web.Intranet/Models/ApplicationModels.cs` — Added `StatementTransactionRow`, `StatementUploadResult`, `StatementParseResult`
+- `src/CRMS.Web.Intranet/Program.cs` — Registered `StatementFileParserService` as Singleton
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/UploadExternalStatementModal.razor` — `InputFile`, format guide panel, `EventCallback<StatementUploadResult>`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/StatementsTab.razor` — `OnEnterTransactions` param; "Enter Txns" button; Verify/Analyze disabled when `TransactionCount == 0`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` — `ManageStatementTransactionsModal` wiring; `OnBankStatementUploaded(StatementUploadResult)` auto-opens modal
+- `src/CRMS.Web.Intranet/Components/Pages/Help/Index.razor` — `RenderTabStatements()` rewritten with 5 sections
+
+**Build:** 0 errors (verified at 3 checkpoints). 0 new NuGet packages added.
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v5.0
+- [x] `docs/ImplementationTracker.md` → v5.5
+
+---
+
+## 5. Previous Session Summary (2026-03-22 Session 31)
 
 ### Completed — M-Series + L-Series Bug Fixes (All 19 M + All 8 L)
 
@@ -1640,8 +1722,8 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 **Issue:** When `director.HasBureauReport == true`, a visibility icon button is rendered with **no `@onclick`** handler. Same for signatories.
 **Fix:**
 1. Add `OnViewPartyBureauReport` EventCallback<Guid> parameter to `PartiesTab.razor`
-2. In `Detail.razor`, wire this to `ShowBureauReportModal(reportId)` — but we need the bureau report ID for a party. Check if `PartyInfo` model has a `BureauReportId` field; if not, add it by fetching from `GetBureauReportsByApplicationHandler` and matching by party name/ID.
-3. The `ViewBureauReportModal` already exists and is fully functional.
+2. In `Detail.razor`, wire this to `ShowBureauReportModal(reportId)` — need the bureau report ID for a party. Check if `PartyInfo` model has a `BureauReportId` field; if not, add it by fetching from `GetBureauReportsByApplicationHandler` and matching by party name/ID.
+3. `ViewBureauReportModal` already exists and is fully functional.
 
 ---
 
@@ -1650,15 +1732,12 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 **H2** (`CommitteeTab.razor`): Add `isVoting` loading state to Submit Vote button, double-click guard, and error display on failure.
 **H8** (`SetupCommitteeModal.razor`): Change `private void Close() => OnClose.InvokeAsync()` to `private async Task Close() => await OnClose.InvokeAsync()` to prevent fire-and-forget race condition.
 
-Both are small targeted fixes.
-
 ---
 
-### Option C — TabModalReviewReport H7: Collateral Column Header Fix
+### Option C — Offer Letter Download
 
-**File:** `CollateralTab.razor`
-**Issue:** Table header says "Acceptable Value" but the column data shows `collateral.MarketValue`. Footer sums `MarketValue` but labels it "Total Acceptable Collateral Value".
-**Fix:** Change the column to display `AcceptableValue` (now correctly mapped after C-5/C-6 fixes), or rename the header to "Market Value" to match what is shown. Verify the footer sum is also consistent.
+**Issue:** After generation, the offer letter is stored in file storage but the UI only shows an alert with the filename — there is no download button.
+**Fix:** Add `DownloadOfferLetterAsync(Guid offerLetterId)` to `ApplicationService`, similar to `DownloadDocumentAsync`. The `OfferLetter` domain entity has a `StoragePath` field. Add a `/api/offer-letters/{id}/download` endpoint in `Program.cs`. Wire in `Detail.razor`.
 
 ---
 
