@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-03-25 (Session 34)
+**Last Updated:** 2026-03-26 (Session 35)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -463,6 +463,88 @@ Complete end-to-end offer letter generation with proposed repayment schedule.
 - [x] `docs/SESSION_HANDOFF.md` → updated (this file)
 - [x] `docs/UIGaps.md` → v4.6
 - [x] `docs/ImplementationTracker.md` → v5.0
+
+---
+
+## 5. Last Session Summary (2026-03-26 Session 35)
+
+### Completed — Submit for Review End-to-End Bug Fixes (4 bugs)
+
+The entire Submit for Review flow was broken across four separate layers. All four bugs were identified and fixed in this session.
+
+#### Bug 1 — `ManageStatementTransactionsModal` Save giving "Failed to add transactions"
+
+**Root cause:** `BankStatementRepository.Update()` called `_context.BankStatements.Update(statement)`, which traversed the entity graph and marked newly-added `StatementTransaction` entities as `Modified` (not `Added`). EF Core's `Update()` does this because new entities with non-empty Guid keys (assigned in the `Entity` base constructor) are indistinguishable from existing ones. EF generated UPDATE SQL for rows that didn't exist → silent no-op / DB exception.
+
+**Fix in** `src/CRMS.Infrastructure/Persistence/Repositories/BankStatementRepository.cs`:
+```csharp
+public void Update(BankStatement statement)
+{
+    var newTransactions = statement.Transactions
+        .Where(t => _context.Entry(t).State == EntityState.Detached).ToList();
+    _context.BankStatements.Update(statement);
+    foreach (var txn in newTransactions)
+        _context.Entry(txn).State = EntityState.Added;
+}
+```
+
+#### Bug 2 — "Bank statement is required" despite statements being uploaded
+
+**Two instances of the same wrong-collection check:**
+
+- `Detail.razor ValidateForSubmission()` checked `application.Documents.Any(d => d.Category == "BankStatement")` — wrong. `Documents` contains `LoanApplicationDocument` (Documents tab). Bank statements live in `application.BankStatements` (Statements tab, separate `BankStatement` aggregate). Fixed to `application.BankStatements.Any()`.
+
+- `LoanApplication.Submit()` also checked `_documents` (same wrong collection). Removed the check entirely — cross-aggregate validation belongs in the Application command handler, not the domain aggregate.
+
+#### Bug 3 — Submit button "not doing anything"
+
+**Root cause (two parts):**
+1. The domain `Submit()` always returned failure due to Bug 2, so the command handler always returned `ApplicationResult.Failure(...)`.
+2. `SubmitForReview()` in `Detail.razor` had no `else` branch — `result.Success == false` was completely silently ignored. Modal stayed open, no feedback shown.
+
+**Fix in** `Detail.razor`: added `submitError` field, populated on failure, displayed as alert in modal body. Also added `submitError = null` in `ShowSubmitForReviewModal` and `CloseSubmitReviewModal`.
+
+#### Bug 4 — "Failed to submit application" exception after fixes 1-3
+
+**Root cause:** `LoanApplicationRepository.Update()` had the exact same EF Core tracking issue as Bug 1. When `application.Submit()` calls `AddStatusHistory()`, a new `LoanApplicationStatusHistory` entity is added to `_statusHistory`. `_context.LoanApplications.Update(application)` then marked that new entity as `Modified` → EF tried to UPDATE a non-existent row → DB exception → caught in `ApplicationService.SubmitApplicationAsync` catch block → returned "Failed to submit application".
+
+**Fix in** `src/CRMS.Infrastructure/Persistence/Repositories/LoanApplicationRepository.cs`:
+```csharp
+public void Update(LA.LoanApplication application)
+{
+    var newStatusHistory = application.StatusHistory
+        .Where(h => _context.Entry(h).State == EntityState.Detached).ToList();
+    var newComments = application.Comments
+        .Where(c => _context.Entry(c).State == EntityState.Detached).ToList();
+    var newDocuments = application.Documents
+        .Where(d => _context.Entry(d).State == EntityState.Detached).ToList();
+    _context.LoanApplications.Update(application);
+    foreach (var h in newStatusHistory) _context.Entry(h).State = EntityState.Added;
+    foreach (var c in newComments) _context.Entry(c).State = EntityState.Added;
+    foreach (var d in newDocuments) _context.Entry(d).State = EntityState.Added;
+}
+```
+
+#### Systemic Pattern Note
+
+The root cause of Bugs 1 and 4 is the same EF Core behavior: any repository `Update()` method that calls `DbSet.Update(aggregate)` will silently fail to INSERT new child entities with non-empty Guid keys. The fix pattern (capture Detached entities before `Update()`, re-mark as `Added` after) has now been applied to both `BankStatementRepository` and `LoanApplicationRepository`. **Any other repository using the same pattern should receive the same fix.**
+
+#### Files Modified This Session
+
+| File | Change |
+|------|--------|
+| `src/CRMS.Infrastructure/Persistence/Repositories/BankStatementRepository.cs` | Fix EF tracking bug — re-mark new transactions as `Added` after `Update()` |
+| `src/CRMS.Infrastructure/Persistence/Repositories/LoanApplicationRepository.cs` | Fix EF tracking bug — re-mark new StatusHistory/Comments/Documents as `Added` after `Update()` |
+| `src/CRMS.Domain/Aggregates/LoanApplication/LoanApplication.cs` | Remove bank statement check from `Submit()` (wrong aggregate; moved to handler) |
+| `src/CRMS.Application/LoanApplication/Commands/SubmitLoanApplicationCommand.cs` | Inject `IBankStatementRepository`; add cross-aggregate bank statement check before `Submit()` |
+| `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` | Fix `ValidateForSubmission()` (Documents → BankStatements); add `submitError` field + alert; add error handling in `SubmitForReview()` |
+
+**Build:** 0 errors (no new files, no DI changes needed).
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v5.3
+- [x] `docs/ImplementationTracker.md` → v5.8
 
 ---
 

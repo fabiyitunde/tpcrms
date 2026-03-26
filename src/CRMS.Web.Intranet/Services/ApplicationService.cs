@@ -1534,14 +1534,16 @@ public partial class ApplicationService
     {
         try
         {
-            SubmitLoanApplicationHandler handler = _sp.GetRequiredService<SubmitLoanApplicationHandler>();
+            // Use a fresh scope so the handler gets a clean DbContext, isolated from
+            // the long-lived Blazor circuit DbContext that may have accumulated tracked entities.
+            using var scope = _sp.CreateScope();
+            SubmitLoanApplicationHandler handler = scope.ServiceProvider.GetRequiredService<SubmitLoanApplicationHandler>();
             ApplicationResult result = await handler.Handle(new SubmitLoanApplicationCommand(id, userId), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to submit");
         }
         catch (Exception ex)
         {
-            Exception ex2 = ex;
-            _logger.LogError(ex2, "Error submitting application");
+            _logger.LogError(ex, "Error submitting application {ApplicationId}", id);
             return ApiResponse.Fail("Failed to submit application");
         }
     }
@@ -1550,15 +1552,15 @@ public partial class ApplicationService
     {
         try
         {
-            TransitionWorkflowHandler handler = _sp.GetRequiredService<TransitionWorkflowHandler>();
+            using var scope = _sp.CreateScope();
+            TransitionWorkflowHandler handler = scope.ServiceProvider.GetRequiredService<TransitionWorkflowHandler>();
             TransitionWorkflowCommand command = new TransitionWorkflowCommand(workflowInstanceId, toStatus, action, userId, userRole, comments);
             ApplicationResult<WorkflowInstanceDto> result = await handler.Handle(command, CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Transition failed");
         }
         catch (Exception ex)
         {
-            Exception ex2 = ex;
-            _logger.LogError(ex2, "Error transitioning workflow");
+            _logger.LogError(ex, "Error transitioning workflow");
             return ApiResponse.Fail("Workflow transition failed");
         }
     }

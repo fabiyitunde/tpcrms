@@ -123,28 +123,48 @@ public class LoanApplicationRepository : ILoanApplicationRepository
 
     public void Update(LA.LoanApplication application)
     {
-        // Capture new (untracked) child entities BEFORE Update() processes the graph.
-        // EF Core marks entities with non-empty Guid keys as Modified (not Added),
-        // because it can't distinguish "new with user-assigned key" from "existing".
-        var newStatusHistory = application.StatusHistory
-            .Where(h => _context.Entry(h).State == EntityState.Detached)
-            .ToList();
-        var newComments = application.Comments
-            .Where(c => _context.Entry(c).State == EntityState.Detached)
-            .ToList();
-        var newDocuments = application.Documents
-            .Where(d => _context.Entry(d).State == EntityState.Detached)
-            .ToList();
+        var entry = _context.Entry(application);
 
-        _context.LoanApplications.Update(application);
+        if (entry.State == EntityState.Detached)
+        {
+            // Entity not yet tracked — start tracking via Update(), then fix any new children
+            // that EF Core would incorrectly mark as Modified instead of Added
+            // (non-empty Guid keys look like existing rows to EF Core's graph traversal).
+            var newStatusHistory = application.StatusHistory
+                .Where(h => _context.Entry(h).State == EntityState.Detached).ToList();
+            var newComments = application.Comments
+                .Where(c => _context.Entry(c).State == EntityState.Detached).ToList();
+            var newDocuments = application.Documents
+                .Where(d => _context.Entry(d).State == EntityState.Detached).ToList();
 
-        // Re-mark new children as Added so they get INSERTed, not UPDATE-ignored.
-        foreach (var h in newStatusHistory)
-            _context.Entry(h).State = EntityState.Added;
-        foreach (var c in newComments)
-            _context.Entry(c).State = EntityState.Added;
-        foreach (var d in newDocuments)
-            _context.Entry(d).State = EntityState.Added;
+            _context.LoanApplications.Update(application);
+
+            foreach (var h in newStatusHistory)
+                _context.Entry(h).State = EntityState.Added;
+            foreach (var c in newComments)
+                _context.Entry(c).State = EntityState.Added;
+            foreach (var d in newDocuments)
+                _context.Entry(d).State = EntityState.Added;
+        }
+        else
+        {
+            // Entity is already tracked (loaded via GetByIdAsync in the same DbContext scope).
+            // EF Core's change tracker already detects all property changes on the aggregate root.
+            // Do NOT call DbSet.Update() here — it would mark every related entity (Parties,
+            // Documents, existing StatusHistory) as Modified, generating unnecessary UPDATEs
+            // that fail with RowVersion/constraint errors and prevent SaveChanges from completing.
+            //
+            // Just explicitly attach any new child entities that haven't been tracked yet.
+            foreach (var h in application.StatusHistory)
+                if (_context.Entry(h).State == EntityState.Detached)
+                    _context.Entry(h).State = EntityState.Added;
+            foreach (var c in application.Comments)
+                if (_context.Entry(c).State == EntityState.Detached)
+                    _context.Entry(c).State = EntityState.Added;
+            foreach (var d in application.Documents)
+                if (_context.Entry(d).State == EntityState.Detached)
+                    _context.Entry(d).State = EntityState.Added;
+        }
     }
 }
 

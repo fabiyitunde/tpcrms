@@ -28,9 +28,12 @@ public class SubmitLoanApplicationHandler : IRequestHandler<SubmitLoanApplicatio
         if (application == null)
             return ApplicationResult.Failure("Loan application not found");
 
-        // Bank statements are a separate aggregate — validate cross-aggregate requirement here
-        var statements = await _statementRepository.GetByLoanApplicationIdAsync(request.ApplicationId, ct);
-        if (!statements.Any())
+        // Bank statements are a separate aggregate — validate cross-aggregate requirement here.
+        // Use HasStatementsAsync (AnyAsync) to avoid loading BankStatement entities into this
+        // DbContext scope, which prevents false-positive change detection on those entities
+        // during SaveChanges.
+        var hasStatements = await _statementRepository.HasStatementsAsync(request.ApplicationId, ct);
+        if (!hasStatements)
             return ApplicationResult.Failure("At least one bank statement is required");
 
         var result = application.Submit(request.UserId);

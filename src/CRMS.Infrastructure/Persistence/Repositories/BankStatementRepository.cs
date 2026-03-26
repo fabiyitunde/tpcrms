@@ -34,6 +34,12 @@ public class BankStatementRepository : IBankStatementRepository
             .ToListAsync(ct);
     }
 
+    public async Task<bool> HasStatementsAsync(Guid loanApplicationId, CancellationToken ct = default)
+    {
+        return await _context.BankStatements
+            .AnyAsync(x => x.LoanApplicationId == loanApplicationId, ct);
+    }
+
     public async Task<IReadOnlyList<BankStatement>> GetByAccountNumberAsync(string accountNumber, CancellationToken ct = default)
     {
         return await _context.BankStatements
@@ -49,19 +55,28 @@ public class BankStatementRepository : IBankStatementRepository
 
     public void Update(BankStatement statement)
     {
-        // Identify new (untracked) transactions BEFORE Update() processes the graph.
-        // EF Core marks entities with non-empty Guid keys as Modified (not Added),
-        // because it can't distinguish "new with user-assigned key" from "existing".
-        // Capturing them first lets us correct their state after Update() runs.
-        var newTransactions = statement.Transactions
-            .Where(t => _context.Entry(t).State == EntityState.Detached)
-            .ToList();
+        var entry = _context.Entry(statement);
 
-        _context.BankStatements.Update(statement);
+        if (entry.State == EntityState.Detached)
+        {
+            // Entity not yet tracked — capture new transactions first so they don't
+            // get incorrectly marked as Modified (non-empty Guid keys look like existing rows).
+            var newTransactions = statement.Transactions
+                .Where(t => _context.Entry(t).State == EntityState.Detached).ToList();
 
-        // Re-mark the new transactions as Added so they get INSERTed, not UPDATE-ignored.
-        foreach (var txn in newTransactions)
-            _context.Entry(txn).State = EntityState.Added;
+            _context.BankStatements.Update(statement);
+
+            foreach (var txn in newTransactions)
+                _context.Entry(txn).State = EntityState.Added;
+        }
+        else
+        {
+            // Entity already tracked — EF Core detects property changes automatically.
+            // Only attach new child transactions that aren't tracked yet.
+            foreach (var txn in statement.Transactions)
+                if (_context.Entry(txn).State == EntityState.Detached)
+                    _context.Entry(txn).State = EntityState.Added;
+        }
     }
 
     public void Delete(BankStatement statement)
