@@ -101,6 +101,40 @@ public class CommitteeReviewRepository : ICommitteeReviewRepository
 
     public void Update(CommitteeReview review)
     {
-        _context.CommitteeReviews.Update(review);
+        // Disable auto-detect changes to prevent EF Core from prematurely discovering new child
+        // entities (new members) via collection snapshot diff and incorrectly marking them as
+        // Modified (UPDATE) instead of Added (INSERT). Same pattern as LoanApplicationRepository
+        // and StandingCommitteeRepository.
+        _context.ChangeTracker.AutoDetectChangesEnabled = false;
+        try
+        {
+            var entry = _context.Entry(review);
+
+            if (entry.State == EntityState.Detached)
+            {
+                // Entity not yet tracked — start tracking via Update(), then fix any new members
+                // that EF Core would incorrectly mark as Modified (non-empty Guid keys look like
+                // existing rows to EF Core's graph traversal).
+                var newMembers = review.Members
+                    .Where(m => _context.Entry(m).State == EntityState.Detached).ToList();
+
+                _context.CommitteeReviews.Update(review);
+
+                foreach (var m in newMembers)
+                    _context.Entry(m).State = EntityState.Added;
+            }
+            else
+            {
+                // Entity already tracked — explicitly mark new members as Added so SaveChanges
+                // generates INSERT instead of UPDATE.
+                foreach (var m in review.Members)
+                    if (_context.Entry(m).State == EntityState.Detached)
+                        _context.Entry(m).State = EntityState.Added;
+            }
+        }
+        finally
+        {
+            _context.ChangeTracker.AutoDetectChangesEnabled = true;
+        }
     }
 }

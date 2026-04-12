@@ -32,6 +32,8 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
     private readonly IOfferLetterRepository _offerLetterRepository;
     private readonly IFineractDirectService _fineractService;
     private readonly IOfferLetterPdfGenerator _pdfGenerator;
+    private readonly IAmortisationSchedulePdfGenerator _amortisationGenerator;
+    private readonly IKfsPdfGenerator _kfsGenerator;
     private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -42,6 +44,8 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         IOfferLetterRepository offerLetterRepository,
         IFineractDirectService fineractService,
         IOfferLetterPdfGenerator pdfGenerator,
+        IAmortisationSchedulePdfGenerator amortisationGenerator,
+        IKfsPdfGenerator kfsGenerator,
         IFileStorageService fileStorage,
         IUnitOfWork unitOfWork)
     {
@@ -51,6 +55,8 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         _offerLetterRepository = offerLetterRepository;
         _fineractService = fineractService;
         _pdfGenerator = pdfGenerator;
+        _amortisationGenerator = amortisationGenerator;
+        _kfsGenerator = kfsGenerator;
         _fileStorage = fileStorage;
         _unitOfWork = unitOfWork;
     }
@@ -61,7 +67,8 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         if (loanApp == null)
             return ApplicationResult<OfferLetterResultDto>.Failure("Loan application not found");
 
-        if (loanApp.Status != LoanApplicationStatus.Approved && loanApp.Status != LoanApplicationStatus.Disbursed)
+        if (loanApp.Status is not (LoanApplicationStatus.Approved or LoanApplicationStatus.OfferGenerated
+            or LoanApplicationStatus.OfferAccepted or LoanApplicationStatus.Disbursed))
             return ApplicationResult<OfferLetterResultDto>.Failure("Offer letter can only be generated for approved applications");
 
         var product = await _productRepository.GetByIdAsync(loanApp.LoanProductId, ct);
@@ -104,10 +111,12 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         if (!conditions.Any())
             conditions.Add("Standard terms and conditions apply as per the bank's lending policy.");
 
-        // Determine version
-        var existingVersion = await _offerLetterRepository.GetVersionCountAsync(request.LoanApplicationId, ct);
+        // Determine next version — use MAX so that prior Failed records don't re-use the same version number,
+        // which would violate the unique index on (LoanApplicationId, Version).
+        var maxExistingVersion = await _offerLetterRepository.GetMaxVersionAsync(request.LoanApplicationId, ct);
+        var nextVersion = maxExistingVersion + 1;
 
-        // Create offer letter entity
+        // Create offer letter entity with the correct version number
         var offerLetterResult = OL.OfferLetter.Create(
             request.LoanApplicationId,
             loanApp.ApplicationNumber,
@@ -117,7 +126,8 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
             product?.Name ?? loanApp.ProductCode,
             approvedAmount,
             approvedTenor,
-            approvedRate);
+            approvedRate,
+            version: nextVersion);
 
         if (!offerLetterResult.IsSuccess)
             return ApplicationResult<OfferLetterResultDto>.Failure(offerLetterResult.Error);
@@ -160,20 +170,65 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
                 BankName: request.BankName,
                 BranchName: request.BranchName,
                 ScheduleSource: scheduleSource,
-                Version: existingVersion + 1
+                Version: nextVersion
             );
 
             // Generate PDF
             var pdfBytes = await _pdfGenerator.GenerateAsync(pdfData, ct);
 
             // Store PDF
-            var fileName = $"OfferLetter_{loanApp.ApplicationNumber}_v{existingVersion + 1}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+            var fileName = $"OfferLetter_{loanApp.ApplicationNumber}_v{nextVersion}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
             var actualStoragePath = await _fileStorage.UploadAsync(
                 containerName: "offerletters",
                 fileName: $"{loanApp.ApplicationNumber}/{fileName}",
                 content: pdfBytes,
                 contentType: "application/pdf",
                 ct: ct);
+
+            // Generate supplementary documents (best-effort — failure does not block the offer letter)
+            try
+            {
+                var amortBytes = await _amortisationGenerator.GenerateAsync(pdfData, ct);
+                var amortFileName = $"AmortisationSchedule_{loanApp.ApplicationNumber}_v{nextVersion}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+                await _fileStorage.UploadAsync("amortisationschedules", $"{loanApp.ApplicationNumber}/{amortFileName}", amortBytes, "application/pdf", ct);
+            }
+            catch { /* Supplementary PDF failure is non-fatal */ }
+
+            try
+            {
+                var defaultTier = product?.PricingTiers.FirstOrDefault();
+                var processingFee = defaultTier?.ProcessingFeePercent.HasValue == true
+                    ? approvedAmount * defaultTier.ProcessingFeePercent.Value / 100m
+                    : defaultTier?.ProcessingFeeFixed?.Amount ?? 0m;
+                var managementFee = 0m; // No management fee field on product — extend LoanProduct if needed
+                var kfsData = new KfsData(
+                    ApplicationNumber: loanApp.ApplicationNumber,
+                    GeneratedDate: DateTime.UtcNow,
+                    CustomerName: loanApp.CustomerName,
+                    ProductName: product?.Name ?? loanApp.ProductCode,
+                    LoanAmount: approvedAmount,
+                    Currency: currency,
+                    TenorMonths: approvedTenor,
+                    NominalRatePerAnnum: approvedRate,
+                    EffectiveAnnualRate: approvedRate, // EAR = nominal rate for monthly compounding (simplified)
+                    MonthlyInstallment: Math.Round(monthlyInstallment, 2),
+                    TotalInterest: schedule.TotalInterest,
+                    TotalRepayment: schedule.TotalRepayment,
+                    ProcessingFeeAmount: processingFee,
+                    ManagementFeeAmount: managementFee,
+                    TotalCostOfCredit: schedule.TotalInterest + processingFee + managementFee,
+                    LatePaymentPenalty: "1% per month on overdue amount",
+                    EarlyRepaymentTerms: "Subject to 30-day notice; no penalty for full prepayment after 6 months",
+                    SecurityRequired: "As detailed in offer letter conditions",
+                    BankName: request.BankName,
+                    BranchName: request.BranchName,
+                    ComplaintChannel: "customercare@thebank.com | +234-800-000-0000"
+                );
+                var kfsBytes = await _kfsGenerator.GenerateAsync(kfsData, ct);
+                var kfsFileName = $"KFS_{loanApp.ApplicationNumber}_v{nextVersion}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+                await _fileStorage.UploadAsync("kfs", $"{loanApp.ApplicationNumber}/{kfsFileName}", kfsBytes, "application/pdf", ct);
+            }
+            catch { /* Supplementary PDF failure is non-fatal */ }
 
             // Calculate content hash
             using var sha256 = System.Security.Cryptography.SHA256.Create();
@@ -195,7 +250,7 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
             return ApplicationResult<OfferLetterResultDto>.Success(new OfferLetterResultDto(
                 offerLetter.Id,
                 loanApp.ApplicationNumber,
-                existingVersion + 1,
+                nextVersion,
                 fileName,
                 pdfBytes.Length,
                 offerLetter.Status.ToString(),
@@ -204,8 +259,15 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         catch (Exception ex)
         {
             offerLetter.MarkAsFailed(ex.Message);
-            await _offerLetterRepository.AddAsync(offerLetter, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
+            try
+            {
+                // Best-effort: persist the failed record for audit purposes.
+                // Wrapped in its own try-catch so a secondary DB error (e.g. version conflict
+                // from a concurrent request) does not swallow the real error message.
+                await _offerLetterRepository.AddAsync(offerLetter, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+            catch { /* ignore — the primary failure is what matters */ }
             return ApplicationResult<OfferLetterResultDto>.Failure($"Failed to generate offer letter: {ex.Message}");
         }
     }

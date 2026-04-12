@@ -35,6 +35,10 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
+        function scrollToElement(id) {
+            const el = document.getElementById(id);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     </script>
 </body>
 

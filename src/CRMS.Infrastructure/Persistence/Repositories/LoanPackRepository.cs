@@ -36,11 +36,11 @@ public class LoanPackRepository : ILoanPackRepository
             .ToListAsync(ct);
     }
 
-    public async Task<int> GetVersionCountAsync(Guid loanApplicationId, CancellationToken ct = default)
+    public async Task<int> GetMaxVersionAsync(Guid loanApplicationId, CancellationToken ct = default)
     {
         return await _context.LoanPacks
             .Where(x => x.LoanApplicationId == loanApplicationId)
-            .CountAsync(ct);
+            .MaxAsync(x => (int?)x.Version, ct) ?? 0;
     }
 
     public async Task AddAsync(LoanPack loanPack, CancellationToken ct = default)

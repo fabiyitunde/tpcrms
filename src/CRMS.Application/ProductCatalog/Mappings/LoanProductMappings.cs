@@ -1,3 +1,4 @@
+using CRMS.Application.OfferAcceptance.DTOs;
 using CRMS.Application.ProductCatalog.DTOs;
 using CRMS.Domain.Aggregates.ProductCatalog;
 
@@ -23,7 +24,8 @@ public static class LoanProductMappings
             product.FineractProductId,
             product.PricingTiers.Select(t => t.ToDto()).ToList(),
             product.EligibilityRules.Select(r => r.ToDto()).ToList(),
-            product.DocumentRequirements.Select(d => d.ToDto()).ToList()
+            product.DocumentRequirements.Select(d => d.ToDto()).ToList(),
+            product.DisbursementChecklist.OrderBy(c => c.SortOrder).Select(c => c.ToChecklistTemplateItemDto()).ToList()
         );
     }
 
@@ -83,6 +85,24 @@ public static class LoanProductMappings
             doc.IsMandatory,
             doc.MaxFileSizeMB,
             doc.AllowedExtensions
+        );
+    }
+
+    public static ChecklistTemplateItemDto ToChecklistTemplateItemDto(this DisbursementChecklistTemplate item)
+    {
+        return new ChecklistTemplateItemDto(
+            item.Id,
+            item.LoanProductId,
+            item.ItemName,
+            item.Description,
+            item.IsMandatory,
+            item.ConditionType.ToString(),
+            item.SubsequentDueDays,
+            item.RequiresDocumentUpload,
+            item.RequiresLegalRatification,
+            item.CanBeWaived,
+            item.SortOrder,
+            item.IsActive
         );
     }
 }

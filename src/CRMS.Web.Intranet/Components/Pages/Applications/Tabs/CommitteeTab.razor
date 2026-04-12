@@ -1,5 +1,4 @@
 
-
 @if (Committee == null)
 {
     <div class="card">
@@ -25,7 +24,23 @@ else
         <div class="card" style="grid-column: span 2;">
             <div class="card-header">
                 <h3 class="card-title">@Committee.CommitteeType</h3>
-                <span class="badge @GetStatusBadgeClass(Committee.Status)">@Committee.Status</span>
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                    <span class="badge @GetStatusBadgeClass(Committee.Status)">@Committee.Status</span>
+                    @if (Committee.Status == "Pending" && CanManageCommittee)
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="HandleStartVoting" disabled="@isStartingVoting">
+                            @if (isStartingVoting)
+                            {
+                                <span class="spinner" style="width: 14px; height: 14px;"></span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size: 16px;">how_to_vote</span>
+                            }
+                            Start Voting
+                        </button>
+                    }
+                </div>
             </div>
             <div class="card-body" style="padding: 0;">
                 <table class="table">
@@ -35,11 +50,16 @@ else
                             <th>Role</th>
                             <th>Vote</th>
                             <th>Voted At</th>
+                            @if (Committee.Status == "Pending" && CanManageCommittee)
+                            {
+                                <th></th>
+                            }
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var member in Committee.Members)
                         {
+                            var memberUserId = member.UserId;
                             <tr>
                                 <td>
                                     <div style="display: flex; align-items: center; gap: var(--space-3);">
@@ -73,12 +93,76 @@ else
                                         <span class="text-muted">-</span>
                                     }
                                 </td>
+                                @if (Committee.Status == "Pending" && CanManageCommittee)
+                                {
+                                    <td>
+                                        <button class="btn btn-outline btn-sm" style="color: var(--danger-600); border-color: var(--danger-300);"
+                                                @onclick="() => HandleRemoveMember(memberUserId)"
+                                                disabled="@removingMemberId.HasValue">
+                                            <span class="material-symbols-outlined" style="font-size: 15px;">person_remove</span>
+                                        </button>
+                                    </td>
+                                }
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
-            
+
+            @if (Committee.Status == "Pending" && CanManageCommittee)
+            {
+                <div class="card-footer" style="border-top: 1px solid var(--gray-200); padding: var(--space-4);">
+                    @if (!showAddMember)
+                    {
+                        <button class="btn btn-outline btn-sm" @onclick="() => showAddMember = true">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">person_add</span>
+                            Add Member
+                        </button>
+                    }
+                    else
+                    {
+                        <div style="display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap;">
+                            <div class="form-group" style="margin: 0; min-width: 200px;">
+                                <label class="form-label" style="font-size: var(--text-xs);">Member</label>
+                                <select class="form-control form-control-sm" @bind="addMemberUserId">
+                                    <option value="">Select member...</option>
+                                    @foreach (var u in AvailableMemberUsers.Where(u => !Committee.Members.Any(m => m.UserId == u.Id)))
+                                    {
+                                        <option value="@u.Id">@u.FirstName @u.LastName</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin: 0; min-width: 150px;">
+                                <label class="form-label" style="font-size: var(--text-xs);">Designation (e.g. CRO)</label>
+                                <input type="text" class="form-control form-control-sm" @bind="addMemberRole" placeholder="e.g. CRO" />
+                            </div>
+                            <div class="form-group" style="margin: 0; display: flex; align-items: center; gap: var(--space-2); padding-bottom: var(--space-1);">
+                                <input type="checkbox" id="addMemberIsChair" @bind="addMemberIsChair" />
+                                <label for="addMemberIsChair" style="font-size: var(--text-sm); margin: 0; cursor: pointer;">Chairperson</label>
+                            </div>
+                            <button class="btn btn-primary btn-sm" @onclick="HandleAddMember"
+                                    disabled="@(string.IsNullOrEmpty(addMemberUserId) || isAddingMember)">
+                                @if (isAddingMember)
+                                {
+                                    <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                }
+                                else
+                                {
+                                    <span>Add</span>
+                                }
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @onclick="() => showAddMember = false">Cancel</button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(addMemberError))
+                        {
+                            <div class="alert alert-danger mt-2" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">
+                                @addMemberError
+                            </div>
+                        }
+                    }
+                </div>
+            }
+
             @if (!string.IsNullOrEmpty(Committee.Decision))
             {
                 <div class="card-footer">
@@ -109,66 +193,209 @@ else
                 : null;
             var isCommitteeMember = currentMember != null;
             var hasAlreadyVoted = currentMember?.Vote != null;
+            var showConfirmPanel = CanConfirmDecision &&
+                (Committee.Status == "VotingComplete" ||
+                 (Committee.Status == "InProgress" && Committee.IsOverdue && Committee.HasQuorum));
         }
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Cast Your Vote</h3>
+
+        @* Right panel: Recommended Terms (always visible when set) *@
+        <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+            @if (Committee.RecommendedAmount.HasValue)
+            {
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recommended Terms</h3>
+                        <span style="font-size: var(--text-xs); color: var(--gray-500);">Voted on by the committee</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="vote-info-row">
+                            <span class="vote-info-label">Amount</span>
+                            <span class="vote-info-value" style="color: var(--primary-600); font-weight: 600;">₦@FormatAmount(Committee.RecommendedAmount.Value)</span>
+                        </div>
+                        <div class="vote-info-row">
+                            <span class="vote-info-label">Tenor</span>
+                            <span class="vote-info-value">@Committee.RecommendedTenorMonths months</span>
+                        </div>
+                        <div class="vote-info-row">
+                            <span class="vote-info-label">Interest Rate</span>
+                            <span class="vote-info-value">@Committee.RecommendedInterestRate?.ToString("0.##")% p.a.</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(Committee.RecommendedConditions))
+                        {
+                            <div style="margin-top: var(--space-3); font-size: var(--text-sm); color: var(--gray-600);">
+                                <div style="font-weight: 500; margin-bottom: var(--space-1);">Conditions</div>
+                                @Committee.RecommendedConditions
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* Cast Your Vote panel *@
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Cast Your Vote</h3>
+                </div>
+                <div class="card-body">
+                    @if (Committee.Status == "Pending")
+                    {
+                        <div class="text-center text-muted p-4">
+                            <span class="material-symbols-outlined" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">pending</span>
+                            Voting has not started yet
+                        </div>
+                    }
+                    else if (Committee.Status == "VotingComplete" || Committee.Status == "Decided" || Committee.Status == "Closed")
+                    {
+                        <div class="text-center text-muted p-4">
+                            <span class="material-symbols-outlined" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">how_to_vote</span>
+                            Voting is complete
+                        </div>
+                    }
+                    else if (!isCommitteeMember)
+                    {
+                        <div class="text-center text-muted p-4">
+                            <span class="material-symbols-outlined" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">lock</span>
+                            Only assigned committee members can vote
+                        </div>
+                    }
+                    else if (hasAlreadyVoted)
+                    {
+                        <div class="text-center p-4">
+                            <span class="material-symbols-outlined text-success" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">how_to_vote</span>
+                            <p style="font-weight: 500;">You have already voted</p>
+                            <span class="badge @GetVoteBadgeClass(currentMember!.Vote!) mt-2">@currentMember.Vote</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Your Decision</label>
+                            <select class="form-control" @bind="selectedVote">
+                                <option value="">Select your vote</option>
+                                <option value="Approve">Approve</option>
+                                <option value="Reject">Reject</option>
+                                <option value="Abstain">Abstain</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Comments (Optional)</label>
+                            <textarea class="form-control" rows="3" @bind="voteComments" placeholder="Add your comments..."></textarea>
+                        </div>
+                        <button class="btn btn-primary" style="width: 100%;" @onclick="CastVote" disabled="@(string.IsNullOrEmpty(selectedVote))">
+                            Submit Vote
+                        </button>
+                    }
+                </div>
             </div>
-            <div class="card-body">
-                @if (!isCommitteeMember)
-                {
-                    <div class="text-center text-muted p-4">
-                        <span class="material-symbols-outlined" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">lock</span>
-                        Only assigned committee members can vote
+
+            @* Credit officer confirmation panel — appears when all votes are in or overdue with quorum *@
+            @if (showConfirmPanel)
+            {
+                <div class="card" style="border: 2px solid var(--primary-300);">
+                    <div class="card-header" style="background: var(--primary-50);">
+                        <h3 class="card-title" style="color: var(--primary-700);">Confirm Committee Decision</h3>
                     </div>
-                }
-                else if (Committee.Status == "Completed")
-                {
-                    <div class="text-center text-muted p-4">
-                        Voting is closed
+                    <div class="card-body">
+                        <div style="display: flex; gap: var(--space-4); justify-content: space-between; margin-bottom: var(--space-4); padding: var(--space-3); background: var(--gray-50); border-radius: var(--radius-md);">
+                            <div class="text-center">
+                                <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--success-600);">@Committee.ApprovalVotes</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">Approve</div>
+                            </div>
+                            <div class="text-center">
+                                <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--danger-600);">@Committee.RejectionVotes</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">Reject</div>
+                            </div>
+                            <div class="text-center">
+                                <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--gray-500);">@Committee.AbstainVotes</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">Abstain</div>
+                            </div>
+                            @if (Committee.PendingVotes > 0)
+                            {
+                                <div class="text-center">
+                                    <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--warning-600);">@Committee.PendingVotes</div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">Pending</div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Decision *</label>
+                            <select class="form-control" @bind="confirmDecision">
+                                <option value="">Select decision...</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Rejected">Rejected</option>
+                                <option value="Deferred">Deferred</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Rationale / Minutes Summary *</label>
+                            <textarea class="form-control" rows="3" @bind="confirmRationale" placeholder="Summarise the committee's deliberation and basis for the decision..."></textarea>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(confirmError))
+                        {
+                            <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">@confirmError</div>
+                        }
+
+                        <button class="btn btn-primary" style="width: 100%;"
+                                @onclick="HandleConfirmDecision"
+                                disabled="@(string.IsNullOrEmpty(confirmDecision) || string.IsNullOrEmpty(confirmRationale) || isConfirming)">
+                            @if (isConfirming)
+                            {
+                                <span class="spinner" style="width: 14px; height: 14px;"></span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size: 16px;">gavel</span>
+                            }
+                            Confirm & Advance
+                        </button>
                     </div>
-                }
-                else if (hasAlreadyVoted)
-                {
-                    <div class="text-center p-4">
-                        <span class="material-symbols-outlined text-success" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">how_to_vote</span>
-                        <p style="font-weight: 500;">You have already voted</p>
-                        <span class="badge @GetVoteBadgeClass(currentMember!.Vote!) mt-2">@currentMember.Vote</span>
-                    </div>
-                }
-                else
-                {
-                    <div class="form-group">
-                        <label class="form-label">Your Decision</label>
-                        <select class="form-control" @bind="selectedVote">
-                            <option value="">Select your vote</option>
-                            <option value="Approve">Approve</option>
-                            <option value="Reject">Reject</option>
-                            <option value="Abstain">Abstain</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Comments (Optional)</label>
-                        <textarea class="form-control" rows="3" @bind="voteComments" placeholder="Add your comments..."></textarea>
-                    </div>
-                    <button class="btn btn-primary" style="width: 100%;" @onclick="CastVote" disabled="@(string.IsNullOrEmpty(selectedVote))">
-                        Submit Vote
-                    </button>
-                }
-            </div>
+                </div>
+            }
         </div>
     </div>
 }
+
+<style>
+    .votes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: var(--space-6);
+    }
+</style>
 
 @code {
     [Parameter] public CommitteeInfo? Committee { get; set; }
     [Parameter] public Guid? CurrentUserId { get; set; }
     [Parameter] public bool CanSetupCommittee { get; set; }
+    [Parameter] public bool CanManageCommittee { get; set; }
+    [Parameter] public bool CanConfirmDecision { get; set; }
+    [Parameter] public List<UserSummary> AvailableMemberUsers { get; set; } = [];
     [Parameter] public EventCallback<(string vote, string? comments)> OnCastVote { get; set; }
     [Parameter] public EventCallback OnSetupCommittee { get; set; }
+    [Parameter] public EventCallback<Guid> OnRemoveMember { get; set; }
+    [Parameter] public EventCallback<(Guid userId, string name, string role, bool isChair)> OnAddMember { get; set; }
+    [Parameter] public EventCallback OnStartVoting { get; set; }
+    [Parameter] public EventCallback<(string decision, string rationale)> OnConfirmDecision { get; set; }
 
     private string selectedVote = string.Empty;
     private string voteComments = string.Empty;
+
+    private bool showAddMember;
+    private string addMemberUserId = string.Empty;
+    private string addMemberRole = string.Empty;
+    private bool addMemberIsChair;
+    private bool isAddingMember;
+    private string? addMemberError;
+    private Guid? removingMemberId;
+    private bool isStartingVoting;
+
+    // Confirm decision
+    private string confirmDecision = string.Empty;
+    private string confirmRationale = string.Empty;
+    private bool isConfirming;
+    private string? confirmError;
 
     private async Task CastVote()
     {
@@ -178,6 +405,56 @@ else
             selectedVote = string.Empty;
             voteComments = string.Empty;
         }
+    }
+
+    private async Task HandleRemoveMember(Guid userId)
+    {
+        removingMemberId = userId;
+        await OnRemoveMember.InvokeAsync(userId);
+        removingMemberId = null;
+    }
+
+    private async Task HandleAddMember()
+    {
+        if (string.IsNullOrEmpty(addMemberUserId)) return;
+
+        var user = AvailableMemberUsers.FirstOrDefault(u => u.Id.ToString() == addMemberUserId);
+        if (user == null) return;
+
+        isAddingMember = true;
+        addMemberError = null;
+
+        var name = $"{user.FirstName} {user.LastName}".Trim();
+        await OnAddMember.InvokeAsync((user.Id, name, addMemberRole, addMemberIsChair));
+
+        isAddingMember = false;
+        showAddMember = false;
+        addMemberUserId = string.Empty;
+        addMemberRole = string.Empty;
+        addMemberIsChair = false;
+    }
+
+    private async Task HandleStartVoting()
+    {
+        isStartingVoting = true;
+        await OnStartVoting.InvokeAsync();
+        isStartingVoting = false;
+    }
+
+    private async Task HandleConfirmDecision()
+    {
+        if (string.IsNullOrEmpty(confirmDecision) || string.IsNullOrEmpty(confirmRationale)) return;
+        isConfirming = true;
+        confirmError = null;
+        await OnConfirmDecision.InvokeAsync((confirmDecision, confirmRationale));
+        isConfirming = false;
+    }
+
+    private static string FormatAmount(decimal amount)
+    {
+        if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
+        if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
+        return $"{amount:N0}";
     }
 
     private static string GetStatusBadgeClass(string status) => status switch

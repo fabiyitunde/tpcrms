@@ -243,15 +243,16 @@ public class SeedCorporateLoanWorkflowHandler : IRequestHandler<SeedCorporateLoa
         definition.AddStage(LoanApplicationStatus.BranchReturned, "Returned", "Returned for corrections", "LoanOfficer", 24, 6);
         definition.AddStage(LoanApplicationStatus.BranchRejected, "Branch Rejected", "Rejected at branch level", "None", 0, 7, isTerminal: true);
         definition.AddStage(LoanApplicationStatus.CreditAnalysis, "Credit Analysis", "Credit checks in progress", "System", 48, 8);
-        definition.AddStage(LoanApplicationStatus.HOReview, "HO Review", "Head Office review", "CreditOfficer", 24, 9, requiresComment: true);
+        definition.AddStage(LoanApplicationStatus.HOReview, "HO Review", "Head Office review", "HOReviewer", 24, 9, requiresComment: true);
         definition.AddStage(LoanApplicationStatus.CommitteeCirculation, "Committee Circulation", "Under committee review", "CommitteeMember", 72, 10);
-        definition.AddStage(LoanApplicationStatus.CommitteeApproved, "Committee Approved", "Approved by committee", "FinalApprover", 8, 11);
+        definition.AddStage(LoanApplicationStatus.CommitteeApproved, "Committee Approved", "Committee decision recorded, pending final sign-off", "System", 0, 11);
         definition.AddStage(LoanApplicationStatus.CommitteeRejected, "Committee Rejected", "Rejected by committee", "None", 0, 12, isTerminal: true);
-        definition.AddStage(LoanApplicationStatus.Approved, "Final Approved", "Final approval granted", "Operations", 4, 13);
-        definition.AddStage(LoanApplicationStatus.Rejected, "Rejected", "Application rejected", "None", 0, 14, isTerminal: true);
-        definition.AddStage(LoanApplicationStatus.OfferGenerated, "Offer Generated", "Offer letter ready", "Operations", 24, 15);
-        definition.AddStage(LoanApplicationStatus.OfferAccepted, "Offer Accepted", "Customer accepted offer", "Operations", 48, 16);
-        definition.AddStage(LoanApplicationStatus.Disbursed, "Disbursed", "Loan disbursed", "None", 0, 17, isTerminal: true);
+        definition.AddStage(LoanApplicationStatus.FinalApproval, "Final Approval", "Awaiting MD/CEO executive sign-off", "FinalApprover", 24, 13);
+        definition.AddStage(LoanApplicationStatus.Approved, "Final Approved", "Final approval granted", "Operations", 4, 14);
+        definition.AddStage(LoanApplicationStatus.Rejected, "Rejected", "Application rejected", "None", 0, 15, isTerminal: true);
+        definition.AddStage(LoanApplicationStatus.OfferGenerated, "Offer Generated", "Offer letter ready", "Operations", 24, 16);
+        definition.AddStage(LoanApplicationStatus.OfferAccepted, "Offer Accepted", "Customer accepted offer", "Operations", 48, 17);
+        definition.AddStage(LoanApplicationStatus.Disbursed, "Disbursed", "Loan disbursed", "None", 0, 18, isTerminal: true);
 
         // Add transitions
         // Draft -> Submitted
@@ -274,21 +275,26 @@ public class SeedCorporateLoanWorkflowHandler : IRequestHandler<SeedCorporateLoa
         // BranchApproved -> CreditAnalysis (system auto-transition)
         definition.AddTransition(LoanApplicationStatus.BranchApproved, LoanApplicationStatus.CreditAnalysis, WorkflowAction.MoveToNextStage, "System");
         
-        // CreditAnalysis -> HOReview
-        definition.AddTransition(LoanApplicationStatus.CreditAnalysis, LoanApplicationStatus.HOReview, WorkflowAction.MoveToNextStage, "System");
+        // CreditAnalysis actions
+        definition.AddTransition(LoanApplicationStatus.CreditAnalysis, LoanApplicationStatus.HOReview, WorkflowAction.Approve, "CreditOfficer");
+        definition.AddTransition(LoanApplicationStatus.CreditAnalysis, LoanApplicationStatus.BranchReview, WorkflowAction.Return, "CreditOfficer", requiresComment: true);
         
         // HOReview actions
-        definition.AddTransition(LoanApplicationStatus.HOReview, LoanApplicationStatus.CommitteeCirculation, WorkflowAction.Approve, "CreditOfficer", requiresComment: true);
-        definition.AddTransition(LoanApplicationStatus.HOReview, LoanApplicationStatus.Rejected, WorkflowAction.Reject, "CreditOfficer", requiresComment: true);
-        definition.AddTransition(LoanApplicationStatus.HOReview, LoanApplicationStatus.BranchReview, WorkflowAction.Return, "CreditOfficer", requiresComment: true);
+        definition.AddTransition(LoanApplicationStatus.HOReview, LoanApplicationStatus.CommitteeCirculation, WorkflowAction.Approve, "HOReviewer", requiresComment: true);
+        definition.AddTransition(LoanApplicationStatus.HOReview, LoanApplicationStatus.CreditAnalysis, WorkflowAction.Return, "HOReviewer", requiresComment: true);
+        definition.AddTransition(LoanApplicationStatus.HOReview, LoanApplicationStatus.Rejected, WorkflowAction.Reject, "HOReviewer", requiresComment: true);
         
-        // Committee actions
-        definition.AddTransition(LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.CommitteeApproved, WorkflowAction.Approve, "CommitteeMember", requiresComment: true);
-        definition.AddTransition(LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.CommitteeRejected, WorkflowAction.Reject, "CommitteeMember", requiresComment: true);
-        
-        // CommitteeApproved -> Approved (final)
-        definition.AddTransition(LoanApplicationStatus.CommitteeApproved, LoanApplicationStatus.Approved, WorkflowAction.Approve, "FinalApprover", requiresComment: true);
-        definition.AddTransition(LoanApplicationStatus.CommitteeApproved, LoanApplicationStatus.Rejected, WorkflowAction.Reject, "FinalApprover", requiresComment: true);
+        // Committee actions — these transitions are system-driven (fired by CommitteeDecisionWorkflowHandler)
+        // after the chairperson records the formal decision via RecordDecision().
+        definition.AddTransition(LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.CommitteeApproved, WorkflowAction.MoveToNextStage, "SystemAdmin");
+        definition.AddTransition(LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.CommitteeRejected, WorkflowAction.Reject, "SystemAdmin");
+
+        // CommitteeApproved auto-transitions to FinalApproval (system-driven, same handler)
+        definition.AddTransition(LoanApplicationStatus.CommitteeApproved, LoanApplicationStatus.FinalApproval, WorkflowAction.MoveToNextStage, "SystemAdmin");
+
+        // FinalApproval — MD/CEO sign-off
+        definition.AddTransition(LoanApplicationStatus.FinalApproval, LoanApplicationStatus.Approved, WorkflowAction.Approve, "FinalApprover", requiresComment: true);
+        definition.AddTransition(LoanApplicationStatus.FinalApproval, LoanApplicationStatus.Rejected, WorkflowAction.Reject, "FinalApprover", requiresComment: true);
         
         // Approved -> OfferGenerated
         definition.AddTransition(LoanApplicationStatus.Approved, LoanApplicationStatus.OfferGenerated, WorkflowAction.MoveToNextStage, "Operations");

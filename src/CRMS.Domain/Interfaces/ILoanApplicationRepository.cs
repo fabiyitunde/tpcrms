@@ -6,6 +6,7 @@ namespace CRMS.Domain.Interfaces;
 public interface ILoanApplicationRepository
 {
     Task<LoanApplication?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<LoanApplication?> GetByIdNoTrackingAsync(Guid id, CancellationToken ct = default);
     Task<LoanApplication?> GetByIdWithPartiesAsync(Guid id, CancellationToken ct = default);
     Task<LoanApplication?> GetByApplicationNumberAsync(string applicationNumber, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetByStatusAsync(LoanApplicationStatus status, CancellationToken ct = default);
@@ -14,6 +15,7 @@ public interface ILoanApplicationRepository
     Task<IReadOnlyList<LoanApplication>> GetPendingBranchReviewAsync(Guid? branchId = null, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetPendingBranchReviewFilteredAsync(IReadOnlyList<Guid>? visibleBranchIds, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetByAccountNumberAsync(string accountNumber, CancellationToken ct = default);
+    Task<LoanApplication?> GetByIdWithChecklistAsync(Guid id, CancellationToken ct = default);
     Task<bool> ExistsAsync(Guid id, CancellationToken ct = default);
     Task AddAsync(LoanApplication application, CancellationToken ct = default);
     void Update(LoanApplication application);

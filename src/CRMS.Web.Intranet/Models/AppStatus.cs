@@ -13,7 +13,10 @@ public static class AppStatus
     public const string CommitteeCirculation = "CommitteeCirculation";
     public const string CommitteeApproved = "CommitteeApproved";
     public const string CommitteeRejected = "CommitteeRejected";
+    public const string FinalApproval = "FinalApproval";
     public const string Approved = "Approved";
+    public const string OfferGenerated = "OfferGenerated";
+    public const string OfferAccepted = "OfferAccepted";
     public const string Rejected = "Rejected";
     public const string Disbursed = "Disbursed";
     public const string Closed = "Closed";

@@ -34,7 +34,13 @@ public class LocalFileStorageService : IFileStorageService
 
         var uniqueFileName = $"{Guid.NewGuid():N}_{fileName}";
         var filePath = Path.Combine(containerPath, uniqueFileName);
-        
+
+        // fileName may contain path separators (e.g. "AppNumber/OfferLetter.pdf"),
+        // so ensure the full directory hierarchy exists before writing.
+        var fileDir = Path.GetDirectoryName(filePath);
+        if (fileDir != null && !Directory.Exists(fileDir))
+            Directory.CreateDirectory(fileDir);
+
         await File.WriteAllBytesAsync(filePath, content, ct);
         
         var storagePath = $"{containerName}/{uniqueFileName}";

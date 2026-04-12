@@ -1,6 +1,7 @@
 using CRMS.Domain.Aggregates.Committee;
 using CRMS.Domain.Aggregates.LoanApplication;
 using CRMS.Domain.Common;
+using CRMS.Domain.Constants;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
@@ -17,17 +18,20 @@ public class CommitteeDecisionWorkflowHandler : IDomainEventHandler<CommitteeDec
     private readonly ILoanApplicationRepository _loanApplicationRepository;
     private readonly IWorkflowInstanceRepository _workflowInstanceRepository;
     private readonly WorkflowService _workflowService;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<CommitteeDecisionWorkflowHandler> _logger;
 
     public CommitteeDecisionWorkflowHandler(
         ILoanApplicationRepository loanApplicationRepository,
         IWorkflowInstanceRepository workflowInstanceRepository,
         WorkflowService workflowService,
+        IUnitOfWork unitOfWork,
         ILogger<CommitteeDecisionWorkflowHandler> logger)
     {
         _loanApplicationRepository = loanApplicationRepository;
         _workflowInstanceRepository = workflowInstanceRepository;
         _workflowService = workflowService;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -52,52 +56,103 @@ public class CommitteeDecisionWorkflowHandler : IDomainEventHandler<CommitteeDec
                 return;
             }
 
-            LoanApplicationStatus targetStatus;
-            WorkflowAction action;
-
             switch (domainEvent.Decision)
             {
                 case CommitteeDecision.Approved:
-                    targetStatus = LoanApplicationStatus.CommitteeApproved;
-                    action = WorkflowAction.Approve;
-                    
-                    // Update loan application with approved terms using existing method
+                {
+                    // Record committee approval on the loan application
                     if (domainEvent.ApprovedAmount.HasValue)
                     {
                         var approvedMoney = Money.Create(domainEvent.ApprovedAmount.Value, "NGN");
                         loanApplication.ApproveCommittee(
-                            Guid.Empty, // System action
+                            domainEvent.DecisionByUserId,
                             approvedMoney,
                             domainEvent.ApprovedTenor ?? loanApplication.RequestedTenorMonths,
                             domainEvent.ApprovedRate ?? 0,
                             "Committee decision: Approved");
                     }
-                    break;
+
+                    // Step 1: Record the committee milestone in the workflow history
+                    var committeeApprovedResult = await _workflowService.TransitionAsync(
+                        workflowInstance.Id,
+                        LoanApplicationStatus.CommitteeApproved,
+                        WorkflowAction.MoveToNextStage,
+                        domainEvent.DecisionByUserId,
+                        "SystemAdmin", // SystemAdmin bypasses role check for system-driven transitions
+                        "Committee voted: Approved",
+                        ct);
+
+                    if (committeeApprovedResult.IsFailure)
+                    {
+                        _logger.LogError("Failed to transition workflow to CommitteeApproved for loan {LoanId}: {Error}",
+                            domainEvent.LoanApplicationId, committeeApprovedResult.Error);
+                        return;
+                    }
+
+                    // Step 2: Auto-transition to FinalApproval — MD/CEO sign-off queue
+                    loanApplication.MoveToFinalApproval(SystemConstants.SystemUserId);
+
+                    var finalApprovalResult = await _workflowService.TransitionAsync(
+                        workflowInstance.Id,
+                        LoanApplicationStatus.FinalApproval,
+                        WorkflowAction.MoveToNextStage,
+                        SystemConstants.SystemUserId,
+                        "SystemAdmin",
+                        "Auto-transition: Awaiting MD/CEO executive sign-off",
+                        ct);
+
+                    if (finalApprovalResult.IsFailure)
+                    {
+                        _logger.LogError("Failed to transition workflow to FinalApproval for loan {LoanId}: {Error}",
+                            domainEvent.LoanApplicationId, finalApprovalResult.Error);
+                        return;
+                    }
+
+                    _loanApplicationRepository.Update(loanApplication);
+                    await _unitOfWork.SaveChangesAsync(ct);
+
+                    _logger.LogInformation("Successfully processed committee approval for loan {LoanId}. Moved to FinalApproval.",
+                        domainEvent.LoanApplicationId);
+                    return;
+                }
 
                 case CommitteeDecision.Rejected:
-                    targetStatus = LoanApplicationStatus.CommitteeRejected;
-                    action = WorkflowAction.Reject;
-                    loanApplication.RejectCommittee(Guid.Empty, "Committee decision: Rejected");
+                    loanApplication.RejectCommittee(domainEvent.DecisionByUserId, "Committee decision: Rejected");
                     break;
 
                 case CommitteeDecision.Deferred:
-                    // Deferred means return to HO Review for more information
-                    targetStatus = LoanApplicationStatus.HOReview;
-                    action = WorkflowAction.Return;
+                {
+                    var deferResult = loanApplication.DeferFromCommittee(
+                        domainEvent.DecisionByUserId,
+                        domainEvent.Rationale ?? "Additional information required");
+                    if (deferResult.IsFailure)
+                    {
+                        _logger.LogError("DeferFromCommittee failed for loan {LoanId}: {Error}",
+                            domainEvent.LoanApplicationId, deferResult.Error);
+                        return;
+                    }
                     break;
+                }
 
                 default:
                     _logger.LogWarning("Unknown committee decision: {Decision}", domainEvent.Decision);
                     return;
             }
 
-            // Transition workflow
+            // Rejected / Deferred: single transition
+            LoanApplicationStatus targetStatus = domainEvent.Decision == CommitteeDecision.Rejected
+                ? LoanApplicationStatus.CommitteeRejected
+                : LoanApplicationStatus.HOReview;
+            WorkflowAction action = domainEvent.Decision == CommitteeDecision.Rejected
+                ? WorkflowAction.Reject
+                : WorkflowAction.Return;
+
             var transitionResult = await _workflowService.TransitionAsync(
                 workflowInstance.Id,
                 targetStatus,
                 action,
-                Guid.Empty, // System action
-                "System",
+                domainEvent.DecisionByUserId,
+                "SystemAdmin",
                 $"Auto-transition based on committee decision: {domainEvent.Decision}",
                 ct);
 
@@ -109,6 +164,7 @@ public class CommitteeDecisionWorkflowHandler : IDomainEventHandler<CommitteeDec
             }
 
             _loanApplicationRepository.Update(loanApplication);
+            await _unitOfWork.SaveChangesAsync(ct);
 
             _logger.LogInformation("Successfully processed committee decision for loan {LoanId}. New status: {Status}",
                 domainEvent.LoanApplicationId, targetStatus);
@@ -126,64 +182,34 @@ public class CommitteeDecisionWorkflowHandler : IDomainEventHandler<CommitteeDec
 /// </summary>
 public class AllCreditChecksCompletedWorkflowHandler : IDomainEventHandler<AllCreditChecksCompletedEvent>
 {
+    private readonly ILoanApplicationRepository _loanApplicationRepository;
     private readonly IWorkflowInstanceRepository _workflowInstanceRepository;
     private readonly WorkflowService _workflowService;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<AllCreditChecksCompletedWorkflowHandler> _logger;
 
     public AllCreditChecksCompletedWorkflowHandler(
+        ILoanApplicationRepository loanApplicationRepository,
         IWorkflowInstanceRepository workflowInstanceRepository,
         WorkflowService workflowService,
+        IUnitOfWork unitOfWork,
         ILogger<AllCreditChecksCompletedWorkflowHandler> logger)
     {
+        _loanApplicationRepository = loanApplicationRepository;
         _workflowInstanceRepository = workflowInstanceRepository;
         _workflowService = workflowService;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
     public async Task HandleAsync(AllCreditChecksCompletedEvent domainEvent, CancellationToken ct = default)
     {
-        _logger.LogInformation("All credit checks completed for loan {LoanId}. Transitioning to HO Review.",
+        // All bureau checks are now complete. The Credit Officer reviews the results on the
+        // application detail page and manually advances the application to HO Review via the
+        // Approve button. No automatic transition is performed here.
+        _logger.LogInformation(
+            "All credit checks completed for loan {LoanId}. Application is ready for Credit Officer review.",
             domainEvent.ApplicationId);
-
-        try
-        {
-            var workflowInstance = await _workflowInstanceRepository.GetByLoanApplicationIdAsync(domainEvent.ApplicationId, ct);
-            if (workflowInstance == null)
-            {
-                _logger.LogError("Workflow instance not found for loan {LoanId}", domainEvent.ApplicationId);
-                return;
-            }
-
-            // Only transition if currently in CreditAnalysis stage
-            if (workflowInstance.CurrentStatus != LoanApplicationStatus.CreditAnalysis)
-            {
-                _logger.LogWarning("Loan {LoanId} is not in CreditAnalysis stage (current: {Status}). Skipping auto-transition.",
-                    domainEvent.ApplicationId, workflowInstance.CurrentStatus);
-                return;
-            }
-
-            var transitionResult = await _workflowService.TransitionAsync(
-                workflowInstance.Id,
-                LoanApplicationStatus.HOReview,
-                WorkflowAction.MoveToNextStage,
-                Guid.Empty, // System action
-                "System",
-                "Auto-transition: All credit checks completed",
-                ct);
-
-            if (transitionResult.IsFailure)
-            {
-                _logger.LogError("Failed to transition workflow for loan {LoanId}: {Error}",
-                    domainEvent.ApplicationId, transitionResult.Error);
-                return;
-            }
-
-            _logger.LogInformation("Successfully transitioned loan {LoanId} to HO Review", domainEvent.ApplicationId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error transitioning loan {LoanId} after credit checks completed", domainEvent.ApplicationId);
-            throw;
-        }
     }
 }
+

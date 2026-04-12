@@ -75,10 +75,12 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
         if (loanApp == null)
             return ApplicationResult<LoanPackResultDto>.Failure("Loan application not found");
 
-        // Check if there's an existing version to increment
-        var existingVersion = await _loanPackRepository.GetVersionCountAsync(request.LoanApplicationId, ct);
+        // Use MAX version so Failed records don't cause duplicate version numbers
+        // (a unique index on (LoanApplicationId, Version) would otherwise be violated).
+        var maxExistingVersion = await _loanPackRepository.GetMaxVersionAsync(request.LoanApplicationId, ct);
+        var nextVersion = maxExistingVersion + 1;
 
-        // Create loan pack entity
+        // Create loan pack entity with the correct version number
         var loanPackResult = LP.LoanPack.Create(
             request.LoanApplicationId,
             loanApp.ApplicationNumber,
@@ -86,7 +88,8 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
             request.GeneratedByUserName,
             loanApp.CustomerName,
             loanApp.ProductCode,
-            loanApp.RequestedAmount.Amount);
+            loanApp.RequestedAmount.Amount,
+            version: nextVersion);
 
         if (!loanPackResult.IsSuccess)
             return ApplicationResult<LoanPackResultDto>.Failure(loanPackResult.Error);
@@ -96,13 +99,13 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
         try
         {
             // Gather all data for PDF generation
-            var packData = await BuildLoanPackDataAsync(loanApp, existingVersion + 1, request.GeneratedByUserName, ct);
+            var packData = await BuildLoanPackDataAsync(loanApp, nextVersion, request.GeneratedByUserName, ct);
 
             // Generate PDF
             var pdfBytes = await _pdfGenerator.GenerateAsync(packData, ct);
 
             // Generate file name and storage path
-            var fileName = $"LoanPack_{loanApp.ApplicationNumber}_v{existingVersion + 1}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+            var fileName = $"LoanPack_{loanApp.ApplicationNumber}_v{nextVersion}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
             var storagePath = $"loanpacks/{loanApp.ApplicationNumber}/{fileName}";
 
             // Calculate content hash
@@ -152,7 +155,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
             return ApplicationResult<LoanPackResultDto>.Success(new LoanPackResultDto(
                 loanPack.Id,
                 loanPack.ApplicationNumber,
-                existingVersion + 1,
+                nextVersion,
                 fileName,
                 pdfBytes.Length,
                 loanPack.Status.ToString(),
@@ -161,8 +164,12 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
         catch (Exception ex)
         {
             loanPack.MarkAsFailed(ex.Message);
-            await _loanPackRepository.AddAsync(loanPack, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
+            try
+            {
+                await _loanPackRepository.AddAsync(loanPack, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+            catch { /* Best-effort audit record — ignore if it fails */ }
 
             return ApplicationResult<LoanPackResultDto>.Failure($"Failed to generate loan pack: {ex.Message}");
         }
@@ -174,27 +181,17 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
         string generatedBy,
         CancellationToken ct)
     {
-        // Load all related data in parallel
-        var bureauReportsTask = _bureauRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
-        var financialStatementsTask = _financialRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
-        var bankStatementsTask = _bankStatementRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
-        var collateralsTask = _collateralRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
-        var guarantorsTask = _guarantorRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
-        var advisoryTask = _advisoryRepository.GetLatestByLoanApplicationIdAsync(loanApp.Id, ct);
-        var workflowTask = _workflowRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
-        var committeeTask = _committeeRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
-
-        await Task.WhenAll(bureauReportsTask, financialStatementsTask, bankStatementsTask,
-            collateralsTask, guarantorsTask, advisoryTask, workflowTask, committeeTask);
-
-        var bureauReports = await bureauReportsTask;
-        var financialStatements = await financialStatementsTask;
-        var bankStatements = await bankStatementsTask;
-        var collaterals = await collateralsTask;
-        var guarantors = await guarantorsTask;
-        var advisory = await advisoryTask;
-        var workflow = await workflowTask;
-        var committeeReview = await committeeTask;
+        // Load all related data sequentially — EF Core DbContext is not thread-safe,
+        // so Task.WhenAll across repositories sharing the same context causes
+        // "A second operation was started on this context instance" exceptions.
+        var bureauReports      = await _bureauRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
+        var financialStatements = await _financialRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
+        var bankStatements     = await _bankStatementRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
+        var collaterals        = await _collateralRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
+        var guarantors         = await _guarantorRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
+        var advisory           = await _advisoryRepository.GetLatestByLoanApplicationIdAsync(loanApp.Id, ct);
+        var workflow           = await _workflowRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
+        var committeeReview    = await _committeeRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
 
         // Map customer profile
         var customerProfile = new CustomerProfileData(
@@ -388,6 +385,14 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 c.Visibility.ToString()))
             .ToList() ?? new List<CommitteeCommentData>();
 
+        // Map approval conditions (from committee decision)
+        var approvalConditions = new List<string>();
+        if (!string.IsNullOrWhiteSpace(committeeReview?.ApprovalConditions))
+        {
+            approvalConditions.AddRange(committeeReview.ApprovalConditions
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+
         return new LoanPackData(
             loanApp.ApplicationNumber,
             loanApp.CreatedAt,
@@ -413,6 +418,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
             aiData,
             workflowHistory,
             committeeComments,
+            approvalConditions,
             DateTime.UtcNow,
             generatedBy,
             version);

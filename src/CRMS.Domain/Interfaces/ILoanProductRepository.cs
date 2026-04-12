@@ -14,4 +14,5 @@ public interface ILoanProductRepository
     Task<bool> ExistsAsync(string code, CancellationToken ct = default);
     Task AddAsync(LoanProduct product, CancellationToken ct = default);
     Task UpdateAsync(LoanProduct product, CancellationToken ct = default);
+    Task AddChecklistTemplateItemAsync(DisbursementChecklistTemplate item, CancellationToken ct = default);
 }

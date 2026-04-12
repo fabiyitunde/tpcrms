@@ -58,7 +58,8 @@ public enum BureauReportStatus
     Processing,
     Completed,
     Failed,
-    NotFound
+    NotFound,
+    ConsentRequired
 }
 
 public enum AccountStatus

@@ -37,7 +37,11 @@
                     <option value="CreditAnalysis">Credit Analysis</option>
                     <option value="HOReview">HO Review</option>
                     <option value="CommitteeCirculation">Committee</option>
+                    <option value="CommitteeApproved">Committee Approved</option>
+                    <option value="FinalApproval">Final Approval</option>
                     <option value="Approved">Approved</option>
+                    <option value="OfferGenerated">Offer Issued</option>
+                    <option value="OfferAccepted">Offer Accepted</option>
                     <option value="Rejected">Rejected</option>
                     <option value="Disbursed">Disbursed</option>
                 </select>
@@ -208,20 +212,35 @@
             myApps = GenerateMockApplications();
         }
 
-        // Also get applications by status if a specific status is selected
-        if (!string.IsNullOrEmpty(filter.Status))
+        var user = AuthService.CurrentUser;
+
+        // Reviewer roles have a natural pending-review status even with no explicit filter
+        var defaultReviewStatus = user?.PrimaryRole switch
         {
-            var user = AuthService.CurrentUser;
+            "BranchApprover" => "BranchReview",
+            "CreditOfficer"  => "CreditAnalysis",
+            "HOReviewer"     => "HOReview",
+            "FinalApprover"  => "FinalApproval",
+            "Operations"     => "OfferAccepted",
+            _                => null
+        };
+
+        // Also get applications by status if a specific status is selected,
+        // or default to the role's natural review queue when no filter is active
+        var effectiveStatus = !string.IsNullOrEmpty(filter.Status) ? filter.Status : defaultReviewStatus;
+
+        if (!string.IsNullOrEmpty(effectiveStatus))
+        {
             var (statusApps, _) = await AppService.GetApplicationsByStatusAsync(
-                filter.Status, user?.LocationId, user?.PrimaryRole, user?.Id);
+                effectiveStatus, user?.LocationId, user?.PrimaryRole, user?.Id);
             // Merge and deduplicate
             var allApps = myApps.Concat(statusApps)
                 .GroupBy(a => a.Id)
                 .Select(g => g.First())
                 .ToList();
-            
+
             // Filter by status
-            applications = allApps.Where(a => a.Status == filter.Status).ToList();
+            applications = allApps.Where(a => a.Status == effectiveStatus).ToList();
         }
         else
         {
@@ -310,6 +329,7 @@
         "BranchReview" or "HOReview" or "CreditAnalysis" => "badge-warning",
         "CommitteeCirculation" => "badge-primary",
         "BranchApproved" or "CommitteeApproved" or "Approved" => "badge-success",
+        "OfferGenerated" or "OfferAccepted" => "badge-primary",
         "BranchRejected" or "CommitteeRejected" or "Rejected" => "badge-danger",
         "Disbursed" => "badge-success",
         _ => "badge-gray"
@@ -319,6 +339,7 @@
     {
         "Draft" => "gray",
         "Approved" or "Disbursed" or "BranchApproved" or "CommitteeApproved" => "success",
+        "OfferGenerated" or "OfferAccepted" => "info",
         "Rejected" or "BranchRejected" or "CommitteeRejected" => "danger",
         _ => "info"
     };

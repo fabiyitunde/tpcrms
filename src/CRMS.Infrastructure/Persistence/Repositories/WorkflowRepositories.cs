@@ -135,6 +135,45 @@ public class WorkflowInstanceRepository : IWorkflowInstanceRepository
 
     public void Update(WorkflowInstance instance)
     {
-        _context.WorkflowInstances.Update(instance);
+        // Disable auto-detect changes to prevent EF Core from discovering new child entities
+        // (WorkflowTransitionLog entries) via snapshot diff and incorrectly marking them as
+        // Modified (UPDATE) instead of Added (INSERT). We rely on the explicit state assignments
+        // below, and DetectChanges will run correctly inside SaveChangesAsync.
+        _context.ChangeTracker.AutoDetectChangesEnabled = false;
+        try
+        {
+            var entry = _context.Entry(instance);
+
+            if (entry.State == EntityState.Detached)
+            {
+                // Entity not yet tracked — start tracking via Update(), then fix any new
+                // WorkflowTransitionLog entries that EF Core would incorrectly mark as Modified
+                // instead of Added (non-empty Guid keys look like existing rows to EF Core).
+                var newLogs = instance.TransitionHistory
+                    .Where(t => _context.Entry(t).State == EntityState.Detached).ToList();
+
+                _context.WorkflowInstances.Update(instance);
+
+                foreach (var log in newLogs)
+                    _context.Entry(log).State = EntityState.Added;
+            }
+            else
+            {
+                // Entity is already tracked (loaded via GetByIdAsync in the same DbContext scope).
+                // EF Core's change tracker detects all property changes on the aggregate root.
+                // Do NOT call DbSet.Update() — it marks every related entity (existing
+                // WorkflowTransitionLog rows) as Modified, generating unnecessary UPDATEs that
+                // can fail with constraint errors and prevent SaveChanges from completing.
+                //
+                // Just explicitly attach any new transition log entries that aren't tracked yet.
+                foreach (var log in instance.TransitionHistory)
+                    if (_context.Entry(log).State == EntityState.Detached)
+                        _context.Entry(log).State = EntityState.Added;
+            }
+        }
+        finally
+        {
+            _context.ChangeTracker.AutoDetectChangesEnabled = true;
+        }
     }
 }

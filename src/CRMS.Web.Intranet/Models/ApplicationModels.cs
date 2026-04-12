@@ -144,6 +144,7 @@ public class PartyInfo
     public string? MandateType { get; set; }
     public bool HasBureauReport { get; set; }
     public string? BureauStatus { get; set; }
+    public Guid? BureauReportId { get; set; }
 }
 
 public class DocumentInfo
@@ -223,6 +224,7 @@ public class BureauReportInfo
     // Party linkage
     public Guid? PartyId { get; set; }
     public string? PartyType { get; set; }
+    public string? ErrorMessage { get; set; }
 }
 
 public class AdvisoryInfo
@@ -260,6 +262,20 @@ public class CommitteeInfo
     public string CommitteeType { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public List<CommitteeMemberVote> Members { get; set; } = [];
+    // Recommended terms (captured before voting starts)
+    public decimal? RecommendedAmount { get; set; }
+    public int? RecommendedTenorMonths { get; set; }
+    public decimal? RecommendedInterestRate { get; set; }
+    public string? RecommendedConditions { get; set; }
+    // Vote tally
+    public int ApprovalVotes { get; set; }
+    public int RejectionVotes { get; set; }
+    public int AbstainVotes { get; set; }
+    public int PendingVotes { get; set; }
+    public bool HasQuorum { get; set; }
+    public bool HasMajorityApproval { get; set; }
+    public bool IsOverdue { get; set; }
+    // Decision
     public string? Decision { get; set; }
     public string? DecisionComments { get; set; }
     public DateTime? DecisionDate { get; set; }
@@ -670,6 +686,105 @@ public class OfferLetterInfo
     public string GeneratedByUserName { get; set; } = string.Empty;
     public DateTime GeneratedAt { get; set; }
     public string StoragePath { get; set; } = string.Empty;
+}
+
+// ---------------------------------------------------------------------------
+// Disbursement Checklist Models (OfferGenerated / OfferAccepted stage)
+// ---------------------------------------------------------------------------
+
+public class DisbursementChecklistModel
+{
+    public Guid LoanApplicationId { get; set; }
+    public bool AllPrecedentResolved { get; set; }
+    public List<ChecklistItemModel> Items { get; set; } = [];
+
+    public IEnumerable<ChecklistItemModel> PrecedentItems =>
+        Items.Where(i => i.ConditionType == "Precedent").OrderBy(i => i.SortOrder);
+
+    public IEnumerable<ChecklistItemModel> SubsequentItems =>
+        Items.Where(i => i.ConditionType == "Subsequent").OrderBy(i => i.SortOrder);
+}
+
+public class ChecklistItemModel
+{
+    public Guid Id { get; set; }
+    public Guid TemplateItemId { get; set; }
+    public string ItemName { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool IsMandatory { get; set; }
+    public string ConditionType { get; set; } = string.Empty;
+    public int? SubsequentDueDays { get; set; }
+    public bool RequiresDocumentUpload { get; set; }
+    public bool RequiresLegalRatification { get; set; }
+    public bool CanBeWaived { get; set; }
+    public int SortOrder { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public bool IsResolved { get; set; }
+    public bool BlocksDisbursement { get; set; }
+
+    // Satisfaction
+    public Guid? SatisfiedByUserId { get; set; }
+    public DateTime? SatisfiedAt { get; set; }
+    public Guid? EvidenceDocumentId { get; set; }
+
+    // Legal
+    public Guid? LegalRatifiedByUserId { get; set; }
+    public DateTime? LegalRatifiedAt { get; set; }
+    public string? LegalReturnReason { get; set; }
+
+    // Waiver
+    public Guid? WaiverProposedByUserId { get; set; }
+    public DateTime? WaiverProposedAt { get; set; }
+    public string? WaiverReason { get; set; }
+    public Guid? WaiverRatifiedByUserId { get; set; }
+    public DateTime? WaiverRatifiedAt { get; set; }
+    public string? WaiverRejectionReason { get; set; }
+
+    // CS due date
+    public DateTime? DueDate { get; set; }
+    public DateTime? OriginalDueDate { get; set; }
+    public string? ExtensionReason { get; set; }
+
+    public string StatusBadgeClass => Status switch
+    {
+        "Satisfied" => "badge bg-success",
+        "Waived" => "badge bg-warning text-dark",
+        "PendingLegalReview" => "badge bg-info text-dark",
+        "LegalReturned" => "badge bg-danger",
+        "WaiverPending" => "badge bg-warning text-dark",
+        "Overdue" => "badge bg-danger",
+        "ExtensionPending" => "badge bg-secondary",
+        _ => "badge bg-light text-dark"
+    };
+
+    public string StatusDisplay => Status switch
+    {
+        "Pending" => "Pending",
+        "PendingLegalReview" => "Legal Review",
+        "LegalReturned" => "Returned by Legal",
+        "Satisfied" => "Satisfied",
+        "WaiverPending" => "Waiver Pending",
+        "Waived" => "Waived",
+        "Overdue" => "Overdue",
+        "ExtensionPending" => "Extension Pending",
+        _ => Status
+    };
+}
+
+public class ChecklistTemplateItemModel
+{
+    public Guid Id { get; set; }
+    public Guid LoanProductId { get; set; }
+    public string ItemName { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool IsMandatory { get; set; }
+    public string ConditionType { get; set; } = "Precedent";
+    public int? SubsequentDueDays { get; set; }
+    public bool RequiresDocumentUpload { get; set; }
+    public bool RequiresLegalRatification { get; set; }
+    public bool CanBeWaived { get; set; }
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; }
 }
 
 // Bureau Account Info for detail modal

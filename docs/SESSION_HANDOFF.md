@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-03-26 (Session 35)
+**Last Updated:** 2026-04-09 (Session 46)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -72,7 +72,7 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 
 **Intranet UI:** Core workflows complete. A few management features remain.
 
-### What Works (as of 2026-03-14)
+### What Works (as of 2026-04-09)
 
 | Feature Area | Status |
 |---|---|
@@ -158,12 +158,26 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **Help page Bank Statements section rewritten — format guide, bank export instructions, troubleshooting** | ✅ |
 | **`AddStatementTransactionsAsync` + `ValidateDataIntegrity()` call — enables Verify and Analyze after entry** | ✅ |
 | **Offer letter download + history tab (re-download any version, per-row spinner, empty state)** | ✅ |
+| **"Add Txns" on existing statement shows prior transactions read-only + correct running balance** | ✅ |
+| **`ManageStatementTransactionsModal` — 4 UX/functional bugs fixed (bind clobber, partial save, premature warning, misleading labels)** | ✅ |
+| **G6: Credit check outbox — persistent DB table replaces in-memory Channel (survives restarts)** | ✅ |
+| **G7: `FinalApproval` status wired — CommitteeApproved auto-transitions; FinalApprover role gates UI** | ✅ |
+| **G9: `Guid.Empty` replaced — chairman ID from `DecisionByUserId`; system actions use `SystemConstants.SystemUserId`; display resolves to "System Process"** | ✅ |
+| **G4: Bureau tab consent-blocked banner + business card status badges (Consent Required / Failed / Not Found)** | ✅ |
+| **G10: Committee deferral — `DeferFromCommittee()` domain method; dual-status desync fixed; deferral banner at HOReview** | ✅ |
+| **G11: Credit check retry — orphaned `Processing` recovery on startup; `ProcessedAt` on failure; `Failed` reports retryable without double-counting; "Re-run" button visible for `Failed`** | ✅ |
+| **Workflow CreditAnalysis stage fully wired — Credit Officer sees Approve + Return buttons; approval no longer throws exception; Return sends app back to BranchReview** | ✅ |
+| **4 missing handler DI registrations added: `ApproveCreditAnalysisHandler`, `ReturnFromCreditAnalysisHandler`, `ReturnFromHOReviewHandler`, `FinalApproveHandler`** | ✅ |
+| **HOReview → CommitteeCirculation domain desync fixed — `MoveToCommitteeHandler` registered; `ApproveApplicationAsync` now calls it so `LoanApplication.Status` stays in sync with `WorkflowInstance.CurrentStatus`** | ✅ |
+| **Disbursement Checklist (post-approval pre-disbursement) — admin-configurable CP/CS items, full state machine, role-based actions, Disbursement Memo PDF, CS background monitoring** | ✅ |
+| **LoanPack PDF — Section 12 "Conditions of Approval" from committee decision appended when present** | ✅ |
 
 ### What Is Pending
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
 | Wire customer exposure into AI Advisory (replace bureau-derived exposure) | P2 | `IFineractDirectService.GetCustomerExposureAsync` ready; needs wiring into `GenerateCreditAdvisoryHandler` to replace/supplement `corporateBureauReport.TotalOutstandingBalance` |
+| G8: Domain events with no handlers (`LoanApplicationCreatedEvent`, `SubmittedEvent`, `ApprovedEvent`, `DisbursedEvent`) | P3 | Deferred to next sprint — no downstream automation on key lifecycle events |
 
 ---
 
@@ -283,6 +297,392 @@ src/CRMS.Application/
 ├── Workflow/Commands/TransitionWorkflowCommand.cs
 └── ...
 ```
+
+---
+
+## 5. Last Session Summary (2026-04-09 Session 46)
+
+### Completed — Post-Approval Pre-Disbursement: Full Disbursement Checklist Feature
+
+Implemented the complete disbursement checklist feature end-to-end (8 tasks). Replaced the hardcoded throwaway `cpChecklist` in `Detail.razor` with a persisted, domain-driven, admin-configurable checklist.
+
+---
+
+#### Task 1–2 — Domain + Infrastructure (completed in prior session, confirmed this session)
+
+`DisbursementChecklistItem` entity (full state machine):
+- `ChecklistItemStatus`: `Pending → PendingLegalReview → LegalReturned → Satisfied | WaiverPending → Waived | Overdue → ExtensionPending`
+- `ConditionType`: `Precedent` (blocks disbursement) and `Subsequent` (monitored post-disbursement)
+- Roles: LoanOfficer satisfies/submits/proposes waiver; LegalOfficer ratifies legal items; RiskManager ratifies waivers and CS extensions; Operations confirms acceptance
+- `MarkOverdue()` changed from `internal` to `public` to allow access from Infrastructure
+- Migration `20260409123746_AddDisbursementChecklist` created — **PENDING** (needs `dotnet ef database update`)
+
+---
+
+#### Task 3 — Application Layer
+
+**New files:**
+- `src/CRMS.Application/OfferAcceptance/Commands/ConfirmOfferAcceptanceCommand.cs` — validates all mandatory CP items resolved, calls `loanApp.AcceptOffer()`, generates Disbursement Memo PDF, uploads to `disbursementmemos` container
+- `src/CRMS.Application/OfferAcceptance/Queries/GetDisbursementChecklistQuery.cs` — fetches all checklist items ordered by `SortOrder`, maps to `ChecklistItemDto`, computes `AllPrecedentResolved`
+- `src/CRMS.Application/OfferAcceptance/Commands/` — 8 item-action handlers: `SatisfyChecklistItemCommand`, `SubmitForLegalReviewCommand`, `RatifyLegalItemCommand`, `ReturnByLegalCommand`, `ProposeWaiverCommand`, `RatifyWaiverCommand`, `RequestCsExtensionCommand`, `RatifyExtensionCommand`
+- `src/CRMS.Application/ProductCatalog/Commands/ChecklistTemplateCommands.cs` — `AddChecklistTemplateItemCommand`, `UpdateChecklistTemplateItemCommand`, `RemoveChecklistTemplateItemCommand` (SystemAdmin/RiskManager only)
+
+**Modified:**
+- `src/CRMS.Application/LoanPack/DTOs/LoanPackData.cs` — Added `List<string> ApprovalConditions` field
+- `src/CRMS.Application/LoanPack/Commands/GenerateLoanPackCommand.cs` — Parses `committeeReview.ApprovalConditions` (newline-separated → `List<string>`) and passes to `LoanPackData`
+
+---
+
+#### Task 4 — Infrastructure: Disbursement Memo PDF
+
+**New file:** `src/CRMS.Infrastructure/Documents/DisbursementMemoPdfGenerator.cs`
+- Full QuestPDF implementation: loan summary box, CP table, CS table, certification block with signature lines
+- Status-colour badge mapping per `ChecklistItemStatus`
+- Implements `IDisbursementMemoPdfGenerator` interface in `CRMS.Application.OfferAcceptance.Interfaces`
+
+---
+
+#### Task 5 — Infrastructure: CS Monitoring Background Service
+
+**New file:** `src/CRMS.Infrastructure/BackgroundServices/CsMonitoringBackgroundService.cs`
+- Runs every 24 hours; queries disbursed loans with active CS items via EF LINQ join (no navigation property on `DisbursementChecklistItem`)
+- Calls `item.MarkOverdue()` when `DueDate` has passed and status is `Pending`
+- Logs tiered warnings at T-7, T-1, T+0, T+7, T+30, T+90 relative to `DueDate`
+- Join query pattern used (no `Include`): `from item in db.DisbursementChecklistItems join app in db.LoanApplications on item.LoanApplicationId equals app.Id`
+
+---
+
+#### Task 6 — DI Registration
+
+**Modified:** `src/CRMS.Infrastructure/DependencyInjection.cs`
+- `IDisbursementMemoPdfGenerator → DisbursementMemoPdfGenerator`
+- All 9 offer acceptance handlers + `GetDisbursementChecklistHandler`
+- 3 checklist template command handlers
+- `CsMonitoringBackgroundService` as hosted service
+
+---
+
+#### Task 7 — UI: ApplicationService + Models
+
+**Modified:** `src/CRMS.Web.Intranet/Services/ApplicationService.cs`
+- `IssueOfferLetterAsync` now also calls `IssueOfferLetterCommand` (seeds checklist from product template)
+- `RecordOfferAcceptanceAsync` extended with `string userName` — calls `ConfirmOfferAcceptanceHandler` first (validates CP gate + generates memo PDF), then transitions workflow
+- 8 new methods: `GetDisbursementChecklistAsync`, `SatisfyChecklistItemAsync`, `SubmitForLegalReviewAsync`, `RatifyLegalItemAsync`, `ProposeWaiverAsync`, `RatifyWaiverAsync`, `RequestCsExtensionAsync`, `RatifyExtensionAsync`
+
+**Modified:** `src/CRMS.Web.Intranet/Models/ApplicationModels.cs`
+- Added `DisbursementChecklistModel`, `ChecklistItemModel` (with computed `StatusBadgeClass` and `StatusDisplay`), `ChecklistTemplateItemModel`
+
+---
+
+#### Task 8 — UI: OfferAcceptanceTab + Detail.razor + LoanPack PDF
+
+**New file:** `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/OfferAcceptanceTab.razor`
+- CP section table + CS section table (only shown when items exist)
+- Summary banner (green "all CP resolved" / amber "X items unresolved")
+- Role-filtered action buttons per item
+- Single modal state machine (one `activeModal` + `activeItem` pair handles all 7 action types)
+- Parameters: `ApplicationId` (Guid), `ApplicationStatus` (string)
+
+**Modified:** `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor`
+- Added `Disbursement Checklist` tab (visible at OfferGenerated/OfferAccepted/Disbursed)
+- `ShowRecordAcceptanceButton` now requires Operations/SystemAdmin (not LoanOfficer)
+- `ConfirmRecordAcceptance` passes `userName` to `RecordOfferAcceptanceAsync`
+- Removed `CpCheckItem` class, `cpChecklist` list, `InitialiseCpChecklist()` — replaced by domain gate
+- Disburse modal body replaced hardcoded checklist with green "CPs verified on checklist tab" banner
+- CP gate removed from Disburse button (enforcement moved to domain: `loanApp.AcceptOffer()` validates)
+
+**Modified:** `src/CRMS.Infrastructure/Documents/LoanPackPdfGenerator.cs`
+- Added Section 12 "Conditions of Approval" — numbered table rendered when `data.ApprovalConditions.Any()`
+
+**Build:** 0 errors, 0 warnings (Application + Infrastructure + Web.Intranet all verified).
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v5.7
+- [x] `docs/ImplementationTracker.md` → v6.9
+
+---
+
+## 5. Last Session Summary (2026-04-08 Session 45)
+
+### Completed — Three Bug Clusters Fixed: Seeder Crash, File Upload, Offer Letter/Loan Pack Generation
+
+---
+
+#### Bug 1 — `DbUpdateConcurrencyException` on App Restart (Seeder)
+
+`ComprehensiveDataSeeder.SeedWorkflowDefinitionAsync` crashed on every restart when the DB already had workflow data. Root cause: the two upgrade blocks (adding `FinalApproval` stage, adding `OfferGenerated`/`OfferAccepted` stages) mixed raw SQL DELETEs with EF `AddStage`/`AddTransition` + `SaveChangesAsync`. EF's snapshot still included the deleted transitions, generating phantom DELETEs that returned 0 rows → `DbUpdateConcurrencyException`.
+
+**Fix:** Completely rewrote both upgrade blocks to use **only** `ExecuteSqlRawAsync` — no EF tracking, no `SaveChangesAsync` in the upgrade path at all.
+
+| Operation | SQL pattern used |
+|-----------|-----------------|
+| DELETE old transitions | `DELETE FROM WorkflowTransitions WHERE ...` (idempotent — no error if absent) |
+| INSERT stage | `INSERT IGNORE INTO WorkflowStages (...)` (idempotent via unique index on `WorkflowDefinitionId+Status`) |
+| INSERT transition | `INSERT INTO WorkflowTransitions ... SELECT ... WHERE NOT EXISTS (...)` (idempotent) |
+
+Added private `InsertTransitionIfMissingAsync` helper to avoid repetition. After all upgrades, `ChangeTracker.Clear()` + reload returns a fresh entity.
+
+**Files modified:**
+- `src/CRMS.Infrastructure/Persistence/ComprehensiveDataSeeder.cs`
+
+---
+
+#### Bug 2 — Offer Letter Generation and Loan Pack Download Failing
+
+Both always returned "Failed to generate offer letter" / "Loan pack generated but could not be downloaded."
+
+**Root cause:** `LocalFileStorageService.UploadAsync` only created the container directory (`storage/offerletters`). The callers passed `fileName: $"{loanApp.ApplicationNumber}/{fileName}"` — a sub-path with a `/`. The computed `filePath` therefore pointed into a subdirectory (`storage/offerletters/GUID_CL-2026-0001/OfferLetter.pdf`) that was never created. `File.WriteAllBytesAsync` threw `DirectoryNotFoundException`, caught by the handler's try-catch → failure result.
+
+**Fix (one line of logic):** Before `File.WriteAllBytesAsync`, call `Directory.CreateDirectory(Path.GetDirectoryName(filePath))` — a no-op when directory already exists.
+
+**Files modified:**
+- `src/CRMS.Infrastructure/Storage/LocalFileStorageService.cs`
+
+---
+
+#### Bug 3 — "Failed to Generate Offer Letter" Persisting After Storage Fix
+
+Even after Bug 2 was fixed, a second attempt to generate always failed because a prior `Failed` record was left in the DB from the original broken attempt.
+
+**Root cause chain (3 compounding issues):**
+
+| # | Issue | Effect |
+|---|-------|--------|
+| 1 | `OfferLetter.Create()` hardcoded `Version = 1` | Every generation attempt creates a `Version = 1` entity |
+| 2 | Unique index on `(LoanApplicationId, Version)` | Re-inserting `Version = 1` violates DB constraint → `DbUpdateException` |
+| 3 | Catch block's `SaveChangesAsync` was unprotected | Constraint violation thrown *inside* catch propagated up, masking the real error with generic "Failed" message |
+| 4 | `GetVersionCountAsync` counted Failed records | Version numbering by COUNT was wrong; MAX version is correct |
+| 5 | Failed records shown in UI | Empty filename, 0 bytes, non-functional download buttons — confusing users |
+
+**Fixes:**
+
+| File | Change |
+|------|--------|
+| `OfferLetter.cs` | `Create()` accepts `version` param (default 1); entity `Version` set correctly; domain event uses `letter.Version` |
+| `LoanPack.cs` | Same fix |
+| `IOfferLetterRepository` | `GetVersionCountAsync` → `GetMaxVersionAsync` (returns `MAX(Version) ?? 0`) |
+| `ILoanPackRepository` | Same |
+| `OfferLetterRepository` | Implements `GetMaxVersionAsync` using EF `MaxAsync` |
+| `LoanPackRepository` | Same |
+| `GenerateOfferLetterCommand` | Uses `nextVersion = maxExisting + 1` everywhere; passes to `Create()`; catch block protected with inner try-catch |
+| `GenerateLoanPackCommand` | Same |
+| `GetOfferLettersByApplicationQuery` | Filters out `Status == Failed` records — UI shows only actionable records |
+
+**Files modified:**
+- `src/CRMS.Domain/Aggregates/OfferLetter/OfferLetter.cs`
+- `src/CRMS.Domain/Aggregates/LoanPack/LoanPack.cs`
+- `src/CRMS.Domain/Interfaces/IOfferLetterRepository.cs`
+- `src/CRMS.Domain/Interfaces/ILoanPackRepository.cs`
+- `src/CRMS.Infrastructure/Persistence/Repositories/OfferLetterRepository.cs`
+- `src/CRMS.Infrastructure/Persistence/Repositories/LoanPackRepository.cs`
+- `src/CRMS.Application/OfferLetter/Commands/GenerateOfferLetterCommand.cs`
+- `src/CRMS.Application/LoanPack/Commands/GenerateLoanPackCommand.cs`
+- `src/CRMS.Application/OfferLetter/Queries/OfferLetterQueries.cs`
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → not updated (no new UI gaps discovered)
+- [x] `docs/ImplementationTracker.md` → v6.8
+
+---
+
+## 5. Last Session Summary (2026-04-07 Session 43)
+
+### Completed — CreditAnalysis Workflow Fully Wired (Approve + Return) + 4 Missing DI Registrations
+
+This session fixed a cluster of persistent bugs in the CreditAnalysis and HOReview workflow stages. The investigation revealed a systemic problem: **handlers in this codebase must be explicitly registered in `DependencyInjection.cs`** — there is no MediatR assembly scanning. Several handlers added in prior sessions were never registered.
+
+#### Root Cause: Missing DI Registrations
+
+`ApplicationService.cs` resolves all handlers via `_sp.GetRequiredService<ConcreteHandlerType>()`. If the handler is not in `DependencyInjection.cs`, this throws `InvalidOperationException` — caught by the catch block — returning the generic "Failed to X" error to the UI.
+
+**Four handlers were unregistered:**
+
+| Handler | Used by | Symptom when missing |
+|---------|---------|---------------------|
+| `ApproveCreditAnalysisHandler` | `ApproveApplicationAsync` (CreditAnalysis) | "Failed to approve application" |
+| `ReturnFromCreditAnalysisHandler` | `ReturnApplicationAsync` (CreditAnalysis) | "Failed to return application" |
+| `ReturnFromHOReviewHandler` | `ReturnApplicationAsync` (HOReview) | "Failed to return application" |
+| `FinalApproveHandler` | `ApproveApplicationAsync` (FinalApproval) | "Failed to approve application" |
+
+**Fix:** Added all four to `DependencyInjection.cs` lines 321–326.
+
+**Rule for future sessions:** Every new `*Handler` class added to the Application layer MUST immediately get a corresponding `services.AddScoped<...>()` line in `DependencyInjection.cs`.
+
+#### CreditAnalysis Return Capability (full stack)
+
+Previously Credit Officers at the CreditAnalysis stage had no Return button. Added end-to-end:
+
+| Layer | Change |
+|-------|--------|
+| `LoanApplication.cs` | Added `ReturnFromCreditAnalysis(userId, reason)` — guards on `CreditAnalysis` status, sets `Status = BranchReview` |
+| `SubmitLoanApplicationCommand.cs` | Added `ReturnFromCreditAnalysisCommand` + `ReturnFromCreditAnalysisHandler` |
+| `ApplicationService.cs` | Added `ReturnFromCreditAnalysisHandler` call in `ReturnApplicationAsync` for `currentStatus == "CreditAnalysis"` |
+| `Detail.razor` `ShowReturnButton` | Added `AppStatus.CreditAnalysis => CreditOfficer` case |
+| `ComprehensiveDataSeeder.cs` | Added `(CreditAnalysis, BranchReview, Return, Roles.CreditOfficer)` transition |
+| `WorkflowCommands.cs` | Fixed `CreditAnalysis→HOReview` from `MoveToNextStage/"System"` to `Approve/"CreditOfficer"`; added `Return/"CreditOfficer"` transition |
+| DB (live SQL) | Inserted `CreditAnalysis → BranchReview, Return, CreditOfficer` row into `WorkflowTransitions` |
+
+#### Prior Session Fixes Confirmed Still Active
+
+From the session that preceded this (Session 42 carried forward):
+- `AllCreditChecksCompletedWorkflowHandler` — no longer auto-transitions; Credit Officer must manually approve
+- `GetWorkflowInstanceByApplicationIdAsync` — uses `_sp.CreateScope()` (fresh DbContext) to avoid stale entity tracking
+- All `TransitionWorkflowHandler` calls use fresh scopes
+
+**Build:** 0 errors, 0 warnings (Application + Infrastructure verified).
+
+**Files Modified This Session:**
+- `src/CRMS.Infrastructure/DependencyInjection.cs`
+- `src/CRMS.Domain/Aggregates/LoanApplication/LoanApplication.cs`
+- `src/CRMS.Application/LoanApplication/Commands/SubmitLoanApplicationCommand.cs`
+- `src/CRMS.Application/Workflow/Commands/WorkflowCommands.cs`
+- `src/CRMS.Infrastructure/Persistence/ComprehensiveDataSeeder.cs`
+- `src/CRMS.Infrastructure/Events/Handlers/WorkflowIntegrationHandlers.cs`
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor`
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → not updated (no new UI gaps discovered)
+- [x] `docs/ImplementationTracker.md` → v6.6
+
+---
+
+## 5. Last Session Summary (2026-04-03 Session 40)
+
+### Completed — Lifecycle Gap Fixes G4, G6, G7, G9 + Comprehensive G1–G9 Code Review
+
+This session resumed from a context exhaustion mid-session. A code review of all G1–G9 fixes was conducted to confirm what was and wasn't completed, followed by targeted fixes for G4, G7 (completion), G9, and the outbox work from G6.
+
+#### G6 — Persistent Credit Check Outbox (completed in prior partial session, confirmed this session)
+
+**Previously:** `CreditCheckBackgroundService` used an in-memory `Channel<CreditCheckRequest>`. App restart permanently lost any pending credit check requests.
+
+**Now:** Replaced with a DB-backed outbox pattern.
+
+| File | Role |
+|------|------|
+| `src/CRMS.Infrastructure/Persistence/Outbox/CreditCheckOutboxEntry.cs` | Outbox entity (Id, LoanApplicationId, SystemUserId, Status, AttemptCount, ErrorMessage) |
+| `src/CRMS.Application/CreditBureau/Interfaces/ICreditCheckOutbox.cs` | Interface: `EnqueueAsync` — adds to DbContext without saving |
+| `src/CRMS.Infrastructure/BackgroundServices/CreditCheckBackgroundService.cs` | Rewritten: polls DB every 30s; claims entries (Processing); processes each in isolated scope; retries up to 3×; marks Completed/Failed |
+| `src/CRMS.Infrastructure/Persistence/Configurations/Outbox/CreditCheckOutboxConfiguration.cs` | EF config |
+| Migration `20260402140707_AddCreditCheckOutbox` | Creates `CreditCheckOutbox` table + indexes on `LoanApplicationId` and `Status` |
+
+**Key design:** `ApproveBranchHandler` calls `_outbox.EnqueueAsync(...)` then `_unitOfWork.SaveChangesAsync()` — both the approval and the outbox entry commit in one atomic transaction. No gap, no lost checks.
+
+#### G7 — FinalApproval Status Wired (completed in prior partial session, confirmed this session)
+
+**Previously:** `FinalApproval` and `OfferAccepted` enum values were defined but never set by any code path.
+
+**Now:**
+- `LoanApplication.MoveToFinalApproval(userId)` domain method added — sets `Status = FinalApproval`
+- `CommitteeDecisionWorkflowHandler` (Approved path) now calls it as an auto-transition after `CommitteeApproved`
+- Workflow seeder updated: `CommitteeApproved → FinalApproval` transition (system-driven); `FinalApproval → Approved/Rejected` (FinalApprover role)
+- `ApplicationService.ApproveApplicationAsync` maps `FinalApproval → Approved` and calls `FinalApproveHandler`
+- `Detail.razor` `ShowApproveButton` / `ShowRejectButton` gate on `FinalApprover` role at `FinalApproval` status
+
+#### G9 — `Guid.Empty` Replaced with Correct Actor IDs
+
+**Previously:** All event handlers passed `Guid.Empty` as the user ID for every action — including the committee chairman's decision — making the audit trail unintelligible.
+
+**Root cause confirmed:** `CommitteeDecisionRecordedEvent` carries `DecisionByUserId` (the chairman's actual ID set when `RecordDecision(decidedByUserId, ...)` is called), but it was never used.
+
+**Fix — two distinct cases correctly separated:**
+
+| Call site | Before | After |
+|-----------|--------|-------|
+| `loanApplication.ApproveCommittee(...)` | `Guid.Empty` | `domainEvent.DecisionByUserId` |
+| `loanApplication.RejectCommittee(...)` | `Guid.Empty` | `domainEvent.DecisionByUserId` |
+| `TransitionAsync` → CommitteeApproved | `Guid.Empty` | `domainEvent.DecisionByUserId` |
+| `TransitionAsync` → FinalApproval (auto) | `Guid.Empty` | `SystemConstants.SystemUserId` |
+| `TransitionAsync` → Rejected/Deferred | `Guid.Empty` | `domainEvent.DecisionByUserId` |
+| `loanApplication.MoveToHOReview(...)` | `Guid.Empty` | `SystemConstants.SystemUserId` |
+| `TransitionAsync` in `AllCreditChecksCompletedWorkflowHandler` | `Guid.Empty` | `SystemConstants.SystemUserId` |
+
+**New files:**
+- `src/CRMS.Domain/Constants/SystemConstants.cs` — `SystemUserId = new("00000000-0000-0000-0000-000000000001")`
+
+**Display fix:** `ApplicationService.cs` workflow history mapping now resolves `SystemConstants.SystemUserId` → `"System Process"` instead of raw GUID string.
+
+#### G4 — Bureau Tab Consent-Blocked UI Signal
+
+**Previously:** Individual bureau report cards showed a per-card "Consent Required" badge in their footer, but:
+1. Business entity report cards had no status badges at all (ConsentRequired/Failed/NotFound were missing from the business card footer)
+2. No tab-level explanation of why the loan was stuck or what the credit officer needed to do
+
+**Fix 1 — Business card footer:** Added `ConsentRequired`, `Failed`, and `NotFound` status badges to the business report card footer (same pattern already used by individual cards).
+
+**Fix 2 — Consent-blocked banner in `BureauTab.razor`:** When any report has `ConsentRequired` status, a yellow warning banner appears at the top of the reports section listing the blocked parties by name and directing the credit officer to obtain NDPA consent then click **Re-run Credit Checks** in the action bar.
+
+**Files modified:**
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/BureauTab.razor`
+- `src/CRMS.Infrastructure/Events/Handlers/WorkflowIntegrationHandlers.cs`
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs`
+- `src/CRMS.Infrastructure/BackgroundServices/CreditCheckBackgroundService.cs`
+- `src/CRMS.Infrastructure/DependencyInjection.cs`
+- `src/CRMS.Application/LoanApplication/Commands/SubmitLoanApplicationCommand.cs`
+
+**Build:** 0 errors (Infrastructure + Web.Intranet both verified).
+
+#### G10 — Committee Deferral Dual-Status Desync + No UI Indicator (Session 41)
+
+**Issues found:**
+
+1. **Critical (undocumented):** `CommitteeDecisionWorkflowHandler` Deferred case had a bare `break` — no domain method called on `LoanApplication`. `WorkflowInstance.CurrentStatus` was updated to `HOReview` but `LoanApplication.Status` remained `CommitteeCirculation`. UI button visibility (driven by `LoanApplication.Status`) showed committee-stage buttons instead of HOReview approve/return/reject. The loan could never advance.
+
+2. **UX gap (original G10):** No banner at HOReview indicating the application was deferred, what the rationale was, or when it was deferred.
+
+**Fix:**
+
+| What | Where | Change |
+|------|-------|--------|
+| Add `DeferFromCommittee(userId, rationale)` | `LoanApplication.cs` | New domain method — validates `CommitteeCirculation` status, sets `Status = HOReview`, writes status history entry |
+| Add `Rationale` to event | `CommitteeReview.cs` | `CommitteeDecisionRecordedEvent` gains `string? Rationale = null`; `AddDomainEvent` call passes `rationale` |
+| Call domain method | `WorkflowIntegrationHandlers.cs` | Deferred `case` now calls `loanApplication.DeferFromCommittee(...)`, guards on failure |
+| Deferral banner | `Detail.razor` | Yellow warning banner shown at `HOReview` status when `Committee.Decision == "Deferred"` — shows date and rationale inline |
+
+**No migration needed.** Data already in `CommitteeInfo.DecisionComments` / `DecisionDate` — no new DB columns.
+
+**Files modified:**
+- `src/CRMS.Domain/Aggregates/LoanApplication/LoanApplication.cs`
+- `src/CRMS.Domain/Aggregates/Committee/CommitteeReview.cs`
+- `src/CRMS.Infrastructure/Events/Handlers/WorkflowIntegrationHandlers.cs`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor`
+
+**Build:** 0 errors (Domain + Infrastructure + Web.Intranet all verified).
+
+#### G11 — Credit Check Retry Gaps (Session 42)
+
+**Issues fixed:**
+
+1. **Orphaned `Processing` entries after crash:** The poll query only picked up `Pending` entries. If the app crashed after claiming an entry (setting `Status = Processing`) but before saving the result, the entry was permanently stuck. Fixed by adding `RecoverOrphanedEntriesAsync()` at service startup — resets any `Processing` entries to `Pending` before the first poll cycle.
+
+2. **`ProcessedAt` not set on terminal failure:** `entry.ProcessedAt` was only set on success. Added `if (isFinalAttempt) entry.ProcessedAt = DateTime.UtcNow` to both the result-failure and exception paths in `ProcessEntryAsync`.
+
+3. **`Failed` bureau reports were not retryable (3 sub-problems):**
+   - **Button invisible:** `CanRerunCreditChecks` only showed for `ConsentRequired` — expanded to `ConsentRequired || Failed`.
+   - **Re-run was a no-op:** `Failed` was in the idempotency "done" set alongside `Completed`/`NotFound`. Changed to: build `alreadyCountedBvns`/`alreadyCountedBusiness` sets from existing `Failed` reports, delete those `Failed` reports, then remove `Failed` from `existingBvns` so the retry loop processes them fresh.
+   - **Double-counting `CreditChecksCompleted`:** `RecordCreditCheckCompleted` had already been called for the original `Failed` run. Added `!alreadyCountedBvns.Contains(party.BVN!)` guard to all three `RecordCreditCheckCompleted` call sites (parties, guarantors, business) to prevent double-incrementing.
+
+**Files modified:**
+- `src/CRMS.Domain/Interfaces/IBureauReportRepository.cs` — Added `void Delete(BureauReport report)`
+- `src/CRMS.Infrastructure/Persistence/Repositories/BureauReportRepository.cs` — Implemented `Delete`
+- `src/CRMS.Application/CreditBureau/Commands/ProcessLoanCreditChecksCommand.cs` — `Failed` reports retryable with double-count guard
+- `src/CRMS.Infrastructure/BackgroundServices/CreditCheckBackgroundService.cs` — Startup recovery + `ProcessedAt` on failure
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` — `CanRerunCreditChecks` gate expanded
+
+**Build:** 0 errors, 0 warnings (Domain + Infrastructure + Web.Intranet verified).
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v5.6
+- [x] `docs/ImplementationTracker.md` → v6.5
 
 ---
 
@@ -466,7 +866,212 @@ Complete end-to-end offer letter generation with proposed repayment schedule.
 
 ---
 
-## 5. Last Session Summary (2026-03-26 Session 35)
+## 5. Last Session Summary (2026-03-30 Session 39)
+
+### Completed — Workflow Save Bugs (3 fixes)
+
+Three related bugs in the workflow approval/return flow were fixed this session.
+
+#### Bug 1 — "Failed to approve application" UI error despite DB success (`WorkflowInstanceRepository.Update`)
+
+**Symptom:** Clicking "Approve" in BranchReview succeeded in the database (status changed to BranchApproved + CreditAnalysis), but the UI showed "Failed to approve application".
+
+**Root cause:** `WorkflowInstanceRepository.Update()` unconditionally called `_context.WorkflowInstances.Update(instance)`. When the `WorkflowInstance` was already tracked in the circuit-scope DbContext (from the earlier `GetWorkflowByLoanApplicationHandler` call), EF Core's `DbSet.Update()` graph traversal marked ALL related entities — including existing `WorkflowTransitionLog` rows — as `Modified`. This generated unnecessary UPDATE statements that failed with constraint errors, causing `SaveChangesAsync` to throw inside `TransitionWorkflowHandler`, which propagated to the catch block returning "Failed to approve application".
+
+**Fix — `WorkflowInstanceRepository.Update()`:** Applied the same `AutoDetectChangesEnabled = false` pattern as `LoanApplicationRepository.Update()`. When the entity is already tracked, skips `DbSet.Update()` entirely and only explicitly sets new (detached) `WorkflowTransitionLog` entries to `EntityState.Added`. When detached, calls `DbSet.Update()` but then corrects new log entries to `Added`.
+
+```
+src/CRMS.Infrastructure/Persistence/Repositories/WorkflowRepositories.cs
+```
+
+#### Bug 2 — `AllCreditChecksCompletedWorkflowHandler` never persisted workflow transition to HOReview
+
+**Symptom:** After credit checks completed, workflow stayed in CreditAnalysis instead of auto-advancing to HOReview.
+
+**Root cause:** `AllCreditChecksCompletedWorkflowHandler.HandleAsync()` called `_workflowService.TransitionAsync()` (which calls `_instanceRepository.Update(instance)`) but never called `_unitOfWork.SaveChangesAsync()`. The handler runs in a fresh DI scope created by `DomainEventPublishingInterceptor` — it has its own `IUnitOfWork` instance, but SaveChanges was never invoked, so all changes were discarded when the scope disposed.
+
+**Fix:** Injected `IUnitOfWork` into the handler and called `await _unitOfWork.SaveChangesAsync(ct)` after a successful `TransitionAsync`.
+
+#### Bug 3 — `CommitteeDecisionWorkflowHandler` never persisted workflow/loan app changes
+
+**Same root cause as Bug 2.** `CommitteeDecisionWorkflowHandler` called `_workflowService.TransitionAsync` and `_loanApplicationRepository.Update(loanApplication)` but never saved. Applied the same `IUnitOfWork` injection + `SaveChangesAsync` fix.
+
+```
+src/CRMS.Infrastructure/Events/Handlers/WorkflowIntegrationHandlers.cs
+```
+
+#### Bug 4 — `ReturnApplicationAsync` wrong status mapping + missing domain command
+
+**Symptom:** Returning from BranchReview failed with a workflow transition error; HOReview return also mapped incorrectly.
+
+**Root causes:**
+1. Status mapping was wrong: `BranchReview → Draft` (should be `BranchReturned`) and `HOReview → CreditAnalysis` (should be `BranchReview` per workflow definition seeder)
+2. For `BranchReview` return, `LoanApplication.Status` was never updated (only `WorkflowInstance.CurrentStatus` was changed, same gap as approve flow)
+
+**Fix — `ApplicationService.ReturnApplicationAsync()`:**
+- Fixed mapping: `BranchReview → BranchReturned`, `HOReview → BranchReview`
+- Added domain command call for BranchReview: creates fresh scope, calls `ReturnFromBranchHandler` with `ReturnFromBranchCommand` (sets `LoanApplication.Status = BranchReturned`) before the workflow transition
+
+```
+src/CRMS.Web.Intranet/Services/ApplicationService.cs
+```
+
+#### Files Modified This Session
+
+| File | Change |
+|------|--------|
+| `src/CRMS.Infrastructure/Persistence/Repositories/WorkflowRepositories.cs` | `WorkflowInstanceRepository.Update()` rewritten with `AutoDetectChangesEnabled` pattern to prevent existing `WorkflowTransitionLog` rows being marked Modified |
+| `src/CRMS.Infrastructure/Events/Handlers/WorkflowIntegrationHandlers.cs` | `AllCreditChecksCompletedWorkflowHandler` + `CommitteeDecisionWorkflowHandler`: added `IUnitOfWork` injection + `SaveChangesAsync` call |
+| `src/CRMS.Web.Intranet/Services/ApplicationService.cs` | `ReturnApplicationAsync`: fixed status mapping (BranchReview→BranchReturned, HOReview→BranchReview) + added `ReturnFromBranchHandler` domain call for BranchReview returns |
+
+**Build:** 0 compiler errors (MSB3026/MSB3021 are IIS file-lock warnings, not errors).
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → no new gaps discovered
+- [x] `docs/ImplementationTracker.md` → v6.2
+
+---
+
+## 5. Previous Session Summary (2026-03-30 Session 38)
+
+### Completed — `DbUpdateConcurrencyException` on Submit + Page Refresh Fix
+
+Two bugs fixed this session, both related to the "Submit for Review" action on the Application Detail page.
+
+#### Bug 1 — `DbUpdateConcurrencyException` on Submit
+
+**Symptom:** Clicking "Submit for Review" always failed with `DbUpdateConcurrencyException`: EF Core generated `UPDATE LoanApplicationStatusHistory WHERE Id=@p9; SELECT ROW_COUNT()` and ROW_COUNT() returned 0.
+
+**Root cause:** When `GetByIdAsync` loads the `LoanApplication` with `Include(x => x.StatusHistory)`, EF Core starts tracking the entity. The `application.Submit()` method adds a new `LoanApplicationStatusHistory` entry to the internal collection. When `_repository.Update(application)` subsequently called `_context.Entry(application)` (with `AutoDetectChangesEnabled = true`), EF Core ran `DetectChanges()`, found the new entry in the tracked collection, and began tracking it. Because the entry had a non-empty GUID PK, EF Core inferred it was an existing row and marked it `Modified`. The `else` branch then checked `State == EntityState.Detached` → false (already `Modified`), so nothing corrected it. `SaveChangesAsync` generated `UPDATE` instead of `INSERT` → row not found → ROW_COUNT() = 0 → exception.
+
+**Fix — `LoanApplicationRepository.Update()`:** Wrapped the entire method body with `_context.ChangeTracker.AutoDetectChangesEnabled = false/true` in a try/finally. This prevents `_context.Entry(application)` from triggering premature `DetectChanges`. New `StatusHistory` entries remain `Detached` until explicitly checked and set to `Added`. `SaveChangesAsync` internally calls `DetectChanges` for root entity property changes (Status, SubmittedAt) correctly.
+
+```csharp
+_context.ChangeTracker.AutoDetectChangesEnabled = false;
+try { ... explicit state assignments ... }
+finally { _context.ChangeTracker.AutoDetectChangesEnabled = true; }
+```
+
+#### Bug 2 — Page Doesn't Refresh After Successful Submit
+
+**Symptom:** After a successful submit, the page still showed "Draft" status. Required navigating away and back for the change to appear.
+
+**Root cause:** In Blazor Server, `StateHasChanged()` was not being called explicitly after the async `LoadApplication()` completed in the event handler's success path.
+
+**Fix — `Detail.razor`:** Added `StateHasChanged()` immediately after `await LoadApplication()` in the `if (result.Success)` block of the submit handler.
+
+#### Files Modified This Session
+
+| File | Change |
+|------|--------|
+| `src/CRMS.Infrastructure/Persistence/Repositories/LoanApplicationRepository.cs` | Wrapped `Update()` body with `AutoDetectChangesEnabled = false/true` to prevent premature `DetectChanges` from marking new `StatusHistory`/`Comments`/`Documents` as `Modified` |
+| `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` | Added `StateHasChanged()` after `LoadApplication()` in submit success path |
+
+**Note — Debug logging left in (cleanup recommended):**
+- `appsettings.Development.json`: `"Microsoft.EntityFrameworkCore.Database.Command": "Debug"` — added for diagnosis
+- `DependencyInjection.cs`: `MaxBatchSize(1)` and `EnableSensitiveDataLogging()` — added for diagnosis; consider reverting before production
+
+**Build:** 0 errors (no DI changes required).
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → no new gaps discovered
+- [x] `docs/ImplementationTracker.md` → v6.1
+
+---
+
+## 5. Previous Session Summary (2026-03-29 Session 37)
+
+### Completed — Bank Statement "Add Transactions" UI Fixes
+
+Two separate sets of fixes in `ManageStatementTransactionsModal.razor` and `Detail.razor`:
+
+#### Part 1 — "Add Txns" on existing statement shows no prior records
+
+**Problem:** Clicking "Add Txns" on a statement that already had transactions opened the modal with only a blank row. No existing transactions were shown, and the running balance/reconciliation computed from `Statement.OpeningBalance` as if no transactions had been saved yet.
+
+**Fix — `Detail.razor`:**
+- `ShowManageStatementTransactionsModal` changed from `void` to `async Task`
+- When `stmt.TransactionCount > 0`, calls `AppService.GetStatementTransactionsAsync(statementId)` and stores in new `existingStatementTransactions` field
+- `existingStatementTransactions` passed to modal as `ExistingTransactions` parameter; cleared on close and on save success
+
+**Fix — `ManageStatementTransactionsModal.razor`:**
+- New `[Parameter] ExistingTransactions` (`List<StatementTransactionInfo>?`)
+- New `BaseBalance` computed property: last existing transaction's `RunningBalance` (ordered by date), or `Statement.OpeningBalance` when none
+- `ComputeRunningBalance`, `ComputedClosing`, and `Save()` running-balance stamp all switched from `Statement.OpeningBalance` to `BaseBalance`
+- Existing transactions rendered as a read-only section at the top of the table (gray rows, lock icon banner); a blue "New transactions — continuing from ₦X" separator precedes the editable rows
+
+#### Part 2 — Four additional bugs in `ManageStatementTransactionsModal`
+
+| # | Bug | Fix |
+|---|-----|-----|
+| 1 | **`@bind` on Description/Reference clears typed text** — when `OnDebitChanged`/`OnCreditChanged` called `StateHasChanged()`, Blazor re-rendered and reset `value=@row.Description` to the stale model value (empty), wiping whatever the user had typed before tabbing to the amount field | Changed to `@bind:event="oninput"` so `row.Description`/`row.Reference` are always in sync with keystrokes; DOM patch is a no-op on re-render |
+| 2 | **Partial save never refreshed parent** — when backend returned `Success=true` with a warning message (some rows outside period), code showed the message but never called `OnSuccess`, so `LoadApplication()` never ran; statement list stayed stale | Removed the message gate; `OnSuccess` is now always called on any `result.Success` |
+| 3 | **"Not Reconciled" warning fired prematurely** — empty new row (`rows.Any() = true`) triggered the orange warning immediately on modal open, before any data was entered | Tightened condition to `rows.Any(r => r.DebitAmount > 0 \|\| r.CreditAmount > 0)` |
+| 4 | **"Total Credits / Total Debits" labels misleading in Add-Txns mode** — these summary stats only counted new rows; with existing transactions loaded, users saw partial totals with no explanation | Labels now read "New Credits" / "New Debits" when `ExistingTransactions?.Any() == true` |
+
+#### Files Modified This Session
+
+| File | Change |
+|------|--------|
+| `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` | `ShowManageStatementTransactionsModal` → async; `existingStatementTransactions` field; pass `ExistingTransactions` to modal; clear on close/success |
+| `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/ManageStatementTransactionsModal.razor` | `ExistingTransactions` parameter; `BaseBalance` property; read-only existing rows section; `@bind:event="oninput"` on Description/Reference; always invoke `OnSuccess` on success; tightened reconciliation warning; "New Credits"/"New Debits" labels |
+
+**Build:** Not verified this session (UI-only changes, no new handlers, no DI changes needed).
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → no new gaps discovered
+- [x] `docs/ImplementationTracker.md` → v6.0
+
+---
+
+## 5. Previous Session Summary (2026-03-28 Session 36)
+
+### Completed — `DbUpdateConcurrencyException` Bug Fix in Save Transactions
+
+Fixed the crash that occurred when clicking "Save Transactions" in `ManageStatementTransactionsModal` after uploading an Excel statement. The bank statement header was successfully created, but saving transactions always failed with "Failed to add transactions".
+
+#### Root Cause
+
+EF Core 9's handling of the optional `OwnsOne(CashflowSummary)` owned entity using table-splitting on the `BankStatements` table. `CashflowSummary` is null after initial upload (no transactions analysed yet). When `ValidateDataIntegrity()` is called at the end of `AddTransactionsHandler`, it sets three null→non-null properties (`BalanceReconciled`, `CalculatedClosingBalance`, `BalanceDiscrepancy`) on the `BankStatement`, marking it as `Modified`. EF Core 9 then generates a **separate UPDATE** for the owned entity entry, using `CS_PeriodMonths = NULL` (and similar for all other CS_* columns) instead of `IS NULL` in the WHERE clause. MySQL's `column = NULL` evaluates to UNKNOWN (never TRUE) → 0 rows affected → `DbUpdateConcurrencyException` thrown.
+
+Confirmed by server log: `Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException: The database operation was expected to affect 1 row(s), but actually affected 0 row(s)` at `AddTransactionsCommand.cs:62`.
+
+`UseAffectedRows=false` in the connection string means MySQL returns *matched* rows — so 0 truly means the WHERE clause matched nothing, not "no values changed".
+
+#### Three Fixes Applied
+
+**Fix 1 — `BankStatementConfiguration.cs`:** Added `builder.Navigation(x => x.CashflowSummary).IsRequired(false)` after the `OwnsOne` block. This marks the navigation as optional so EF Core does not generate owned-entity null-check WHERE conditions.
+
+**Fix 2 — `AddTransactionsCommand.cs`:** Changed from calling `_repository.Update(statement)` (which would trigger a full graph update) to collecting the new `StatementTransaction` entities via `result.Value` from each `AddTransaction` call, then calling `_repository.AttachNewTransactions(newTransactions)`. Since the `BankStatement` is already tracked by EF Core (loaded via `GetByIdWithTransactionsAsync`), EF's automatic `DetectChanges()` at `SaveChangesAsync` correctly picks up the scalar property changes without touching the owned entity.
+
+**Fix 3 — `IBankStatementRepository` + `BankStatementRepository.cs`:** Added `AttachNewTransactions(IEnumerable<StatementTransaction>)` to both the interface and the implementation. The implementation marks each new transaction as `EntityState.Added`.
+
+#### Why This Differs From the Session 35 Fix
+
+Session 35 fixed `BankStatementRepository.Update()` to handle the detached-entity problem when `Update()` IS called. This session's fix goes further: `Update()` is no longer called at all in `AddTransactionsHandler` — the `BankStatement` is already tracked and EF handles its scalar changes automatically. This avoids the EF Core 9 owned-entity UPDATE generation entirely.
+
+#### Files Modified This Session
+
+| File | Change |
+|------|--------|
+| `src/CRMS.Infrastructure/Persistence/Configurations/StatementAnalysis/BankStatementConfiguration.cs` | Added `builder.Navigation(x => x.CashflowSummary).IsRequired(false)` |
+| `src/CRMS.Application/StatementAnalysis/Commands/AddTransactionsCommand.cs` | Collect `result.Value` per transaction; call `AttachNewTransactions`; removed `_repository.Update(statement)` |
+| `src/CRMS.Domain/Interfaces/IBankStatementRepository.cs` | Added `AttachNewTransactions(IEnumerable<Aggregates.StatementAnalysis.StatementTransaction>)` |
+| `src/CRMS.Infrastructure/Persistence/Repositories/BankStatementRepository.cs` | Implemented `AttachNewTransactions` |
+
+**Build:** 0 errors (file-lock MSB3021/MSB3027 only — IIS Express holding DLLs, not compiler errors).
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → no UI changes this session
+- [x] `docs/ImplementationTracker.md` → v5.9
+
+---
+
+## 5. Previous Session Summary (2026-03-26 Session 35)
 
 ### Completed — Submit for Review End-to-End Bug Fixes (4 bugs)
 
@@ -1884,26 +2489,62 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ## 6. Suggested Next Task
 
-### Option A — Wire Fineract Customer Exposure into AI Advisory
+### Option A (TOP PRIORITY) — Admin UI: Disbursement Checklist Template Management
 
-**Status:** `IFineractDirectService.GetCustomerExposureAsync` is implemented and registered. This is the only remaining P2 item.
-**What's needed:** In `GenerateCreditAdvisoryHandler.cs`, after loading the corporate bureau report, call `_fineractService.GetCustomerExposureAsync(clientId, ct)` where `clientId` comes from `loanApp.CoreBankingClientId` (or equivalent field). Replace/supplement `corporateBureauReport.TotalOutstandingBalance` with the Fineract-derived `TotalOutstanding` figure. If Fineract call fails, fall back to bureau balance.
-**Files:** `src/CRMS.Application/AIAdvisory/Commands/GenerateCreditAdvisoryHandler.cs` is the main file. Check `loanApp` for the client ID field name.
+**What:** Add a "Disbursement Checklist" sub-section to `/admin/products` so SystemAdmin/RiskManager can configure the checklist template per loan product.
+
+**Backend handlers already registered in DI:**
+- `AddChecklistTemplateItemHandler` (`AddChecklistTemplateItemCommand`)
+- `UpdateChecklistTemplateItemHandler` (`UpdateChecklistTemplateItemCommand`)
+- `RemoveChecklistTemplateItemHandler` (`RemoveChecklistTemplateItemCommand`)
+
+**ApplicationService methods needed** (add to `ApplicationService.cs`):
+```csharp
+GetChecklistTemplateItemsAsync(Guid loanProductId)  // call GetChecklistTemplateItemsQuery
+AddChecklistTemplateItemAsync(Guid loanProductId, ChecklistTemplateItemRequest request)
+UpdateChecklistTemplateItemAsync(Guid loanProductId, Guid itemId, ChecklistTemplateItemRequest request)
+RemoveChecklistTemplateItemAsync(Guid loanProductId, Guid itemId)
+```
+
+**UI changes:**
+- `Products.razor` (or new `ProductDetail.razor`) — add a "Disbursement Checklist" tab/section
+- Table of template items with: ItemName, ConditionType badge (CP/CS), Mandatory toggle, SubsequentDueDays (CS only), RequiresDocUpload, RequiresLegal, CanBeWaived, SortOrder
+- Add/Edit/Remove buttons with confirmation
+- Role guard: only SystemAdmin or RiskManager can see this section
+
+**Pattern to follow:** `Templates.razor` CRUD pattern — fetch on init, inline add/edit modal, toggle/delete confirmation.
 
 ---
 
-### Option B — TabModalReviewReport H1: PartiesTab Bureau Report View Button
+### Option B — Apply Pending Migration
+
+Run against the dev DB:
+```bash
+dotnet ef database update --project src/CRMS.Infrastructure --startup-project src/CRMS.Web.Intranet
+```
+Migration `20260409123746_AddDisbursementChecklist` is pending — adds `OfferIssuedAt/By`, `OfferAcceptedAt/By` columns to `LoanApplications`, creates `DisbursementChecklistItems` and `DisbursementChecklistTemplates` tables.
+
+---
+
+### Option C — Wire Fineract Customer Exposure into AI Advisory
+
+**Status:** `IFineractDirectService.GetCustomerExposureAsync` is implemented and registered. This is the only remaining P2 item.
+**What's needed:** In `GenerateCreditAdvisoryHandler.cs`, after loading the corporate bureau report, call `_fineractService.GetCustomerExposureAsync(clientId, ct)` where `clientId` comes from `loanApp.CoreBankingClientId`. Replace/supplement `corporateBureauReport.TotalOutstandingBalance` with the Fineract-derived `TotalOutstanding`. If Fineract call fails, fall back to bureau balance.
+
+---
+
+### Option D — PartiesTab Bureau Report View Button
 
 **File:** `PartiesTab.razor`
 **Issue:** When `director.HasBureauReport == true`, a visibility icon button is rendered with **no `@onclick`** handler. Same for signatories.
 **Fix:**
 1. Add `OnViewPartyBureauReport` EventCallback<Guid> parameter to `PartiesTab.razor`
-2. In `Detail.razor`, wire this to `ShowBureauReportModal(reportId)` — need the bureau report ID for a party. Check if `PartyInfo` model has a `BureauReportId` field; if not, add it by fetching from `GetBureauReportsByApplicationHandler` and matching by party name/ID.
+2. In `Detail.razor`, wire this to `ShowBureauReportModal(reportId)` — check if `PartyInfo` model has a `BureauReportId` field; if not, fetch from `GetBureauReportsByApplicationHandler` and match by party name/ID.
 3. `ViewBureauReportModal` already exists and is fully functional.
 
 ---
 
-### Option C — TabModalReviewReport H2 + H8: Committee Voting UX + Modal Close Race
+### Option E — Committee Voting UX + Modal Close Race
 
 **H2** (`CommitteeTab.razor`): Add `isVoting` loading state to Submit Vote button, double-click guard, and error display on failure.
 **H8** (`SetupCommitteeModal.razor`): Change `private void Close() => OnClose.InvokeAsync()` to `private async Task Close() => await OnClose.InvokeAsync()` to prevent fire-and-forget race condition.

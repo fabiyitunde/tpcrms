@@ -12,4 +12,5 @@ public interface IBureauReportRepository
     Task<BureauReport?> GetLatestByBVNAsync(string bvn, CreditBureauProvider? provider = null, CancellationToken ct = default);
     Task AddAsync(BureauReport report, CancellationToken ct = default);
     void Update(BureauReport report);
+    void Delete(BureauReport report);
 }

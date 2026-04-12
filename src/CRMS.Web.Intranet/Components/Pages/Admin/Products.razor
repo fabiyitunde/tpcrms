@@ -1,5 +1,5 @@
 @page "/admin/products"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin,RiskManager")]
 @inject ApplicationService AppService
 @inject AuthService AuthService
 
@@ -51,6 +51,10 @@
                 <button class="btn btn-outline btn-sm" @onclick="() => EditProduct(product)">
                     <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
                     Edit
+                </button>
+                <button class="btn btn-outline btn-sm" @onclick="() => OpenChecklistModal(product)">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">checklist</span>
+                    Checklist
                 </button>
                 <button class="btn btn-ghost btn-sm" @onclick="() => ToggleProduct(product)" disabled="@isSaving">
                     <span class="material-symbols-outlined" style="font-size: 16px;">@(product.IsActive ? "pause" : "play_arrow")</span>
@@ -149,6 +153,163 @@
                         <span class="spinner"></span>
                     }
                     @(isEditing ? "Update" : "Create") Product
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showChecklistModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseChecklistModal">
+        <div class="modal" style="max-width: 860px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title">Disbursement Checklist — @checklistProductName</h3>
+                    <p style="font-size: var(--text-sm); color: var(--gray-500); margin: 0;">Conditions Precedent (CP) and Conditions Subsequent (CS) template items</p>
+                </div>
+                <button class="modal-close" @onclick="CloseChecklistModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 0;">
+                @if (!string.IsNullOrEmpty(checklistError))
+                {
+                    <div class="alert alert-danger" style="margin: var(--space-4); margin-bottom: 0;">@checklistError</div>
+                }
+                <table class="table" style="margin: 0;">
+                    <thead>
+                        <tr>
+                            <th style="width:40px;">#</th>
+                            <th>Item Name</th>
+                            <th style="width:80px;">Type</th>
+                            <th style="width:80px;">Mandatory</th>
+                            <th style="width:100px;">Due Days</th>
+                            <th style="width:80px;">Status</th>
+                            <th style="width:110px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (checklistItems.Count == 0)
+                        {
+                            <tr><td colspan="7" style="text-align:center; color:var(--gray-400); padding: var(--space-6);">No checklist items configured. Click Add Item to get started.</td></tr>
+                        }
+                        @foreach (var item in checklistItems.OrderBy(i => i.SortOrder))
+                        {
+                            <tr>
+                                <td>@item.SortOrder</td>
+                                <td>
+                                    <div style="font-weight:500;">@item.ItemName</div>
+                                    @if (!string.IsNullOrEmpty(item.Description))
+                                    {
+                                        <div style="font-size:var(--text-xs); color:var(--gray-500);">@item.Description</div>
+                                    }
+                                </td>
+                                <td><span class="badge @(item.ConditionType == "Precedent" ? "badge-primary" : "badge-warning")">@item.ConditionType[..2]</span></td>
+                                <td><span class="badge @(item.IsMandatory ? "badge-danger" : "badge-gray")">@(item.IsMandatory ? "Yes" : "No")</span></td>
+                                <td>@(item.ConditionType == "Subsequent" ? $"{item.SubsequentDueDays}d" : "—")</td>
+                                <td><span class="badge @(item.IsActive ? "badge-success" : "badge-gray")">@(item.IsActive ? "Active" : "Inactive")</span></td>
+                                <td style="text-align:right;">
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => EditChecklistItem(item)">
+                                        <span class="material-symbols-outlined" style="font-size:15px;">edit</span>
+                                    </button>
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => RemoveChecklistItem(item.Id)" disabled="@isChecklistSaving">
+                                        <span class="material-symbols-outlined" style="font-size:15px; color:var(--error);">delete</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="OpenAddChecklistItem" disabled="@isChecklistSaving">
+                    <span class="material-symbols-outlined" style="font-size:16px;">add</span>
+                    Add Item
+                </button>
+                <button class="btn btn-secondary" @onclick="CloseChecklistModal">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showChecklistItemModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseChecklistItemModal">
+        <div class="modal" style="max-width: 560px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@(isEditingChecklistItem ? "Edit" : "Add") Checklist Item</h3>
+                <button class="modal-close" @onclick="CloseChecklistItemModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">Item Name *</label>
+                        <input type="text" class="form-control" @bind="editingChecklistItem.ItemName" />
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" rows="2" @bind="editingChecklistItem.Description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Condition Type *</label>
+                        <select class="form-control" @bind="editingChecklistItem.ConditionType">
+                            <option value="Precedent">Precedent (CP)</option>
+                            <option value="Subsequent">Subsequent (CS)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Sort Order</label>
+                        <input type="number" class="form-control" @bind="editingChecklistItem.SortOrder" />
+                    </div>
+                    @if (editingChecklistItem.ConditionType == "Subsequent")
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Due Days after Disbursement *</label>
+                            <input type="number" class="form-control" @bind="editingChecklistItem.SubsequentDueDays" />
+                        </div>
+                        <div></div>
+                    }
+                    <div class="form-group">
+                        <label class="form-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="checkbox" @bind="editingChecklistItem.IsMandatory" />
+                            Mandatory
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="checkbox" @bind="editingChecklistItem.CanBeWaived" />
+                            Can Be Waived
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="checkbox" @bind="editingChecklistItem.RequiresDocumentUpload" />
+                            Requires Document Upload
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="checkbox" @bind="editingChecklistItem.RequiresLegalRatification" />
+                            Requires Legal Ratification
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                @if (!string.IsNullOrEmpty(checklistItemError))
+                {
+                    <div class="alert alert-danger" style="margin: 0; flex: 1; font-size: var(--text-sm);">@checklistItemError</div>
+                }
+                <button class="btn btn-secondary" @onclick="CloseChecklistItemModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveChecklistItem" disabled="@isChecklistSaving">
+                    @if (isChecklistSaving)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    @(isEditingChecklistItem ? "Update" : "Add") Item
                 </button>
             </div>
         </div>
@@ -388,6 +549,122 @@
         if (amount >= 1_000_000_000) return $"{amount / 1_000_000_000:0.##}B";
         if (amount >= 1_000_000) return $"{amount / 1_000_000:0.##}M";
         return $"{amount:N0}";
+    }
+
+    // ---- Checklist Template Management ----
+    private bool showChecklistModal;
+    private bool showChecklistItemModal;
+    private bool isEditingChecklistItem;
+    private bool isChecklistSaving;
+    private string? checklistProductName;
+    private Guid checklistProductId;
+    private string? checklistError;
+    private string? checklistItemError;
+    private List<ChecklistTemplateItemModel> checklistItems = [];
+    private ChecklistTemplateItemModel editingChecklistItem = new();
+
+    private async Task OpenChecklistModal(ProductModel product)
+    {
+        checklistProductId = product.Id;
+        checklistProductName = product.Name;
+        checklistError = null;
+        checklistItems = await AppService.GetChecklistTemplateItemsAsync(product.Id);
+        showChecklistModal = true;
+    }
+
+    private void CloseChecklistModal()
+    {
+        showChecklistModal = false;
+        checklistError = null;
+        checklistItems = [];
+    }
+
+    private void OpenAddChecklistItem()
+    {
+        editingChecklistItem = new ChecklistTemplateItemModel
+        {
+            LoanProductId = checklistProductId,
+            SortOrder = checklistItems.Count > 0 ? checklistItems.Max(i => i.SortOrder) + 10 : 10
+        };
+        isEditingChecklistItem = false;
+        checklistItemError = null;
+        showChecklistItemModal = true;
+    }
+
+    private void EditChecklistItem(ChecklistTemplateItemModel item)
+    {
+        editingChecklistItem = new ChecklistTemplateItemModel
+        {
+            Id = item.Id,
+            LoanProductId = item.LoanProductId,
+            ItemName = item.ItemName,
+            Description = item.Description,
+            IsMandatory = item.IsMandatory,
+            ConditionType = item.ConditionType,
+            SubsequentDueDays = item.SubsequentDueDays,
+            RequiresDocumentUpload = item.RequiresDocumentUpload,
+            RequiresLegalRatification = item.RequiresLegalRatification,
+            CanBeWaived = item.CanBeWaived,
+            SortOrder = item.SortOrder,
+            IsActive = item.IsActive
+        };
+        isEditingChecklistItem = true;
+        checklistItemError = null;
+        showChecklistItemModal = true;
+    }
+
+    private void CloseChecklistItemModal()
+    {
+        showChecklistItemModal = false;
+        checklistItemError = null;
+    }
+
+    private async Task SaveChecklistItem()
+    {
+        isChecklistSaving = true;
+        checklistItemError = null;
+        try
+        {
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "SystemAdmin";
+            ApiResponse result;
+            if (isEditingChecklistItem)
+                result = await AppService.UpdateChecklistTemplateItemAsync(checklistProductId, userRole, editingChecklistItem);
+            else
+                result = await AppService.AddChecklistTemplateItemAsync(checklistProductId, userRole, editingChecklistItem);
+
+            if (result.Success)
+            {
+                showChecklistItemModal = false;
+                checklistItems = await AppService.GetChecklistTemplateItemsAsync(checklistProductId);
+            }
+            else
+            {
+                checklistItemError = result.Error ?? "Failed to save item";
+            }
+        }
+        finally
+        {
+            isChecklistSaving = false;
+        }
+    }
+
+    private async Task RemoveChecklistItem(Guid itemId)
+    {
+        isChecklistSaving = true;
+        checklistError = null;
+        try
+        {
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "SystemAdmin";
+            var result = await AppService.RemoveChecklistTemplateItemAsync(checklistProductId, itemId, userRole);
+            if (result.Success)
+                checklistItems = await AppService.GetChecklistTemplateItemsAsync(checklistProductId);
+            else
+                checklistError = result.Error ?? "Failed to remove item";
+        }
+        finally
+        {
+            isChecklistSaving = false;
+        }
     }
 
     private class ProductModel

@@ -49,7 +49,10 @@ public record LoanPackData(
     
     // Committee Comments
     List<CommitteeCommentData> CommitteeComments,
-    
+
+    // Conditions of Approval (from committee decision)
+    List<string> ApprovalConditions,
+
     // Generation Info
     DateTime GeneratedAt,
     string GeneratedBy,

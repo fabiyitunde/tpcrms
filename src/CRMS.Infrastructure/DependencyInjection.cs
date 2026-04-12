@@ -1,4 +1,3 @@
-using System.Threading.Channels;
 using CRMS.Application.Identity.Interfaces;
 using CRMS.Application.Notification.Interfaces;
 using CRMS.Application.Notification.Services;
@@ -239,6 +238,8 @@ public static class DependencyInjection
         // OfferLetter
         services.AddScoped<IOfferLetterRepository, OfferLetterRepository>();
         services.AddScoped<Application.OfferLetter.Interfaces.IOfferLetterPdfGenerator, Documents.OfferLetterPdfGenerator>();
+        services.AddScoped<Application.OfferLetter.Interfaces.IAmortisationSchedulePdfGenerator, Documents.AmortisationSchedulePdfGenerator>();
+        services.AddScoped<Application.OfferLetter.Interfaces.IKfsPdfGenerator, Documents.KfsPdfGenerator>();
 
         // File Storage (configurable: Local or S3)
         var storageProvider = configuration.GetValue<string>("FileStorage:Provider") ?? "Local";
@@ -272,15 +273,10 @@ public static class DependencyInjection
         // Workflow Integration Event Handlers (auto-transitions based on domain events)
         services.AddScoped<IDomainEventHandler<CommitteeDecisionRecordedEvent>, CommitteeDecisionWorkflowHandler>();
         services.AddScoped<IDomainEventHandler<AllCreditChecksCompletedEvent>, AllCreditChecksCompletedWorkflowHandler>();
-
-        // Background Services - Credit Check Queue
-        var creditCheckChannel = Channel.CreateUnbounded<CreditCheckRequest>(new UnboundedChannelOptions
-        {
-            SingleReader = true,
-            SingleWriter = false
-        });
-        services.AddSingleton(creditCheckChannel);
-        services.AddSingleton<Application.CreditBureau.Interfaces.ICreditCheckQueue, CreditCheckQueue>();
+        // Background Services - Credit Check Outbox (persistent, transactional)
+        // CreditCheckOutboxWriter adds entries to the DbContext without saving — the caller
+        // (ApproveBranchHandler) commits the outbox entry atomically with the approval.
+        services.AddScoped<Application.CreditBureau.Interfaces.ICreditCheckOutbox, CreditCheckOutboxWriter>();
         services.AddHostedService<CreditCheckBackgroundService>();
         
         // Credit Check Handlers
@@ -324,6 +320,13 @@ public static class DependencyInjection
         // LoanApplication
         services.AddScoped<Application.LoanApplication.Commands.InitiateCorporateLoanHandler>();
         services.AddScoped<Application.LoanApplication.Commands.SubmitLoanApplicationHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ApproveBranchHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ApproveCreditAnalysisHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromCreditAnalysisHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromBranchHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromHOReviewHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.MoveToCommitteeHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.FinalApproveHandler>();
         services.AddScoped<Application.LoanApplication.Commands.UploadDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Commands.VerifyDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Commands.RejectDocumentHandler>();
@@ -335,6 +338,8 @@ public static class DependencyInjection
         // ProductCatalog
         services.AddScoped<Application.ProductCatalog.Queries.GetActiveLoanProductsByTypeHandler>();
         services.AddScoped<Application.ProductCatalog.Queries.GetAllLoanProductsHandler>();
+        services.AddScoped<Application.ProductCatalog.Queries.GetLoanProductByIdHandler>();
+        services.AddScoped<Application.ProductCatalog.Queries.GetLoanProductByCodeHandler>();
         services.AddScoped<Application.ProductCatalog.Commands.CreateLoanProductHandler>();
         services.AddScoped<Application.ProductCatalog.Commands.UpdateLoanProductHandler>();
         services.AddScoped<Application.ProductCatalog.Commands.ActivateLoanProductHandler>();
@@ -363,6 +368,9 @@ public static class DependencyInjection
         services.AddScoped<Application.Committee.Commands.AddCommitteeCommentHandler>();
         services.AddScoped<Application.Committee.Commands.CreateCommitteeReviewHandler>();
         services.AddScoped<Application.Committee.Commands.AddCommitteeMemberHandler>();
+        services.AddScoped<Application.Committee.Commands.RemoveCommitteeMemberHandler>();
+        services.AddScoped<Application.Committee.Commands.StartVotingHandler>();
+        services.AddScoped<Application.Committee.Commands.RecordCommitteeDecisionHandler>();
 
         // Standing Committee
         services.AddScoped<IStandingCommitteeRepository, Persistence.Repositories.Committee.StandingCommitteeRepository>();
@@ -380,6 +388,25 @@ public static class DependencyInjection
         // OfferLetter
         services.AddScoped<Application.OfferLetter.Commands.GenerateOfferLetterHandler>();
         services.AddScoped<Application.OfferLetter.Queries.GetOfferLettersByApplicationHandler>();
+
+        // OfferAcceptance — Disbursement Checklist
+        services.AddScoped<Application.OfferAcceptance.Interfaces.IDisbursementMemoPdfGenerator, Documents.DisbursementMemoPdfGenerator>();
+        services.AddScoped<Application.OfferAcceptance.Commands.IssueOfferLetterHandler>();
+        services.AddScoped<Application.OfferAcceptance.Commands.ConfirmOfferAcceptanceHandler>();
+        services.AddScoped<Application.OfferAcceptance.Commands.SatisfyChecklistItemHandler>();
+        services.AddScoped<Application.OfferAcceptance.Commands.SubmitForLegalReviewHandler>();
+        services.AddScoped<Application.OfferAcceptance.Commands.RatifyLegalItemHandler>();
+        services.AddScoped<Application.OfferAcceptance.Commands.ProposeWaiverHandler>();
+        services.AddScoped<Application.OfferAcceptance.Commands.RatifyWaiverHandler>();
+        services.AddScoped<Application.OfferAcceptance.Commands.RequestCsExtensionHandler>();
+        services.AddScoped<Application.OfferAcceptance.Commands.RatifyExtensionHandler>();
+        services.AddScoped<Application.OfferAcceptance.Queries.GetDisbursementChecklistHandler>();
+        services.AddHostedService<CsMonitoringBackgroundService>();
+
+        // ProductCatalog — Checklist Template Management
+        services.AddScoped<Application.ProductCatalog.Commands.AddChecklistTemplateItemHandler>();
+        services.AddScoped<Application.ProductCatalog.Commands.UpdateChecklistTemplateItemHandler>();
+        services.AddScoped<Application.ProductCatalog.Commands.RemoveChecklistTemplateItemHandler>();
         
         // Collateral
         services.AddScoped<Application.Collateral.Commands.AddCollateralHandler>();

@@ -1,0 +1,649 @@
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject IJSRuntime JS
+
+@if (isLoading)
+{
+    <div class="card p-4 text-center">
+        <div class="spinner" style="margin: 0 auto;"></div>
+    </div>
+}
+else if (checklist == null)
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">checklist</span></div>
+            <div class="empty-state-title">No checklist loaded</div>
+            <div class="empty-state-text">The disbursement checklist is seeded when the offer letter is issued to the customer.</div>
+        </div>
+    </div>
+}
+else
+{
+    <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+
+        @* Summary banner *@
+        @if (checklist.AllPrecedentResolved)
+        {
+            <div style="padding: var(--space-3) var(--space-4); background: var(--success-50); border: 1px solid var(--success-200); border-radius: var(--radius-md); display: flex; gap: var(--space-3); align-items: center;">
+                <span class="material-symbols-outlined" style="color: var(--success-600); font-size: 20px;">check_circle</span>
+                <span style="font-size: var(--text-sm); color: var(--success-800); font-weight: 500;">All Conditions Precedent resolved — application is ready for offer acceptance confirmation.</span>
+            </div>
+        }
+        else
+        {
+            <div style="padding: var(--space-3) var(--space-4); background: var(--warning-50); border: 1px solid var(--warning-200); border-radius: var(--radius-md); display: flex; gap: var(--space-3); align-items: center;">
+                <span class="material-symbols-outlined" style="color: var(--warning-600); font-size: 20px;">warning</span>
+                <span style="font-size: var(--text-sm); color: var(--warning-800);">
+                    <strong>@checklist.PrecedentItems.Count(i => i.BlocksDisbursement)</strong> mandatory Condition(s) Precedent are still unresolved. All must be satisfied or waived before offer acceptance can be confirmed.
+                </span>
+            </div>
+        }
+
+        @* Conditions Precedent *@
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Conditions Precedent (CP)</h3>
+                <span style="font-size: var(--text-sm); color: var(--gray-500);">Must be resolved before disbursement</span>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                @if (!checklist.PrecedentItems.Any())
+                {
+                    <div class="empty-state" style="padding: var(--space-6) 0;">
+                        <div class="empty-state-title">No CP items</div>
+                    </div>
+                }
+                else
+                {
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40%;">Condition</th>
+                                <th>Mandatory</th>
+                                <th>Status</th>
+                                <th>Last Action</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in checklist.PrecedentItems)
+                            {
+                                <tr>
+                                    <td>
+                                        <div style="font-weight: 500; font-size: var(--text-sm);">@item.ItemName</div>
+                                        @if (!string.IsNullOrWhiteSpace(item.Description))
+                                        {
+                                            <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">@item.Description</div>
+                                        }
+                                        <div style="margin-top: var(--space-1); display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                                            @if (item.RequiresDocumentUpload)
+                                            {
+                                                <span class="badge badge-secondary" style="font-size: 10px;">Requires Upload</span>
+                                            }
+                                            @if (item.RequiresLegalRatification)
+                                            {
+                                                <span class="badge badge-info" style="font-size: 10px;">Legal Ratification</span>
+                                            }
+                                            @if (item.CanBeWaived)
+                                            {
+                                                <span class="badge badge-secondary" style="font-size: 10px;">Waivable</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (item.IsMandatory)
+                                        {
+                                            <span class="badge badge-danger" style="font-size: 10px;">Mandatory</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-secondary" style="font-size: 10px;">Optional</span>
+                                        }
+                                    </td>
+                                    <td><span class="@item.StatusBadgeClass">@item.StatusDisplay</span></td>
+                                    <td style="font-size: var(--text-xs); color: var(--gray-500);">
+                                        @GetLastActionText(item)
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; gap: var(--space-2);">
+                                            @RenderItemActions(item)
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+
+        @* Conditions Subsequent *@
+        @if (checklist.SubsequentItems.Any())
+        {
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Conditions Subsequent (CS)</h3>
+                    <span style="font-size: var(--text-sm); color: var(--gray-500);">Monitored post-disbursement — due dates set at disbursement</span>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40%;">Condition</th>
+                                <th>Due (days)</th>
+                                <th>Status</th>
+                                <th>Due Date</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in checklist.SubsequentItems)
+                            {
+                                <tr>
+                                    <td>
+                                        <div style="font-weight: 500; font-size: var(--text-sm);">@item.ItemName</div>
+                                        @if (!string.IsNullOrWhiteSpace(item.Description))
+                                        {
+                                            <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">@item.Description</div>
+                                        }
+                                    </td>
+                                    <td style="font-size: var(--text-sm);">
+                                        @if (item.SubsequentDueDays.HasValue)
+                                        {
+                                            <span>@item.SubsequentDueDays days</span>
+                                        }
+                                    </td>
+                                    <td><span class="@item.StatusBadgeClass">@item.StatusDisplay</span></td>
+                                    <td style="font-size: var(--text-sm); color: @(item.DueDate.HasValue && item.DueDate < DateTime.UtcNow ? "var(--danger-600)" : "inherit");">
+                                        @(item.DueDate?.ToLocalTime().ToString("dd MMM yyyy") ?? "—")
+                                        @if (item.OriginalDueDate.HasValue)
+                                        {
+                                            <div style="font-size: var(--text-xs); color: var(--gray-400);">Was: @item.OriginalDueDate.Value.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; gap: var(--space-2);">
+                                            @RenderItemActions(item)
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* Action modals *@
+@if (activeModal != null && activeItem != null)
+{
+    <div class="modal-backdrop show" @onclick="CloseModal"></div>
+    <div class="modal" style="max-width: 480px; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;">
+        <div class="modal-header">
+            <h3 class="modal-title">@GetModalTitle()</h3>
+            <button class="btn btn-ghost btn-sm" @onclick="CloseModal">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div style="font-size: var(--text-sm); font-weight: 600; margin-bottom: var(--space-3);">@activeItem.ItemName</div>
+
+            @if (activeModal == "satisfy")
+            {
+                <p style="font-size: var(--text-sm); color: var(--gray-600);">Confirm that this condition has been satisfied.</p>
+                @if (activeItem.RequiresDocumentUpload)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Evidence Document <span style="color: var(--danger-600);">*</span></label>
+                        <InputFile OnChange="HandleFileSelected" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="form-control" style="padding: var(--space-2);" />
+                        @if (modalFile != null)
+                        {
+                            <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: var(--space-1);">
+                                Selected: @modalFile.Name (@FormatFileSize(modalFile.Size))
+                            </div>
+                        }
+                    </div>
+                }
+            }
+            else if (activeModal == "submit-legal")
+            {
+                <p style="font-size: var(--text-sm); color: var(--gray-600);">Submit this legal/security document for ratification by the Legal Officer.</p>
+                <div class="form-group">
+                    <label class="form-label">Evidence Document <span style="color: var(--danger-600);">*</span></label>
+                    <InputFile OnChange="HandleFileSelected" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="form-control" style="padding: var(--space-2);" />
+                    @if (modalFile != null)
+                    {
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: var(--space-1);">
+                            Selected: @modalFile.Name (@FormatFileSize(modalFile.Size))
+                        </div>
+                    }
+                </div>
+            }
+            else if (activeModal == "ratify-legal")
+            {
+                <p style="font-size: var(--text-sm); color: var(--gray-600);">As Legal Officer, ratify or return this document.</p>
+                <div class="form-group">
+                    <label class="form-label">Decision</label>
+                    <div style="display: flex; gap: var(--space-4); margin-top: var(--space-2);">
+                        <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                            <input type="radio" name="legalDecision" value="approve" checked="@(modalIsApproved)" @onchange="() => modalIsApproved = true" />
+                            Ratify (Approve)
+                        </label>
+                        <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                            <input type="radio" name="legalDecision" value="return" checked="@(!modalIsApproved)" @onchange="() => modalIsApproved = false" />
+                            Return for Correction
+                        </label>
+                    </div>
+                </div>
+                @if (!modalIsApproved)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Return Reason <span style="color: var(--danger-600);">*</span></label>
+                        <textarea class="form-control" rows="3" @bind="modalReason" placeholder="Explain what needs to be corrected..."></textarea>
+                    </div>
+                }
+            }
+            else if (activeModal == "propose-waiver")
+            {
+                <p style="font-size: var(--text-sm); color: var(--gray-600);">Propose a waiver for this condition. The Risk Manager will need to ratify.</p>
+                <div class="form-group">
+                    <label class="form-label">Waiver Reason <span style="color: var(--danger-600);">*</span></label>
+                    <textarea class="form-control" rows="3" @bind="modalReason" placeholder="Justify why this condition should be waived..."></textarea>
+                </div>
+            }
+            else if (activeModal == "ratify-waiver")
+            {
+                <p style="font-size: var(--text-sm); color: var(--gray-600);">Waiver proposed by: @activeItem.WaiverProposedByUserId</p>
+                @if (!string.IsNullOrWhiteSpace(activeItem.WaiverReason))
+                {
+                    <div style="padding: var(--space-3); background: var(--gray-50); border-radius: var(--radius-md); font-size: var(--text-sm); margin-bottom: var(--space-4);">
+                        <strong>Reason:</strong> @activeItem.WaiverReason
+                    </div>
+                }
+                <div class="form-group">
+                    <label class="form-label">Decision</label>
+                    <div style="display: flex; gap: var(--space-4); margin-top: var(--space-2);">
+                        <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                            <input type="radio" name="waiverDecision" checked="@modalIsApproved" @onchange="() => modalIsApproved = true" />
+                            Approve Waiver
+                        </label>
+                        <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                            <input type="radio" name="waiverDecision" checked="@(!modalIsApproved)" @onchange="() => modalIsApproved = false" />
+                            Reject Waiver
+                        </label>
+                    </div>
+                </div>
+                @if (!modalIsApproved)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Rejection Reason <span style="color: var(--danger-600);">*</span></label>
+                        <textarea class="form-control" rows="2" @bind="modalReason" placeholder="Reason for rejecting the waiver..."></textarea>
+                    </div>
+                }
+            }
+            else if (activeModal == "request-extension")
+            {
+                <p style="font-size: var(--text-sm); color: var(--gray-600);">Request an extension for the CS due date. Risk Manager must approve.</p>
+                <div class="form-group">
+                    <label class="form-label">Extension Reason <span style="color: var(--danger-600);">*</span></label>
+                    <textarea class="form-control" rows="3" @bind="modalReason" placeholder="Justify why more time is needed..."></textarea>
+                </div>
+            }
+            else if (activeModal == "ratify-extension")
+            {
+                <p style="font-size: var(--text-sm); color: var(--gray-600);">Extension requested by loan officer.</p>
+                @if (!string.IsNullOrWhiteSpace(activeItem.ExtensionReason))
+                {
+                    <div style="padding: var(--space-3); background: var(--gray-50); border-radius: var(--radius-md); font-size: var(--text-sm); margin-bottom: var(--space-4);">
+                        <strong>Reason:</strong> @activeItem.ExtensionReason
+                    </div>
+                }
+                <div class="form-group">
+                    <label class="form-label">Decision</label>
+                    <div style="display: flex; gap: var(--space-4); margin-top: var(--space-2);">
+                        <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                            <input type="radio" name="extDecision" checked="@modalIsApproved" @onchange="() => modalIsApproved = true" />
+                            Approve
+                        </label>
+                        <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                            <input type="radio" name="extDecision" checked="@(!modalIsApproved)" @onchange="() => modalIsApproved = false" />
+                            Reject
+                        </label>
+                    </div>
+                </div>
+                @if (modalIsApproved)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Additional Days <span style="color: var(--danger-600);">*</span></label>
+                        <input type="number" class="form-control" min="1" max="365" @bind="modalAdditionalDays" />
+                    </div>
+                }
+            }
+
+            @if (!string.IsNullOrEmpty(modalError))
+            {
+                <div style="color: var(--danger-600); font-size: var(--text-sm); margin-top: var(--space-3);">@modalError</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="CloseModal" disabled="@isModalSubmitting">Cancel</button>
+            <button class="btn btn-primary" @onclick="SubmitModal" disabled="@isModalSubmitting">
+                @if (isModalSubmitting) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                Confirm
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid ApplicationId { get; set; }
+    [Parameter] public string ApplicationStatus { get; set; } = string.Empty;
+
+    private DisbursementChecklistModel? checklist;
+    private bool isLoading = true;
+
+    // Modal state
+    private string? activeModal;
+    private ChecklistItemModel? activeItem;
+    private string modalReason = string.Empty;
+    private Guid? modalDocumentId;
+    private IBrowserFile? modalFile;
+    private bool modalIsApproved = true;
+    private int modalAdditionalDays = 30;
+    private bool isModalSubmitting;
+    private string? modalError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadChecklist();
+    }
+
+    private async Task LoadChecklist()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await AppService.GetDisbursementChecklistAsync(ApplicationId);
+            checklist = result.Success ? result.Data : null;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        modalFile = e.File;
+        modalError = null;
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024):F1} MB";
+    }
+
+    private string GetLastActionText(ChecklistItemModel item) => item.Status switch
+    {
+        "Satisfied" => item.SatisfiedAt.HasValue ? $"Satisfied {item.SatisfiedAt.Value.ToLocalTime():dd MMM yyyy}" : "Satisfied",
+        "Waived" => item.WaiverRatifiedAt.HasValue ? $"Waived {item.WaiverRatifiedAt.Value.ToLocalTime():dd MMM yyyy}" : "Waived",
+        "PendingLegalReview" => "Awaiting Legal Officer",
+        "LegalReturned" => string.IsNullOrWhiteSpace(item.LegalReturnReason) ? "Returned by Legal" : $"Returned: {item.LegalReturnReason}",
+        "WaiverPending" => "Awaiting RiskManager",
+        "ExtensionPending" => "Extension awaiting RiskManager",
+        _ => string.Empty
+    };
+
+    private string GetModalTitle() => activeModal switch
+    {
+        "satisfy" => "Satisfy Condition",
+        "submit-legal" => "Submit for Legal Review",
+        "ratify-legal" => "Ratify Legal Document",
+        "propose-waiver" => "Propose Waiver",
+        "ratify-waiver" => "Ratify Waiver",
+        "request-extension" => "Request CS Extension",
+        "ratify-extension" => "Ratify Extension Request",
+        _ => "Action"
+    };
+
+    private RenderFragment RenderItemActions(ChecklistItemModel item) => builder =>
+    {
+        var user = AuthService.CurrentUser;
+        if (user == null) return;
+
+        var role = user.PrimaryRole ?? "";
+        var isLoanOfficer = role is "LoanOfficer";
+        var isOperations = role is "Operations";
+        var isLoanOfficerOrOps = isLoanOfficer || isOperations || role is "SystemAdmin";
+        var isLegalOfficer = role is "LegalOfficer" || role is "SystemAdmin";
+        var isRiskManager = role is "RiskManager" || role is "SystemAdmin";
+
+        // Satisfy (non-legal)
+        if (item.Status is "Pending" or "LegalReturned" &&
+            !item.RequiresLegalRatification &&
+            isLoanOfficerOrOps)
+        {
+            builder.OpenElement(0, "button");
+            builder.AddAttribute(1, "class", "btn btn-success btn-sm");
+            builder.AddAttribute(2, "title", "Satisfy");
+            builder.AddAttribute(3, "onclick", EventCallback.Factory.Create(this, () => OpenModal("satisfy", item)));
+            builder.AddContent(4, "Satisfy");
+            builder.CloseElement();
+        }
+
+        // Submit for legal review
+        if (item.Status is "Pending" or "LegalReturned" &&
+            item.RequiresLegalRatification &&
+            isLoanOfficerOrOps)
+        {
+            builder.OpenElement(5, "button");
+            builder.AddAttribute(6, "class", "btn btn-primary btn-sm");
+            builder.AddAttribute(7, "title", "Submit for Legal Review");
+            builder.AddAttribute(8, "onclick", EventCallback.Factory.Create(this, () => OpenModal("submit-legal", item)));
+            builder.AddContent(9, "Submit to Legal");
+            builder.CloseElement();
+        }
+
+        // Ratify by Legal
+        if (item.Status == "PendingLegalReview" && isLegalOfficer)
+        {
+            builder.OpenElement(10, "button");
+            builder.AddAttribute(11, "class", "btn btn-primary btn-sm");
+            builder.AddAttribute(12, "onclick", EventCallback.Factory.Create(this, () => OpenModal("ratify-legal", item)));
+            builder.AddContent(13, "Ratify");
+            builder.CloseElement();
+        }
+
+        // Propose waiver (LoanOfficer only — not Operations per design)
+        if (item.CanBeWaived &&
+            item.Status is "Pending" or "LegalReturned" or "Overdue" &&
+            isLoanOfficer)
+        {
+            builder.OpenElement(14, "button");
+            builder.AddAttribute(15, "class", "btn btn-secondary btn-sm");
+            builder.AddAttribute(16, "onclick", EventCallback.Factory.Create(this, () => OpenModal("propose-waiver", item)));
+            builder.AddContent(17, "Waiver");
+            builder.CloseElement();
+        }
+
+        // Ratify waiver (RiskManager)
+        if (item.Status == "WaiverPending" && isRiskManager)
+        {
+            builder.OpenElement(18, "button");
+            builder.AddAttribute(19, "class", "btn btn-warning btn-sm");
+            builder.AddAttribute(20, "onclick", EventCallback.Factory.Create(this, () => OpenModal("ratify-waiver", item)));
+            builder.AddContent(21, "Review Waiver");
+            builder.CloseElement();
+        }
+
+        // Request CS extension
+        if (item.ConditionType == "Subsequent" &&
+            item.Status is "Pending" or "Overdue" &&
+            isLoanOfficerOrOps)
+        {
+            builder.OpenElement(22, "button");
+            builder.AddAttribute(23, "class", "btn btn-secondary btn-sm");
+            builder.AddAttribute(24, "onclick", EventCallback.Factory.Create(this, () => OpenModal("request-extension", item)));
+            builder.AddContent(25, "Request Ext.");
+            builder.CloseElement();
+        }
+
+        // Ratify extension (RiskManager)
+        if (item.Status == "ExtensionPending" && isRiskManager)
+        {
+            builder.OpenElement(26, "button");
+            builder.AddAttribute(27, "class", "btn btn-warning btn-sm");
+            builder.AddAttribute(28, "onclick", EventCallback.Factory.Create(this, () => OpenModal("ratify-extension", item)));
+            builder.AddContent(29, "Review Ext.");
+            builder.CloseElement();
+        }
+    };
+
+    private void OpenModal(string modalType, ChecklistItemModel item)
+    {
+        activeModal = modalType;
+        activeItem = item;
+        modalReason = string.Empty;
+        modalDocumentId = null;
+        modalFile = null;
+        modalIsApproved = true;
+        modalAdditionalDays = 30;
+        modalError = null;
+    }
+
+    private void CloseModal()
+    {
+        activeModal = null;
+        activeItem = null;
+        modalFile = null;
+        modalError = null;
+    }
+
+    private async Task SubmitModal()
+    {
+        if (activeItem == null || activeModal == null) return;
+        var user = AuthService.CurrentUser;
+        if (user == null) { modalError = "Not authenticated"; return; }
+
+        isModalSubmitting = true;
+        modalError = null;
+        try
+        {
+            // Upload document first if a file was selected
+            if (modalFile != null)
+            {
+                const long maxFileSize = 20 * 1024 * 1024; // 20 MB
+                using var stream = modalFile.OpenReadStream(maxFileSize);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+
+                var uploadResult = await AppService.UploadDocumentAsync(new UploadDocumentRequest
+                {
+                    ApplicationId = ApplicationId,
+                    Category = "Other",
+                    FileName = modalFile.Name,
+                    FileContent = new MemoryStream(ms.ToArray()),
+                    FileSize = modalFile.Size,
+                    ContentType = string.IsNullOrEmpty(modalFile.ContentType) ? "application/octet-stream" : modalFile.ContentType,
+                    Description = $"Evidence for: {activeItem.ItemName}"
+                }, user.Id);
+
+                if (!uploadResult.Success)
+                {
+                    modalError = uploadResult.Error ?? "Failed to upload document";
+                    return;
+                }
+
+                modalDocumentId = uploadResult.Data?.Id;
+            }
+
+            // Validate document requirement
+            if (activeModal is "satisfy" && activeItem.RequiresDocumentUpload && modalDocumentId == null)
+            {
+                modalError = "Please select an evidence document to upload";
+                return;
+            }
+            if (activeModal == "submit-legal" && modalDocumentId == null)
+            {
+                modalError = "Please select a document to upload";
+                return;
+            }
+
+            ApiResponse result = activeModal switch
+            {
+                "satisfy" => await AppService.SatisfyChecklistItemAsync(
+                    ApplicationId,
+                    activeItem.Id,
+                    user.Id,
+                    user.PrimaryRole ?? "",
+                    modalDocumentId),
+
+                "submit-legal" => await AppService.SubmitForLegalReviewAsync(
+                    ApplicationId,
+                    activeItem.Id,
+                    user.Id,
+                    user.PrimaryRole ?? "",
+                    modalDocumentId!.Value),
+
+                "ratify-legal" => await AppService.RatifyLegalItemAsync(
+                    ApplicationId,
+                    activeItem.Id,
+                    user.Id,
+                    modalIsApproved,
+                    !modalIsApproved ? modalReason : null),
+
+                "propose-waiver" => string.IsNullOrWhiteSpace(modalReason)
+                    ? ApiResponse.Fail("A waiver reason is required")
+                    : await AppService.ProposeWaiverAsync(
+                        ApplicationId,
+                        activeItem.Id,
+                        user.Id,
+                        user.PrimaryRole ?? "",
+                        modalReason),
+
+                "ratify-waiver" => await AppService.RatifyWaiverAsync(
+                    ApplicationId,
+                    activeItem.Id,
+                    user.Id,
+                    modalIsApproved,
+                    !modalIsApproved ? modalReason : null),
+
+                "request-extension" => string.IsNullOrWhiteSpace(modalReason)
+                    ? ApiResponse.Fail("An extension reason is required")
+                    : await AppService.RequestCsExtensionAsync(
+                        ApplicationId,
+                        activeItem.Id,
+                        user.Id,
+                        user.PrimaryRole ?? "",
+                        modalReason),
+
+                "ratify-extension" => await AppService.RatifyExtensionAsync(
+                    ApplicationId,
+                    activeItem.Id,
+                    user.Id,
+                    modalIsApproved,
+                    modalIsApproved ? modalAdditionalDays : 0),
+
+                _ => ApiResponse.Fail("Unknown action")
+            };
+
+            if (result.Success)
+            {
+                CloseModal();
+                await LoadChecklist();
+            }
+            else
+            {
+                modalError = result.Error ?? "Action failed";
+            }
+        }
+        finally
+        {
+            isModalSubmitting = false;
+        }
+    }
+}

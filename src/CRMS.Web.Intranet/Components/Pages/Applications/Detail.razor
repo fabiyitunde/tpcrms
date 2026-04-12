@@ -87,6 +87,20 @@ else
                     Offer Letter
                 </button>
             }
+            @if (CanRerunCreditChecks)
+            {
+                <button class="btn btn-secondary" @onclick="() => RequestBureauCheck(Guid.Empty)" disabled="@isRunningBureauChecks">
+                    @if (isRunningBureauChecks)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span>
+                    }
+                    Re-run Credit Checks
+                </button>
+            }
             @if (ShowApproveButton)
             {
                 <button class="btn btn-success" @onclick="() => ShowActionModal(ActionType.Approve)">
@@ -106,6 +120,34 @@ else
                 <button class="btn btn-danger" @onclick="() => ShowActionModal(ActionType.Reject)">
                     <span class="material-symbols-outlined" style="font-size: 18px;">close</span>
                     Reject
+                </button>
+            }
+            @if (ShowIssueOfferLetterButton)
+            {
+                <button class="btn btn-primary" @onclick="IssueOfferLetter" disabled="@isIssuingOfferLetter">
+                    @if (isIssuingOfferLetter)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">send</span>
+                    }
+                    Issue Offer Letter
+                </button>
+            }
+            @if (ShowRecordAcceptanceButton)
+            {
+                <button class="btn btn-success" @onclick="ShowRecordAcceptanceModalFn">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">how_to_reg</span>
+                    Record Customer Acceptance
+                </button>
+            }
+            @if (ShowDisburseButton)
+            {
+                <button class="btn btn-primary" @onclick="ShowDisburseModalFn">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">payments</span>
+                    Disburse Loan
                 </button>
             }
         </div>
@@ -161,16 +203,43 @@ else
                 }
             </div>
         }
+        @if (application?.Status is AppStatus.OfferGenerated or AppStatus.OfferAccepted or AppStatus.Disbursed)
+        {
+            <div class="tab @(activeTab == "checklist" ? "active" : "")" @onclick='() => activeTab = "checklist"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">checklist</span>
+                Disbursement Checklist
+            </div>
+        }
     </div>
 
     @if (inlineActionError != null)
     {
-        <div class="alert alert-danger" style="margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-2);">
+        <div class="alert alert-danger" id="inline-action-error" style="margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-2);">
             <span class="material-symbols-outlined" style="font-size: 18px;">error</span>
             @inlineActionError
             <button type="button" style="margin-left: auto; background: none; border: none; cursor: pointer;" @onclick="() => inlineActionError = null">
                 <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
             </button>
+        </div>
+    }
+
+    @if (application.Status == AppStatus.HOReview && application.Committee?.Decision == "Deferred")
+    {
+        <div style="margin: 0 0 var(--space-4) 0; padding: var(--space-3) var(--space-4); background: var(--warning-50); border: 1px solid var(--warning-200); border-radius: var(--radius-md); display: flex; gap: var(--space-3); align-items: flex-start;">
+            <span class="material-symbols-outlined" style="color: var(--warning-600); font-size: 20px; flex-shrink: 0; margin-top: 2px;">undo</span>
+            <div>
+                <div style="font-weight: 600; color: var(--warning-800); font-size: var(--text-sm);">
+                    Returned from Committee — Deferred
+                </div>
+                <div style="color: var(--warning-700); font-size: var(--text-sm); margin-top: var(--space-1);">
+                    The committee deferred this application on @application.Committee.DecisionDate?.ToString("MMM dd, yyyy").
+                    @if (!string.IsNullOrWhiteSpace(application.Committee.DecisionComments))
+                    {
+                        <span>Rationale: <strong>@application.Committee.DecisionComments</strong>.</span>
+                    }
+                    Review the committee's concerns and take action using the buttons above.
+                </div>
+            </div>
         </div>
     }
 
@@ -183,7 +252,8 @@ else
             <PartiesTab Directors="application.Directors" Signatories="application.Signatories"
                 IsEditable="IsApplicationEditable"
                 OnRequestBureauCheck="RequestBureauCheck"
-                OnFillPartyInfo="ShowFillPartyInfoModal" />
+                OnFillPartyInfo="ShowFillPartyInfoModal"
+                OnViewPartyBureauReport="ShowBureauReportModal" />
             break;
         case "statements":
             <StatementsTab
@@ -256,11 +326,21 @@ else
             <CommitteeTab Committee="application.Committee"
                              CurrentUserId="AuthService.CurrentUser?.Id"
                              CanSetupCommittee="@CanSetupCommitteeReview"
+                             CanManageCommittee="@CanManageCommitteeReview"
+                             CanConfirmDecision="@CanConfirmCommitteeDecision"
+                             AvailableMemberUsers="committeeUsers"
                              OnCastVote="CastVote"
-                             OnSetupCommittee="ShowSetupCommitteeModal" />
+                             OnSetupCommittee="ShowSetupCommitteeModal"
+                             OnRemoveMember="RemoveCommitteeMember"
+                             OnAddMember="AddCommitteeMember"
+                             OnStartVoting="StartCommitteeVoting"
+                             OnConfirmDecision="ConfirmCommitteeDecision" />
             break;
         case "comments":
             <CommentsTab Comments="application.Comments" OnAddComment="AddComment" IsSubmitting="isAddingComment" SubmitError="commentError" />
+            break;
+        case "checklist":
+            <OfferAcceptanceTab ApplicationId="application.Id" ApplicationStatus="application.Status" />
             break;
         case "offerletters":
             <div class="card">
@@ -330,6 +410,30 @@ else
                                                 else
                                                 {
                                                     <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                                                }
+                                            </button>
+                                            <button class="btn btn-ghost btn-sm" title="Download Amortisation Schedule"
+                                                @onclick="() => DownloadSchedule(letter.Id)"
+                                                disabled="@(isDownloadingSchedule && downloadingScheduleId == letter.Id)">
+                                                @if (isDownloadingSchedule && downloadingScheduleId == letter.Id)
+                                                {
+                                                    <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="material-symbols-outlined" style="font-size: 18px;">table_chart</span>
+                                                }
+                                            </button>
+                                            <button class="btn btn-ghost btn-sm" title="Download Key Facts Statement"
+                                                @onclick="() => DownloadKfs(letter.Id)"
+                                                disabled="@(isDownloadingKfs && downloadingKfsId == letter.Id)">
+                                                @if (isDownloadingKfs && downloadingKfsId == letter.Id)
+                                                {
+                                                    <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="material-symbols-outlined" style="font-size: 18px;">fact_check</span>
                                                 }
                                             </button>
                                         </td>
@@ -746,7 +850,8 @@ else
             OnClose="CloseManageStatementTransactionsModal"
             OnSuccess="OnStatementTransactionsSaved"
             PreloadedTransactions="preloadedStatementTransactions"
-            ParseMessage="statementParseMessage" />
+            ParseMessage="statementParseMessage"
+            ExistingTransactions="existingStatementTransactions" />
     }
 }
 
@@ -1088,6 +1193,79 @@ else
         OnClose="CloseSetupCommitteeModal" />
 }
 
+@if (showRecordAcceptanceModal)
+{
+    <div class="modal-backdrop" @onclick="CloseRecordAcceptanceModal"></div>
+    <div class="modal" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Record Customer Acceptance</h3>
+            <button class="btn btn-ghost btn-sm" @onclick="CloseRecordAcceptanceModal">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-4);">
+                Record that the customer has reviewed and signed the offer letter. Ensure the signed copy has been received before proceeding.
+            </p>
+            <div class="form-group">
+                <label class="form-label">Date Customer Signed *</label>
+                <input type="date" class="form-control" @bind="acceptanceDate" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Reference / Notes</label>
+                <textarea class="form-control" rows="3" @bind="acceptanceNotes" placeholder="e.g. Signed copy received via courier, ref: OL-2026-001..."></textarea>
+            </div>
+            @if (!string.IsNullOrEmpty(acceptanceError))
+            {
+                <div style="color: var(--danger-600); font-size: var(--text-sm);">@acceptanceError</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="CloseRecordAcceptanceModal" disabled="@isRecordingAcceptance">Cancel</button>
+            <button class="btn btn-success" @onclick="ConfirmRecordAcceptance" disabled="@(isRecordingAcceptance || acceptanceDate == default)">
+                @if (isRecordingAcceptance) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                Confirm Acceptance
+            </button>
+        </div>
+    </div>
+}
+
+@if (showDisburseModal)
+{
+    <div class="modal-backdrop" @onclick="CloseDisburseModal"></div>
+    <div class="modal" style="max-width: 480px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Disburse Loan</h3>
+            <button class="btn btn-ghost btn-sm" @onclick="CloseDisburseModal">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div style="padding: var(--space-3) var(--space-4); background: var(--success-50); border: 1px solid var(--success-200); border-radius: var(--radius-md); margin-bottom: var(--space-4); display: flex; gap: var(--space-3); align-items: center;">
+                <span class="material-symbols-outlined" style="color: var(--success-600); font-size: 20px;">check_circle</span>
+                <div style="font-size: var(--text-sm); color: var(--success-800);">
+                    All Conditions Precedent have been verified and cleared on the Disbursement Checklist tab.
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Disbursement Notes</label>
+                <textarea class="form-control" rows="2" @bind="disburseNotes" placeholder="e.g. Funds transferred to account 0012345678..."></textarea>
+            </div>
+            @if (!string.IsNullOrEmpty(disburseError))
+            {
+                <div style="color: var(--danger-600); font-size: var(--text-sm);">@disburseError</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="CloseDisburseModal" disabled="@isDisbursing">Cancel</button>
+            <button class="btn btn-primary" @onclick="ConfirmDisburse" disabled="@isDisbursing">
+                @if (isDisbursing) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                Confirm Disbursement
+            </button>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid Id { get; set; }
 
@@ -1102,6 +1280,7 @@ else
     private bool isExecutingAction;
     private string? actionError;
     private bool showSetupCommitteeModal;
+    private List<UserSummary> committeeUsers = [];
 
     // Data entry modals
     private bool showCollateralModal;
@@ -1155,11 +1334,26 @@ else
         {
             // Fetch real bureau reports from database
             application.BureauReports = await AppService.GetBureauReportsAsync(Id);
+
+            // Cross-reference bureau reports into directors/signatories so PartiesTab can show status + view button
+            foreach (var party in application.Directors.Concat(application.Signatories))
+            {
+                var report = application.BureauReports.FirstOrDefault(r => r.PartyId == party.Id && r.Status == "Completed");
+                if (report != null)
+                {
+                    party.HasBureauReport = true;
+                    party.BureauStatus = report.Rating;
+                    party.BureauReportId = report.Id;
+                }
+            }
             // Fetch bank statements
             application.BankStatements = await AppService.GetBankStatementsAsync(Id);
             // Fetch offer letters (only relevant once application is Approved or Disbursed)
-            if (application.Status is AppStatus.Approved or AppStatus.Disbursed)
+            if (application.Status is AppStatus.Approved or AppStatus.OfferGenerated or AppStatus.OfferAccepted or AppStatus.Disbursed)
                 offerLetters = await AppService.GetOfferLettersByApplicationAsync(Id);
+            // Fetch committee member users when in committee stage
+            if (application.Status == AppStatus.CommitteeCirculation)
+                committeeUsers = await AppService.GetCommitteeMemberUsersAsync();
         }
         
         isLoading = false;
@@ -1168,7 +1362,7 @@ else
     private void GoBack() => Navigation.NavigateTo("/applications");
 
     private bool CanGeneratePack => application?.Status is AppStatus.Approved or AppStatus.CommitteeApproved or AppStatus.Disbursed;
-    private bool CanGenerateOfferLetter => application?.Status is AppStatus.Approved or AppStatus.Disbursed;
+    private bool CanGenerateOfferLetter => application?.Status is AppStatus.Approved or AppStatus.OfferGenerated or AppStatus.OfferAccepted or AppStatus.Disbursed;
 
     // Application is editable only in Draft status
     private bool IsApplicationEditable => application?.Status == AppStatus.Draft;
@@ -1177,36 +1371,53 @@ else
     private bool ShowSubmitForReviewButton => application?.Status == AppStatus.Draft &&
         (AuthService.CurrentUser?.HasRole("LoanOfficer") ?? false);
 
+    private bool CanRerunCreditChecks =>
+        application?.Status == AppStatus.CreditAnalysis &&
+        (AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false) &&
+        (application?.BureauReports.Any(r => r.Status == "ConsentRequired" || r.Status == "Failed") ?? false);
+
     private bool CanSetupCommitteeReview =>
         application?.Status == AppStatus.CommitteeCirculation &&
         application.Committee == null &&
         (AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false);
 
+    private bool CanManageCommitteeReview =>
+        application?.Status == AppStatus.CommitteeCirculation &&
+        application.Committee?.Status == "Pending" &&
+        (AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false);
+
     private bool IsAssignedCommitteeMember =>
         application?.Committee?.Members.Any(m => m.UserId == (AuthService.CurrentUser?.Id ?? Guid.Empty)) == true;
+
+    private bool CanConfirmCommitteeDecision =>
+        application?.Status == AppStatus.CommitteeCirculation &&
+        (AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false) &&
+        (application.Committee?.Status is "VotingComplete" or "InProgress") &&
+        (application.Committee.Status == "VotingComplete" ||
+         (application.Committee.IsOverdue && application.Committee.HasQuorum));
 
     private bool ShowApproveButton => application?.Status switch
     {
         AppStatus.BranchReview => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        AppStatus.HOReview => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
-        AppStatus.CommitteeCirculation => (AuthService.CurrentUser?.HasRole("CommitteeMember") ?? false) && IsAssignedCommitteeMember,
-        AppStatus.CommitteeApproved => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
+        AppStatus.CreditAnalysis => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        AppStatus.HOReview => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
+        AppStatus.FinalApproval => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
         _ => false
     };
 
     private bool ShowReturnButton => application?.Status switch
     {
         AppStatus.BranchReview => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        AppStatus.HOReview => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        AppStatus.CreditAnalysis => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        AppStatus.HOReview => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
         _ => false
     };
 
     private bool ShowRejectButton => application?.Status switch
     {
         AppStatus.BranchReview => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        AppStatus.HOReview => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
-        AppStatus.CommitteeCirculation => (AuthService.CurrentUser?.HasRole("CommitteeMember") ?? false) && IsAssignedCommitteeMember,
-        AppStatus.CommitteeApproved => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
+        AppStatus.HOReview => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
+        AppStatus.FinalApproval => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
         _ => false
     };
 
@@ -1327,6 +1538,156 @@ else
     private bool isDownloadingOfferLetter;
     private Guid? downloadingOfferLetterId;
 
+    // Offer letter workflow
+    private bool ShowIssueOfferLetterButton =>
+        application?.Status == AppStatus.Approved &&
+        (AuthService.CurrentUser?.HasAnyRole("Operations", "LoanOfficer", "SystemAdmin") ?? false);
+
+    private bool ShowRecordAcceptanceButton =>
+        application?.Status == AppStatus.OfferGenerated &&
+        (AuthService.CurrentUser?.HasAnyRole("Operations", "SystemAdmin") ?? false);
+
+    private bool ShowDisburseButton =>
+        application?.Status == AppStatus.OfferAccepted &&
+        (AuthService.CurrentUser?.HasAnyRole("Operations", "SystemAdmin") ?? false);
+
+    private bool isIssuingOfferLetter;
+
+    private async Task IssueOfferLetter()
+    {
+        if (!EnsureAuthenticated(out var userId)) return;
+        isIssuingOfferLetter = true;
+        inlineActionError = null;
+        StateHasChanged();
+        try
+        {
+            var userName = AuthService.CurrentUser?.FullName ?? "System";
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "Operations";
+
+            // Generate the PDF first if not already generated
+            if (!offerLetters.Any(l => l.Status == "Generated"))
+            {
+                var genResult = await AppService.GenerateOfferLetterAsync(Id, userId, userName);
+                if (!genResult.Success)
+                {
+                    inlineActionError = genResult.Error ?? "Failed to generate offer letter PDF.";
+                    await JS.InvokeVoidAsync("scrollToElement", "inline-action-error");
+                    return;
+                }
+                offerLetters = await AppService.GetOfferLettersByApplicationAsync(Id);
+                // Auto-download
+                if (genResult.Data != null)
+                {
+                    var bytes = await AppService.DownloadGeneratedFileAsync(genResult.Data.StoragePath ?? string.Empty);
+                    if (bytes != null)
+                        await JS.InvokeVoidAsync("downloadFileFromBytes", genResult.Data.FileName, "application/pdf", bytes);
+                }
+            }
+
+            // Transition status to OfferGenerated
+            var result = await AppService.IssueOfferLetterAsync(Id, userId, userRole, null);
+            // Always reload so UI reflects true DB state (avoids stale Approved status after partial failure)
+            await LoadApplication();
+            if (!result.Success)
+            {
+                inlineActionError = result.Error ?? "Failed to update status.";
+                await JS.InvokeVoidAsync("scrollToElement", "inline-action-error");
+            }
+        }
+        finally
+        {
+            isIssuingOfferLetter = false;
+        }
+    }
+
+    // Record acceptance modal
+    private bool showRecordAcceptanceModal;
+    private DateTime acceptanceDate = DateTime.Today;
+    private string acceptanceNotes = string.Empty;
+    private string? acceptanceError;
+    private bool isRecordingAcceptance;
+
+    private void ShowRecordAcceptanceModalFn()
+    {
+        acceptanceDate = DateTime.Today;
+        acceptanceNotes = string.Empty;
+        acceptanceError = null;
+        showRecordAcceptanceModal = true;
+    }
+
+    private void CloseRecordAcceptanceModal()
+    {
+        showRecordAcceptanceModal = false;
+        acceptanceError = null;
+    }
+
+    private async Task ConfirmRecordAcceptance()
+    {
+        if (!EnsureAuthenticated(out var userId)) return;
+        isRecordingAcceptance = true;
+        acceptanceError = null;
+        try
+        {
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "Operations";
+            var userName = AuthService.CurrentUser?.FullName ?? "Operations Officer";
+            var comments = $"Customer acceptance recorded. Date signed: {acceptanceDate:dd MMM yyyy}." +
+                (string.IsNullOrWhiteSpace(acceptanceNotes) ? "" : $" Notes: {acceptanceNotes}");
+            var result = await AppService.RecordOfferAcceptanceAsync(Id, userId, userRole, userName, comments);
+            if (result.Success)
+            {
+                CloseRecordAcceptanceModal();
+                await LoadApplication();
+            }
+            else
+            {
+                acceptanceError = result.Error ?? "Failed to record acceptance.";
+            }
+        }
+        finally { isRecordingAcceptance = false; }
+    }
+
+    // Disburse modal
+    private bool showDisburseModal;
+    private string disburseNotes = string.Empty;
+    private string? disburseError;
+    private bool isDisbursing;
+
+    private void ShowDisburseModalFn()
+    {
+        disburseNotes = string.Empty;
+        disburseError = null;
+        showDisburseModal = true;
+    }
+
+    private void CloseDisburseModal()
+    {
+        showDisburseModal = false;
+        disburseError = null;
+    }
+
+    private async Task ConfirmDisburse()
+    {
+        if (!EnsureAuthenticated(out var userId)) return;
+        isDisbursing = true;
+        disburseError = null;
+        try
+        {
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "Operations";
+            var result = await AppService.DisburseApplicationAsync(Id, userId, userRole,
+                string.IsNullOrWhiteSpace(disburseNotes) ? null : disburseNotes);
+            if (result.Success)
+            {
+                CloseDisburseModal();
+                await LoadApplication();
+            }
+            else
+            {
+                disburseError = result.Error ?? "Failed to disburse application.";
+            }
+        }
+        finally { isDisbursing = false; }
+    }
+
     private async Task GenerateOfferLetter()
     {
         isGeneratingOfferLetter = true;
@@ -1376,6 +1737,49 @@ else
         }
     }
 
+    private bool isDownloadingSchedule;
+    private Guid? downloadingScheduleId;
+    private bool isDownloadingKfs;
+    private Guid? downloadingKfsId;
+
+    private async Task DownloadSchedule(Guid offerLetterId)
+    {
+        isDownloadingSchedule = true;
+        downloadingScheduleId = offerLetterId;
+        try
+        {
+            var (bytes, fileName) = await AppService.DownloadAmortisationScheduleAsync(offerLetterId);
+            if (bytes != null && fileName != null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", bytes);
+            else
+                inlineActionError = "Could not generate amortisation schedule.";
+        }
+        finally
+        {
+            isDownloadingSchedule = false;
+            downloadingScheduleId = null;
+        }
+    }
+
+    private async Task DownloadKfs(Guid offerLetterId)
+    {
+        isDownloadingKfs = true;
+        downloadingKfsId = offerLetterId;
+        try
+        {
+            var (bytes, fileName) = await AppService.DownloadKfsAsync(offerLetterId);
+            if (bytes != null && fileName != null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", bytes);
+            else
+                inlineActionError = "Could not generate Key Facts Statement.";
+        }
+        finally
+        {
+            isDownloadingKfs = false;
+            downloadingKfsId = null;
+        }
+    }
+
     private bool isRunningBureauChecks;
 
     private async Task RequestBureauCheck(Guid partyId)
@@ -1422,6 +1826,49 @@ else
             await AppService.CastVoteAsync(application.Committee.ReviewId, args.vote, args.comments, userId);
             await LoadApplication();
         }
+    }
+
+    private async Task RemoveCommitteeMember(Guid userId)
+    {
+        if (application?.Committee == null) return;
+        await AppService.RemoveCommitteeMemberAsync(application.Committee.ReviewId, userId);
+        await LoadApplication();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task AddCommitteeMember((Guid userId, string name, string role, bool isChair) args)
+    {
+        if (application?.Committee == null) return;
+        await AppService.AddCommitteeMemberAsync(application.Committee.ReviewId, args.userId, args.name, args.role, args.isChair);
+        await LoadApplication();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StartCommitteeVoting()
+    {
+        if (application?.Committee == null) return;
+        await AppService.StartVotingAsync(application.Committee.ReviewId);
+        await LoadApplication();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ConfirmCommitteeDecision((string decision, string rationale) args)
+    {
+        if (application?.Committee == null) return;
+        if (!EnsureAuthenticated(out var userId)) return;
+
+        var committee = application.Committee;
+        // For approved decisions, use the pre-recorded recommended terms
+        decimal? amount = args.decision == "Approved" ? committee.RecommendedAmount : null;
+        int? tenor = args.decision == "Approved" ? committee.RecommendedTenorMonths : null;
+        decimal? rate = args.decision == "Approved" ? committee.RecommendedInterestRate : null;
+        string? conditions = args.decision == "Approved" ? committee.RecommendedConditions : null;
+
+        await AppService.ConfirmCommitteeDecisionAsync(
+            committee.ReviewId, args.decision, args.rationale,
+            amount, tenor, rate, conditions, userId);
+        await LoadApplication();
+        await InvokeAsync(StateHasChanged);
     }
 
     private bool isAddingComment;
@@ -1723,7 +2170,7 @@ else
     private bool isApprovingGuarantor;
     private bool isRejectingGuarantor;
 
-    private bool CanManageGuarantors => application?.Status is not (null or AppStatus.Draft or AppStatus.Approved or AppStatus.CommitteeApproved or AppStatus.Rejected or AppStatus.Disbursed);
+    private bool CanManageGuarantors => application?.Status is not (null or AppStatus.Draft or AppStatus.Approved or AppStatus.OfferGenerated or AppStatus.OfferAccepted or AppStatus.CommitteeApproved or AppStatus.Rejected or AppStatus.Disbursed);
 
     private void ShowApproveGuarantorModal(Guid guarantorId)
     {
@@ -1902,6 +2349,7 @@ else
     private bool showManageStatementTransactionsModal;
     private Guid? managingStatementId;
     private List<StatementTransactionRow>? preloadedStatementTransactions;
+    private List<StatementTransactionInfo>? existingStatementTransactions;
     private string? statementParseMessage;
     private bool showRejectStatementModal;
     private Guid? rejectingStatementId;
@@ -1925,9 +2373,14 @@ else
         showManageStatementTransactionsModal = true;
     }
 
-    private void ShowManageStatementTransactionsModal(Guid statementId)
+    private async Task ShowManageStatementTransactionsModal(Guid statementId)
     {
         managingStatementId = statementId;
+        var stmt = application?.BankStatements.FirstOrDefault(s => s.Id == statementId);
+        if (stmt != null && stmt.TransactionCount > 0)
+            existingStatementTransactions = await AppService.GetStatementTransactionsAsync(statementId);
+        else
+            existingStatementTransactions = null;
         showManageStatementTransactionsModal = true;
     }
 
@@ -1936,6 +2389,7 @@ else
         showManageStatementTransactionsModal = false;
         managingStatementId = null;
         preloadedStatementTransactions = null;
+        existingStatementTransactions = null;
         statementParseMessage = null;
     }
 
@@ -1944,6 +2398,7 @@ else
         showManageStatementTransactionsModal = false;
         managingStatementId = null;
         preloadedStatementTransactions = null;
+        existingStatementTransactions = null;
         statementParseMessage = null;
         await LoadApplication();
     }
@@ -2313,6 +2768,7 @@ else
             {
                 showSubmitReviewModal = false;
                 await LoadApplication();
+                StateHasChanged();
             }
             else
             {

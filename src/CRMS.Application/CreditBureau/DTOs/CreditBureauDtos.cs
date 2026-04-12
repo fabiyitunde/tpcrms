@@ -56,7 +56,8 @@ public record BureauReportSummaryDto(
     Guid? PartyId,
     string? PartyType,
     DateTime RequestedAt,
-    DateTime? CompletedAt
+    DateTime? CompletedAt,
+    string? ErrorMessage
 );
 
 public record BureauAccountDto(

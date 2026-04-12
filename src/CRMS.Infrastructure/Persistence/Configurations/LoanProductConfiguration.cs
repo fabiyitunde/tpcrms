@@ -92,8 +92,14 @@ public class LoanProductConfiguration : IEntityTypeConfiguration<LoanProduct>
             .HasForeignKey(x => x.LoanProductId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(x => x.DisbursementChecklist)
+            .WithOne()
+            .HasForeignKey(x => x.LoanProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.Navigation(x => x.PricingTiers).AutoInclude();
         builder.Navigation(x => x.EligibilityRules).AutoInclude();
         builder.Navigation(x => x.DocumentRequirements).AutoInclude();
+        builder.Navigation(x => x.DisbursementChecklist).AutoInclude();
     }
 }

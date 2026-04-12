@@ -80,8 +80,15 @@ public class GetBureauReportsByLoanApplicationHandler : IRequestHandler<GetBurea
     public async Task<ApplicationResult<List<BureauReportSummaryDto>>> Handle(GetBureauReportsByLoanApplicationQuery request, CancellationToken ct = default)
     {
         var reports = await _repository.GetByLoanApplicationIdAsync(request.LoanApplicationId, ct);
-        
-        var dtos = reports.Select(r => new BureauReportSummaryDto(
+
+        // When a ConsentRequired check is retried, a new report is created alongside the old one.
+        // Show only the latest report per BVN (or per business subject) so duplicates don't appear.
+        var deduped = reports
+            .GroupBy(r => r.BVN ?? $"business:{r.SubjectType}")
+            .Select(g => g.OrderByDescending(r => r.RequestedAt).First())
+            .ToList();
+
+        var dtos = deduped.Select(r => new BureauReportSummaryDto(
             r.Id,
             r.Provider.ToString(),
             r.SubjectType.ToString(),
@@ -99,7 +106,8 @@ public class GetBureauReportsByLoanApplicationHandler : IRequestHandler<GetBurea
             r.PartyId,
             r.PartyType,
             r.RequestedAt,
-            r.CompletedAt
+            r.CompletedAt,
+            r.ErrorMessage
         )).ToList();
 
         return ApplicationResult<List<BureauReportSummaryDto>>.Success(dtos);

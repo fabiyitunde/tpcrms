@@ -27,6 +27,12 @@ public class CommitteeReview : AggregateRoot
     public Guid? DecisionByUserId { get; private set; }
     public string? DecisionRationale { get; private set; }
     
+    // Recommended Terms — captured by credit officer before voting starts
+    public decimal? RecommendedAmount { get; private set; }
+    public int? RecommendedTenorMonths { get; private set; }
+    public decimal? RecommendedInterestRate { get; private set; }
+    public string? RecommendedConditions { get; private set; }
+
     // Approved Terms (if approved)
     public decimal? ApprovedAmount { get; private set; }
     public int? ApprovedTenorMonths { get; private set; }
@@ -50,7 +56,11 @@ public class CommitteeReview : AggregateRoot
         Guid circulatedByUserId,
         int requiredVotes,
         int minimumApprovalVotes,
-        int deadlineHours = 72)
+        int deadlineHours = 72,
+        decimal? recommendedAmount = null,
+        int? recommendedTenorMonths = null,
+        decimal? recommendedInterestRate = null,
+        string? recommendedConditions = null)
     {
         if (requiredVotes <= 0)
             return Result.Failure<CommitteeReview>("Required votes must be greater than zero");
@@ -68,7 +78,11 @@ public class CommitteeReview : AggregateRoot
             CirculatedByUserId = circulatedByUserId,
             DeadlineAt = DateTime.UtcNow.AddHours(deadlineHours),
             RequiredVotes = requiredVotes,
-            MinimumApprovalVotes = minimumApprovalVotes
+            MinimumApprovalVotes = minimumApprovalVotes,
+            RecommendedAmount = recommendedAmount,
+            RecommendedTenorMonths = recommendedTenorMonths,
+            RecommendedInterestRate = recommendedInterestRate,
+            RecommendedConditions = recommendedConditions
         };
 
         review.AddDomainEvent(new CommitteeReviewCreatedEvent(
@@ -142,8 +156,8 @@ public class CommitteeReview : AggregateRoot
 
         AddDomainEvent(new CommitteeVoteCastEvent(Id, LoanApplicationId, userId, vote));
 
-        // Check if quorum is reached or all votes are in
-        if (Status != CommitteeReviewStatus.VotingComplete && (HasQuorum || _members.All(m => m.HasVoted)))
+        // Mark VotingComplete only when every member has voted — no one gets locked out
+        if (Status != CommitteeReviewStatus.VotingComplete && _members.All(m => m.HasVoted))
         {
             Status = CommitteeReviewStatus.VotingComplete;
             AddDomainEvent(new CommitteeVotingCompletedEvent(Id, LoanApplicationId));
@@ -222,6 +236,14 @@ public class CommitteeReview : AggregateRoot
         if (string.IsNullOrWhiteSpace(rationale))
             return Result.Failure("Decision rationale is required");
 
+        if (decision == CommitteeDecision.Approved || decision == CommitteeDecision.ApprovedWithConditions)
+        {
+            if (!HasMajorityApproval)
+                return Result.Failure(
+                    $"Insufficient approval votes to record an approval decision. " +
+                    $"Required: {MinimumApprovalVotes}, Approved: {ApprovalVotes}.");
+        }
+
         if (decision == CommitteeDecision.Approved)
         {
             if (!approvedAmount.HasValue || approvedAmount <= 0)
@@ -243,7 +265,7 @@ public class CommitteeReview : AggregateRoot
         Status = CommitteeReviewStatus.Decided;
 
         AddDomainEvent(new CommitteeDecisionRecordedEvent(
-            Id, LoanApplicationId, decision, approvedAmount, approvedTenorMonths, approvedInterestRate));
+            Id, LoanApplicationId, decidedByUserId, decision, approvedAmount, approvedTenorMonths, approvedInterestRate, rationale));
 
         return Result.Success();
     }
@@ -290,8 +312,9 @@ public record CommitteeCommentAddedEvent(
     Guid ReviewId, Guid LoanApplicationId, Guid UserId) : DomainEvent;
 
 public record CommitteeDecisionRecordedEvent(
-    Guid ReviewId, Guid LoanApplicationId, CommitteeDecision Decision,
-    decimal? ApprovedAmount, int? ApprovedTenor, decimal? ApprovedRate) : DomainEvent;
+    Guid ReviewId, Guid LoanApplicationId, Guid DecisionByUserId, CommitteeDecision Decision,
+    decimal? ApprovedAmount, int? ApprovedTenor, decimal? ApprovedRate,
+    string? Rationale = null) : DomainEvent;
 
 public record CommitteeReviewClosedEvent(
     Guid ReviewId, Guid LoanApplicationId, CommitteeDecision FinalDecision) : DomainEvent;

@@ -14,7 +14,11 @@ public record CreateCommitteeReviewCommand(
     Guid CirculatedByUserId,
     int RequiredVotes,
     int MinimumApprovalVotes,
-    int DeadlineHours = 72
+    int DeadlineHours = 72,
+    decimal? RecommendedAmount = null,
+    int? RecommendedTenorMonths = null,
+    decimal? RecommendedInterestRate = null,
+    string? RecommendedConditions = null
 ) : IRequest<ApplicationResult<CommitteeReviewDto>>;
 
 public class CreateCommitteeReviewHandler : IRequestHandler<CreateCommitteeReviewCommand, ApplicationResult<CommitteeReviewDto>>
@@ -42,7 +46,11 @@ public class CreateCommitteeReviewHandler : IRequestHandler<CreateCommitteeRevie
             request.CirculatedByUserId,
             request.RequiredVotes,
             request.MinimumApprovalVotes,
-            request.DeadlineHours);
+            request.DeadlineHours,
+            request.RecommendedAmount,
+            request.RecommendedTenorMonths,
+            request.RecommendedInterestRate,
+            request.RecommendedConditions);
 
         if (result.IsFailure)
             return ApplicationResult<CommitteeReviewDto>.Failure(result.Error);
@@ -81,6 +89,40 @@ public class AddCommitteeMemberHandler : IRequestHandler<AddCommitteeMemberComma
             return ApplicationResult<CommitteeReviewDto>.Failure("Committee review not found");
 
         var result = review.AddMember(request.UserId, request.UserName, request.Role, request.IsChairperson);
+        if (result.IsFailure)
+            return ApplicationResult<CommitteeReviewDto>.Failure(result.Error);
+
+        _repository.Update(review);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return ApplicationResult<CommitteeReviewDto>.Success(CommitteeMapper.ToDto(review));
+    }
+}
+
+// Remove committee member
+public record RemoveCommitteeMemberCommand(
+    Guid CommitteeReviewId,
+    Guid UserId
+) : IRequest<ApplicationResult<CommitteeReviewDto>>;
+
+public class RemoveCommitteeMemberHandler : IRequestHandler<RemoveCommitteeMemberCommand, ApplicationResult<CommitteeReviewDto>>
+{
+    private readonly ICommitteeReviewRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public RemoveCommitteeMemberHandler(ICommitteeReviewRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult<CommitteeReviewDto>> Handle(RemoveCommitteeMemberCommand request, CancellationToken ct = default)
+    {
+        var review = await _repository.GetByIdAsync(request.CommitteeReviewId, ct);
+        if (review == null)
+            return ApplicationResult<CommitteeReviewDto>.Failure("Committee review not found");
+
+        var result = review.RemoveMember(request.UserId);
         if (result.IsFailure)
             return ApplicationResult<CommitteeReviewDto>.Failure(result.Error);
 
@@ -297,6 +339,10 @@ internal static class CommitteeMapper
         review.DeadlineAt,
         review.RequiredVotes,
         review.MinimumApprovalVotes,
+        review.RecommendedAmount,
+        review.RecommendedTenorMonths,
+        review.RecommendedInterestRate,
+        review.RecommendedConditions,
         review.FinalDecision?.ToString(),
         review.DecisionAt,
         review.DecisionByUserId,

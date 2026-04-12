@@ -53,6 +53,17 @@ public class MockSmartComplyProvider : ISmartComplyProvider
             HighestLoanAmount: 500000, MaxDelinquencyDays: 0,
             Creditors: ["Sterling Bank"],
             FraudRiskScore: 15, FraudRecommendation: "Excellent credit profile. Recommend approval."
+        ),
+        ["22234567893"] = new MockIndividualData(
+            Name: "FATIMA BELLO",
+            Phone: "+2348012345004",
+            Gender: "Female",
+            DateOfBirth: "1985-09-15",
+            TotalLoans: 3, ActiveLoans: 1, ClosedLoans: 2, PerformingLoans: 3,
+            DelinquentFacilities: 0, TotalBorrowed: 1200000, TotalOutstanding: 350000, TotalOverdue: 0,
+            HighestLoanAmount: 750000, MaxDelinquencyDays: 0,
+            Creditors: ["Access Bank", "Zenith Bank"],
+            FraudRiskScore: 20, FraudRecommendation: "Low risk. Good repayment history."
         )
     };
 

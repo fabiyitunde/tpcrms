@@ -93,6 +93,8 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
                 .HasMaxLength(3);
         });
 
+        builder.Navigation(x => x.ApprovedAmount).IsRequired(false);
+
         builder.Property(x => x.ApprovedInterestRate)
             .HasPrecision(5, 2);
 
@@ -122,12 +124,26 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
             .HasForeignKey(x => x.LoanApplicationId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(x => x.ChecklistItems)
+            .WithOne()
+            .HasForeignKey(x => x.LoanApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Offer lifecycle audit fields
+        builder.Property(x => x.OfferIssuedAt).IsRequired(false);
+        builder.Property(x => x.OfferIssuedByUserId).IsRequired(false);
+        builder.Property(x => x.OfferAcceptedAt).IsRequired(false);
+        builder.Property(x => x.OfferAcceptedByUserId).IsRequired(false);
+
         // Concurrency token disabled for MySQL compatibility
         // RowVersion stored as BLOB, must have default value to avoid DBNull issues
+        // ValueGeneratedNever() prevents EF from treating this as a DB-generated value,
+        // which would cause Pomelo to issue a post-INSERT SELECT that returns 0 rows on GUID-PK entities.
         builder.Property(x => x.RowVersion)
             .HasColumnType("BLOB")
             .HasDefaultValue(new byte[] { 0 })
-            .IsRequired(false);
+            .IsRequired(false)
+            .ValueGeneratedNever();
 
         builder.Ignore(x => x.DomainEvents);
     }

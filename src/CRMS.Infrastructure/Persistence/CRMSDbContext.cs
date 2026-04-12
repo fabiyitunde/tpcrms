@@ -2,6 +2,7 @@ using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Aggregates.ProductCatalog;
 using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Interfaces;
+using CRMS.Infrastructure.Persistence.Outbox;
 using Microsoft.EntityFrameworkCore;
 using AD = CRMS.Domain.Aggregates.Advisory;
 using AU = CRMS.Domain.Aggregates.Audit;
@@ -32,6 +33,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<PricingTier> PricingTiers => Set<PricingTier>();
     public DbSet<EligibilityRule> EligibilityRules => Set<EligibilityRule>();
     public DbSet<DocumentRequirement> DocumentRequirements => Set<DocumentRequirement>();
+    public DbSet<DisbursementChecklistTemplate> DisbursementChecklistTemplates => Set<DisbursementChecklistTemplate>();
 
     // Identity
     public DbSet<ApplicationUser> Users => Set<ApplicationUser>();
@@ -46,6 +48,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<LA.LoanApplicationParty> LoanApplicationParties => Set<LA.LoanApplicationParty>();
     public DbSet<LA.LoanApplicationComment> LoanApplicationComments => Set<LA.LoanApplicationComment>();
     public DbSet<LA.LoanApplicationStatusHistory> LoanApplicationStatusHistory => Set<LA.LoanApplicationStatusHistory>();
+    public DbSet<LA.DisbursementChecklistItem> DisbursementChecklistItems => Set<LA.DisbursementChecklistItem>();
 
     // StatementAnalysis
     public DbSet<SA.BankStatement> BankStatements => Set<SA.BankStatement>();
@@ -112,6 +115,9 @@ public class CRMSDbContext : DbContext, IUnitOfWork
 
     // Location
     public DbSet<LO.Location> Locations => Set<LO.Location>();
+
+    // Outbox
+    public DbSet<CreditCheckOutboxEntry> CreditCheckOutbox => Set<CreditCheckOutboxEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

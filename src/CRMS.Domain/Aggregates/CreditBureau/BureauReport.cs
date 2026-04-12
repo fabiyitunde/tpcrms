@@ -132,7 +132,7 @@ public class BureauReport : AggregateRoot
             SubjectName = subjectName,
             BVN = bvn,
             TaxId = taxId,
-            Status = BureauReportStatus.Failed,
+            Status = BureauReportStatus.ConsentRequired,
             RequestedByUserId = requestedByUserId,
             RequestedAt = DateTime.UtcNow,
             CompletedAt = DateTime.UtcNow,

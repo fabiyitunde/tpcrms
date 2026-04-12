@@ -1,7 +1,9 @@
 using CRMS.Application.Common;
 using CRMS.Domain.Aggregates.CreditBureau;
+using CRMS.Domain.Constants;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
+using CRMS.Domain.Services;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Text.Json;
@@ -84,6 +86,8 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
     private readonly IBureauReportRepository _bureauReportRepository;
     private readonly IConsentRecordRepository _consentRepository;
     private readonly ISmartComplyProvider _smartComplyProvider;
+    private readonly IWorkflowInstanceRepository _workflowInstanceRepository;
+    private readonly WorkflowService _workflowService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ProcessLoanCreditChecksHandler> _logger;
 
@@ -94,6 +98,8 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
         IBureauReportRepository bureauReportRepository,
         IConsentRecordRepository consentRepository,
         ISmartComplyProvider smartComplyProvider,
+        IWorkflowInstanceRepository workflowInstanceRepository,
+        WorkflowService workflowService,
         IUnitOfWork unitOfWork,
         ILogger<ProcessLoanCreditChecksHandler> logger)
     {
@@ -103,6 +109,8 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
         _bureauReportRepository = bureauReportRepository;
         _consentRepository = consentRepository;
         _smartComplyProvider = smartComplyProvider;
+        _workflowInstanceRepository = workflowInstanceRepository;
+        _workflowService = workflowService;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -156,9 +164,27 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
         }
 
         // Get existing bureau reports to avoid duplicates.
-        // Only treat Completed or NotFound as "done" — Failed reports (including consent failures) can be retried
-        // once consent is captured, so exclude them from the skip-set.
+        // Completed and NotFound are terminal — never re-run.
+        // Failed reports are retryable: we delete them before processing so the retry creates a fresh
+        //   record without duplicates. RecordCreditCheckCompleted was already called for Failed reports
+        //   in the original run, so we track their BVNs to avoid double-incrementing on retry.
+        // ConsentRequired is retryable without deletion — no CreditChecksCompleted increment was made.
         var existingBureauReports = await _bureauReportRepository.GetByLoanApplicationIdAsync(request.LoanApplicationId, ct);
+
+        // Track BVNs/business whose Failed reports we are about to delete and retry.
+        // RecordCreditCheckCompleted was already called for these; skip it in the retry.
+        var alreadyCountedBvns = existingBureauReports
+            .Where(r => !string.IsNullOrEmpty(r.BVN) && r.Status == BureauReportStatus.Failed)
+            .Select(r => r.BVN!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var alreadyCountedBusiness = existingBureauReports
+            .Any(r => r.SubjectType == SubjectType.Business && r.Status == BureauReportStatus.Failed);
+
+        // Delete Failed reports so the retry loop creates fresh records without duplicates
+        foreach (var failedReport in existingBureauReports.Where(r => r.Status == BureauReportStatus.Failed))
+            _bureauReportRepository.Delete(failedReport);
+
+        // Completed and NotFound remain "done" — they are never re-run
         var existingBvns = existingBureauReports
             .Where(r => !string.IsNullOrEmpty(r.BVN) &&
                         (r.Status == BureauReportStatus.Completed || r.Status == BureauReportStatus.NotFound))
@@ -167,9 +193,13 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
         var hasExistingBusinessReport = existingBureauReports.Any(r => r.SubjectType == SubjectType.Business &&
             (r.Status == BureauReportStatus.Completed || r.Status == BureauReportStatus.NotFound));
 
-        // Get all parties (directors, signatories) from loan application
+        // Get all parties (directors, signatories) from loan application.
+        // Deduplicate by BVN — a person can appear as both Director and Signatory (same BVN),
+        // but they only need one bureau check.
         var partiesWithBVN = loanApp.Parties
             .Where(p => !string.IsNullOrEmpty(p.BVN))
+            .GroupBy(p => p.BVN!, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
             .ToList();
 
         // Get guarantors for this loan
@@ -198,6 +228,25 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
             var startResult = loanApp.StartCreditAnalysis(totalChecks, request.SystemUserId);
             if (startResult.IsFailure)
                 return ApplicationResult<CreditCheckBatchResultDto>.Failure(startResult.Error);
+
+            // Sync the workflow instance to CreditAnalysis so the auto-transition handler
+            // can fire correctly when all checks complete.
+            var workflowInstance = await _workflowInstanceRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
+            if (workflowInstance != null && workflowInstance.CurrentStatus == LoanApplicationStatus.BranchApproved)
+            {
+                var wfResult = await _workflowService.TransitionAsync(
+                    workflowInstance.Id,
+                    LoanApplicationStatus.CreditAnalysis,
+                    WorkflowAction.MoveToNextStage,
+                    SystemConstants.SystemUserId,
+                    Roles.SystemAdmin,
+                    "System: Credit analysis initiated",
+                    ct);
+
+                if (wfResult.IsFailure)
+                    _logger.LogWarning("Could not sync workflow to CreditAnalysis for loan {LoanId}: {Error}",
+                        loanApp.Id, wfResult.Error);
+            }
         }
         else if (loanApp.Status == LoanApplicationStatus.CreditAnalysis)
         {
@@ -265,7 +314,8 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
 
             // Consent failures are not counted as completed — the check was blocked, not performed.
             // The command can be re-run once consent is captured.
-            if (result.FailureReason != CreditCheckFailureReason.NoConsent)
+            // Also skip if this BVN was already counted in a previous run (retry of a Failed report).
+            if (result.FailureReason != CreditCheckFailureReason.NoConsent && !alreadyCountedBvns.Contains(party.BVN!))
             {
                 var recordResult = loanApp.RecordCreditCheckCompleted(request.SystemUserId);
                 if (recordResult.IsFailure)
@@ -317,7 +367,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
             else if (result.FailureReason == CreditCheckFailureReason.NotFound) notFound++;
             else failed++;
 
-            if (result.FailureReason != CreditCheckFailureReason.NoConsent)
+            if (result.FailureReason != CreditCheckFailureReason.NoConsent && !alreadyCountedBvns.Contains(guarantor.BVN!))
             {
                 var recordResult = loanApp.RecordCreditCheckCompleted(request.SystemUserId);
                 if (recordResult.IsFailure)
@@ -374,7 +424,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 else if (businessResult.FailureReason == CreditCheckFailureReason.NotFound) notFound++;
                 else failed++;
 
-                if (businessResult.FailureReason != CreditCheckFailureReason.NoConsent)
+                if (businessResult.FailureReason != CreditCheckFailureReason.NoConsent && !alreadyCountedBusiness)
                 {
                     var recordResult = loanApp.RecordCreditCheckCompleted(request.SystemUserId);
                     if (recordResult.IsFailure)

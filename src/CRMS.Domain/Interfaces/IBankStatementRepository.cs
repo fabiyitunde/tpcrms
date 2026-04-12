@@ -11,5 +11,6 @@ public interface IBankStatementRepository
     Task<IReadOnlyList<BankStatement>> GetByAccountNumberAsync(string accountNumber, CancellationToken ct = default);
     Task AddAsync(BankStatement statement, CancellationToken ct = default);
     void Update(BankStatement statement);
+    void AttachNewTransactions(IEnumerable<Aggregates.StatementAnalysis.StatementTransaction> transactions);
     void Delete(BankStatement statement);
 }

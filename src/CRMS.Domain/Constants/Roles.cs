@@ -13,6 +13,7 @@ public static class Roles
     public const string CommitteeMember = "CommitteeMember";
     public const string FinalApprover = "FinalApprover";
     public const string Operations = "Operations";
+    public const string LegalOfficer = "LegalOfficer";
     public const string Auditor = "Auditor";
     public const string Customer = "Customer";
 
@@ -27,6 +28,7 @@ public static class Roles
         CommitteeMember,
         FinalApprover,
         Operations,
+        LegalOfficer,
         Auditor,
         Customer
     ];
@@ -42,6 +44,7 @@ public static class Roles
         { CommitteeMember, "Committee voting and comments for corporate loans" },
         { FinalApprover, "Final loan approval authority" },
         { Operations, "Disbursement and booking operations" },
+        { LegalOfficer, "Ratifies legal and security documents for pre-disbursement checklist" },
         { Auditor, "Read-only audit access" },
         { Customer, "Self-service retail loan applicant" }
     };
@@ -62,6 +65,7 @@ public static class Roles
         { CommitteeMember, VisibilityScope.Global },  // Committee can see all (for voting)
         { FinalApprover, VisibilityScope.Global },    // HO role - sees all
         { Operations, VisibilityScope.Global },       // HO role - sees all
+        { LegalOfficer, VisibilityScope.Global },     // HO role - sees all
         { Auditor, VisibilityScope.Global },          // Read-only audit - sees all
         { Customer, VisibilityScope.Own }             // Customers see only their own applications
     };

@@ -20,7 +20,7 @@ public class GetLoanApplicationByIdHandler : IRequestHandler<GetLoanApplicationB
 
     public async Task<ApplicationResult<LoanApplicationDto>> Handle(GetLoanApplicationByIdQuery request, CancellationToken ct = default)
     {
-        var application = await _repository.GetByIdAsync(request.Id, ct);
+        var application = await _repository.GetByIdNoTrackingAsync(request.Id, ct);
         if (application == null)
             return ApplicationResult<LoanApplicationDto>.Failure("Loan application not found");
 

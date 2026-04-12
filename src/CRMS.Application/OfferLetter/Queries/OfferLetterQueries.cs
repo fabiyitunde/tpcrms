@@ -1,4 +1,5 @@
 using CRMS.Application.Common;
+using CRMS.Domain.Aggregates.OfferLetter;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.OfferLetter.Queries;
@@ -30,7 +31,9 @@ public class GetOfferLettersByApplicationHandler
     public async Task<ApplicationResult<List<OfferLetterSummaryDto>>> Handle(
         GetOfferLettersByApplicationQuery request, CancellationToken ct = default)
     {
-        var letters = await _repo.GetAllByLoanApplicationIdAsync(request.LoanApplicationId, ct);
+        var letters = (await _repo.GetAllByLoanApplicationIdAsync(request.LoanApplicationId, ct))
+            .Where(l => l.Status != OfferLetterStatus.Failed)
+            .ToList();
 
         var dtos = letters.Select(l => new OfferLetterSummaryDto(
             Id: l.Id,

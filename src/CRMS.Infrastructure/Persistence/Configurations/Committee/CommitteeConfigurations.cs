@@ -36,6 +36,15 @@ public class CommitteeReviewConfiguration : IEntityTypeConfiguration<CommitteeRe
         builder.Property(x => x.DecisionRationale)
             .HasMaxLength(2000);
 
+        builder.Property(x => x.RecommendedAmount)
+            .HasPrecision(18, 2);
+
+        builder.Property(x => x.RecommendedInterestRate)
+            .HasPrecision(8, 4);
+
+        builder.Property(x => x.RecommendedConditions)
+            .HasMaxLength(2000);
+
         builder.Property(x => x.ApprovedAmount)
             .HasPrecision(18, 2);
 

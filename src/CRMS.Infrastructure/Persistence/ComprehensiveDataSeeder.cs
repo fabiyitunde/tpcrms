@@ -83,6 +83,9 @@ public static class ComprehensiveDataSeeder
         }
         await SeedProductRulesAndRequirementsAsync(context, logger, products);
 
+        // 5.5. Seed global mock consent records for test BVNs (allows credit checks to succeed on new UI-created applications)
+        await SeedMockConsentRecordsAsync(context, logger, users.LoanOfficer);
+
         // 6. Seed loan applications at various stages (covers most related tables)
         await SeedLoanApplicationsAsync(context, logger, users, products, workflowDef);
 
@@ -97,87 +100,124 @@ public static class ComprehensiveDataSeeder
         logger.LogInformation("Comprehensive data seeding completed successfully! (100% table coverage)");
     }
 
-    private static async Task<(ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-        ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-        ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-        ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor)> 
+    // All user accounts the system needs — shared between fresh-seed and supplement paths.
+    // Tuple: (userName, firstName, lastName, roleName, email, userType)
+    private static readonly (string UserName, string FirstName, string LastName, string RoleName, string Email, UserType UserType)[] AllUserDefinitions =
+    [
+        ("admin",          "System",      "Administrator", Roles.SystemAdmin,      "admin@crms.ng",              UserType.Staff),
+        ("loanofficer",    "Adewale",     "Johnson",       Roles.LoanOfficer,      "adewale.johnson@crms.ng",    UserType.Staff),
+        ("loanofficer2",   "Chioma",      "Okonkwo",       Roles.LoanOfficer,      "chioma.okonkwo@crms.ng",     UserType.Staff),
+        ("branchapprover", "Oluwaseun",   "Adeyemi",       Roles.BranchApprover,   "oluwaseun.adeyemi@crms.ng",  UserType.Staff),
+        ("creditofficer",  "Uche",        "Eze",           Roles.CreditOfficer,    "uche.eze@crms.ng",           UserType.Staff),
+        ("horeviewer",     "Fatima",      "Ibrahim",       Roles.HOReviewer,       "fatima.ibrahim@crms.ng",     UserType.Staff),
+        ("committee1",     "Emeka",       "Nnamdi",        Roles.CommitteeMember,  "emeka.nnamdi@crms.ng",       UserType.Staff),
+        ("committee2",     "Blessing",    "Okafor",        Roles.CommitteeMember,  "blessing.okafor@crms.ng",    UserType.Staff),
+        ("committee3",     "Tunde",       "Bakare",        Roles.CommitteeMember,  "tunde.bakare@crms.ng",       UserType.Staff),
+        ("finalapprover",  "Yusuf",       "Mohammed",      Roles.FinalApprover,    "yusuf.mohammed@crms.ng",     UserType.Staff),
+        ("operations",     "Folake",      "Balogun",       Roles.Operations,       "folake.balogun@crms.ng",     UserType.Staff),
+        ("legalofficer",   "Adaeze",      "Nwosu",         Roles.LegalOfficer,     "adaeze.nwosu@crms.ng",       UserType.Staff),
+        ("riskmanager",    "Chukwuemeka", "Obi",           Roles.RiskManager,      "chukwuemeka.obi@crms.ng",    UserType.Staff),
+        ("auditor",        "Amina",       "Suleiman",      Roles.Auditor,          "amina.suleiman@crms.ng",     UserType.Staff),
+        ("customer",       "Demo",        "Customer",      Roles.Customer,         "customer@crms.ng",           UserType.Customer),
+    ];
+
+    private static async Task<(ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover,
+        ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1,
+        ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover,
+        ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor)>
         SeedUsersAsync(CRMSDbContext context, ILogger logger)
     {
+        var roles = await context.Roles.ToListAsync();
+
         if (await context.Users.AnyAsync())
         {
-            logger.LogInformation("Users already exist, checking password hashes...");
+            logger.LogInformation("Users already exist, checking for missing role accounts...");
             var existingUsers = await context.Users
                 .Include(u => u.UserRoles)
                 .ToListAsync();
-            
+
             // Fix any users with mocked password hashes
             if (_passwordHasher != null)
             {
                 var usersWithMockedPasswords = existingUsers
                     .Where(u => u.PasswordHash.StartsWith("AQAAAAIAAYagAAAAEMocked"))
                     .ToList();
-                
+
                 if (usersWithMockedPasswords.Any())
                 {
                     logger.LogInformation("Fixing {Count} users with mocked password hashes...", usersWithMockedPasswords.Count);
                     var validHash = _passwordHasher.HashPassword("Password1$$$");
                     foreach (var user in usersWithMockedPasswords)
-                    {
                         user.SetPasswordHash(validHash);
-                    }
                     await context.SaveChangesAsync();
                     logger.LogInformation("Password hashes updated successfully. Password for all users: Password1$$$");
                 }
             }
-            
+
+            // Supplement: add any accounts that are absent (e.g. only the basic seed ran before this)
+            var existingUserNames = existingUsers.Select(u => u.UserName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var locationId = existingUsers.FirstOrDefault()?.LocationId;
+            bool addedAny = false;
+
+            foreach (var def in AllUserDefinitions)
+            {
+                if (existingUserNames.Contains(def.UserName)) continue;
+
+                logger.LogInformation("Adding missing user: {UserName} ({Role})", def.UserName, def.RoleName);
+                var userResult = ApplicationUser.Create(
+                    def.Email, def.UserName, def.FirstName, def.LastName,
+                    def.UserType, "+234801234" + _random.Next(1000, 9999), locationId);
+                if (userResult.IsSuccess)
+                {
+                    var passwordHash = _passwordHasher?.HashPassword("Password1$$$")
+                        ?? "AQAAAAIAAYagAAAAEMocked" + Guid.NewGuid().ToString("N");
+                    userResult.Value.SetPasswordHash(passwordHash);
+                    var role = roles.FirstOrDefault(r => r.Name == def.RoleName);
+                    if (role != null) userResult.Value.AddRole(role);
+                    await context.Users.AddAsync(userResult.Value);
+                    existingUsers.Add(userResult.Value);
+                    addedAny = true;
+                }
+            }
+
+            if (addedAny)
+            {
+                await context.SaveChangesAsync();
+                logger.LogInformation("Missing user accounts added successfully.");
+            }
+
             return (
-                existingUsers.FirstOrDefault(u => u.UserName == "admin") ?? existingUsers.First(),
-                existingUsers.FirstOrDefault(u => u.UserName == "loanofficer") ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "admin")          ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "loanofficer")    ?? existingUsers.First(),
                 existingUsers.FirstOrDefault(u => u.UserName == "branchapprover") ?? existingUsers.First(),
-                existingUsers.FirstOrDefault(u => u.UserName == "creditofficer") ?? existingUsers.First(),
-                existingUsers.FirstOrDefault(u => u.UserName == "horeviewer") ?? existingUsers.First(),
-                existingUsers.FirstOrDefault(u => u.UserName == "committee1") ?? existingUsers.First(),
-                existingUsers.FirstOrDefault(u => u.UserName == "committee2") ?? existingUsers.First(),
-                existingUsers.FirstOrDefault(u => u.UserName == "committee3") ?? existingUsers.First(),
-                existingUsers.FirstOrDefault(u => u.UserName == "finalapprover") ?? existingUsers.First(),
-                existingUsers.FirstOrDefault(u => u.UserName == "operations") ?? existingUsers.First(),
-                existingUsers.FirstOrDefault(u => u.UserName == "riskmanager") ?? existingUsers.First(),
-                existingUsers.FirstOrDefault(u => u.UserName == "auditor") ?? existingUsers.First()
+                existingUsers.FirstOrDefault(u => u.UserName == "creditofficer")  ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "horeviewer")     ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "committee1")     ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "committee2")     ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "committee3")     ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "finalapprover")  ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "operations")     ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "riskmanager")    ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "auditor")        ?? existingUsers.First()
             );
         }
 
         logger.LogInformation("Seeding users...");
-        var roles = await context.Roles.ToListAsync();
-        var branchId = Guid.NewGuid();
-
-        var userDefinitions = new[]
-        {
-            ("admin", "System", "Administrator", Roles.SystemAdmin, "admin@crms.ng"),
-            ("loanofficer", "Adewale", "Johnson", Roles.LoanOfficer, "adewale.johnson@crms.ng"),
-            ("loanofficer2", "Chioma", "Okonkwo", Roles.LoanOfficer, "chioma.okonkwo@crms.ng"),
-            ("branchapprover", "Oluwaseun", "Adeyemi", Roles.BranchApprover, "oluwaseun.adeyemi@crms.ng"),
-            ("creditofficer", "Uche", "Eze", Roles.CreditOfficer, "uche.eze@crms.ng"),
-            ("horeviewer", "Fatima", "Ibrahim", Roles.HOReviewer, "fatima.ibrahim@crms.ng"),
-            ("committee1", "Emeka", "Nnamdi", Roles.CommitteeMember, "emeka.nnamdi@crms.ng"),
-            ("committee2", "Blessing", "Okafor", Roles.CommitteeMember, "blessing.okafor@crms.ng"),
-            ("committee3", "Tunde", "Bakare", Roles.CommitteeMember, "tunde.bakare@crms.ng"),
-            ("finalapprover", "Yusuf", "Mohammed", Roles.FinalApprover, "yusuf.mohammed@crms.ng"),
-            ("operations", "Folake", "Balogun", Roles.Operations, "folake.balogun@crms.ng"),
-            ("riskmanager", "Chukwuemeka", "Obi", Roles.RiskManager, "chukwuemeka.obi@crms.ng"),
-            ("auditor", "Amina", "Suleiman", Roles.Auditor, "amina.suleiman@crms.ng")
-        };
+        var locationIdFresh = (Guid?)null; // HO/global users have no specific branch
 
         var createdUsers = new List<ApplicationUser>();
-        foreach (var (userName, firstName, lastName, roleName, email) in userDefinitions)
+        foreach (var def in AllUserDefinitions)
         {
-            var userResult = ApplicationUser.Create(email, userName, firstName, lastName, UserType.Staff, "+234801234" + _random.Next(1000, 9999), branchId);
+            var userResult = ApplicationUser.Create(
+                def.Email, def.UserName, def.FirstName, def.LastName,
+                def.UserType, "+234801234" + _random.Next(1000, 9999), locationIdFresh);
             if (userResult.IsSuccess)
             {
-                // Use real password hash if hasher is available, otherwise use mock
-                var passwordHash = _passwordHasher?.HashPassword("Password1$$$") 
+                var passwordHash = _passwordHasher?.HashPassword("Password1$$$")
                     ?? "AQAAAAIAAYagAAAAEMocked" + Guid.NewGuid().ToString("N");
                 userResult.Value.SetPasswordHash(passwordHash);
-                var role = roles.FirstOrDefault(r => r.Name == roleName);
+                var role = roles.FirstOrDefault(r => r.Name == def.RoleName);
                 if (role != null) userResult.Value.AddRole(role);
                 await context.Users.AddAsync(userResult.Value);
                 createdUsers.Add(userResult.Value);
@@ -187,10 +227,14 @@ public static class ComprehensiveDataSeeder
         await context.SaveChangesAsync();
         logger.LogInformation("Users seeded successfully ({Count} users)", createdUsers.Count);
 
+        // Indices into createdUsers (matches AllUserDefinitions order):
+        // 0=admin, 1=loanofficer, 2=loanofficer2, 3=branchapprover, 4=creditofficer,
+        // 5=horeviewer, 6=committee1, 7=committee2, 8=committee3, 9=finalapprover,
+        // 10=operations, 11=riskmanager, 12=auditor, 13=customer
         return (
-            createdUsers[0], createdUsers[1], createdUsers[3], createdUsers[4], createdUsers[5],
-            createdUsers[6], createdUsers[7], createdUsers[8], createdUsers[9], createdUsers[10],
-            createdUsers[11], createdUsers[12]
+            createdUsers[0],  createdUsers[1],  createdUsers[3],  createdUsers[4],
+            createdUsers[5],  createdUsers[6],  createdUsers[7],  createdUsers[8],
+            createdUsers[9],  createdUsers[10], createdUsers[11], createdUsers[12]
         );
     }
 
@@ -198,7 +242,98 @@ public static class ComprehensiveDataSeeder
     {
         if (await context.WorkflowDefinitions.AnyAsync())
         {
-            logger.LogInformation("Workflow definition already exists, fetching...");
+            var existing = await context.WorkflowDefinitions
+                .Include(w => w.Stages)
+                .Include(w => w.Transitions)
+                .FirstOrDefaultAsync(w => w.ApplicationType == LoanApplicationType.Corporate);
+
+            // All upgrade blocks use raw SQL exclusively to avoid DbUpdateConcurrencyException.
+            // EF SaveChangesAsync is never called in the upgrade path — only ExecuteSqlRawAsync.
+            // Raw SQL DELETEs are idempotent (no error if row is absent).
+            // INSERT IGNORE is idempotent for WorkflowStages (unique index on WorkflowDefinitionId+Status).
+            // InsertTransitionIfMissingAsync is idempotent for WorkflowTransitions (WHERE NOT EXISTS guard).
+
+            // Upgrade: add FinalApproval stage if missing
+            if (existing != null && !existing.Stages.Any(s => s.Status == LoanApplicationStatus.FinalApproval))
+            {
+                logger.LogInformation("Upgrading workflow definition: adding FinalApproval stage...");
+                var wfId = existing.Id;
+                var now = DateTime.UtcNow;
+
+                // Remove old direct transitions that are replaced by the FinalApproval step
+                await context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM WorkflowTransitions WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'CommitteeCirculation' AND ToStatus = 'CommitteeApproved' AND Action = 'MoveToNextStage'",
+                    wfId);
+                await context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM WorkflowTransitions WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'CommitteeCirculation' AND ToStatus = 'Rejected' AND Action = 'Reject'",
+                    wfId);
+                await context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM WorkflowTransitions WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'CommitteeApproved' AND ToStatus = 'Approved' AND Action = 'Approve'",
+                    wfId);
+
+                // Add FinalApproval stage (INSERT IGNORE is idempotent via unique index)
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'FinalApproval', 'Final Approval', 'Awaiting MD/CEO executive sign-off', 'FinalApprover', 24, 9, 0, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+
+                // Re-add replacement transitions plus new FinalApproval transitions
+                await InsertTransitionIfMissingAsync(context, wfId, "CommitteeCirculation", "CommitteeApproved", "MoveToNextStage", Roles.SystemAdmin, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "CommitteeCirculation", "Rejected",          "Reject",          Roles.SystemAdmin,  now);
+                await InsertTransitionIfMissingAsync(context, wfId, "CommitteeApproved",    "FinalApproval",     "MoveToNextStage", Roles.SystemAdmin,  now);
+                await InsertTransitionIfMissingAsync(context, wfId, "FinalApproval",        "Approved",          "Approve",         Roles.FinalApprover, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "FinalApproval",        "Rejected",          "Reject",          Roles.FinalApprover, now);
+
+                logger.LogInformation("Workflow definition upgraded with FinalApproval stage successfully.");
+            }
+
+            // Upgrade: add OfferGenerated and OfferAccepted stages if missing
+            if (existing != null && !existing.Stages.Any(s => s.Status == LoanApplicationStatus.OfferGenerated))
+            {
+                logger.LogInformation("Upgrading workflow definition: adding OfferGenerated/OfferAccepted stages...");
+                var wfId = existing.Id;
+                var now = DateTime.UtcNow;
+
+                // Remove old direct Approved→Disbursed shortcut
+                await context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM WorkflowTransitions WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'Approved' AND ToStatus = 'Disbursed' AND Action = 'Complete'",
+                    wfId);
+
+                // Add OfferGenerated and OfferAccepted stages (INSERT IGNORE is idempotent)
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'OfferGenerated', 'Offer Letter Issued', 'Offer letter issued to customer, awaiting signed acceptance', 'LoanOfficer', 72, 11, 0, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'OfferAccepted', 'Offer Accepted', 'Customer accepted offer, pending disbursement', 'Operations', 48, 12, 0, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+
+                // Add the new three-step post-approval transitions
+                await InsertTransitionIfMissingAsync(context, wfId, "Approved",       "OfferGenerated", "MoveToNextStage", Roles.LoanOfficer, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "OfferGenerated", "OfferAccepted",  "MoveToNextStage", Roles.Operations, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "OfferAccepted",  "Disbursed",      "Complete",        Roles.Operations, now);
+
+                logger.LogInformation("Offer letter workflow stages added successfully.");
+            }
+            else if (existing != null)
+            {
+                logger.LogInformation("Workflow definition already current, skipping upgrade.");
+            }
+
+            // Correction: Approved→OfferGenerated must be performed by LoanOfficer, not Operations.
+            // Idempotent — only updates the row if it currently has the wrong role.
+            if (existing != null)
+            {
+                await context.Database.ExecuteSqlRawAsync(
+                    "UPDATE WorkflowTransitions SET RequiredRole = 'LoanOfficer' " +
+                    "WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'Approved' AND ToStatus = 'OfferGenerated' AND RequiredRole != 'LoanOfficer'",
+                    existing.Id);
+            }
+
+            // Reload from DB so the returned entity reflects all raw-SQL changes made above.
+            // ChangeTracker.Clear() is required so EF doesn't serve the stale cached instance.
+            context.ChangeTracker.Clear();
             return await context.WorkflowDefinitions
                 .Include(w => w.Stages)
                 .Include(w => w.Transitions)
@@ -229,10 +364,13 @@ public static class ComprehensiveDataSeeder
             (LoanApplicationStatus.CreditAnalysis, "Credit Analysis", "Credit analysis in progress", Roles.CreditOfficer, 72, 5, false, false),
             (LoanApplicationStatus.HOReview, "HO Review", "Head Office review", Roles.HOReviewer, 48, 6, true, false),
             (LoanApplicationStatus.CommitteeCirculation, "Committee", "Committee review", Roles.CommitteeMember, 72, 7, false, false),
-            (LoanApplicationStatus.CommitteeApproved, "Committee Approved", "Approved by committee", Roles.FinalApprover, 24, 8, false, false),
-            (LoanApplicationStatus.Approved, "Approved", "Final approval", Roles.Operations, 24, 9, false, false),
-            (LoanApplicationStatus.Disbursed, "Disbursed", "Loan disbursed", Roles.Operations, 0, 10, false, true),
-            (LoanApplicationStatus.Rejected, "Rejected", "Application rejected", Roles.LoanOfficer, 0, 11, false, true)
+            (LoanApplicationStatus.CommitteeApproved, "Committee Approved", "Committee decision recorded, pending final sign-off", Roles.SystemAdmin, 0, 8, false, false),
+            (LoanApplicationStatus.FinalApproval, "Final Approval", "Awaiting MD/CEO executive sign-off", Roles.FinalApprover, 24, 9, false, false),
+            (LoanApplicationStatus.Approved, "Approved", "Final approval granted", Roles.Operations, 24, 10, false, false),
+            (LoanApplicationStatus.OfferGenerated, "Offer Letter Issued", "Offer letter issued to customer, awaiting signed acceptance", Roles.LoanOfficer, 72, 11, false, false),
+            (LoanApplicationStatus.OfferAccepted, "Offer Accepted", "Customer accepted offer, pending disbursement", Roles.Operations, 48, 12, false, false),
+            (LoanApplicationStatus.Disbursed, "Disbursed", "Loan disbursed", Roles.Operations, 0, 13, false, true),
+            (LoanApplicationStatus.Rejected, "Rejected", "Application rejected", Roles.LoanOfficer, 0, 14, false, true)
         };
 
         foreach (var (status, name, desc, role, sla, order, requiresComment, isTerminal) in stages)
@@ -247,14 +385,20 @@ public static class ComprehensiveDataSeeder
             (LoanApplicationStatus.Submitted, LoanApplicationStatus.BranchReview, WorkflowAction.MoveToNextStage, Roles.LoanOfficer),
             (LoanApplicationStatus.BranchReview, LoanApplicationStatus.BranchApproved, WorkflowAction.Approve, Roles.BranchApprover),
             (LoanApplicationStatus.BranchReview, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.BranchApprover),
-            (LoanApplicationStatus.BranchApproved, LoanApplicationStatus.CreditAnalysis, WorkflowAction.MoveToNextStage, Roles.CreditOfficer),
-            (LoanApplicationStatus.CreditAnalysis, LoanApplicationStatus.HOReview, WorkflowAction.MoveToNextStage, Roles.CreditOfficer),
+            (LoanApplicationStatus.BranchApproved, LoanApplicationStatus.CreditAnalysis, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
+            (LoanApplicationStatus.CreditAnalysis, LoanApplicationStatus.HOReview, WorkflowAction.Approve, Roles.CreditOfficer),
+            (LoanApplicationStatus.CreditAnalysis, LoanApplicationStatus.BranchReview, WorkflowAction.Return, Roles.CreditOfficer),
             (LoanApplicationStatus.HOReview, LoanApplicationStatus.CommitteeCirculation, WorkflowAction.Approve, Roles.HOReviewer),
+            (LoanApplicationStatus.HOReview, LoanApplicationStatus.CreditAnalysis, WorkflowAction.Return, Roles.HOReviewer),
             (LoanApplicationStatus.HOReview, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.HOReviewer),
-            (LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.CommitteeApproved, WorkflowAction.Approve, Roles.CommitteeMember),
-            (LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.CommitteeMember),
-            (LoanApplicationStatus.CommitteeApproved, LoanApplicationStatus.Approved, WorkflowAction.Approve, Roles.FinalApprover),
-            (LoanApplicationStatus.Approved, LoanApplicationStatus.Disbursed, WorkflowAction.Complete, Roles.Operations)
+            (LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.CommitteeApproved, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
+            (LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.SystemAdmin),
+            (LoanApplicationStatus.CommitteeApproved, LoanApplicationStatus.FinalApproval, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
+            (LoanApplicationStatus.FinalApproval, LoanApplicationStatus.Approved, WorkflowAction.Approve, Roles.FinalApprover),
+            (LoanApplicationStatus.FinalApproval, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.FinalApprover),
+            (LoanApplicationStatus.Approved, LoanApplicationStatus.OfferGenerated, WorkflowAction.MoveToNextStage, Roles.LoanOfficer),
+            (LoanApplicationStatus.OfferGenerated, LoanApplicationStatus.OfferAccepted, WorkflowAction.MoveToNextStage, Roles.Operations),
+            (LoanApplicationStatus.OfferAccepted, LoanApplicationStatus.Disbursed, WorkflowAction.Complete, Roles.Operations)
         };
 
         foreach (var (from, to, action, role) in transitions)
@@ -610,7 +754,7 @@ public static class ComprehensiveDataSeeder
         var appResult = LoanApplication.CreateCorporate(
             product.Id, product.Code, accountNumber, customerId, companyName,
             Money.Create(amount, "NGN"), 36, 16.5m, InterestRateType.Reducing,
-            users.LoanOfficer.Id, users.LoanOfficer.BranchId,
+            users.LoanOfficer.Id, users.LoanOfficer.LocationId,
             $"Business expansion and working capital for {companyName}");
 
         if (appResult.IsFailure)
@@ -720,10 +864,14 @@ public static class ComprehensiveDataSeeder
                 app.RequestedAmount.Amount * 0.95m, app.RequestedTenorMonths, app.InterestRatePerAnnum + 0.5m,
                 "Quarterly financial reporting required");
         }
-        app.ApproveCommittee(users.CommitteeMember1.Id, 
-            Money.Create(app.RequestedAmount.Amount * 0.95m, "NGN"), 
+        app.ApproveCommittee(users.CommitteeMember1.Id,
+            Money.Create(app.RequestedAmount.Amount * 0.95m, "NGN"),
             app.RequestedTenorMonths, app.InterestRatePerAnnum + 0.5m);
         if (targetStatus == LoanApplicationStatus.CommitteeApproved) return;
+
+        // Move to FinalApproval — MD/CEO sign-off stage
+        app.MoveToFinalApproval(users.SystemAdmin.Id);
+        if (targetStatus == LoanApplicationStatus.FinalApproval) return;
 
         // Final Approved
         app.FinalApprove(users.FinalApprover.Id, "All conditions met");
@@ -1223,6 +1371,86 @@ public static class ComprehensiveDataSeeder
         await context.LoanPacks.AddAsync(pack);
     }
 
+    /// <summary>
+    /// Seeds global consent records for the mock SmartComply/CBS BVNs so that credit bureau checks
+    /// succeed on any UI-created application that uses the mock external service accounts.
+    /// These are not tied to a specific loan application (loanApplicationId = null), so
+    /// GetValidConsentAsync finds them for any application using these BVNs.
+    /// </summary>
+    private static async Task SeedMockConsentRecordsAsync(
+        CRMSDbContext context, ILogger logger, ApplicationUser loanOfficer)
+    {
+        // Mock SmartComply BVNs — covers all parties on CBS account 1234567890:
+        //   directors: 22234567890, 22234567891, 22234567892
+        //   signatory: 22234567893 (Fatima Bello)
+        //   additional mock individual: 22212345678
+        var mockIndividuals = new[]
+        {
+            ("John Adebayo", "22234567890"),
+            ("Amina Ibrahim", "22234567891"),
+            ("Chukwuma Okonkwo", "22234567892"),
+            ("Fatima Bello", "22234567893"),
+            ("Oluwaseun Bakare", "22212345678"),
+        };
+
+        foreach (var (name, bvn) in mockIndividuals)
+        {
+            var alreadyExists = await context.ConsentRecords
+                .AnyAsync(c => c.BVN == bvn && c.ConsentType == ConsentType.CreditBureauCheck);
+
+            if (alreadyExists)
+                continue;
+
+            var result = ConsentRecord.Create(
+                name, bvn, ConsentType.CreditBureauCheck,
+                "Credit assessment for loan application",
+                "I hereby authorize the bank to obtain my credit report from any licensed credit bureau in Nigeria.",
+                "1.0", ConsentCaptureMethod.Digital,
+                loanOfficer.Id, loanOfficer.FullName,
+                loanApplicationId: null, nin: null,
+                email: null, phoneNumber: null,
+                signatureData: null, ipAddress: "127.0.0.1", userAgent: "SeederBot/1.0",
+                validityDays: 3650); // 10-year validity for test data
+
+            if (result.IsSuccess)
+                await context.ConsentRecords.AddAsync(result.Value);
+        }
+
+        // Mock RC numbers for business checks
+        var mockBusinesses = new[]
+        {
+            ("Mock Business RC123456", "RC123456"),
+            ("Mock Business RC654321", "RC654321"),
+        };
+
+        foreach (var (name, rcNumber) in mockBusinesses)
+        {
+            var alreadyExists = await context.ConsentRecords
+                .AnyAsync(c => c.NIN == rcNumber && c.ConsentType == ConsentType.CreditBureauCheck);
+
+            if (alreadyExists)
+                continue;
+
+            var result = ConsentRecord.Create(
+                name, bvn: null, ConsentType.CreditBureauCheck,
+                "Corporate credit assessment for loan application",
+                "The company hereby authorizes the bank to obtain its credit report from any licensed credit bureau in Nigeria.",
+                "1.0", ConsentCaptureMethod.Digital,
+                loanOfficer.Id, loanOfficer.FullName,
+                loanApplicationId: null, nin: rcNumber,
+                email: null, phoneNumber: null,
+                signatureData: null, ipAddress: "127.0.0.1", userAgent: "SeederBot/1.0",
+                validityDays: 3650);
+
+            if (result.IsSuccess)
+                await context.ConsentRecords.AddAsync(result.Value);
+        }
+
+        await context.SaveChangesAsync();
+        logger.LogInformation("Mock consent records seeded for {Count} BVNs and {BizCount} RC numbers",
+            mockIndividuals.Length, mockBusinesses.Length);
+    }
+
     private static async Task SeedAuditLogsAsync(
         CRMSDbContext context, ILogger logger,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
@@ -1345,9 +1573,53 @@ public static class ComprehensiveDataSeeder
         {
             var auditPerms = permissions.Where(p => p.Code == "audit.view" || p.Code == "loan.view" || p.Code == "bureau.view");
             foreach (var perm in auditPerms)
-            {
                 await context.RolePermissions.AddAsync(new ApplicationRolePermission(auditorRole.Id, perm.Id));
-            }
+        }
+
+        var branchApproverRole = roles.FirstOrDefault(r => r.Name == Roles.BranchApprover);
+        if (branchApproverRole != null)
+        {
+            // Branch-level approval: view applications, approve or reject at branch stage
+            var perms = permissions.Where(p => p.Code is "loan.view" or "loan.approve" or "loan.reject");
+            foreach (var perm in perms)
+                await context.RolePermissions.AddAsync(new ApplicationRolePermission(branchApproverRole.Id, perm.Id));
+        }
+
+        var hoReviewerRole = roles.FirstOrDefault(r => r.Name == Roles.HOReviewer);
+        if (hoReviewerRole != null)
+        {
+            // HO review: view applications and bureau reports, approve/reject/return at HO stage
+            var perms = permissions.Where(p => p.Code is "loan.view" or "loan.approve" or "loan.reject" or "bureau.view");
+            foreach (var perm in perms)
+                await context.RolePermissions.AddAsync(new ApplicationRolePermission(hoReviewerRole.Id, perm.Id));
+        }
+
+        var finalApproverRole = roles.FirstOrDefault(r => r.Name == Roles.FinalApprover);
+        if (finalApproverRole != null)
+        {
+            // Final sign-off authority: full loan visibility, bureau access, report generation
+            var perms = permissions.Where(p => p.Code is "loan.view" or "loan.approve" or "loan.reject" or "bureau.view" or "report.generate");
+            foreach (var perm in perms)
+                await context.RolePermissions.AddAsync(new ApplicationRolePermission(finalApproverRole.Id, perm.Id));
+        }
+
+        var operationsRole = roles.FirstOrDefault(r => r.Name == Roles.Operations);
+        if (operationsRole != null)
+        {
+            // Disbursement operations: view and complete approved loans, generate reports
+            var perms = permissions.Where(p => p.Code is "loan.view" or "loan.approve" or "report.generate");
+            foreach (var perm in perms)
+                await context.RolePermissions.AddAsync(new ApplicationRolePermission(operationsRole.Id, perm.Id));
+        }
+
+        var riskManagerRole = roles.FirstOrDefault(r => r.Name == Roles.RiskManager);
+        if (riskManagerRole != null)
+        {
+            // Risk oversight: full read access across loans, bureau, audit; override approve/reject authority
+            var perms = permissions.Where(p => p.Code is "loan.view" or "loan.approve" or "loan.reject"
+                or "bureau.view" or "audit.view" or "report.generate");
+            foreach (var perm in perms)
+                await context.RolePermissions.AddAsync(new ApplicationRolePermission(riskManagerRole.Id, perm.Id));
         }
 
         await context.SaveChangesAsync();
@@ -1560,5 +1832,38 @@ public static class ComprehensiveDataSeeder
 
         await context.SaveChangesAsync();
         logger.LogInformation("Notifications seeded successfully");
+    }
+
+    /// <summary>
+    /// Inserts a WorkflowTransition row only if one with the same
+    /// (WorkflowDefinitionId, FromStatus, ToStatus, Action) does not already exist.
+    /// Uses a WHERE NOT EXISTS sub-select so the operation is fully idempotent and
+    /// never causes DbUpdateConcurrencyException regardless of how many times the
+    /// seeder runs.
+    /// </summary>
+    private static async Task InsertTransitionIfMissingAsync(
+        CRMSDbContext context,
+        Guid workflowDefinitionId,
+        string fromStatus,
+        string toStatus,
+        string action,
+        string requiredRole,
+        DateTime now)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            @"INSERT INTO WorkflowTransitions
+                  (Id, WorkflowDefinitionId, FromStatus, ToStatus, Action, RequiredRole,
+                   RequiresComment, ConditionExpression, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy)
+              SELECT @p0, @p1, @p2, @p3, @p4, @p5,
+                     0, NULL, @p6, '', NULL, NULL
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM WorkflowTransitions
+                  WHERE WorkflowDefinitionId = @p7
+                    AND FromStatus = @p8
+                    AND ToStatus   = @p9
+                    AND Action     = @p10
+              )",
+            Guid.NewGuid(), workflowDefinitionId, fromStatus, toStatus, action, requiredRole, now,
+            workflowDefinitionId, fromStatus, toStatus, action);
     }
 }

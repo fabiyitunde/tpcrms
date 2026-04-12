@@ -35,23 +35,26 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
 
     private void ComposeHeader(IContainer container, LoanPackData data)
     {
-        container.Row(row =>
+        container.Column(col =>
         {
-            row.RelativeItem().Column(col =>
+            col.Item().Row(row =>
             {
-                col.Item().Text("CREDIT RISK MANAGEMENT SYSTEM").Bold().FontSize(14);
-                col.Item().Text("LOAN APPLICATION PACK").FontSize(12);
+                row.RelativeItem().Column(inner =>
+                {
+                    inner.Item().Text("CREDIT RISK MANAGEMENT SYSTEM").Bold().FontSize(14);
+                    inner.Item().Text("LOAN APPLICATION PACK").FontSize(12);
+                });
+
+                row.RelativeItem().AlignRight().Column(inner =>
+                {
+                    inner.Item().Text($"Application: {data.ApplicationNumber}").Bold();
+                    inner.Item().Text($"Generated: {data.GeneratedAt:dd-MMM-yyyy HH:mm}");
+                    inner.Item().Text($"Version: {data.Version}");
+                });
             });
 
-            row.RelativeItem().AlignRight().Column(col =>
-            {
-                col.Item().Text($"Application: {data.ApplicationNumber}").Bold();
-                col.Item().Text($"Generated: {data.GeneratedAt:dd-MMM-yyyy HH:mm}");
-                col.Item().Text($"Version: {data.Version}");
-            });
+            col.Item().PaddingTop(10).LineHorizontal(1);
         });
-
-        container.PaddingTop(10).LineHorizontal(1);
     }
 
     private void ComposeContent(IContainer container, LoanPackData data)
@@ -125,6 +128,13 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
             if (data.CommitteeComments.Any())
             {
                 col.Item().Element(c => ComposeCommitteeComments(c, data));
+            }
+
+            // 12. Conditions of Approval
+            if (data.ApprovalConditions.Any())
+            {
+                col.Item().PageBreak();
+                col.Item().Element(c => ComposeConditionsOfApproval(c, data));
             }
         });
     }
@@ -806,6 +816,43 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
 
                 col.Item().PaddingTop(5);
             }
+        });
+    }
+
+    private void ComposeConditionsOfApproval(IContainer container, LoanPackData data)
+    {
+        container.Column(col =>
+        {
+            col.Item().Text("CONDITIONS OF APPROVAL").Bold().FontSize(14);
+            col.Item().PaddingTop(4).Text(
+                "The following conditions were stipulated by the Credit Committee as part of the approval decision. " +
+                "All Conditions Precedent must be satisfied before disbursement. " +
+                "Conditions Subsequent are monitored post-disbursement per the terms agreed in the offer letter.")
+                .FontSize(10).FontColor(Colors.Grey.Darken2);
+
+            col.Item().PaddingTop(10).Table(table =>
+            {
+                table.ColumnsDefinition(cols =>
+                {
+                    cols.ConstantColumn(30);
+                    cols.RelativeColumn();
+                });
+
+                table.Header(header =>
+                {
+                    header.Cell().Background(Colors.Grey.Lighten2).Padding(6)
+                        .Text("#").Bold().FontSize(9);
+                    header.Cell().Background(Colors.Grey.Lighten2).Padding(6)
+                        .Text("Condition").Bold().FontSize(9);
+                });
+
+                for (var i = 0; i < data.ApprovalConditions.Count; i++)
+                {
+                    var rowBg = i % 2 == 0 ? Colors.White : Colors.Grey.Lighten5;
+                    table.Cell().Background(rowBg).Padding(6).Text($"{i + 1}").FontSize(10);
+                    table.Cell().Background(rowBg).Padding(6).Text(data.ApprovalConditions[i]).FontSize(10);
+                }
+            });
         });
     }
 

@@ -65,4 +65,9 @@ public class BureauReportRepository : IBureauReportRepository
     {
         _context.BureauReports.Update(report);
     }
+
+    public void Delete(BureauReport report)
+    {
+        _context.BureauReports.Remove(report);
+    }
 }

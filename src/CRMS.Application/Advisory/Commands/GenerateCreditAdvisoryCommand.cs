@@ -22,6 +22,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
     private readonly IGuarantorRepository _guarantorRepository;
     private readonly IBankStatementRepository _bankStatementRepository;
     private readonly IBureauReportRepository _bureauReportRepository;
+    private readonly IFineractDirectService _fineractService;
     private readonly IAIAdvisoryService _aiService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -33,6 +34,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
         IGuarantorRepository guarantorRepository,
         IBankStatementRepository bankStatementRepository,
         IBureauReportRepository bureauReportRepository,
+        IFineractDirectService fineractService,
         IAIAdvisoryService aiService,
         IUnitOfWork unitOfWork)
     {
@@ -43,6 +45,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
         _guarantorRepository = guarantorRepository;
         _bankStatementRepository = bankStatementRepository;
         _bureauReportRepository = bureauReportRepository;
+        _fineractService = fineractService;
         _aiService = aiService;
         _unitOfWork = unitOfWork;
     }
@@ -331,9 +334,19 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
             }
         }
 
-        // Derive existing exposure from the corporate bureau report (SmartComply)
+        // Derive existing exposure: Fineract live data first, fall back to bureau report
         var existingExposure = corporateBureauReport?.TotalOutstandingBalance ?? 0m;
         var existingFacilitiesCount = corporateBureauReport?.ActiveLoans ?? 0;
+        if (long.TryParse(loanApp.CustomerId, out var fineractClientId))
+        {
+            var exposureResult = await _fineractService.GetCustomerExposureAsync(
+                fineractClientId, loanApp.AccountNumber, loanApp.CustomerName, ct);
+            if (exposureResult.IsSuccess)
+            {
+                existingExposure = exposureResult.Value.TotalOutstandingBalance;
+                existingFacilitiesCount = exposureResult.Value.ActiveFacilitiesCount;
+            }
+        }
 
         return new AIAdvisoryRequest(
             loanApp.Id,
