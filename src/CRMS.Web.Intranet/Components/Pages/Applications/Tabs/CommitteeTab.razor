@@ -63,23 +63,24 @@ else
                             <th>Role</th>
                             <th>Vote</th>
                             <th>Voted At</th>
-                            @if (Committee.Status == "Pending" && CanManageCommittee)
-                            {
-                                <th></th>
-                            }
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var member in Committee.Members)
                         {
-                            var memberUserId = member.UserId;
                             <tr>
                                 <td>
                                     <div style="display: flex; align-items: center; gap: var(--space-3);">
                                         <div class="user-avatar" style="width: 32px; height: 32px; font-size: var(--text-xs);">
                                             @GetInitials(member.Name)
                                         </div>
-                                        <span style="font-weight: 500;">@member.Name</span>
+                                        <div>
+                                            <span style="font-weight: 500;">@member.Name</span>
+                                            @if (member.IsChairperson)
+                                            {
+                                                <span style="font-size: var(--text-xs); color: var(--primary-600); margin-left: var(--space-2);">Chair</span>
+                                            }
+                                        </div>
                                     </div>
                                 </td>
                                 <td>@member.Role</td>
@@ -106,75 +107,11 @@ else
                                         <span class="text-muted">-</span>
                                     }
                                 </td>
-                                @if (Committee.Status == "Pending" && CanManageCommittee)
-                                {
-                                    <td>
-                                        <button class="btn btn-outline btn-sm" style="color: var(--danger-600); border-color: var(--danger-300);"
-                                                @onclick="() => HandleRemoveMember(memberUserId)"
-                                                disabled="@removingMemberId.HasValue">
-                                            <span class="material-symbols-outlined" style="font-size: 15px;">person_remove</span>
-                                        </button>
-                                    </td>
-                                }
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
-
-            @if (Committee.Status == "Pending" && CanManageCommittee)
-            {
-                <div class="card-footer" style="border-top: 1px solid var(--gray-200); padding: var(--space-4);">
-                    @if (!showAddMember)
-                    {
-                        <button class="btn btn-outline btn-sm" @onclick="() => showAddMember = true">
-                            <span class="material-symbols-outlined" style="font-size: 16px;">person_add</span>
-                            Add Member
-                        </button>
-                    }
-                    else
-                    {
-                        <div style="display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap;">
-                            <div class="form-group" style="margin: 0; min-width: 200px;">
-                                <label class="form-label" style="font-size: var(--text-xs);">Member</label>
-                                <select class="form-control form-control-sm" @bind="addMemberUserId">
-                                    <option value="">Select member...</option>
-                                    @foreach (var u in AvailableMemberUsers.Where(u => !Committee.Members.Any(m => m.UserId == u.Id)))
-                                    {
-                                        <option value="@u.Id">@u.FirstName @u.LastName</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="form-group" style="margin: 0; min-width: 150px;">
-                                <label class="form-label" style="font-size: var(--text-xs);">Designation (e.g. CRO)</label>
-                                <input type="text" class="form-control form-control-sm" @bind="addMemberRole" placeholder="e.g. CRO" />
-                            </div>
-                            <div class="form-group" style="margin: 0; display: flex; align-items: center; gap: var(--space-2); padding-bottom: var(--space-1);">
-                                <input type="checkbox" id="addMemberIsChair" @bind="addMemberIsChair" />
-                                <label for="addMemberIsChair" style="font-size: var(--text-sm); margin: 0; cursor: pointer;">Chairperson</label>
-                            </div>
-                            <button class="btn btn-primary btn-sm" @onclick="HandleAddMember"
-                                    disabled="@(string.IsNullOrEmpty(addMemberUserId) || isAddingMember)">
-                                @if (isAddingMember)
-                                {
-                                    <span class="spinner" style="width: 14px; height: 14px;"></span>
-                                }
-                                else
-                                {
-                                    <span>Add</span>
-                                }
-                            </button>
-                            <button class="btn btn-secondary btn-sm" @onclick="() => showAddMember = false">Cancel</button>
-                        </div>
-                        @if (!string.IsNullOrEmpty(addMemberError))
-                        {
-                            <div class="alert alert-danger mt-2" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">
-                                @addMemberError
-                            </div>
-                        }
-                    }
-                </div>
-            }
 
             @if (!string.IsNullOrEmpty(Committee.Decision))
             {
@@ -238,6 +175,74 @@ else
                             <div style="margin-top: var(--space-3); font-size: var(--text-sm); color: var(--gray-600);">
                                 <div style="font-weight: 500; margin-bottom: var(--space-1);">Conditions</div>
                                 @Committee.RecommendedConditions
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* Replace Member panel — admin only, pre-voting *@
+            @if (CanReplaceCommitteeMember && Committee.Status == "Pending")
+            {
+                <div class="card" style="border: 1px solid var(--warning-300);">
+                    <div class="card-header" style="background: var(--warning-50);">
+                        <h3 class="card-title" style="color: var(--warning-800);">Replace Committee Member</h3>
+                        <span style="font-size: var(--text-xs); color: var(--gray-500);">Admin action · audited</span>
+                    </div>
+                    <div class="card-body">
+                        @if (!showReplacePanel)
+                        {
+                            <button class="btn btn-outline btn-sm" style="color: var(--warning-700); border-color: var(--warning-400);"
+                                    @onclick="() => showReplacePanel = true">
+                                <span class="material-symbols-outlined" style="font-size: 16px;">manage_accounts</span>
+                                Replace a Member
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="form-group">
+                                <label class="form-label" style="font-size: var(--text-xs);">Member to Replace *</label>
+                                <select class="form-control" @bind="replaceOldMemberId">
+                                    <option value="">Select member...</option>
+                                    @foreach (var m in Committee.Members)
+                                    {
+                                        <option value="@m.UserId">@m.Name (@m.Role)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" style="font-size: var(--text-xs);">Replacement *</label>
+                                <select class="form-control" @bind="replaceNewMemberId">
+                                    <option value="">Select replacement...</option>
+                                    @foreach (var u in AvailableMemberUsers.Where(u => !Committee.Members.Any(m => m.UserId == u.Id)))
+                                    {
+                                        <option value="@u.Id">@u.FirstName @u.LastName</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" style="font-size: var(--text-xs);">Reason *</label>
+                                <textarea class="form-control" rows="2" @bind="replaceReason"
+                                          placeholder="e.g. Member declared conflict of interest..."></textarea>
+                            </div>
+                            @if (!string.IsNullOrEmpty(replaceError))
+                            {
+                                <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">@replaceError</div>
+                            }
+                            <div style="display: flex; gap: var(--space-2);">
+                                <button class="btn btn-warning btn-sm" @onclick="HandleReplaceMember"
+                                        disabled="@(replaceOldMemberId == Guid.Empty || replaceNewMemberId == Guid.Empty || string.IsNullOrWhiteSpace(replaceReason) || isReplacing)">
+                                    @if (isReplacing)
+                                    {
+                                        <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                    }
+                                    else
+                                    {
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">swap_horiz</span>
+                                    }
+                                    Confirm Replacement
+                                </button>
+                                <button class="btn btn-secondary btn-sm" @onclick="() => { showReplacePanel = false; replaceError = null; }">Cancel</button>
                             </div>
                         }
                     </div>
@@ -410,25 +415,26 @@ else
     [Parameter] public List<UserSummary> AvailableMemberUsers { get; set; } = [];
     [Parameter] public EventCallback<(string vote, string? comments)> OnCastVote { get; set; }
     [Parameter] public EventCallback OnSetupCommittee { get; set; }
-    [Parameter] public EventCallback<Guid> OnRemoveMember { get; set; }
-    [Parameter] public EventCallback<(Guid userId, string name, string role, bool isChair)> OnAddMember { get; set; }
     [Parameter] public EventCallback OnStartVoting { get; set; }
     [Parameter] public EventCallback<CommitteeDecisionArgs> OnConfirmDecision { get; set; }
     [Parameter] public decimal RequestedAmount { get; set; }
     [Parameter] public decimal RequestedInterestRate { get; set; }
     [Parameter] public int RequestedTenorMonths { get; set; }
+    [Parameter] public bool CanReplaceCommitteeMember { get; set; }
+    [Parameter] public EventCallback<(Guid oldUserId, Guid newUserId, string newName, string reason)> OnReplaceMember { get; set; }
 
     private string selectedVote = string.Empty;
     private string voteComments = string.Empty;
 
-    private bool showAddMember;
-    private string addMemberUserId = string.Empty;
-    private string addMemberRole = string.Empty;
-    private bool addMemberIsChair;
-    private bool isAddingMember;
-    private string? addMemberError;
-    private Guid? removingMemberId;
     private bool isStartingVoting;
+
+    // Replace member (admin)
+    private bool showReplacePanel;
+    private Guid replaceOldMemberId;
+    private Guid replaceNewMemberId;
+    private string replaceReason = string.Empty;
+    private bool isReplacing;
+    private string? replaceError;
 
     // Confirm decision
     private string confirmDecision = string.Empty;
@@ -462,31 +468,24 @@ else
         }
     }
 
-    private async Task HandleRemoveMember(Guid userId)
+    private async Task HandleReplaceMember()
     {
-        removingMemberId = userId;
-        await OnRemoveMember.InvokeAsync(userId);
-        removingMemberId = null;
-    }
+        if (replaceOldMemberId == Guid.Empty || replaceNewMemberId == Guid.Empty || string.IsNullOrWhiteSpace(replaceReason)) return;
 
-    private async Task HandleAddMember()
-    {
-        if (string.IsNullOrEmpty(addMemberUserId)) return;
-
-        var user = AvailableMemberUsers.FirstOrDefault(u => u.Id.ToString() == addMemberUserId);
+        var user = AvailableMemberUsers.FirstOrDefault(u => u.Id == replaceNewMemberId);
         if (user == null) return;
 
-        isAddingMember = true;
-        addMemberError = null;
+        isReplacing = true;
+        replaceError = null;
 
-        var name = $"{user.FirstName} {user.LastName}".Trim();
-        await OnAddMember.InvokeAsync((user.Id, name, addMemberRole, addMemberIsChair));
+        var newName = $"{user.FirstName} {user.LastName}".Trim();
+        await OnReplaceMember.InvokeAsync((replaceOldMemberId, replaceNewMemberId, newName, replaceReason));
 
-        isAddingMember = false;
-        showAddMember = false;
-        addMemberUserId = string.Empty;
-        addMemberRole = string.Empty;
-        addMemberIsChair = false;
+        isReplacing = false;
+        showReplacePanel = false;
+        replaceOldMemberId = Guid.Empty;
+        replaceNewMemberId = Guid.Empty;
+        replaceReason = string.Empty;
     }
 
     private async Task HandleStartVoting()

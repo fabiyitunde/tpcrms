@@ -29,6 +29,7 @@ using CRMS.Infrastructure.Services;
 using CRMS.Infrastructure.Identity;
 using CRMS.Infrastructure.Persistence;
 using CRMS.Infrastructure.Persistence.Repositories;
+using CRMS.Infrastructure.Workflow;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Polly;
@@ -161,6 +162,7 @@ public static class DependencyInjection
 
         // Collateral & Guarantor
         services.AddScoped<ICollateralRepository, CollateralRepository>();
+        services.AddScoped<ICollateralTypeConfigRepository, CollateralTypeConfigRepository>();
         services.AddScoped<ICollateralDocumentRepository, CollateralDocumentRepository>();
         services.AddScoped<IGuarantorRepository, GuarantorRepository>();
 
@@ -173,6 +175,9 @@ public static class DependencyInjection
 
         // FinancialStatement
         services.AddScoped<IFinancialStatementRepository, FinancialStatementRepository>();
+
+        // Approval Override
+        services.AddScoped<IApprovalOverrideRepository, ApprovalOverrideRepository>();
 
         // Advisory
         services.AddScoped<ICreditAdvisoryRepository, CreditAdvisoryRepository>();
@@ -326,10 +331,26 @@ public static class DependencyInjection
         services.AddScoped<Application.LoanApplication.Commands.ReturnFromBranchHandler>();
         services.AddScoped<Application.LoanApplication.Commands.ReturnFromHOReviewHandler>();
         services.AddScoped<Application.LoanApplication.Commands.MoveToCommitteeHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ApproveCommitteeHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.RejectCommitteeHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.MoveToLegalReviewHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.SubmitLegalOpinionHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ApproveLegalReviewHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromLegalApprovalHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromLegalReviewHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.MoveToSecurityPerfectionHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.SubmitSecurityDocumentsHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ApproveSecurityPerfectionHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromSecurityApprovalHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.PrepareDisbursementMemoHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ApproveDisbursementBranchHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromDisbursementBranchHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ApproveDisbursementHQHandler>();
         services.AddScoped<Application.LoanApplication.Commands.FinalApproveHandler>();
         services.AddScoped<Application.LoanApplication.Commands.UploadDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Commands.VerifyDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Commands.RejectDocumentHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.DeleteDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetLoanApplicationByIdHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetLoanApplicationsByStatusHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetMyLoanApplicationsHandler>();
@@ -369,6 +390,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Committee.Commands.CreateCommitteeReviewHandler>();
         services.AddScoped<Application.Committee.Commands.AddCommitteeMemberHandler>();
         services.AddScoped<Application.Committee.Commands.RemoveCommitteeMemberHandler>();
+        services.AddScoped<Application.Committee.Commands.ReplaceCommitteeMemberHandler>();
         services.AddScoped<Application.Committee.Commands.StartVotingHandler>();
         services.AddScoped<Application.Committee.Commands.RecordCommitteeDecisionHandler>();
 
@@ -415,8 +437,14 @@ public static class DependencyInjection
         services.AddScoped<Application.Collateral.Commands.ApproveCollateralHandler>();
         services.AddScoped<Application.Collateral.Commands.UploadCollateralDocumentHandler>();
         services.AddScoped<Application.Collateral.Commands.DeleteCollateralDocumentHandler>();
+        services.AddScoped<Application.Collateral.Commands.RecordPerfectionHandler>();
+        services.AddScoped<Application.Collateral.Commands.RecordLegalClearanceHandler>();
+        services.AddScoped<Application.Collateral.Commands.CreateCollateralTypeConfigHandler>();
+        services.AddScoped<Application.Collateral.Commands.UpdateCollateralTypeConfigHandler>();
+        services.AddScoped<Application.Collateral.Commands.ToggleCollateralTypeConfigHandler>();
         services.AddScoped<Application.Collateral.Queries.GetCollateralByIdHandler>();
         services.AddScoped<Application.Collateral.Queries.GetCollateralByLoanApplicationHandler>();
+        services.AddScoped<Application.Collateral.Queries.GetCollateralTypeConfigsHandler>();
         
         // Guarantor
         services.AddScoped<Application.Guarantor.Commands.AddIndividualGuarantorHandler>();
@@ -462,6 +490,7 @@ public static class DependencyInjection
         services.AddScoped<Application.StatementAnalysis.Commands.UploadStatementHandler>();
         services.AddScoped<Application.StatementAnalysis.Commands.AddTransactionsHandler>();
         services.AddScoped<Application.StatementAnalysis.Commands.AnalyzeStatementHandler>();
+        services.AddScoped<Application.StatementAnalysis.Commands.RefetchInternalBankStatementHandler>();
         services.AddScoped<Application.StatementAnalysis.Commands.VerifyStatementHandler>();
         services.AddScoped<Application.StatementAnalysis.Commands.RejectStatementHandler>();
         services.AddScoped<Application.StatementAnalysis.Queries.GetStatementByIdHandler>();
@@ -478,9 +507,17 @@ public static class DependencyInjection
         services.AddScoped<Application.FinancialAnalysis.Commands.SetCashFlowStatementHandler>();
         services.AddScoped<Application.FinancialAnalysis.Commands.SubmitFinancialStatementHandler>();
         services.AddScoped<Application.FinancialAnalysis.Commands.VerifyFinancialStatementHandler>();
+        services.AddScoped<Application.FinancialAnalysis.Commands.RejectFinancialStatementHandler>();
         services.AddScoped<Application.FinancialAnalysis.Queries.GetFinancialStatementByIdHandler>();
         services.AddScoped<Application.FinancialAnalysis.Queries.GetFinancialStatementsByLoanApplicationHandler>();
         services.AddScoped<Application.FinancialAnalysis.Queries.GetFinancialRatiosTrendHandler>();
+
+        // Approval Gate
+        services.Configure<WorkflowApprovalGateSettings>(configuration.GetSection(WorkflowApprovalGateSettings.SectionName));
+        services.AddScoped<Application.Workflow.Interfaces.IApprovalGateConfig, Workflow.ApprovalGateConfig>();
+        services.AddScoped<Application.Workflow.Queries.CheckApprovalGateHandler>();
+        services.AddScoped<Application.Workflow.Commands.SaveApprovalOverrideHandler>();
+        services.AddScoped<Application.Workflow.Commands.GetApprovalOverridesHandler>();
 
         return services;
     }

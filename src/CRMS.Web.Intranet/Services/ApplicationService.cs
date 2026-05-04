@@ -88,8 +88,13 @@ public partial class ApplicationService
                 Status = r.Status,
                 CreditScore = r.CreditScore,
                 Rating = GetScoreGrade(r.CreditScore),
+                IsScoreDerived = r.ScoreGrade == "DERIVED",
+                TotalLoans = r.TotalAccounts,
                 ActiveLoans = r.ActiveLoans,
+                PerformingLoans = r.PerformingAccounts,
+                ClosedLoans = r.ClosedAccounts,
                 TotalExposure = r.TotalOutstandingBalance,
+                HighestFacility = r.TotalCreditLimit,
                 TotalOverdue = r.TotalOverdue,
                 MaxDelinquencyDays = r.MaxDelinquencyDays,
                 HasLegalIssues = r.HasLegalActions,
@@ -122,6 +127,25 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error running credit checks for application {Id}", applicationId);
             return ApiResponse.Fail("Failed to run credit checks: " + ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse> ForceRerunCreditChecksAsync(Guid applicationId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CreditBureau.Commands.ProcessLoanCreditChecksHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.CreditBureau.Commands.ProcessLoanCreditChecksCommand(applicationId, userId, ForceRefresh: true),
+                CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse.Ok()
+                : ApiResponse.Fail(result.Error ?? "Failed to force re-run credit checks");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error force-rerunning credit checks for application {Id}", applicationId);
+            return ApiResponse.Fail("Failed to force re-run credit checks: " + ex.Message);
         }
     }
 
@@ -176,7 +200,8 @@ public partial class ApplicationService
                 AverageMonthlyBalance = s.CashflowSummary?.AverageMonthlyBalance,
                 NetMonthlyCashflow = s.CashflowSummary?.NetCashflow,
                 BouncedTransactions = s.CashflowSummary?.BouncedTransactionCount,
-                GamblingTransactions = s.CashflowSummary?.GamblingTransactionCount
+                GamblingTransactions = s.CashflowSummary?.GamblingTransactionCount,
+                VerificationNotes = s.VerificationNotes
             }).ToList();
         }
         catch (Exception ex)
@@ -345,6 +370,21 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse> RefetchInternalBankStatementAsync(Guid applicationId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.StatementAnalysis.Commands.RefetchInternalBankStatementHandler>();
+            var result = await handler.Handle(new CRMS.Application.StatementAnalysis.Commands.RefetchInternalBankStatementCommand(applicationId, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to re-fetch statement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error re-fetching internal bank statement for application {Id}", applicationId);
+            return ApiResponse.Fail("Failed to re-fetch statement");
+        }
+    }
+
     public async Task<ApiResponse> DeleteExternalStatementAsync(Guid statementId)
     {
         try
@@ -462,12 +502,12 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse<CRMS.Web.Intranet.Models.CacLookupResult>> FetchCacDirectorsAsync(string rcNumber)
+    public async Task<ApiResponse<CRMS.Web.Intranet.Models.CacLookupResult>> FetchCacDirectorsAsync(string rcNumber, string companyName, string companyType = "RC")
     {
         try
         {
             var smartComply = _sp.GetRequiredService<CRMS.Domain.Interfaces.ISmartComplyProvider>();
-            var result = await smartComply.VerifyCacAdvancedAsync(rcNumber.Trim());
+            var result = await smartComply.VerifyCacAdvancedAsync(rcNumber.Trim(), companyName, companyType);
             if (result.IsFailure)
                 return ApiResponse<CRMS.Web.Intranet.Models.CacLookupResult>.Fail(result.Error ?? "CAC lookup failed");
 
@@ -554,11 +594,18 @@ public partial class ApplicationService
                 Location = c.Location,
                 OwnerName = c.OwnerName,
                 OwnershipType = c.OwnershipType,
+                IndicativeValue = c.IndicativeValue,
                 MarketValue = c.MarketValue,
                 ForcedSaleValue = c.ForcedSaleValue,
                 AcceptableValue = c.AcceptableValue,
+                ValuerAcceptableValue = c.ValuerAcceptableValue,
                 HaircutPercentage = c.HaircutPercentage,
+                ValuationBasis = c.ValuationBasis,
+                ValuerName = c.ValuerName,
+                ValuerCompany = c.ValuerCompany,
+                ValuationReportPath = c.ValuationReportPath,
                 Currency = c.Currency,
+                CollateralTypeConfigId = c.CollateralTypeConfigId,
                 LastValuationDate = c.LastValuationDate,
                 LienType = c.LienType,
                 LienReference = c.LienReference,
@@ -577,7 +624,8 @@ public partial class ApplicationService
                     FileName = d.FileName,
                     FileSizeBytes = d.FileSizeBytes,
                     IsVerified = d.IsVerified,
-                    UploadedAt = d.UploadedAt
+                    UploadedAt = d.UploadedAt,
+                    Description = d.Description
                 }).ToList()
             };
         }
@@ -950,7 +998,8 @@ public partial class ApplicationService
                     Category = d.Category,
                     Status = d.Status,
                     UploadedAt = d.UploadedAt,
-                    SizeBytes = d.FileSize
+                    SizeBytes = d.FileSize,
+                    RejectionReason = d.RejectionReason
                 }).ToList()
             };
             LoanApplicationDetail loanApplicationDetail2 = loanApplicationDetail;
@@ -1001,11 +1050,16 @@ public partial class ApplicationService
                         Id = c.Id,
                         Type = c.Type,
                         Description = c.Description,
+                        IndicativeValue = c.IndicativeValue,
                         MarketValue = c.MarketValue.GetValueOrDefault(),
                         ForcedSaleValue = c.ForcedSaleValue.GetValueOrDefault(),
                         LoanToValue = ltv,
                         Status = c.Status,
-                        LastValuationDate = c.LastValuationDate
+                        LastValuationDate = c.LastValuationDate,
+                        RejectionReason = c.RejectionReason,
+                        IsLegalCleared = c.IsLegalCleared,
+                        LegalClearedAt = c.LegalClearedAt,
+                        LegalClearanceNotes = c.LegalClearanceNotes
                     });
                 }
                 else
@@ -1050,7 +1104,8 @@ public partial class ApplicationService
                 Relationship = g.Type,
                 GuaranteeAmount = g.GuaranteeLimit.GetValueOrDefault(),
                 Status = g.Status,
-                HasBureauReport = g.CreditScore.HasValue
+                HasBureauReport = g.CreditScore.HasValue,
+                RejectionReason = g.RejectionReason
             }).ToList();
         }
         catch (Exception ex)
@@ -1080,7 +1135,8 @@ public partial class ApplicationService
                 Status = fs.Status,
                 TotalAssets = fs.TotalAssets.GetValueOrDefault(),
                 Revenue = fs.TotalRevenue.GetValueOrDefault(),
-                NetProfit = fs.NetProfit.GetValueOrDefault()
+                NetProfit = fs.NetProfit.GetValueOrDefault(),
+                RejectionReason = fs.RejectionReason
             }).ToList();
         }
         catch (Exception ex)
@@ -1308,6 +1364,26 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse> ReplaceCommitteeMemberAsync(
+        Guid reviewId, Guid oldMemberUserId, Guid newMemberUserId,
+        string newMemberName, string reason, Guid performedByUserId)
+    {
+        try
+        {
+            using var scope = _sp.CreateScope();
+            var handler = scope.ServiceProvider.GetRequiredService<ReplaceCommitteeMemberHandler>();
+            var result = await handler.Handle(
+                new ReplaceCommitteeMemberCommand(reviewId, oldMemberUserId, newMemberUserId, newMemberName, reason, performedByUserId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to replace member");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error replacing committee member in review {ReviewId}", reviewId);
+            return ApiResponse.Fail("Failed to replace committee member");
+        }
+    }
+
     public async Task<ApiResponse> ConfirmCommitteeDecisionAsync(
         Guid reviewId, string decision, string rationale,
         decimal? approvedAmount, int? approvedTenorMonths, decimal? approvedInterestRate,
@@ -1315,14 +1391,80 @@ public partial class ApplicationService
     {
         try
         {
-            using var scope = _sp.CreateScope();
-            var handler = scope.ServiceProvider.GetRequiredService<RecordCommitteeDecisionHandler>();
+            // 1. Record the committee's formal decision on the CommitteeReview aggregate
+            using var decisionScope = _sp.CreateScope();
+            var decisionHandler = decisionScope.ServiceProvider.GetRequiredService<RecordCommitteeDecisionHandler>();
             var decisionEnum = Enum.Parse<CommitteeDecision>(decision, ignoreCase: true);
-            var result = await handler.Handle(
+            var decisionResult = await decisionHandler.Handle(
                 new RecordCommitteeDecisionCommand(reviewId, userId, decisionEnum, rationale,
                     approvedAmount, approvedTenorMonths, approvedInterestRate, conditions),
                 CancellationToken.None);
-            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to confirm decision");
+
+            if (!decisionResult.IsSuccess)
+                return ApiResponse.Fail(decisionResult.Error ?? "Failed to confirm decision");
+
+            var loanApplicationId = decisionResult.Data!.LoanApplicationId;
+
+            // 2. Advance the loan application domain entity and workflow based on the decision
+            if (decisionEnum == CommitteeDecision.Approved)
+            {
+                // Domain: CommitteeCirculation → CommitteeApproved → FinalApproval (two domain calls in one handler)
+                using var approveScope = _sp.CreateScope();
+                var approveHandler = approveScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.ApproveCommitteeHandler>();
+                var approveResult = await approveHandler.Handle(
+                    new Application.LoanApplication.Commands.ApproveCommitteeCommand(
+                        loanApplicationId, userId, approvedAmount, approvedTenorMonths, approvedInterestRate),
+                    CancellationToken.None);
+
+                if (!approveResult.IsSuccess)
+                    return ApiResponse.Fail(approveResult.Error ?? "Failed to advance application after committee approval");
+
+                // Workflow: CommitteeCirculation → CommitteeApproved (system-driven)
+                var workflowInstance = await GetWorkflowInstanceByApplicationIdAsync(loanApplicationId);
+                if (workflowInstance == null)
+                    return ApiResponse.Fail("Workflow instance not found");
+
+                var toApprovedResult = await TransitionWorkflowAsync(
+                    workflowInstance.Id, LoanApplicationStatus.CommitteeApproved,
+                    WorkflowAction.MoveToNextStage, rationale, userId, "SystemAdmin");
+
+                if (!toApprovedResult.Success)
+                    return ApiResponse.Fail(toApprovedResult.Message ?? "Failed to transition workflow to CommitteeApproved");
+
+                // Workflow: CommitteeApproved → FinalApproval (auto system-driven)
+                var refreshedWorkflow = await GetWorkflowInstanceByApplicationIdAsync(loanApplicationId);
+                if (refreshedWorkflow == null)
+                    return ApiResponse.Fail("Workflow instance not found after CommitteeApproved transition");
+
+                var toFinalResult = await TransitionWorkflowAsync(
+                    refreshedWorkflow.Id, LoanApplicationStatus.FinalApproval,
+                    WorkflowAction.MoveToNextStage, "Auto-transition to final approval", userId, "SystemAdmin");
+
+                if (!toFinalResult.Success)
+                    return ApiResponse.Fail(toFinalResult.Message ?? "Failed to transition workflow to FinalApproval");
+            }
+            else if (decisionEnum == CommitteeDecision.Rejected)
+            {
+                // Domain: CommitteeCirculation → CommitteeRejected
+                using var rejectScope = _sp.CreateScope();
+                var rejectHandler = rejectScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.RejectCommitteeHandler>();
+                var rejectResult = await rejectHandler.Handle(
+                    new Application.LoanApplication.Commands.RejectCommitteeCommand(loanApplicationId, userId, rationale),
+                    CancellationToken.None);
+
+                if (!rejectResult.IsSuccess)
+                    return ApiResponse.Fail(rejectResult.Error ?? "Failed to update application status after committee rejection");
+
+                // Workflow: CommitteeCirculation → CommitteeRejected
+                var workflowInstance = await GetWorkflowInstanceByApplicationIdAsync(loanApplicationId);
+                if (workflowInstance != null)
+                {
+                    await TransitionWorkflowAsync(workflowInstance.Id, LoanApplicationStatus.CommitteeRejected,
+                        WorkflowAction.Reject, rationale, userId, "SystemAdmin");
+                }
+            }
+
+            return ApiResponse.Ok();
         }
         catch (Exception ex)
         {
@@ -2683,7 +2825,18 @@ public partial class ApplicationService
         try
         {
             AddCollateralHandler handler = _sp.GetRequiredService<AddCollateralHandler>();
-            AddCollateralCommand command = new AddCollateralCommand(Type: Enum.Parse<CollateralType>(request.Type, ignoreCase: true), LoanApplicationId: request.LoanApplicationId, Description: request.Description, CreatedByUserId: userId, AssetIdentifier: request.AssetIdentifier, Location: request.Location, OwnerName: request.OwnerName, OwnershipType: request.OwnershipType);
+            AddCollateralCommand command = new AddCollateralCommand(
+                Type: Enum.Parse<CollateralType>(request.Type, ignoreCase: true),
+                LoanApplicationId: request.LoanApplicationId,
+                Description: request.Description,
+                CreatedByUserId: userId,
+                AssetIdentifier: request.AssetIdentifier,
+                Location: request.Location,
+                OwnerName: request.OwnerName,
+                OwnershipType: request.OwnershipType,
+                CollateralTypeConfigId: request.CollateralTypeConfigId,
+                IndicativeValue: request.IndicativeValue,
+                Currency: request.Currency);
             ApplicationResult<CollateralDto> result = await handler.Handle(command, CancellationToken.None);
             if (!result.IsSuccess || result.Data == null)
             {
@@ -2704,20 +2857,135 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> SetCollateralValuationAsync(Guid collateralId, decimal marketValue, decimal? forcedSaleValue, decimal? haircutPercentage)
+    public async Task<ApiResponse> SetCollateralValuationAsync(Guid collateralId, SetCollateralValuationRequest request)
     {
         try
         {
             SetCollateralValuationHandler handler = _sp.GetRequiredService<SetCollateralValuationHandler>();
-            SetCollateralValuationCommand command = new SetCollateralValuationCommand(collateralId, marketValue, forcedSaleValue, "NGN", haircutPercentage);
+            SetCollateralValuationCommand command = new SetCollateralValuationCommand(
+                collateralId,
+                request.MarketValue,
+                request.ForcedSaleValue,
+                request.Currency,
+                request.HaircutPercentage,
+                request.ValuationBasis,
+                request.ValuerAcceptableValue,
+                request.ValuerName,
+                request.ValuerCompany,
+                request.ValuationReportPath);
             ApplicationResult<CollateralDto> result = await handler.Handle(command, CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to set valuation");
         }
         catch (Exception ex)
         {
-            Exception ex2 = ex;
-            _logger.LogError(ex2, "Error setting collateral valuation");
+            _logger.LogError(ex, "Error setting collateral valuation");
             return ApiResponse.Fail("Failed to set collateral valuation");
+        }
+    }
+
+    public async Task<ApiResponse<List<CollateralTypeConfigItem>>> GetCollateralTypeConfigsAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetCollateralTypeConfigsHandler>();
+            var result = await handler.Handle(new GetCollateralTypeConfigsQuery(ActiveOnly: true), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return ApiResponse<List<CollateralTypeConfigItem>>.Fail(result.Error ?? "Failed to load collateral types");
+
+            return ApiResponse<List<CollateralTypeConfigItem>>.Ok(result.Data.Select(c => new CollateralTypeConfigItem
+            {
+                Id = c.Id,
+                Name = c.Name,
+                Code = c.Code,
+                HaircutRate = c.HaircutRate,
+                ValuationBasis = c.ValuationBasis
+            }).ToList());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading collateral type configurations");
+            return ApiResponse<List<CollateralTypeConfigItem>>.Fail("Failed to load collateral types");
+        }
+    }
+
+    public async Task<ApiResponse<List<CollateralTypeConfigDto>>> GetCollateralTypeConfigsAllAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetCollateralTypeConfigsHandler>();
+            var result = await handler.Handle(new GetCollateralTypeConfigsQuery(ActiveOnly: false), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return ApiResponse<List<CollateralTypeConfigDto>>.Fail(result.Error ?? "Failed to load collateral types");
+            return ApiResponse<List<CollateralTypeConfigDto>>.Ok(result.Data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading all collateral type configurations");
+            return ApiResponse<List<CollateralTypeConfigDto>>.Fail("Failed to load collateral types");
+        }
+    }
+
+    public async Task<ApiResponse> CreateCollateralTypeConfigAsync(CreateCollateralTypeConfigRequest request, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CreateCollateralTypeConfigHandler>();
+            var result = await handler.Handle(new CreateCollateralTypeConfigCommand(
+                request.Name, request.Code, request.HaircutRate, request.ValuationBasis, userId,
+                request.Description, request.SortOrder), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create collateral type");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating collateral type configuration");
+            return ApiResponse.Fail("Failed to create collateral type");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateCollateralTypeConfigAsync(Guid id, UpdateCollateralTypeConfigRequest request, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<UpdateCollateralTypeConfigHandler>();
+            var result = await handler.Handle(new UpdateCollateralTypeConfigCommand(
+                id, request.Name, request.HaircutRate, request.ValuationBasis, userId,
+                request.Description, request.SortOrder), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update collateral type");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating collateral type configuration {Id}", id);
+            return ApiResponse.Fail("Failed to update collateral type");
+        }
+    }
+
+    public async Task<ApiResponse> ToggleCollateralTypeConfigAsync(Guid id, bool activate, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<ToggleCollateralTypeConfigHandler>();
+            var result = await handler.Handle(new ToggleCollateralTypeConfigCommand(id, activate, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update collateral type status");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling collateral type configuration {Id}", id);
+            return ApiResponse.Fail("Failed to update collateral type status");
+        }
+    }
+
+    public async Task<ApiResponse> RecordLegalClearanceAsync(Guid collateralId, Guid userId, string? notes)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<RecordLegalClearanceHandler>();
+            var result = await handler.Handle(new RecordLegalClearanceCommand(collateralId, userId, notes), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to record legal clearance");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recording legal clearance for collateral {CollateralId}", collateralId);
+            return ApiResponse.Fail("Failed to record legal clearance");
         }
     }
 
@@ -2986,6 +3254,21 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse> DeleteDocumentAsync(Guid applicationId, Guid documentId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<DeleteDocumentHandler>();
+            var result = await handler.Handle(new DeleteDocumentCommand(applicationId, documentId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to delete document");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting document");
+            return ApiResponse.Fail("Failed to delete document");
+        }
+    }
+
     public async Task<byte[]?> DownloadDocumentAsync(Guid applicationId, Guid documentId)
     {
         try
@@ -3105,7 +3388,8 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> RecordOfferAcceptanceAsync(Guid applicationId, Guid userId, string userRole, string userName, string? comments)
+    public async Task<ApiResponse> RecordOfferAcceptanceAsync(Guid applicationId, Guid userId, string userRole, string userName, string? comments,
+        DateTime customerSignedAt, OfferAcceptanceMethod acceptanceMethod, bool kfsAcknowledged)
     {
         try
         {
@@ -3117,19 +3401,39 @@ public partial class ApplicationService
                     userId,
                     userRole,
                     userName,
-                    _bankSettings.BankName),
+                    _bankSettings.BankName,
+                    customerSignedAt,
+                    acceptanceMethod,
+                    kfsAcknowledged),
                 CancellationToken.None);
 
             if (!confirmResult.IsSuccess)
                 return ApiResponse.Fail(confirmResult.Error ?? "Offer acceptance failed");
 
-            // 2. Transition the workflow to OfferAccepted
+            // 2. Transition workflow to OfferAccepted
             var workflowInstance = await GetWorkflowInstanceByApplicationIdAsync(applicationId);
             if (workflowInstance == null)
                 return ApiResponse.Fail("Workflow instance not found for this application");
 
-            return await TransitionWorkflowAsync(workflowInstance.Id, LoanApplicationStatus.OfferAccepted,
+            var acceptResult = await TransitionWorkflowAsync(workflowInstance.Id, LoanApplicationStatus.OfferAccepted,
                 WorkflowAction.MoveToNextStage, comments, userId, userRole);
+            if (!acceptResult.Success)
+                return acceptResult;
+
+            // 3. Automatically advance to SecurityPerfection (system-triggered, same pattern as BranchApproved→CreditAnalysis)
+            using var secScope = _sp.CreateScope();
+            var secHandler = secScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.MoveToSecurityPerfectionHandler>();
+            var secResult = await secHandler.Handle(new Application.LoanApplication.Commands.MoveToSecurityPerfectionCommand(applicationId, userId), CancellationToken.None);
+            if (!secResult.IsSuccess)
+                return ApiResponse.Fail(secResult.Error ?? "Failed to advance to security perfection");
+
+            // 4. Reload workflow and transition to SecurityPerfection
+            workflowInstance = await GetWorkflowInstanceByApplicationIdAsync(applicationId);
+            if (workflowInstance == null)
+                return ApiResponse.Fail("Workflow instance not found after offer acceptance");
+
+            return await TransitionWorkflowAsync(workflowInstance.Id, LoanApplicationStatus.SecurityPerfection,
+                WorkflowAction.MoveToNextStage, null, userId, Roles.SystemAdmin);
         }
         catch (Exception ex)
         {
@@ -3138,17 +3442,26 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> DisburseApplicationAsync(Guid applicationId, Guid userId, string userRole, string? comments)
+    public async Task<ApiResponse> DisburseApplicationAsync(Guid applicationId, Guid userId, string userRole, string coreBankingLoanId, string? comments)
     {
         try
         {
+            // Domain: record disbursement (GMFinance HQ approval — final funds release)
+            using var domainScope = _sp.CreateScope();
+            var hqHandler = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.ApproveDisbursementHQHandler>();
+            var domainResult = await hqHandler.Handle(
+                new Application.LoanApplication.Commands.ApproveDisbursementHQCommand(applicationId, userId, coreBankingLoanId, comments),
+                CancellationToken.None);
+            if (!domainResult.IsSuccess)
+                return ApiResponse.Fail(domainResult.Error ?? "HQ disbursement approval failed");
+
+            // Workflow: transition to Disbursed
             var workflowInstance = await GetWorkflowInstanceByApplicationIdAsync(applicationId);
             if (workflowInstance == null)
                 return ApiResponse.Fail("Workflow instance not found for this application");
 
-            var result = await TransitionWorkflowAsync(workflowInstance.Id, LoanApplicationStatus.Disbursed,
+            return await TransitionWorkflowAsync(workflowInstance.Id, LoanApplicationStatus.Disbursed,
                 WorkflowAction.Complete, comments, userId, userRole);
-            return result;
         }
         catch (Exception ex)
         {
@@ -3169,12 +3482,17 @@ public partial class ApplicationService
 
             LoanApplicationStatus targetStatus = currentStatus switch
             {
-                "BranchReview"        => LoanApplicationStatus.BranchApproved,
-                "CreditAnalysis"      => LoanApplicationStatus.HOReview,
-                "HOReview"            => LoanApplicationStatus.CommitteeCirculation,
-                "CommitteeCirculation"=> LoanApplicationStatus.CommitteeApproved,
-                "FinalApproval"       => LoanApplicationStatus.Approved,
-                _                     => LoanApplicationStatus.Approved,
+                "BranchReview"               => LoanApplicationStatus.BranchApproved,
+                "CreditAnalysis"             => LoanApplicationStatus.HOReview,
+                "HOReview"                   => LoanApplicationStatus.LegalReview,
+                "LegalReview"                => LoanApplicationStatus.LegalApproval,
+                "LegalApproval"              => LoanApplicationStatus.CommitteeCirculation,
+                "FinalApproval"              => LoanApplicationStatus.Approved,
+                "SecurityPerfection"         => LoanApplicationStatus.SecurityApproval,
+                "SecurityApproval"           => LoanApplicationStatus.DisbursementPending,
+                "DisbursementPending"        => LoanApplicationStatus.DisbursementBranchApproval,
+                "DisbursementBranchApproval" => LoanApplicationStatus.DisbursementHQApproval,
+                _                            => LoanApplicationStatus.Approved,
             };
 
             // Update the LoanApplication domain status for stages that have an explicit domain command.
@@ -3204,13 +3522,35 @@ public partial class ApplicationService
             else if (currentStatus == "HOReview")
             {
                 using var domainScope = _sp.CreateScope();
-                var moveToCommitteeHandler = domainScope.ServiceProvider
-                    .GetRequiredService<Application.LoanApplication.Commands.MoveToCommitteeHandler>();
-                var domainResult = await moveToCommitteeHandler.Handle(
-                    new Application.LoanApplication.Commands.MoveToCommitteeCommand(applicationId, userId),
+                var moveToLegalHandler = domainScope.ServiceProvider
+                    .GetRequiredService<Application.LoanApplication.Commands.MoveToLegalReviewHandler>();
+                var domainResult = await moveToLegalHandler.Handle(
+                    new Application.LoanApplication.Commands.MoveToLegalReviewCommand(applicationId, userId),
                     CancellationToken.None);
                 if (!domainResult.IsSuccess)
-                    return ApiResponse.Fail(domainResult.Error ?? "Move to committee failed");
+                    return ApiResponse.Fail(domainResult.Error ?? "Move to legal review failed");
+            }
+            else if (currentStatus == "LegalReview")
+            {
+                using var domainScope = _sp.CreateScope();
+                var submitOpinionHandler = domainScope.ServiceProvider
+                    .GetRequiredService<Application.LoanApplication.Commands.SubmitLegalOpinionHandler>();
+                var domainResult = await submitOpinionHandler.Handle(
+                    new Application.LoanApplication.Commands.SubmitLegalOpinionCommand(applicationId, userId, comments),
+                    CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Submit legal opinion failed");
+            }
+            else if (currentStatus == "LegalApproval")
+            {
+                using var domainScope = _sp.CreateScope();
+                var approveLegalHandler = domainScope.ServiceProvider
+                    .GetRequiredService<Application.LoanApplication.Commands.ApproveLegalReviewHandler>();
+                var domainResult = await approveLegalHandler.Handle(
+                    new Application.LoanApplication.Commands.ApproveLegalReviewCommand(applicationId, userId, comments),
+                    CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Legal approval failed");
             }
             else if (currentStatus == "FinalApproval")
             {
@@ -3222,6 +3562,38 @@ public partial class ApplicationService
                     CancellationToken.None);
                 if (!domainResult.IsSuccess)
                     return ApiResponse.Fail(domainResult.Error ?? "Final approval failed");
+            }
+            else if (currentStatus == "SecurityPerfection")
+            {
+                using var domainScope = _sp.CreateScope();
+                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.SubmitSecurityDocumentsHandler>();
+                var domainResult = await h.Handle(new Application.LoanApplication.Commands.SubmitSecurityDocumentsCommand(applicationId, userId, comments), CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Submit security documents failed");
+            }
+            else if (currentStatus == "SecurityApproval")
+            {
+                using var domainScope = _sp.CreateScope();
+                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.ApproveSecurityPerfectionHandler>();
+                var domainResult = await h.Handle(new Application.LoanApplication.Commands.ApproveSecurityPerfectionCommand(applicationId, userId, comments), CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Security perfection approval failed");
+            }
+            else if (currentStatus == "DisbursementPending")
+            {
+                using var domainScope = _sp.CreateScope();
+                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.PrepareDisbursementMemoHandler>();
+                var domainResult = await h.Handle(new Application.LoanApplication.Commands.PrepareDisbursementMemoCommand(applicationId, userId, comments), CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Prepare disbursement memo failed");
+            }
+            else if (currentStatus == "DisbursementBranchApproval")
+            {
+                using var domainScope = _sp.CreateScope();
+                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.ApproveDisbursementBranchHandler>();
+                var domainResult = await h.Handle(new Application.LoanApplication.Commands.ApproveDisbursementBranchCommand(applicationId, userId, comments), CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Branch disbursement approval failed");
             }
 
             // Transition the workflow instance to reflect the new stage.
@@ -3251,11 +3623,15 @@ public partial class ApplicationService
 
             LoanApplicationStatus targetStatus = currentStatus switch
             {
-                "BranchReview"         => LoanApplicationStatus.BranchReturned,
-                "CreditAnalysis"       => LoanApplicationStatus.BranchReview,
-                "HOReview"             => LoanApplicationStatus.CreditAnalysis,
-                "CommitteeCirculation" => LoanApplicationStatus.HOReview,
-                _                      => LoanApplicationStatus.BranchReturned,
+                "BranchReview"               => LoanApplicationStatus.BranchReturned,
+                "CreditAnalysis"             => LoanApplicationStatus.BranchReview,
+                "HOReview"                   => LoanApplicationStatus.CreditAnalysis,
+                "LegalReview"                => LoanApplicationStatus.HOReview,
+                "LegalApproval"              => LoanApplicationStatus.LegalReview,
+                "CommitteeCirculation"       => LoanApplicationStatus.HOReview,
+                "SecurityApproval"           => LoanApplicationStatus.SecurityPerfection,
+                "DisbursementBranchApproval" => LoanApplicationStatus.DisbursementPending,
+                _                            => LoanApplicationStatus.BranchReturned,
             };
 
             // Sync LoanApplication domain status for stages that need it.
@@ -3291,6 +3667,44 @@ public partial class ApplicationService
                     CancellationToken.None);
                 if (!domainResult.IsSuccess)
                     return ApiResponse.Fail(domainResult.Error ?? "Return from HO Review failed");
+            }
+            else if (currentStatus == "LegalReview")
+            {
+                using var domainScope = _sp.CreateScope();
+                var returnHandler = domainScope.ServiceProvider
+                    .GetRequiredService<Application.LoanApplication.Commands.ReturnFromLegalReviewHandler>();
+                var domainResult = await returnHandler.Handle(
+                    new Application.LoanApplication.Commands.ReturnFromLegalReviewCommand(applicationId, userId, comments),
+                    CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Return from legal review failed");
+            }
+            else if (currentStatus == "LegalApproval")
+            {
+                using var domainScope = _sp.CreateScope();
+                var returnHandler = domainScope.ServiceProvider
+                    .GetRequiredService<Application.LoanApplication.Commands.ReturnFromLegalApprovalHandler>();
+                var domainResult = await returnHandler.Handle(
+                    new Application.LoanApplication.Commands.ReturnFromLegalApprovalCommand(applicationId, userId, comments),
+                    CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Return from legal approval failed");
+            }
+            else if (currentStatus == "SecurityApproval")
+            {
+                using var domainScope = _sp.CreateScope();
+                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.ReturnFromSecurityApprovalHandler>();
+                var domainResult = await h.Handle(new Application.LoanApplication.Commands.ReturnFromSecurityApprovalCommand(applicationId, userId, comments), CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Return from security approval failed");
+            }
+            else if (currentStatus == "DisbursementBranchApproval")
+            {
+                using var domainScope = _sp.CreateScope();
+                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.ReturnFromDisbursementBranchHandler>();
+                var domainResult = await h.Handle(new Application.LoanApplication.Commands.ReturnFromDisbursementBranchCommand(applicationId, userId, comments), CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Return from disbursement branch failed");
             }
 
             using var transitionScope = _sp.CreateScope();
@@ -3840,8 +4254,13 @@ public partial class ApplicationService
                 Status = r.Status,
                 CreditScore = r.CreditScore,
                 Rating = GetScoreGrade(r.CreditScore),
+                IsScoreDerived = r.ScoreGrade == "DERIVED",
+                TotalLoans = r.TotalAccounts,
                 ActiveLoans = r.ActiveLoans,
+                PerformingLoans = r.PerformingAccounts,
+                ClosedLoans = r.ClosedAccounts,
                 TotalExposure = r.TotalOutstandingBalance,
+                HighestFacility = r.TotalCreditLimit,
                 TotalOverdue = r.TotalOverdue,
                 MaxDelinquencyDays = r.MaxDelinquencyDays,
                 HasLegalIssues = r.HasLegalActions,
@@ -4001,6 +4420,22 @@ public partial class ApplicationService
                 return ApiResponse<DisbursementChecklistModel>.Fail(result.Error ?? "Failed to load checklist");
 
             var dto = result.Data;
+
+            // Build a name lookup for any waiver proposers — avoids N+1 calls
+            var waiverProposerIds = dto.Items
+                .Where(i => i.WaiverProposedByUserId.HasValue)
+                .Select(i => i.WaiverProposedByUserId!.Value)
+                .Distinct()
+                .ToHashSet();
+            var userNameLookup = new Dictionary<Guid, string>();
+            if (waiverProposerIds.Count > 0)
+            {
+                var users = await GetUsersAsync();
+                userNameLookup = users
+                    .Where(u => waiverProposerIds.Contains(u.Id))
+                    .ToDictionary(u => u.Id, u => $"{u.FirstName} {u.LastName}".Trim());
+            }
+
             return ApiResponse<DisbursementChecklistModel>.Ok(new DisbursementChecklistModel
             {
                 LoanApplicationId = dto.LoanApplicationId,
@@ -4028,6 +4463,7 @@ public partial class ApplicationService
                     LegalRatifiedAt = i.LegalRatifiedAt,
                     LegalReturnReason = i.LegalReturnReason,
                     WaiverProposedByUserId = i.WaiverProposedByUserId,
+                    WaiverProposedByUserName = i.WaiverProposedByUserId.HasValue && userNameLookup.TryGetValue(i.WaiverProposedByUserId.Value, out var pName) ? pName : null,
                     WaiverProposedAt = i.WaiverProposedAt,
                     WaiverReason = i.WaiverReason,
                     WaiverRatifiedByUserId = i.WaiverRatifiedByUserId,
@@ -4264,6 +4700,128 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error removing checklist template item {ItemId}", itemId);
             return ApiResponse.Fail("Failed to remove checklist item");
+        }
+    }
+
+    // ─── Financial Statement Verification ────────────────────────────────────────
+
+    public async Task<ApiResponse> VerifyFinancialStatementAsync(Guid statementId, Guid userId, string? notes)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.FinancialAnalysis.Commands.VerifyFinancialStatementHandler>();
+            var result = await handler.Handle(
+                new Application.FinancialAnalysis.Commands.VerifyFinancialStatementCommand(statementId, userId, notes),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error!);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying financial statement {Id}", statementId);
+            return ApiResponse.Fail("Failed to verify financial statement");
+        }
+    }
+
+    public async Task<ApiResponse> RejectFinancialStatementAsync(Guid statementId, string reason)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.FinancialAnalysis.Commands.RejectFinancialStatementHandler>();
+            var result = await handler.Handle(
+                new Application.FinancialAnalysis.Commands.RejectFinancialStatementCommand(statementId, reason),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error!);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error rejecting financial statement {Id}", statementId);
+            return ApiResponse.Fail("Failed to reject financial statement");
+        }
+    }
+
+    // ─── Approval Gate ────────────────────────────────────────────────────────────
+
+    public async Task<ApprovalGateResultModel?> CheckApprovalGateAsync(Guid applicationId, string stage)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Workflow.Queries.CheckApprovalGateHandler>();
+            var result = await handler.Handle(
+                new Application.Workflow.Queries.CheckApprovalGateQuery(applicationId, stage),
+                CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null) return null;
+
+            return new ApprovalGateResultModel
+            {
+                IsStrict = result.Data.IsStrict,
+                RejectedItems = result.Data.RejectedItems.Select(x => new GateItemModel
+                {
+                    ItemId = x.ItemId,
+                    ItemType = x.ItemType,
+                    ItemLabel = x.ItemLabel,
+                    State = x.State,
+                    RejectionReason = x.RejectionReason
+                }).ToList(),
+                PendingItems = result.Data.PendingItems.Select(x => new GateItemModel
+                {
+                    ItemId = x.ItemId,
+                    ItemType = x.ItemType,
+                    ItemLabel = x.ItemLabel,
+                    State = x.State,
+                    RejectionReason = x.RejectionReason
+                }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking approval gate for application {Id}", applicationId);
+            return null;
+        }
+    }
+
+    public async Task<ApiResponse> SaveApprovalOverrideAsync(Guid applicationId, string stage, Guid actorId, string actorName, string noteText)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Workflow.Commands.SaveApprovalOverrideHandler>();
+            var result = await handler.Handle(
+                new Application.Workflow.Commands.SaveApprovalOverrideCommand(applicationId, stage, actorId, actorName, noteText),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error!);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving approval override for application {Id}", applicationId);
+            return ApiResponse.Fail("Failed to save approval override note");
+        }
+    }
+
+    public async Task<List<ApprovalOverrideInfo>> GetApprovalOverridesAsync(Guid applicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<Application.Workflow.Commands.GetApprovalOverridesHandler>();
+            var result = await handler.Handle(
+                new Application.Workflow.Commands.GetApprovalOverridesQuery(applicationId),
+                CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null) return [];
+
+            return result.Data.Select(r => new ApprovalOverrideInfo
+            {
+                Id = r.Id,
+                Stage = r.Stage,
+                ActorName = r.ActorName,
+                NoteText = r.NoteText,
+                IsResolved = r.IsResolved,
+                ResolvedAt = r.ResolvedAt,
+                ResolvedByName = r.ResolvedByName,
+                CreatedAt = r.CreatedAt
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading approval overrides for application {Id}", applicationId);
+            return [];
         }
     }
 }

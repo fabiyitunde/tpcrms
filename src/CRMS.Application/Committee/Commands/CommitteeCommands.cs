@@ -99,6 +99,47 @@ public class AddCommitteeMemberHandler : IRequestHandler<AddCommitteeMemberComma
     }
 }
 
+// Replace committee member (admin-only; records an internal audit comment)
+public record ReplaceCommitteeMemberCommand(
+    Guid CommitteeReviewId,
+    Guid OldMemberUserId,
+    Guid NewMemberUserId,
+    string NewMemberName,
+    string Reason,
+    Guid PerformedByUserId
+) : IRequest<ApplicationResult<CommitteeReviewDto>>;
+
+public class ReplaceCommitteeMemberHandler : IRequestHandler<ReplaceCommitteeMemberCommand, ApplicationResult<CommitteeReviewDto>>
+{
+    private readonly ICommitteeReviewRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ReplaceCommitteeMemberHandler(ICommitteeReviewRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult<CommitteeReviewDto>> Handle(ReplaceCommitteeMemberCommand request, CancellationToken ct = default)
+    {
+        var review = await _repository.GetByIdAsync(request.CommitteeReviewId, ct);
+        if (review == null)
+            return ApplicationResult<CommitteeReviewDto>.Failure("Committee review not found");
+
+        var result = review.ReplaceMember(
+            request.OldMemberUserId, request.NewMemberUserId,
+            request.NewMemberName, request.Reason, request.PerformedByUserId);
+
+        if (result.IsFailure)
+            return ApplicationResult<CommitteeReviewDto>.Failure(result.Error);
+
+        _repository.Update(review);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return ApplicationResult<CommitteeReviewDto>.Success(CommitteeMapper.ToDto(review));
+    }
+}
+
 // Remove committee member
 public record RemoveCommitteeMemberCommand(
     Guid CommitteeReviewId,

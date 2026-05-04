@@ -379,15 +379,15 @@ else
                              CanSetupCommittee="@CanSetupCommitteeReview"
                              CanManageCommittee="@CanManageCommitteeReview"
                              CanConfirmDecision="@CanConfirmCommitteeDecision"
+                             CanReplaceCommitteeMember="@CanReplaceCommitteeMember"
                              AvailableMemberUsers="committeeUsers"
                              RequestedAmount="application.Loan.RequestedAmount"
                              RequestedInterestRate="application.Loan.InterestRate"
                              RequestedTenorMonths="application.Loan.TenorMonths"
                              OnCastVote="CastVote"
                              OnSetupCommittee="ShowSetupCommitteeModal"
-                             OnRemoveMember="RemoveCommitteeMember"
-                             OnAddMember="AddCommitteeMember"
                              OnStartVoting="StartCommitteeVoting"
+                             OnReplaceMember="ReplaceCommitteeMember"
                              OnConfirmDecision="ConfirmCommitteeDecision" />
             break;
         case "comments":
@@ -1631,6 +1631,12 @@ else
         application.Committee?.Status == "Pending" &&
         (AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false);
 
+    private bool CanReplaceCommitteeMember =>
+        application?.Status == AppStatus.CommitteeCirculation &&
+        application.Committee?.Status == "Pending" &&
+        (AuthService.CurrentUser?.HasRole(Roles.SystemAdmin) == true ||
+         AuthService.CurrentUser?.HasRole(Roles.RiskManager) == true);
+
     private bool IsAssignedCommitteeMember =>
         application?.Committee?.Members.Any(m => m.UserId == (AuthService.CurrentUser?.Id ?? Guid.Empty)) == true;
 
@@ -2155,18 +2161,12 @@ else
         }
     }
 
-    private async Task RemoveCommitteeMember(Guid userId)
+    private async Task ReplaceCommitteeMember((Guid oldUserId, Guid newUserId, string newName, string reason) args)
     {
         if (application?.Committee == null) return;
-        await AppService.RemoveCommitteeMemberAsync(application.Committee.ReviewId, userId);
-        await LoadApplication();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task AddCommitteeMember((Guid userId, string name, string role, bool isChair) args)
-    {
-        if (application?.Committee == null) return;
-        await AppService.AddCommitteeMemberAsync(application.Committee.ReviewId, args.userId, args.name, args.role, args.isChair);
+        if (!EnsureAuthenticated(out var userId)) return;
+        await AppService.ReplaceCommitteeMemberAsync(
+            application.Committee.ReviewId, args.oldUserId, args.newUserId, args.newName, args.reason, userId);
         await LoadApplication();
         await InvokeAsync(StateHasChanged);
     }

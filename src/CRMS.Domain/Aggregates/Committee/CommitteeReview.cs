@@ -123,6 +123,45 @@ public class CommitteeReview : AggregateRoot
         return Result.Success();
     }
 
+    public Result ReplaceMember(Guid oldUserId, Guid newUserId, string newUserName, string reason, Guid performedByUserId)
+    {
+        if (Status != CommitteeReviewStatus.Pending)
+            return Result.Failure("Committee members can only be replaced before voting starts");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("A reason is required when replacing a committee member");
+
+        var oldMember = _members.FirstOrDefault(m => m.UserId == oldUserId);
+        if (oldMember == null)
+            return Result.Failure("Member not found in this committee review");
+
+        if (_members.Any(m => m.UserId == newUserId))
+            return Result.Failure("The replacement user is already a committee member");
+
+        var oldMemberName = oldMember.UserName;
+        var inheritedRole = oldMember.Role;
+        var inheritedChair = oldMember.IsChairperson;
+
+        _members.Remove(oldMember);
+
+        var newMember = CommitteeMember.Create(Id, newUserId, newUserName, inheritedRole, inheritedChair);
+        if (newMember.IsFailure)
+            return Result.Failure(newMember.Error);
+
+        _members.Add(newMember.Value);
+
+        // Internal audit comment on the review itself
+        AddComment(performedByUserId,
+            $"[AUDIT] Committee member replaced: {oldMemberName} → {newUserName}. Reason: {reason}",
+            CommentVisibility.Internal);
+
+        AddDomainEvent(new CommitteeMemberReplacedEvent(
+            Id, LoanApplicationId, performedByUserId,
+            oldUserId, oldMemberName, newUserId, newUserName, reason));
+
+        return Result.Success();
+    }
+
     public Result StartVoting()
     {
         if (Status != CommitteeReviewStatus.Pending)
@@ -318,3 +357,8 @@ public record CommitteeDecisionRecordedEvent(
 
 public record CommitteeReviewClosedEvent(
     Guid ReviewId, Guid LoanApplicationId, CommitteeDecision FinalDecision) : DomainEvent;
+
+public record CommitteeMemberReplacedEvent(
+    Guid ReviewId, Guid LoanApplicationId, Guid PerformedByUserId,
+    Guid OldUserId, string OldUserName, Guid NewUserId, string NewUserName,
+    string Reason) : DomainEvent;
