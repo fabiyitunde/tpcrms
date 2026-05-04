@@ -5,6 +5,7 @@ using CRMS.Domain.Aggregates.Advisory;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
+using System.Text.Json;
 
 namespace CRMS.Application.Advisory.Commands;
 
@@ -136,6 +137,26 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
             if (completeResult.IsFailure)
             {
                 advisory.MarkFailed(completeResult.Error);
+            }
+            else
+            {
+                // Serialize risk data to JSON so it survives DB round-trips
+                var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = null };
+                var riskScoresJson = JsonSerializer.Serialize(
+                    advisory.RiskScores.Select(s => new
+                    {
+                        Category = s.Category.ToString(),
+                        s.Score,
+                        s.Weight,
+                        Rating = s.Rating.ToString(),
+                        s.Rationale,
+                        s.RedFlags,
+                        s.PositiveIndicators
+                    }), jsonOpts);
+                var redFlagsJson = JsonSerializer.Serialize(advisory.RedFlags.ToList(), jsonOpts);
+                var conditionsJson = JsonSerializer.Serialize(advisory.Conditions.ToList(), jsonOpts);
+                var covenantsJson = JsonSerializer.Serialize(advisory.Covenants.ToList(), jsonOpts);
+                advisory.SetPersistedData(riskScoresJson, redFlagsJson, conditionsJson, covenantsJson);
             }
         }
         catch (Exception ex)

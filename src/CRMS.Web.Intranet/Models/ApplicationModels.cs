@@ -32,6 +32,8 @@ public class LoanApplicationSummary
             "BranchRejected" => "Branch Rejected",
             "CreditAnalysis" => "Credit Analysis",
             "HOReview" => "HO Review",
+            "LegalReview" => "Legal Review",
+            "LegalApproval" => "Legal Approval",
             "CommitteeCirculation" => "Committee",
             "CommitteeApproved" => "Committee Approved",
             "CommitteeRejected" => "Committee Rejected",
@@ -40,6 +42,11 @@ public class LoanApplicationSummary
             "Rejected" => "Rejected",
             "OfferGenerated" => "Offer Generated",
             "OfferAccepted" => "Offer Accepted",
+            "SecurityPerfection" => "Security Perfection",
+            "SecurityApproval" => "Security Approval",
+            "DisbursementPending" => "Disbursement Pending",
+            "DisbursementBranchApproval" => "Disbursement — Branch Auth",
+            "DisbursementHQApproval" => "Disbursement — HQ Auth",
             "Disbursed" => "Disbursed",
             "Closed" => "Closed",
             "Cancelled" => "Cancelled",
@@ -156,6 +163,7 @@ public class DocumentInfo
     public DateTime UploadedAt { get; set; }
     public string UploadedBy { get; set; } = string.Empty;
     public long SizeBytes { get; set; }
+    public string? RejectionReason { get; set; }
 }
 
 public class CollateralInfo
@@ -163,11 +171,16 @@ public class CollateralInfo
     public Guid Id { get; set; }
     public string Type { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public decimal? IndicativeValue { get; set; }
     public decimal MarketValue { get; set; }
     public decimal ForcedSaleValue { get; set; }
     public decimal LoanToValue { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime? LastValuationDate { get; set; }
+    public string? RejectionReason { get; set; }
+    public bool IsLegalCleared { get; set; }
+    public DateTime? LegalClearedAt { get; set; }
+    public string? LegalClearanceNotes { get; set; }
 }
 
 public class GuarantorInfo
@@ -178,6 +191,7 @@ public class GuarantorInfo
     public decimal GuaranteeAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public bool HasBureauReport { get; set; }
+    public string? RejectionReason { get; set; }
 }
 
 public class FinancialAnalysisInfo
@@ -212,8 +226,13 @@ public class BureauReportInfo
     public string Status { get; set; } = string.Empty;
     public int? CreditScore { get; set; }
     public string Rating { get; set; } = string.Empty;
+    public bool IsScoreDerived { get; set; }
+    public int TotalLoans { get; set; }
     public int ActiveLoans { get; set; }
+    public int PerformingLoans { get; set; }
+    public int ClosedLoans { get; set; }
     public decimal TotalExposure { get; set; }
+    public decimal HighestFacility { get; set; }
     public decimal TotalOverdue { get; set; }
     public int MaxDelinquencyDays { get; set; }
     public bool HasLegalIssues { get; set; }
@@ -280,6 +299,15 @@ public class CommitteeInfo
     public string? DecisionComments { get; set; }
     public DateTime? DecisionDate { get; set; }
 }
+
+public record CommitteeDecisionArgs(
+    string Decision,
+    string Rationale,
+    decimal? Amount,
+    int? TenorMonths,
+    decimal? InterestRate,
+    string? Conditions
+);
 
 public class CommitteeMemberVote
 {
@@ -441,6 +469,7 @@ public class BankStatementInfo
     public decimal? NetMonthlyCashflow { get; set; }
     public int? BouncedTransactions { get; set; }
     public int? GamblingTransactions { get; set; }
+    public string? VerificationNotes { get; set; }
 }
 
 public class StatementTransactionInfo
@@ -587,6 +616,8 @@ public class FinancialStatementInfo
     public decimal Revenue { get; set; }
 
     public decimal NetProfit { get; set; }
+
+    public string? RejectionReason { get; set; }
 }
 
 public class LocationInfo
@@ -734,6 +765,7 @@ public class ChecklistItemModel
 
     // Waiver
     public Guid? WaiverProposedByUserId { get; set; }
+    public string? WaiverProposedByUserName { get; set; }
     public DateTime? WaiverProposedAt { get; set; }
     public string? WaiverReason { get; set; }
     public Guid? WaiverRatifiedByUserId { get; set; }
@@ -800,4 +832,35 @@ public class BureauAccountInfo
     public decimal Balance { get; set; }
     public DateTime? DateOpened { get; set; }
     public DateTime? LastPaymentDate { get; set; }
+}
+
+public class ApprovalGateResultModel
+{
+    public bool IsStrict { get; set; }
+    public bool HasIssues => RejectedItems.Count > 0 || PendingItems.Count > 0;
+    public bool IsHardBlock => IsStrict && HasIssues;
+    public bool RequiresOverrideNote => !IsStrict && RejectedItems.Count > 0;
+    public List<GateItemModel> RejectedItems { get; set; } = [];
+    public List<GateItemModel> PendingItems { get; set; } = [];
+}
+
+public class GateItemModel
+{
+    public Guid ItemId { get; set; }
+    public string ItemType { get; set; } = string.Empty;
+    public string ItemLabel { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string? RejectionReason { get; set; }
+}
+
+public class ApprovalOverrideInfo
+{
+    public Guid Id { get; set; }
+    public string Stage { get; set; } = string.Empty;
+    public string ActorName { get; set; } = string.Empty;
+    public string NoteText { get; set; } = string.Empty;
+    public bool IsResolved { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    public string? ResolvedByName { get; set; }
+    public DateTime CreatedAt { get; set; }
 }

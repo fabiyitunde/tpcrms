@@ -85,6 +85,19 @@ public class CreditAdvisoryConfiguration : IEntityTypeConfiguration<CreditAdviso
             .HasConversion(guidListConverter)
             .Metadata.SetValueComparer(guidListComparer);
 
+        // JSON snapshot columns — written at generation time, read back on DB load
+        builder.Property(x => x.RiskScoresJson)
+            .HasColumnType("text");
+
+        builder.Property(x => x.RedFlagsJson)
+            .HasColumnType("text");
+
+        builder.Property(x => x.ConditionsJson)
+            .HasColumnType("text");
+
+        builder.Property(x => x.CovenantsJson)
+            .HasColumnType("text");
+
         // Ignore navigation/computed properties - these are backed by private fields
         // which EF cannot map directly without complex configuration
         builder.Ignore(x => x.RiskScores);

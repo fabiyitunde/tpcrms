@@ -1,8 +1,8 @@
 @inject ApplicationService AppService
 @inject AuthService AuthService
 
-<div class="modal-backdrop" @onclick="Close"></div>
-<div class="modal" style="max-width: 700px;">
+<div class="modal-backdrop show" @onclick="Close">
+<div class="modal" style="max-width: 700px;" @onclick:stopPropagation>
     <div class="modal-header">
         <h3 class="modal-title">Setup Committee Review</h3>
         <button class="btn btn-ghost btn-sm" @onclick="Close">
@@ -146,31 +146,6 @@
             }
         }
 
-        <div style="margin-top: var(--space-5); border-top: 1px solid var(--gray-200); padding-top: var(--space-4);">
-            <h4 style="font-weight: 600; margin-bottom: var(--space-3);">Recommended Loan Terms</h4>
-            <p style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-4);">
-                Enter the credit officer's recommended terms. Committee members will vote on these specific terms.
-            </p>
-            <div class="grid grid-cols-3 gap-4">
-                <div class="form-group">
-                    <label class="form-label">Recommended Amount (₦) *</label>
-                    <input type="number" class="form-control" min="0" step="1000" @bind="recommendedAmount" placeholder="e.g. 5000000" />
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Tenor (Months) *</label>
-                    <input type="number" class="form-control" min="1" max="360" @bind="recommendedTenorMonths" placeholder="e.g. 24" />
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Interest Rate (% p.a.) *</label>
-                    <input type="number" class="form-control" min="0" max="100" step="0.01" @bind="recommendedInterestRate" placeholder="e.g. 18.5" />
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Conditions / Covenants</label>
-                <textarea class="form-control" rows="2" @bind="recommendedConditions" placeholder="e.g. Perfection of legal mortgage, life assurance policy..."></textarea>
-            </div>
-        </div>
-
         @if (!string.IsNullOrEmpty(errorMessage))
         {
             <div style="color: var(--danger-600); margin-top: var(--space-3); font-size: var(--text-sm);">@errorMessage</div>
@@ -186,6 +161,7 @@
             Create Review & Assign Members
         </button>
     </div>
+</div>
 </div>
 
 @code {
@@ -210,19 +186,7 @@
     private Guid manualSelectedUser;
     private bool isLoadingManualUsers;
 
-    // Recommended terms
-    private decimal? recommendedAmount;
-    private int? recommendedTenorMonths;
-    private decimal? recommendedInterestRate;
-    private string? recommendedConditions;
-
-    private bool RecommendedTermsValid =>
-        recommendedAmount.HasValue && recommendedAmount > 0 &&
-        recommendedTenorMonths.HasValue && recommendedTenorMonths > 0 &&
-        recommendedInterestRate.HasValue && recommendedInterestRate > 0;
-
     private bool CanSubmit =>
-        RecommendedTermsValid &&
         (standingCommittee != null
             ? standingCommittee.Members.Any()
             : (!string.IsNullOrEmpty(manualType) && manualMembers.Count >= manualRequiredVotes && manualMinApproval <= manualRequiredVotes));
@@ -291,8 +255,7 @@
 
             var createResult = await AppService.CreateCommitteeReviewAsync(
                 LoanApplicationId, ApplicationNumber, type, reqVotes, minApproval, deadline,
-                AuthService.CurrentUser?.Id ?? Guid.Empty,
-                recommendedAmount, recommendedTenorMonths, recommendedInterestRate, recommendedConditions);
+                AuthService.CurrentUser?.Id ?? Guid.Empty);
 
             if (!createResult.Success || createResult.Data == Guid.Empty)
             {
