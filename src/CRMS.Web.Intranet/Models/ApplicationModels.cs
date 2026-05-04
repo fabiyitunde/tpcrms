@@ -314,6 +314,7 @@ public class CommitteeMemberVote
     public Guid UserId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public bool IsChairperson { get; set; }
     public string? Vote { get; set; }
     public string? Comments { get; set; }
     public DateTime? VotedAt { get; set; }

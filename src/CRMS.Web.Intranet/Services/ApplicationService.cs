@@ -1242,6 +1242,7 @@ public partial class ApplicationService
                     UserId = m.UserId,
                     Name = m.UserName,
                     Role = m.Role,
+                    IsChairperson = m.IsChairperson,
                     Vote = m.Vote,
                     VotedAt = m.VotedAt,
                     Comments = m.VoteComment
