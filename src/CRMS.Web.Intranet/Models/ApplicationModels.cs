@@ -287,6 +287,7 @@ public class CommitteeInfo
     public decimal? RecommendedInterestRate { get; set; }
     public string? RecommendedConditions { get; set; }
     // Vote tally
+    public int MinimumApprovalVotes { get; set; }
     public int ApprovalVotes { get; set; }
     public int RejectionVotes { get; set; }
     public int AbstainVotes { get; set; }
@@ -298,6 +299,11 @@ public class CommitteeInfo
     public string? Decision { get; set; }
     public string? DecisionComments { get; set; }
     public DateTime? DecisionDate { get; set; }
+    // Approved terms (set when decision is confirmed)
+    public decimal? ApprovedAmount { get; set; }
+    public int? ApprovedTenorMonths { get; set; }
+    public decimal? ApprovedInterestRate { get; set; }
+    public string? ApprovalConditions { get; set; }
 }
 
 public record CommitteeDecisionArgs(

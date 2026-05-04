@@ -1227,6 +1227,7 @@ public partial class ApplicationService
                 RecommendedTenorMonths = review.RecommendedTenorMonths,
                 RecommendedInterestRate = review.RecommendedInterestRate,
                 RecommendedConditions = review.RecommendedConditions,
+                MinimumApprovalVotes = review.MinimumApprovalVotes,
                 ApprovalVotes = review.ApprovalVotes,
                 RejectionVotes = review.RejectionVotes,
                 AbstainVotes = review.AbstainVotes,
@@ -1237,6 +1238,10 @@ public partial class ApplicationService
                 Decision = review.FinalDecision,
                 DecisionComments = review.DecisionRationale,
                 DecisionDate = review.DecisionAt,
+                ApprovedAmount = review.ApprovedAmount,
+                ApprovedTenorMonths = review.ApprovedTenorMonths,
+                ApprovedInterestRate = review.ApprovedInterestRate,
+                ApprovalConditions = review.ApprovalConditions,
                 Members = review.Members.Select(m => new CommitteeMemberVote
                 {
                     UserId = m.UserId,
