@@ -53,6 +53,14 @@ public record LoanPackData(
     // Conditions of Approval (from committee decision)
     List<string> ApprovalConditions,
 
+    // Approved Terms (set after committee approval)
+    decimal? ApprovedAmount,
+    int? ApprovedTenorMonths,
+    decimal? ApprovedInterestRate,
+
+    // Committee Decision Summary
+    CommitteeDecisionData? CommitteeDecision,
+
     // Generation Info
     DateTime GeneratedAt,
     string GeneratedBy,
@@ -302,4 +310,25 @@ public record CommitteeCommentData(
     string Comment,
     string? Vote,
     string Visibility
+);
+
+public record CommitteeDecisionData(
+    string Decision,           // Approved, Rejected, Pending
+    int ApprovalVotes,
+    int RejectionVotes,
+    int AbstainVotes,
+    int PendingVotes,
+    string? DecisionRationale,
+    decimal? RecommendedAmount,
+    int? RecommendedTenorMonths,
+    decimal? RecommendedInterestRate,
+    List<CommitteeMemberVoteData> MemberVotes
+);
+
+public record CommitteeMemberVoteData(
+    string MemberName,
+    string MemberRole,
+    string? Vote,
+    string? VoteComment,
+    DateTime? VotedAt
 );

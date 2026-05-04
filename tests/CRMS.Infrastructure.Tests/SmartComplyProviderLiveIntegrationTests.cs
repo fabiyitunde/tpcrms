@@ -424,7 +424,7 @@ public class SmartComplyProviderLiveIntegrationTests : IAsyncLifetime
     {
         SkipIfNoRcNumber();
 
-        var result = await _provider!.VerifyCacAdvancedAsync(_testRcNumber);
+        var result = await _provider!.VerifyCacAdvancedAsync(_testRcNumber, companyName: "Aggregate Business Solutions");
 
         _output.WriteLine($"Result: IsSuccess={result.IsSuccess}, Error={result.Error}");
         if (result.IsSuccess)
@@ -485,7 +485,7 @@ public class SmartComplyProviderLiveIntegrationTests : IAsyncLifetime
 
         // Step 1: CAC Verification
         _output.WriteLine("\n1. CAC Verification...");
-        var cacResult = await _provider!.VerifyCacAdvancedAsync(_testRcNumber);
+        var cacResult = await _provider!.VerifyCacAdvancedAsync(_testRcNumber, companyName: "");
         Assert.True(cacResult.IsSuccess, $"CAC verification failed: {cacResult.Error}");
         _output.WriteLine($"   Company: {cacResult.Value?.CompanyName}");
         _output.WriteLine($"   Directors: {cacResult.Value?.Directors.Count}");

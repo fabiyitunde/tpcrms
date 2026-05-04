@@ -521,7 +521,14 @@
             <a href="#step11" class="nav-link role-co"><span class="step-num">11</span> Setup Committee</a>
             <a href="#step12" class="nav-link role-cm"><span class="step-num">12</span> Committee Voting</a>
             <a href="#step13" class="nav-link role-fa"><span class="step-num">13</span> Final Approval</a>
-            <a href="#step14" class="nav-link role-op"><span class="step-num">14</span> Loan Pack &amp; Offer</a>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">Operations &amp; Disbursement</div>
+            <a href="#step14" class="nav-link role-op"><span class="step-num">14</span> Loan Pack &amp; Offer Letter</a>
+            <a href="#step15" class="nav-link role-op"><span class="step-num">15</span> Disbursement Checklist</a>
+            <a href="#step16" class="nav-link role-op"><span class="step-num">16</span> Record Offer Acceptance</a>
+            <a href="#step17" class="nav-link role-op"><span class="step-num">17</span> Record Disbursement</a>
         </div>
 
         <div class="nav-section">
@@ -542,10 +549,10 @@
                 is documented with exact values to enter.
             </p>
             <div class="badge-row">
-                <span>14 Steps</span>
+                <span>17 Steps</span>
                 <span>7 Roles Involved</span>
                 <span>Mock-Service Compatible</span>
-                <span>~45 min end-to-end</span>
+                <span>~75 min end-to-end</span>
             </div>
         </div>
 
@@ -575,7 +582,13 @@
                 <div class="wf-arrow">&#8594;</div>
                 <div class="wf-stage icon-fa">Final Approval<br><small>Final Approver</small></div>
                 <div class="wf-arrow">&#8594;</div>
-                <div class="wf-stage icon-op">Approved<br><small>Operations</small></div>
+                <div class="wf-stage icon-fa">Approved<br><small>Final Approver</small></div>
+                <div class="wf-arrow">&#8594;</div>
+                <div class="wf-stage icon-op">Offer Generated<br><small>Operations</small></div>
+                <div class="wf-arrow">&#8594;</div>
+                <div class="wf-stage icon-op">Offer Accepted<br><small>Operations</small></div>
+                <div class="wf-arrow">&#8594;</div>
+                <div class="wf-stage icon-op">Disbursed<br><small>Operations</small></div>
             </div>
 
             <div class="alert alert-info">
@@ -597,7 +610,7 @@
                     <tr><td>HO Reviewer</td><td>Head Office review: approve to committee or reject</td><td>Global</td></tr>
                     <tr><td>Committee Member</td><td>Votes on loan (Approve/Reject/Abstain)</td><td>Global</td></tr>
                     <tr><td>Final Approver</td><td>Ultimate approval authority (typically MD/ED)</td><td>Global</td></tr>
-                    <tr><td>Operations</td><td>Generates loan pack, offer letter, records disbursement</td><td>Global</td></tr>
+                    <tr><td>Operations</td><td>Generates loan pack &amp; offer letter, manages disbursement checklist, records customer acceptance (KFS acknowledgement + acceptance method), records disbursement</td><td>Global</td></tr>
                     <tr><td>System Admin</td><td>Manages users, products, locations, committees, scoring</td><td>Global</td></tr>
                 </tbody>
             </table>
@@ -1633,7 +1646,7 @@
         <div class="section" id="step14">
             <div class="section-header">
                 <div class="section-icon icon-op">14</div>
-                <h2>Generate Loan Pack &amp; Offer Letter<small>Operations generates final documents</small></h2>
+                <h2>Generate Loan Pack &amp; Offer Letter<small>Operations generates final credit documents</small></h2>
             </div>
 
             <span class="role-badge op">&#128100; Role: Operations &mdash; Username: <code>operations</code></span>
@@ -1650,67 +1663,264 @@
             <div class="step-card">
                 <h3>Generate Loan Pack PDF</h3>
                 <ol class="instruction-list">
-                    <li>In the action bar, you will see a <span class="btn-mock btn-outline-mock">Loan Pack</span> button (visible when status is Approved, CommitteeApproved, or Disbursed).</li>
+                    <li>In the action bar, you will see a <span class="btn-mock btn-outline-mock">&#128196; Loan Pack</span> button.
+                        <div class="alert alert-info" style="margin:8px 0">
+                            <span class="alert-icon">&#9432;</span>
+                            <div><strong>Availability:</strong> The Loan Pack button is visible to all workflow actors (Loan Officer, Credit Officer, HO Reviewer, Branch Approver, Final Approver, Operations, System Admin, and committee members on this application) from <strong>BranchReview status onwards</strong>. It is not available in Draft, Rejected, Cancelled, or Closed status. This allows committee members to generate the pack during circulation and reviewers to reference it at any stage.</div>
+                        </div>
+                    </li>
                     <li>Click <span class="btn-mock btn-outline-mock">Loan Pack</span>.</li>
                     <li>The system generates a comprehensive PDF containing:
                         <ul>
-                            <li>Executive Summary</li>
-                            <li>Customer Profile</li>
-                            <li>Directors &amp; Signatories</li>
-                            <li>Credit Bureau Reports</li>
-                            <li>Financial Analysis &amp; Ratios</li>
-                            <li>Cashflow Analysis</li>
-                            <li>Collateral Details</li>
-                            <li>Guarantor Information</li>
-                            <li>AI Advisory Report</li>
-                            <li>Workflow History</li>
-                            <li>Committee Comments &amp; Decision</li>
+                            <li><strong>Executive Summary</strong> &mdash; requested terms plus <em>approved terms</em> (amount, tenor, rate, committee decision) when set</li>
+                            <li><strong>Customer Profile</strong> &mdash; registration number, incorporation date, industry/sector, contact details, account information</li>
+                            <li><strong>Directors &amp; Signatories</strong> &mdash; BVN, shareholding %, credit score and rating from bureau cross-reference</li>
+                            <li><strong>Credit Bureau Reports</strong> &mdash; per-subject report with score, rating, fraud risk; <em>Active Facilities table</em> (lender, facility type, original amount, outstanding, status); <em>Delinquent Accounts table</em> (days overdue)</li>
+                            <li><strong>Financial Analysis &amp; Key Ratios</strong> &mdash; 3-year comparative table with YoY revenue and profit growth</li>
+                            <li><strong>Cashflow Analysis</strong> &mdash; aggregated from verified bank statement data (monthly averages, trust score, quality metrics)</li>
+                            <li><strong>Collateral Details</strong> &mdash; including valuation date and valuer name</li>
+                            <li><strong>Guarantor Information</strong></li>
+                            <li><strong>AI Advisory Report</strong> &mdash; 8-component risk scores, red flags, mitigating factors, recommendations</li>
+                            <li><strong>Workflow History</strong> &mdash; full status transition log with actor names</li>
+                            <li><strong>Committee Comments</strong> &mdash; member names resolved from the committee roster</li>
+                            <li><strong>Committee Decision</strong> <em>(new page)</em> &mdash; colour-coded decision banner, vote tally boxes (Approve / Reject / Abstain / Pending), recommended terms table, and per-member vote breakdown</li>
+                            <li><strong>Conditions of Approval</strong> &mdash; numbered list of all committee conditions</li>
                         </ul>
                     </li>
-                    <li>A success message appears with the generated PDF filename. The PDF is stored in the file storage system.</li>
+                    <li>A success toast appears. The PDF is stored in the file storage system and can be regenerated at any time.</li>
                 </ol>
             </div>
 
             <div class="step-card">
                 <h3>Generate Offer Letter PDF</h3>
                 <ol class="instruction-list">
-                    <li>In the action bar, click the <span class="btn-mock btn-primary-mock">Offer Letter</span> button (visible only when status is Approved or Disbursed).</li>
+                    <li>In the action bar, click the <span class="btn-mock btn-primary-mock">Offer Letter</span> button (visible when status is <strong>Approved</strong>, <strong>OfferGenerated</strong>, <strong>OfferAccepted</strong>, or <strong>Disbursed</strong>).</li>
                     <li>The system generates a professional Offer Letter PDF containing:
                         <ul>
                             <li>Bank header and addressee details</li>
-                            <li>Facility details table (amount, tenor, rate, type)</li>
-                            <li><strong>Full repayment schedule</strong> with monthly breakdown (installment number, due date, principal, interest, total payment, outstanding balance)</li>
+                            <li>Facility details table (approved amount, tenor, rate, type)</li>
+                            <li><strong>Full repayment schedule</strong> &mdash; monthly breakdown (installment number, due date, principal, interest, total payment, outstanding balance)</li>
                             <li>Summary box (total interest, total repayment, monthly installment)</li>
                             <li>Numbered conditions from the committee approval</li>
                             <li>Acceptance and signature section</li>
                         </ul>
                     </li>
-                    <li>A success message appears confirming the offer letter was generated.</li>
+                    <li>Generating the offer letter:
+                        <ul>
+                            <li>Changes the application status from <strong>Approved</strong> &rarr; <strong>OfferGenerated</strong></li>
+                            <li><strong>Automatically seeds the Disbursement Checklist</strong> from the loan product's checklist template (Conditions Precedent and Subsequent items)</li>
+                        </ul>
+                    </li>
+                    <li>A success message appears. You can view/download the offer letter at any time from the <strong>Offer Letters</strong> tab.</li>
                 </ol>
             </div>
 
             <div class="alert alert-info">
                 <span class="alert-icon">&#9432;</span>
                 <div>
-                    <strong>Repayment Schedule Calculation:</strong> The system uses a hybrid approach. If the loan product has a <code>FineractProductId</code> mapped and the Fineract API is reachable, it uses the Fineract API for exact schedule calculation. Otherwise, it falls back to in-house financial math (EMI formula for reducing balance). In mock mode, the in-house calculation is used.
+                    <strong>Repayment Schedule Calculation:</strong> The system uses a hybrid approach. If the loan product has a <code>FineractProductId</code> mapped and the Fineract API is reachable, it calls the Fineract schedule endpoint. Otherwise it falls back to in-house EMI math (reducing balance). In mock mode, the in-house calculation is used.
+                </div>
+            </div>
+
+            <div class="transition-box">
+                <strong>Status: OfferGenerated</strong> &mdash; The offer letter has been issued. A Disbursement Checklist has been automatically created. The next step is to work through the checklist and then record customer acceptance. Continue as <strong>Operations</strong>.
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 15: DISBURSEMENT CHECKLIST -->
+        <!-- ============================================================ -->
+        <div class="section" id="step15">
+            <div class="section-header">
+                <div class="section-icon icon-op">15</div>
+                <h2>Disbursement Checklist<small>Conditions Precedent must be satisfied before acceptance</small></h2>
+            </div>
+
+            <span class="role-badge op">&#128100; Role: Operations &mdash; Username: <code>operations</code> (still logged in)</span>
+
+            <div class="alert alert-info">
+                <span class="alert-icon">&#9432;</span>
+                <div>
+                    <strong>About the Disbursement Checklist:</strong> After the offer letter is generated, a checklist of pre-disbursement conditions is automatically created from the loan product template. Items are classified as <strong>Conditions Precedent (CP)</strong> — which must ALL be satisfied before acceptance can be recorded — or <strong>Conditions Subsequent (CS)</strong>, which are monitored post-disbursement. This implements CBN's pre-disbursement documentation requirements.
                 </div>
             </div>
 
             <div class="step-card">
-                <h3>What Happens Next (Production)</h3>
-                <p>In a production environment, after generating the offer letter:</p>
-                <ol>
-                    <li>The offer letter PDF is printed and sent to the customer for signature.</li>
-                    <li>Once the customer accepts and signs, the Operations team manually books the loan in the core banking system (Fineract).</li>
-                    <li>After booking, the Operations user can update the status to <strong>Disbursed</strong> by recording the core banking loan reference number.</li>
+                <h3>Navigate to the Disbursement Checklist Tab</h3>
+                <ol class="instruction-list">
+                    <li>On the Application Detail page, click the <strong>Disbursement Checklist</strong> tab (visible when status is <strong>OfferGenerated</strong>, <strong>OfferAccepted</strong>, or <strong>Disbursed</strong>).</li>
+                    <li>You will see two sections:
+                        <ul>
+                            <li><strong>Conditions Precedent (CP)</strong> &mdash; items that must be resolved before the customer can accept the offer</li>
+                            <li><strong>Conditions Subsequent (CS)</strong> &mdash; items to be satisfied post-disbursement (shown with due dates)</li>
+                        </ul>
+                    </li>
+                    <li>A summary banner at the top shows either a green tick (all CPs resolved) or an amber warning (X items still pending).</li>
                 </ol>
-                <p>Automated disbursement via API is available in the system but intentionally not exposed in the UI for audit/compliance reasons.</p>
+            </div>
+
+            <div class="step-card">
+                <h3>Working Through CP Items</h3>
+                <p>For each Condition Precedent item, the responsible officer takes an action. Common actions and who can take them:</p>
+                <table class="form-table">
+                    <thead><tr><th>Action</th><th>Who</th><th>When</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Mark Satisfied</strong></td><td>Loan Officer, Operations</td><td>When documentary evidence has been collected (e.g. C of O lodged, lien letter received)</td></tr>
+                        <tr><td><strong>Submit for Legal Review</strong></td><td>Loan Officer, Operations</td><td>For items flagged as requiring legal sign-off (e.g. perfection of mortgage)</td></tr>
+                        <tr><td><strong>Ratify (Legal)</strong></td><td>Legal Officer</td><td>After reviewing the submitted documents</td></tr>
+                        <tr><td><strong>Propose Waiver</strong></td><td>Loan Officer, Operations</td><td>If a CP cannot be fully satisfied before disbursement (requires risk manager approval)</td></tr>
+                        <tr><td><strong>Approve/Reject Waiver</strong></td><td>Risk Manager</td><td>After reviewing the waiver proposal and rationale</td></tr>
+                    </tbody>
+                </table>
+                <p style="margin-top:12px">For this tutorial, satisfy the CP items by clicking <span class="btn-mock btn-success-mock">Mark Satisfied</span> on each one. Enter a brief satisfaction note in each modal.</p>
+                <ol class="instruction-list">
+                    <li>For the <strong>Certificate of Occupancy</strong> item: click <span class="btn-mock btn-success-mock">Mark Satisfied</span>. Enter note: <code>Original C of O for Plot 15 Admiralty Way lodged with bank's legal department. Ref: LEGAL/2026/0042.</code></li>
+                    <li>For the <strong>Fixed Deposit Lien</strong> item: click <span class="btn-mock btn-success-mock">Mark Satisfied</span>. Enter note: <code>Lien confirmation letter received from First Bank dated 10-Apr-2026. Lien amount: N50,000,000.</code></li>
+                    <li>For the <strong>Personal Guarantee</strong> item: click <span class="btn-mock btn-success-mock">Mark Satisfied</span>. Enter note: <code>Joint and several guarantee executed by all directors. Documents notarised and filed.</code></li>
+                    <li>For any remaining CP items, repeat the same process.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Confirm All CPs are Resolved</h3>
+                <ol class="instruction-list">
+                    <li>After satisfying all CP items, the summary banner at the top of the tab turns <strong>green</strong>: <em>"All Conditions Precedent are resolved. Offer Acceptance can now be recorded."</em></li>
+                    <li>CS items (Conditions Subsequent) remain in their pending state — they will be monitored post-disbursement by the system's daily monitoring background service.</li>
+                </ol>
+            </div>
+
+            <div class="transition-box">
+                <strong>All CPs resolved.</strong> The application is now ready for the customer's formal acceptance. Continue as <strong>Operations</strong> in the next step.
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 16: RECORD OFFER ACCEPTANCE -->
+        <!-- ============================================================ -->
+        <div class="section" id="step16">
+            <div class="section-header">
+                <div class="section-icon icon-op">16</div>
+                <h2>Record Offer Acceptance<small>Operations records the customer's formal acceptance of the offer</small></h2>
+            </div>
+
+            <span class="role-badge op">&#128100; Role: Operations &mdash; Username: <code>operations</code></span>
+
+            <div class="alert alert-warning">
+                <span class="alert-icon">&#9888;</span>
+                <div>
+                    <strong>CBN Consumer Protection Requirement:</strong> Under the CBN Consumer Protection Regulations 2022, a <strong>Key Facts Statement (KFS)</strong> must be provided to the customer and acknowledged before offer acceptance is recorded. The system enforces this — the Confirm button remains disabled until the KFS checkbox is ticked.
+                </div>
+            </div>
+
+            <div class="step-card">
+                <h3>Trigger the Record Acceptance Modal</h3>
+                <ol class="instruction-list">
+                    <li>In the action bar at the top of the Detail page, click the <span class="btn-mock btn-primary-mock">Record Acceptance</span> button.
+                        <ul>
+                            <li>This button is only visible to the <strong>Operations</strong> role.</li>
+                            <li>It is only enabled when status is <strong>OfferGenerated</strong>.</li>
+                        </ul>
+                    </li>
+                    <li>The <strong>Record Customer Acceptance</strong> modal appears as an overlay (centred on screen).</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Fill in the Acceptance Details</h3>
+                <ol class="instruction-list">
+                    <li>Fill in all required fields:
+                        <table class="form-table">
+                            <thead><tr><th>Field</th><th>Value</th><th>Notes</th></tr></thead>
+                            <tbody>
+                                <tr><td>Acceptance Date</td><td>Today's date (e.g. <code>2026-04-13</code>)</td><td>The date the customer physically signed</td></tr>
+                                <tr><td>Acceptance Method</td><td>Select <strong>In-Branch Signing</strong></td><td>Other options: Courier, Electronic</td></tr>
+                                <tr>
+                                    <td>KFS Acknowledged</td>
+                                    <td>&#9745; Tick the checkbox</td>
+                                    <td><strong>Mandatory.</strong> Confirms the Key Facts Statement was provided to and acknowledged by the customer per CBN CP Reg 2022</td>
+                                </tr>
+                                <tr><td>Reference / Notes</td><td><code>Customer (John Adebayo, MD) attended branch personally. Offer letter signed in duplicate. Both copies stamped. Customer copy handed to MD. KFS reviewed and acknowledged before signing.</code></td><td>Optional but recommended for audit trail</td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>The <span class="btn-mock btn-primary-mock">Confirm Acceptance</span> button will remain <strong>disabled</strong> until:
+                        <ul>
+                            <li>Acceptance Date is set</li>
+                            <li>Acceptance Method is selected</li>
+                            <li>KFS Acknowledged is ticked</li>
+                            <li>All CP checklist items are resolved (enforced at domain level)</li>
+                        </ul>
+                    </li>
+                    <li>Click <span class="btn-mock btn-primary-mock">Confirm Acceptance</span>.</li>
+                    <li>The system:
+                        <ul>
+                            <li>Records <code>CustomerSignedAt</code>, <code>AcceptanceMethod</code>, and <code>KfsAcknowledged = true</code> on the application</li>
+                            <li>Generates a <strong>Disbursement Memo PDF</strong> (loan summary + CP table + CS table + certification block with signature lines) and stores it</li>
+                            <li>Transitions status from <strong>OfferGenerated</strong> &rarr; <strong>OfferAccepted</strong></li>
+                        </ul>
+                    </li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>View the Evidence Document</h3>
+                <ol class="instruction-list">
+                    <li>After recording acceptance, the <strong>Offer Acceptance</strong> tab (if visible) shows any uploaded evidence documents.</li>
+                    <li>Click the <span class="btn-mock btn-outline-mock">&#128065; View</span> button next to an evidence document to open the in-app viewer (iframe modal).</li>
+                    <li>You can also click <strong>Download</strong> in the modal footer to save the file.</li>
+                </ol>
+            </div>
+
+            <div class="transition-box">
+                <strong>Status: OfferAccepted</strong> &mdash; The offer has been formally accepted. The Disbursement Memo has been generated. The application is ready for disbursement. Continue as <strong>Operations</strong>.
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- STEP 17: RECORD DISBURSEMENT -->
+        <!-- ============================================================ -->
+        <div class="section" id="step17">
+            <div class="section-header">
+                <div class="section-icon icon-op">17</div>
+                <h2>Record Disbursement<small>Operations confirms the loan has been disbursed in core banking</small></h2>
+            </div>
+
+            <span class="role-badge op">&#128100; Role: Operations &mdash; Username: <code>operations</code></span>
+
+            <div class="step-card">
+                <h3>Disburse the Loan</h3>
+                <ol class="instruction-list">
+                    <li>In the action bar, click the <span class="btn-mock btn-success-mock">Disburse</span> button (visible to Operations when status is <strong>OfferAccepted</strong>).</li>
+                    <li>The <strong>Record Disbursement</strong> modal appears.</li>
+                    <li>The modal displays a confirmation banner: <em>"All Conditions Precedent have been verified on the Disbursement Checklist tab."</em></li>
+                    <li>Fill in:
+                        <table class="form-table">
+                            <tbody>
+                                <tr><td>CBS Reference</td><td><code>FIN/DISP/2026/00432</code></td><td>The core banking loan account number / disbursement reference</td></tr>
+                                <tr><td>Comments</td><td><code>Loan of N142,500,000 disbursed to account 1234567890. CBS booking reference FIN/DISP/2026/00432. All CPs satisfied.</code></td><td></td></tr>
+                            </tbody>
+                        </table>
+                    </li>
+                    <li>Click <span class="btn-mock btn-success-mock">Confirm Disbursement</span>.</li>
+                    <li>Status changes from <strong>OfferAccepted</strong> &rarr; <strong>Disbursed</strong>.</li>
+                </ol>
+            </div>
+
+            <div class="step-card">
+                <h3>Post-Disbursement: CS Monitoring</h3>
+                <p>After disbursement, the system automatically monitors any <strong>Conditions Subsequent</strong> items:</p>
+                <ul>
+                    <li>The background monitoring service runs daily and checks CS item due dates.</li>
+                    <li>Items approaching their due date trigger tiered warnings (T&minus;7 days, T&minus;1, T+0 overdue, T+7, T+30, T+90).</li>
+                    <li>Overdue CS items appear flagged in the <strong>Disbursement Checklist</strong> tab with an amber or red status badge.</li>
+                    <li>The Loan Officer or Operations can request extensions; a Risk Manager must approve them.</li>
+                </ul>
             </div>
 
             <div class="alert alert-success">
                 <span class="alert-icon">&#127881;</span>
                 <div>
-                    <strong>Tutorial Complete!</strong> You have successfully walked through the entire corporate loan lifecycle from initial application creation through to offer letter generation. The application has passed through all 7 roles and every major screen in the system.
+                    <strong>Tutorial Complete!</strong> You have successfully walked through the entire corporate loan lifecycle — from initial application creation, through all seven review stages, to offer acceptance and disbursement. Every role, every modal, and every status transition has been exercised.
                 </div>
             </div>
         </div>
@@ -1856,12 +2066,39 @@
             </div>
 
             <div class="step-card">
-                <h3>"Loan Pack" or "Offer Letter" button not visible</h3>
+                <h3>"Loan Pack" button not visible</h3>
                 <ul>
-                    <li><strong>Loan Pack</strong>: visible when status is <code>Approved</code>, <code>CommitteeApproved</code>, or <code>Disbursed</code></li>
-                    <li><strong>Offer Letter</strong>: visible when status is <code>Approved</code> or <code>Disbursed</code></li>
+                    <li>The Loan Pack button is visible to <strong>all workflow actors</strong> (Loan Officer, Credit Officer, HO Reviewer, Branch Approver, Final Approver, Operations, System Admin, committee members) from <strong>BranchReview status onwards</strong>.</li>
+                    <li>It is <strong>not</strong> visible in Draft, Rejected, CommitteeRejected, Cancelled, or Closed status.</li>
+                    <li>If you cannot see it and the status is active, ensure your user has one of the required roles. <code>admin</code>-only users without a workflow role will not see it.</li>
+                    <li>If the page just transitioned, refresh the browser.</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>"Offer Letter" button not visible</h3>
+                <ul>
+                    <li>Visible when status is <code>Approved</code>, <code>OfferGenerated</code>, <code>OfferAccepted</code>, or <code>Disbursed</code>.</li>
+                    <li>Only visible to the <strong>Operations</strong> role (and System Admin).</li>
                     <li>If you just changed the status, refresh the page.</li>
-                    <li>If buttons still do not appear, check the browser console for errors. The most common cause is a missing database column (migration not applied).</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>"Record Acceptance" button not visible or disabled</h3>
+                <ul>
+                    <li>The button only appears for the <strong>Operations</strong> role.</li>
+                    <li>It only appears when status is <strong>OfferGenerated</strong>.</li>
+                    <li>The <strong>Confirm Acceptance</strong> button inside the modal will be disabled until: Acceptance Date is set, Acceptance Method is selected, and KFS Acknowledged is ticked.</li>
+                    <li>If the confirm button is still greyed out after filling all fields, check that all <strong>Conditions Precedent</strong> have been satisfied on the Disbursement Checklist tab — the domain enforces this gate.</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <h3>"Disburse" button not visible</h3>
+                <ul>
+                    <li>The Disburse button only appears for the <strong>Operations</strong> role when status is <strong>OfferAccepted</strong>.</li>
+                    <li>If status is still <code>OfferGenerated</code>, you must complete Step 16 (Record Offer Acceptance) first.</li>
                 </ul>
             </div>
 
@@ -1912,7 +2149,7 @@
 
         <!-- Footer -->
         <div style="margin-top:80px; padding:24px; text-align:center; color:var(--gray-500); font-size:13px; border-top:1px solid var(--gray-200);">
-            CRMS Tutorial Guide &mdash; Generated for development and training purposes.<br>
+            CRMS Tutorial Guide &mdash; Updated 2026-04-13 &mdash; Generated for development and training purposes.<br>
             All mock data values are for testing only. Do not use in production.
         </div>
     </main>

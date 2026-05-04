@@ -9,6 +9,8 @@ public static class AppStatus
     public const string Draft = "Draft";
     public const string BranchReview = "BranchReview";
     public const string HOReview = "HOReview";
+    public const string LegalReview = "LegalReview";
+    public const string LegalApproval = "LegalApproval";
     public const string CreditAnalysis = "CreditAnalysis";
     public const string CommitteeCirculation = "CommitteeCirculation";
     public const string CommitteeApproved = "CommitteeApproved";
@@ -17,6 +19,11 @@ public static class AppStatus
     public const string Approved = "Approved";
     public const string OfferGenerated = "OfferGenerated";
     public const string OfferAccepted = "OfferAccepted";
+    public const string SecurityPerfection = "SecurityPerfection";
+    public const string SecurityApproval = "SecurityApproval";
+    public const string DisbursementPending = "DisbursementPending";
+    public const string DisbursementBranchApproval = "DisbursementBranchApproval";
+    public const string DisbursementHQApproval = "DisbursementHQApproval";
     public const string Rejected = "Rejected";
     public const string Disbursed = "Disbursed";
     public const string Closed = "Closed";

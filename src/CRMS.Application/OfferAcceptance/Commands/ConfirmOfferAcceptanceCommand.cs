@@ -2,6 +2,7 @@ using CRMS.Application.Common;
 using CRMS.Application.OfferAcceptance.DTOs;
 using CRMS.Application.OfferAcceptance.Interfaces;
 using CRMS.Domain.Constants;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.OfferAcceptance.Commands;
@@ -17,7 +18,10 @@ public record ConfirmOfferAcceptanceCommand(
     Guid ConfirmedByUserId,
     string ConfirmedByUserRole,
     string ConfirmedByUserName,
-    string BankName
+    string BankName,
+    DateTime CustomerSignedAt,
+    OfferAcceptanceMethod AcceptanceMethod,
+    bool KfsAcknowledged
 ) : IRequest<ApplicationResult>;
 
 public class ConfirmOfferAcceptanceHandler : IRequestHandler<ConfirmOfferAcceptanceCommand, ApplicationResult>
@@ -41,15 +45,19 @@ public class ConfirmOfferAcceptanceHandler : IRequestHandler<ConfirmOfferAccepta
 
     public async Task<ApplicationResult> Handle(ConfirmOfferAcceptanceCommand request, CancellationToken ct = default)
     {
-        if (request.ConfirmedByUserRole is not (Roles.Operations or Roles.SystemAdmin))
+        if (request.ConfirmedByUserRole is not Roles.Operations)
             return ApplicationResult.Failure("Only Operations may confirm offer acceptance");
 
         var loanApp = await _loanAppRepository.GetByIdWithChecklistAsync(request.LoanApplicationId, ct);
         if (loanApp == null)
             return ApplicationResult.Failure("Loan application not found");
 
-        // Domain method validates status and CP gate
-        var acceptResult = loanApp.AcceptOffer(request.ConfirmedByUserId);
+        // Domain method validates status, KFS acknowledgement and CP gate
+        var acceptResult = loanApp.AcceptOffer(
+            request.ConfirmedByUserId,
+            request.CustomerSignedAt,
+            request.AcceptanceMethod,
+            request.KfsAcknowledged);
         if (!acceptResult.IsSuccess)
             return ApplicationResult.Failure(acceptResult.Error!);
 

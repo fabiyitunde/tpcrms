@@ -1,3 +1,6 @@
+# Test credentials — never commit API keys
+tests/**/appsettings.test.json
+
 # .NET
 bin/
 obj/

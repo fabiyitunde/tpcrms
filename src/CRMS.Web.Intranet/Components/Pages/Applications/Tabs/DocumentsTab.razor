@@ -65,6 +65,12 @@
                                     <span class="status-dot @GetStatusDotClass(doc.Status)"></span>
                                     @FormatStatus(doc.Status)
                                 </span>
+                                @if (doc.Status == "Rejected" && !string.IsNullOrEmpty(doc.RejectionReason))
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--danger-600); margin-top: var(--space-1); max-width: 200px;">
+                                        @doc.RejectionReason
+                                    </div>
+                                }
                             </td>
                             <td>
                                 <div style="font-size: var(--text-sm);">@doc.UploadedAt.ToString("MMM dd, yyyy")</div>
@@ -82,13 +88,19 @@
                                     <button class="btn btn-ghost btn-sm" title="View" @onclick="() => ViewDocument(currentDoc)">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
                                     </button>
-                                    @if (doc.Status is "Pending" or "Uploaded")
+                                    @if (CanVerifyDocuments && doc.Status is "Pending" or "Uploaded")
                                     {
                                         <button class="btn btn-ghost btn-sm" title="Verify" style="color: var(--success-600);" @onclick="() => OnVerifyDocument.InvokeAsync(currentDoc.Id)">
                                             <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
                                         </button>
                                         <button class="btn btn-ghost btn-sm" title="Reject" style="color: var(--danger-600);" @onclick="() => OnRejectDocument.InvokeAsync(currentDoc.Id)">
                                             <span class="material-symbols-outlined" style="font-size: 18px;">cancel</span>
+                                        </button>
+                                    }
+                                    @if (IsEditable && doc.Status is not "Verified")
+                                    {
+                                        <button class="btn btn-ghost btn-sm" title="Delete" style="color: var(--danger-500);" @onclick="() => OnDeleteDocument.InvokeAsync(currentDoc.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
                                         </button>
                                     }
                                 </div>
@@ -104,14 +116,14 @@
 @if (showViewerModal && selectedDocument != null)
 {
     <div class="modal-backdrop show" @onclick="CloseViewer">
-        <div class="modal" style="max-width: 900px; max-height: 90vh;" @onclick:stopPropagation>
+        <div class="modal" style="max-width: 1000px; height: 92vh; max-height: 92vh;" @onclick:stopPropagation>
             <div class="modal-header">
                 <h3 class="modal-title">@selectedDocument.Name</h3>
                 <button class="modal-close" @onclick="CloseViewer">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
-            <div class="modal-body" style="padding: 0; height: 70vh; overflow: hidden;">
+            <div class="modal-body" style="padding: 0; flex: 1; overflow: hidden; min-height: 0;">
                 @if (IsViewableInBrowser(selectedDocument.Name))
                 {
                     <iframe src="@BuildDocumentViewUrl(selectedDocument)" style="width: 100%; height: 100%; border: none;"></iframe>
@@ -154,9 +166,11 @@
 @code {
     [Parameter] public List<DocumentInfo> Documents { get; set; } = [];
     [Parameter] public bool IsEditable { get; set; } = true;
+    [Parameter] public bool CanVerifyDocuments { get; set; } = false;
     [Parameter] public EventCallback OnUploadDocument { get; set; }
     [Parameter] public EventCallback<Guid> OnVerifyDocument { get; set; }
     [Parameter] public EventCallback<Guid> OnRejectDocument { get; set; }
+    [Parameter] public EventCallback<Guid> OnDeleteDocument { get; set; }
 
     private bool showViewerModal;
     private DocumentInfo? selectedDocument;

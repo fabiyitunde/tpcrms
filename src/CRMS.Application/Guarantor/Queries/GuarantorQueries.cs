@@ -58,7 +58,7 @@ public class GetGuarantorsByLoanApplicationHandler : IRequestHandler<GetGuaranto
         var dtos = guarantors.Select(g => new GuarantorSummaryDto(
             g.Id, g.GuarantorReference, g.Type.ToString(), g.Status.ToString(), g.FullName,
             g.BVN, g.CreditScore, g.CreditScoreGrade, g.HasCreditIssues,
-            g.GuaranteeLimit?.Amount, g.IsUnlimited, g.CreatedAt
+            g.GuaranteeLimit?.Amount, g.IsUnlimited, g.CreatedAt, g.RejectionReason
         )).ToList();
 
         return ApplicationResult<List<GuarantorSummaryDto>>.Success(dtos);
@@ -83,7 +83,7 @@ public class GetGuarantorsByBVNHandler : IRequestHandler<GetGuarantorsByBVNQuery
         var dtos = guarantors.Select(g => new GuarantorSummaryDto(
             g.Id, g.GuarantorReference, g.Type.ToString(), g.Status.ToString(), g.FullName,
             g.BVN, g.CreditScore, g.CreditScoreGrade, g.HasCreditIssues,
-            g.GuaranteeLimit?.Amount, g.IsUnlimited, g.CreatedAt
+            g.GuaranteeLimit?.Amount, g.IsUnlimited, g.CreatedAt, g.RejectionReason
         )).ToList();
 
         return ApplicationResult<List<GuarantorSummaryDto>>.Success(dtos);

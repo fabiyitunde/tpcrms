@@ -1,4 +1,4 @@
-@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using Microsoft.AspNetCore.Components.Web
 
 <!DOCTYPE html>
 <html lang="en">
@@ -21,7 +21,7 @@
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="@(new InteractiveServerRenderMode(prerender: false))" />
     <script src="_framework/blazor.web.js"></script>
     <script>
         function downloadFileFromBytes(fileName, contentType, byteArray) {

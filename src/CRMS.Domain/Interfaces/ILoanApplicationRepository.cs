@@ -25,4 +25,5 @@ public interface ILoanApplicationDocumentRepository
 {
     Task AddAsync(LoanApplicationDocument document, CancellationToken ct = default);
     Task<LoanApplicationDocument?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
 }

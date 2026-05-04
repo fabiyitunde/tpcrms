@@ -67,6 +67,9 @@ public class LoanApplication : AggregateRoot
     public Guid? OfferIssuedByUserId { get; private set; }
     public DateTime? OfferAcceptedAt { get; private set; }
     public Guid? OfferAcceptedByUserId { get; private set; }
+    public DateTime? CustomerSignedAt { get; private set; }
+    public OfferAcceptanceMethod? AcceptanceMethod { get; private set; }
+    public bool KfsAcknowledged { get; private set; }
 
     // Related Entities
     private readonly List<LoanApplicationDocument> _documents = [];
@@ -74,12 +77,14 @@ public class LoanApplication : AggregateRoot
     private readonly List<LoanApplicationComment> _comments = [];
     private readonly List<LoanApplicationStatusHistory> _statusHistory = [];
     private readonly List<DisbursementChecklistItem> _checklistItems = [];
+    private readonly List<ApprovalOverrideRecord> _overrideRecords = [];
 
     public IReadOnlyCollection<LoanApplicationDocument> Documents => _documents.AsReadOnly();
     public IReadOnlyCollection<LoanApplicationParty> Parties => _parties.AsReadOnly();
     public IReadOnlyCollection<LoanApplicationComment> Comments => _comments.AsReadOnly();
     public IReadOnlyCollection<LoanApplicationStatusHistory> StatusHistory => _statusHistory.AsReadOnly();
     public IReadOnlyCollection<DisbursementChecklistItem> ChecklistItems => _checklistItems.AsReadOnly();
+    public IReadOnlyCollection<ApprovalOverrideRecord> OverrideRecords => _overrideRecords.AsReadOnly();
 
     private LoanApplication() { }
 
@@ -333,12 +338,31 @@ public class LoanApplication : AggregateRoot
 
         CreditChecksCompleted++;
 
-        if (AllCreditChecksCompleted)
+        // Use == (not >=) so the event fires exactly once — when the counter first reaches the total.
+        // Using >= would re-fire the event on subsequent over-increments (e.g. re-running a NotFound check
+        // for a party whose BVN was corrected after the initial run).
+        if (CreditChecksCompleted == TotalCreditChecksRequired)
         {
             CreditCheckCompletedAt = DateTime.UtcNow;
             AddStatusHistory(Status, userId, $"All {TotalCreditChecksRequired} credit checks completed");
             AddDomainEvent(new AllCreditChecksCompletedEvent(Id, ApplicationNumber));
         }
+
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Resets the credit check progress counter so all checks can be re-run from scratch.
+    /// Used when a force-refresh is needed (e.g. to fix bad data from a previous run).
+    /// Does NOT change Status or TotalCreditChecksRequired.
+    /// </summary>
+    public Result ResetCreditCheckProgress(Guid userId)
+    {
+        if (Status != LoanApplicationStatus.CreditAnalysis)
+            return Result.Failure("Application must be in CreditAnalysis status to reset credit checks");
+
+        CreditChecksCompleted = 0;
+        CreditCheckCompletedAt = null;
 
         return Result.Success();
     }
@@ -357,10 +381,73 @@ public class LoanApplication : AggregateRoot
         return Result.Success();
     }
 
-    public Result MoveToCommittee(Guid userId)
+    public Result MoveToLegalReview(Guid userId)
     {
         if (Status != LoanApplicationStatus.HOReview)
             return Result.Failure("Application must be in HOReview status");
+
+        Status = LoanApplicationStatus.LegalReview;
+        AddStatusHistory(Status, userId, "Referred to Legal for opinion");
+
+        return Result.Success();
+    }
+
+    public Result ReturnFromLegalReview(Guid userId, string reason)
+    {
+        if (Status != LoanApplicationStatus.LegalReview)
+            return Result.Failure("Application must be in LegalReview status");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Return reason is required");
+
+        Status = LoanApplicationStatus.HOReview;
+        AddStatusHistory(Status, userId, reason);
+        AddComment(userId, reason, "Legal Return");
+
+        return Result.Success();
+    }
+
+    public Result SubmitLegalOpinion(Guid userId, string? comment = null)
+    {
+        if (Status != LoanApplicationStatus.LegalReview)
+            return Result.Failure("Application must be in LegalReview status");
+
+        Status = LoanApplicationStatus.LegalApproval;
+        AddStatusHistory(Status, userId, comment ?? "Legal opinion submitted — awaiting Head of Legal countersignature");
+
+        return Result.Success();
+    }
+
+    public Result ApproveLegalReview(Guid userId, string? comment = null)
+    {
+        if (Status != LoanApplicationStatus.LegalApproval)
+            return Result.Failure("Application must be in LegalApproval status");
+
+        Status = LoanApplicationStatus.CommitteeCirculation;
+        AddStatusHistory(Status, userId, comment ?? "Legal opinion countersigned — circulating to committee");
+
+        return Result.Success();
+    }
+
+    public Result ReturnFromLegalApproval(Guid userId, string reason)
+    {
+        if (Status != LoanApplicationStatus.LegalApproval)
+            return Result.Failure("Application must be in LegalApproval status");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Return reason is required");
+
+        Status = LoanApplicationStatus.LegalReview;
+        AddStatusHistory(Status, userId, reason);
+        AddComment(userId, reason, "Legal Return");
+
+        return Result.Success();
+    }
+
+    public Result MoveToCommittee(Guid userId)
+    {
+        if (Status != LoanApplicationStatus.LegalApproval)
+            return Result.Failure("Application must be in LegalApproval status");
 
         Status = LoanApplicationStatus.CommitteeCirculation;
         AddStatusHistory(Status, userId, "Circulated to committee");
@@ -495,10 +582,13 @@ public class LoanApplication : AggregateRoot
         }
     }
 
-    public Result AcceptOffer(Guid userId)
+    public Result AcceptOffer(Guid userId, DateTime customerSignedAt, OfferAcceptanceMethod acceptanceMethod, bool kfsAcknowledged)
     {
         if (Status != LoanApplicationStatus.OfferGenerated)
             return Result.Failure("Offer can only be accepted from OfferGenerated status");
+
+        if (!kfsAcknowledged)
+            return Result.Failure("KFS acknowledgement is required before recording acceptance");
 
         // Validate all mandatory CP items are resolved
         var blockers = _checklistItems
@@ -513,16 +603,110 @@ public class LoanApplication : AggregateRoot
         Status = LoanApplicationStatus.OfferAccepted;
         OfferAcceptedAt = DateTime.UtcNow;
         OfferAcceptedByUserId = userId;
-        AddStatusHistory(Status, userId, "Customer acceptance confirmed — all conditions precedent resolved");
+        CustomerSignedAt = customerSignedAt;
+        AcceptanceMethod = acceptanceMethod;
+        KfsAcknowledged = kfsAcknowledged;
+        AddStatusHistory(Status, userId, $"Customer acceptance confirmed via {acceptanceMethod} — all conditions precedent resolved");
         AddDomainEvent(new OfferAcceptedEvent(Id, ApplicationNumber));
+
+        return Result.Success();
+    }
+
+    // -------------------------------------------------------------------------
+    // Security Perfection + Disbursement maker-checker chain
+    // -------------------------------------------------------------------------
+
+    public Result MoveToSecurityPerfection(Guid userId)
+    {
+        if (Status != LoanApplicationStatus.OfferAccepted)
+            return Result.Failure("Application must be in OfferAccepted status");
+
+        Status = LoanApplicationStatus.SecurityPerfection;
+        AddStatusHistory(Status, userId, "Referred to Legal for security perfection");
+
+        return Result.Success();
+    }
+
+    public Result SubmitSecurityDocuments(Guid userId, string? comment = null)
+    {
+        if (Status != LoanApplicationStatus.SecurityPerfection)
+            return Result.Failure("Application must be in SecurityPerfection status");
+
+        Status = LoanApplicationStatus.SecurityApproval;
+        AddStatusHistory(Status, userId, comment ?? "Security documents submitted — awaiting Head of Legal countersignature");
+
+        return Result.Success();
+    }
+
+    public Result ApproveSecurityPerfection(Guid userId, string? comment = null)
+    {
+        if (Status != LoanApplicationStatus.SecurityApproval)
+            return Result.Failure("Application must be in SecurityApproval status");
+
+        Status = LoanApplicationStatus.DisbursementPending;
+        AddStatusHistory(Status, userId, comment ?? "Security perfection confirmed — referred to Operations for disbursement memo");
+
+        return Result.Success();
+    }
+
+    public Result ReturnFromSecurityApproval(Guid userId, string reason)
+    {
+        if (Status != LoanApplicationStatus.SecurityApproval)
+            return Result.Failure("Application must be in SecurityApproval status");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Return reason is required");
+
+        Status = LoanApplicationStatus.SecurityPerfection;
+        AddStatusHistory(Status, userId, reason);
+        AddComment(userId, reason, "Security Return");
+
+        return Result.Success();
+    }
+
+    public Result PrepareDisbursementMemo(Guid userId, string? comment = null)
+    {
+        if (Status != LoanApplicationStatus.DisbursementPending)
+            return Result.Failure("Application must be in DisbursementPending status");
+
+        Status = LoanApplicationStatus.DisbursementBranchApproval;
+        AddStatusHistory(Status, userId, comment ?? "Disbursement memo prepared — submitted for branch authorisation");
+
+        return Result.Success();
+    }
+
+    public Result ApproveDisbursementBranch(Guid userId, string? comment = null)
+    {
+        if (Status != LoanApplicationStatus.DisbursementBranchApproval)
+            return Result.Failure("Application must be in DisbursementBranchApproval status");
+
+        Status = LoanApplicationStatus.DisbursementHQApproval;
+        AddStatusHistory(Status, userId, comment ?? "Branch authorisation granted — referred to GM Finance for final release");
+
+        return Result.Success();
+    }
+
+    public Result ReturnFromDisbursementBranch(Guid userId, string reason)
+    {
+        if (Status != LoanApplicationStatus.DisbursementBranchApproval)
+            return Result.Failure("Application must be in DisbursementBranchApproval status");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Return reason is required");
+
+        Status = LoanApplicationStatus.DisbursementPending;
+        AddStatusHistory(Status, userId, reason);
+        AddComment(userId, reason, "Disbursement Return");
 
         return Result.Success();
     }
 
     public Result RecordDisbursement(string coreBankingLoanId, Guid userId)
     {
-        if (Status != LoanApplicationStatus.Approved && Status != LoanApplicationStatus.OfferAccepted)
-            return Result.Failure("Application must be Approved or OfferAccepted");
+        if (Status != LoanApplicationStatus.DisbursementHQApproval
+            && Status != LoanApplicationStatus.Approved
+            && Status != LoanApplicationStatus.OfferAccepted)
+            return Result.Failure("Application must be in DisbursementHQApproval status");
 
         Status = LoanApplicationStatus.Disbursed;
         CoreBankingLoanId = coreBankingLoanId;

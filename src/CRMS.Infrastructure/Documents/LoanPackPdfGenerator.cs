@@ -130,7 +130,14 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
                 col.Item().Element(c => ComposeCommitteeComments(c, data));
             }
 
-            // 12. Conditions of Approval
+            // 12. Committee Decision
+            if (data.CommitteeDecision != null)
+            {
+                col.Item().PageBreak();
+                col.Item().Element(c => ComposeCommitteeDecision(c, data));
+            }
+
+            // 13. Conditions of Approval
             if (data.ApprovalConditions.Any())
             {
                 col.Item().PageBreak();
@@ -180,6 +187,20 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
                 TableCell(table, $"{data.RequestedInterestRate:N2}%");
                 TableCell(table, "Purpose:", true);
                 TableCell(table, data.Purpose);
+
+                // Row 5 — Approved Terms (if set)
+                if (data.ApprovedAmount.HasValue || data.ApprovedTenorMonths.HasValue || data.ApprovedInterestRate.HasValue)
+                {
+                    TableCell(table, "Approved Amount:", true);
+                    TableCell(table, data.ApprovedAmount.HasValue ? $"{data.Currency} {data.ApprovedAmount:N2}" : "—");
+                    TableCell(table, "Approved Tenor:", true);
+                    TableCell(table, data.ApprovedTenorMonths.HasValue ? $"{data.ApprovedTenorMonths} months" : "—");
+
+                    TableCell(table, "Approved Rate:", true);
+                    TableCell(table, data.ApprovedInterestRate.HasValue ? $"{data.ApprovedInterestRate:N2}%" : "—");
+                    TableCell(table, "Committee Decision:", true);
+                    TableCell(table, data.CommitteeDecision?.Decision ?? "—");
+                }
             });
 
             col.Item().PaddingTop(15);
@@ -427,13 +448,59 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
                             .Text($"LEGAL ISSUES: {report.LegalIssueDetails}").FontColor(Colors.Red.Darken2);
                     }
 
+                    if (report.ActiveLoans.Any())
+                    {
+                        c.Item().PaddingTop(5).Text("Active Facilities:").Bold();
+                        c.Item().Table(t =>
+                        {
+                            t.ColumnsDefinition(cols =>
+                            {
+                                cols.RelativeColumn(2);
+                                cols.RelativeColumn(1);
+                                cols.RelativeColumn(1);
+                                cols.RelativeColumn(1);
+                                cols.RelativeColumn(1);
+                            });
+                            TableHeader(t, "Lender");
+                            TableHeader(t, "Facility Type");
+                            TableHeader(t, "Original");
+                            TableHeader(t, "Outstanding");
+                            TableHeader(t, "Status");
+                            foreach (var loan in report.ActiveLoans.Take(10))
+                            {
+                                TableCell(t, loan.LenderName);
+                                TableCell(t, loan.FacilityType);
+                                TableCell(t, $"{data.Currency} {loan.OriginalAmount:N0}");
+                                TableCell(t, $"{data.Currency} {loan.OutstandingBalance:N0}");
+                                TableCell(t, loan.Status);
+                            }
+                        });
+                    }
+
                     if (report.Delinquencies.Any())
                     {
-                        c.Item().PaddingTop(5).Text("Delinquencies:").Bold();
-                        foreach (var d in report.Delinquencies.Take(5))
+                        c.Item().PaddingTop(5).Text("Delinquent Accounts:").Bold();
+                        c.Item().Table(t =>
                         {
-                            c.Item().Text($"  • {d.LenderName}: {data.Currency} {d.Amount:N0} ({d.DaysOverdue} days overdue)");
-                        }
+                            t.ColumnsDefinition(cols =>
+                            {
+                                cols.RelativeColumn(2);
+                                cols.RelativeColumn(1);
+                                cols.RelativeColumn(1);
+                                cols.RelativeColumn(1);
+                            });
+                            TableHeader(t, "Lender");
+                            TableHeader(t, "Facility Type");
+                            TableHeader(t, "Amount");
+                            TableHeader(t, "Days Overdue");
+                            foreach (var d in report.Delinquencies.Take(5))
+                            {
+                                TableCell(t, d.LenderName);
+                                TableCell(t, d.FacilityType);
+                                TableCell(t, $"{data.Currency} {d.Amount:N0}");
+                                TableCell(t, d.DaysOverdue.ToString());
+                            }
+                        });
                     }
                 });
 
@@ -815,6 +882,124 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
                 });
 
                 col.Item().PaddingTop(5);
+            }
+        });
+    }
+
+    private void ComposeCommitteeDecision(IContainer container, LoanPackData data)
+    {
+        var decision = data.CommitteeDecision!;
+
+        container.Column(col =>
+        {
+            col.Item().Text("COMMITTEE DECISION").Bold().FontSize(14);
+            col.Item().PaddingTop(10);
+
+            // Decision banner
+            var decisionColor = decision.Decision == "Approved" ? Colors.Green.Darken2
+                : decision.Decision == "Rejected" ? Colors.Red.Darken2
+                : Colors.Orange.Darken2;
+
+            col.Item().Background(decision.Decision == "Approved" ? Colors.Green.Lighten4
+                : decision.Decision == "Rejected" ? Colors.Red.Lighten4
+                : Colors.Orange.Lighten4)
+                .Padding(12).Row(row =>
+                {
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text(decision.Decision.ToUpper()).FontSize(18).Bold().FontColor(decisionColor);
+                        if (!string.IsNullOrEmpty(decision.DecisionRationale))
+                            c.Item().PaddingTop(4).Text(decision.DecisionRationale).FontSize(10);
+                    });
+
+                    row.AutoItem().Padding(8).Column(c =>
+                    {
+                        c.Item().AlignCenter().Text($"{decision.ApprovalVotes}").FontSize(22).Bold().FontColor(Colors.Green.Darken2);
+                        c.Item().AlignCenter().Text("Approve").FontSize(9);
+                    });
+                    row.AutoItem().Padding(8).Column(c =>
+                    {
+                        c.Item().AlignCenter().Text($"{decision.RejectionVotes}").FontSize(22).Bold().FontColor(Colors.Red.Darken2);
+                        c.Item().AlignCenter().Text("Reject").FontSize(9);
+                    });
+                    if (decision.AbstainVotes > 0)
+                    {
+                        row.AutoItem().Padding(8).Column(c =>
+                        {
+                            c.Item().AlignCenter().Text($"{decision.AbstainVotes}").FontSize(22).Bold().FontColor(Colors.Grey.Darken2);
+                            c.Item().AlignCenter().Text("Abstain").FontSize(9);
+                        });
+                    }
+                    if (decision.PendingVotes > 0)
+                    {
+                        row.AutoItem().Padding(8).Column(c =>
+                        {
+                            c.Item().AlignCenter().Text($"{decision.PendingVotes}").FontSize(22).Bold().FontColor(Colors.Orange.Darken2);
+                            c.Item().AlignCenter().Text("Pending").FontSize(9);
+                        });
+                    }
+                });
+
+            // Recommended / Approved Terms
+            if (decision.RecommendedAmount.HasValue || decision.RecommendedTenorMonths.HasValue || decision.RecommendedInterestRate.HasValue)
+            {
+                col.Item().PaddingTop(10).Text("Committee Recommended Terms").Bold().FontSize(12);
+                col.Item().PaddingTop(5).Table(table =>
+                {
+                    table.ColumnsDefinition(cols =>
+                    {
+                        cols.RelativeColumn(1);
+                        cols.RelativeColumn(2);
+                        cols.RelativeColumn(1);
+                        cols.RelativeColumn(2);
+                    });
+
+                    TableCell(table, "Amount:", true);
+                    TableCell(table, decision.RecommendedAmount.HasValue ? $"{data.Currency} {decision.RecommendedAmount:N2}" : "—");
+                    TableCell(table, "Tenor:", true);
+                    TableCell(table, decision.RecommendedTenorMonths.HasValue ? $"{decision.RecommendedTenorMonths} months" : "—");
+
+                    TableCell(table, "Interest Rate:", true);
+                    TableCell(table, decision.RecommendedInterestRate.HasValue ? $"{decision.RecommendedInterestRate:N2}%" : "—");
+                    TableCell(table, "", false);
+                    TableCell(table, "");
+                });
+            }
+
+            // Member votes breakdown
+            if (decision.MemberVotes.Any())
+            {
+                col.Item().PaddingTop(15).Text("Member Votes").Bold().FontSize(12);
+                col.Item().PaddingTop(5).Table(table =>
+                {
+                    table.ColumnsDefinition(cols =>
+                    {
+                        cols.RelativeColumn(2);
+                        cols.RelativeColumn(1);
+                        cols.RelativeColumn(1);
+                        cols.RelativeColumn(3);
+                    });
+
+                    TableHeader(table, "Member");
+                    TableHeader(table, "Role");
+                    TableHeader(table, "Vote");
+                    TableHeader(table, "Comment");
+
+                    foreach (var vote in decision.MemberVotes)
+                    {
+                        TableCell(table, vote.MemberName);
+                        TableCell(table, vote.MemberRole);
+
+                        var voteColor = vote.Vote == "Approve" ? Colors.Green.Darken2
+                            : vote.Vote == "Reject" ? Colors.Red.Darken2
+                            : Colors.Grey.Darken2;
+                        var voteText = vote.Vote ?? "Pending";
+                        table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                            .Text(voteText).FontSize(9).Bold().FontColor(voteColor);
+
+                        TableCell(table, vote.VoteComment ?? "");
+                    }
+                });
             }
         });
     }

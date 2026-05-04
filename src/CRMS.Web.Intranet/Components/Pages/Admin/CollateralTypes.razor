@@ -1,0 +1,297 @@
+@page "/admin/collateral-types"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin,RiskManager,CreditManager")]
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@using CRMS.Application.Collateral.Commands
+@using CRMS.Application.Collateral.DTOs
+
+<PageTitle>Collateral Types - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Collateral Types</h1>
+        <p class="page-subtitle">Configure collateral type definitions and haircut rates</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreate">
+        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+        Add Type
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div style="display: flex; justify-content: center; padding: var(--space-12);">
+        <span class="material-symbols-outlined spinning" style="font-size: 32px; color: var(--primary-500);">progress_activity</span>
+    </div>
+}
+else if (configs.Count == 0)
+{
+    <div class="empty-state">
+        <span class="material-symbols-outlined empty-state-icon">category</span>
+        <h3>No collateral types configured</h3>
+        <p>Add collateral types to enable structured collateral management.</p>
+    </div>
+}
+else
+{
+    <div class="card">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Code</th>
+                    <th>Haircut Rate</th>
+                    <th>Valuation Basis</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in configs.OrderBy(x => x.SortOrder).ThenBy(x => x.Name))
+                {
+                    <tr>
+                        <td>
+                            <div style="font-weight: 500;">@c.Name</div>
+                            @if (!string.IsNullOrEmpty(c.Description))
+                            {
+                                <div style="font-size: var(--text-sm); color: var(--gray-500);">@c.Description</div>
+                            }
+                        </td>
+                        <td><code style="font-size: var(--text-sm);">@c.Code</code></td>
+                        <td>@((c.HaircutRate * 100).ToString("F1"))%</td>
+                        <td>@(c.ValuationBasis == "FSV" ? "Forced Sale Value" : "Market Value")</td>
+                        <td>
+                            <span class="badge @(c.IsActive ? "badge-success" : "badge-gray")">
+                                @(c.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </td>
+                        <td style="text-align: right;">
+                            <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
+                                <button class="btn btn-outline btn-sm" @onclick="() => OpenEdit(c)">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+                                    Edit
+                                </button>
+                                <button class="btn btn-ghost btn-sm" @onclick="() => Toggle(c)" disabled="@isSaving">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">@(c.IsActive ? "pause" : "play_arrow")</span>
+                                    @(c.IsActive ? "Deactivate" : "Activate")
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (showModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseModal">
+        <div class="modal" style="max-width: 520px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@(editingConfig == null ? "Add Collateral Type" : "Edit Collateral Type")</h3>
+                <button type="button" class="modal-close" @onclick="CloseModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(modalError))
+                {
+                    <div class="alert alert-danger mb-4">@modalError</div>
+                }
+
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input type="text" class="form-control" @bind="form.Name" placeholder="e.g., Residential Property" />
+                </div>
+
+                @if (editingConfig == null)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Code *</label>
+                        <input type="text" class="form-control" @bind="form.Code" placeholder="e.g., RealEstate" />
+                        <div class="form-hint">Short machine-readable code (must match legacy enum if migrating)</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label class="form-label">Code</label>
+                        <div class="form-control" style="background: var(--gray-50); color: var(--gray-500);">@editingConfig.Code</div>
+                        <div class="form-hint">Code cannot be changed after creation</div>
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-control" @bind="form.Description" placeholder="Optional description" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Haircut Rate (%) *</label>
+                        <input type="number" class="form-control" @bind="form.HaircutRatePercent"
+                            min="0" max="100" step="0.5" />
+                        <div class="form-hint">e.g., enter 20 for a 20% haircut</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Valuation Basis *</label>
+                        <select class="form-control" @bind="form.ValuationBasis">
+                            <option value="MarketValue">Market Value</option>
+                            <option value="FSV">Forced Sale Value (FSV)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Sort Order</label>
+                    <input type="number" class="form-control" @bind="form.SortOrder" min="0" step="1"
+                        style="max-width: 120px;" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" @onclick="CloseModal" disabled="@isSaving">Cancel</button>
+                <button class="btn btn-primary" @onclick="Save" disabled="@(isSaving || !IsFormValid)">
+                    @if (isSaving)
+                    {
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                    }
+                    <span>@(editingConfig == null ? "Create" : "Save Changes")</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .spinning { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+@code {
+    private List<CollateralTypeConfigDto> configs = [];
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showModal;
+    private string? modalError;
+    private CollateralTypeConfigDto? editingConfig;
+    private TypeForm form = new();
+
+    private bool IsFormValid => !string.IsNullOrWhiteSpace(form.Name) &&
+        (editingConfig != null || !string.IsNullOrWhiteSpace(form.Code)) &&
+        form.HaircutRatePercent is >= 0 and <= 100;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        var result = await AppService.GetCollateralTypeConfigsAllAsync();
+        if (result.Success && result.Data != null)
+            configs = result.Data;
+        isLoading = false;
+    }
+
+    private void OpenCreate()
+    {
+        editingConfig = null;
+        form = new TypeForm();
+        modalError = null;
+        showModal = true;
+    }
+
+    private void OpenEdit(CollateralTypeConfigDto c)
+    {
+        editingConfig = c;
+        form = new TypeForm
+        {
+            Name = c.Name,
+            Code = c.Code,
+            Description = c.Description,
+            HaircutRatePercent = c.HaircutRate * 100,
+            ValuationBasis = c.ValuationBasis,
+            SortOrder = c.SortOrder
+        };
+        modalError = null;
+        showModal = true;
+    }
+
+    private void CloseModal() => showModal = false;
+
+    private async Task Save()
+    {
+        isSaving = true;
+        modalError = null;
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            ApiResponse result;
+            if (editingConfig == null)
+            {
+                result = await AppService.CreateCollateralTypeConfigAsync(new CreateCollateralTypeConfigRequest
+                {
+                    Name = form.Name,
+                    Code = form.Code,
+                    Description = form.Description,
+                    HaircutRate = form.HaircutRatePercent / 100m,
+                    ValuationBasis = form.ValuationBasis,
+                    SortOrder = form.SortOrder
+                }, userId);
+            }
+            else
+            {
+                result = await AppService.UpdateCollateralTypeConfigAsync(editingConfig.Id, new UpdateCollateralTypeConfigRequest
+                {
+                    Name = form.Name,
+                    Description = form.Description,
+                    HaircutRate = form.HaircutRatePercent / 100m,
+                    ValuationBasis = form.ValuationBasis,
+                    SortOrder = form.SortOrder
+                }, userId);
+            }
+
+            if (result.Success)
+            {
+                showModal = false;
+                await LoadAsync();
+            }
+            else
+            {
+                modalError = result.Error ?? "Failed to save";
+            }
+        }
+        catch (Exception ex)
+        {
+            modalError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task Toggle(CollateralTypeConfigDto c)
+    {
+        isSaving = true;
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            var result = await AppService.ToggleCollateralTypeConfigAsync(c.Id, !c.IsActive, userId);
+            if (result.Success) await LoadAsync();
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private class TypeForm
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public decimal HaircutRatePercent { get; set; } = 20;
+        public string ValuationBasis { get; set; } = "MarketValue";
+        public int SortOrder { get; set; }
+    }
+}

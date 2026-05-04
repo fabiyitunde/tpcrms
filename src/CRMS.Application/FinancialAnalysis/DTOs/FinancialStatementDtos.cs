@@ -31,7 +31,8 @@ public record FinancialStatementSummaryDto(
     decimal? TotalRevenue,
     decimal? NetProfit,
     string? OverallAssessment,
-    DateTime SubmittedAt
+    DateTime SubmittedAt,
+    string? RejectionReason = null
 );
 
 public record BalanceSheetDto(

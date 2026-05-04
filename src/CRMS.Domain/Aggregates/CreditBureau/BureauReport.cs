@@ -9,10 +9,7 @@ public class BureauReport : AggregateRoot
     public CreditBureauProvider Provider { get; private set; }
     public SubjectType SubjectType { get; private set; }
     public BureauReportStatus Status { get; private set; }
-    
-    // Consent Reference (required for NDPA compliance)
-    public Guid ConsentRecordId { get; private set; }
-    
+
     // Subject Identifiers
     public string? BVN { get; private set; }
     public string? RegistryId { get; private set; }
@@ -69,7 +66,6 @@ public class BureauReport : AggregateRoot
         string subjectName,
         string? bvn,
         Guid requestedByUserId,
-        Guid consentRecordId,
         Guid? loanApplicationId = null,
         string? taxId = null,
         Guid? partyId = null,
@@ -80,9 +76,6 @@ public class BureauReport : AggregateRoot
 
         if (subjectType == SubjectType.Individual && string.IsNullOrWhiteSpace(bvn))
             return Result.Failure<BureauReport>("BVN is required for individual credit checks");
-
-        if (consentRecordId == Guid.Empty)
-            return Result.Failure<BureauReport>("Valid consent record is required for credit bureau checks (NDPA compliance)");
 
         var report = new BureauReport
         {
@@ -95,56 +88,13 @@ public class BureauReport : AggregateRoot
             RequestedByUserId = requestedByUserId,
             RequestedAt = DateTime.UtcNow,
             LoanApplicationId = loanApplicationId,
-            ConsentRecordId = consentRecordId,
             RequestReference = GenerateRequestReference(),
             PartyId = partyId,
             PartyType = partyType
         };
 
-        report.AddDomainEvent(new BureauReportRequestedEvent(report.Id, provider, subjectName, bvn, consentRecordId));
+        report.AddDomainEvent(new BureauReportRequestedEvent(report.Id, provider, subjectName, bvn));
 
-        return Result.Success(report);
-    }
-
-    /// <summary>
-    /// Creates a BureauReport record for a consent failure (NDPA audit trail requirement).
-    /// This records the attempt even when no valid consent exists.
-    /// </summary>
-    public static Result<BureauReport> CreateForConsentFailure(
-        CreditBureauProvider provider,
-        SubjectType subjectType,
-        string subjectName,
-        string? bvn,
-        string? taxId,
-        Guid requestedByUserId,
-        Guid? loanApplicationId,
-        Guid? partyId,
-        string? partyType,
-        string errorMessage)
-    {
-        if (string.IsNullOrWhiteSpace(subjectName))
-            return Result.Failure<BureauReport>("Subject name is required");
-
-        var report = new BureauReport
-        {
-            Provider = provider,
-            SubjectType = subjectType,
-            SubjectName = subjectName,
-            BVN = bvn,
-            TaxId = taxId,
-            Status = BureauReportStatus.ConsentRequired,
-            RequestedByUserId = requestedByUserId,
-            RequestedAt = DateTime.UtcNow,
-            CompletedAt = DateTime.UtcNow,
-            LoanApplicationId = loanApplicationId,
-            ConsentRecordId = Guid.Empty, // No consent - that's the failure reason
-            RequestReference = GenerateRequestReference(),
-            PartyId = partyId,
-            PartyType = partyType,
-            ErrorMessage = errorMessage
-        };
-
-        // Note: No BureauReportRequestedEvent since no actual bureau access was attempted
         return Result.Success(report);
     }
 
@@ -234,5 +184,5 @@ public class BureauReport : AggregateRoot
 }
 
 // Domain Events
-public record BureauReportRequestedEvent(Guid ReportId, CreditBureauProvider Provider, string SubjectName, string? BVN, Guid ConsentRecordId) : DomainEvent;
+public record BureauReportRequestedEvent(Guid ReportId, CreditBureauProvider Provider, string SubjectName, string? BVN) : DomainEvent;
 public record BureauReportCompletedEvent(Guid ReportId, CreditBureauProvider Provider, string SubjectName, int? CreditScore) : DomainEvent;

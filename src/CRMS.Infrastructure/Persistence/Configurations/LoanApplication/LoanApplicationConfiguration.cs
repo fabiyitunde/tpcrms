@@ -134,6 +134,14 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
         builder.Property(x => x.OfferIssuedByUserId).IsRequired(false);
         builder.Property(x => x.OfferAcceptedAt).IsRequired(false);
         builder.Property(x => x.OfferAcceptedByUserId).IsRequired(false);
+        builder.Property(x => x.CustomerSignedAt).IsRequired(false);
+        builder.Property(x => x.AcceptanceMethod)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .IsRequired(false);
+        builder.Property(x => x.KfsAcknowledged)
+            .HasDefaultValue(false)
+            .IsRequired();
 
         // Concurrency token disabled for MySQL compatibility
         // RowVersion stored as BLOB, must have default value to avoid DBNull issues
@@ -145,7 +153,39 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
             .IsRequired(false)
             .ValueGeneratedNever();
 
+        builder.HasMany(x => x.OverrideRecords)
+            .WithOne()
+            .HasForeignKey(x => x.LoanApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.Ignore(x => x.DomainEvents);
+    }
+}
+
+public class ApprovalOverrideRecordConfiguration : IEntityTypeConfiguration<LA.ApprovalOverrideRecord>
+{
+    public void Configure(EntityTypeBuilder<LA.ApprovalOverrideRecord> builder)
+    {
+        builder.ToTable("ApprovalOverrideRecords");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Stage)
+            .HasMaxLength(50)
+            .IsRequired();
+
+        builder.Property(x => x.ActorName)
+            .HasMaxLength(200)
+            .IsRequired();
+
+        builder.Property(x => x.NoteText)
+            .HasMaxLength(2000)
+            .IsRequired();
+
+        builder.Property(x => x.ResolvedByName)
+            .HasMaxLength(200);
+
+        builder.HasIndex(x => x.LoanApplicationId);
     }
 }
 

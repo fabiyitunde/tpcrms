@@ -37,7 +37,8 @@ public static class ComprehensiveDataSeeder
         "Dangote Industries Limited", "MTN Nigeria Communications PLC", "Access Bank PLC",
         "Zenith Bank PLC", "Nigerian Breweries PLC", "Nestle Nigeria PLC",
         "BUA Cement PLC", "Seplat Petroleum Development Company", "Flour Mills of Nigeria PLC",
-        "Transcorp Hotels PLC", "Oando PLC", "FBN Holdings PLC"
+        "Transcorp Hotels PLC", "Oando PLC", "FBN Holdings PLC",
+        "United Bank for Africa PLC", "Stanbic IBTC Holdings PLC"
     ];
 
     private static readonly string[] NigerianNames = 
@@ -115,16 +116,18 @@ public static class ComprehensiveDataSeeder
         ("committee3",     "Tunde",       "Bakare",        Roles.CommitteeMember,  "tunde.bakare@crms.ng",       UserType.Staff),
         ("finalapprover",  "Yusuf",       "Mohammed",      Roles.FinalApprover,    "yusuf.mohammed@crms.ng",     UserType.Staff),
         ("operations",     "Folake",      "Balogun",       Roles.Operations,       "folake.balogun@crms.ng",     UserType.Staff),
+        ("gmfinance",      "Chidi",       "Okafor",        Roles.GMFinance,        "chidi.okafor@crms.ng",       UserType.Staff),
         ("legalofficer",   "Adaeze",      "Nwosu",         Roles.LegalOfficer,     "adaeze.nwosu@crms.ng",       UserType.Staff),
+        ("headoflegal",    "Obiageli",    "Okonkwo",       Roles.HeadOfLegal,      "obiageli.okonkwo@crms.ng",   UserType.Staff),
         ("riskmanager",    "Chukwuemeka", "Obi",           Roles.RiskManager,      "chukwuemeka.obi@crms.ng",    UserType.Staff),
         ("auditor",        "Amina",       "Suleiman",      Roles.Auditor,          "amina.suleiman@crms.ng",     UserType.Staff),
         ("customer",       "Demo",        "Customer",      Roles.Customer,         "customer@crms.ng",           UserType.Customer),
     ];
 
     private static async Task<(ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover,
-        ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1,
-        ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover,
-        ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor)>
+        ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+        ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+        ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor)>
         SeedUsersAsync(CRMSDbContext context, ILogger logger)
     {
         var roles = await context.Roles.ToListAsync();
@@ -193,11 +196,14 @@ public static class ComprehensiveDataSeeder
                 existingUsers.FirstOrDefault(u => u.UserName == "branchapprover") ?? existingUsers.First(),
                 existingUsers.FirstOrDefault(u => u.UserName == "creditofficer")  ?? existingUsers.First(),
                 existingUsers.FirstOrDefault(u => u.UserName == "horeviewer")     ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "legalofficer")   ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "headoflegal")    ?? existingUsers.First(),
                 existingUsers.FirstOrDefault(u => u.UserName == "committee1")     ?? existingUsers.First(),
                 existingUsers.FirstOrDefault(u => u.UserName == "committee2")     ?? existingUsers.First(),
                 existingUsers.FirstOrDefault(u => u.UserName == "committee3")     ?? existingUsers.First(),
                 existingUsers.FirstOrDefault(u => u.UserName == "finalapprover")  ?? existingUsers.First(),
                 existingUsers.FirstOrDefault(u => u.UserName == "operations")     ?? existingUsers.First(),
+                existingUsers.FirstOrDefault(u => u.UserName == "gmfinance")      ?? existingUsers.First(),
                 existingUsers.FirstOrDefault(u => u.UserName == "riskmanager")    ?? existingUsers.First(),
                 existingUsers.FirstOrDefault(u => u.UserName == "auditor")        ?? existingUsers.First()
             );
@@ -230,11 +236,12 @@ public static class ComprehensiveDataSeeder
         // Indices into createdUsers (matches AllUserDefinitions order):
         // 0=admin, 1=loanofficer, 2=loanofficer2, 3=branchapprover, 4=creditofficer,
         // 5=horeviewer, 6=committee1, 7=committee2, 8=committee3, 9=finalapprover,
-        // 10=operations, 11=riskmanager, 12=auditor, 13=customer
+        // 10=operations, 11=gmfinance, 12=legalofficer, 13=headoflegal, 14=riskmanager, 15=auditor, 16=customer
         return (
             createdUsers[0],  createdUsers[1],  createdUsers[3],  createdUsers[4],
-            createdUsers[5],  createdUsers[6],  createdUsers[7],  createdUsers[8],
-            createdUsers[9],  createdUsers[10], createdUsers[11], createdUsers[12]
+            createdUsers[5],  createdUsers[12], createdUsers[13], createdUsers[6],
+            createdUsers[7],  createdUsers[8],  createdUsers[9],  createdUsers[10],
+            createdUsers[11], createdUsers[14], createdUsers[15]
         );
     }
 
@@ -316,6 +323,81 @@ public static class ComprehensiveDataSeeder
 
                 logger.LogInformation("Offer letter workflow stages added successfully.");
             }
+
+            // Upgrade: add LegalReview and LegalApproval stages if missing
+            if (existing != null && !existing.Stages.Any(s => s.Status == LoanApplicationStatus.LegalReview))
+            {
+                logger.LogInformation("Upgrading workflow definition: adding LegalReview and LegalApproval stages...");
+                var wfId = existing.Id;
+                var now = DateTime.UtcNow;
+
+                // Insert LegalReview and LegalApproval stages (INSERT IGNORE is idempotent)
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'LegalReview', 'Legal Review', 'Legal officer preparing opinion', 'LegalOfficer', 48, 7, 0, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'LegalApproval', 'Legal Approval', 'Head of Legal countersigning opinion', 'HeadOfLegal', 24, 8, 1, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+
+                // Replace HOReview→CommitteeCirculation with HOReview→LegalReview
+                await context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM WorkflowTransitions WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'HOReview' AND ToStatus = 'CommitteeCirculation'",
+                    wfId);
+                await InsertTransitionIfMissingAsync(context, wfId, "HOReview",       "LegalReview",          "Approve", Roles.HOReviewer,    now);
+                await InsertTransitionIfMissingAsync(context, wfId, "LegalReview",    "LegalApproval",        "Approve", Roles.LegalOfficer,  now);
+                await InsertTransitionIfMissingAsync(context, wfId, "LegalApproval",  "CommitteeCirculation", "Approve", Roles.HeadOfLegal,   now);
+                await InsertTransitionIfMissingAsync(context, wfId, "LegalApproval",  "LegalReview",          "Return",  Roles.HeadOfLegal,   now);
+                await InsertTransitionIfMissingAsync(context, wfId, "LegalReview",    "HOReview",             "Return",  Roles.LegalOfficer,  now);
+
+                logger.LogInformation("Legal Review workflow stages added successfully.");
+            }
+
+            // Upgrade: add Security Perfection + Disbursement maker-checker stages if missing
+            if (existing != null && !existing.Stages.Any(s => s.Status == LoanApplicationStatus.SecurityPerfection))
+            {
+                logger.LogInformation("Upgrading workflow definition: adding Security Perfection and Disbursement stages...");
+                var wfId = existing.Id;
+                var now = DateTime.UtcNow;
+
+                // Insert new stages (INSERT IGNORE is idempotent)
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'SecurityPerfection', 'Security Perfection', 'Legal officer perfecting security instruments', 'LegalOfficer', 72, 15, 0, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'SecurityApproval', 'Security Approval', 'Head of Legal countersigning security perfection', 'HeadOfLegal', 24, 16, 1, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'DisbursementPending', 'Disbursement Pending', 'Operations preparing disbursement memo', 'Operations', 24, 17, 0, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'DisbursementBranchApproval', 'Disbursement — Branch Auth', 'Branch Manager authorising disbursement', 'BranchApprover', 24, 18, 1, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'DisbursementHQApproval', 'Disbursement — HQ Auth', 'GM Finance releasing funds', 'GMFinance', 24, 19, 1, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+
+                // Replace OfferAccepted→Disbursed with the full chain
+                await context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM WorkflowTransitions WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'OfferAccepted' AND ToStatus = 'Disbursed'",
+                    wfId);
+                await InsertTransitionIfMissingAsync(context, wfId, "OfferAccepted",             "SecurityPerfection",        "MoveToNextStage", Roles.SystemAdmin,    now);
+                await InsertTransitionIfMissingAsync(context, wfId, "SecurityPerfection",        "SecurityApproval",          "Approve",         Roles.LegalOfficer,   now);
+                await InsertTransitionIfMissingAsync(context, wfId, "SecurityApproval",          "DisbursementPending",       "Approve",         Roles.HeadOfLegal,    now);
+                await InsertTransitionIfMissingAsync(context, wfId, "SecurityApproval",          "SecurityPerfection",        "Return",          Roles.HeadOfLegal,    now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending",       "DisbursementBranchApproval","Approve",         Roles.Operations,     now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementBranchApproval","DisbursementHQApproval",    "Approve",         Roles.BranchApprover, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementBranchApproval","DisbursementPending",       "Return",          Roles.BranchApprover, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementHQApproval",    "Disbursed",                 "Complete",        Roles.GMFinance,      now);
+
+                logger.LogInformation("Security Perfection and Disbursement stages added successfully.");
+            }
             else if (existing != null)
             {
                 logger.LogInformation("Workflow definition already current, skipping upgrade.");
@@ -363,14 +445,21 @@ public static class ComprehensiveDataSeeder
             (LoanApplicationStatus.BranchApproved, "Branch Approved", "Approved by branch", Roles.CreditOfficer, 24, 4, false, false),
             (LoanApplicationStatus.CreditAnalysis, "Credit Analysis", "Credit analysis in progress", Roles.CreditOfficer, 72, 5, false, false),
             (LoanApplicationStatus.HOReview, "HO Review", "Head Office review", Roles.HOReviewer, 48, 6, true, false),
-            (LoanApplicationStatus.CommitteeCirculation, "Committee", "Committee review", Roles.CommitteeMember, 72, 7, false, false),
-            (LoanApplicationStatus.CommitteeApproved, "Committee Approved", "Committee decision recorded, pending final sign-off", Roles.SystemAdmin, 0, 8, false, false),
-            (LoanApplicationStatus.FinalApproval, "Final Approval", "Awaiting MD/CEO executive sign-off", Roles.FinalApprover, 24, 9, false, false),
-            (LoanApplicationStatus.Approved, "Approved", "Final approval granted", Roles.Operations, 24, 10, false, false),
-            (LoanApplicationStatus.OfferGenerated, "Offer Letter Issued", "Offer letter issued to customer, awaiting signed acceptance", Roles.LoanOfficer, 72, 11, false, false),
-            (LoanApplicationStatus.OfferAccepted, "Offer Accepted", "Customer accepted offer, pending disbursement", Roles.Operations, 48, 12, false, false),
-            (LoanApplicationStatus.Disbursed, "Disbursed", "Loan disbursed", Roles.Operations, 0, 13, false, true),
-            (LoanApplicationStatus.Rejected, "Rejected", "Application rejected", Roles.LoanOfficer, 0, 14, false, true)
+            (LoanApplicationStatus.LegalReview, "Legal Review", "Legal officer preparing opinion", Roles.LegalOfficer, 48, 7, false, false),
+            (LoanApplicationStatus.LegalApproval, "Legal Approval", "Head of Legal countersigning opinion", Roles.HeadOfLegal, 24, 8, true, false),
+            (LoanApplicationStatus.CommitteeCirculation, "Committee", "Committee review", Roles.CommitteeMember, 72, 9, false, false),
+            (LoanApplicationStatus.CommitteeApproved, "Committee Approved", "Committee decision recorded, pending final sign-off", Roles.SystemAdmin, 0, 10, false, false),
+            (LoanApplicationStatus.FinalApproval, "Final Approval", "Awaiting MD/CEO executive sign-off", Roles.FinalApprover, 24, 11, false, false),
+            (LoanApplicationStatus.Approved, "Approved", "Final approval granted", Roles.Operations, 24, 12, false, false),
+            (LoanApplicationStatus.OfferGenerated, "Offer Letter Issued", "Offer letter issued to customer, awaiting signed acceptance", Roles.LoanOfficer, 72, 13, false, false),
+            (LoanApplicationStatus.OfferAccepted, "Offer Accepted", "Customer accepted offer, pending security perfection", Roles.LegalOfficer, 48, 14, false, false),
+            (LoanApplicationStatus.SecurityPerfection, "Security Perfection", "Legal officer perfecting security instruments", Roles.LegalOfficer, 72, 15, false, false),
+            (LoanApplicationStatus.SecurityApproval, "Security Approval", "Head of Legal countersigning security perfection", Roles.HeadOfLegal, 24, 16, true, false),
+            (LoanApplicationStatus.DisbursementPending, "Disbursement Pending", "Operations preparing disbursement memo", Roles.Operations, 24, 17, false, false),
+            (LoanApplicationStatus.DisbursementBranchApproval, "Disbursement — Branch Auth", "Branch Manager authorising disbursement", Roles.BranchApprover, 24, 18, true, false),
+            (LoanApplicationStatus.DisbursementHQApproval, "Disbursement — HQ Auth", "GM Finance releasing funds", Roles.GMFinance, 24, 19, true, false),
+            (LoanApplicationStatus.Disbursed, "Disbursed", "Loan disbursed", Roles.Operations, 0, 20, false, true),
+            (LoanApplicationStatus.Rejected, "Rejected", "Application rejected", Roles.LoanOfficer, 0, 21, false, true)
         };
 
         foreach (var (status, name, desc, role, sla, order, requiresComment, isTerminal) in stages)
@@ -388,9 +477,13 @@ public static class ComprehensiveDataSeeder
             (LoanApplicationStatus.BranchApproved, LoanApplicationStatus.CreditAnalysis, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
             (LoanApplicationStatus.CreditAnalysis, LoanApplicationStatus.HOReview, WorkflowAction.Approve, Roles.CreditOfficer),
             (LoanApplicationStatus.CreditAnalysis, LoanApplicationStatus.BranchReview, WorkflowAction.Return, Roles.CreditOfficer),
-            (LoanApplicationStatus.HOReview, LoanApplicationStatus.CommitteeCirculation, WorkflowAction.Approve, Roles.HOReviewer),
+            (LoanApplicationStatus.HOReview, LoanApplicationStatus.LegalReview, WorkflowAction.Approve, Roles.HOReviewer),
             (LoanApplicationStatus.HOReview, LoanApplicationStatus.CreditAnalysis, WorkflowAction.Return, Roles.HOReviewer),
             (LoanApplicationStatus.HOReview, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.HOReviewer),
+            (LoanApplicationStatus.LegalReview, LoanApplicationStatus.LegalApproval, WorkflowAction.Approve, Roles.LegalOfficer),
+            (LoanApplicationStatus.LegalReview, LoanApplicationStatus.HOReview, WorkflowAction.Return, Roles.LegalOfficer),
+            (LoanApplicationStatus.LegalApproval, LoanApplicationStatus.CommitteeCirculation, WorkflowAction.Approve, Roles.HeadOfLegal),
+            (LoanApplicationStatus.LegalApproval, LoanApplicationStatus.LegalReview, WorkflowAction.Return, Roles.HeadOfLegal),
             (LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.CommitteeApproved, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
             (LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.SystemAdmin),
             (LoanApplicationStatus.CommitteeApproved, LoanApplicationStatus.FinalApproval, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
@@ -398,7 +491,14 @@ public static class ComprehensiveDataSeeder
             (LoanApplicationStatus.FinalApproval, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.FinalApprover),
             (LoanApplicationStatus.Approved, LoanApplicationStatus.OfferGenerated, WorkflowAction.MoveToNextStage, Roles.LoanOfficer),
             (LoanApplicationStatus.OfferGenerated, LoanApplicationStatus.OfferAccepted, WorkflowAction.MoveToNextStage, Roles.Operations),
-            (LoanApplicationStatus.OfferAccepted, LoanApplicationStatus.Disbursed, WorkflowAction.Complete, Roles.Operations)
+            (LoanApplicationStatus.OfferAccepted, LoanApplicationStatus.SecurityPerfection, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
+            (LoanApplicationStatus.SecurityPerfection, LoanApplicationStatus.SecurityApproval, WorkflowAction.Approve, Roles.LegalOfficer),
+            (LoanApplicationStatus.SecurityApproval, LoanApplicationStatus.DisbursementPending, WorkflowAction.Approve, Roles.HeadOfLegal),
+            (LoanApplicationStatus.SecurityApproval, LoanApplicationStatus.SecurityPerfection, WorkflowAction.Return, Roles.HeadOfLegal),
+            (LoanApplicationStatus.DisbursementPending, LoanApplicationStatus.DisbursementBranchApproval, WorkflowAction.Approve, Roles.Operations),
+            (LoanApplicationStatus.DisbursementBranchApproval, LoanApplicationStatus.DisbursementHQApproval, WorkflowAction.Approve, Roles.BranchApprover),
+            (LoanApplicationStatus.DisbursementBranchApproval, LoanApplicationStatus.DisbursementPending, WorkflowAction.Return, Roles.BranchApprover),
+            (LoanApplicationStatus.DisbursementHQApproval, LoanApplicationStatus.Disbursed, WorkflowAction.Complete, Roles.GMFinance)
         };
 
         foreach (var (from, to, action, role) in transitions)
@@ -670,9 +770,9 @@ public static class ComprehensiveDataSeeder
     private static async Task SeedLoanApplicationsAsync(
         CRMSDbContext context, ILogger logger,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-         ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-         ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor) users,
+         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users,
         List<LoanProduct> products,
         WorkflowDefinition? workflowDef)
     {
@@ -702,21 +802,28 @@ public static class ComprehensiveDataSeeder
             // Credit and HO level
             (NigerianCompanies[7], 300_000_000m, LoanApplicationStatus.CreditAnalysis, "Credit Analysis - Bureau checks and scoring"),
             (NigerianCompanies[8], 2_000_000_000m, LoanApplicationStatus.HOReview, "HO Review - Regional review in progress"),
-            
+            (NigerianCompanies[9], 1_200_000_000m, LoanApplicationStatus.LegalReview, "Legal Review - Legal officer preparing opinion"),
+            (NigerianCompanies[10], 950_000_000m, LoanApplicationStatus.LegalApproval, "Legal Approval - Awaiting Head of Legal countersignature"),
+
             // Committee level
-            (NigerianCompanies[9], 1_500_000_000m, LoanApplicationStatus.CommitteeCirculation, "Committee Circulation - Voting in progress"),
-            (NigerianCompanies[10], 800_000_000m, LoanApplicationStatus.CommitteeApproved, "Committee Approved - Awaiting final approval"),
-            (NigerianCompanies[11], 120_000_000m, LoanApplicationStatus.CommitteeRejected, "Committee Rejected - Insufficient collateral"),
+            (NigerianCompanies[11], 1_500_000_000m, LoanApplicationStatus.CommitteeCirculation, "Committee Circulation - Voting in progress"),
+            (NigerianCompanies[12], 800_000_000m, LoanApplicationStatus.CommitteeApproved, "Committee Approved - Awaiting final approval"),
+            (NigerianCompanies[13], 120_000_000m, LoanApplicationStatus.CommitteeRejected, "Committee Rejected - Insufficient collateral"),
             
             // Final stages
             (NigerianCompanies[0], 450_000_000m, LoanApplicationStatus.FinalApproval, "Final Approval - MD sign-off pending"),
             (NigerianCompanies[1], 400_000_000m, LoanApplicationStatus.Approved, "Approved - Ready for offer generation"),
             (NigerianCompanies[2], 350_000_000m, LoanApplicationStatus.OfferGenerated, "Offer Generated - Awaiting acceptance"),
-            (NigerianCompanies[3], 320_000_000m, LoanApplicationStatus.OfferAccepted, "Offer Accepted - Pending disbursement"),
-            (NigerianCompanies[4], 600_000_000m, LoanApplicationStatus.Disbursed, "Disbursed - Loan active"),
-            (NigerianCompanies[5], 280_000_000m, LoanApplicationStatus.Closed, "Closed - Loan fully repaid"),
-            (NigerianCompanies[6], 200_000_000m, LoanApplicationStatus.Rejected, "Rejected - Final rejection"),
-            (NigerianCompanies[7], 90_000_000m, LoanApplicationStatus.Cancelled, "Cancelled - Customer withdrew application")
+            (NigerianCompanies[3], 320_000_000m, LoanApplicationStatus.OfferAccepted, "Offer Accepted - Pending security perfection"),
+            (NigerianCompanies[4], 280_000_000m, LoanApplicationStatus.SecurityPerfection, "Security Perfection - Legal preparing instruments"),
+            (NigerianCompanies[5], 500_000_000m, LoanApplicationStatus.SecurityApproval, "Security Approval - Awaiting Head of Legal countersignature"),
+            (NigerianCompanies[6], 150_000_000m, LoanApplicationStatus.DisbursementPending, "Disbursement Pending - Operations preparing memo"),
+            (NigerianCompanies[7], 420_000_000m, LoanApplicationStatus.DisbursementBranchApproval, "Disbursement Branch Auth - Awaiting Branch Manager"),
+            (NigerianCompanies[8], 370_000_000m, LoanApplicationStatus.DisbursementHQApproval, "Disbursement HQ Auth - Awaiting GM Finance"),
+            (NigerianCompanies[9], 600_000_000m, LoanApplicationStatus.Disbursed, "Disbursed - Loan active"),
+            (NigerianCompanies[10], 280_000_000m, LoanApplicationStatus.Closed, "Closed - Loan fully repaid"),
+            (NigerianCompanies[11], 200_000_000m, LoanApplicationStatus.Rejected, "Rejected - Final rejection"),
+            (NigerianCompanies[12], 90_000_000m, LoanApplicationStatus.Cancelled, "Cancelled - Customer withdrew application")
         };
 
         var appIndex = 0;
@@ -738,9 +845,9 @@ public static class ComprehensiveDataSeeder
     private static async Task<LoanApplication> CreateLoanApplicationAsync(
         CRMSDbContext context,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-         ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-         ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor) users,
+         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users,
         LoanProduct product,
         WorkflowDefinition? workflowDef,
         string companyName,
@@ -801,9 +908,9 @@ public static class ComprehensiveDataSeeder
         LoanApplication app,
         LoanApplicationStatus targetStatus,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-         ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-         ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor) users,
+         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users,
         WorkflowDefinition? workflowDef)
     {
         if (targetStatus == LoanApplicationStatus.Draft) return;
@@ -844,8 +951,18 @@ public static class ComprehensiveDataSeeder
         
         if (targetStatus == LoanApplicationStatus.HOReview) return;
 
+        // Legal Review (LegalOfficer maker)
+        app.MoveToLegalReview(users.HOReviewer.Id);
+        if (targetStatus == LoanApplicationStatus.LegalReview) return;
+
+        // Legal Approval (HeadOfLegal checker)
+        app.SubmitLegalOpinion(users.LegalOfficer.Id, "Legal opinion prepared — title documents verified, no encumbrances found");
+        if (targetStatus == LoanApplicationStatus.LegalApproval) return;
+
+        app.ApproveLegalReview(users.HeadOfLegal.Id, "Legal opinion countersigned");
+
         // Committee
-        app.MoveToCommittee(users.HOReviewer.Id);
+        app.MoveToCommittee(users.HeadOfLegal.Id);
         
         // Create committee review
         var committeeReview = await CreateCommitteeReviewAsync(context, app, users);
@@ -881,9 +998,35 @@ public static class ComprehensiveDataSeeder
         
         if (targetStatus == LoanApplicationStatus.Approved) return;
 
-        // Disbursed
+        // Offer Generated → Offer Accepted
+        app.IssueOfferLetter(users.LoanOfficer.Id);
+        if (targetStatus == LoanApplicationStatus.OfferGenerated) return;
+
+        app.AcceptOffer(users.LoanOfficer.Id, DateTime.UtcNow.AddDays(-1), Domain.Enums.OfferAcceptanceMethod.InBranchSigning, true);
+        if (targetStatus == LoanApplicationStatus.OfferAccepted) return;
+
+        // Security Perfection (LegalOfficer maker)
+        app.MoveToSecurityPerfection(users.SystemAdmin.Id);
+        if (targetStatus == LoanApplicationStatus.SecurityPerfection) return;
+
+        app.SubmitSecurityDocuments(users.LegalOfficer.Id, "Deed of mortgage and charge documents verified and submitted");
+        if (targetStatus == LoanApplicationStatus.SecurityApproval) return;
+
+        // Security Approval (HeadOfLegal checker)
+        app.ApproveSecurityPerfection(users.HeadOfLegal.Id, "Security perfection confirmed — all instruments properly executed");
+        if (targetStatus == LoanApplicationStatus.DisbursementPending) return;
+
+        // Disbursement Pending (Operations maker)
+        app.PrepareDisbursementMemo(users.Operations.Id, "Disbursement memo prepared and core banking entry initiated");
+        if (targetStatus == LoanApplicationStatus.DisbursementBranchApproval) return;
+
+        // Disbursement Branch Authorisation (BranchApprover checker 1)
+        app.ApproveDisbursementBranch(users.BranchApprover.Id, "Branch Manager authorisation granted");
+        if (targetStatus == LoanApplicationStatus.DisbursementHQApproval) return;
+
+        // Disbursement HQ Authorisation (GMFinance checker 2) → Disbursed
         var coreBankingLoanId = $"LN{DateTime.UtcNow:yyyyMMddHHmmss}{_random.Next(1000, 9999)}";
-        app.RecordDisbursement(coreBankingLoanId, users.Operations.Id);
+        app.RecordDisbursement(coreBankingLoanId, users.GMFinance.Id);
 
         // Create workflow instance if definition exists
         if (workflowDef != null)
@@ -905,9 +1048,9 @@ public static class ComprehensiveDataSeeder
         CRMSDbContext context,
         LoanApplication app,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-         ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-         ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         // 1. Consent Records
         foreach (var party in app.Parties.Where(p => p.PartyType == PartyType.Director || p.PartyType == PartyType.Signatory))
@@ -928,7 +1071,7 @@ public static class ComprehensiveDataSeeder
                 
                 var bureauReportResult = BureauReport.Create(
                     provider, SubjectType.Individual, party.FullName,
-                    party.BVN, users.CreditOfficer.Id, consentResult.Value.Id, app.Id,
+                    party.BVN, users.CreditOfficer.Id, app.Id,
                     taxId: null, partyId: party.Id, partyType: party.PartyType.ToString());
                 
                 if (bureauReportResult.IsSuccess)
@@ -1015,7 +1158,7 @@ public static class ComprehensiveDataSeeder
                 var provider = CreditBureauProvider.SmartComply;
                 var businessReportResult = BureauReport.Create(
                     provider, SubjectType.Business, app.CustomerName,
-                    null, users.CreditOfficer.Id, businessConsentResult.Value.Id, app.Id,
+                    null, users.CreditOfficer.Id, app.Id,
                     taxId: app.RegistrationNumber, partyId: null, partyType: "Business");
 
                 if (businessReportResult.IsSuccess)
@@ -1258,9 +1401,9 @@ public static class ComprehensiveDataSeeder
         CRMSDbContext context,
         LoanApplication app,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-         ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-         ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         var advisoryResult = CreditAdvisory.Create(app.Id, users.CreditOfficer.Id, "MOCK-AI-v1.0");
         if (advisoryResult.IsFailure) return;
@@ -1313,9 +1456,9 @@ public static class ComprehensiveDataSeeder
         CRMSDbContext context,
         LoanApplication app,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-         ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-         ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         var reviewResult = CommitteeReview.Create(
             app.Id, app.ApplicationNumber, CommitteeType.HeadOfficeCredit,
@@ -1351,9 +1494,9 @@ public static class ComprehensiveDataSeeder
         CRMSDbContext context,
         LoanApplication app,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-         ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-         ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         var packResult = LoanPack.Create(app.Id, app.ApplicationNumber, users.CreditOfficer.Id,
             users.CreditOfficer.FullName, app.CustomerName, app.ProductCode, app.RequestedAmount.Amount);
@@ -1454,9 +1597,9 @@ public static class ComprehensiveDataSeeder
     private static async Task SeedAuditLogsAsync(
         CRMSDbContext context, ILogger logger,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-         ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-         ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         if (await context.AuditLogs.AnyAsync())
         {
@@ -1740,9 +1883,9 @@ public static class ComprehensiveDataSeeder
     private static async Task SeedDataAccessLogsAsync(
         CRMSDbContext context, ILogger logger,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-         ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-         ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         if (await context.DataAccessLogs.CountAsync() > 1)
         {
@@ -1779,9 +1922,9 @@ public static class ComprehensiveDataSeeder
     private static async Task SeedNotificationsAsync(
         CRMSDbContext context, ILogger logger,
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
-         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser CommitteeMember1, 
-         ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3, ApplicationUser FinalApprover, 
-         ApplicationUser Operations, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
+         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
+         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         if (await context.Notifications.AnyAsync())
         {

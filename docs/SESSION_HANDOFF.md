@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-04-09 (Session 46)
+**Last Updated:** 2026-05-04 (Session 55)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -72,7 +72,7 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 
 **Intranet UI:** Core workflows complete. A few management features remain.
 
-### What Works (as of 2026-04-09)
+### What Works (as of 2026-04-14)
 
 | Feature Area | Status |
 |---|---|
@@ -98,6 +98,10 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | User management CRUD (Create / Edit / Activate / Deactivate) | ✅ |
 | Product management (Create / Edit / Enable / Disable) | ✅ |
 | **Scoring Config editor (`/admin/scoring`) — maker-checker, seed, all 9 categories** | ✅ |
+| **Offer Acceptance modal — KFS acknowledgement, acceptance method enum, customerSignedAt** | ✅ |
+| **OfferAcceptanceMethod enum (InBranchSigning / Courier / Electronic) + EF migration** | ✅ |
+| **Loan Pack PDF — full data (approved terms, bureau active loans table, committee decision vote tally + member breakdown)** | ✅ |
+| **Loan Pack button — visible to all workflow actors from HOReview onwards (role + status guard)** | ✅ |
 | **Real Core Banking API integration (OAuth2, account details + transactions)** | ✅ |
 | **Director discrepancy indicator (CBS vs SmartComply CAC comparison in New Application)** | ✅ |
 | **AI Advisory data quality fixes (GAPs 1-3, 5, 7-8)** | ✅ |
@@ -171,12 +175,37 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **HOReview → CommitteeCirculation domain desync fixed — `MoveToCommitteeHandler` registered; `ApproveApplicationAsync` now calls it so `LoanApplication.Status` stays in sync with `WorkflowInstance.CurrentStatus`** | ✅ |
 | **Disbursement Checklist (post-approval pre-disbursement) — admin-configurable CP/CS items, full state machine, role-based actions, Disbursement Memo PDF, CS background monitoring** | ✅ |
 | **LoanPack PDF — Section 12 "Conditions of Approval" from committee decision appended when present** | ✅ |
+| **Stale-state fix — `StateHasChanged()` added to `LoadApplication()` in Detail.razor; covers all 20+ action handlers** | ✅ |
+| **Document viewer modal height increased to 92vh; body uses `flex: 1; min-height: 0` to fill space** | ✅ |
+| **SetupCommitteeModal: `show` class added to backdrop, `.modal` nested inside backdrop, `@onclick:stopPropagation` added** | ✅ |
+| **Business proposal: `docs/CRMS_Proposal.md` (24-slide PPT-ready) and `docs/CRMS_Proposal.html` (standalone HTML)** | ✅ |
+| **Configurable CollateralTypeConfig (`/admin/collateral-types`) — CRUD, haircut rate, valuation basis, activate/deactivate** | ✅ |
+| **11 default collateral types seeded (CashDeposit 0%, FixedDeposit 5%, RealEstate 20%/FSV, Vehicle 30%/FSV, etc.)** | ✅ |
+| **AddCollateralModal — dynamic type dropdown from DB; haircut info callout; indicative value field; formal valuation removed from this modal** | ✅ |
+| **SetCollateralValuationModal — valuation basis selector (MarketValue/FSV), valuer details, AcceptableValue auto-computed with haircut** | ✅ |
+| **CanManageValuation — now role-gated (CreditOfficer/CreditManager/HOReviewer/SystemAdmin only); Loan Officer can no longer see valuation buttons** | ✅ |
+| **Approval Gate — per-stage ratification gate (strict/flexible mode), `ApprovalGateModal` (hard block / override note / soft warning), override banners on Detail page, inline rejection notes on all 5 item tabs (Documents, Statements, Financials, Collateral, Guarantors), FinancialStatement Verify/Reject buttons, `ApprovalOverrideRecord` entity + repository + EF migration** | ✅ |
+| **Bureau tab business card always renders (no longer vanishes when no report exists — shows placeholder with guidance)** | ✅ |
+| **`CanRerunCreditChecks` extended — detects absent individual/business reports (directors with BVN but no bureau record; RC number present but no business report)** | ✅ |
+| **SmartComply RC prefix normalization in `SmartComplyProvider.GetBusinessCreditReportAsync` — bare numerics prefixed with "RC" before API call** | ✅ |
+| **`ProcessLoanCreditChecksCommand` idempotency gate extended — `hasMissingIndividualReport` + `hasMissingBusinessReport` checks prevent early return when reports are absent** | ✅ |
+| **`CheckApprovalGateQuery` CreditAnalysis gate — bank statements now checked at CreditAnalysis stage; gate checks `AnalysisStatus == Completed` (not `VerificationStatus`)** | ✅ |
+| **Collateral indicative value displayed in `CollateralTab` — shows "Indicative — pending valuation" label when no formal valuation exists** | ✅ |
+| **`RefetchInternalBankStatementCommand` — deletes existing CoreBanking statement and re-fetches 6 months from today via CBS; `StatementsTab` shows "Refresh from Core Banking" button (with spinner) when `TransactionCount == 0`** | ✅ |
+| **`CheckApprovalGateQuery` collateral check split by stage — `Valued` passes at CreditAnalysis; only `Approved`/`Perfected` required at FinalApproval** | ✅ |
+| **Collateral document `Description` threaded through DTO chain and displayed in `ViewCollateralModal`; document type promoted to prominent label** | ✅ |
+| **Collateral `IndicativeValue` shown in VALUATION section of `ViewCollateralModal`** | ✅ |
+| **AI Advisory `Math.Round(decimal, -3)` crash fixed in `RuleBasedScoringEngine` and `MockAIAdvisoryService`** | ✅ |
+| **LegalReview/LegalApproval wired into active workflow sequence (HOReview → LegalReview → LegalApproval → CommitteeCirculation)** | ✅ |
+| **`ReturnFromLegalReview` domain method + handler — Legal Officer can return application to HOReview** | ✅ |
+| **Approval gate at LegalReview — strict mode, blocks on uncleared collateral (`IsLegalCleared == false`)** | ✅ |
 
 ### What Is Pending
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
 | Wire customer exposure into AI Advisory (replace bureau-derived exposure) | P2 | `IFineractDirectService.GetCustomerExposureAsync` ready; needs wiring into `GenerateCreditAdvisoryHandler` to replace/supplement `corporateBureauReport.TotalOutstandingBalance` |
+| **Collateral approval — multi-actor role design** | P2 | Currently a single "Approve" button with no role separation. Design decision: requires at minimum Legal clearance (title/encumbrance check) + Credit/Risk Officer adequacy sign-off as two distinct steps. Valuation comes from external certified valuer. Existing state machine (`Proposed → UnderValuation → Valued → Approved → Perfected`) has the right shape but approval roles per step are undefined. Revisit when implementing collateral perfection stage. See `memory/project_collateral_approval.md`. |
 | G8: Domain events with no handlers (`LoanApplicationCreatedEvent`, `SubmittedEvent`, `ApprovedEvent`, `DisbursedEvent`) | P3 | Deferred to next sprint — no downstream automation on key lifecycle events |
 
 ---
@@ -204,11 +233,16 @@ return result.IsSuccess
 - **Collateral:** `"Proposed"` → `"UnderValuation"` → `"Valued"` → `"Approved"` → `"Perfected"` → `"Released"` / `"Rejected"`
 - **Guarantor:** `"Proposed"` → `"PendingVerification"` → `"CreditCheckPending"` → `"CreditCheckCompleted"` → `"Approved"` / `"Rejected"`
 - **Document:** domain stores `"Uploaded"` → displayed as `"Pending"` in UI via `FormatStatus()` in `DocumentsTab.razor`
-- **Application:** `"Draft"` → `"BranchReview"` → `"HOReview"` → `"CreditAnalysis"` → `"FinalApproval"` → `"Approved"` / `"Rejected"`
+- **Application (full lifecycle — defined in `AppStatus.cs` and `LoanApplicationStatus` enum):**
+  `"Draft"` → `"BranchReview"` → `"HOReview"` → `"CreditAnalysis"` → `"HOReview"` → `"LegalReview"` → `"LegalApproval"` → `"CommitteeCirculation"` → `"CommitteeApproved"` → `"FinalApproval"` → `"Approved"` → `"OfferGenerated"` → `"OfferAccepted"` → `"SecurityPerfection"` → `"SecurityApproval"` → `"DisbursementPending"` → `"DisbursementBranchApproval"` → `"DisbursementHQApproval"` → `"Disbursed"` / `"Rejected"` / `"Cancelled"` / `"Closed"`
+  - Forward path: `CreditAnalysis` → `HOReview` → `LegalReview` → `LegalApproval` → `CommitteeCirculation`
+  - `LegalOfficer` at LegalReview: Submit Opinion (Approve) → LegalApproval; Return → HOReview
+  - `HeadOfLegal` at LegalApproval: Approve → CommitteeCirculation; Return → LegalReview
+  - `LegalReview` and `LegalApproval` are also defined in the enum/AppStatus but not yet wired into the workflow transition sequence — where exactly they slot in has not been confirmed with the user.
 
 ### Access Control Rules
 - `IsApplicationEditable` = `application.Status == "Draft"` — data entry (add/edit/delete) only allowed in Draft
-- `CanManageValuation` = status is NOT `Draft`, `Approved`, `CommitteeApproved`, `Rejected`, or `Disbursed` — valuation/approval happens during review stages
+- `CanManageValuation` = user has role `CreditOfficer`, `CreditManager`, `HOReviewer`, or `SystemAdmin` **AND** status is NOT `Draft`, `Approved`, `CommitteeApproved`, `Rejected`, or `Disbursed` — valuation/approval is Credit Officer territory; Loan Officers are excluded even during active review
 - **Directors** come from **SmartComply CAC** (primary source) — core banking also returns directors for discrepancy comparison only
 - **Signatories** come from **core banking** (CBS `fulldetailsbynuban`)
 - PartiesTab is intentionally read-only; null fields (BVN, shareholding %) can be filled via FillPartyInfoModal (Draft only)
@@ -297,6 +331,373 @@ src/CRMS.Application/
 ├── Workflow/Commands/TransitionWorkflowCommand.cs
 └── ...
 ```
+
+---
+
+## 5. Last Session Summary (2026-05-04 Session 55)
+
+### Completed — AI Advisory Score Breakdown / Red Flags Persistence Fix
+
+**Root cause:** `RiskScores`, `RedFlags`, `Conditions`, `Covenants` on `CreditAdvisory` are backed by private `readonly` `List<T>` fields. EF was configured with `builder.Ignore()` for all four — they were never written to or read from the DB. After generation, `ApplicationService.GenerateAdvisoryAsync` discarded the in-memory DTO and reloaded from DB, at which point all four collections were empty.
+
+**Fix — JSON snapshot columns:**
+- **Domain** (`CreditAdvisory.cs`): Added `RiskScoresJson`, `RedFlagsJson`, `ConditionsJson`, `CovenantsJson` (`string?`) properties + `SetPersistedData(...)` method
+- **Command** (`GenerateCreditAdvisoryCommand.cs`): After `advisory.Complete()` succeeds, serializes all four collections to JSON (anonymous object shape for risk scores) and calls `SetPersistedData()` before `AddAsync`/`SaveChangesAsync`
+- **EF Config** (`CreditAdvisoryConfiguration.cs`): Added 4 `builder.Property(...).HasColumnType("text")` mappings for the new columns
+- **Mapper** (`GetCreditAdvisoryQueries.cs` → `CreditAdvisoryMapper.ToDto`): Falls back to JSON deserialization when in-memory collections are empty (i.e. loaded from DB); uses `PersistedRiskScore` internal record; recalculates `hasCriticalRedFlags` from resolved lists
+- **Migration** (`20260504074944_AddCreditAdvisoryJsonColumns.cs`): Applied — adds 4 `text` columns to `CreditAdvisories` table
+
+**Existing advisory records** (generated before this fix) will still show empty scores — only newly generated advisories will have data. Re-run "Generate AI Advisory" for any affected application.
+
+---
+
+### Previous Session Summary (2026-05-04 Session 54)
+
+### Completed — LegalReview/LegalApproval Fully Wired + Return from LegalReview + Legal Gate
+
+---
+
+#### Feature 1 — LegalReview/LegalApproval confirmed in active workflow chain
+Placement confirmed: `HOReview → LegalReview → LegalApproval → CommitteeCirculation`. All backend handlers (`MoveToLegalReviewHandler`, `SubmitLegalOpinionHandler`, `ApproveLegalReviewHandler`, `ReturnFromLegalApprovalHandler`) were already implemented and registered. UI role guards (`LegalOfficer` at LegalReview, `HeadOfLegal` at LegalApproval) were already in place.
+
+#### Feature 2 — `ReturnFromLegalReview`: Legal Officer can return to HOReview
+Previously the Legal Officer had no Return button — they could only submit their opinion forward. Added full stack:
+- **Domain** (`LoanApplication.cs`): `ReturnFromLegalReview(Guid userId, string reason)` — guards `LegalReview` status, transitions to `HOReview`, adds status history + comment
+- **Application** (`SubmitLoanApplicationCommand.cs`): `ReturnFromLegalReviewCommand` + `ReturnFromLegalReviewHandler`
+- **DI** (`DependencyInjection.cs`): `ReturnFromLegalReviewHandler` registered
+- **`ApplicationService.ReturnApplicationAsync`**: `LegalReview` branch added (before existing `LegalApproval` branch); `LegalReview → HOReview` added to `targetStatus` switch
+- **`Detail.razor`** `ShowReturnButton`: `AppStatus.LegalReview → LegalOfficer` entry added
+- **Seeder** (`ComprehensiveDataSeeder.cs`): `LegalReview → HOReview` (Return, LegalOfficer) added to both the fresh-seed transitions list and the upgrade block
+
+#### Feature 3 — Approval gate at LegalReview (strict, collateral legal clearance)
+The approval gate was entirely absent for Legal stages. Added:
+- **`appsettings.json`**: `"LegalReview": { "StrictApprovalGate": true }` — hard block if any collateral is uncleared
+- **`CheckApprovalGateQuery.cs`**: `checkLegalClearance = request.Stage is "LegalReview"` — fetches collaterals via `_collateralRepo`, adds a `"Pending"` gate item for every non-rejected collateral where `IsLegalCleared == false`
+- `HeadOfLegal` at `LegalApproval` has no gate (nothing new to check at countersignature stage)
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → v6.4 (no UI changes this session)
+- [ ] `docs/ImplementationTracker.md` → v7.6 (no new modules this session)
+
+---
+
+## 5. Previous Session Summary (2026-05-04 Session 52)
+
+### Completed — Bureau Fixes, Credit Check Gaps, Approval Gate Gap, Collateral Display, Internal Statement Re-fetch
+
+---
+
+#### Fix 1 — Business Bureau Card Vanishing (`BureauTab.razor`, `Detail.razor`)
+Business credit report section was wrapped in `@if (BusinessReports.Any())` — deleting a failed report from DB caused the entire section to disappear. Restructured so the outer `<div>` always renders, with an `@else` placeholder ("No business credit report yet. Use Re-run Credit Checks"). `CanRerunCreditChecks` in `Detail.razor` extended from a simple expression property to a full `get` block that also detects: directors with a BVN but no bureau record, and an RC number present with no completed business report.
+
+---
+
+#### Fix 2 — SmartComply RC Prefix Normalization (`SmartComplyProvider.cs`)
+SmartComply API returns `{"status":"failed","message":"Validation failed"}` for bare numeric RC numbers (e.g. `1275857`). Added normalization in `GetBusinessCreditReportAsync`: if the RC doesn't start with "RC" (case-insensitive), prefix it. DB record also corrected directly.
+
+---
+
+#### Fix 3 — Idempotency Gate Missing Report Detection (`ProcessLoanCreditChecksCommand.cs`)
+When all existing reports were `Completed` but a report was absent (e.g. business report deleted for retry), the gate's `AllCreditChecksCompleted = true` check caused an early return before running the missing check. Added `hasMissingIndividualReport` (BVN with no bureau record) and `hasMissingBusinessReport` (RC number with no completed business report) guards before the early return.
+
+---
+
+#### Fix 4 — Bank Statement Gate at CreditAnalysis (`CheckApprovalGateQuery.cs`)
+`checkBankStatements` was scoped to `BranchReview | HOReview | FinalApproval`, omitting `CreditAnalysis`. Credit Officers could approve without analyzing bank statements. Added `CreditAnalysis` to the scope. At CreditAnalysis the check uses `AnalysisStatus != Completed` (not `VerificationStatus`, which is always `Verified` for internal CoreBanking statements).
+
+---
+
+#### Fix 5 — Collateral Indicative Value Display (`ApplicationModels.cs`, `ApplicationService.cs`, `CollateralTab.razor`)
+`IndicativeValue` entered at collateral creation was never mapped through to `CollateralInfo` — the field existed in the domain and DTO but was dropped at the service mapping layer. Added `IndicativeValue` to `CollateralInfo`, added `IndicativeValue = c.IndicativeValue` in `GetCollateralsForApplicationAsync`, and updated `CollateralTab` "Acceptable Value" column to show indicative value with a "Indicative — pending valuation" label when no formal market value exists.
+
+---
+
+#### Feature — Internal Bank Statement Re-fetch (`RefetchInternalBankStatementCommand.cs` + UI)
+New command: `RefetchInternalBankStatementCommand` in `src/CRMS.Application/StatementAnalysis/Commands/`. Deletes existing `CoreBanking`-sourced statement(s) for the application, then re-fetches from CBS using a 6-month window from today (temporary — originally designed as 6 months from `application.CreatedAt` but CBS doesn't support backdated transactions in test environment; easy to revert by changing `DateTime.UtcNow` → `loanApp.CreatedAt`).
+- Handler registered in `DependencyInjection.cs`
+- `ApplicationService.RefetchInternalBankStatementAsync` added
+- `StatementsTab.razor`: "Refresh from Core Banking" button shown when `TransactionCount == 0 && CanAnalyzeStatements`; button disables itself and shows spinner (`isRefetching` field + `HandleRefetch()` method) to prevent double-clicks
+- `Detail.razor`: `OnRefetch="RefetchInternalStatement"` wired; `RefetchInternalStatement()` calls service and reloads
+
+---
+
+#### Design Discussion — Guarantor Approval Roles (No Code Written)
+Confirmed: Credit Officer owns final approval/rejection of guarantors in Nigerian commercial banking (verifies financial capacity, reviews bureau check, assesses net worth vs loan exposure). Branch/RM initiates and collects. Legal team separately signs off on guarantee deed enforceability in some banks — this additional step is deferred. Current UI (approve/reject buttons visible to CreditOfficer on GuarantorsTab) is operationally correct as-is.
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v6.3
+- [x] `docs/ImplementationTracker.md` → v7.5
+
+---
+
+## 5. Previous Session Summary (2026-04-30 Session 51)
+
+### Completed — Approval Gate Feature (Full Implementation)
+
+Full end-to-end implementation of the per-stage approval gate as designed in `memory/project_approval_gate.md`. Build: 0 errors.
+
+---
+
+#### Config & Settings
+- `appsettings.json` — added `WorkflowApprovalGates` section (BranchReview/HOReview = flexible, CreditAnalysis/FinalApproval = strict)
+- `src/CRMS.Infrastructure/Workflow/WorkflowApprovalGateSettings.cs` — settings POCO + `ApprovalGateConfig` implementing `IApprovalGateConfig`
+- `src/CRMS.Application/Workflow/Interfaces/IApprovalGateConfig.cs` — interface for Application layer
+
+#### Domain
+- `src/CRMS.Domain/Aggregates/LoanApplication/ApprovalOverrideRecord.cs` — new entity (fields: LoanApplicationId, Stage, ActorId, ActorName, NoteText, CreatedAt, IsResolved, ResolvedAt)
+- `src/CRMS.Domain/Aggregates/LoanApplication/LoanApplication.cs` — added `_overrideRecords` collection + `OverrideRecords` property
+- `src/CRMS.Domain/Interfaces/IApprovalOverrideRepository.cs` — repository interface
+
+#### Infrastructure
+- `src/CRMS.Infrastructure/Persistence/Repositories/ApprovalOverrideRepository.cs` — repository implementation
+- `src/CRMS.Infrastructure/Persistence/Configurations/LoanApplication/LoanApplicationConfiguration.cs` — `ApprovalOverrideRecordConfiguration` + `HasMany(x => x.OverrideRecords)` relation
+- `src/CRMS.Infrastructure/Persistence/CRMSDbContext.cs` — `DbSet<ApprovalOverrideRecord>` added
+- EF migration `AddApprovalOverrideRecords` — created and applied
+
+#### Application Layer
+- `src/CRMS.Application/Workflow/Queries/CheckApprovalGateQuery.cs` — gate check handler (checks documents, bank statements, financial statements, collateral, guarantors per stage scope)
+- `src/CRMS.Application/Workflow/Commands/SaveApprovalOverrideCommand.cs` — save override note + `GetApprovalOverridesHandler`
+- `src/CRMS.Application/FinancialAnalysis/Commands/FinancialStatementCommands.cs` — added `RejectFinancialStatementCommand` + handler
+- `src/CRMS.Application/FinancialAnalysis/DTOs/FinancialStatementDtos.cs` — added `RejectionReason` to `FinancialStatementSummaryDto`
+- `src/CRMS.Application/FinancialAnalysis/Queries/FinancialStatementQueries.cs` — updated mapping to include `RejectionReason`
+- `src/CRMS.Application/StatementAnalysis/DTOs/StatementAnalysisDtos.cs` — added `VerificationNotes` to `BankStatementSummaryDto`
+- `src/CRMS.Application/StatementAnalysis/Queries/GetStatementQuery.cs` — updated mapping to include `VerificationNotes`
+- `src/CRMS.Application/Guarantor/DTOs/GuarantorDtos.cs` — added `RejectionReason` to `GuarantorSummaryDto`
+- `src/CRMS.Application/Guarantor/Queries/GuarantorQueries.cs` — updated mapping to include `RejectionReason`
+- `src/CRMS.Infrastructure/DependencyInjection.cs` — registered all new handlers + `IApprovalGateConfig` + `WorkflowApprovalGateSettings`
+
+#### UI — Models & Service
+- `src/CRMS.Web.Intranet/Models/ApplicationModels.cs` — added `ApprovalGateResultModel`, `GateItemModel`, `ApprovalOverrideInfo`; added `RejectionReason` to `DocumentInfo`, `CollateralInfo`, `FinancialStatementInfo`, `GuarantorInfo`; added `VerificationNotes` to `BankStatementInfo`
+- `src/CRMS.Web.Intranet/Services/ApplicationService.cs` — added `CheckApprovalGateAsync`, `SaveApprovalOverrideAsync`, `GetApprovalOverridesAsync`, `VerifyFinancialStatementAsync`, `RejectFinancialStatementAsync`; updated all DTO→model mappings to include new fields
+
+#### UI — Components
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/ApprovalGateModal.razor` — new modal (3 modes: hard block / override note required / soft warning)
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor` — gate check wired in `HandleApproveClick`; override banners rendered above tabs; `showRejectFinancialModal`, `VerifyFinancialStatement`, `ShowRejectFinancialStatementModal`, `CanVerifyFinancials` added; override records loaded in `LoadApplication()`
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/DocumentsTab.razor` — inline rejection reason shown under Rejected status badge
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/StatementsTab.razor` — inline `VerificationNotes` shown under Rejected badge
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/FinancialsTab.razor` — inline `RejectionReason`, new `CanVerifyFinancials` parameter, Verify/Reject buttons per year
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/CollateralTab.razor` — inline `RejectionReason` shown under Rejected badge
+- `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/GuarantorsTab.razor` — inline `RejectionReason` shown under Rejected badge
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v6.2
+- [x] `docs/ImplementationTracker.md` → v7.4
+
+---
+
+## 5. Previous Session Summary (2026-04-15 Session 49)
+
+### Completed — Maker-Checker Enforcement + UX Improvements + Design Decisions
+
+---
+
+#### Fix 1 — Statement Verification Role Gating (StatementsTab.razor + Detail.razor)
+
+Loan officers should not verify statements they collected (maker-checker). Added `CanVerifyStatements` parameter (bool) to `StatementsTab.razor`, gating:
+- External statement Verify + Reject buttons
+- External statement Analyze button
+- Own bank statement Analyze button
+
+`CanVerifyStatements` computed in `Detail.razor` — same allowed roles as `CanVerifyDocuments`: BranchApprover, CreditOfficer, HOReviewer, FinalApprover, RiskManager, SystemAdmin.
+
+---
+
+#### Fix 2 — Valuation Info Callout (AddCollateralModal.razor)
+
+Added an info callout below the "VALUATION (Optional)" heading explaining that valuation is done later by an independent certified valuer, and that liquid assets (cash deposits, FDs, T-bills) may have their face value entered directly.
+
+---
+
+#### Fix 3 — AI Advisory Locked During Draft (AdvisoryTab.razor + Detail.razor)
+
+Advisory generation is meaningless before credit bureau checks and document verification. Added `CanGenerate` parameter to `AdvisoryTab`. When false (application is in Draft), the empty state shows "Advisory not available yet" with an explanation instead of the generate button.
+
+`CanGenerateAdvisory` in `Detail.razor` = `application.Status != AppStatus.Draft`.
+
+---
+
+#### Design Decision — Collateral Approval Roles (Deferred)
+
+Discussed who should approve collateral: requires at minimum Legal clearance (title/encumbrance) + Credit/Risk Officer adequacy sign-off as two distinct steps. External valuer produces the report both rely on. Single "Approve" button is insufficient. Deferred for implementation at collateral perfection stage. Saved to `memory/project_collateral_approval.md`.
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → not updated (no new gaps discovered or closed)
+- [ ] `docs/ImplementationTracker.md` → not updated (UI-only fixes, no new backend)
+
+---
+
+## 5. Previous Session Summary (2026-04-14 Session 48)
+
+### Completed — Stale-State Audit Fix + UI Bug Fixes + Business Proposal Documents
+
+---
+
+#### Fix 1 — Stale State After Workflow Actions (Detail.razor)
+
+All action handlers in `Detail.razor` call `await LoadApplication()` after success, but `LoadApplication()` never called `StateHasChanged()`. The result was that the UI would not re-render after committee voting and other actions without a page refresh.
+
+**Root cause:** Inconsistency — some handlers (`StartCommitteeVoting`, `ConfirmCommitteeDecision`, `RemoveCommitteeMember`, `AddCommitteeMember`, `SubmitForReview`) called `await InvokeAsync(StateHasChanged)` explicitly while all other handlers (20+) only called `await LoadApplication()`.
+
+**Fix:** Added `StateHasChanged()` at the end of `LoadApplication()`, after `isLoading = false`. This single change covers all 20+ callers uniformly.
+
+**File modified:** `src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor`
+
+---
+
+#### Fix 2 — Document Viewer Modal Too Small (DocumentsTab.razor)
+
+The document viewer modal body was capped at `height: 70vh` and the modal itself at `max-height: 90vh`, making the iframe too small for reading PDFs.
+
+**Fix:** Set `height: 92vh; max-height: 92vh` on the `.modal` div and replaced the hardcoded body height with `flex: 1; overflow: hidden; min-height: 0`. The base `.modal` CSS (`display: flex; flex-direction: column`) means `flex: 1` on the body fills the remaining space between header and footer.
+
+**File modified:** `src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/DocumentsTab.razor`
+
+---
+
+#### Fix 3 — SetupCommitteeModal Rendering Inline Instead of as Overlay
+
+Two structural bugs caused the modal to render in document flow rather than as a centred overlay:
+1. `.modal-backdrop` was missing the `show` class → CSS `opacity: 0; visibility: hidden` → invisible overlay
+2. `.modal` div was a sibling root element of `.modal-backdrop`, not a child → rendered in normal document flow
+
+**Fix:**
+- Added `show` class to `.modal-backdrop`
+- Nested `.modal` inside `.modal-backdrop` (not as a sibling)
+- Added `@onclick:stopPropagation` on `.modal` to prevent backdrop click-through
+- Added missing closing `</div>` for the backdrop wrapper
+
+**File modified:** `src/CRMS.Web.Intranet/Components/Pages/Applications/Modals/SetupCommitteeModal.razor`
+
+---
+
+#### Feature 4 — Business Proposal Documents
+
+Created two pre-sale proposal documents in `docs/`:
+
+**`docs/CRMS_Proposal.md`** — 24-slide Markdown structured for Claude chat PPT conversion:
+- Slides separated by `---`, titles use `#`, bullets use `-`
+- Covers: Title, Agenda, Problem (×2), Introducing CRMS, Differentiators, 13 Capabilities, Loan Application, Workflow, AI Scoring, Credit Bureau, Bank Statements, Committee, Document Generation, Disbursement Checklist, Lifecycle, Compliance, Tech, Security/Roles, Implementation, Support/SLA, About Us, Next Steps, Closing
+
+**`docs/CRMS_Proposal.html`** — Fully standalone single-file HTML proposal (no external JS dependencies):
+- Fixed dark glass nav, full-viewport hero with gradient + stats bar (17 stages, 13 modules, 9 roles, 4 documents)
+- 13 capability cards (3-column responsive grid), loan lifecycle flow with arrow connectors
+- AI scoring section with animated bar charts per category + 5 outcome badges
+- Compliance, Technology stack, 9 role cards + 4 security control cards
+- 5-phase implementation timeline, 4 SLA priority cards, About Us, 4-step CTA, closing quote, footer
+- All placeholders: `[Your Company Name]`, `[Client Institution Name]`, `[Your Name]`, `[Title]`, contact fields
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v5.9
+- [x] `docs/ImplementationTracker.md` → v7.0
+
+---
+
+## 5. Previous Session Summary (2026-04-13 Session 47)
+
+### Completed — Offer Acceptance Enhancement + Loan Pack PDF Full Data + Loan Pack Visibility Fix
+
+---
+
+#### Feature 1 — Record Offer Acceptance: Structured Operational Fields
+
+Added three CBN Consumer Protection-compliant fields to the offer acceptance flow (required before disbursement in Nigerian banking).
+
+**Domain (`LoanApplication.cs`):**
+- New properties: `CustomerSignedAt` (DateTime?), `AcceptanceMethod` (OfferAcceptanceMethod?), `KfsAcknowledged` (bool)
+- `AcceptOffer()` signature updated to accept all three; KFS gate added — returns failure if `kfsAcknowledged == false`
+- `OfferAcceptanceMethod` enum added to `src/CRMS.Domain/Enums/LoanApplicationEnums.cs` (values: `InBranchSigning`, `Courier`, `Electronic`)
+
+**Infrastructure:**
+- `LoanApplicationConfiguration.cs` — EF mappings: `CustomerSignedAt` (nullable datetime), `AcceptanceMethod` (string 30, nullable), `KfsAcknowledged` (tinyint default false)
+- Migration `AddOfferAcceptanceFields` created and applied
+
+**Application (`ConfirmOfferAcceptanceCommand.cs`):**
+- Command record extended with `CustomerSignedAt`, `AcceptanceMethod`, `KfsAcknowledged`
+- `SystemAdmin` removed from role check (Operations only)
+- `AcceptOffer()` call updated to pass new params
+
+**UI (`Detail.razor`):**
+- Record Acceptance modal: Acceptance Date (date picker), Acceptance Method dropdown, KFS Acknowledged checkbox
+- Confirm button disabled unless all three are set
+- `ShowRecordAcceptanceButton` — `SystemAdmin` removed (Operations only)
+- `ConfirmRecordAcceptance` parses `CRMS.Domain.Enums.OfferAcceptanceMethod` (fully qualified — `_Imports.razor` does not import `CRMS.Domain.Enums`)
+
+**Service (`ApplicationService.cs`):**
+- `RecordOfferAcceptanceAsync` extended with `customerSignedAt`, `acceptanceMethod`, `kfsAcknowledged` params
+
+**Evidence viewer (`OfferAcceptanceTab.razor`):**
+- View button (eye icon) opens an in-app iframe modal (92vh) at `/api/documents/{id}/view`; Download button in modal footer
+
+---
+
+#### Feature 2 — Loan Pack PDF: Full Application Data
+
+Comprehensive rewrite of `GenerateLoanPackCommand.BuildLoanPackDataAsync` and additions to `LoanPackPdfGenerator`.
+
+**`LoanPackData.cs` — new fields:**
+- `decimal? ApprovedAmount`, `int? ApprovedTenorMonths`, `decimal? ApprovedInterestRate`
+- `CommitteeDecisionData?` — decision string, vote tallies (Approve/Reject/Abstain/Pending), rationale, recommended terms, `List<CommitteeMemberVoteData>`
+- `CommitteeMemberVoteData` — MemberName, MemberRole, Vote, VoteComment, VotedAt
+
+**`GenerateLoanPackCommand.cs` — data population fixes:**
+- Product name resolved via `ILoanProductRepository` (was empty string)
+- Parties loaded via `GetByIdWithPartiesAsync`
+- Bureau reports loaded via new `GetByLoanApplicationIdWithDetailsAsync` (includes `Accounts` + `ScoreFactors`)
+- `bureauByPartyId` lookup enables director/signatory cross-referencing for credit score, rating, loan/delinquency flags
+- `CustomerProfileData` populated from real aggregate fields (`RegistrationNumber`, `IncorporationDate`, `IndustrySector`)
+- Financial statements: `TotalCurrentAssets`, `TotalNonCurrentAssets`, `TotalCurrentLiabilities` (correct property names on `BalanceSheet`)
+- Revenue/profit YoY growth calculated from two most recent years (non-nullable `decimal` arithmetic — no `.Value` calls)
+- Cashflow: aggregated from `CashflowSummary` across all analysed bank statements (real values, not zeros)
+- Collateral: `ValuationDate`/`ValuerName` from `Valuations.OrderByDescending().FirstOrDefault()`; coverage uses `ApprovedAmount` if set
+- Advisory: `MitigatingFactors` split from newline-separated string; recommendation strings built from values
+- Committee: comments resolved via `memberLookup` from `CommitteeReview.Members` (stored `UserName`); `CommitteeDecisionData` built with `FinalDecision?.ToString()`, vote tally (`ApprovalVotes`/`RejectionVotes`/`AbstainVotes`/`PendingVotes`), per-member votes
+- Approved terms: `loanApp.ApprovedAmount?.Amount`, `loanApp.ApprovedTenorMonths`, `loanApp.ApprovedInterestRate`
+
+**`IBureauReportRepository` + `BureauReportRepository`:**
+- New method `GetByLoanApplicationIdWithDetailsAsync` (includes `Accounts` + `ScoreFactors`)
+
+**`LoanPackPdfGenerator.cs` — new rendering:**
+- Executive Summary: approved terms rows (Amount, Tenor, Rate, Committee Decision) when set
+- Bureau Reports: Active Facilities table per report (lender, facility type, original, outstanding, status); Delinquent Accounts as table (was bullet list)
+- Section 12 → now Section 13: Committee Decision page (new Section 12): decision banner with colour coding, vote tally boxes, recommended terms table, member votes breakdown table
+
+**Bug fixes in `GenerateLoanPackCommand.cs`:**
+- `AccountStatus.Active` → `AccountStatus.Performing` (correct enum value for performing loans)
+- `BalanceSheet.CurrentAssets` → `TotalCurrentAssets`, `FixedAssets` → `TotalNonCurrentAssets`, `CurrentLiabilities` → `TotalCurrentLiabilities`
+- `decimal.Value` calls removed (properties are non-nullable `decimal`)
+- `committeeReview.Decision` → `committeeReview.FinalDecision`
+
+---
+
+#### Feature 3 — Loan Pack Button: Visible to All Workflow Actors
+
+**`Detail.razor` — `CanGeneratePack`:**
+- Before: only `Approved | CommitteeApproved | Disbursed`
+- After: all active statuses (excludes Draft / Rejected / CommitteeRejected / Cancelled / Closed) AND role check: `LoanOfficer | CreditOfficer | HOReviewer | BranchApprover | FinalApprover | Operations | SystemAdmin` or current user is a committee member on this application
+
+**Build:** 0 errors, 0 warnings (Infrastructure + Web.Intranet verified).
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v5.8
+- [x] `docs/ImplementationTracker.md` → v7.0
 
 ---
 
@@ -2489,65 +2890,61 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ## 6. Suggested Next Task
 
-### Option A (TOP PRIORITY) — Admin UI: Disbursement Checklist Template Management
+### Option A — Collateral Perfection: Multi-Actor Sign-Off (Legal + Credit)
 
-**What:** Add a "Disbursement Checklist" sub-section to `/admin/products` so SystemAdmin/RiskManager can configure the checklist template per loan product.
+The `LegalReview`/`LegalApproval` workflow stages are now fully wired. The next natural follow-on is completing the collateral perfection workflow, which uses the same actors (`LegalOfficer`, `HeadOfLegal`) on the collateral side. Currently a single "Approve" button with no role separation. The design calls for:
+1. **Legal clearance** — `IsLegalCleared` already exists on the domain. Need: `RecordLegalClearanceCommand` handler, CollateralTab legal clearance button for `LegalOfficer`/`HeadOfLegal`
+2. **Credit adequacy sign-off** — Credit Officer confirms value + adequacy. `ApproveCollateral` already exists; needs role-gating to `CreditOfficer`/`CreditManager` only
 
-**Backend handlers already registered in DI:**
-- `AddChecklistTemplateItemHandler` (`AddChecklistTemplateItemCommand`)
-- `UpdateChecklistTemplateItemHandler` (`UpdateChecklistTemplateItemCommand`)
-- `RemoveChecklistTemplateItemHandler` (`RemoveChecklistTemplateItemCommand`)
-
-**ApplicationService methods needed** (add to `ApplicationService.cs`):
-```csharp
-GetChecklistTemplateItemsAsync(Guid loanProductId)  // call GetChecklistTemplateItemsQuery
-AddChecklistTemplateItemAsync(Guid loanProductId, ChecklistTemplateItemRequest request)
-UpdateChecklistTemplateItemAsync(Guid loanProductId, Guid itemId, ChecklistTemplateItemRequest request)
-RemoveChecklistTemplateItemAsync(Guid loanProductId, Guid itemId)
+**Key files:**
+```
+src/CRMS.Domain/Aggregates/Collateral/Collateral.cs             ← RecordLegalClearance() already exists
+src/CRMS.Application/Collateral/Commands/CollateralCommands.cs  ← add RecordLegalClearanceCommand handler
+src/CRMS.Infrastructure/DependencyInjection.cs                  ← register new handler
+src/CRMS.Web.Intranet/Components/Pages/Applications/Tabs/CollateralTab.razor  ← add Legal Clearance button
+src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor               ← wire modal
 ```
 
-**UI changes:**
-- `Products.razor` (or new `ProductDetail.razor`) — add a "Disbursement Checklist" tab/section
-- Table of template items with: ItemName, ConditionType badge (CP/CS), Mandatory toggle, SubsequentDueDays (CS only), RequiresDocUpload, RequiresLegal, CanBeWaived, SortOrder
-- Add/Edit/Remove buttons with confirmation
-- Role guard: only SystemAdmin or RiskManager can see this section
-
-**Pattern to follow:** `Templates.razor` CRUD pattern — fetch on init, inline add/edit modal, toggle/delete confirmation.
-
 ---
 
-### Option B — Apply Pending Migration
+### Option B — Retail Loan System (Phase 2)
 
-Run against the dev DB:
-```bash
-dotnet ef database update --project src/CRMS.Infrastructure --startup-project src/CRMS.Web.Intranet
+The corporate loan system is now fully feature-complete. Phase 2 introduces the customer-facing **Retail Loan** portal with automated decisioning.
+
+**Key files to start with:**
 ```
-Migration `20260409123746_AddDisbursementChecklist` is pending — adds `OfferIssuedAt/By`, `OfferAcceptedAt/By` columns to `LoanApplications`, creates `DisbursementChecklistItems` and `DisbursementChecklistTemplates` tables.
+src/CRMS.Domain/Aggregates/                        ← add RetailLoanApplication aggregate
+src/CRMS.Application/RetailLoan/                   ← new use cases (Submit, Assess, Decide)
+src/CRMS.Infrastructure/Persistence/               ← new EF configs + migrations
+src/CRMS.Web.Portal/                               ← customer self-service Blazor pages (new project)
+```
+
+**Modules to build:**
+- `CustomerPortal` — self-service application intake (Blazor Web App, public-facing)
+- `DecisionEngine` — automated Approve/Decline/Refer based on bureau + scoring
 
 ---
 
-### Option C — Wire Fineract Customer Exposure into AI Advisory
+### Option C — Guarantor Approval: Guarantee Deed Legal Sign-Off (Deferred Design Decision)
 
-**Status:** `IFineractDirectService.GetCustomerExposureAsync` is implemented and registered. This is the only remaining P2 item.
-**What's needed:** In `GenerateCreditAdvisoryHandler.cs`, after loading the corporate bureau report, call `_fineractService.GetCustomerExposureAsync(clientId, ct)` where `clientId` comes from `loanApp.CoreBankingClientId`. Replace/supplement `corporateBureauReport.TotalOutstandingBalance` with the Fineract-derived `TotalOutstanding`. If Fineract call fails, fall back to bureau balance.
-
----
-
-### Option D — PartiesTab Bureau Report View Button
-
-**File:** `PartiesTab.razor`
-**Issue:** When `director.HasBureauReport == true`, a visibility icon button is rendered with **no `@onclick`** handler. Same for signatories.
-**Fix:**
-1. Add `OnViewPartyBureauReport` EventCallback<Guid> parameter to `PartiesTab.razor`
-2. In `Detail.razor`, wire this to `ShowBureauReportModal(reportId)` — check if `PartyInfo` model has a `BureauReportId` field; if not, fetch from `GetBureauReportsByApplicationHandler` and match by party name/ID.
-3. `ViewBureauReportModal` already exists and is fully functional.
+Discussed in Session 52. Credit Officer owns guarantor approval/rejection (bureau check, net worth vs loan exposure). This is already wired and operationally correct. Optional deferred addition: a **legal team sign-off** on guarantee deed enforceability (similar to `IsLegalCleared` on collateral). To implement when ready:
+1. Add `IsLegalCleared` + `LegalClearedAt` to `Guarantor` aggregate
+2. Add `RecordLegalClearance()` domain method + `RecordGuarantorLegalClearanceCommand` handler
+3. `GuarantorsTab.razor`: `CanClearLegal` param, legal clearance button, badge (mirrors `CollateralTab` pattern exactly)
+4. `ApprovalGate` may need updating to require legal clearance before guarantor is considered `Approved`
 
 ---
 
-### Option E — Committee Voting UX + Modal Close Race
+### Other Pending Tasks (lower priority)
 
-**H2** (`CommitteeTab.razor`): Add `isVoting` loading state to Submit Vote button, double-click guard, and error display on failure.
-**H8** (`SetupCommitteeModal.razor`): Change `private void Close() => OnClose.InvokeAsync()` to `private async Task Close() => await OnClose.InvokeAsync()` to prevent fire-and-forget race condition.
+**Option D — PartiesTab Bureau Report View Button**
+Director/signatory view buttons have no `@onclick`. Wire to `ShowBureauReportModal`. `ViewBureauReportModal` already exists.
+
+**Option E — Disbursement Checklist Template Admin UI**
+`AddChecklistTemplateItemHandler`, `UpdateChecklistTemplateItemHandler`, `RemoveChecklistTemplateItemHandler` already registered in DI. Need `Products.razor` sub-section + `ApplicationService` methods.
+
+**Option F — Internal Statement Re-fetch Window (Deferred)**
+`RefetchInternalBankStatementCommand` currently uses `DateTime.UtcNow` as `toDate` (6 months back from today). When CBS supports backdated transactions in test env, change to `loanApp.CreatedAt` — one-line change in `RefetchInternalBankStatementCommand.cs`.
 
 ---
 

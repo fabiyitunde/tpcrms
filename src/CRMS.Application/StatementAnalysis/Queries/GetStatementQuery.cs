@@ -120,7 +120,8 @@ public class GetStatementsByLoanApplicationHandler : IRequestHandler<GetStatemen
                 s.Id, s.AccountNumber, s.AccountName, s.BankName, s.PeriodStart, s.PeriodEnd,
                 s.OpeningBalance, s.ClosingBalance, s.Source.ToString(), s.AnalysisStatus.ToString(),
                 s.VerificationStatus.ToString(), s.TrustWeight, s.IsInternal,
-                s.GetStatementMonths(), s.Transactions.Count, s.OriginalFileName, s.CreatedAt, summaryDto
+                s.GetStatementMonths(), s.Transactions.Count, s.OriginalFileName, s.CreatedAt, summaryDto,
+                s.VerificationNotes
             );
         }).ToList();
 

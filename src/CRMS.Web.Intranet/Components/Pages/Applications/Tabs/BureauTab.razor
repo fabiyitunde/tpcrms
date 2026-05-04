@@ -38,13 +38,13 @@
             }
 
             @* Business Credit Reports Section *@
-            @if (BusinessReports.Any())
-            {
-                <div style="padding: var(--space-4); border-bottom: 1px solid var(--gray-200);">
-                    <h4 style="margin: 0 0 var(--space-3) 0; font-size: var(--text-sm); font-weight: 600; color: var(--gray-700);">
-                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">business</span>
-                        Business Credit Report
-                    </h4>
+            <div style="padding: var(--space-4); border-bottom: 1px solid var(--gray-200);">
+                <h4 style="margin: 0 0 var(--space-3) 0; font-size: var(--text-sm); font-weight: 600; color: var(--gray-700);">
+                    <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">business</span>
+                    Business Credit Report
+                </h4>
+                @if (BusinessReports.Any())
+                {
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: var(--space-4);">
                         @foreach (var report in BusinessReports)
                         {
@@ -54,8 +54,14 @@
                                         <div style="font-weight: 600;">@report.SubjectName</div>
                                         <div style="font-size: var(--text-xs); color: var(--gray-500);">Business Entity</div>
                                     </div>
-                                    <div class="bureau-score @GetScoreClass(report.CreditScore)">
-                                        @(report.CreditScore?.ToString() ?? "N/A")
+                                    <div style="display: flex; flex-direction: column; align-items: center; gap: var(--space-1);">
+                                        <div class="bureau-score @GetScoreClass(report.CreditScore)">
+                                            @(report.CreditScore?.ToString() ?? "N/A")
+                                        </div>
+                                        @if (report.IsScoreDerived)
+                                        {
+                                            <span class="badge badge-warning" style="font-size: 10px; padding: 2px 6px;" title="Score calculated internally — bureau score endpoint unavailable or not subscribed">Derived</span>
+                                        }
                                     </div>
                                 </div>
                                 <div class="bureau-card-body">
@@ -64,8 +70,24 @@
                                         <span class="badge @GetRatingBadgeClass(report.Rating)">@report.Rating</span>
                                     </div>
                                     <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Total Facilities</span>
+                                        <span class="bureau-stat-value">@report.TotalLoans</span>
+                                    </div>
+                                    <div class="bureau-stat">
                                         <span class="bureau-stat-label">Active Facilities</span>
                                         <span class="bureau-stat-value">@report.ActiveLoans</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Performing</span>
+                                        <span class="bureau-stat-value @(report.PerformingLoans == report.TotalLoans && report.TotalLoans > 0 ? "text-success" : "")">@report.PerformingLoans</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Closed Facilities</span>
+                                        <span class="bureau-stat-value">@report.ClosedLoans</span>
+                                    </div>
+                                    <div class="bureau-stat">
+                                        <span class="bureau-stat-label">Highest Facility</span>
+                                        <span class="bureau-stat-value">₦@FormatAmount(report.HighestFacility)</span>
                                     </div>
                                     <div class="bureau-stat">
                                         <span class="bureau-stat-label">Total Exposure</span>
@@ -119,7 +141,7 @@
                                         </span>
                                     }
                                     <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: auto;">
-                                        @report.Provider | @report.ReportDate.ToString("MMM dd, yyyy")
+                                        @(report.IsScoreDerived ? "Internally Calculated" : report.Provider) | @report.ReportDate.ToString("MMM dd, yyyy")
                                     </span>
                                     <button class="btn btn-ghost btn-sm" style="margin-left: var(--space-2);" @onclick="() => OnViewReport.InvokeAsync(report.Id)" title="View Details">
                                         <span class="material-symbols-outlined" style="font-size: 16px;">open_in_new</span>
@@ -128,8 +150,15 @@
                             </div>
                         }
                     </div>
-                </div>
-            }
+                }
+                else
+                {
+                    <div style="text-align: center; padding: var(--space-6); font-size: var(--text-sm); color: var(--gray-500);">
+                        <span class="material-symbols-outlined" style="font-size: 32px; display: block; margin-bottom: var(--space-2); color: var(--gray-400);">search_off</span>
+                        No business credit report yet. Use the <strong>Re-run Credit Checks</strong> button to fetch it.
+                    </div>
+                }
+            </div>
 
             @* Individual Credit Reports by Party Type *@
             @foreach (var group in IndividualReportsByType)
@@ -148,8 +177,14 @@
                                         <div style="font-weight: 600;">@report.SubjectName</div>
                                         <div style="font-size: var(--text-xs); color: var(--gray-500);">@FormatSubjectType(report.SubjectType)</div>
                                     </div>
-                                    <div class="bureau-score @GetScoreClass(report.CreditScore)">
-                                        @(report.CreditScore?.ToString() ?? "N/A")
+                                    <div style="display: flex; flex-direction: column; align-items: center; gap: var(--space-1);">
+                                        <div class="bureau-score @GetScoreClass(report.CreditScore)">
+                                            @(report.CreditScore?.ToString() ?? "N/A")
+                                        </div>
+                                        @if (report.IsScoreDerived)
+                                        {
+                                            <span class="badge badge-warning" style="font-size: 10px; padding: 2px 6px;" title="Score calculated internally — bureau score endpoint unavailable or not subscribed">Derived</span>
+                                        }
                                     </div>
                                 </div>
                                 <div class="bureau-card-body">
@@ -213,7 +248,7 @@
                                         </span>
                                     }
                                     <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: auto;">
-                                        @report.Provider | @report.ReportDate.ToString("MMM dd, yyyy")
+                                        @(report.IsScoreDerived ? "Internally Calculated" : report.Provider) | @report.ReportDate.ToString("MMM dd, yyyy")
                                     </span>
                                 </div>
                             </div>

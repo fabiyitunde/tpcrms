@@ -279,6 +279,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await AuthService.GetAuthenticationStateAsync();
         await LoadDashboardData();
     }
 

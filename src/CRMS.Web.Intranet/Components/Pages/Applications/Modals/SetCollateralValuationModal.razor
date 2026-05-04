@@ -47,13 +47,24 @@
 
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-group">
+                        <label class="form-label">Valuation Basis</label>
+                        <select class="form-control" @bind="valuationBasis">
+                            <option value="MarketValue">Market Value</option>
+                            <option value="FSV">Forced Sale Value (FSV)</option>
+                        </select>
+                        <div class="form-hint">Which figure the haircut is applied to</div>
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">Haircut Percentage (%)</label>
                         <input type="number" class="form-control" @bind="haircutPercentage"
                             min="0" max="100" step="0.5" style="max-width: 150px;" />
-                        <div class="form-hint">Risk discount applied to market value</div>
+                        <div class="form-hint">Risk discount applied to valuation basis</div>
                     </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
                     <div class="form-group">
-                        <label class="form-label">Acceptable Value</label>
+                        <label class="form-label">Computed Acceptable Value</label>
                         <div style="padding: var(--space-2) var(--space-3); background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-weight: 600; color: var(--success-600); min-height: 42px; display: flex; align-items: center;">
                             @if (marketValue > 0)
                             {
@@ -64,7 +75,29 @@
                                 <span style="font-weight: 400; font-size: var(--text-sm); color: var(--gray-500);">Auto-calculated</span>
                             }
                         </div>
-                        <div class="form-hint">Market Value × (1 − Haircut%)</div>
+                        <div class="form-hint">@(valuationBasis == "FSV" ? "FSV" : "Market Value") × (1 − Haircut%)</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Valuer's Stated Acceptable Value (₦)</label>
+                        <input type="number" class="form-control" @bind="valuerAcceptableValue" min="0" step="1000"
+                            placeholder="Optional, from valuer's report" />
+                        <div class="form-hint">As stated in the valuation report (for audit)</div>
+                    </div>
+                </div>
+
+                <hr style="margin: var(--space-3) 0;" />
+                <h4 style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-3);">VALUER DETAILS</h4>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="form-label">Valuer Name</label>
+                        <input type="text" class="form-control" @bind="valuerName"
+                            placeholder="e.g., John Adeyemi FNIVS" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Valuer's Firm / Company</label>
+                        <input type="text" class="form-control" @bind="valuerCompany"
+                            placeholder="e.g., ABC Property Consultants" />
                     </div>
                 </div>
             }
@@ -112,8 +145,21 @@
     private decimal marketValue;
     private decimal? forcedSaleValue;
     private decimal haircutPercentage;
+    private string valuationBasis = "MarketValue";
+    private decimal? valuerAcceptableValue;
+    private string? valuerName;
+    private string? valuerCompany;
 
-    private decimal AcceptableValue => marketValue * (1 - haircutPercentage / 100);
+    private decimal AcceptableValue
+    {
+        get
+        {
+            var basis = valuationBasis == "FSV" && forcedSaleValue.HasValue
+                ? forcedSaleValue.Value
+                : marketValue;
+            return basis * (1 - haircutPercentage / 100);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -123,6 +169,10 @@
             marketValue = collateral.MarketValue ?? 0;
             forcedSaleValue = collateral.ForcedSaleValue;
             haircutPercentage = collateral.HaircutPercentage ?? GetDefaultHaircut(collateral.Type);
+            valuationBasis = collateral.ValuationBasis ?? "MarketValue";
+            valuerAcceptableValue = collateral.ValuerAcceptableValue;
+            valuerName = collateral.ValuerName;
+            valuerCompany = collateral.ValuerCompany;
         }
         isLoading = false;
     }
@@ -144,10 +194,17 @@
         {
             var result = await AppService.SetCollateralValuationAsync(
                 CollateralId,
-                marketValue,
-                forcedSaleValue,
-                haircutPercentage
-            );
+                new CRMS.Web.Intranet.Services.SetCollateralValuationRequest
+                {
+                    MarketValue = marketValue,
+                    ForcedSaleValue = forcedSaleValue,
+                    Currency = "NGN",
+                    HaircutPercentage = haircutPercentage,
+                    ValuationBasis = valuationBasis,
+                    ValuerAcceptableValue = valuerAcceptableValue > 0 ? valuerAcceptableValue : null,
+                    ValuerName = string.IsNullOrWhiteSpace(valuerName) ? null : valuerName,
+                    ValuerCompany = string.IsNullOrWhiteSpace(valuerCompany) ? null : valuerCompany
+                });
             if (result.Success)
             {
                 await OnSuccess.InvokeAsync();

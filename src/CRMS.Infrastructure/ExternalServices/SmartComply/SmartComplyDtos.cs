@@ -8,19 +8,26 @@ public class SmartComplyResponse<T>
 {
     [JsonPropertyName("status")]
     public string Status { get; set; } = string.Empty;
-    
+
+    /// <summary>
+    /// Some endpoints return a "success" boolean; others only return "status" string.
+    /// Treat as successful if either the boolean is true OR the status string is "success".
+    /// </summary>
     [JsonPropertyName("success")]
     public bool Success { get; set; }
-    
+
+    [JsonIgnore]
+    public bool IsSuccessful => Success || string.Equals(Status, "success", StringComparison.OrdinalIgnoreCase);
+
     [JsonPropertyName("statusCode")]
     public int StatusCode { get; set; }
-    
+
     [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
-    
+
     [JsonPropertyName("response_code")]
     public string? ResponseCode { get; set; }
-    
+
     [JsonPropertyName("data")]
     public T? Data { get; set; }
 }
@@ -926,6 +933,18 @@ public class CacVerificationRequest
     public string RcNumber { get; set; } = string.Empty;
 }
 
+public class CacAdvancedVerificationRequest
+{
+    [JsonPropertyName("registration_number")]
+    public string RegistrationNumber { get; set; } = string.Empty;
+
+    [JsonPropertyName("company_name")]
+    public string CompanyName { get; set; } = string.Empty;
+
+    [JsonPropertyName("company_type")]
+    public string CompanyType { get; set; } = "RC";
+}
+
 public class CacVerificationData
 {
     [JsonPropertyName("company_name")]
@@ -998,13 +1017,13 @@ public class CacAdvancedData
     [JsonPropertyName("company_status")]
     public string? CompanyStatus { get; set; }
 
-    [JsonPropertyName("company_address")]
+    [JsonPropertyName("address")]
     public string? CompanyAddress { get; set; }
 
     [JsonPropertyName("email_address")]
     public string? EmailAddress { get; set; }
 
-    [JsonPropertyName("registrationDate")]
+    [JsonPropertyName("date_of_registration")]
     public string? RegistrationDate { get; set; }
 
     [JsonPropertyName("city")]
@@ -1130,7 +1149,7 @@ public class CacAdvancedDirectorData
     [JsonPropertyName("countryFk")]
     public CacCountryReference? CountryFk { get; set; }
 
-    [JsonPropertyName("affiliateTypeFk")]
+    [JsonPropertyName("affiliateType")]
     public CacAffiliateTypeReference? AffiliateTypeFk { get; set; }
 
     [JsonPropertyName("affiliatesPscInformation")]
@@ -1270,19 +1289,109 @@ public class NinVerificationData
 
 #region Credit Score Only Response
 
+// Maps to: POST /api/onboarding/individual/credit_scores_crc/
+// Actual response shape from SmartComply:
+// { status, data: { bvn, name, searchedDate, score: { ficoScore: { score: 747, rating: "GOOD", reasons: [...] } } } }
 public class CreditScoreOnlyData
+{
+    [JsonPropertyName("bvn")]
+    public string? Bvn { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("searchedDate")]
+    public DateTime? SearchedDate { get; set; }
+
+    [JsonPropertyName("score")]
+    public CreditScoreDetail? Score { get; set; }
+}
+
+public class CreditScoreDetail
+{
+    /// <summary>
+    /// FICO score object returned by credit_scores_crc endpoint.
+    /// score.ficoScore.score = int (e.g. 747), score.ficoScore.rating = string (e.g. "GOOD").
+    /// </summary>
+    [JsonPropertyName("ficoScore")]
+    public FicoScoreData? FicoScore { get; set; }
+
+    // Legacy fields — kept for other score endpoints that may use them
+    [JsonPropertyName("totalConsumerScore")]
+    public string? TotalConsumerScore { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("scoreDate")]
+    public string? ScoreDate { get; set; }
+
+    [JsonPropertyName("totalAccounts")]
+    public string? TotalAccounts { get; set; }
+
+    [JsonPropertyName("totalAccountarrear")]
+    public string? TotalAccountArrear { get; set; }
+
+    [JsonPropertyName("totalAmountOverdue")]
+    public string? TotalAmountOverdue { get; set; }
+
+    [JsonPropertyName("totalOutstandingDebt")]
+    public string? TotalOutstandingDebt { get; set; }
+
+    [JsonPropertyName("totalaccountinGoodcondition")]
+    public string? TotalAccountsInGoodCondition { get; set; }
+
+    [JsonPropertyName("totalaccountinBadcondition")]
+    public string? TotalAccountsInBadCondition { get; set; }
+
+    [JsonPropertyName("repaymentHistoryScore")]
+    public string? RepaymentHistoryScore { get; set; }
+
+    [JsonPropertyName("lengthOfCreditHistoryScore")]
+    public string? LengthOfCreditHistoryScore { get; set; }
+
+    [JsonPropertyName("noOfAcctScore")]
+    public string? NoOfAccountScore { get; set; }
+
+    [JsonPropertyName("typesOfCreditScore")]
+    public string? TypesOfCreditScore { get; set; }
+
+    [JsonPropertyName("totalAmountOwedScore")]
+    public string? TotalAmountOwedScore { get; set; }
+
+    [JsonPropertyName("totalForeignAccounts")]
+    public string? TotalForeignAccounts { get; set; }
+
+    [JsonPropertyName("totalForeignOutstandingDebt")]
+    public string? TotalForeignOutstandingDebt { get; set; }
+
+    /// <summary>Parses totalConsumerScore string to int. Returns null if missing or unparseable.</summary>
+    [JsonIgnore]
+    public int? ParsedScore
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(TotalConsumerScore)) return null;
+            var clean = TotalConsumerScore.Replace(",", "").Trim();
+            return int.TryParse(clean, out var v) ? v : null;
+        }
+    }
+}
+
+/// <summary>
+/// Nested FICO score object returned by credit_scores_crc endpoint under data.score.ficoScore.
+/// </summary>
+public class FicoScoreData
 {
     [JsonPropertyName("score")]
     public int Score { get; set; }
-    
-    [JsonPropertyName("grade")]
-    public string? Grade { get; set; }
-    
-    [JsonPropertyName("provider")]
-    public string? Provider { get; set; }
-    
-    [JsonPropertyName("generatedDate")]
-    public DateTime? GeneratedDate { get; set; }
+
+    [JsonPropertyName("rating")]
+    public string? Rating { get; set; }
+
+    // SmartComply returns this as a plain string (sentences separated by ". null "), not an array
+    [JsonPropertyName("reasons")]
+    public string? Reasons { get; set; }
 }
 
 #endregion

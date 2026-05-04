@@ -12,10 +12,16 @@ public record CollateralDto(
     string? Location,
     string? OwnerName,
     string? OwnershipType,
+    decimal? IndicativeValue,
     decimal? MarketValue,
     decimal? ForcedSaleValue,
     decimal HaircutPercentage,
+    string ValuationBasis,
     decimal? AcceptableValue,
+    decimal? ValuerAcceptableValue,
+    string? ValuerName,
+    string? ValuerCompany,
+    string? ValuationReportPath,
     string? Currency,
     DateTime? LastValuationDate,
     DateTime? NextRevaluationDue,
@@ -29,8 +35,12 @@ public record CollateralDto(
     DateTime CreatedAt,
     DateTime? ApprovedAt,
     string? RejectionReason,
+    Guid? CollateralTypeConfigId,
     List<CollateralValuationDto> Valuations,
-    List<CollateralDocumentDto> Documents
+    List<CollateralDocumentDto> Documents,
+    bool IsLegalCleared = false,
+    DateTime? LegalClearedAt = null,
+    string? LegalClearanceNotes = null
 );
 
 public record CollateralSummaryDto(
@@ -64,7 +74,19 @@ public record CollateralDocumentDto(
     string FileName,
     long FileSizeBytes,
     bool IsVerified,
-    DateTime UploadedAt
+    DateTime UploadedAt,
+    string? Description = null
+);
+
+public record CollateralTypeConfigDto(
+    Guid Id,
+    string Name,
+    string Code,
+    string? Description,
+    decimal HaircutRate,
+    string ValuationBasis,
+    bool IsActive,
+    int SortOrder
 );
 
 public record AddCollateralRequest(
@@ -74,14 +96,22 @@ public record AddCollateralRequest(
     string? AssetIdentifier,
     string? Location,
     string? OwnerName,
-    string? OwnershipType
+    string? OwnershipType,
+    Guid? CollateralTypeConfigId = null,
+    decimal? IndicativeValue = null,
+    string Currency = "NGN"
 );
 
 public record SetCollateralValuationRequest(
     decimal MarketValue,
     decimal? ForcedSaleValue,
     string Currency,
-    decimal? HaircutPercentage
+    decimal? HaircutPercentage,
+    string? ValuationBasis = null,
+    decimal? ValuerAcceptableValue = null,
+    string? ValuerName = null,
+    string? ValuerCompany = null,
+    string? ValuationReportPath = null
 );
 
 public record RecordPerfectionRequest(

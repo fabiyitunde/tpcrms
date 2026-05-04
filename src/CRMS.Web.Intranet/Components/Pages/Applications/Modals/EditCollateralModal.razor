@@ -231,7 +231,14 @@
                     ? model.ForcedSaleValue
                     : null;
                 var valResult = await AppService.SetCollateralValuationAsync(
-                    CollateralId, model.MarketValue, fsv, model.HaircutPercentage);
+                    CollateralId,
+                    new CRMS.Web.Intranet.Services.SetCollateralValuationRequest
+                    {
+                        MarketValue = model.MarketValue,
+                        ForcedSaleValue = fsv,
+                        Currency = "NGN",
+                        HaircutPercentage = model.HaircutPercentage
+                    });
                 if (!valResult.Success)
                 {
                     errorMessage = valResult.Error ?? "Basic info saved but valuation update failed";

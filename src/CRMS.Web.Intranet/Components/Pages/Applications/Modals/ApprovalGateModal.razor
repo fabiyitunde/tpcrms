@@ -1,0 +1,182 @@
+@using CRMS.Web.Intranet.Models
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop show" @onclick="HandleBackdropClick">
+        <div class="modal" style="max-width: 600px;" @onclick:stopPropagation>
+            <div class="modal-header" style="border-bottom: 2px solid @(GateResult?.IsHardBlock == true ? "var(--danger-500)" : GateResult?.RequiresOverrideNote == true ? "var(--warning-500)" : "var(--warning-400)");">
+                <h3 class="modal-title" style="display: flex; align-items: center; gap: var(--space-2);">
+                    <span class="material-symbols-outlined" style="color: @(GateResult?.IsHardBlock == true ? "var(--danger-600)" : "var(--warning-600)");">
+                        @(GateResult?.IsHardBlock == true ? "block" : "warning")
+                    </span>
+                    @if (GateResult?.IsHardBlock == true)
+                    {
+                        <span>Approval Blocked</span>
+                    }
+                    else if (GateResult?.RequiresOverrideNote == true)
+                    {
+                        <span>Approval Override Required</span>
+                    }
+                    else
+                    {
+                        <span>Pending Items — Review Before Approval</span>
+                    }
+                </h3>
+                @if (GateResult?.IsHardBlock != true)
+                {
+                    <button type="button" class="modal-close" @onclick="HandleCancel">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                }
+            </div>
+
+            <div class="modal-body" style="max-height: 450px; overflow-y: auto;">
+
+                @if (GateResult?.IsHardBlock == true)
+                {
+                    <div class="alert alert-danger mb-4" style="font-size: var(--text-sm);">
+                        @if (GateResult.IsStrict)
+                        {
+                            <strong>Strict mode is enabled for this stage.</strong>
+                            <span> All items must be ratified before you can approve. Return the application to the Loan Officer to resolve the issues below, or address them directly.</span>
+                        }
+                    </div>
+                }
+                else if (GateResult?.RequiresOverrideNote == true)
+                {
+                    <div class="alert alert-warning mb-4" style="font-size: var(--text-sm);">
+                        <strong>Some items have been rejected.</strong> You may proceed, but you must provide a collective override note explaining your decision. This note will be visible to all subsequent reviewers.
+                    </div>
+                }
+                else if (GateResult?.PendingItems.Count > 0)
+                {
+                    <div class="alert" style="background: var(--warning-50); border: 1px solid var(--warning-200); color: var(--warning-800); margin-bottom: var(--space-4); font-size: var(--text-sm);">
+                        <strong>Some items have not been reviewed.</strong> You may proceed without reviewing them, but this will be noted.
+                    </div>
+                }
+
+                @if (GateResult?.RejectedItems.Count > 0)
+                {
+                    <div style="margin-bottom: var(--space-4);">
+                        <h4 style="font-size: var(--text-sm); font-weight: 600; color: var(--danger-700); margin-bottom: var(--space-2); display: flex; align-items: center; gap: var(--space-1);">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">cancel</span>
+                            Rejected Items (@GateResult.RejectedItems.Count)
+                        </h4>
+                        @foreach (var item in GateResult.RejectedItems)
+                        {
+                            <div style="border: 1px solid var(--danger-200); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-2); background: var(--danger-50);">
+                                <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: @(item.RejectionReason != null ? "var(--space-1)" : "0");">
+                                    <span class="badge badge-sm" style="background: var(--danger-100); color: var(--danger-700); font-size: 10px;">@item.ItemType</span>
+                                    <span style="font-size: var(--text-sm); font-weight: 500;">@item.ItemLabel</span>
+                                </div>
+                                @if (!string.IsNullOrEmpty(item.RejectionReason))
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--danger-600); padding-left: var(--space-1);">
+                                        Reason: @item.RejectionReason
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (GateResult?.PendingItems.Count > 0)
+                {
+                    <div style="margin-bottom: var(--space-4);">
+                        <h4 style="font-size: var(--text-sm); font-weight: 600; color: var(--warning-700); margin-bottom: var(--space-2); display: flex; align-items: center; gap: var(--space-1);">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">pending</span>
+                            Unreviewed Items (@GateResult.PendingItems.Count)
+                        </h4>
+                        @foreach (var item in GateResult.PendingItems)
+                        {
+                            <div style="border: 1px solid var(--warning-200); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-2); background: var(--warning-50);">
+                                <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                    <span class="badge badge-sm" style="background: var(--warning-100); color: var(--warning-700); font-size: 10px;">@item.ItemType</span>
+                                    <span style="font-size: var(--text-sm); font-weight: 500;">@item.ItemLabel</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (GateResult?.RequiresOverrideNote == true)
+                {
+                    <div style="margin-top: var(--space-4);">
+                        <label style="font-size: var(--text-sm); font-weight: 600; margin-bottom: var(--space-2); display: block;">
+                            Override Note <span style="color: var(--danger-600);">*</span>
+                        </label>
+                        <textarea class="form-control" rows="4" placeholder="Explain why you are approving despite the rejected items above..."
+                                  @bind="OverrideNote"
+                                  style="font-size: var(--text-sm); resize: vertical;"></textarea>
+                        @if (_showNoteRequired)
+                        {
+                            <div style="color: var(--danger-600); font-size: var(--text-xs); margin-top: var(--space-1);">
+                                Override note is required to proceed.
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                @if (GateResult?.IsHardBlock == true)
+                {
+                    <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Return to Application</button>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
+                    <button type="button" class="btn @(GateResult?.RequiresOverrideNote == true ? "btn-warning" : "btn-primary")"
+                            @onclick="HandleProceed"
+                            disabled="@_isSaving">
+                        @if (_isSaving)
+                        {
+                            <span class="material-symbols-outlined spin" style="font-size: 16px;">progress_activity</span>
+                        }
+                        else
+                        {
+                            <span>Proceed with Approval</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public ApprovalGateResultModel? GateResult { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public EventCallback<string?> OnProceed { get; set; }
+
+    private string? OverrideNote { get; set; }
+    private bool _showNoteRequired;
+    private bool _isSaving;
+
+    protected override void OnParametersSet()
+    {
+        if (!IsVisible)
+        {
+            OverrideNote = null;
+            _showNoteRequired = false;
+            _isSaving = false;
+        }
+    }
+
+    private async Task HandleProceed()
+    {
+        if (GateResult?.RequiresOverrideNote == true && string.IsNullOrWhiteSpace(OverrideNote))
+        {
+            _showNoteRequired = true;
+            return;
+        }
+        _isSaving = true;
+        await OnProceed.InvokeAsync(string.IsNullOrWhiteSpace(OverrideNote) ? null : OverrideNote);
+        _isSaving = false;
+    }
+
+    private async Task HandleCancel() => await OnCancel.InvokeAsync();
+
+    private void HandleBackdropClick() { /* intentionally non-dismissible */ }
+}

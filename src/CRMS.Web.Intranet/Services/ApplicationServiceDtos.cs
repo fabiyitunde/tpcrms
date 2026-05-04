@@ -297,6 +297,74 @@
         public string? OwnerName { get; set; }
 
         public string? OwnershipType { get; set; }
+
+        public Guid? CollateralTypeConfigId { get; set; }
+
+        public decimal? IndicativeValue { get; set; }
+
+        public string Currency { get; set; } = "NGN";
+    }
+
+    public class SetCollateralValuationRequest
+    {
+        public decimal MarketValue { get; set; }
+
+        public decimal? ForcedSaleValue { get; set; }
+
+        public string Currency { get; set; } = "NGN";
+
+        public decimal? HaircutPercentage { get; set; }
+
+        public string? ValuationBasis { get; set; }
+
+        public decimal? ValuerAcceptableValue { get; set; }
+
+        public string? ValuerName { get; set; }
+
+        public string? ValuerCompany { get; set; }
+
+        public string? ValuationReportPath { get; set; }
+    }
+
+    public class CollateralTypeConfigItem
+    {
+        public Guid Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public string Code { get; set; } = string.Empty;
+
+        public decimal HaircutRate { get; set; }
+
+        public string ValuationBasis { get; set; } = "MarketValue";
+    }
+
+    public class CreateCollateralTypeConfigRequest
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string Code { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+
+        public decimal HaircutRate { get; set; }
+
+        public string ValuationBasis { get; set; } = "MarketValue";
+
+        public int SortOrder { get; set; }
+    }
+
+    public class UpdateCollateralTypeConfigRequest
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+
+        public decimal HaircutRate { get; set; }
+
+        public string ValuationBasis { get; set; } = "MarketValue";
+
+        public int? SortOrder { get; set; }
     }
     public class CollateralResult
     {
@@ -637,15 +705,29 @@
 
         public string? OwnershipType { get; set; }
 
+        public decimal? IndicativeValue { get; set; }
+
         public decimal? MarketValue { get; set; }
 
         public decimal? ForcedSaleValue { get; set; }
 
         public decimal? AcceptableValue { get; set; }
 
+        public decimal? ValuerAcceptableValue { get; set; }
+
         public decimal? HaircutPercentage { get; set; }
 
+        public string ValuationBasis { get; set; } = "MarketValue";
+
+        public string? ValuerName { get; set; }
+
+        public string? ValuerCompany { get; set; }
+
+        public string? ValuationReportPath { get; set; }
+
         public string? Currency { get; set; }
+
+        public Guid? CollateralTypeConfigId { get; set; }
 
         public DateTime? LastValuationDate { get; set; }
 
@@ -685,6 +767,8 @@
         public bool IsVerified { get; set; }
 
         public DateTime UploadedAt { get; set; }
+
+        public string? Description { get; set; }
     }
 
     public class PerformanceReportData

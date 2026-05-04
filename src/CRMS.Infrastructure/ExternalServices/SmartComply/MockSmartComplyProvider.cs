@@ -64,6 +64,96 @@ public class MockSmartComplyProvider : ISmartComplyProvider
             HighestLoanAmount: 750000, MaxDelinquencyDays: 0,
             Creditors: ["Access Bank", "Zenith Bank"],
             FraudRiskScore: 20, FraudRecommendation: "Low risk. Good repayment history."
+        ),
+
+        // --- Seeded BVNs (matching ComprehensiveDataSeeder.BVNs + NigerianNames, uppercased) ---
+        ["22111111111"] = new MockIndividualData(
+            Name: "ADEWALE OLUSEGUN",
+            Phone: "+2348031452601",
+            Gender: "Male",
+            DateOfBirth: "1977-04-18",
+            TotalLoans: 9, ActiveLoans: 1, ClosedLoans: 8, PerformingLoans: 9,
+            DelinquentFacilities: 0, TotalBorrowed: 4823450, TotalOutstanding: 312500, TotalOverdue: 0,
+            HighestLoanAmount: 1500000, MaxDelinquencyDays: 0,
+            Creditors: ["First Bank", "Access Bank", "Zenith Bank"],
+            FraudRiskScore: 18, FraudRecommendation: "Low risk. Consistent repayment behaviour."
+        ),
+        ["22222222222"] = new MockIndividualData(
+            Name: "CHUKWUEMEKA NNAMDI",
+            Phone: "+2348054873219",
+            Gender: "Male",
+            DateOfBirth: "1981-11-02",
+            TotalLoans: 11, ActiveLoans: 2, ClosedLoans: 9, PerformingLoans: 10,
+            DelinquentFacilities: 1, TotalBorrowed: 9147320, TotalOutstanding: 1875000, TotalOverdue: 210000,
+            HighestLoanAmount: 4200000, MaxDelinquencyDays: 38,
+            Creditors: ["GTBank", "UBA", "FCMB"],
+            FraudRiskScore: 44, FraudRecommendation: "Medium risk. One minor delinquency on record. Further review advised."
+        ),
+        ["22333333333"] = new MockIndividualData(
+            Name: "FATIMA ABDULLAHI",
+            Phone: "+2348067234510",
+            Gender: "Female",
+            DateOfBirth: "1983-06-30",
+            TotalLoans: 5, ActiveLoans: 1, ClosedLoans: 4, PerformingLoans: 5,
+            DelinquentFacilities: 0, TotalBorrowed: 2310000, TotalOutstanding: 450000, TotalOverdue: 0,
+            HighestLoanAmount: 900000, MaxDelinquencyDays: 0,
+            Creditors: ["First Bank", "Zenith Bank"],
+            FraudRiskScore: 15, FraudRecommendation: "Low risk. Clean credit history. Recommend approval."
+        ),
+        ["22444444444"] = new MockIndividualData(
+            Name: "BLESSING OKAFOR",
+            Phone: "+2348079841327",
+            Gender: "Female",
+            DateOfBirth: "1979-09-14",
+            TotalLoans: 13, ActiveLoans: 3, ClosedLoans: 10, PerformingLoans: 11,
+            DelinquentFacilities: 2, TotalBorrowed: 12650000, TotalOutstanding: 4780000, TotalOverdue: 890000,
+            HighestLoanAmount: 6000000, MaxDelinquencyDays: 75,
+            Creditors: ["Access Bank", "Diamond Bank", "Fidelity Bank", "Sterling Bank"],
+            FraudRiskScore: 56, FraudRecommendation: "Medium risk. Two delinquent facilities. Collateral coverage recommended."
+        ),
+        ["22555555555"] = new MockIndividualData(
+            Name: "OLUWASEUN ADEYEMI",
+            Phone: "+2348023916748",
+            Gender: "Male",
+            DateOfBirth: "1986-02-22",
+            TotalLoans: 7, ActiveLoans: 1, ClosedLoans: 6, PerformingLoans: 7,
+            DelinquentFacilities: 0, TotalBorrowed: 3480000, TotalOutstanding: 625000, TotalOverdue: 0,
+            HighestLoanAmount: 1200000, MaxDelinquencyDays: 0,
+            Creditors: ["GTBank", "Zenith Bank"],
+            FraudRiskScore: 21, FraudRecommendation: "Low risk. Good repayment history."
+        ),
+        ["22666666666"] = new MockIndividualData(
+            Name: "UCHE OKONKWO",
+            Phone: "+2348048563092",
+            Gender: "Male",
+            DateOfBirth: "1974-07-07",
+            TotalLoans: 17, ActiveLoans: 4, ClosedLoans: 13, PerformingLoans: 12,
+            DelinquentFacilities: 5, TotalBorrowed: 22900000, TotalOutstanding: 11340000, TotalOverdue: 4560000,
+            HighestLoanAmount: 9500000, MaxDelinquencyDays: 150,
+            Creditors: ["Wema Bank", "FCMB", "Fidelity Bank", "Sterling Bank", "Heritage Bank"],
+            FraudRiskScore: 74, FraudRecommendation: "High risk. Multiple delinquencies. Application requires thorough review and strong collateral."
+        ),
+        ["22777777777"] = new MockIndividualData(
+            Name: "EMEKA EZE",
+            Phone: "+2348091274563",
+            Gender: "Male",
+            DateOfBirth: "1988-12-11",
+            TotalLoans: 6, ActiveLoans: 2, ClosedLoans: 4, PerformingLoans: 5,
+            DelinquentFacilities: 1, TotalBorrowed: 5120000, TotalOutstanding: 1560000, TotalOverdue: 135000,
+            HighestLoanAmount: 2800000, MaxDelinquencyDays: 29,
+            Creditors: ["UBA", "Access Bank"],
+            FraudRiskScore: 38, FraudRecommendation: "Low-medium risk. Isolated delinquency. Review repayment capacity."
+        ),
+        ["22888888888"] = new MockIndividualData(
+            Name: "FOLAKE BALOGUN",
+            Phone: "+2348015632847",
+            Gender: "Female",
+            DateOfBirth: "1982-03-19",
+            TotalLoans: 8, ActiveLoans: 1, ClosedLoans: 7, PerformingLoans: 8,
+            DelinquentFacilities: 0, TotalBorrowed: 3970000, TotalOutstanding: 480000, TotalOverdue: 0,
+            HighestLoanAmount: 1750000, MaxDelinquencyDays: 0,
+            Creditors: ["First Bank", "Zenith Bank", "GTBank"],
+            FraudRiskScore: 17, FraudRecommendation: "Low risk. Excellent repayment track record."
         )
     };
 
@@ -156,7 +246,7 @@ public class MockSmartComplyProvider : ISmartComplyProvider
 
         if (!_individualData.TryGetValue(bvn, out var data))
         {
-            return Task.FromResult(Result.Failure<SmartComplyIndividualCreditReport>("Subject not found in credit bureau"));
+            data = GenerateFallbackIndividualData(bvn);
         }
 
         var report = new SmartComplyIndividualCreditReport(
@@ -204,7 +294,7 @@ public class MockSmartComplyProvider : ISmartComplyProvider
 
         if (!_individualData.TryGetValue(bvn, out var data))
         {
-            return Task.FromResult(Result.Failure<SmartComplyCreditScore>("Subject not found"));
+            data = GenerateFallbackIndividualData(bvn);
         }
 
         var score = CalculateCreditScore(data);
@@ -251,7 +341,7 @@ public class MockSmartComplyProvider : ISmartComplyProvider
 
         if (!_businessData.TryGetValue(rcNumber.ToUpper(), out var data))
         {
-            return Task.FromResult(Result.Failure<SmartComplyBusinessCreditReport>("Business not found in credit bureau"));
+            data = GenerateFallbackBusinessData(rcNumber);
         }
 
         var report = new SmartComplyBusinessCreditReport(
@@ -377,7 +467,7 @@ public class MockSmartComplyProvider : ISmartComplyProvider
 
         if (!_individualData.TryGetValue(bvn, out var data))
         {
-            return Task.FromResult(Result.Failure<SmartComplyBvnResult>("BVN not found"));
+            data = GenerateFallbackIndividualData(bvn);
         }
 
         var nameParts = data.Name.Split(' ');
@@ -396,7 +486,7 @@ public class MockSmartComplyProvider : ISmartComplyProvider
 
         if (!_individualData.TryGetValue(bvn, out var data))
         {
-            return Task.FromResult(Result.Failure<SmartComplyBvnAdvancedResult>("BVN not found"));
+            data = GenerateFallbackIndividualData(bvn);
         }
 
         var nameParts = data.Name.Split(' ');
@@ -460,7 +550,7 @@ public class MockSmartComplyProvider : ISmartComplyProvider
         return GetMockCacResultAsync(rcNumber);
     }
 
-    public Task<Result<SmartComplyCacResult>> VerifyCacAdvancedAsync(string rcNumber, CancellationToken ct = default)
+    public Task<Result<SmartComplyCacResult>> VerifyCacAdvancedAsync(string rcNumber, string companyName, string companyType = "RC", CancellationToken ct = default)
     {
         return GetMockCacResultAsync(rcNumber);
     }
@@ -522,6 +612,88 @@ public class MockSmartComplyProvider : ISmartComplyProvider
     #endregion
 
     #region Helper Methods
+
+    // Generates deterministic mock data for any BVN not in the hardcoded dictionary.
+    // Uses the last digit of the BVN to vary the credit tier, so seeded BVNs get diverse profiles.
+    private static MockIndividualData GenerateFallbackIndividualData(string bvn)
+    {
+        var lastDigit = bvn.Length > 0 && char.IsDigit(bvn[^1]) ? (int)char.GetNumericValue(bvn[^1]) : 0;
+        var tier = lastDigit % 3; // 0=good, 1=medium, 2=watch
+        var nameIndex = bvn.Sum(c => c) % FallbackMaleNames.Length;
+        var name = FallbackMaleNames[nameIndex];
+
+        // Phone: "+234" + "80" + first 8 digits of BVN = valid 10-digit Nigerian local number
+        var phone = $"+23480{bvn[1..9]}";
+        return tier switch
+        {
+            0 => new MockIndividualData(
+                Name: name, Phone: phone, Gender: "Male", DateOfBirth: "1978-06-12",
+                TotalLoans: 6, ActiveLoans: 1, ClosedLoans: 5, PerformingLoans: 6,
+                DelinquentFacilities: 0, TotalBorrowed: 2413500, TotalOutstanding: 287000, TotalOverdue: 0,
+                HighestLoanAmount: 897000, MaxDelinquencyDays: 0,
+                Creditors: ["First Bank", "Zenith Bank"],
+                FraudRiskScore: 22, FraudRecommendation: "Low risk. Good repayment history."
+            ),
+            1 => new MockIndividualData(
+                Name: name, Phone: phone, Gender: "Male", DateOfBirth: "1983-09-25",
+                TotalLoans: 10, ActiveLoans: 2, ClosedLoans: 8, PerformingLoans: 9,
+                DelinquentFacilities: 1, TotalBorrowed: 7436000, TotalOutstanding: 1183000, TotalOverdue: 176500,
+                HighestLoanAmount: 2950000, MaxDelinquencyDays: 45,
+                Creditors: ["GTBank", "Access Bank", "UBA"],
+                FraudRiskScore: 48, FraudRecommendation: "Medium risk. Minor delinquency noted. Further review recommended."
+            ),
+            _ => new MockIndividualData(
+                Name: name, Phone: phone, Gender: "Male", DateOfBirth: "1979-03-08",
+                TotalLoans: 14, ActiveLoans: 3, ClosedLoans: 11, PerformingLoans: 10,
+                DelinquentFacilities: 4, TotalBorrowed: 17840000, TotalOutstanding: 8390000, TotalOverdue: 3175000,
+                HighestLoanAmount: 7850000, MaxDelinquencyDays: 120,
+                Creditors: ["Fidelity Bank", "FCMB", "Sterling Bank", "Wema Bank"],
+                FraudRiskScore: 71, FraudRecommendation: "Elevated risk. Multiple delinquencies. Careful assessment required."
+            )
+        };
+    }
+
+    private static MockBusinessData GenerateFallbackBusinessData(string rcNumber)
+    {
+        var seed = rcNumber.Sum(c => c);
+        var tier = seed % 2; // 0=good, 1=watch
+        var businessIndex = seed % FallbackBusinessNames.Length;
+
+        return tier == 0
+            ? new MockBusinessData(
+                Name: FallbackBusinessNames[businessIndex], Phone: "23418001234567",
+                DateOfRegistration: "2008-04-15", Address: "12 Broad Street, Lagos Island, Lagos",
+                BusinessType: "Limited Liability Company",
+                TotalLoans: 15, ActiveLoans: 4, ClosedLoans: 11, PerformingLoans: 14,
+                DelinquentFacilities: 1, TotalBorrowed: 380000000, TotalOutstanding: 45000000, TotalOverdue: 2500000,
+                HighestLoanAmount: 80000000,
+                FraudRiskScore: 30, FraudRecommendation: "Low-medium risk. Established business with good track record."
+            )
+            : new MockBusinessData(
+                Name: FallbackBusinessNames[businessIndex], Phone: "23418009876543",
+                DateOfRegistration: "2015-11-20", Address: "Suite 4, Commerce House, Kano",
+                BusinessType: "Limited Liability Company",
+                TotalLoans: 7, ActiveLoans: 3, ClosedLoans: 4, PerformingLoans: 4,
+                DelinquentFacilities: 3, TotalBorrowed: 95000000, TotalOutstanding: 62000000, TotalOverdue: 28000000,
+                HighestLoanAmount: 35000000,
+                FraudRiskScore: 58, FraudRecommendation: "Medium risk. Significant overdue exposure. Recommend collateral review."
+            );
+    }
+
+    private static readonly string[] FallbackMaleNames =
+    [
+        "ADEWALE OGUNDIMU", "EMEKA NWOSU", "IBRAHIM USMAN", "KELECHI EZE", "SUNDAY OKAFOR",
+        "CHUKWUEMEKA ADEOLA", "BABATUNDE LAWAL", "MUSA ABDULLAHI", "OKECHUKWU NWANKWO", "FESTUS OGUNDELE",
+        "HENRY OZOEMENA", "TUNDE ADESANYA", "YUSUF MOHAMMED", "NNAMDI OKONKWO", "ROTIMI AFOLABI"
+    ];
+
+    private static readonly string[] FallbackBusinessNames =
+    [
+        "GREENFIELD LOGISTICS LIMITED", "APEX TRADING COMPANY LIMITED", "HERITAGE RESOURCES NIGERIA LIMITED",
+        "PIONEER AGRO INDUSTRIES LIMITED", "GOLDEN EAGLE ENTERPRISES LIMITED", "MERIDIAN PROPERTIES LIMITED",
+        "NEXGEN TECHNOLOGY SOLUTIONS LIMITED", "ATLANTIC IMPORTS AND EXPORTS LIMITED",
+        "CONTINENTAL MANUFACTURING LIMITED", "SILVERLINE HOLDINGS LIMITED"
+    ];
 
     private static int CalculateCreditScore(MockIndividualData data)
     {

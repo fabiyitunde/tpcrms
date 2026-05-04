@@ -81,7 +81,6 @@ public class GetBureauReportsByLoanApplicationHandler : IRequestHandler<GetBurea
     {
         var reports = await _repository.GetByLoanApplicationIdAsync(request.LoanApplicationId, ct);
 
-        // When a ConsentRequired check is retried, a new report is created alongside the old one.
         // Show only the latest report per BVN (or per business subject) so duplicates don't appear.
         var deduped = reports
             .GroupBy(r => r.BVN ?? $"business:{r.SubjectType}")
@@ -96,8 +95,12 @@ public class GetBureauReportsByLoanApplicationHandler : IRequestHandler<GetBurea
             r.Status.ToString(),
             r.CreditScore,
             r.ScoreGrade,
+            r.TotalAccounts,
             r.ActiveLoans,
+            r.PerformingAccounts,
+            r.ClosedAccounts,
             r.TotalOutstandingBalance,
+            r.TotalCreditLimit,
             r.TotalOverdue,
             r.MaxDelinquencyDays,
             r.HasLegalActions,

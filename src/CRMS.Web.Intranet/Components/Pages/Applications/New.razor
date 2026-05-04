@@ -44,10 +44,10 @@
                 <div class="form-group">
                     <label class="form-label">Corporate Account Number *</label>
                     <div style="display: flex; gap: var(--space-3);">
-                        <input type="text" class="form-control" style="flex: 1;" 
-                               @bind="accountNumber" placeholder="Enter account number" 
-                               disabled="@isLoadingCustomer" />
-                        <button class="btn btn-primary" @onclick="FetchCustomer" disabled="@(isLoadingCustomer || string.IsNullOrWhiteSpace(accountNumber))">
+                        <input type="text" class="form-control" style="flex: 1;"
+                               @bind="accountNumber" @bind:event="oninput" placeholder="Enter 10-digit account number"
+                               disabled="@isLoadingCustomer" maxlength="10" />
+                        <button class="btn btn-primary" @onclick="FetchCustomer" disabled="@(isLoadingCustomer || accountNumber.Trim().Length != 10)">
                             @if (isLoadingCustomer)
                             {
                                 <span class="spinner"></span>
@@ -83,7 +83,7 @@
                         <label class="form-label">RC Number *</label>
                         <div style="display: flex; gap: var(--space-3);">
                             <input type="text" class="form-control" style="flex: 1;"
-                                   @bind="rcNumberOverride" placeholder="e.g. RC654321"
+                                   @bind="rcNumberOverride" @bind:event="oninput" placeholder="e.g. RC654321"
                                    disabled="@isLoadingCac" />
                             <button class="btn btn-secondary" @onclick="LookupCacDirectors"
                                     disabled="@(isLoadingCac || string.IsNullOrWhiteSpace(rcNumberOverride))">
@@ -112,7 +112,11 @@
                             <div style="font-weight: 600;">@cacLookup.CompanyName</div>
                             <div style="font-size: var(--text-sm); color: var(--gray-600);">
                                 RC: @cacLookup.RcNumber &nbsp;|&nbsp;
-                                Status: <span class="@(cacLookup.Status?.ToUpper() == "ACTIVE" ? "badge badge-success" : "badge badge-warning")">@cacLookup.Status</span>
+                                @{
+                                    var cacStatus = string.IsNullOrWhiteSpace(cacLookup.Status) ? "Unknown" : cacLookup.Status;
+                                    var cacStatusClass = cacStatus.ToUpper() == "ACTIVE" ? "badge badge-success" : (cacStatus == "Unknown" ? "badge badge-gray" : "badge badge-warning");
+                                }
+                                Status: <span class="@cacStatusClass">@cacStatus</span>
                                 @if (!string.IsNullOrEmpty(cacLookup.RegistrationDate))
                                 {
                                     <span>&nbsp;|&nbsp; Registered: @cacLookup.RegistrationDate</span>
@@ -126,6 +130,12 @@
                                 Directors from CAC
                                 <span class="badge badge-primary" style="margin-left: var(--space-2);">@cacLookup.Directors.Count</span>
                             </h4>
+                            @if (!cacLookup.Directors.Any())
+                            {
+                                <div class="alert alert-warning" style="font-size: var(--text-sm);">
+                                    No director records were returned by SmartComply for this company. You can proceed and enter directors manually, or verify the RC number and try again.
+                                </div>
+                            }
                             @foreach (var dir in cacLookup.Directors)
                             {
                                 <div class="party-bvn-card">
@@ -727,7 +737,9 @@
         cacLookup = null;
         StateHasChanged();
 
-        var result = await AppService.FetchCacDirectorsAsync(rcNumberOverride.Trim());
+        var companyName = customer?.CompanyName ?? string.Empty;
+        var companyType = DeriveCompanyType(rcNumberOverride.Trim());
+        var result = await AppService.FetchCacDirectorsAsync(rcNumberOverride.Trim(), companyName, companyType);
         if (result.Success && result.Data != null)
         {
             cacLookup = result.Data;
@@ -840,5 +852,14 @@
             isSubmitting = false;
             StateHasChanged();
         }
+    }
+
+    // Derive SmartComply company_type from the RC number prefix
+    private static string DeriveCompanyType(string rcNumber)
+    {
+        var upper = rcNumber.ToUpperInvariant();
+        if (upper.StartsWith("BN")) return "BN";
+        if (upper.StartsWith("IT")) return "IT";
+        return "RC";
     }
 }

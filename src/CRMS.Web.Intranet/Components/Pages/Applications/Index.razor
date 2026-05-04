@@ -31,19 +31,32 @@
                 <label class="form-label">Status</label>
                 <select class="form-control" @bind="filter.Status">
                     <option value="">All Statuses</option>
-                    <option value="Draft">Draft</option>
-                    <option value="Submitted">Submitted</option>
-                    <option value="BranchReview">Branch Review</option>
-                    <option value="CreditAnalysis">Credit Analysis</option>
-                    <option value="HOReview">HO Review</option>
-                    <option value="CommitteeCirculation">Committee</option>
-                    <option value="CommitteeApproved">Committee Approved</option>
-                    <option value="FinalApproval">Final Approval</option>
-                    <option value="Approved">Approved</option>
-                    <option value="OfferGenerated">Offer Issued</option>
-                    <option value="OfferAccepted">Offer Accepted</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="Disbursed">Disbursed</option>
+                    <optgroup label="── Active ──────────────">
+                        <option value="Draft">Draft</option>
+                        <option value="BranchReview">Branch Review</option>
+                        <option value="CreditAnalysis">Credit Analysis</option>
+                        <option value="HOReview">HO Review</option>
+                        <option value="LegalReview">Legal Review</option>
+                        <option value="LegalApproval">Legal Approval</option>
+                        <option value="CommitteeCirculation">Committee Circulation</option>
+                        <option value="CommitteeApproved">Committee Approved</option>
+                        <option value="FinalApproval">Final Approval</option>
+                        <option value="Approved">Approved</option>
+                        <option value="OfferGenerated">Offer Generated</option>
+                        <option value="OfferAccepted">Offer Accepted</option>
+                        <option value="SecurityPerfection">Security Perfection</option>
+                        <option value="SecurityApproval">Security Approval</option>
+                        <option value="DisbursementPending">Disbursement Pending</option>
+                        <option value="DisbursementBranchApproval">Disbursement — Branch Auth</option>
+                        <option value="DisbursementHQApproval">Disbursement — HQ Auth</option>
+                        <option value="Disbursed">Disbursed</option>
+                    </optgroup>
+                    <optgroup label="── Terminal ────────────">
+                        <option value="Rejected">Rejected</option>
+                        <option value="CommitteeRejected">Committee Rejected</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="Closed">Closed</option>
+                    </optgroup>
                 </select>
             </div>
             <div style="width: 160px;">
@@ -220,8 +233,11 @@
             "BranchApprover" => "BranchReview",
             "CreditOfficer"  => "CreditAnalysis",
             "HOReviewer"     => "HOReview",
+            "LegalOfficer"   => "LegalReview",
+            "HeadOfLegal"    => "LegalApproval",
             "FinalApprover"  => "FinalApproval",
-            "Operations"     => "OfferAccepted",
+            "Operations"     => "DisbursementPending",
+            "GMFinance"      => "DisbursementHQApproval",
             _                => null
         };
 
@@ -325,22 +341,24 @@
     private static string GetStatusBadgeClass(string status) => status switch
     {
         "Draft" => "badge-gray",
-        "Submitted" or "DataGathering" => "badge-primary",
         "BranchReview" or "HOReview" or "CreditAnalysis" => "badge-warning",
-        "CommitteeCirculation" => "badge-primary",
-        "BranchApproved" or "CommitteeApproved" or "Approved" => "badge-success",
+        "LegalReview" or "LegalApproval" => "badge-info",
+        "CommitteeCirculation" or "FinalApproval" => "badge-primary",
+        "CommitteeApproved" or "Approved" or "Disbursed" => "badge-success",
         "OfferGenerated" or "OfferAccepted" => "badge-primary",
-        "BranchRejected" or "CommitteeRejected" or "Rejected" => "badge-danger",
-        "Disbursed" => "badge-success",
+        "SecurityPerfection" or "SecurityApproval" => "badge-warning",
+        "DisbursementPending" or "DisbursementBranchApproval" or "DisbursementHQApproval" => "badge-primary",
+        "Rejected" or "CommitteeRejected" or "Cancelled" => "badge-danger",
+        "Closed" => "badge-gray",
         _ => "badge-gray"
     };
 
     private static string GetStatusDotClass(string status) => status switch
     {
-        "Draft" => "gray",
-        "Approved" or "Disbursed" or "BranchApproved" or "CommitteeApproved" => "success",
+        "Draft" or "Closed" or "Cancelled" => "gray",
+        "Approved" or "Disbursed" or "CommitteeApproved" => "success",
         "OfferGenerated" or "OfferAccepted" => "info",
-        "Rejected" or "BranchRejected" or "CommitteeRejected" => "danger",
+        "Rejected" or "CommitteeRejected" => "danger",
         _ => "info"
     };
 

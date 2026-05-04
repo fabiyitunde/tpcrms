@@ -255,7 +255,7 @@ else
             }
             else if (activeModal == "ratify-waiver")
             {
-                <p style="font-size: var(--text-sm); color: var(--gray-600);">Waiver proposed by: @activeItem.WaiverProposedByUserId</p>
+                <p style="font-size: var(--text-sm); color: var(--gray-600);">Waiver proposed by: <strong>@(activeItem.WaiverProposedByUserName ?? "Loan Officer")</strong>@(activeItem.WaiverProposedAt.HasValue ? $" on {activeItem.WaiverProposedAt.Value.ToLocalTime():dd MMM yyyy}" : "")</p>
                 @if (!string.IsNullOrWhiteSpace(activeItem.WaiverReason))
                 {
                     <div style="padding: var(--space-3); background: var(--gray-50); border-radius: var(--radius-md); font-size: var(--text-sm); margin-bottom: var(--space-4);">
@@ -337,12 +337,41 @@ else
     </div>
 }
 
+@if (showEvidenceViewer)
+{
+    <div class="modal-backdrop show" @onclick="CloseEvidenceViewer">
+        <div class="modal" style="max-width: 900px; height: 92vh;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Evidence — @evidenceViewerTitle</h3>
+                <button class="modal-close" @onclick="CloseEvidenceViewer">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 0; flex: 1; overflow: hidden;">
+                <iframe src="/api/documents/@evidenceViewerDocumentId/view" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" @onclick="() => DownloadEvidenceAsync(evidenceViewerDocumentId!.Value)">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                    Download
+                </button>
+                <button class="btn btn-secondary" @onclick="CloseEvidenceViewer">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid ApplicationId { get; set; }
     [Parameter] public string ApplicationStatus { get; set; } = string.Empty;
 
     private DisbursementChecklistModel? checklist;
     private bool isLoading = true;
+
+    // Evidence viewer state
+    private bool showEvidenceViewer;
+    private Guid? evidenceViewerDocumentId;
+    private string evidenceViewerTitle = string.Empty;
 
     // Modal state
     private string? activeModal;
@@ -358,6 +387,25 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadChecklist();
+    }
+
+    private void OpenEvidenceViewer(Guid documentId, string itemName)
+    {
+        evidenceViewerDocumentId = documentId;
+        evidenceViewerTitle = itemName;
+        showEvidenceViewer = true;
+    }
+
+    private void CloseEvidenceViewer()
+    {
+        showEvidenceViewer = false;
+        evidenceViewerDocumentId = null;
+        evidenceViewerTitle = string.Empty;
+    }
+
+    private async Task DownloadEvidenceAsync(Guid documentId)
+    {
+        await JS.InvokeVoidAsync("open", $"/api/documents/{documentId}/download", "_blank");
     }
 
     private async Task LoadChecklist()
@@ -467,6 +515,21 @@ else
             builder.AddAttribute(15, "class", "btn btn-secondary btn-sm");
             builder.AddAttribute(16, "onclick", EventCallback.Factory.Create(this, () => OpenModal("propose-waiver", item)));
             builder.AddContent(17, "Waiver");
+            builder.CloseElement();
+        }
+
+        // View evidence document (any role, whenever a document exists)
+        if (item.EvidenceDocumentId.HasValue)
+        {
+            builder.OpenElement(30, "button");
+            builder.AddAttribute(31, "class", "btn btn-ghost btn-sm");
+            builder.AddAttribute(32, "title", "View evidence document");
+            builder.AddAttribute(33, "onclick", EventCallback.Factory.Create(this, () => OpenEvidenceViewer(item.EvidenceDocumentId.Value, item.ItemName)));
+            builder.OpenElement(34, "span");
+            builder.AddAttribute(35, "class", "material-symbols-outlined");
+            builder.AddAttribute(36, "style", "font-size: 16px;");
+            builder.AddContent(37, "visibility");
+            builder.CloseElement();
             builder.CloseElement();
         }
 

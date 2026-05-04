@@ -49,6 +49,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<LA.LoanApplicationComment> LoanApplicationComments => Set<LA.LoanApplicationComment>();
     public DbSet<LA.LoanApplicationStatusHistory> LoanApplicationStatusHistory => Set<LA.LoanApplicationStatusHistory>();
     public DbSet<LA.DisbursementChecklistItem> DisbursementChecklistItems => Set<LA.DisbursementChecklistItem>();
+    public DbSet<LA.ApprovalOverrideRecord> ApprovalOverrideRecords => Set<LA.ApprovalOverrideRecord>();
 
     // StatementAnalysis
     public DbSet<SA.BankStatement> BankStatements => Set<SA.BankStatement>();
@@ -63,6 +64,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<CL.Collateral> Collaterals => Set<CL.Collateral>();
     public DbSet<CL.CollateralValuation> CollateralValuations => Set<CL.CollateralValuation>();
     public DbSet<CL.CollateralDocument> CollateralDocuments => Set<CL.CollateralDocument>();
+    public DbSet<CL.CollateralTypeConfig> CollateralTypeConfigs => Set<CL.CollateralTypeConfig>();
 
     // Guarantor
     public DbSet<GR.Guarantor> Guarantors => Set<GR.Guarantor>();

@@ -29,7 +29,16 @@ public class SmartComplyProvider : ISmartComplyProvider
         
         _jsonOptions = new JsonSerializerOptions
         {
-            PropertyNameCaseInsensitive = true
+            PropertyNameCaseInsensitive = true,
+            Converters =
+            {
+                new FlexibleDecimalConverter(),
+                new FlexibleNullableDecimalConverter(),
+                new FlexibleIntConverter(),
+                new FlexibleDateTimeConverter(),
+                new FlexibleNullableDateTimeConverter(),
+                new FlexibleStringConverter()
+            }
         };
     }
 
@@ -101,18 +110,28 @@ public class SmartComplyProvider : ISmartComplyProvider
                 _logger.LogWarning("{ReportType} request failed: {StatusCode} - {Error}", 
                     reportType, response.StatusCode, errorContent);
                 
-                // Normalize 404 to include "not found" for consistent detection in handler
-                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                // Normalize to "not found" for consistent detection in the handler.
+                // SmartComply uses 404 for identity not found, but 400 for "No credit data available"
+                // — both mean the same thing: no bureau record exists for this person.
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound ||
+                    errorContent.Contains("No credit data available", StringComparison.OrdinalIgnoreCase))
                     return Result.Failure<SmartComplyIndividualCreditReport>("Subject not found in credit bureau");
-                
+
                 return Result.Failure<SmartComplyIndividualCreditReport>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<IndividualCreditReportData>>(_jsonOptions, ct);
-            
-            if (result == null || !result.Success || result.Data == null)
+
+            if (result == null || result.Data == null)
             {
                 return Result.Failure<SmartComplyIndividualCreditReport>(result?.Message ?? "No data returned");
+            }
+
+            // SmartComply sometimes omits the success boolean and uses status string instead
+            if (!result.IsSuccessful)
+            {
+                _logger.LogWarning("{ReportType} response has non-success status but data is present; status: {Status}, message: {Message}",
+                    reportType, result.Status, result.Message);
             }
 
             return Result.Success(MapToIndividualCreditReport(result.Data));
@@ -155,18 +174,59 @@ public class SmartComplyProvider : ISmartComplyProvider
                 return Result.Failure<SmartComplyCreditScore>(FormatApiError(response.StatusCode, errorContent));
             }
 
-            var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<CreditScoreOnlyData>>(_jsonOptions, ct);
-            
-            if (result == null || !result.Success || result.Data == null)
+            // Read raw body first so we can log it on failure and avoid losing the stream
+            var rawBody = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogDebug("{Provider} credit_scores_crc raw response: {Body}",
+                provider, rawBody.Length > 3000 ? rawBody[..3000] : rawBody);
+
+            SmartComplyResponse<CreditScoreOnlyData>? result;
+            try
             {
-                return Result.Failure<SmartComplyCreditScore>(result?.Message ?? "No data returned");
+                result = System.Text.Json.JsonSerializer.Deserialize<SmartComplyResponse<CreditScoreOnlyData>>(rawBody, _jsonOptions);
+            }
+            catch (JsonException jex)
+            {
+                _logger.LogError(jex, "{Provider} credit_scores_crc deserialization failed. Raw body: {Body}",
+                    provider, rawBody.Length > 3000 ? rawBody[..3000] : rawBody);
+                return Result.Failure<SmartComplyCreditScore>($"Score response parse error: {jex.Message}");
             }
 
+            if (result == null || result.Data?.Score == null)
+            {
+                _logger.LogWarning("{Provider} credit_scores_crc returned null data or null score. success={Success}, status={Status}, message={Message}",
+                    provider, result?.Success, result?.Status, result?.Message);
+                return Result.Failure<SmartComplyCreditScore>(result?.Message ?? "No score data returned");
+            }
+
+            var scoreDetail = result.Data.Score;
+
+            // credit_scores_crc returns score under data.score.ficoScore.score (int) and ficoScore.rating (string)
+            if (scoreDetail.FicoScore is { Score: > 0 } fico)
+            {
+                _logger.LogInformation("{Provider} FICO score found: {Score} ({Rating})", provider, fico.Score, fico.Rating);
+                return Result.Success(new SmartComplyCreditScore(
+                    fico.Score,
+                    fico.Rating ?? "UNKNOWN",
+                    provider,
+                    result.Data.SearchedDate ?? DateTime.UtcNow
+                ));
+            }
+
+            // Fall back to totalConsumerScore string (used by some other score endpoints)
+            var parsedScore = scoreDetail.ParsedScore;
+            _logger.LogInformation("{Provider} score — ficoScore={FicoPresent}, ficoScore.score={FicoScore}, totalConsumerScore={TotalConsumerScore}",
+                provider,
+                scoreDetail.FicoScore != null,
+                scoreDetail.FicoScore?.Score,
+                scoreDetail.TotalConsumerScore);
+
             return Result.Success(new SmartComplyCreditScore(
-                result.Data.Score,
-                result.Data.Grade,
-                result.Data.Provider ?? provider,
-                result.Data.GeneratedDate ?? DateTime.UtcNow
+                parsedScore ?? 0,
+                string.IsNullOrWhiteSpace(scoreDetail.Description) && parsedScore == null
+                    ? "NO SCORE"
+                    : scoreDetail.Description ?? "NO SCORE",
+                provider,
+                result.Data.SearchedDate ?? DateTime.UtcNow
             ));
         }
         catch (OperationCanceledException)
@@ -204,9 +264,15 @@ public class SmartComplyProvider : ISmartComplyProvider
     {
         try
         {
-            _logger.LogInformation("Requesting {ReportType} for RC {RcNumber}", reportType, rcNumber);
+            // SmartComply requires the "RC" prefix (e.g. "RC1275857"). Normalise silently so
+            // bare numeric strings stored in the DB still work.
+            var normalizedRc = rcNumber.StartsWith("RC", StringComparison.OrdinalIgnoreCase)
+                ? rcNumber
+                : "RC" + rcNumber;
 
-            var request = new { registration_number = rcNumber };
+            _logger.LogInformation("Requesting {ReportType} for RC {RcNumber}", reportType, normalizedRc);
+
+            var request = new { registration_number = normalizedRc };
             var response = await _httpClient.PostAsJsonAsync(endpoint, request, ct);
             
             if (!response.IsSuccessStatusCode)
@@ -215,16 +281,17 @@ public class SmartComplyProvider : ISmartComplyProvider
                 _logger.LogWarning("{ReportType} request failed: {StatusCode} - {Error}", 
                     reportType, response.StatusCode, errorContent);
                 
-                // Normalize 404 to include "not found" for consistent detection in handler
-                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                // Normalize to "not found" for consistent detection in the handler.
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound ||
+                    errorContent.Contains("No credit data available", StringComparison.OrdinalIgnoreCase))
                     return Result.Failure<SmartComplyBusinessCreditReport>("Business not found in credit bureau");
-                
+
                 return Result.Failure<SmartComplyBusinessCreditReport>(FormatApiError(response.StatusCode, errorContent));
             }
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<BusinessCreditReportData>>(_jsonOptions, ct);
             
-            if (result == null || !result.Success || result.Data == null)
+            if (result == null || result.Data == null)
             {
                 return Result.Failure<SmartComplyBusinessCreditReport>(result?.Message ?? "No data returned");
             }
@@ -295,7 +362,7 @@ public class SmartComplyProvider : ISmartComplyProvider
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<LoanFraudCheckData>>(_jsonOptions, ct);
             
-            if (result == null || !result.Success || result.Data == null)
+            if (result == null || result.Data == null)
             {
                 return Result.Failure<SmartComplyLoanFraudResult>(result?.Message ?? "No data returned");
             }
@@ -355,7 +422,7 @@ public class SmartComplyProvider : ISmartComplyProvider
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<LoanFraudCheckData>>(_jsonOptions, ct);
             
-            if (result == null || !result.Success || result.Data == null)
+            if (result == null || result.Data == null)
             {
                 return Result.Failure<SmartComplyLoanFraudResult>(result?.Message ?? "No data returned");
             }
@@ -394,7 +461,7 @@ public class SmartComplyProvider : ISmartComplyProvider
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<BvnVerificationData>>(_jsonOptions, ct);
             
-            if (result == null || !result.Success || result.Data == null)
+            if (result == null || result.Data == null)
             {
                 return Result.Failure<SmartComplyBvnResult>(result?.Message ?? "Verification failed");
             }
@@ -435,7 +502,7 @@ public class SmartComplyProvider : ISmartComplyProvider
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<BvnAdvancedData>>(_jsonOptions, ct);
             
-            if (result == null || !result.Success || result.Data == null)
+            if (result == null || result.Data == null)
             {
                 return Result.Failure<SmartComplyBvnAdvancedResult>(result?.Message ?? "Verification failed");
             }
@@ -479,7 +546,7 @@ public class SmartComplyProvider : ISmartComplyProvider
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<NinVerificationData>>(_jsonOptions, ct);
             
-            if (result == null || !result.Success || result.Data == null)
+            if (result == null || result.Data == null)
             {
                 return Result.Failure<SmartComplyNinResult>(result?.Message ?? "Verification failed");
             }
@@ -518,7 +585,7 @@ public class SmartComplyProvider : ISmartComplyProvider
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<TinVerificationData>>(_jsonOptions, ct);
             
-            if (result == null || !result.Success || result.Data == null)
+            if (result == null || result.Data == null)
             {
                 return Result.Failure<SmartComplyTinResult>(result?.Message ?? "Verification failed");
             }
@@ -557,7 +624,7 @@ public class SmartComplyProvider : ISmartComplyProvider
 
             var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<CacVerificationData>>(_jsonOptions, ct);
 
-            if (result == null || !result.Success || result.Data == null)
+            if (result == null || result.Data == null)
                 return Result.Failure<SmartComplyCacResult>(result?.Message ?? "Verification failed");
 
             var d = result.Data;
@@ -610,22 +677,26 @@ public class SmartComplyProvider : ISmartComplyProvider
         }
     }
 
-    public async Task<Result<SmartComplyCacResult>> VerifyCacAdvancedAsync(string rcNumber, CancellationToken ct = default)
+    public async Task<Result<SmartComplyCacResult>> VerifyCacAdvancedAsync(string rcNumber, string companyName, string companyType = "RC", CancellationToken ct = default)
     {
         try
         {
             _logger.LogInformation("Verifying CAC (advanced) for RC {RcNumber}", rcNumber);
 
-            var request = new CacVerificationRequest { RcNumber = rcNumber };
+            var request = new CacAdvancedVerificationRequest
+            {
+                RegistrationNumber = rcNumber,
+                CompanyName = companyName,
+                CompanyType = companyType
+            };
             var response = await _httpClient.PostAsJsonAsync(SmartComplyEndpoints.KycNigeria.CACAdvanced, request, ct);
 
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorContent = await response.Content.ReadAsStringAsync(ct);
-                return Result.Failure<SmartComplyCacResult>(FormatApiError(response.StatusCode, errorContent));
-            }
+            var rawJson = await response.Content.ReadAsStringAsync(ct);
 
-            var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<CacAdvancedData>>(_jsonOptions, ct);
+            if (!response.IsSuccessStatusCode)
+                return Result.Failure<SmartComplyCacResult>(FormatApiError(response.StatusCode, rawJson));
+
+            var result = System.Text.Json.JsonSerializer.Deserialize<SmartComplyResponse<CacAdvancedData>>(rawJson, _jsonOptions);
 
             if (result == null || result.Data == null)
                 return Result.Failure<SmartComplyCacResult>(result?.Message ?? "Verification failed");
@@ -647,6 +718,16 @@ public class SmartComplyProvider : ISmartComplyProvider
 
     private static SmartComplyCacResult MapCacAdvancedToResult(CacAdvancedData d)
     {
+        // The CAC Advanced `directors` array contains all affiliate types (DIRECTOR, SHAREHOLDER,
+        // PSC, PRESENTER, WITNESS, etc.) and duplicates the same person across multiple rows.
+        // Filter to active directors only — the only set we need for KYC on a loan application.
+        var directors = (d.Directors ?? [])
+            .Where(r =>
+                string.Equals(r.AffiliateTypeFk?.Name, "DIRECTOR", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(r.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase))
+            .Select(MapCacAdvancedDirector)
+            .ToList();
+
         return new SmartComplyCacResult(
             CompanyName: d.CompanyName,
             RcNumber: d.RcNumber,
@@ -660,7 +741,7 @@ public class SmartComplyProvider : ISmartComplyProvider
             NatureOfBusiness: null,
             ShareCapital: null,
             CompanyId: d.CompanyId,
-            Directors: d.Directors?.Select(MapCacAdvancedDirector).ToList() ?? []
+            Directors: directors
         );
     }
 

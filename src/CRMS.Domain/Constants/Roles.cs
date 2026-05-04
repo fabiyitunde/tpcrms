@@ -13,7 +13,9 @@ public static class Roles
     public const string CommitteeMember = "CommitteeMember";
     public const string FinalApprover = "FinalApprover";
     public const string Operations = "Operations";
+    public const string GMFinance = "GMFinance";
     public const string LegalOfficer = "LegalOfficer";
+    public const string HeadOfLegal = "HeadOfLegal";
     public const string Auditor = "Auditor";
     public const string Customer = "Customer";
 
@@ -28,7 +30,9 @@ public static class Roles
         CommitteeMember,
         FinalApprover,
         Operations,
+        GMFinance,
         LegalOfficer,
+        HeadOfLegal,
         Auditor,
         Customer
     ];
@@ -43,8 +47,10 @@ public static class Roles
         { HOReviewer, "Head office review for corporate loans" },
         { CommitteeMember, "Committee voting and comments for corporate loans" },
         { FinalApprover, "Final loan approval authority" },
-        { Operations, "Disbursement and booking operations" },
-        { LegalOfficer, "Ratifies legal and security documents for pre-disbursement checklist" },
+        { Operations, "Prepares disbursement memo and books loan in core banking" },
+        { GMFinance, "GM Finance / HQ Treasury — final funds-release authoriser" },
+        { LegalOfficer, "Prepares legal opinion and security documents" },
+        { HeadOfLegal, "Countersigns legal opinion before committee circulation" },
         { Auditor, "Read-only audit access" },
         { Customer, "Self-service retail loan applicant" }
     };
@@ -65,7 +71,9 @@ public static class Roles
         { CommitteeMember, VisibilityScope.Global },  // Committee can see all (for voting)
         { FinalApprover, VisibilityScope.Global },    // HO role - sees all
         { Operations, VisibilityScope.Global },       // HO role - sees all
+        { GMFinance, VisibilityScope.Global },        // HQ role - sees all
         { LegalOfficer, VisibilityScope.Global },     // HO role - sees all
+        { HeadOfLegal, VisibilityScope.Global },      // HO role - sees all
         { Auditor, VisibilityScope.Global },          // Read-only audit - sees all
         { Customer, VisibilityScope.Own }             // Customers see only their own applications
     };

@@ -230,4 +230,11 @@ public class LoanApplicationDocumentRepository : ILoanApplicationDocumentReposit
     {
         return await _context.Set<LA.LoanApplicationDocument>().FirstOrDefaultAsync(x => x.Id == id, ct);
     }
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    {
+        var doc = await _context.Set<LA.LoanApplicationDocument>().FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (doc != null)
+            _context.Set<LA.LoanApplicationDocument>().Remove(doc);
+    }
 }
