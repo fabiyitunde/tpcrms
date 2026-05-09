@@ -98,6 +98,8 @@ public class LoanApplicationDetail
     public DateTime? LastUpdatedAt { get; set; }
 
     public string CreatedBy { get; set; } = string.Empty;
+
+    public string? DisbursementMemoStoragePath { get; set; }
 }
 
 public class CustomerInfo
@@ -764,6 +766,7 @@ public class ChecklistItemModel
     public Guid? SatisfiedByUserId { get; set; }
     public DateTime? SatisfiedAt { get; set; }
     public Guid? EvidenceDocumentId { get; set; }
+    public string? SatisfactionNotes { get; set; }
 
     // Legal
     public Guid? LegalRatifiedByUserId { get; set; }

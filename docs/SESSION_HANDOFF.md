@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-05-04 (Session 55)
+**Last Updated:** 2026-05-06 (Session 57)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -174,6 +174,11 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **4 missing handler DI registrations added: `ApproveCreditAnalysisHandler`, `ReturnFromCreditAnalysisHandler`, `ReturnFromHOReviewHandler`, `FinalApproveHandler`** | ✅ |
 | **HOReview → CommitteeCirculation domain desync fixed — `MoveToCommitteeHandler` registered; `ApproveApplicationAsync` now calls it so `LoanApplication.Status` stays in sync with `WorkflowInstance.CurrentStatus`** | ✅ |
 | **Disbursement Checklist (post-approval pre-disbursement) — admin-configurable CP/CS items, full state machine, role-based actions, Disbursement Memo PDF, CS background monitoring** | ✅ |
+| **Disbursement Memo card in Disbursement Checklist tab — system-generated PDF download + countersigned copy upload (Operations/BranchApprover/SystemAdmin) + audit gap warning when disbursed without signed copy** | ✅ |
+| **Return from DisbursementPending → SecurityPerfection (Operations role) — for security perfection issues blocking disbursement** | ✅ |
+| **DisbursementBranchApproval stage removed — flow is now DisbursementPending (Operations) → DisbursementHQApproval (GMFinance) → Disbursed** | ✅ |
+| **Workflow transition DB fix — DisbursementPending→DisbursementHQApproval (Approve) + DisbursementPending→SecurityPerfection (Return) inserted; old branch transition deleted** | ✅ |
+| **Domain-workflow desync repair — seeder SQL corrects any apps stuck at DisbursementBranchApproval on next startup (advance to HQ or reset to Pending depending on workflow state)** | ✅ |
 | **LoanPack PDF — Section 12 "Conditions of Approval" from committee decision appended when present** | ✅ |
 | **Stale-state fix — `StateHasChanged()` added to `LoadApplication()` in Detail.razor; covers all 20+ action handlers** | ✅ |
 | **Document viewer modal height increased to 92vh; body uses `flex: 1; min-height: 0` to fill space** | ✅ |
@@ -234,7 +239,8 @@ return result.IsSuccess
 - **Guarantor:** `"Proposed"` → `"PendingVerification"` → `"CreditCheckPending"` → `"CreditCheckCompleted"` → `"Approved"` / `"Rejected"`
 - **Document:** domain stores `"Uploaded"` → displayed as `"Pending"` in UI via `FormatStatus()` in `DocumentsTab.razor`
 - **Application (full lifecycle — defined in `AppStatus.cs` and `LoanApplicationStatus` enum):**
-  `"Draft"` → `"BranchReview"` → `"HOReview"` → `"CreditAnalysis"` → `"HOReview"` → `"LegalReview"` → `"LegalApproval"` → `"CommitteeCirculation"` → `"CommitteeApproved"` → `"FinalApproval"` → `"Approved"` → `"OfferGenerated"` → `"OfferAccepted"` → `"SecurityPerfection"` → `"SecurityApproval"` → `"DisbursementPending"` → `"DisbursementBranchApproval"` → `"DisbursementHQApproval"` → `"Disbursed"` / `"Rejected"` / `"Cancelled"` / `"Closed"`
+  `"Draft"` → `"BranchReview"` → `"HOReview"` → `"CreditAnalysis"` → `"HOReview"` → `"LegalReview"` → `"LegalApproval"` → `"CommitteeCirculation"` → `"CommitteeApproved"` → `"FinalApproval"` → `"Approved"` → `"OfferGenerated"` → `"OfferAccepted"` → `"SecurityPerfection"` → `"SecurityApproval"` → `"DisbursementPending"` → `"DisbursementHQApproval"` → `"Disbursed"` / `"Rejected"` / `"Cancelled"` / `"Closed"`
+  - `DisbursementBranchApproval` **removed** — Operations now approves directly to DisbursementHQApproval
   - Forward path: `CreditAnalysis` → `HOReview` → `LegalReview` → `LegalApproval` → `CommitteeCirculation`
   - `LegalOfficer` at LegalReview: Submit Opinion (Approve) → LegalApproval; Return → HOReview
   - `HeadOfLegal` at LegalApproval: Approve → CommitteeCirculation; Return → LegalReview
@@ -334,24 +340,70 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-05-04 Session 55)
+## 5. Last Session Summary (2026-05-06 Session 57)
 
-### Completed — AI Advisory Score Breakdown / Red Flags Persistence Fix
+### Completed — Remove DisbursementBranchApproval Stage
 
-**Root cause:** `RiskScores`, `RedFlags`, `Conditions`, `Covenants` on `CreditAdvisory` are backed by private `readonly` `List<T>` fields. EF was configured with `builder.Ignore()` for all four — they were never written to or read from the DB. After generation, `ApplicationService.GenerateAdvisoryAsync` discarded the in-memory DTO and reloaded from DB, at which point all four collections were empty.
+**Context:** Operations was still being routed through a Branch Approver step (`DisbursementBranchApproval`) before reaching GM Finance. This extra hop was redundant in practice, so it was removed.
 
-**Fix — JSON snapshot columns:**
-- **Domain** (`CreditAdvisory.cs`): Added `RiskScoresJson`, `RedFlagsJson`, `ConditionsJson`, `CovenantsJson` (`string?`) properties + `SetPersistedData(...)` method
-- **Command** (`GenerateCreditAdvisoryCommand.cs`): After `advisory.Complete()` succeeds, serializes all four collections to JSON (anonymous object shape for risk scores) and calls `SetPersistedData()` before `AddAsync`/`SaveChangesAsync`
-- **EF Config** (`CreditAdvisoryConfiguration.cs`): Added 4 `builder.Property(...).HasColumnType("text")` mappings for the new columns
-- **Mapper** (`GetCreditAdvisoryQueries.cs` → `CreditAdvisoryMapper.ToDto`): Falls back to JSON deserialization when in-memory collections are empty (i.e. loaded from DB); uses `PersistedRiskScore` internal record; recalculates `hasCriticalRedFlags` from resolved lists
-- **Migration** (`20260504074944_AddCreditAdvisoryJsonColumns.cs`): Applied — adds 4 `text` columns to `CreditAdvisories` table
+**New flow:** `DisbursementPending` (Operations) → `DisbursementHQApproval` (GMFinance) → `Disbursed`
 
-**Existing advisory records** (generated before this fix) will still show empty scores — only newly generated advisories will have data. Re-run "Generate AI Advisory" for any affected application.
+**Files changed (5 files, 13 touch-points):**
+- **`ApplicationService.cs`**: Approve path `"DisbursementPending" → DisbursementHQApproval`; removed `ApproveDisbursementBranch` handler block; Return path removed `DisbursementBranchApproval` entry and handler block
+- **`Detail.razor`**: Removed `DisbursementBranchApproval` from `ShowApproveButton`, `ShowReturnButton`, `CanUploadSignedMemo`, checklist tab visibility, `CanGenerateOfferLetter`, offer-letters fetch condition
+- **`Index.razor`**: Removed from filter dropdown and badge color mappings
+- **`OfferAcceptanceTab.razor`**: Removed from `ShowMemoCard` status check
+- **`ComprehensiveDataSeeder.cs`**: Initial transitions list updated; old upgrade block also updated
+
+Build: 0 errors.
 
 ---
 
-### Previous Session Summary (2026-05-04 Session 54)
+### Completed — Workflow Transition DB Fix (DisbursementPending → DisbursementHQApproval)
+
+**Problem:** After the stage removal, Operations got "Transition from DisbursementPending to DisbursementHQApproval via Approve is not allowed". The DB still held the old `DisbursementPending → DisbursementBranchApproval` transition row and the new `DisbursementPending → DisbursementHQApproval` row had never been inserted.
+
+**Root cause — two layers:**
+1. `LoanApplication.PrepareDisbursementMemo()` domain method still targeted `DisbursementBranchApproval`
+2. Workflow DB had no `DisbursementPending → DisbursementHQApproval` transition row
+
+**Fixes:**
+- **`LoanApplication.cs`**: `PrepareDisbursementMemo()` now sets `Status = DisbursementHQApproval`
+- **`ComprehensiveDataSeeder.cs`**: New upgrade block (idempotent):
+  - `DELETE FROM WorkflowTransitions WHERE FromStatus='DisbursementPending' AND ToStatus='DisbursementBranchApproval'`
+  - `INSERT` (if missing) `DisbursementPending → DisbursementHQApproval` (Approve, Operations)
+  - `INSERT` (if missing) `DisbursementPending → SecurityPerfection` (Return, Operations)
+
+Build: 0 errors.
+
+---
+
+### Completed — Data Repair for Stuck Applications
+
+**Problem:** After the first (failed) approve attempt, `PrepareDisbursementMemo()` had already persisted `DisbursementBranchApproval` on the domain entity, but the workflow transition failed so the workflow instance stayed at `DisbursementPending`. Result: the application was invisible — Operations sees `DisbursementPending` domain status, GMFinance sees `DisbursementHQApproval` domain status; neither matched `DisbursementBranchApproval`.
+
+**Pattern:** Domain command writes persist even when the subsequent workflow transition fails (no shared transaction). Any mismatch leaves apps invisible to all queues.
+
+**Fix — three idempotent SQL statements in seeder (run on every startup):**
+1. `UPDATE WorkflowInstances SET CurrentStatus = 'DisbursementHQApproval' WHERE CurrentStatus = 'DisbursementBranchApproval'` — advances seeded test apps
+2. Domain sync for case A (seeded): `WHERE la.Status='DisbursementBranchApproval' AND wi.CurrentStatus='DisbursementHQApproval'` → set domain to `DisbursementHQApproval`
+3. Domain sync for case B (stuck from failed attempt): `WHERE la.Status='DisbursementBranchApproval' AND wi.CurrentStatus='DisbursementPending'` → reset domain to `DisbursementPending`
+
+**Files changed:**
+- `src/CRMS.Infrastructure/Persistence/ComprehensiveDataSeeder.cs`
+
+Build: 0 errors.
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v6.7
+- [x] `docs/ImplementationTracker.md` → v7.9
+
+---
+
+### Previous Session Summary (2026-05-04 Session 55)
 
 ### Completed — LegalReview/LegalApproval Fully Wired + Return from LegalReview + Legal Gate
 
@@ -374,13 +426,6 @@ The approval gate was entirely absent for Legal stages. Added:
 - **`appsettings.json`**: `"LegalReview": { "StrictApprovalGate": true }` — hard block if any collateral is uncleared
 - **`CheckApprovalGateQuery.cs`**: `checkLegalClearance = request.Stage is "LegalReview"` — fetches collaterals via `_collateralRepo`, adds a `"Pending"` gate item for every non-rejected collateral where `IsLegalCleared == false`
 - `HeadOfLegal` at `LegalApproval` has no gate (nothing new to check at countersignature stage)
-
----
-
-### Docs Updated This Session
-- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
-- [ ] `docs/UIGaps.md` → v6.4 (no UI changes this session)
-- [ ] `docs/ImplementationTracker.md` → v7.6 (no new modules this session)
 
 ---
 

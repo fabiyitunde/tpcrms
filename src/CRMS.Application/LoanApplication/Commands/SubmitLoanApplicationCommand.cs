@@ -624,6 +624,36 @@ public class ApproveSecurityPerfectionHandler : IRequestHandler<ApproveSecurityP
     }
 }
 
+public record ReturnFromSecurityPerfectionCommand(Guid ApplicationId, Guid UserId, string Reason) : IRequest<ApplicationResult>;
+
+public class ReturnFromSecurityPerfectionHandler : IRequestHandler<ReturnFromSecurityPerfectionCommand, ApplicationResult>
+{
+    private readonly ILoanApplicationRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ReturnFromSecurityPerfectionHandler(ILoanApplicationRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult> Handle(ReturnFromSecurityPerfectionCommand request, CancellationToken ct = default)
+    {
+        var application = await _repository.GetByIdAsync(request.ApplicationId, ct);
+        if (application == null)
+            return ApplicationResult.Failure("Loan application not found");
+
+        var result = application.ReturnFromSecurityPerfection(request.UserId, request.Reason);
+        if (result.IsFailure)
+            return ApplicationResult.Failure(result.Error);
+
+        _repository.Update(application);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return ApplicationResult.Success();
+    }
+}
+
 public record ReturnFromSecurityApprovalCommand(Guid ApplicationId, Guid UserId, string Reason) : IRequest<ApplicationResult>;
 
 public class ReturnFromSecurityApprovalHandler : IRequestHandler<ReturnFromSecurityApprovalCommand, ApplicationResult>
@@ -734,6 +764,36 @@ public class ReturnFromDisbursementBranchHandler : IRequestHandler<ReturnFromDis
             return ApplicationResult.Failure("Loan application not found");
 
         var result = application.ReturnFromDisbursementBranch(request.UserId, request.Reason);
+        if (result.IsFailure)
+            return ApplicationResult.Failure(result.Error);
+
+        _repository.Update(application);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return ApplicationResult.Success();
+    }
+}
+
+public record ReturnFromDisbursementPendingCommand(Guid ApplicationId, Guid UserId, string Reason) : IRequest<ApplicationResult>;
+
+public class ReturnFromDisbursementPendingHandler : IRequestHandler<ReturnFromDisbursementPendingCommand, ApplicationResult>
+{
+    private readonly ILoanApplicationRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ReturnFromDisbursementPendingHandler(ILoanApplicationRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult> Handle(ReturnFromDisbursementPendingCommand request, CancellationToken ct = default)
+    {
+        var application = await _repository.GetByIdAsync(request.ApplicationId, ct);
+        if (application == null)
+            return ApplicationResult.Failure("Loan application not found");
+
+        var result = application.ReturnFromDisbursementPending(request.UserId, request.Reason);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

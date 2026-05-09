@@ -341,10 +341,12 @@ public static class DependencyInjection
         services.AddScoped<Application.LoanApplication.Commands.MoveToSecurityPerfectionHandler>();
         services.AddScoped<Application.LoanApplication.Commands.SubmitSecurityDocumentsHandler>();
         services.AddScoped<Application.LoanApplication.Commands.ApproveSecurityPerfectionHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromSecurityPerfectionHandler>();
         services.AddScoped<Application.LoanApplication.Commands.ReturnFromSecurityApprovalHandler>();
         services.AddScoped<Application.LoanApplication.Commands.PrepareDisbursementMemoHandler>();
         services.AddScoped<Application.LoanApplication.Commands.ApproveDisbursementBranchHandler>();
         services.AddScoped<Application.LoanApplication.Commands.ReturnFromDisbursementBranchHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromDisbursementPendingHandler>();
         services.AddScoped<Application.LoanApplication.Commands.ApproveDisbursementHQHandler>();
         services.AddScoped<Application.LoanApplication.Commands.FinalApproveHandler>();
         services.AddScoped<Application.LoanApplication.Commands.UploadDocumentHandler>();

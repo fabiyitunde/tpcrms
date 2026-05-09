@@ -391,9 +391,8 @@ public static class ComprehensiveDataSeeder
                 await InsertTransitionIfMissingAsync(context, wfId, "SecurityPerfection",        "SecurityApproval",          "Approve",         Roles.LegalOfficer,   now);
                 await InsertTransitionIfMissingAsync(context, wfId, "SecurityApproval",          "DisbursementPending",       "Approve",         Roles.HeadOfLegal,    now);
                 await InsertTransitionIfMissingAsync(context, wfId, "SecurityApproval",          "SecurityPerfection",        "Return",          Roles.HeadOfLegal,    now);
-                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending",       "DisbursementBranchApproval","Approve",         Roles.Operations,     now);
-                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementBranchApproval","DisbursementHQApproval",    "Approve",         Roles.BranchApprover, now);
-                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementBranchApproval","DisbursementPending",       "Return",          Roles.BranchApprover, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending",       "DisbursementHQApproval",    "Approve",         Roles.Operations,     now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending",       "SecurityPerfection",        "Return",          Roles.Operations,     now);
                 await InsertTransitionIfMissingAsync(context, wfId, "DisbursementHQApproval",    "Disbursed",                 "Complete",        Roles.GMFinance,      now);
 
                 logger.LogInformation("Security Perfection and Disbursement stages added successfully.");
@@ -412,6 +411,41 @@ public static class ComprehensiveDataSeeder
                     "WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'Approved' AND ToStatus = 'OfferGenerated' AND RequiredRole != 'LoanOfficer'",
                     existing.Id);
             }
+
+            // Correction: Remove DisbursementBranchApproval hop — Operations now approves directly to DisbursementHQApproval.
+            // Replace the old DisbursementPending→DisbursementBranchApproval transition with DisbursementPending→DisbursementHQApproval.
+            // Also ensure the Return path (DisbursementPending→SecurityPerfection) exists.
+            if (existing != null)
+            {
+                var wfId = existing.Id;
+                var now = DateTime.UtcNow;
+                await context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM WorkflowTransitions WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'DisbursementPending' AND ToStatus = 'DisbursementBranchApproval'",
+                    wfId);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending", "DisbursementHQApproval", "Approve", Roles.Operations, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending", "SecurityPerfection",     "Return",  Roles.Operations, now);
+            }
+
+            // Data repair: fix any applications stuck at DisbursementBranchApproval (the removed stage).
+            // Two cases:
+            //   A) Workflow AND domain both at DisbursementBranchApproval (seeded test data) → advance both to DisbursementHQApproval.
+            //   B) Domain at DisbursementBranchApproval but workflow still at DisbursementPending
+            //      (partial write from a failed approve attempt) → reset domain back to DisbursementPending.
+            // Step 1: advance workflow instances — idempotent, affects case A only.
+            await context.Database.ExecuteSqlRawAsync(
+                "UPDATE WorkflowInstances SET CurrentStatus = 'DisbursementHQApproval' WHERE CurrentStatus = 'DisbursementBranchApproval'");
+            // Step 2: sync domain status for case A (workflow now DisbursementHQApproval, domain still DisbursementBranchApproval).
+            await context.Database.ExecuteSqlRawAsync(
+                "UPDATE LoanApplications la " +
+                "JOIN WorkflowInstances wi ON wi.LoanApplicationId = la.Id " +
+                "SET la.Status = 'DisbursementHQApproval' " +
+                "WHERE la.Status = 'DisbursementBranchApproval' AND wi.CurrentStatus = 'DisbursementHQApproval'");
+            // Step 3: sync domain status for case B (workflow at DisbursementPending, domain at DisbursementBranchApproval).
+            await context.Database.ExecuteSqlRawAsync(
+                "UPDATE LoanApplications la " +
+                "JOIN WorkflowInstances wi ON wi.LoanApplicationId = la.Id " +
+                "SET la.Status = 'DisbursementPending' " +
+                "WHERE la.Status = 'DisbursementBranchApproval' AND wi.CurrentStatus = 'DisbursementPending'");
 
             // Reload from DB so the returned entity reflects all raw-SQL changes made above.
             // ChangeTracker.Clear() is required so EF doesn't serve the stale cached instance.
@@ -495,9 +529,8 @@ public static class ComprehensiveDataSeeder
             (LoanApplicationStatus.SecurityPerfection, LoanApplicationStatus.SecurityApproval, WorkflowAction.Approve, Roles.LegalOfficer),
             (LoanApplicationStatus.SecurityApproval, LoanApplicationStatus.DisbursementPending, WorkflowAction.Approve, Roles.HeadOfLegal),
             (LoanApplicationStatus.SecurityApproval, LoanApplicationStatus.SecurityPerfection, WorkflowAction.Return, Roles.HeadOfLegal),
-            (LoanApplicationStatus.DisbursementPending, LoanApplicationStatus.DisbursementBranchApproval, WorkflowAction.Approve, Roles.Operations),
-            (LoanApplicationStatus.DisbursementBranchApproval, LoanApplicationStatus.DisbursementHQApproval, WorkflowAction.Approve, Roles.BranchApprover),
-            (LoanApplicationStatus.DisbursementBranchApproval, LoanApplicationStatus.DisbursementPending, WorkflowAction.Return, Roles.BranchApprover),
+            (LoanApplicationStatus.DisbursementPending, LoanApplicationStatus.DisbursementHQApproval, WorkflowAction.Approve, Roles.Operations),
+            (LoanApplicationStatus.DisbursementPending, LoanApplicationStatus.SecurityPerfection, WorkflowAction.Return, Roles.Operations),
             (LoanApplicationStatus.DisbursementHQApproval, LoanApplicationStatus.Disbursed, WorkflowAction.Complete, Roles.GMFinance)
         };
 

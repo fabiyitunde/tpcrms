@@ -35,6 +35,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
     private readonly IWorkflowInstanceRepository _workflowRepository;
     private readonly ICommitteeReviewRepository _committeeRepository;
     private readonly ILoanPackRepository _loanPackRepository;
+    private readonly IUserRepository _userRepository;
     private readonly ILoanPackGenerator _pdfGenerator;
     private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _unitOfWork;
@@ -51,6 +52,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
         IWorkflowInstanceRepository workflowRepository,
         ICommitteeReviewRepository committeeRepository,
         ILoanPackRepository loanPackRepository,
+        IUserRepository userRepository,
         ILoanPackGenerator pdfGenerator,
         IFileStorageService fileStorage,
         IUnitOfWork unitOfWork)
@@ -66,6 +68,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
         _workflowRepository = workflowRepository;
         _committeeRepository = committeeRepository;
         _loanPackRepository = loanPackRepository;
+        _userRepository = userRepository;
         _pdfGenerator = pdfGenerator;
         _fileStorage = fileStorage;
         _unitOfWork = unitOfWork;
@@ -73,17 +76,15 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
 
     public async Task<ApplicationResult<LoanPackResultDto>> Handle(GenerateLoanPackCommand request, CancellationToken ct = default)
     {
-        // Load loan application
+        // Load loan application (includes Documents, Parties, Comments, StatusHistory)
         var loanApp = await _loanAppRepository.GetByIdAsync(request.LoanApplicationId, ct);
         if (loanApp == null)
             return ApplicationResult<LoanPackResultDto>.Failure("Loan application not found");
 
         // Use MAX version so Failed records don't cause duplicate version numbers
-        // (a unique index on (LoanApplicationId, Version) would otherwise be violated).
         var maxExistingVersion = await _loanPackRepository.GetMaxVersionAsync(request.LoanApplicationId, ct);
         var nextVersion = maxExistingVersion + 1;
 
-        // Create loan pack entity with the correct version number
         var loanPackResult = LP.LoanPack.Create(
             request.LoanApplicationId,
             loanApp.ApplicationNumber,
@@ -101,25 +102,19 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
 
         try
         {
-            // Gather all data for PDF generation
             var packData = await BuildLoanPackDataAsync(loanApp, nextVersion, request.GeneratedByUserName, ct);
 
-            // Generate PDF
             var pdfBytes = await _pdfGenerator.GenerateAsync(packData, ct);
 
-            // Generate file name and storage path
             var fileName = $"LoanPack_{loanApp.ApplicationNumber}_v{nextVersion}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
             var storagePath = $"loanpacks/{loanApp.ApplicationNumber}/{fileName}";
 
-            // Calculate content hash
             using var sha256 = System.Security.Cryptography.SHA256.Create();
             var hashBytes = sha256.ComputeHash(pdfBytes);
             var contentHash = Convert.ToBase64String(hashBytes);
 
-            // Update loan pack with document info
             loanPack.SetDocument(fileName, storagePath, pdfBytes.Length, contentHash);
 
-            // Set content summary using data already loaded in packData (no duplicate DB queries)
             loanPack.SetContentSummary(
                 packData.AIAdvisory?.RecommendedAmount,
                 packData.AIAdvisory?.OverallRiskScore,
@@ -137,10 +132,9 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 collateralDetails: packData.Collaterals.Any(),
                 guarantorDetails: packData.Guarantors.Any(),
                 aiAdvisory: packData.AIAdvisory != null,
-                workflowHistory: packData.WorkflowHistory.Any(),
+                workflowHistory: packData.ApprovalAuditTrail.Any(),
                 committeeComments: packData.CommitteeComments.Any());
 
-            // Save PDF bytes to file storage
             var actualStoragePath = await _fileStorage.UploadAsync(
                 containerName: "loanpacks",
                 fileName: $"{loanApp.ApplicationNumber}/{fileName}",
@@ -148,10 +142,8 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 contentType: "application/pdf",
                 ct: ct);
 
-            // Update storage path with actual path from storage service
             loanPack.SetDocument(fileName, actualStoragePath, pdfBytes.Length, contentHash);
 
-            // Save loan pack metadata
             await _loanPackRepository.AddAsync(loanPack, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
@@ -172,7 +164,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 await _loanPackRepository.AddAsync(loanPack, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
             }
-            catch { /* Best-effort audit record — ignore if it fails */ }
+            catch { /* Best-effort audit record */ }
 
             return ApplicationResult<LoanPackResultDto>.Failure($"Failed to generate loan pack: {ex.Message}");
         }
@@ -186,6 +178,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
     {
         // Load all related data sequentially — EF Core DbContext is not thread-safe.
         var loanAppWithParties  = await _loanAppRepository.GetByIdWithPartiesAsync(loanApp.Id, ct) ?? loanApp;
+        var appWithChecklist    = await _loanAppRepository.GetByIdWithChecklistAsync(loanApp.Id, ct);
         var product             = await _productRepository.GetByIdAsync(loanApp.LoanProductId, ct);
         var bureauReports       = await _bureauRepository.GetByLoanApplicationIdWithDetailsAsync(loanApp.Id, ct);
         var financialStatements = await _financialRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
@@ -198,28 +191,57 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
 
         var productName = product?.Name ?? loanApp.ProductCode;
 
-        // Build bureau lookup by PartyId for director/signatory cross-referencing
-        var bureauByPartyId = bureauReports
-            .Where(b => b.PartyId.HasValue && b.Status == Domain.Enums.BureauReportStatus.Completed)
-            .GroupBy(b => b.PartyId!.Value)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(b => b.CompletedAt).First());
-
-        // Customer profile
+        // ── Customer profile ────────────────────────────────────────────────────
         var customerProfile = new CustomerProfileData(
             loanAppWithParties.CustomerName,
             loanAppWithParties.RegistrationNumber ?? "",
             loanAppWithParties.IncorporationDate,
             loanAppWithParties.IndustrySector ?? "",
-            "",
-            "",
-            "",
-            "",
+            "",   // Sector — not stored on LoanApplication; populated from external customer master if available
+            "",   // Address — not stored on LoanApplication
+            "",   // Phone  — not stored on LoanApplication
+            "",   // Email  — not stored on LoanApplication
             loanAppWithParties.AccountNumber,
-            "",
+            "",   // AccountType — not stored on LoanApplication
             null,
             null);
 
-        // Directors with bureau cross-reference
+        // ── Application timeline ─────────────────────────────────────────────
+        var timeline = new ApplicationTimelineData(
+            loanApp.Status.ToString(),
+            loanApp.Type.ToString(),
+            loanApp.SubmittedAt,
+            loanApp.BranchApprovedAt,
+            loanApp.CreditCheckStartedAt,
+            loanApp.CreditCheckCompletedAt,
+            loanApp.FinalApprovedAt,
+            loanApp.OfferIssuedAt,
+            loanApp.OfferAcceptedAt,
+            loanApp.CustomerSignedAt,
+            loanApp.AcceptanceMethod?.ToString(),
+            loanApp.KfsAcknowledged,
+            loanApp.DisbursedAt,
+            loanApp.CoreBankingLoanId);
+
+        // ── Supporting documents ─────────────────────────────────────────────
+        var documents = loanApp.Documents
+            .OrderBy(d => d.Category.ToString())
+            .ThenByDescending(d => d.UploadedAt)
+            .Select(d => new DocumentRecord(
+                d.FileName,
+                d.Category.ToString(),
+                d.Status.ToString(),
+                d.UploadedAt,
+                d.Description))
+            .ToList();
+
+        // ── Bureau lookup for director/signatory cross-referencing ───────────
+        var bureauByPartyId = bureauReports
+            .Where(b => b.PartyId.HasValue && b.Status == Domain.Enums.BureauReportStatus.Completed)
+            .GroupBy(b => b.PartyId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(b => b.CompletedAt).First());
+
+        // ── Directors ────────────────────────────────────────────────────────
         var directors = loanAppWithParties.Parties
             .Where(p => p.PartyType == Domain.Enums.PartyType.Director)
             .Select(d =>
@@ -241,7 +263,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                         : null);
             }).ToList();
 
-        // Signatories with bureau cross-reference
+        // ── Signatories ──────────────────────────────────────────────────────
         var signatories = loanAppWithParties.Parties
             .Where(p => p.PartyType == Domain.Enums.PartyType.Signatory)
             .Select(s =>
@@ -259,7 +281,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                     bureau != null && bureau.DelinquentFacilities > 0);
             }).ToList();
 
-        // Bureau reports with actual metrics and account breakdowns
+        // ── Bureau reports ───────────────────────────────────────────────────
         var bureauData = bureauReports.Select(b =>
         {
             var activeLoans = b.Accounts
@@ -299,7 +321,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 delinquencies);
         }).ToList();
 
-        // Financial statements — full balance sheet + income statement
+        // ── Financial statements ─────────────────────────────────────────────
         var financialData = financialStatements
             .OrderByDescending(f => f.FinancialYear)
             .Select(f => new FinancialStatementData(
@@ -320,13 +342,12 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 f.IncomeStatement?.EBITDA))
             .ToList();
 
-        // Financial ratios from most recent statement
+        // ── Financial ratios ─────────────────────────────────────────────────
         var latestFinancial = financialStatements.OrderByDescending(f => f.FinancialYear).FirstOrDefault();
         FinancialRatiosData? ratiosData = null;
         if (latestFinancial?.CalculatedRatios != null)
         {
             var r = latestFinancial.CalculatedRatios;
-            // Revenue growth: compare two most recent years if available
             var prevFinancial = financialStatements.OrderByDescending(f => f.FinancialYear).Skip(1).FirstOrDefault();
             decimal? revenueGrowth = null;
             decimal? profitGrowth = null;
@@ -353,7 +374,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 revenueGrowth, profitGrowth);
         }
 
-        // Cashflow analysis — aggregate across all analysed bank statements
+        // ── Cashflow analysis ────────────────────────────────────────────────
         CashflowAnalysisData? cashflowData = null;
         var analysedStatements = bankStatements.Where(b => b.CashflowSummary != null).ToList();
         if (analysedStatements.Any())
@@ -390,7 +411,8 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 Math.Round(loanRepayments, 2),
                 Math.Round(rentUtils, 2),
                 0,
-                avgMonthlyOutflow - loanRepayments - rentUtils > 0 ? Math.Round(avgMonthlyOutflow - loanRepayments - rentUtils, 2) : 0,
+                avgMonthlyOutflow - loanRepayments - rentUtils > 0
+                    ? Math.Round(avgMonthlyOutflow - loanRepayments - rentUtils, 2) : 0,
                 Math.Round(incomeVol, 4),
                 Math.Round(balanceVol, 4),
                 totalBounced,
@@ -400,7 +422,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 trustLevel);
         }
 
-        // Collaterals — include latest valuation date and valuer
+        // ── Collaterals ──────────────────────────────────────────────────────
         var collateralData = collaterals.Select(c =>
         {
             var latestValuation = c.Valuations.OrderByDescending(v => v.ValuationDate).FirstOrDefault();
@@ -419,14 +441,16 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 c.LienType?.ToString() ?? "",
                 c.LienReference,
                 c.InsurancePolicyNumber,
-                c.InsuranceExpiryDate);
+                c.InsuranceExpiryDate,
+                c.IsLegalCleared,
+                c.LegalClearedAt);
         }).ToList();
 
         var totalCollateralValue = collaterals.Sum(c => c.AcceptableValue?.Amount ?? 0);
         var approvedOrRequested = loanApp.ApprovedAmount?.Amount ?? loanApp.RequestedAmount.Amount;
         var collateralCoverage = approvedOrRequested > 0 ? totalCollateralValue / approvedOrRequested : 0;
 
-        // Guarantors
+        // ── Guarantors ───────────────────────────────────────────────────────
         var guarantorData = guarantors.Select(g => new GuarantorData(
             g.FullName,
             g.Type.ToString(),
@@ -438,12 +462,12 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
             g.CreditScore,
             g.CreditScoreGrade,
             g.Status.ToString(),
-            false, false))
+            false, false))   // Guarantor bureau lookup not yet implemented
             .ToList();
 
         var totalGuaranteeAmount = guarantors.Sum(g => g.GuaranteeLimit?.Amount ?? 0);
 
-        // AI advisory — include mitigating factors (stored as newline-separated string)
+        // ── AI Advisory ──────────────────────────────────────────────────────
         AIAdvisoryData? aiData = null;
         if (advisory != null)
         {
@@ -483,7 +507,34 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 advisory.Conditions.ToList());
         }
 
-        // Workflow history — ordered chronologically for readability
+        // ── Approval audit trail (from LoanApplicationStatusHistory) ────────
+        // Resolve actor names for all unique user IDs in the status history.
+        var actorIds = loanApp.StatusHistory.Select(h => h.ChangedByUserId).Distinct().ToList();
+        var allUsers = await _userRepository.GetAllAsync(ct);
+        var userNameLookup = allUsers
+            .Where(u => actorIds.Contains(u.Id))
+            .ToDictionary(u => u.Id, u => u.FullName);
+
+        var approvalAuditTrail = loanApp.StatusHistory
+            .OrderBy(h => h.ChangedAt)
+            .Select(h => new ApprovalAuditEntry(
+                h.ChangedAt,
+                h.Status.ToString(),
+                h.Comment,
+                userNameLookup.TryGetValue(h.ChangedByUserId, out var name) ? name : h.ChangedByUserId.ToString()))
+            .ToList();
+
+        // ── Credit officer notes ─────────────────────────────────────────────
+        var creditOfficerNotes = loanApp.Comments
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => new ApplicationCommentData(
+                c.CreatedAt,
+                c.Content,
+                c.Category,
+                c.UserId.ToString()))
+            .ToList();
+
+        // ── Workflow history (raw transition log — kept for completeness) ────
         var workflowHistory = workflow?.TransitionHistory
             .OrderBy(t => t.PerformedAt)
             .Select(t => new WorkflowHistoryData(
@@ -491,11 +542,11 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 t.FromStatus?.ToString() ?? "",
                 t.ToStatus.ToString(),
                 t.Action.ToString(),
-                t.PerformedByUserId.ToString(), // User name not stored on transition log
+                t.PerformedByUserId.ToString(),
                 t.Comment))
             .ToList() ?? new List<WorkflowHistoryData>();
 
-        // Committee comments — use stored UserName from committee members
+        // ── Committee comments ───────────────────────────────────────────────
         var memberLookup = committeeReview?.Members
             .ToDictionary(m => m.UserId, m => (m.UserName, m.Role))
             ?? new Dictionary<Guid, (string, string)>();
@@ -515,7 +566,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
             })
             .ToList() ?? new List<CommitteeCommentData>();
 
-        // Committee decision summary with member votes
+        // ── Committee decision ───────────────────────────────────────────────
         CommitteeDecisionData? committeeDecision = null;
         if (committeeReview != null)
         {
@@ -542,13 +593,30 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 memberVotes);
         }
 
-        // Approval conditions
+        // ── Conditions of approval ───────────────────────────────────────────
         var approvalConditions = new List<string>();
         if (!string.IsNullOrWhiteSpace(committeeReview?.ApprovalConditions))
         {
             approvalConditions.AddRange(committeeReview.ApprovalConditions
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         }
+
+        // ── Disbursement checklist ───────────────────────────────────────────
+        var disbursementChecklist = appWithChecklist?.ChecklistItems
+            .OrderBy(c => c.ConditionType)
+            .ThenBy(c => c.SortOrder)
+            .Select(c => new ChecklistItemData(
+                c.ItemName,
+                c.Description,
+                c.ConditionType.ToString(),
+                c.IsMandatory,
+                c.CanBeWaived,
+                c.Status.ToString(),
+                c.SatisfiedAt,
+                c.WaiverReason,
+                c.WaiverProposedAt,
+                c.DueDate))
+            .ToList() ?? new List<ChecklistItemData>();
 
         return new LoanPackData(
             loanApp.ApplicationNumber,
@@ -561,8 +629,10 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
             loanApp.InterestRatePerAnnum,
             loanApp.Purpose ?? "",
             customerProfile,
+            timeline,
             directors,
             signatories,
+            documents,
             bureauData,
             financialData,
             ratiosData,
@@ -573,13 +643,16 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
             guarantorData,
             totalGuaranteeAmount,
             aiData,
-            workflowHistory,
+            approvalAuditTrail,
             committeeComments,
             approvalConditions,
             loanApp.ApprovedAmount?.Amount,
             loanApp.ApprovedTenorMonths,
             loanApp.ApprovedInterestRate,
             committeeDecision,
+            disbursementChecklist,
+            creditOfficerNotes,
+            workflowHistory,
             DateTime.UtcNow,
             generatedBy,
             version);

@@ -2,6 +2,105 @@
 @inject AuthService AuthService
 @inject IJSRuntime JS
 
+@* Disbursement Memo — always rendered independently of checklist load state *@
+@if (ShowMemoCard)
+{
+    <div style="margin-bottom: var(--space-4);">
+        @* Warning: disbursed but no signed copy on file *@
+        @if (ApplicationStatus == "Disbursed" && SignedMemoDoc == null)
+        {
+            <div style="padding: var(--space-3) var(--space-4); background: var(--warning-50); border: 1px solid var(--warning-200); border-radius: var(--radius-md); display: flex; gap: var(--space-3); align-items: center; margin-bottom: var(--space-4);">
+                <span class="material-symbols-outlined" style="color: var(--warning-600); font-size: 20px;">warning</span>
+                <span style="font-size: var(--text-sm); color: var(--warning-800);">
+                    <strong>Audit gap:</strong> This loan has been disbursed but no countersigned Disbursement Memo has been uploaded. Upload the signed copy for audit and CBN compliance records.
+                </span>
+            </div>
+        }
+
+        <div class="card">
+            <div class="card-header">
+                <div style="display: flex; align-items: center; gap: var(--space-2);">
+                    <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary-600);">description</span>
+                    <div>
+                        <h3 class="card-title" style="margin: 0;">Disbursement Memo</h3>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">Pre-disbursement conditions clearance document</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+
+                @* Row 1: System-generated copy *@
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--gray-100);">
+                    <div style="display: flex; align-items: center; gap: var(--space-3);">
+                        <span class="material-symbols-outlined" style="color: var(--gray-400); font-size: 20px;">picture_as_pdf</span>
+                        <div>
+                            <div style="font-size: var(--text-sm); font-weight: 500;">System-Generated Copy</div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-500);">Generated automatically at offer acceptance</div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(DisbursementMemoStoragePath))
+                    {
+                        <button class="btn btn-secondary btn-sm" @onclick="DownloadDisbursementMemo" disabled="@isDownloadingMemo">
+                            @if (isDownloadingMemo)
+                            {
+                                <span class="spinner" style="width: 14px; height: 14px;"></span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                            }
+                            Download
+                        </button>
+                    }
+                    else
+                    {
+                        <span style="font-size: var(--text-xs); color: var(--gray-400); font-style: italic;">Not available</span>
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(memoDownloadError))
+                {
+                    <div style="padding: var(--space-2) var(--space-4); color: var(--danger-600); font-size: var(--text-xs);">@memoDownloadError</div>
+                }
+
+                @* Row 2: Countersigned copy *@
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4);">
+                    <div style="display: flex; align-items: center; gap: var(--space-3);">
+                        <span class="material-symbols-outlined" style="color: @(SignedMemoDoc != null ? "var(--success-500)" : "var(--gray-300)"); font-size: 20px;">@(SignedMemoDoc != null ? "task" : "pending_actions")</span>
+                        <div>
+                            <div style="font-size: var(--text-sm); font-weight: 500;">Countersigned Copy</div>
+                            @if (SignedMemoDoc != null)
+                            {
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">@SignedMemoDoc.Name — uploaded @SignedMemoDoc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                            }
+                            else
+                            {
+                                <div style="font-size: var(--text-xs); color: var(--gray-400); font-style: italic;">Not yet uploaded — print, get countersignature, then upload</div>
+                            }
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: var(--space-2); align-items: center;">
+                        @if (SignedMemoDoc != null)
+                        {
+                            <button class="btn btn-secondary btn-sm" @onclick="() => DownloadSignedMemo(SignedMemoDoc.Id)">
+                                <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                Download
+                            </button>
+                        }
+                        @if (CanUploadSignedMemo)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="OpenUploadSignedMemoModal">
+                                <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+                                @(SignedMemoDoc != null ? "Replace" : "Upload Signed Copy")
+                            </button>
+                        }
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
 @if (isLoading)
 {
     <div class="card p-4 text-center">
@@ -75,6 +174,10 @@ else
                                         {
                                             <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">@item.Description</div>
                                         }
+                                        @if (!string.IsNullOrWhiteSpace(item.SatisfactionNotes))
+                                        {
+                                            <div style="font-size: var(--text-xs); color: var(--gray-600); margin-top: var(--space-1); font-style: italic; border-left: 2px solid var(--gray-300); padding-left: var(--space-2);">@item.SatisfactionNotes</div>
+                                        }
                                         <div style="margin-top: var(--space-1); display: flex; gap: var(--space-2); flex-wrap: wrap;">
                                             @if (item.RequiresDocumentUpload)
                                             {
@@ -146,6 +249,10 @@ else
                                         {
                                             <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">@item.Description</div>
                                         }
+                                        @if (!string.IsNullOrWhiteSpace(item.SatisfactionNotes))
+                                        {
+                                            <div style="font-size: var(--text-xs); color: var(--gray-600); margin-top: var(--space-1); font-style: italic; border-left: 2px solid var(--gray-300); padding-left: var(--space-2);">@item.SatisfactionNotes</div>
+                                        }
                                     </td>
                                     <td style="font-size: var(--text-sm);">
                                         @if (item.SubsequentDueDays.HasValue)
@@ -206,6 +313,11 @@ else
                         }
                     </div>
                 }
+                <div class="form-group" style="margin-top: var(--space-3);">
+                    <label class="form-label">Notes / Narration</label>
+                    <textarea class="form-control" rows="3" @bind="modalNotes"
+                              placeholder="Describe how this condition was satisfied, any relevant context, or reference documents..."></textarea>
+                </div>
             }
             else if (activeModal == "submit-legal")
             {
@@ -219,6 +331,11 @@ else
                             Selected: @modalFile.Name (@FormatFileSize(modalFile.Size))
                         </div>
                     }
+                </div>
+                <div class="form-group" style="margin-top: var(--space-3);">
+                    <label class="form-label">Notes / Narration</label>
+                    <textarea class="form-control" rows="3" @bind="modalNotes"
+                              placeholder="Describe the document being submitted, its source, or any instructions for the Legal Officer..."></textarea>
                 </div>
             }
             else if (activeModal == "ratify-legal")
@@ -337,6 +454,46 @@ else
     </div>
 }
 
+@if (showUploadSignedMemoModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseUploadSignedMemoModal">
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Upload Countersigned Disbursement Memo</h3>
+                <button class="btn btn-ghost btn-sm" @onclick="CloseUploadSignedMemoModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-4);">
+                    Upload the signed copy of the Disbursement Memo after it has been countersigned by the Operations Officer and Branch Authorised Signatory.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Signed Memo PDF <span style="color: var(--danger-600);">*</span></label>
+                    <InputFile OnChange="HandleSignedMemoFileSelected" accept=".pdf,.jpg,.jpeg,.png" class="form-control" style="padding: var(--space-2);" />
+                    @if (signedMemoFile != null)
+                    {
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">
+                            Selected: @signedMemoFile.Name (@FormatFileSize(signedMemoFile.Size))
+                        </div>
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(signedMemoUploadError))
+                {
+                    <div style="color: var(--danger-600); font-size: var(--text-sm);">@signedMemoUploadError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseUploadSignedMemoModal" disabled="@isUploadingSignedMemo">Cancel</button>
+                <button class="btn btn-primary" @onclick="UploadSignedMemo" disabled="@isUploadingSignedMemo">
+                    @if (isUploadingSignedMemo) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                    Upload
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @if (showEvidenceViewer)
 {
     <div class="modal-backdrop show" @onclick="CloseEvidenceViewer">
@@ -364,9 +521,30 @@ else
 @code {
     [Parameter] public Guid ApplicationId { get; set; }
     [Parameter] public string ApplicationStatus { get; set; } = string.Empty;
+    [Parameter] public string? DisbursementMemoStoragePath { get; set; }
+    [Parameter] public List<DocumentInfo> Documents { get; set; } = new();
+    [Parameter] public bool CanUploadSignedMemo { get; set; }
+    [Parameter] public EventCallback OnSignedMemoUploaded { get; set; }
 
     private DisbursementChecklistModel? checklist;
     private bool isLoading = true;
+    private bool isDownloadingMemo;
+    private string? memoDownloadError;
+
+    // Signed memo upload state
+    private bool showUploadSignedMemoModal;
+    private IBrowserFile? signedMemoFile;
+    private bool isUploadingSignedMemo;
+    private string? signedMemoUploadError;
+
+    private DocumentInfo? SignedMemoDoc =>
+        Documents.FirstOrDefault(d => d.Category == "SignedDisbursementMemo");
+
+    // Show the memo card for any post-acceptance status (memo is generated at offer acceptance)
+    private bool ShowMemoCard => !string.IsNullOrEmpty(DisbursementMemoStoragePath)
+        || SignedMemoDoc != null
+        || (ApplicationStatus is "OfferAccepted" or "SecurityPerfection" or "SecurityApproval"
+            or "DisbursementPending" or "DisbursementHQApproval" or "Disbursed");
 
     // Evidence viewer state
     private bool showEvidenceViewer;
@@ -377,6 +555,7 @@ else
     private string? activeModal;
     private ChecklistItemModel? activeItem;
     private string modalReason = string.Empty;
+    private string modalNotes = string.Empty;
     private Guid? modalDocumentId;
     private IBrowserFile? modalFile;
     private bool modalIsApproved = true;
@@ -387,6 +566,92 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadChecklist();
+    }
+
+    private async Task DownloadDisbursementMemo()
+    {
+        isDownloadingMemo = true;
+        memoDownloadError = null;
+        try
+        {
+            var (bytes, fileName) = await AppService.DownloadDisbursementMemoAsync(ApplicationId);
+            if (bytes != null && fileName != null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", bytes);
+            else
+                memoDownloadError = "Disbursement memo file could not be found. It may not have been generated yet.";
+        }
+        finally
+        {
+            isDownloadingMemo = false;
+        }
+    }
+
+    private void OpenUploadSignedMemoModal()
+    {
+        signedMemoFile = null;
+        signedMemoUploadError = null;
+        showUploadSignedMemoModal = true;
+    }
+
+    private void CloseUploadSignedMemoModal()
+    {
+        showUploadSignedMemoModal = false;
+        signedMemoFile = null;
+        signedMemoUploadError = null;
+    }
+
+    private void HandleSignedMemoFileSelected(InputFileChangeEventArgs e)
+    {
+        signedMemoFile = e.File;
+        signedMemoUploadError = null;
+    }
+
+    private async Task UploadSignedMemo()
+    {
+        if (signedMemoFile == null) { signedMemoUploadError = "Please select a file to upload."; return; }
+        var user = AuthService.CurrentUser;
+        if (user == null) { signedMemoUploadError = "Not authenticated."; return; }
+
+        isUploadingSignedMemo = true;
+        signedMemoUploadError = null;
+        try
+        {
+            const long maxFileSize = 20 * 1024 * 1024;
+            using var stream = signedMemoFile.OpenReadStream(maxFileSize);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+
+            var result = await AppService.UploadDocumentAsync(new UploadDocumentRequest
+            {
+                ApplicationId = ApplicationId,
+                Category = "SignedDisbursementMemo",
+                FileName = signedMemoFile.Name,
+                FileContent = new MemoryStream(ms.ToArray()),
+                FileSize = signedMemoFile.Size,
+                ContentType = string.IsNullOrEmpty(signedMemoFile.ContentType) ? "application/pdf" : signedMemoFile.ContentType,
+                Description = "Countersigned Disbursement Memo"
+            }, user.Id);
+
+            if (!result.Success)
+            {
+                signedMemoUploadError = result.Error ?? "Upload failed.";
+                return;
+            }
+
+            CloseUploadSignedMemoModal();
+            await OnSignedMemoUploaded.InvokeAsync();
+        }
+        finally
+        {
+            isUploadingSignedMemo = false;
+        }
+    }
+
+    private async Task DownloadSignedMemo(Guid documentId)
+    {
+        var bytes = await AppService.DownloadDocumentAsync(ApplicationId, documentId);
+        if (bytes != null && SignedMemoDoc != null)
+            await JS.InvokeVoidAsync("downloadFileFromBytes", SignedMemoDoc.Name, "application/pdf", bytes);
     }
 
     private void OpenEvidenceViewer(Guid documentId, string itemName)
@@ -571,6 +836,7 @@ else
         activeModal = modalType;
         activeItem = item;
         modalReason = string.Empty;
+        modalNotes = string.Empty;
         modalDocumentId = null;
         modalFile = null;
         modalIsApproved = true;
@@ -643,14 +909,16 @@ else
                     activeItem.Id,
                     user.Id,
                     user.PrimaryRole ?? "",
-                    modalDocumentId),
+                    modalDocumentId,
+                    string.IsNullOrWhiteSpace(modalNotes) ? null : modalNotes),
 
                 "submit-legal" => await AppService.SubmitForLegalReviewAsync(
                     ApplicationId,
                     activeItem.Id,
                     user.Id,
                     user.PrimaryRole ?? "",
-                    modalDocumentId!.Value),
+                    modalDocumentId!.Value,
+                    string.IsNullOrWhiteSpace(modalNotes) ? null : modalNotes),
 
                 "ratify-legal" => await AppService.RatifyLegalItemAsync(
                     ApplicationId,

@@ -36,6 +36,9 @@ public class DisbursementChecklistItem : Entity
     // Evidence document (uploaded when satisfying)
     public Guid? EvidenceDocumentId { get; private set; }
 
+    // Notes provided by the officer when satisfying or submitting for legal review
+    public string? SatisfactionNotes { get; private set; }
+
     // Legal ratification audit
     public Guid? LegalRatifiedByUserId { get; private set; }
     public DateTime? LegalRatifiedAt { get; private set; }
@@ -95,7 +98,7 @@ public class DisbursementChecklistItem : Entity
     // Satisfy (non-legal items — LoanOfficer satisfies directly)
     // -------------------------------------------------------------------------
 
-    public Result Satisfy(Guid userId, Guid? evidenceDocumentId)
+    public Result Satisfy(Guid userId, Guid? evidenceDocumentId, string? notes = null)
     {
         if (Status is ChecklistItemStatus.Satisfied or ChecklistItemStatus.Waived)
             return Result.Failure("Item is already resolved");
@@ -110,6 +113,7 @@ public class DisbursementChecklistItem : Entity
         SatisfiedByUserId = userId;
         SatisfiedAt = DateTime.UtcNow;
         EvidenceDocumentId = evidenceDocumentId;
+        SatisfactionNotes = notes;
 
         return Result.Success();
     }
@@ -118,7 +122,7 @@ public class DisbursementChecklistItem : Entity
     // Legal review path
     // -------------------------------------------------------------------------
 
-    public Result SubmitForLegalReview(Guid userId, Guid evidenceDocumentId)
+    public Result SubmitForLegalReview(Guid userId, Guid evidenceDocumentId, string? notes = null)
     {
         if (Status is ChecklistItemStatus.Satisfied or ChecklistItemStatus.Waived)
             return Result.Failure("Item is already resolved");
@@ -130,6 +134,7 @@ public class DisbursementChecklistItem : Entity
         EvidenceDocumentId = evidenceDocumentId;
         SatisfiedByUserId = userId; // The uploader — will be overwritten on Legal ratification
         SatisfiedAt = null;
+        SatisfactionNotes = notes;
 
         return Result.Success();
     }

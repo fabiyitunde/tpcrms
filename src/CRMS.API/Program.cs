@@ -2,6 +2,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using CRMS.API;
 using CRMS.Infrastructure;
+using Scalar.AspNetCore;
 using CRMS.Infrastructure.Identity;
 using CRMS.Infrastructure.Persistence;
 using CRMS.Infrastructure.Services;
@@ -130,6 +131,7 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();

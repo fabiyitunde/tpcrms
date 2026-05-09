@@ -46,6 +46,7 @@ public enum DocumentCategory
     BoardResolution,
     TaxClearance,
     CollateralDocument,
+    SignedDisbursementMemo,
     Other
 }
 

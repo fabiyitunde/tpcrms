@@ -107,4 +107,27 @@ public class LocalFileStorageService : IFileStorageService
         // Return null - caller should use DownloadAsync instead
         return Task.FromResult<string?>(null);
     }
+
+    public Task<IEnumerable<string>> ListFilesAsync(string containerName, string? prefix = null, CancellationToken ct = default)
+    {
+        var containerPath = Path.Combine(_basePath, containerName);
+        if (!Directory.Exists(containerPath))
+            return Task.FromResult(Enumerable.Empty<string>());
+
+        var searchPath = prefix != null
+            ? Path.Combine(containerPath, prefix.Replace('/', Path.DirectorySeparatorChar))
+            : containerPath;
+
+        var searchDir = Directory.Exists(searchPath) ? searchPath : containerPath;
+        var pattern = prefix != null && !Directory.Exists(searchPath) ? $"*{prefix}*" : "*";
+
+        var files = Directory.GetFiles(searchDir, pattern, SearchOption.AllDirectories)
+            .Select(f =>
+            {
+                var relative = Path.GetRelativePath(_basePath, f).Replace(Path.DirectorySeparatorChar, '/');
+                return relative;
+            });
+
+        return Task.FromResult(files);
+    }
 }

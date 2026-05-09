@@ -244,7 +244,9 @@ else
                 }
             </div>
         }
-        @if (application?.Status is AppStatus.OfferGenerated or AppStatus.OfferAccepted or AppStatus.Disbursed)
+        @if (application?.Status is AppStatus.OfferGenerated or AppStatus.OfferAccepted or
+            AppStatus.SecurityPerfection or AppStatus.SecurityApproval or
+            AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed)
         {
             <div class="tab @(activeTab == "checklist" ? "active" : "")" @onclick='() => activeTab = "checklist"'>
                 <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">checklist</span>
@@ -394,7 +396,12 @@ else
             <CommentsTab Comments="application.Comments" OnAddComment="AddComment" IsSubmitting="isAddingComment" SubmitError="commentError" />
             break;
         case "checklist":
-            <OfferAcceptanceTab ApplicationId="application.Id" ApplicationStatus="application.Status" />
+            <OfferAcceptanceTab ApplicationId="application.Id"
+                   ApplicationStatus="application.Status"
+                   DisbursementMemoStoragePath="application.DisbursementMemoStoragePath"
+                   Documents="application.Documents"
+                   CanUploadSignedMemo="CanUploadSignedMemo"
+                   OnSignedMemoUploaded="LoadApplication" />
             break;
         case "offerletters":
             <div class="card">
@@ -1348,7 +1355,7 @@ else
             </div>
             <div class="modal-body">
                 <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-4);">
-                    Record that the customer has reviewed and signed the offer letter. Ensure the signed copy has been received before proceeding.
+                    Record that the customer has reviewed and signed the offer letter and all accompanying acceptance documents. Ensure all signed copies have been received and filed before proceeding.
                 </p>
                 <div class="form-group">
                     <label class="form-label">Date Customer Signed *</label>
@@ -1371,7 +1378,7 @@ else
                     <label style="display: flex; gap: var(--space-3); align-items: flex-start; cursor: pointer;">
                         <input type="checkbox" @bind="kfsAcknowledged" style="margin-top: 2px; flex-shrink: 0;" />
                         <span style="font-size: var(--text-sm); color: var(--warning-800);">
-                            I confirm that the Key Facts Statement (KFS) was presented to and acknowledged by the customer prior to signing, in accordance with CBN Consumer Protection Regulations 2022.
+                            I confirm that the Key Facts Statement (KFS) and all documents specified under the Conditions Precedent checklist were presented to, reviewed, and acknowledged by the customer prior to signing, in accordance with CBN Consumer Protection Regulations 2022. All signed copies have been received and are on file.
                         </span>
                     </label>
                 </div>
@@ -1524,8 +1531,10 @@ else
             application.BankStatements = await AppService.GetBankStatementsAsync(Id);
             // Fetch approval overrides (warning banners)
             approvalOverrides = await AppService.GetApprovalOverridesAsync(Id);
-            // Fetch offer letters (only relevant once application is Approved or Disbursed)
-            if (application.Status is AppStatus.Approved or AppStatus.OfferGenerated or AppStatus.OfferAccepted or AppStatus.Disbursed)
+            // Fetch offer letters (relevant from Approved onwards through the full disbursement chain)
+            if (application.Status is AppStatus.Approved or AppStatus.OfferGenerated or AppStatus.OfferAccepted or
+                AppStatus.SecurityPerfection or AppStatus.SecurityApproval or
+                AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed)
                 offerLetters = await AppService.GetOfferLettersByApplicationAsync(Id);
             // Fetch committee member users when in committee stage
             if (application.Status == AppStatus.CommitteeCirculation)
@@ -1542,7 +1551,10 @@ else
         application?.Status is not (null or AppStatus.Draft or AppStatus.Rejected or AppStatus.CommitteeRejected or AppStatus.Cancelled or AppStatus.Closed) &&
         (AuthService.CurrentUser?.HasAnyRole("LoanOfficer", "CreditOfficer", "HOReviewer", "BranchApprover", "FinalApprover", "Operations", "SystemAdmin") ?? false ||
          application?.Committee?.Members.Any(m => m.UserId == (AuthService.CurrentUser?.Id ?? Guid.Empty)) == true);
-    private bool CanGenerateOfferLetter => application?.Status is AppStatus.Approved or AppStatus.OfferGenerated or AppStatus.OfferAccepted or AppStatus.Disbursed;
+    private bool CanGenerateOfferLetter => application?.Status is
+        AppStatus.Approved or AppStatus.OfferGenerated or AppStatus.OfferAccepted or
+        AppStatus.SecurityPerfection or AppStatus.SecurityApproval or
+        AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed;
 
     // Application is editable only in Draft status
     private bool IsApplicationEditable => application?.Status == AppStatus.Draft;
@@ -1655,22 +1667,23 @@ else
         AppStatus.LegalReview                => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
         AppStatus.LegalApproval              => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
         AppStatus.FinalApproval              => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
+        AppStatus.OfferAccepted              => AuthService.CurrentUser?.HasRole("Operations") ?? false,
         AppStatus.SecurityPerfection         => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
         AppStatus.SecurityApproval           => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
         AppStatus.DisbursementPending        => AuthService.CurrentUser?.HasRole("Operations") ?? false,
-        AppStatus.DisbursementBranchApproval => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
         _ => false
     };
 
     private bool ShowReturnButton => application?.Status switch
     {
-        AppStatus.BranchReview               => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        AppStatus.CreditAnalysis             => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
-        AppStatus.HOReview                   => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
-        AppStatus.LegalReview                => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
-        AppStatus.LegalApproval              => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
-        AppStatus.SecurityApproval           => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
-        AppStatus.DisbursementBranchApproval => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        AppStatus.BranchReview       => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        AppStatus.CreditAnalysis     => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        AppStatus.HOReview           => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
+        AppStatus.LegalReview        => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
+        AppStatus.LegalApproval      => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
+        AppStatus.SecurityPerfection => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
+        AppStatus.SecurityApproval   => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
+        AppStatus.DisbursementPending => AuthService.CurrentUser?.HasRole("Operations") ?? false,
         _ => false
     };
 
@@ -1857,8 +1870,14 @@ else
         (AuthService.CurrentUser?.HasAnyRole("Operations") ?? false);
 
     private bool ShowDisburseButton =>
-        application?.Status == AppStatus.OfferAccepted &&
-        (AuthService.CurrentUser?.HasAnyRole("Operations", "SystemAdmin") ?? false);
+        application?.Status == AppStatus.DisbursementHQApproval &&
+        (AuthService.CurrentUser?.HasAnyRole("GMFinance", "SystemAdmin") ?? false);
+
+    private bool CanUploadSignedMemo =>
+        (AuthService.CurrentUser?.HasAnyRole("Operations", "SystemAdmin") ?? false) &&
+        (application?.Status == AppStatus.DisbursementPending ||
+         application?.Status == AppStatus.DisbursementHQApproval ||
+         application?.Status == AppStatus.Disbursed);
 
     private bool isIssuingOfferLetter;
 

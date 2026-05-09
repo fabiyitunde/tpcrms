@@ -13,7 +13,8 @@ public record SatisfyChecklistItemCommand(
     Guid ChecklistItemId,
     Guid SatisfiedByUserId,
     string SatisfiedByUserRole,
-    Guid? EvidenceDocumentId
+    Guid? EvidenceDocumentId,
+    string? Notes = null
 ) : IRequest<ApplicationResult>;
 
 public class SatisfyChecklistItemHandler : IRequestHandler<SatisfyChecklistItemCommand, ApplicationResult>
@@ -40,7 +41,7 @@ public class SatisfyChecklistItemHandler : IRequestHandler<SatisfyChecklistItemC
         if (item == null)
             return ApplicationResult.Failure("Checklist item not found");
 
-        var result = item.Satisfy(request.SatisfiedByUserId, request.EvidenceDocumentId);
+        var result = item.Satisfy(request.SatisfiedByUserId, request.EvidenceDocumentId, request.Notes);
         if (!result.IsSuccess)
             return ApplicationResult.Failure(result.Error!);
 
@@ -59,7 +60,8 @@ public record SubmitForLegalReviewCommand(
     Guid ChecklistItemId,
     Guid SubmittedByUserId,
     string SubmittedByUserRole,
-    Guid EvidenceDocumentId
+    Guid EvidenceDocumentId,
+    string? Notes = null
 ) : IRequest<ApplicationResult>;
 
 public class SubmitForLegalReviewHandler : IRequestHandler<SubmitForLegalReviewCommand, ApplicationResult>
@@ -86,7 +88,7 @@ public class SubmitForLegalReviewHandler : IRequestHandler<SubmitForLegalReviewC
         if (item == null)
             return ApplicationResult.Failure("Checklist item not found");
 
-        var result = item.SubmitForLegalReview(request.SubmittedByUserId, request.EvidenceDocumentId);
+        var result = item.SubmitForLegalReview(request.SubmittedByUserId, request.EvidenceDocumentId, request.Notes);
         if (!result.IsSuccess)
             return ApplicationResult.Failure(result.Error!);
 

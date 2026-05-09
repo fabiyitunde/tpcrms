@@ -64,7 +64,8 @@ public class GetLoanApplicationByIdHandler : IRequestHandler<GetLoanApplicationB
             p.Id, p.PartyType.ToString(), p.FullName, p.BVN, p.Email,
             p.PhoneNumber, p.Designation, p.ShareholdingPercent, p.BVNVerified)).ToList(),
         app.IncorporationDate,
-        app.IndustrySector
+        app.IndustrySector,
+        app.DisbursementMemoStoragePath
     );
 }
 
@@ -125,7 +126,8 @@ public class GetLoanApplicationByNumberHandler : IRequestHandler<GetLoanApplicat
             p.Id, p.PartyType.ToString(), p.FullName, p.BVN, p.Email,
             p.PhoneNumber, p.Designation, p.ShareholdingPercent, p.BVNVerified)).ToList(),
         app.IncorporationDate,
-        app.IndustrySector
+        app.IndustrySector,
+        app.DisbursementMemoStoragePath
     );
 }
 

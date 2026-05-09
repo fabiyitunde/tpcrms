@@ -47,8 +47,7 @@
                         <option value="SecurityPerfection">Security Perfection</option>
                         <option value="SecurityApproval">Security Approval</option>
                         <option value="DisbursementPending">Disbursement Pending</option>
-                        <option value="DisbursementBranchApproval">Disbursement — Branch Auth</option>
-                        <option value="DisbursementHQApproval">Disbursement — HQ Auth</option>
+                        <option value="DisbursementHQApproval">Disbursement — HQ Approval</option>
                         <option value="Disbursed">Disbursed</option>
                     </optgroup>
                     <optgroup label="── Terminal ────────────">
@@ -227,36 +226,43 @@
 
         var user = AuthService.CurrentUser;
 
-        // Reviewer roles have a natural pending-review status even with no explicit filter
-        var defaultReviewStatus = user?.PrimaryRole switch
+        // Reviewer roles have a natural pending-review queue even with no explicit filter.
+        // Operations has two action points: OfferGenerated (record acceptance) and
+        // DisbursementPending (approve disbursement memo), so both are included.
+        var defaultReviewStatuses = user?.PrimaryRole switch
         {
-            "BranchApprover" => "BranchReview",
-            "CreditOfficer"  => "CreditAnalysis",
-            "HOReviewer"     => "HOReview",
-            "LegalOfficer"   => "LegalReview",
-            "HeadOfLegal"    => "LegalApproval",
-            "FinalApprover"  => "FinalApproval",
-            "Operations"     => "DisbursementPending",
-            "GMFinance"      => "DisbursementHQApproval",
-            _                => null
+            "BranchApprover" => new[] { "BranchReview" },
+            "CreditOfficer"  => new[] { "CreditAnalysis" },
+            "HOReviewer"     => new[] { "HOReview" },
+            "LegalOfficer"   => new[] { "LegalReview", "SecurityPerfection" },
+            "HeadOfLegal"    => new[] { "LegalApproval", "SecurityApproval" },
+            "FinalApprover"  => new[] { "FinalApproval" },
+            "Operations"     => new[] { "OfferGenerated", "DisbursementPending" },
+            "GMFinance"      => new[] { "DisbursementHQApproval" },
+            _                => Array.Empty<string>()
         };
 
-        // Also get applications by status if a specific status is selected,
-        // or default to the role's natural review queue when no filter is active
-        var effectiveStatus = !string.IsNullOrEmpty(filter.Status) ? filter.Status : defaultReviewStatus;
+        // If a specific status filter is active, use only that; otherwise use the role's default queue
+        var effectiveStatuses = !string.IsNullOrEmpty(filter.Status)
+            ? new[] { filter.Status }
+            : defaultReviewStatuses;
 
-        if (!string.IsNullOrEmpty(effectiveStatus))
+        if (effectiveStatuses.Length > 0)
         {
-            var (statusApps, _) = await AppService.GetApplicationsByStatusAsync(
-                effectiveStatus, user?.LocationId, user?.PrimaryRole, user?.Id);
-            // Merge and deduplicate
-            var allApps = myApps.Concat(statusApps)
+            var allStatusApps = new List<LoanApplicationSummary>();
+            foreach (var status in effectiveStatuses)
+            {
+                var (statusApps, _) = await AppService.GetApplicationsByStatusAsync(
+                    status, user?.LocationId, user?.PrimaryRole, user?.Id);
+                allStatusApps.AddRange(statusApps);
+            }
+
+            // Merge own apps + status queue, deduplicate, then keep only the queued statuses
+            applications = myApps.Concat(allStatusApps)
                 .GroupBy(a => a.Id)
                 .Select(g => g.First())
+                .Where(a => effectiveStatuses.Contains(a.Status))
                 .ToList();
-
-            // Filter by status
-            applications = allApps.Where(a => a.Status == effectiveStatus).ToList();
         }
         else
         {
@@ -347,7 +353,7 @@
         "CommitteeApproved" or "Approved" or "Disbursed" => "badge-success",
         "OfferGenerated" or "OfferAccepted" => "badge-primary",
         "SecurityPerfection" or "SecurityApproval" => "badge-warning",
-        "DisbursementPending" or "DisbursementBranchApproval" or "DisbursementHQApproval" => "badge-primary",
+        "DisbursementPending" or "DisbursementHQApproval" => "badge-primary",
         "Rejected" or "CommitteeRejected" or "Cancelled" => "badge-danger",
         "Closed" => "badge-gray",
         _ => "badge-gray"

@@ -90,13 +90,14 @@ public class ConfirmOfferAcceptanceHandler : IRequestHandler<ConfirmOfferAccepta
         var pdfBytes = await _pdfGenerator.GenerateAsync(memoRequest, ct);
 
         var fileName = $"DisbursementMemo_{loanApp.ApplicationNumber}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
-        await _fileStorageService.UploadAsync(
+        var storagePath = await _fileStorageService.UploadAsync(
             containerName: "disbursementmemos",
             fileName: $"{loanApp.ApplicationNumber}/{fileName}",
             content: pdfBytes,
             contentType: "application/pdf",
             ct: ct);
 
+        loanApp.SetDisbursementMemoPath(storagePath);
         _loanAppRepository.Update(loanApp);
         await _unitOfWork.SaveChangesAsync(ct);
 

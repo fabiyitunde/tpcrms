@@ -52,6 +52,9 @@ public class LoanApplication : AggregateRoot
     // Core Banking Reference
     public string? CoreBankingLoanId { get; private set; }
 
+    // Disbursement Memo
+    public string? DisbursementMemoStoragePath { get; private set; }
+
     // Credit Check Tracking
     public int TotalCreditChecksRequired { get; private set; }
     public int CreditChecksCompleted { get; private set; }
@@ -664,13 +667,28 @@ public class LoanApplication : AggregateRoot
         return Result.Success();
     }
 
+    public Result ReturnFromSecurityPerfection(Guid userId, string reason)
+    {
+        if (Status != LoanApplicationStatus.SecurityPerfection)
+            return Result.Failure("Application must be in SecurityPerfection status");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Return reason is required");
+
+        Status = LoanApplicationStatus.OfferAccepted;
+        AddStatusHistory(Status, userId, reason);
+        AddComment(userId, reason, "Security Return");
+
+        return Result.Success();
+    }
+
     public Result PrepareDisbursementMemo(Guid userId, string? comment = null)
     {
         if (Status != LoanApplicationStatus.DisbursementPending)
             return Result.Failure("Application must be in DisbursementPending status");
 
-        Status = LoanApplicationStatus.DisbursementBranchApproval;
-        AddStatusHistory(Status, userId, comment ?? "Disbursement memo prepared — submitted for branch authorisation");
+        Status = LoanApplicationStatus.DisbursementHQApproval;
+        AddStatusHistory(Status, userId, comment ?? "Disbursement memo prepared — referred to GM Finance for final release");
 
         return Result.Success();
     }
@@ -701,12 +719,30 @@ public class LoanApplication : AggregateRoot
         return Result.Success();
     }
 
+    public Result ReturnFromDisbursementPending(Guid userId, string reason)
+    {
+        if (Status != LoanApplicationStatus.DisbursementPending)
+            return Result.Failure("Application must be in DisbursementPending status");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Return reason is required");
+
+        Status = LoanApplicationStatus.SecurityPerfection;
+        AddStatusHistory(Status, userId, reason);
+        AddComment(userId, reason, "Disbursement Return");
+
+        return Result.Success();
+    }
+
+    public void SetDisbursementMemoPath(string storagePath)
+    {
+        DisbursementMemoStoragePath = storagePath;
+    }
+
     public Result RecordDisbursement(string coreBankingLoanId, Guid userId)
     {
-        if (Status != LoanApplicationStatus.DisbursementHQApproval
-            && Status != LoanApplicationStatus.Approved
-            && Status != LoanApplicationStatus.OfferAccepted)
-            return Result.Failure("Application must be in DisbursementHQApproval status");
+        if (Status != LoanApplicationStatus.DisbursementHQApproval)
+            return Result.Failure("Disbursement can only be recorded after GM Finance approval (DisbursementHQApproval status). The full security perfection and disbursement approval chain must be completed first.");
 
         Status = LoanApplicationStatus.Disbursed;
         CoreBankingLoanId = coreBankingLoanId;

@@ -30,6 +30,7 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
     private readonly ILoanProductRepository _productRepository;
     private readonly ICommitteeReviewRepository _committeeRepository;
     private readonly IOfferLetterRepository _offerLetterRepository;
+    private readonly ILoanPackRepository _loanPackRepository;
     private readonly IFineractDirectService _fineractService;
     private readonly IOfferLetterPdfGenerator _pdfGenerator;
     private readonly IAmortisationSchedulePdfGenerator _amortisationGenerator;
@@ -42,6 +43,7 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         ILoanProductRepository productRepository,
         ICommitteeReviewRepository committeeRepository,
         IOfferLetterRepository offerLetterRepository,
+        ILoanPackRepository loanPackRepository,
         IFineractDirectService fineractService,
         IOfferLetterPdfGenerator pdfGenerator,
         IAmortisationSchedulePdfGenerator amortisationGenerator,
@@ -53,6 +55,7 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         _productRepository = productRepository;
         _committeeRepository = committeeRepository;
         _offerLetterRepository = offerLetterRepository;
+        _loanPackRepository = loanPackRepository;
         _fineractService = fineractService;
         _pdfGenerator = pdfGenerator;
         _amortisationGenerator = amortisationGenerator;
@@ -70,6 +73,14 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         if (loanApp.Status is not (LoanApplicationStatus.Approved or LoanApplicationStatus.OfferGenerated
             or LoanApplicationStatus.OfferAccepted or LoanApplicationStatus.Disbursed))
             return ApplicationResult<OfferLetterResultDto>.Failure("Offer letter can only be generated for approved applications");
+
+        // A loan pack must be generated before the offer letter can be issued.
+        // This ensures the full credit assessment file exists before terms are communicated to the customer.
+        var latestPack = await _loanPackRepository.GetLatestByLoanApplicationIdAsync(request.LoanApplicationId, ct);
+        if (latestPack == null || latestPack.Status == Domain.Enums.LoanPackStatus.Failed)
+            return ApplicationResult<OfferLetterResultDto>.Failure(
+                "A completed loan pack must be generated before the offer letter can be issued. " +
+                "Please generate the loan pack first.");
 
         var product = await _productRepository.GetByIdAsync(loanApp.LoanProductId, ct);
 

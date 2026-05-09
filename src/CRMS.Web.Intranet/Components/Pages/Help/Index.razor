@@ -54,7 +54,7 @@
                 }
                 else
                 {
-                @* Getting Started *@
+                @* Getting Started — all roles *@
                 <div class="nav-category">
                     <div class="nav-category-header">
                         <span class="material-symbols-outlined">rocket_launch</span>
@@ -69,7 +69,7 @@
                     </a>
                 </div>
 
-                @* Menu Items Guide *@
+                @* Menu Items — filtered by role *@
                 <div class="nav-category">
                     <div class="nav-category-header">
                         <span class="material-symbols-outlined">menu</span>
@@ -81,33 +81,56 @@
                     <a class="nav-item @IsActive("menu-applications")" href="/help/menu-applications">
                         <span class="nav-dot"></span>Applications
                     </a>
-                    <a class="nav-item @IsActive("menu-new-application")" href="/help/menu-new-application">
-                        <span class="nav-dot"></span>New Application
-                    </a>
+                    @if (Can("LoanOfficer"))
+                    {
+                        <a class="nav-item @IsActive("menu-new-application")" href="/help/menu-new-application">
+                            <span class="nav-dot"></span>New Application
+                        </a>
+                    }
                     <a class="nav-item @IsActive("menu-my-queue")" href="/help/menu-my-queue">
                         <span class="nav-dot"></span>My Queue
                     </a>
-                    <a class="nav-item @IsActive("menu-all-queues")" href="/help/menu-all-queues">
-                        <span class="nav-dot"></span>All Queues
-                    </a>
-                    <a class="nav-item @IsActive("menu-overdue")" href="/help/menu-overdue">
-                        <span class="nav-dot"></span>Overdue
-                    </a>
-                    <a class="nav-item @IsActive("menu-pending-votes")" href="/help/menu-pending-votes">
-                        <span class="nav-dot"></span>My Pending Votes
-                    </a>
-                    <a class="nav-item @IsActive("menu-committee-reviews")" href="/help/menu-committee-reviews">
-                        <span class="nav-dot"></span>Committee Reviews
-                    </a>
-                    <a class="nav-item @IsActive("menu-reports")" href="/help/menu-reports">
-                        <span class="nav-dot"></span>Reports
-                    </a>
-                    <a class="nav-item @IsActive("menu-audit-trail")" href="/help/menu-audit-trail">
-                        <span class="nav-dot"></span>Audit Trail
-                    </a>
+                    @if (Can("CreditOfficer", "HOReviewer", "Operations", "GMFinance", "RiskManager"))
+                    {
+                        <a class="nav-item @IsActive("menu-all-queues")" href="/help/menu-all-queues">
+                            <span class="nav-dot"></span>All Queues
+                        </a>
+                    }
+                    @if (Can("RiskManager"))
+                    {
+                        <a class="nav-item @IsActive("menu-overdue")" href="/help/menu-overdue">
+                            <span class="nav-dot"></span>Overdue
+                        </a>
+                    }
+                    @if (Can("CommitteeMember"))
+                    {
+                        <a class="nav-item @IsActive("menu-pending-votes")" href="/help/menu-pending-votes">
+                            <span class="nav-dot"></span>My Pending Votes
+                        </a>
+                    }
+                    @if (Can("CommitteeMember", "CreditOfficer", "RiskManager"))
+                    {
+                        <a class="nav-item @IsActive("menu-committee-reviews")" href="/help/menu-committee-reviews">
+                            <span class="nav-dot"></span>Committee Reviews
+                        </a>
+                    }
+                    @if (Can("CreditOfficer", "RiskManager", "Auditor", "GMFinance"))
+                    {
+                        <a class="nav-item @IsActive("menu-reports")" href="/help/menu-reports">
+                            <span class="nav-dot"></span>Reports
+                        </a>
+                    }
+                    @if (Can("RiskManager", "Auditor"))
+                    {
+                        <a class="nav-item @IsActive("menu-audit-trail")" href="/help/menu-audit-trail">
+                            <span class="nav-dot"></span>Audit Trail
+                        </a>
+                    }
                 </div>
 
-                @* Administration Menu *@
+                @* Administration — System Admin only *@
+                @if (IsAdmin)
+                {
                 <div class="nav-category">
                     <div class="nav-category-header">
                         <span class="material-symbols-outlined">settings</span>
@@ -125,6 +148,9 @@
                     <a class="nav-item @IsActive("admin-committees")" href="/help/admin-committees">
                         <span class="nav-dot"></span>Committees
                     </a>
+                    <a class="nav-item @IsActive("admin-collateral-types")" href="/help/admin-collateral-types">
+                        <span class="nav-dot"></span>Collateral Types
+                    </a>
                     <a class="nav-item @IsActive("admin-scoring")" href="/help/admin-scoring">
                         <span class="nav-dot"></span>Scoring Config
                     </a>
@@ -132,32 +158,47 @@
                         <span class="nav-dot"></span>Templates
                     </a>
                 </div>
+                }
 
-                @* Loan Process *@
+                @* Loan Process — filtered by role *@
                 <div class="nav-category">
                     <div class="nav-category-header">
                         <span class="material-symbols-outlined">account_balance</span>
                         Loan Process
                     </div>
-                    <a class="nav-item @IsActive("workflow")" href="/help/workflow">
-                        <span class="nav-dot"></span>Complete Workflow
-                    </a>
-                    <a class="nav-item @IsActive("creating-application")" href="/help/creating-application">
-                        <span class="nav-dot"></span>Creating Applications
-                    </a>
+                    @if (IsAdmin)
+                    {
+                        <a class="nav-item @IsActive("workflow")" href="/help/workflow">
+                            <span class="nav-dot"></span>Complete Workflow
+                        </a>
+                    }
+                    @if (Can("LoanOfficer"))
+                    {
+                        <a class="nav-item @IsActive("creating-application")" href="/help/creating-application">
+                            <span class="nav-dot"></span>Creating Applications
+                        </a>
+                    }
                     <a class="nav-item @IsActive("application-statuses")" href="/help/application-statuses">
                         <span class="nav-dot"></span>Application Statuses
                     </a>
                     <a class="nav-item @IsActive("workflow-actions")" href="/help/workflow-actions">
                         <span class="nav-dot"></span>Workflow Actions
                     </a>
-                    <a class="nav-item @IsActive("offer-letter")" href="/help/offer-letter">
-                        <span class="nav-dot"></span>Offer Letter
-                        <span class="nav-badge" style="background: var(--success-50); color: var(--success-700);">New</span>
-                    </a>
+                    @if (Can("Operations", "FinalApprover"))
+                    {
+                        <a class="nav-item @IsActive("offer-letter")" href="/help/offer-letter">
+                            <span class="nav-dot"></span>Offer Letter
+                        </a>
+                    }
+                    @if (Can("BranchApprover", "CreditOfficer", "HOReviewer", "LegalOfficer", "HeadOfLegal", "FinalApprover", "Operations"))
+                    {
+                        <a class="nav-item @IsActive("approval-gates")" href="/help/approval-gates">
+                            <span class="nav-dot"></span>Approval Gates
+                        </a>
+                    }
                 </div>
 
-                @* Application Tabs *@
+                @* Application Tabs — filtered by role *@
                 <div class="nav-category">
                     <div class="nav-category-header">
                         <span class="material-symbols-outlined">tab</span>
@@ -166,56 +207,101 @@
                     <a class="nav-item @IsActive("tab-overview")" href="/help/tab-overview">
                         <span class="nav-dot"></span>Overview Tab
                     </a>
-                    <a class="nav-item @IsActive("tab-documents")" href="/help/tab-documents">
-                        <span class="nav-dot"></span>Documents Tab
-                    </a>
-                    <a class="nav-item @IsActive("tab-collateral")" href="/help/tab-collateral">
-                        <span class="nav-dot"></span>Collateral Tab
-                    </a>
-                    <a class="nav-item @IsActive("tab-guarantors")" href="/help/tab-guarantors">
-                        <span class="nav-dot"></span>Guarantors Tab
-                    </a>
-                    <a class="nav-item @IsActive("tab-financials")" href="/help/tab-financials">
-                        <span class="nav-dot"></span>Financials Tab
-                    </a>
-                    <a class="nav-item @IsActive("tab-statements")" href="/help/tab-statements">
-                        <span class="nav-dot"></span>Bank Statements Tab
-                    </a>
-                    <a class="nav-item @IsActive("tab-bureau")" href="/help/tab-bureau">
-                        <span class="nav-dot"></span>Bureau Tab
-                    </a>
-                    <a class="nav-item @IsActive("tab-advisory")" href="/help/tab-advisory">
-                        <span class="nav-dot"></span>Advisory Tab
-                    </a>
-                    <a class="nav-item @IsActive("tab-committee")" href="/help/tab-committee">
-                        <span class="nav-dot"></span>Committee Tab
-                    </a>
+                    @if (Can("LoanOfficer", "BranchApprover", "CreditOfficer", "HOReviewer"))
+                    {
+                        <a class="nav-item @IsActive("tab-documents")" href="/help/tab-documents">
+                            <span class="nav-dot"></span>Documents Tab
+                        </a>
+                    }
+                    @if (Can("LoanOfficer", "CreditOfficer", "LegalOfficer", "HeadOfLegal"))
+                    {
+                        <a class="nav-item @IsActive("tab-collateral")" href="/help/tab-collateral">
+                            <span class="nav-dot"></span>Collateral Tab
+                        </a>
+                    }
+                    @if (Can("LoanOfficer", "CreditOfficer"))
+                    {
+                        <a class="nav-item @IsActive("tab-guarantors")" href="/help/tab-guarantors">
+                            <span class="nav-dot"></span>Guarantors Tab
+                        </a>
+                    }
+                    @if (Can("LoanOfficer", "CreditOfficer", "HOReviewer"))
+                    {
+                        <a class="nav-item @IsActive("tab-financials")" href="/help/tab-financials">
+                            <span class="nav-dot"></span>Financials Tab
+                        </a>
+                    }
+                    @if (Can("LoanOfficer", "BranchApprover", "CreditOfficer", "HOReviewer"))
+                    {
+                        <a class="nav-item @IsActive("tab-statements")" href="/help/tab-statements">
+                            <span class="nav-dot"></span>Bank Statements Tab
+                        </a>
+                    }
+                    @if (Can("BranchApprover", "CreditOfficer", "HOReviewer"))
+                    {
+                        <a class="nav-item @IsActive("tab-bureau")" href="/help/tab-bureau">
+                            <span class="nav-dot"></span>Bureau Tab
+                        </a>
+                    }
+                    @if (Can("CreditOfficer", "HOReviewer", "FinalApprover"))
+                    {
+                        <a class="nav-item @IsActive("tab-advisory")" href="/help/tab-advisory">
+                            <span class="nav-dot"></span>Advisory Tab
+                        </a>
+                    }
+                    @if (Can("CommitteeMember", "CreditOfficer", "FinalApprover"))
+                    {
+                        <a class="nav-item @IsActive("tab-committee")" href="/help/tab-committee">
+                            <span class="nav-dot"></span>Committee Tab
+                        </a>
+                    }
+                    @if (Can("Operations"))
+                    {
+                        <a class="nav-item @IsActive("tab-offer-acceptance")" href="/help/tab-offer-acceptance">
+                            <span class="nav-dot"></span>Offer Acceptance Tab
+                        </a>
+                    }
                     <a class="nav-item @IsActive("tab-workflow")" href="/help/tab-workflow">
                         <span class="nav-dot"></span>Workflow Tab
                     </a>
                 </div>
 
-                @* Credit Assessment *@
+                @* Credit Assessment — restricted to analysis/review roles *@
+                @if (Can("CreditOfficer", "HOReviewer", "FinalApprover", "RiskManager", "Auditor", "BranchApprover"))
+                {
                 <div class="nav-category">
                     <div class="nav-category-header">
                         <span class="material-symbols-outlined">psychology</span>
                         Credit Assessment
                     </div>
-                    <a class="nav-item @IsActive("scoring-algorithm")" href="/help/scoring-algorithm">
-                        <span class="nav-dot"></span>Scoring Algorithm
-                    </a>
-                    <a class="nav-item @IsActive("ai-advisory")" href="/help/ai-advisory">
-                        <span class="nav-dot"></span>AI Advisory System
-                    </a>
-                    <a class="nav-item @IsActive("credit-bureau")" href="/help/credit-bureau">
-                        <span class="nav-dot"></span>Credit Bureau Checks
-                    </a>
-                    <a class="nav-item @IsActive("risk-categories")" href="/help/risk-categories">
-                        <span class="nav-dot"></span>Risk Categories
-                    </a>
+                    @if (Can("CreditOfficer", "HOReviewer", "RiskManager", "Auditor"))
+                    {
+                        <a class="nav-item @IsActive("scoring-algorithm")" href="/help/scoring-algorithm">
+                            <span class="nav-dot"></span>Scoring Algorithm
+                        </a>
+                    }
+                    @if (Can("CreditOfficer", "HOReviewer", "FinalApprover"))
+                    {
+                        <a class="nav-item @IsActive("ai-advisory")" href="/help/ai-advisory">
+                            <span class="nav-dot"></span>AI Advisory System
+                        </a>
+                    }
+                    @if (Can("BranchApprover", "CreditOfficer", "HOReviewer"))
+                    {
+                        <a class="nav-item @IsActive("credit-bureau")" href="/help/credit-bureau">
+                            <span class="nav-dot"></span>Credit Bureau Checks
+                        </a>
+                    }
+                    @if (Can("CreditOfficer", "HOReviewer", "RiskManager", "Auditor"))
+                    {
+                        <a class="nav-item @IsActive("risk-categories")" href="/help/risk-categories">
+                            <span class="nav-dot"></span>Risk Categories
+                        </a>
+                    }
                 </div>
+                }
 
-                @* Reference *@
+                @* Reference — all roles *@
                 <div class="nav-category">
                     <div class="nav-category-header">
                         <span class="material-symbols-outlined">menu_book</span>
@@ -237,6 +323,12 @@
 
         @* Main Content Area *@
         <main class="help-content">
+            @if (!CanViewSection(CurrentSection))
+            {
+                @RenderAccessDenied()
+            }
+            else
+            {
             @switch (CurrentSection)
             {
                 case "overview":
@@ -287,6 +379,9 @@
                 case "admin-committees":
                     @RenderAdminCommittees()
                     break;
+                case "admin-collateral-types":
+                    @RenderAdminCollateralTypes()
+                    break;
                 case "admin-scoring":
                     @RenderAdminScoring()
                     break;
@@ -307,6 +402,9 @@
                     break;
                 case "offer-letter":
                     @RenderOfferLetter()
+                    break;
+                case "approval-gates":
+                    @RenderApprovalGates()
                     break;
                 case "tab-overview":
                     @RenderTabOverview()
@@ -334,6 +432,9 @@
                     break;
                 case "tab-committee":
                     @RenderTabCommittee()
+                    break;
+                case "tab-offer-acceptance":
+                    @RenderTabOfferAcceptance()
                     break;
                 case "tab-workflow":
                     @RenderTabWorkflow()
@@ -363,6 +464,7 @@
                     @RenderOverview()
                     break;
             }
+            }
         </main>
     </div>
 </div>
@@ -380,9 +482,12 @@
         "BranchApprover" => "Branch Approver",
         "CreditOfficer" => "Credit Officer",
         "HOReviewer" => "HO Reviewer",
+        "LegalOfficer" => "Legal Officer",
+        "HeadOfLegal" => "Head of Legal",
         "CommitteeMember" => "Committee Member",
         "FinalApprover" => "Final Approver",
         "Operations" => "Operations",
+        "GMFinance" => "GM Finance",
         "RiskManager" => "Risk Manager",
         "Auditor" => "Auditor",
         "SystemAdmin" => "System Administrator",
@@ -395,9 +500,12 @@
         "BranchApprover" => "BA",
         "CreditOfficer" => "CO",
         "HOReviewer" => "HO",
+        "LegalOfficer" => "LE",
+        "HeadOfLegal" => "HL",
         "CommitteeMember" => "CM",
         "FinalApprover" => "FA",
         "Operations" => "OP",
+        "GMFinance" => "GM",
         "RiskManager" => "RM",
         "Auditor" => "AU",
         "SystemAdmin" => "SA",
@@ -405,6 +513,76 @@
     };
 
     private string IsActive(string section) => CurrentSection == section ? "active" : "";
+
+    private bool IsAdmin => User?.HasRole("SystemAdmin") == true;
+
+    // Returns true if the user is SystemAdmin OR has any of the listed roles
+    private bool Can(params string[] roles)
+    {
+        if (IsAdmin) return true;
+        return roles.Any(r => User?.HasRole(r) == true);
+    }
+
+    private RenderFragment RenderAccessDenied() => __builder =>
+    {
+        <div class="help-section" style="text-align: center; padding: var(--space-12) var(--space-6);">
+            <span class="material-symbols-outlined" style="font-size: 48px; color: var(--gray-300); display: block; margin-bottom: var(--space-4);">lock</span>
+            <h2 style="color: var(--gray-500); margin-bottom: var(--space-2);">Section Not Available</h2>
+            <p style="color: var(--gray-400); max-width: 400px; margin: 0 auto var(--space-6);">
+                This help section is not applicable to your current role. Navigate to a section relevant to your role using the sidebar.
+            </p>
+            <a href="/help/your-role" class="btn btn-secondary">View Your Role Guide</a>
+        </div>
+    };
+
+    private bool CanViewSection(string section) => section switch
+    {
+        // SystemAdmin only — full workflow and administration
+        "workflow"               => IsAdmin,
+        "admin-users"            => IsAdmin,
+        "admin-products"         => IsAdmin,
+        "admin-locations"        => IsAdmin,
+        "admin-committees"       => IsAdmin,
+        "admin-collateral-types" => IsAdmin,
+        "admin-scoring"          => IsAdmin,
+        "admin-templates"        => IsAdmin,
+
+        // Loan Officer only
+        "menu-new-application"   => Can("LoanOfficer"),
+        "creating-application"   => Can("LoanOfficer"),
+
+        // Menu items — restricted by role
+        "menu-all-queues"        => Can("CreditOfficer", "HOReviewer", "Operations", "GMFinance", "RiskManager"),
+        "menu-overdue"           => Can("RiskManager"),
+        "menu-pending-votes"     => Can("CommitteeMember"),
+        "menu-committee-reviews" => Can("CommitteeMember", "CreditOfficer", "RiskManager"),
+        "menu-reports"           => Can("CreditOfficer", "RiskManager", "Auditor", "GMFinance"),
+        "menu-audit-trail"       => Can("RiskManager", "Auditor"),
+
+        // Loan Process — restricted
+        "offer-letter"           => Can("Operations", "FinalApprover"),
+        "approval-gates"         => Can("BranchApprover", "CreditOfficer", "HOReviewer", "LegalOfficer", "HeadOfLegal", "FinalApprover", "Operations"),
+
+        // Application Tabs — restricted
+        "tab-documents"          => Can("LoanOfficer", "BranchApprover", "CreditOfficer", "HOReviewer"),
+        "tab-collateral"         => Can("LoanOfficer", "CreditOfficer", "LegalOfficer", "HeadOfLegal"),
+        "tab-guarantors"         => Can("LoanOfficer", "CreditOfficer"),
+        "tab-financials"         => Can("LoanOfficer", "CreditOfficer", "HOReviewer"),
+        "tab-statements"         => Can("LoanOfficer", "BranchApprover", "CreditOfficer", "HOReviewer"),
+        "tab-bureau"             => Can("BranchApprover", "CreditOfficer", "HOReviewer"),
+        "tab-advisory"           => Can("CreditOfficer", "HOReviewer", "FinalApprover"),
+        "tab-committee"          => Can("CommitteeMember", "CreditOfficer", "FinalApprover"),
+        "tab-offer-acceptance"   => Can("Operations"),
+
+        // Credit Assessment — restricted
+        "scoring-algorithm"      => Can("CreditOfficer", "HOReviewer", "RiskManager", "Auditor"),
+        "ai-advisory"            => Can("CreditOfficer", "HOReviewer", "FinalApprover"),
+        "credit-bureau"          => Can("BranchApprover", "CreditOfficer", "HOReviewer"),
+        "risk-categories"        => Can("CreditOfficer", "HOReviewer", "RiskManager", "Auditor"),
+
+        // Everything else is available to all authenticated users
+        _ => true
+    };
 
     private static readonly List<(string Key, string Label)> HelpNavItems =
     [
@@ -424,6 +602,7 @@
         ("admin-products", "Products"),
         ("admin-locations", "Locations"),
         ("admin-committees", "Committees"),
+        ("admin-collateral-types", "Collateral Types"),
         ("admin-scoring", "Scoring Config"),
         ("admin-templates", "Templates"),
         ("workflow", "Complete Workflow"),
@@ -431,6 +610,7 @@
         ("application-statuses", "Application Statuses"),
         ("workflow-actions", "Workflow Actions"),
         ("offer-letter", "Offer Letter"),
+        ("approval-gates", "Approval Gates"),
         ("tab-overview", "Overview Tab"),
         ("tab-documents", "Documents Tab"),
         ("tab-collateral", "Collateral Tab"),
@@ -440,6 +620,7 @@
         ("tab-bureau", "Bureau Tab"),
         ("tab-advisory", "Advisory Tab"),
         ("tab-committee", "Committee Tab"),
+        ("tab-offer-acceptance", "Offer Acceptance Tab"),
         ("tab-workflow", "Workflow Tab"),
         ("scoring-algorithm", "Scoring Algorithm"),
         ("ai-advisory", "AI Advisory System"),
@@ -495,8 +676,8 @@
 
         <div class="content-card">
             <h2>How Loan Processing Works</h2>
-            <p>Every corporate loan application flows through these stages:</p>
-            
+            <p>Every corporate loan application flows through these stages (see <a href="/help/workflow">Complete Workflow</a> for full detail):</p>
+
             <div class="visual-workflow">
                 <div class="workflow-step">
                     <div class="step-circle draft">
@@ -508,12 +689,7 @@
                         <span class="step-actor">Loan Officer</span>
                     </div>
                 </div>
-                
-                <div class="workflow-connector">
-                    <div class="connector-line"></div>
-                    <span class="connector-action">Submit</span>
-                </div>
-                
+                <div class="workflow-connector"><div class="connector-line"></div><span class="connector-action">Submit</span></div>
                 <div class="workflow-step">
                     <div class="step-circle review">
                         <span class="material-symbols-outlined">fact_check</span>
@@ -524,68 +700,70 @@
                         <span class="step-actor">Branch Approver</span>
                     </div>
                 </div>
-                
-                <div class="workflow-connector">
-                    <div class="connector-line"></div>
-                    <span class="connector-action">Approve</span>
-                </div>
-                
+                <div class="workflow-connector"><div class="connector-line"></div><span class="connector-action">Approve</span></div>
                 <div class="workflow-step">
                     <div class="step-circle analysis">
                         <span class="material-symbols-outlined">analytics</span>
                     </div>
                     <div class="step-info">
-                        <h4>3. Credit Analysis</h4>
-                        <p>Credit Officer analyzes risk, valuates collateral, generates AI advisory</p>
-                        <span class="step-actor">Credit Officer</span>
+                        <h4>3. Credit Analysis → HO Review</h4>
+                        <p>Credit Officer analyses risk, valuates collateral, generates AI advisory. HO Reviewer performs second-level sign-off.</p>
+                        <span class="step-actor">Credit Officer → HO Reviewer</span>
                     </div>
                 </div>
-                
-                <div class="workflow-connector">
-                    <div class="connector-line"></div>
-                    <span class="connector-action">Setup Committee</span>
+                <div class="workflow-connector"><div class="connector-line"></div><span class="connector-action">Approve</span></div>
+                <div class="workflow-step">
+                    <div class="step-circle review">
+                        <span class="material-symbols-outlined">gavel</span>
+                    </div>
+                    <div class="step-info">
+                        <h4>4. Legal Review → Legal Approval</h4>
+                        <p>Legal Officer records clearance on all collateral items. Head of Legal countersigns the legal opinion.</p>
+                        <span class="step-actor">Legal Officer → Head of Legal</span>
+                    </div>
                 </div>
-                
+                <div class="workflow-connector"><div class="connector-line"></div><span class="connector-action">Approve</span></div>
                 <div class="workflow-step">
                     <div class="step-circle committee">
                         <span class="material-symbols-outlined">how_to_vote</span>
                     </div>
                     <div class="step-info">
-                        <h4>4. Committee Review</h4>
-                        <p>Committee members review loan pack and cast votes</p>
-                        <span class="step-actor">Committee Members</span>
+                        <h4>5. Committee Circulation</h4>
+                        <p>Credit Officer approves collateral, sets up committee. Members vote on facility.</p>
+                        <span class="step-actor">Credit Officer + Committee</span>
                     </div>
                 </div>
-                
-                <div class="workflow-connector">
-                    <div class="connector-line"></div>
-                    <span class="connector-action">Decision</span>
-                </div>
-                
+                <div class="workflow-connector"><div class="connector-line"></div><span class="connector-action">Decision</span></div>
                 <div class="workflow-step">
                     <div class="step-circle approval">
                         <span class="material-symbols-outlined">verified</span>
                     </div>
                     <div class="step-info">
-                        <h4>5. Final Approval</h4>
-                        <p>Final Approver confirms terms and authorizes disbursement</p>
+                        <h4>6. Final Approval → Approved</h4>
+                        <p>Final Approver confirms committee decision. Offer letter generated and sent to customer.</p>
                         <span class="step-actor">Final Approver</span>
                     </div>
                 </div>
-                
-                <div class="workflow-connector">
-                    <div class="connector-line"></div>
-                    <span class="connector-action">Approve</span>
+                <div class="workflow-connector"><div class="connector-line"></div><span class="connector-action">Approve</span></div>
+                <div class="workflow-step">
+                    <div class="step-circle review">
+                        <span class="material-symbols-outlined">lock</span>
+                    </div>
+                    <div class="step-info">
+                        <h4>7. Security Perfection → Security Approval</h4>
+                        <p>Legal Officer registers liens. Head of Legal gives final security sign-off.</p>
+                        <span class="step-actor">Legal Officer → Head of Legal</span>
+                    </div>
                 </div>
-                
+                <div class="workflow-connector"><div class="connector-line"></div><span class="connector-action">Approve</span></div>
                 <div class="workflow-step">
                     <div class="step-circle disbursed">
                         <span class="material-symbols-outlined">payments</span>
                     </div>
                     <div class="step-info">
-                        <h4>6. Disbursement</h4>
-                        <p>Operations books loan in Core Banking and processes disbursement</p>
-                        <span class="step-actor">Operations</span>
+                        <h4>8. Disbursement</h4>
+                        <p>Operations books loan, forwards to GM Finance who gives HQ authorization and disburses.</p>
+                        <span class="step-actor">Operations → GM Finance</span>
                     </div>
                 </div>
             </div>
@@ -653,6 +831,18 @@
         {
             @RenderCreditOfficerRole()
         }
+        else if (User?.HasRole("HOReviewer") == true)
+        {
+            @RenderHOReviewerRole()
+        }
+        else if (User?.HasRole("LegalOfficer") == true)
+        {
+            @RenderLegalOfficerRole()
+        }
+        else if (User?.HasRole("HeadOfLegal") == true)
+        {
+            @RenderHeadOfLegalRole()
+        }
         else if (User?.HasRole("CommitteeMember") == true)
         {
             @RenderCommitteeMemberRole()
@@ -664,6 +854,10 @@
         else if (User?.HasRole("Operations") == true)
         {
             @RenderOperationsRole()
+        }
+        else if (User?.HasRole("GMFinance") == true)
+        {
+            @RenderGMFinanceRole()
         }
         else if (User?.HasRole("RiskManager") == true)
         {
@@ -910,9 +1104,294 @@
                 <div class="numbered-step">
                     <div class="step-num">6</div>
                     <div class="step-content">
-                        <h4>Setup Committee Review</h4>
-                        <p>For applications requiring committee approval, setup the committee and notify members.</p>
+                        <h4>Advance to HO Review</h4>
+                        <p>Click <strong>Approve</strong> to send to the HO Reviewer for second-level review.</p>
                     </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">7</div>
+                    <div class="step-content">
+                        <h4>Approve Collateral &amp; Setup Committee (after LegalApproval)</h4>
+                        <p>Once Head of Legal approves, the application returns to <strong>Committee Circulation</strong> status. At this point: (a) approve each collateral item now that legal clearance is in place, (b) set up the committee review, and (c) generate the Loan Pack PDF.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderHOReviewerRole() => __builder =>
+    {
+        <div class="role-header-card ho-reviewer">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">manage_accounts</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Head Office second-level review after Credit Analysis — validate the credit officer's work and advance to Legal Review</p>
+                <div class="role-tags">
+                    <span class="tag">Second-Level Review</span>
+                    <span class="tag">Validate Analysis</span>
+                    <span class="tag">Approve/Return/Reject</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Your Review Focus</h2>
+            <div class="checklist-visual">
+                <div class="checklist-group">
+                    <h4><span class="material-symbols-outlined">analytics</span> Credit Analysis Quality</h4>
+                    <ul>
+                        <li>AI Advisory generated and reviewed</li>
+                        <li>Bureau reports checked for all parties</li>
+                        <li>Bank statement cashflow analysis complete</li>
+                        <li>Collateral valuations entered</li>
+                        <li>Guarantors reviewed and approved/rejected</li>
+                    </ul>
+                </div>
+                <div class="checklist-group">
+                    <h4><span class="material-symbols-outlined">policy</span> Risk Assessment</h4>
+                    <ul>
+                        <li>Risk score is reasonable given the data</li>
+                        <li>Red flags have been addressed or noted</li>
+                        <li>Recommended terms are within policy</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Your Actions</h2>
+            <div class="action-cards">
+                <div class="action-card approve">
+                    <div class="action-icon"><span class="material-symbols-outlined">check_circle</span></div>
+                    <h4>Approve → Legal Review</h4>
+                    <p>Credit analysis is satisfactory. Application moves to Legal Officer for collateral clearance.</p>
+                </div>
+                <div class="action-card return">
+                    <div class="action-icon"><span class="material-symbols-outlined">undo</span></div>
+                    <h4>Return</h4>
+                    <p>Analysis incomplete or requires revision. Returns to Credit Officer.</p>
+                </div>
+                <div class="action-card reject">
+                    <div class="action-icon"><span class="material-symbols-outlined">cancel</span></div>
+                    <h4>Reject</h4>
+                    <p>Fundamental credit concerns. Application permanently closed.</p>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderLegalOfficerRole() => __builder =>
+    {
+        <div class="role-header-card legal-officer">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">gavel</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Perform legal due diligence on all collateral and record legal clearance for each item before advancing to Legal Approval</p>
+                <div class="role-tags">
+                    <span class="tag">Legal Clearance</span>
+                    <span class="tag">Collateral Review</span>
+                    <span class="tag">Security Perfection</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Your Workflow</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Check My Queue for LegalReview Applications</h4>
+                        <p>Applications in <strong>Legal Review</strong> status appear in your queue.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Review Each Collateral Item</h4>
+                        <p>Open the Collateral tab. For each item: verify title documents, ownership, encumbrances, and legal validity.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Record Legal Clearance</h4>
+                        <p>Click the <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">gavel</span> (gavel) icon on each collateral item. This sets <strong>IsLegalCleared = true</strong>, which is required before the Credit Officer can give final collateral approval.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Approve → Legal Approval</h4>
+                        <p>Once all collateral items are legally cleared, click <strong>Approve</strong> to advance to Head of Legal for countersign.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Security Perfection (Post-Offer)</h2>
+            <p>You also act at the <strong>Security Perfection</strong> stage after the customer accepts the offer:</p>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Check My Queue for SecurityPerfection Applications</h4>
+                        <p>Operations advances the application to Security Perfection after offer acceptance.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Perfect the Security / Register Liens</h4>
+                        <p>Physically register liens, perfect collateral documents, and confirm perfection on the Collateral tab.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Approve → Security Approval</h4>
+                        <p>Click <strong>Approve</strong>. Application moves to Head of Legal for final security sign-off.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderHeadOfLegalRole() => __builder =>
+    {
+        <div class="role-header-card head-of-legal">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">balance</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Countersign the legal opinion (Legal Approval stage) and give final security sign-off before disbursement (Security Approval stage)</p>
+                <div class="role-tags">
+                    <span class="tag">Legal Countersign</span>
+                    <span class="tag">Security Sign-off</span>
+                    <span class="tag">Two-Stage Role</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Stage 1 — Legal Approval</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Check My Queue for LegalApproval Applications</h4>
+                        <p>Applications arrive here after the Legal Officer records all collateral clearances and approves.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Review Legal Officer's Work</h4>
+                        <p>Confirm all collateral items are legally cleared. Review any collateral documents uploaded.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Approve → Committee Circulation</h4>
+                        <p>Click <strong>Approve</strong>. Application proceeds to Credit Officer for committee setup.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Stage 2 — Security Approval</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Check My Queue for SecurityApproval Applications</h4>
+                        <p>Arrives here after Legal Officer confirms security perfection.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Verify Lien Registration</h4>
+                        <p>Confirm all liens are properly registered and perfected collateral is documented.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Approve → Disbursement Pending</h4>
+                        <p>Click <strong>Approve</strong>. Application moves to Operations for HQ disbursement authorization.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderGMFinanceRole() => __builder =>
+    {
+        <div class="role-header-card gm-finance">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">currency_exchange</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>Authorize final disbursement at HQ level — the last approval before funds are released</p>
+                <div class="role-tags">
+                    <span class="tag">HQ Disbursement Auth</span>
+                    <span class="tag">Final Sign-off</span>
+                    <span class="tag">CBS Reference Entry</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Disbursement Process</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Check My Queue for DisbursementHQApproval Applications</h4>
+                        <p>Applications reach this stage after Operations forwards the disbursement request from <strong>Disbursement Pending</strong>.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Review Disbursement Details</h4>
+                        <p>Verify approved amount, loan terms, CBS reference from the loan booking, and confirm all pre-conditions are met.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Click Disburse</h4>
+                        <p>The <strong>Disburse</strong> button appears for your role at this stage. Enter the CBS Disbursement Reference and click Disburse. Status moves to <strong>Disbursed</strong>.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="access-grid">
+                <div class="access-item can">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <div><strong>Applications</strong><span>Global view — all applications</span></div>
+                </div>
+                <div class="access-item can">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <div><strong>My Queue</strong><span>DisbursementHQApproval applications</span></div>
+                </div>
+                <div class="access-item can">
+                    <span class="material-symbols-outlined">check_circle</span>
+                    <div><strong>Reports</strong><span>Full analytics access</span></div>
                 </div>
             </div>
         </div>
@@ -1015,21 +1494,21 @@
                     <div class="step-num">1</div>
                     <div class="step-content">
                         <h4>Check My Queue</h4>
-                        <p>Filter for applications with "Committee Approved" status awaiting your sign-off.</p>
+                        <p>Applications in <strong>Final Approval</strong> status appear here. The committee chairperson's decision automatically advances the application to this stage.</p>
                     </div>
                 </div>
                 <div class="numbered-step">
                     <div class="step-num">2</div>
                     <div class="step-content">
                         <h4>Review Committee Decision</h4>
-                        <p>Check the Committee tab to see the vote tally and approved terms.</p>
+                        <p>Check the Committee tab to see the vote tally and approved terms. Confirm all collateral is <strong>Approved</strong> (not just Valued) and all guarantors are <strong>Approved</strong>.</p>
                     </div>
                 </div>
                 <div class="numbered-step">
                     <div class="step-num">3</div>
                     <div class="step-content">
-                        <h4>Approve or Reject</h4>
-                        <p>Click Approve to authorize disbursement, or Reject if there are concerns.</p>
+                        <h4>Approve → Approved</h4>
+                        <p>Click <strong>Approve</strong>. Application moves to <strong>Approved</strong> status and the offer generation process begins.</p>
                     </div>
                 </div>
             </div>
@@ -1054,47 +1533,53 @@
         </div>
 
         <div class="content-card">
-            <h2>Disbursement Process</h2>
+            <h2>Your Multi-Stage Role</h2>
+            <p>Operations acts at <strong>three distinct points</strong> in the post-approval flow:</p>
             <div class="numbered-steps">
                 <div class="numbered-step">
                     <div class="step-num">1</div>
                     <div class="step-content">
-                        <h4>Check Approved Applications</h4>
-                        <p>Filter My Queue for applications with "Approved" status.</p>
+                        <h4>Approved → Generate Offer &amp; Record Acceptance</h4>
+                        <p>When status is <strong>Approved</strong>: generate the offer letter, send to customer, then record the customer's signed acceptance on the Offer Acceptance tab. Click <strong>Approve</strong> → moves to <strong>Security Perfection</strong>.</p>
                     </div>
                 </div>
                 <div class="numbered-step">
                     <div class="step-num">2</div>
                     <div class="step-content">
-                        <h4>Generate Offer Letter</h4>
-                        <p>Click the <strong>Offer Letter</strong> button to generate a formal offer with proposed repayment schedule. The system calculates the schedule using the approved loan terms. Send to the customer for acceptance.</p>
+                        <h4>DisbursementPending → Forward for HQ Authorization</h4>
+                        <p>After Legal clears security (Security Approval), the application returns to Operations at <strong>Disbursement Pending</strong>. Book the loan in Core Banking, then click <strong>Approve</strong> → moves to <strong>Disbursement HQ Approval</strong> for GM Finance.</p>
                     </div>
                 </div>
                 <div class="numbered-step">
                     <div class="step-num">3</div>
                     <div class="step-content">
-                        <h4>Verify Pre-Disbursement Conditions</h4>
-                        <p>Ensure all conditions are met: documents verified, liens perfected, offer letter signed and accepted by customer.</p>
-                    </div>
-                </div>
-                <div class="numbered-step">
-                    <div class="step-num">4</div>
-                    <div class="step-content">
-                        <h4>Book Loan in Core Banking</h4>
-                        <p>Create the loan account in Fineract (Core Banking System) - this is manual.</p>
-                    </div>
-                </div>
-                <div class="numbered-step">
-                    <div class="step-num">5</div>
-                    <div class="step-content">
-                        <h4>Update CRMS &amp; Mark Disbursed</h4>
-                        <p>Enter the loan account reference in CRMS and mark as disbursed.</p>
+                        <h4>Monitor Disbursement</h4>
+                        <p>GM Finance performs the final disburse action. Applications in <strong>Disbursed</strong> status are complete.</p>
                     </div>
                 </div>
             </div>
             <div class="info-box">
                 <span class="material-symbols-outlined">info</span>
-                <p><strong>Note:</strong> Disbursement is intentionally manual for audit controls. The system does not automatically transfer funds.</p>
+                <p><strong>Note:</strong> Loan booking in Core Banking (CBS) is manual. Enter the CBS reference number when prompted. The system does not automatically transfer funds.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Full Post-Approval Flow</h2>
+            <div class="collateral-flow" style="flex-wrap:wrap; gap: var(--space-2);">
+                <div class="flow-step"><span class="flow-badge approved">Approved</span>Ops: Offer Letter</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge valuation">OfferAccepted</span>Ops: Approve</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge proposed">SecurityPerfection</span>Legal Officer</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge proposed">SecurityApproval</span>Head of Legal</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge valuation">DisbursementPending</span>Ops: Book &amp; Approve</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge proposed">DisbursementHQApproval</span>GM Finance</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge perfected">Disbursed</span>Complete</div>
             </div>
         </div>
     };
@@ -1487,31 +1972,60 @@
                     <h4><span class="material-symbols-outlined">edit_document</span> Loan Officer</h4>
                     <ul>
                         <li>Applications <strong>returned</strong> to you for corrections</li>
-                        <li>Draft applications you created (not yet submitted)</li>
+                        <li>Draft applications not yet submitted</li>
                     </ul>
                 </div>
                 <div class="queue-role-card">
                     <h4><span class="material-symbols-outlined">verified</span> Branch Approver</h4>
                     <ul>
-                        <li>Applications in <strong>Branch Review</strong> status from your branch</li>
+                        <li>Applications in <strong>Branch Review</strong> from your branch</li>
                     </ul>
                 </div>
                 <div class="queue-role-card">
                     <h4><span class="material-symbols-outlined">analytics</span> Credit Officer</h4>
                     <ul>
                         <li>Applications in <strong>Credit Analysis</strong> status</li>
+                        <li>Applications in <strong>Committee Circulation</strong> (to approve collateral &amp; setup committee)</li>
+                    </ul>
+                </div>
+                <div class="queue-role-card">
+                    <h4><span class="material-symbols-outlined">manage_accounts</span> HO Reviewer</h4>
+                    <ul>
+                        <li>Applications in <strong>HO Review</strong> status</li>
+                    </ul>
+                </div>
+                <div class="queue-role-card">
+                    <h4><span class="material-symbols-outlined">gavel</span> Legal Officer</h4>
+                    <ul>
+                        <li>Applications in <strong>Legal Review</strong> status</li>
+                        <li>Applications in <strong>Security Perfection</strong> status</li>
+                    </ul>
+                </div>
+                <div class="queue-role-card">
+                    <h4><span class="material-symbols-outlined">balance</span> Head of Legal</h4>
+                    <ul>
+                        <li>Applications in <strong>Legal Approval</strong> status</li>
+                        <li>Applications in <strong>Security Approval</strong> status</li>
                     </ul>
                 </div>
                 <div class="queue-role-card">
                     <h4><span class="material-symbols-outlined">task_alt</span> Final Approver</h4>
                     <ul>
-                        <li>Applications in <strong>Committee Approved</strong> or <strong>Final Approval</strong> status</li>
+                        <li>Applications in <strong>Final Approval</strong> status</li>
                     </ul>
                 </div>
                 <div class="queue-role-card">
                     <h4><span class="material-symbols-outlined">payments</span> Operations</h4>
                     <ul>
-                        <li>Applications in <strong>Approved</strong> status ready for disbursement</li>
+                        <li>Applications in <strong>Approved</strong> status (generate offer)</li>
+                        <li>Applications in <strong>Offer Accepted</strong> status (advance to security)</li>
+                        <li>Applications in <strong>Disbursement Pending</strong> status (book &amp; forward)</li>
+                    </ul>
+                </div>
+                <div class="queue-role-card">
+                    <h4><span class="material-symbols-outlined">currency_exchange</span> GM Finance</h4>
+                    <ul>
+                        <li>Applications in <strong>Disbursement HQ Approval</strong> status</li>
                     </ul>
                 </div>
             </div>
@@ -1881,9 +2395,12 @@
                 <div class="role-chip">Branch Approver</div>
                 <div class="role-chip">Credit Officer</div>
                 <div class="role-chip">HO Reviewer</div>
+                <div class="role-chip">Legal Officer</div>
+                <div class="role-chip">Head of Legal</div>
                 <div class="role-chip">Committee Member</div>
                 <div class="role-chip">Final Approver</div>
                 <div class="role-chip">Operations</div>
+                <div class="role-chip">GM Finance</div>
                 <div class="role-chip">Risk Manager</div>
                 <div class="role-chip">Auditor</div>
                 <div class="role-chip">System Admin</div>
@@ -2029,6 +2546,50 @@
                 <li><strong>Min Approval Votes</strong> - Approve votes needed to pass</li>
                 <li><strong>Default Deadline</strong> - Hours allowed for voting</li>
             </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Admins only
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderAdminCollateralTypes() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">real_estate_agent</span></span>
+            <div>
+                <h1>Collateral Types</h1>
+                <p>Configure the list of accepted collateral types and their default parameters</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What You Can Configure</h2>
+            <table class="info-table">
+                <tbody>
+                    <tr><td><strong>Type Name</strong></td><td>Display name shown in the Add Collateral form</td></tr>
+                    <tr><td><strong>Default LTV %</strong></td><td>Default Loan-to-Value ratio for this collateral type</td></tr>
+                    <tr><td><strong>Default Haircut %</strong></td><td>Default risk discount applied to Forced Sale Value</td></tr>
+                    <tr><td><strong>Is Active</strong></td><td>Whether this type appears in the Add Collateral dropdown</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Built-in Types</h2>
+            <p>The system seeds these types by default. They can be edited but not deleted:</p>
+            <div class="roles-grid">
+                <div class="role-chip">Real Estate</div>
+                <div class="role-chip">Cash Deposit</div>
+                <div class="role-chip">Fixed Deposit</div>
+                <div class="role-chip">Treasury Bills</div>
+                <div class="role-chip">Contract Proceeds</div>
+                <div class="role-chip">Insurance Policy</div>
+            </div>
         </div>
 
         <div class="content-card">
@@ -2218,66 +2779,31 @@
         </div>
 
         <div class="content-card">
-            <h2>Visual Workflow</h2>
-            <div class="full-workflow">
-                <div class="workflow-row">
-                    <div class="workflow-box draft">
-                        <div class="box-icon"><span class="material-symbols-outlined">edit_note</span></div>
-                        <h4>Draft</h4>
-                        <p>Loan Officer creates application</p>
-                        <span class="box-actor">Loan Officer</span>
-                    </div>
-                    <div class="workflow-arrow">
-                        <span class="arrow-label">Submit</span>
-                    </div>
-                    <div class="workflow-box review">
-                        <div class="box-icon"><span class="material-symbols-outlined">fact_check</span></div>
-                        <h4>Branch Review</h4>
-                        <p>First-level verification</p>
-                        <span class="box-actor">Branch Approver</span>
-                    </div>
-                    <div class="workflow-arrow">
-                        <span class="arrow-label">Approve</span>
-                    </div>
-                    <div class="workflow-box analysis">
-                        <div class="box-icon"><span class="material-symbols-outlined">analytics</span></div>
-                        <h4>Credit Analysis</h4>
-                        <p>Risk assessment &amp; valuation</p>
-                        <span class="box-actor">Credit Officer</span>
-                    </div>
-                </div>
-                
-                <div class="workflow-row">
-                    <div class="workflow-box committee">
-                        <div class="box-icon"><span class="material-symbols-outlined">how_to_vote</span></div>
-                        <h4>Committee</h4>
-                        <p>Members vote on facility</p>
-                        <span class="box-actor">Committee</span>
-                    </div>
-                    <div class="workflow-arrow reverse">
-                        <span class="arrow-label">Setup</span>
-                    </div>
-                    <div class="workflow-spacer"></div>
-                    <div class="workflow-arrow">
-                        <span class="arrow-label">Decision</span>
-                    </div>
-                    <div class="workflow-box approval">
-                        <div class="box-icon"><span class="material-symbols-outlined">verified</span></div>
-                        <h4>Final Approval</h4>
-                        <p>Authorize disbursement</p>
-                        <span class="box-actor">Final Approver</span>
-                    </div>
-                    <div class="workflow-arrow">
-                        <span class="arrow-label">Approve</span>
-                    </div>
-                    <div class="workflow-box disbursed">
-                        <div class="box-icon"><span class="material-symbols-outlined">payments</span></div>
-                        <h4>Disbursed</h4>
-                        <p>Loan booked &amp; disbursed</p>
-                        <span class="box-actor">Operations</span>
-                    </div>
-                </div>
-            </div>
+            <h2>Full Stage Reference</h2>
+            <table class="info-table">
+                <thead>
+                    <tr><th>#</th><th>Status</th><th>Owner</th><th>Key Actions</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>1</td><td><strong>Draft</strong></td><td>Loan Officer</td><td>Create, add docs/collateral/guarantors/financials, Submit</td></tr>
+                    <tr><td>2</td><td><strong>Branch Review</strong></td><td>Branch Approver</td><td>Verify docs, Approve / Return / Reject</td></tr>
+                    <tr><td>3</td><td><strong>Credit Analysis</strong></td><td>Credit Officer</td><td>Bureau checks, cashflow analysis, collateral valuation, AI advisory, Approve</td></tr>
+                    <tr><td>4</td><td><strong>HO Review</strong></td><td>HO Reviewer</td><td>Second-level sign-off, Approve / Return / Reject</td></tr>
+                    <tr><td>5</td><td><strong>Legal Review</strong></td><td>Legal Officer</td><td>Record legal clearance on each collateral item, Approve</td></tr>
+                    <tr><td>6</td><td><strong>Legal Approval</strong></td><td>Head of Legal</td><td>Countersign legal opinion, Approve → Committee Circulation</td></tr>
+                    <tr><td>7</td><td><strong>Committee Circulation</strong></td><td>Credit Officer + Committee</td><td>Approve collateral, generate Loan Pack, setup committee, members vote, Chairperson records decision → auto-advances to Final Approval</td></tr>
+                    <tr><td>8</td><td><strong>Final Approval</strong></td><td>Final Approver</td><td>Confirm committee decision, Approve / Reject</td></tr>
+                    <tr><td>9</td><td><strong>Approved</strong></td><td>Operations</td><td>Generate offer letter, record customer acceptance → Approve → Security Perfection</td></tr>
+                    <tr><td>10</td><td><strong>Offer Generated</strong></td><td>Operations</td><td>Offer letter PDF ready, send to customer</td></tr>
+                    <tr><td>11</td><td><strong>Offer Accepted</strong></td><td>Operations</td><td>Record signed acceptance on Offer Acceptance tab, Approve</td></tr>
+                    <tr><td>12</td><td><strong>Security Perfection</strong></td><td>Legal Officer</td><td>Register liens, perfect collateral, Approve</td></tr>
+                    <tr><td>13</td><td><strong>Security Approval</strong></td><td>Head of Legal</td><td>Verify perfection, Approve → Disbursement Pending</td></tr>
+                    <tr><td>14</td><td><strong>Disbursement Pending</strong></td><td>Operations</td><td>Book loan in Core Banking, enter CBS reference, Approve</td></tr>
+                    <tr><td>15</td><td><strong>Disbursement HQ Approval</strong></td><td>GM Finance</td><td>HQ authorization, Disburse → Disbursed</td></tr>
+                    <tr><td>—</td><td><strong>Disbursed</strong></td><td>—</td><td>Terminal. Loan booked and disbursed.</td></tr>
+                    <tr><td>—</td><td><strong>Rejected</strong></td><td>—</td><td>Terminal. Application permanently closed.</td></tr>
+                </tbody>
+            </table>
         </div>
 
         <div class="content-card">
@@ -2422,107 +2948,161 @@
             <h2>Status Reference</h2>
             <div class="status-cards">
                 <div class="status-card draft">
-                    <div class="status-header">
-                        <span class="status-dot"></span>
-                        <h4>Draft</h4>
-                    </div>
+                    <div class="status-header"><span class="status-dot"></span><h4>Draft</h4></div>
                     <p>Initial data entry. Application can be edited freely.</p>
                     <div class="status-meta">
                         <span><strong>Owner:</strong> Loan Officer</span>
                         <span><strong>Actions:</strong> Submit for Review</span>
                     </div>
                 </div>
-                
+
                 <div class="status-card review">
-                    <div class="status-header">
-                        <span class="status-dot"></span>
-                        <h4>Branch Review</h4>
-                    </div>
+                    <div class="status-header"><span class="status-dot"></span><h4>Branch Review</h4></div>
                     <p>Awaiting first-level approval and document verification.</p>
                     <div class="status-meta">
                         <span><strong>Owner:</strong> Branch Approver</span>
                         <span><strong>Actions:</strong> Approve, Return, Reject</span>
                     </div>
                 </div>
-                
+
                 <div class="status-card returned">
-                    <div class="status-header">
-                        <span class="status-dot"></span>
-                        <h4>Branch Returned</h4>
-                    </div>
-                    <p>Returned for corrections. Check workflow tab for reason.</p>
+                    <div class="status-header"><span class="status-dot"></span><h4>Branch Returned</h4></div>
+                    <p>Returned for corrections. Check the Workflow tab for the reason.</p>
                     <div class="status-meta">
                         <span><strong>Owner:</strong> Loan Officer</span>
                         <span><strong>Actions:</strong> Edit and Resubmit</span>
                     </div>
                 </div>
-                
+
                 <div class="status-card analysis">
-                    <div class="status-header">
-                        <span class="status-dot"></span>
-                        <h4>Credit Analysis</h4>
-                    </div>
-                    <p>Under detailed credit review. Bureau checks running.</p>
+                    <div class="status-header"><span class="status-dot"></span><h4>Credit Analysis</h4></div>
+                    <p>Under detailed credit review. Bureau checks are running automatically.</p>
                     <div class="status-meta">
                         <span><strong>Owner:</strong> Credit Officer</span>
-                        <span><strong>Actions:</strong> Approve, Setup Committee, Reject</span>
+                        <span><strong>Actions:</strong> Approve (→ HO Review), Reject</span>
                     </div>
                 </div>
-                
-                <div class="status-card committee">
-                    <div class="status-header">
-                        <span class="status-dot"></span>
-                        <h4>Committee Circulation</h4>
-                    </div>
-                    <p>Committee members are voting on the facility.</p>
+
+                <div class="status-card review">
+                    <div class="status-header"><span class="status-dot"></span><h4>HO Review</h4></div>
+                    <p>Head Office second-level review of the credit analysis.</p>
                     <div class="status-meta">
-                        <span><strong>Owner:</strong> Committee Members</span>
-                        <span><strong>Actions:</strong> Cast Vote</span>
+                        <span><strong>Owner:</strong> HO Reviewer</span>
+                        <span><strong>Actions:</strong> Approve (→ Legal Review), Return, Reject</span>
                     </div>
                 </div>
-                
-                <div class="status-card approved">
-                    <div class="status-header">
-                        <span class="status-dot"></span>
-                        <h4>Committee Approved</h4>
+
+                <div class="status-card review">
+                    <div class="status-header"><span class="status-dot"></span><h4>Legal Review</h4></div>
+                    <p>Legal Officer records legal clearance on each collateral item.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Legal Officer</span>
+                        <span><strong>Actions:</strong> Record Clearance (gavel icon), Approve (→ Legal Approval)</span>
                     </div>
-                    <p>Committee has approved. Awaiting final sign-off.</p>
+                </div>
+
+                <div class="status-card review">
+                    <div class="status-header"><span class="status-dot"></span><h4>Legal Approval</h4></div>
+                    <p>Head of Legal countersigns the legal opinion.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Head of Legal</span>
+                        <span><strong>Actions:</strong> Approve (→ Committee Circulation), Reject</span>
+                    </div>
+                </div>
+
+                <div class="status-card committee">
+                    <div class="status-header"><span class="status-dot"></span><h4>Committee Circulation</h4></div>
+                    <p>Credit Officer approves collateral and sets up committee. Members cast votes.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Credit Officer + Committee Members</span>
+                        <span><strong>Actions:</strong> Approve Collateral, Setup Committee, Cast Vote, Record Decision</span>
+                    </div>
+                </div>
+
+                <div class="status-card approved">
+                    <div class="status-header"><span class="status-dot"></span><h4>Final Approval</h4></div>
+                    <p>Committee decision recorded. Awaiting Final Approver sign-off. <em>(CommitteeApproved is transient — the system auto-advances to this status.)</em></p>
                     <div class="status-meta">
                         <span><strong>Owner:</strong> Final Approver</span>
-                        <span><strong>Actions:</strong> Final Approve, Reject</span>
+                        <span><strong>Actions:</strong> Approve (→ Approved), Reject</span>
                     </div>
                 </div>
-                
+
                 <div class="status-card final">
-                    <div class="status-header">
-                        <span class="status-dot"></span>
-                        <h4>Approved</h4>
-                    </div>
-                    <p>Ready for offer letter generation and disbursement processing.</p>
+                    <div class="status-header"><span class="status-dot"></span><h4>Approved</h4></div>
+                    <p>Facility approved. Offer letter can now be generated.</p>
                     <div class="status-meta">
                         <span><strong>Owner:</strong> Operations</span>
-                        <span><strong>Actions:</strong> Generate Offer Letter, Process Disbursement</span>
+                        <span><strong>Actions:</strong> Generate Offer Letter, Record Acceptance, Approve</span>
                     </div>
                 </div>
-                
-                <div class="status-card disbursed">
-                    <div class="status-header">
-                        <span class="status-dot"></span>
-                        <h4>Disbursed</h4>
+
+                <div class="status-card approved">
+                    <div class="status-header"><span class="status-dot"></span><h4>Offer Generated</h4></div>
+                    <p>Offer letter PDF has been generated. Awaiting customer acceptance.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Operations</span>
+                        <span><strong>Actions:</strong> Record Offer Acceptance</span>
                     </div>
+                </div>
+
+                <div class="status-card approved">
+                    <div class="status-header"><span class="status-dot"></span><h4>Offer Accepted</h4></div>
+                    <p>Customer has signed and returned the offer letter.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Operations</span>
+                        <span><strong>Actions:</strong> Approve (→ Security Perfection)</span>
+                    </div>
+                </div>
+
+                <div class="status-card review">
+                    <div class="status-header"><span class="status-dot"></span><h4>Security Perfection</h4></div>
+                    <p>Legal Officer physically registers liens and perfects all collateral security.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Legal Officer</span>
+                        <span><strong>Actions:</strong> Approve (→ Security Approval)</span>
+                    </div>
+                </div>
+
+                <div class="status-card review">
+                    <div class="status-header"><span class="status-dot"></span><h4>Security Approval</h4></div>
+                    <p>Head of Legal verifies lien registration and signs off on security.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Head of Legal</span>
+                        <span><strong>Actions:</strong> Approve (→ Disbursement Pending)</span>
+                    </div>
+                </div>
+
+                <div class="status-card analysis">
+                    <div class="status-header"><span class="status-dot"></span><h4>Disbursement Pending</h4></div>
+                    <p>Operations books the loan in Core Banking and forwards for HQ authorization.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> Operations</span>
+                        <span><strong>Actions:</strong> Approve (→ Disbursement HQ Approval)</span>
+                    </div>
+                </div>
+
+                <div class="status-card analysis">
+                    <div class="status-header"><span class="status-dot"></span><h4>Disbursement HQ Approval</h4></div>
+                    <p>GM Finance gives HQ-level disbursement authorization.</p>
+                    <div class="status-meta">
+                        <span><strong>Owner:</strong> GM Finance</span>
+                        <span><strong>Actions:</strong> Disburse (→ Disbursed)</span>
+                    </div>
+                </div>
+
+                <div class="status-card disbursed">
+                    <div class="status-header"><span class="status-dot"></span><h4>Disbursed</h4></div>
                     <p>Loan booked and funds disbursed. Terminal state.</p>
                     <div class="status-meta">
                         <span><strong>Owner:</strong> None</span>
                         <span><strong>Actions:</strong> None (Complete)</span>
                     </div>
                 </div>
-                
+
                 <div class="status-card rejected">
-                    <div class="status-header">
-                        <span class="status-dot"></span>
-                        <h4>Rejected</h4>
-                    </div>
-                    <p>Application rejected. Cannot be reopened. Terminal state.</p>
+                    <div class="status-header"><span class="status-dot"></span><h4>Rejected</h4></div>
+                    <p>Application rejected permanently. Cannot be reopened.</p>
                     <div class="status-meta">
                         <span><strong>Owner:</strong> None</span>
                         <span><strong>Actions:</strong> None (Closed)</span>
@@ -2597,6 +3177,20 @@
                         <div class="action-ref-meta">
                             <span><strong>Comment:</strong> Optional</span>
                             <span><strong>Used by:</strong> Loan Officer</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-ref-card approve">
+                    <div class="action-ref-icon">
+                        <span class="material-symbols-outlined">currency_exchange</span>
+                    </div>
+                    <div class="action-ref-content">
+                        <h4>Disburse</h4>
+                        <p>Final disbursement authorization — moves application to <strong>Disbursed</strong> (terminal)</p>
+                        <div class="action-ref-meta">
+                            <span><strong>Comment:</strong> CBS Disbursement Reference required</span>
+                            <span><strong>Used by:</strong> GM Finance at Disbursement HQ Approval stage only</span>
                         </div>
                     </div>
                 </div>
@@ -2765,6 +3359,96 @@
         </div>
     };
 
+    private RenderFragment RenderApprovalGates() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">security</span></span>
+            <div>
+                <h1>Approval Gates</h1>
+                <p>Pre-conditions that must be met before advancing to the next stage</p>
+            </div>
+        </div>
+
+        <div class="content-card highlight-card">
+            <div class="highlight-icon">
+                <span class="material-symbols-outlined">info</span>
+            </div>
+            <div>
+                <h3>What Are Approval Gates?</h3>
+                <p>When you click <strong>Approve</strong>, the system checks a set of mandatory conditions first. If any are not met, an <strong>Approval Gate</strong> modal appears showing which requirements are missing. You can override with a justification (if you have permission), or fix the issues and try again.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Gate: Branch Review → Credit Analysis</h2>
+            <p><strong>Checked when:</strong> Branch Approver clicks Approve</p>
+            <table class="info-table">
+                <thead><tr><th>Requirement</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td>At least one document uploaded</td><td>Any document type is sufficient</td></tr>
+                    <tr><td>At least one bank statement present</td><td>Internal (Core Banking) or external</td></tr>
+                    <tr><td>At least one financial statement entered</td><td>Any year/type combination</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Gate: Credit Analysis → HO Review</h2>
+            <p><strong>Checked when:</strong> Credit Officer clicks Approve</p>
+            <table class="info-table">
+                <thead><tr><th>Requirement</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td>Cashflow analysis complete on at least one statement</td><td>Click Analyze on the Statements tab</td></tr>
+                    <tr><td>All collateral items have valuations entered</td><td>Market Value or FSV must be set</td></tr>
+                    <tr><td>All guarantors approved or rejected</td><td>Pending guarantors block advancement</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Gate: HO Review → Legal Review</h2>
+            <p><strong>Checked when:</strong> HO Reviewer clicks Approve</p>
+            <table class="info-table">
+                <thead><tr><th>Requirement</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td>AI Advisory has been generated</td><td>Go to Advisory tab and click Generate Advisory</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Gate: Legal Review → Legal Approval</h2>
+            <p><strong>Checked when:</strong> Legal Officer clicks Approve</p>
+            <table class="info-table">
+                <thead><tr><th>Requirement</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td>All collateral items must have legal clearance recorded</td><td>Use the gavel icon on each collateral row. Any item without <em>IsLegalCleared = true</em> blocks this gate.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Gate: Final Approval → Approved</h2>
+            <p><strong>Checked when:</strong> Final Approver clicks Approve</p>
+            <table class="info-table">
+                <thead><tr><th>Requirement</th><th>Notes</th></tr></thead>
+                <tbody>
+                    <tr><td>All collateral items in <strong>Approved</strong> status</td><td>Valued + Legal Cleared → Credit Officer must have approved each item</td></tr>
+                    <tr><td>All guarantors in <strong>Approved</strong> status</td><td>No pending guarantors</td></tr>
+                    <tr><td>At least one document is <strong>Verified</strong></td><td>Branch Approver or Credit Officer must verify at least one document</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Override Option</h2>
+            <div class="info-box warning">
+                <span class="material-symbols-outlined">warning</span>
+                <p>If a gate condition cannot be met (e.g., collateral has no market value because it is a cash deposit with a fixed value), users with sufficient authority can <strong>override the gate</strong> by providing a written justification. The override is recorded in the audit trail. Use this sparingly — gate conditions exist for compliance reasons.</p>
+            </div>
+        </div>
+    };
+
     // ==================== APPLICATION TABS ====================
     private RenderFragment RenderTabOverview() => __builder =>
     {
@@ -2909,48 +3593,50 @@
                 <div class="collateral-type">
                     <span class="material-symbols-outlined">home</span>
                     <span>Real Estate</span>
-                    <span class="ltv">LTV: 70%</span>
-                </div>
-                <div class="collateral-type">
-                    <span class="material-symbols-outlined">directions_car</span>
-                    <span>Vehicle</span>
-                    <span class="ltv">LTV: 60%</span>
-                </div>
-                <div class="collateral-type">
-                    <span class="material-symbols-outlined">precision_manufacturing</span>
-                    <span>Equipment</span>
-                    <span class="ltv">LTV: 50%</span>
                 </div>
                 <div class="collateral-type">
                     <span class="material-symbols-outlined">savings</span>
                     <span>Cash Deposit</span>
-                    <span class="ltv">LTV: 100%</span>
+                </div>
+                <div class="collateral-type">
+                    <span class="material-symbols-outlined">lock_clock</span>
+                    <span>Fixed Deposit</span>
                 </div>
                 <div class="collateral-type">
                     <span class="material-symbols-outlined">description</span>
                     <span>Treasury Bills</span>
-                    <span class="ltv">LTV: 95%</span>
                 </div>
                 <div class="collateral-type">
-                    <span class="material-symbols-outlined">trending_up</span>
-                    <span>Stocks</span>
-                    <span class="ltv">LTV: 50%</span>
+                    <span class="material-symbols-outlined">handshake</span>
+                    <span>Contract Proceeds</span>
+                </div>
+                <div class="collateral-type">
+                    <span class="material-symbols-outlined">health_and_safety</span>
+                    <span>Insurance Policy</span>
                 </div>
             </div>
+            <p style="font-size: var(--text-sm); color: var(--gray-500); margin-top: var(--space-3);">Additional types can be configured by a System Admin under <strong>Admin &gt; Collateral Types</strong>.</p>
         </div>
 
         <div class="content-card">
-            <h2>Collateral Workflow</h2>
-            <div class="collateral-flow">
+            <h2>Collateral Lifecycle</h2>
+            <p>Each collateral item passes through a multi-actor approval process:</p>
+            <div class="collateral-flow" style="flex-wrap: wrap; gap: var(--space-2);">
                 <div class="flow-step"><span class="flow-badge proposed">Proposed</span>Loan Officer adds</div>
                 <span class="material-symbols-outlined">arrow_forward</span>
-                <div class="flow-step"><span class="flow-badge valuation">Under Valuation</span>CO reviews</div>
+                <div class="flow-step"><span class="flow-badge valuation">UnderValuation</span>CO enters values</div>
                 <span class="material-symbols-outlined">arrow_forward</span>
-                <div class="flow-step"><span class="flow-badge valued">Valued</span>Values set</div>
+                <div class="flow-step"><span class="flow-badge valued">Valued</span>Market/FSV set</div>
                 <span class="material-symbols-outlined">arrow_forward</span>
-                <div class="flow-step"><span class="flow-badge approved">Approved</span>Accepted</div>
+                <div class="flow-step"><span class="flow-badge valuation">Legal Cleared</span>Legal Officer (gavel icon)</div>
+                <span class="material-symbols-outlined">arrow_forward</span>
+                <div class="flow-step"><span class="flow-badge approved">Approved</span>CO approves (requires both)</div>
                 <span class="material-symbols-outlined">arrow_forward</span>
                 <div class="flow-step"><span class="flow-badge perfected">Perfected</span>Lien registered</div>
+            </div>
+            <div class="info-box" style="margin-top: var(--space-4);">
+                <span class="material-symbols-outlined">info</span>
+                <p>The <strong>Approve</strong> button on a collateral item is only enabled when both <strong>Valued</strong> status AND <strong>Legal Cleared</strong> flag are set. Legal clearance is recorded by the Legal Officer during the Legal Review stage.</p>
             </div>
         </div>
 
@@ -3464,6 +4150,78 @@
                     <strong>Record Decision</strong>
                     <p>Chairperson records final committee decision</p>
                 </div>
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderTabOfferAcceptance() => __builder =>
+    {
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">mail</span></span>
+            <div>
+                <h1>Offer Acceptance Tab</h1>
+                <p>Record the customer's formal acceptance of the loan offer</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Purpose</h2>
+            <p>This tab is used by <strong>Operations</strong> to record that the customer has received, reviewed, and signed the offer letter. It captures key acceptance details before the application can advance to Security Perfection.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>What to Record</h2>
+            <table class="info-table">
+                <tbody>
+                    <tr><td><strong>Acceptance Date</strong></td><td>Date the customer signed the offer letter</td></tr>
+                    <tr><td><strong>Accepted By</strong></td><td>Name of authorized signatory who signed</td></tr>
+                    <tr><td><strong>Accepted Amount</strong></td><td>Amount the customer accepted (may differ from approved amount)</td></tr>
+                    <tr><td><strong>Accepted Tenor</strong></td><td>Tenor accepted by customer (months)</td></tr>
+                    <tr><td><strong>Conditions Accepted</strong></td><td>Whether the customer accepted all conditions precedent</td></tr>
+                    <tr><td><strong>Notes</strong></td><td>Any additional notes or conditions</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Workflow</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <h4>Generate Offer Letter</h4>
+                        <p>Click the <strong>Offer Letter</strong> button at the top of the application (status must be <strong>Approved</strong>). Download and send PDF to customer.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <h4>Receive Signed Copy</h4>
+                        <p>Customer returns the signed offer letter. Verify signatures match authorized signatories.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <h4>Record Acceptance on This Tab</h4>
+                        <p>Fill in all fields and save. Status moves to <strong>Offer Accepted</strong>.</p>
+                    </div>
+                </div>
+                <div class="numbered-step">
+                    <div class="step-num">4</div>
+                    <div class="step-content">
+                        <h4>Click Approve</h4>
+                        <p>After recording acceptance, click <strong>Approve</strong> in the action bar. Application advances to <strong>Security Perfection</strong> for the Legal Officer.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Who Can Access</h2>
+            <div class="visibility-badge restricted">
+                <span class="material-symbols-outlined">lock</span>
+                Operations and System Admins only
             </div>
         </div>
     };

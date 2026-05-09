@@ -14,39 +14,45 @@ public record LoanPackData(
     int RequestedTenorMonths,
     decimal RequestedInterestRate,
     string Purpose,
-    
+
     // Customer Profile
     CustomerProfileData Customer,
-    
+
+    // Application Timeline & Status
+    ApplicationTimelineData Timeline,
+
     // Directors & Signatories
     List<DirectorData> Directors,
     List<SignatoryData> Signatories,
-    
+
+    // Supporting Documents
+    List<DocumentRecord> Documents,
+
     // Bureau Reports
     List<BureauReportData> BureauReports,
-    
+
     // Financial Statements
     List<FinancialStatementData> FinancialStatements,
     FinancialRatiosData? FinancialRatios,
-    
+
     // Cashflow Analysis
     CashflowAnalysisData? CashflowAnalysis,
-    
+
     // Collateral
     List<CollateralData> Collaterals,
     decimal TotalCollateralValue,
     decimal CollateralCoverageRatio,
-    
+
     // Guarantors
     List<GuarantorData> Guarantors,
     decimal TotalGuaranteeAmount,
-    
+
     // AI Advisory
     AIAdvisoryData? AIAdvisory,
-    
-    // Workflow History
-    List<WorkflowHistoryData> WorkflowHistory,
-    
+
+    // Approval Audit Trail (from application status history)
+    List<ApprovalAuditEntry> ApprovalAuditTrail,
+
     // Committee Comments
     List<CommitteeCommentData> CommitteeComments,
 
@@ -60,6 +66,15 @@ public record LoanPackData(
 
     // Committee Decision Summary
     CommitteeDecisionData? CommitteeDecision,
+
+    // Disbursement Checklist (CP/CS conditions, seeded when offer is issued)
+    List<ChecklistItemData> DisbursementChecklist,
+
+    // Credit Officer Notes (application-level comments logged during processing)
+    List<ApplicationCommentData> CreditOfficerNotes,
+
+    // Workflow History (raw transition log — kept for legacy compatibility)
+    List<WorkflowHistoryData> WorkflowHistory,
 
     // Generation Info
     DateTime GeneratedAt,
@@ -80,6 +95,65 @@ public record CustomerProfileData(
     string AccountType,
     DateTime? AccountOpenDate,
     decimal? AverageMonthlyBalance
+);
+
+/// <summary>
+/// Key lifecycle dates and current status of the loan application.
+/// All timestamps are UTC; presented in local time in the PDF.
+/// </summary>
+public record ApplicationTimelineData(
+    string CurrentStatus,
+    string ApplicationType,           // Corporate, Individual, etc.
+    DateTime? SubmittedAt,
+    DateTime? BranchApprovedAt,
+    DateTime? CreditCheckStartedAt,
+    DateTime? CreditCheckCompletedAt,
+    DateTime? FinalApprovedAt,
+    DateTime? OfferIssuedAt,
+    DateTime? OfferAcceptedAt,
+    DateTime? CustomerSignedAt,
+    string? AcceptanceMethod,         // InPerson, Electronic, etc.
+    bool KfsAcknowledged,
+    DateTime? DisbursedAt,
+    string? CoreBankingLoanId
+);
+
+/// <summary>
+/// A document attached to the loan application.
+/// </summary>
+public record DocumentRecord(
+    string FileName,
+    string Category,
+    string Status,
+    DateTime UploadedAt,
+    string? Description
+);
+
+/// <summary>
+/// A single Condition Precedent or Subsequent item from the disbursement checklist.
+/// </summary>
+public record ChecklistItemData(
+    string ItemName,
+    string Description,
+    string ConditionType,             // "Precedent" or "Subsequent"
+    bool IsMandatory,
+    bool CanBeWaived,
+    string Status,                    // Pending, PendingLegalReview, Satisfied, Waived, etc.
+    DateTime? SatisfiedAt,
+    string? WaiverReason,
+    DateTime? WaiverProposedAt,
+    DateTime? DueDate
+);
+
+/// <summary>
+/// One entry in the application-level approval audit trail.
+/// Derived from LoanApplicationStatusHistory which is always loaded with the application.
+/// </summary>
+public record ApprovalAuditEntry(
+    DateTime ChangedAt,
+    string Status,
+    string? Comment,
+    string ActorName
 );
 
 public record DirectorData(
@@ -145,7 +219,7 @@ public record FinancialStatementData(
     int Year,
     string StatementType, // Audited, Management
     string AuditorName,
-    
+
     // Balance Sheet
     decimal? TotalAssets,
     decimal? CurrentAssets,
@@ -154,7 +228,7 @@ public record FinancialStatementData(
     decimal? CurrentLiabilities,
     decimal? LongTermDebt,
     decimal? ShareholdersEquity,
-    
+
     // Income Statement
     decimal? Revenue,
     decimal? GrossProfit,
@@ -168,28 +242,28 @@ public record FinancialRatiosData(
     decimal? CurrentRatio,
     decimal? QuickRatio,
     decimal? CashRatio,
-    
+
     // Leverage
     decimal? DebtToEquity,
     decimal? DebtToAssets,
     decimal? InterestCoverage,
-    
+
     // Profitability
     decimal? GrossMargin,
     decimal? OperatingMargin,
     decimal? NetMargin,
     decimal? ReturnOnAssets,
     decimal? ReturnOnEquity,
-    
+
     // Efficiency
     decimal? AssetTurnover,
     decimal? InventoryTurnover,
     decimal? ReceivablesDays,
     decimal? PayablesDays,
-    
+
     // Coverage
     decimal? DebtServiceCoverageRatio,
-    
+
     // Trends
     decimal? RevenueGrowthYoY,
     decimal? ProfitGrowthYoY
@@ -204,25 +278,25 @@ public record CashflowAnalysisData(
     decimal LowestMonthlyBalance,
     decimal HighestMonthlyBalance,
     decimal AverageBalance,
-    
+
     // Inflow Analysis
     decimal SalaryInflows,
     decimal BusinessInflows,
     decimal OtherInflows,
-    
+
     // Outflow Analysis
     decimal LoanRepayments,
     decimal RentUtilities,
     decimal SalaryPayments,
     decimal OtherOutflows,
-    
+
     // Quality Metrics
     decimal InflowVolatility,
     decimal BalanceVolatility,
     int ReturnedChequeCount,
     int OverdraftCount,
     decimal OverdraftUtilization,
-    
+
     // Trust Weighting
     decimal TrustWeightedScore,
     string TrustLevel // High, Medium, Low
@@ -241,7 +315,9 @@ public record CollateralData(
     string LienType,
     string? LienReference,
     string? InsurancePolicy,
-    DateTime? InsuranceExpiry
+    DateTime? InsuranceExpiry,
+    bool IsLegalCleared,
+    DateTime? LegalClearedAt
 );
 
 public record GuarantorData(
@@ -264,7 +340,7 @@ public record AIAdvisoryData(
     int OverallRiskScore,
     string RiskRating, // Low, Moderate, High, VeryHigh
     string RiskSummary,
-    
+
     // Component Scores
     int CreditHistoryScore,
     int FinancialStrengthScore,
@@ -274,7 +350,7 @@ public record AIAdvisoryData(
     int ManagementQualityScore,
     int RelationshipStrengthScore,
     int ExternalFactorsScore,
-    
+
     // Recommendations
     string AmountRecommendation,
     decimal? RecommendedAmount,
@@ -283,13 +359,13 @@ public record AIAdvisoryData(
     string PricingRecommendation,
     decimal? RecommendedInterestRate,
     string StructuringRecommendation,
-    
+
     // Red Flags
     List<string> RedFlags,
-    
+
     // Mitigating Factors
     List<string> MitigatingFactors,
-    
+
     // Conditions
     List<string> RecommendedConditions
 );
@@ -331,4 +407,11 @@ public record CommitteeMemberVoteData(
     string? Vote,
     string? VoteComment,
     DateTime? VotedAt
+);
+
+public record ApplicationCommentData(
+    DateTime CreatedAt,
+    string Content,
+    string? Category,
+    string UserId
 );

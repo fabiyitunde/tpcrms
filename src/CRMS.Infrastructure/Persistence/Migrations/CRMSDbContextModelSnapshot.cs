@@ -2535,6 +2535,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<bool>("RequiresLegalRatification")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<string>("SatisfactionNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
                     b.Property<DateTime?>("SatisfiedAt")
                         .HasColumnType("datetime(6)");
 
@@ -2655,6 +2659,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("DisbursedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DisbursementMemoStoragePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
 
                     b.Property<DateTime?>("FinalApprovedAt")
                         .HasColumnType("datetime(6)");

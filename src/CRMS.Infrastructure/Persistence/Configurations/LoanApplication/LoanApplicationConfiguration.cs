@@ -101,6 +101,10 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
         builder.Property(x => x.CoreBankingLoanId)
             .HasMaxLength(50);
 
+        builder.Property(x => x.DisbursementMemoStoragePath)
+            .HasMaxLength(500)
+            .IsRequired(false);
+
         builder.HasIndex(x => x.InitiatedByUserId);
         builder.HasIndex(x => x.BranchId);
 

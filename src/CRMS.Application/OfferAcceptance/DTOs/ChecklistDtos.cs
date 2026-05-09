@@ -25,6 +25,7 @@ public record ChecklistItemDto(
     Guid? SatisfiedByUserId,
     DateTime? SatisfiedAt,
     Guid? EvidenceDocumentId,
+    string? SatisfactionNotes,
     // Legal
     Guid? LegalRatifiedByUserId,
     DateTime? LegalRatifiedAt,

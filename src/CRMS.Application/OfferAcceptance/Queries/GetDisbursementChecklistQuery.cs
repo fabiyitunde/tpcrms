@@ -45,6 +45,7 @@ public class GetDisbursementChecklistHandler
                 SatisfiedByUserId: i.SatisfiedByUserId,
                 SatisfiedAt: i.SatisfiedAt,
                 EvidenceDocumentId: i.EvidenceDocumentId,
+                SatisfactionNotes: i.SatisfactionNotes,
                 LegalRatifiedByUserId: i.LegalRatifiedByUserId,
                 LegalRatifiedAt: i.LegalRatifiedAt,
                 LegalReturnReason: i.LegalReturnReason,

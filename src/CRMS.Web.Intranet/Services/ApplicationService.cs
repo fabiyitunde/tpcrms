@@ -1010,6 +1010,7 @@ public partial class ApplicationService
             loanApplicationDetail4.FinancialStatements = await GetFinancialStatementsForApplicationAsync(id);
             loanApplicationDetail.CreatedAt = app.CreatedAt;
             loanApplicationDetail.LastUpdatedAt = app.ModifiedAt;
+            loanApplicationDetail.DisbursementMemoStoragePath = app.DisbursementMemoStoragePath;
             loanApplicationDetail.WorkflowHistory = await GetWorkflowHistoryForApplicationAsync(id);
             loanApplicationDetail.Advisory = await GetAdvisoryForApplicationAsync(id);
             loanApplicationDetail.Committee = await GetCommitteeForApplicationAsync(id);
@@ -1873,7 +1874,8 @@ public partial class ApplicationService
     {
         try
         {
-            var handler = _sp.GetRequiredService<CRMS.Application.OfferLetter.Commands.GenerateOfferLetterHandler>();
+            using var scope = _sp.CreateScope();
+            var handler = scope.ServiceProvider.GetRequiredService<CRMS.Application.OfferLetter.Commands.GenerateOfferLetterHandler>();
             var command = new CRMS.Application.OfferLetter.Commands.GenerateOfferLetterCommand(applicationId, userId, userName, _bankSettings.BankName, _bankSettings.BranchName);
             var result = await handler.Handle(command, CancellationToken.None);
             if (!result.IsSuccess || result.Data == null)
@@ -2052,6 +2054,42 @@ public partial class ApplicationService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating KFS for offer letter {Id}", offerLetterId);
+            return (null, null);
+        }
+    }
+
+    public async Task<(byte[]? Bytes, string? FileName)> DownloadDisbursementMemoAsync(Guid applicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<GetLoanApplicationByIdHandler>();
+            var result = await handler.Handle(new GetLoanApplicationByIdQuery(applicationId), CancellationToken.None);
+            if (!result.IsSuccess || result.Data == null)
+                return (null, null);
+
+            var fileStorage = _sp.GetRequiredService<IFileStorageService>();
+            var appNumber = result.Data.ApplicationNumber;
+
+            // Use saved path if available (all new acceptances)
+            var storagePath = result.Data.DisbursementMemoStoragePath;
+
+            // Fallback for legacy data: scan the container for a file containing the application number
+            if (string.IsNullOrEmpty(storagePath))
+            {
+                var files = await fileStorage.ListFilesAsync("disbursementmemos", ct: CancellationToken.None);
+                storagePath = files.FirstOrDefault(f => f.Contains(appNumber));
+            }
+
+            if (string.IsNullOrEmpty(storagePath))
+                return (null, null);
+
+            var bytes = await fileStorage.DownloadAsync(storagePath);
+            var fileName = $"DisbursementMemo_{appNumber}.pdf";
+            return (bytes, fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error downloading disbursement memo for application {Id}", applicationId);
             return (null, null);
         }
     }
@@ -3494,10 +3532,10 @@ public partial class ApplicationService
                 "LegalReview"                => LoanApplicationStatus.LegalApproval,
                 "LegalApproval"              => LoanApplicationStatus.CommitteeCirculation,
                 "FinalApproval"              => LoanApplicationStatus.Approved,
+                "OfferAccepted"              => LoanApplicationStatus.SecurityPerfection,
                 "SecurityPerfection"         => LoanApplicationStatus.SecurityApproval,
                 "SecurityApproval"           => LoanApplicationStatus.DisbursementPending,
-                "DisbursementPending"        => LoanApplicationStatus.DisbursementBranchApproval,
-                "DisbursementBranchApproval" => LoanApplicationStatus.DisbursementHQApproval,
+                "DisbursementPending"        => LoanApplicationStatus.DisbursementHQApproval,
                 _                            => LoanApplicationStatus.Approved,
             };
 
@@ -3569,6 +3607,14 @@ public partial class ApplicationService
                 if (!domainResult.IsSuccess)
                     return ApiResponse.Fail(domainResult.Error ?? "Final approval failed");
             }
+            else if (currentStatus == "OfferAccepted")
+            {
+                using var domainScope = _sp.CreateScope();
+                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.MoveToSecurityPerfectionHandler>();
+                var domainResult = await h.Handle(new Application.LoanApplication.Commands.MoveToSecurityPerfectionCommand(applicationId, userId), CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Move to security perfection failed");
+            }
             else if (currentStatus == "SecurityPerfection")
             {
                 using var domainScope = _sp.CreateScope();
@@ -3593,15 +3639,6 @@ public partial class ApplicationService
                 if (!domainResult.IsSuccess)
                     return ApiResponse.Fail(domainResult.Error ?? "Prepare disbursement memo failed");
             }
-            else if (currentStatus == "DisbursementBranchApproval")
-            {
-                using var domainScope = _sp.CreateScope();
-                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.ApproveDisbursementBranchHandler>();
-                var domainResult = await h.Handle(new Application.LoanApplication.Commands.ApproveDisbursementBranchCommand(applicationId, userId, comments), CancellationToken.None);
-                if (!domainResult.IsSuccess)
-                    return ApiResponse.Fail(domainResult.Error ?? "Branch disbursement approval failed");
-            }
-
             // Transition the workflow instance to reflect the new stage.
             using var transitionScope = _sp.CreateScope();
             var handler = transitionScope.ServiceProvider.GetRequiredService<TransitionWorkflowHandler>();
@@ -3635,8 +3672,9 @@ public partial class ApplicationService
                 "LegalReview"                => LoanApplicationStatus.HOReview,
                 "LegalApproval"              => LoanApplicationStatus.LegalReview,
                 "CommitteeCirculation"       => LoanApplicationStatus.HOReview,
+                "SecurityPerfection"         => LoanApplicationStatus.OfferAccepted,
                 "SecurityApproval"           => LoanApplicationStatus.SecurityPerfection,
-                "DisbursementBranchApproval" => LoanApplicationStatus.DisbursementPending,
+                "DisbursementPending"        => LoanApplicationStatus.SecurityPerfection,
                 _                            => LoanApplicationStatus.BranchReturned,
             };
 
@@ -3696,6 +3734,14 @@ public partial class ApplicationService
                 if (!domainResult.IsSuccess)
                     return ApiResponse.Fail(domainResult.Error ?? "Return from legal approval failed");
             }
+            else if (currentStatus == "SecurityPerfection")
+            {
+                using var domainScope = _sp.CreateScope();
+                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.ReturnFromSecurityPerfectionHandler>();
+                var domainResult = await h.Handle(new Application.LoanApplication.Commands.ReturnFromSecurityPerfectionCommand(applicationId, userId, comments), CancellationToken.None);
+                if (!domainResult.IsSuccess)
+                    return ApiResponse.Fail(domainResult.Error ?? "Return from security perfection failed");
+            }
             else if (currentStatus == "SecurityApproval")
             {
                 using var domainScope = _sp.CreateScope();
@@ -3704,15 +3750,14 @@ public partial class ApplicationService
                 if (!domainResult.IsSuccess)
                     return ApiResponse.Fail(domainResult.Error ?? "Return from security approval failed");
             }
-            else if (currentStatus == "DisbursementBranchApproval")
+            else if (currentStatus == "DisbursementPending")
             {
                 using var domainScope = _sp.CreateScope();
-                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.ReturnFromDisbursementBranchHandler>();
-                var domainResult = await h.Handle(new Application.LoanApplication.Commands.ReturnFromDisbursementBranchCommand(applicationId, userId, comments), CancellationToken.None);
+                var h = domainScope.ServiceProvider.GetRequiredService<Application.LoanApplication.Commands.ReturnFromDisbursementPendingHandler>();
+                var domainResult = await h.Handle(new Application.LoanApplication.Commands.ReturnFromDisbursementPendingCommand(applicationId, userId, comments), CancellationToken.None);
                 if (!domainResult.IsSuccess)
-                    return ApiResponse.Fail(domainResult.Error ?? "Return from disbursement branch failed");
+                    return ApiResponse.Fail(domainResult.Error ?? "Return from disbursement pending failed");
             }
-
             using var transitionScope = _sp.CreateScope();
             var handler = transitionScope.ServiceProvider.GetRequiredService<TransitionWorkflowHandler>();
             var command = new TransitionWorkflowCommand(workflowInstance.Id, targetStatus, WorkflowAction.Return, userId, userRole, comments);
@@ -4465,6 +4510,7 @@ public partial class ApplicationService
                     SatisfiedByUserId = i.SatisfiedByUserId,
                     SatisfiedAt = i.SatisfiedAt,
                     EvidenceDocumentId = i.EvidenceDocumentId,
+                    SatisfactionNotes = i.SatisfactionNotes,
                     LegalRatifiedByUserId = i.LegalRatifiedByUserId,
                     LegalRatifiedAt = i.LegalRatifiedAt,
                     LegalReturnReason = i.LegalReturnReason,
@@ -4489,14 +4535,14 @@ public partial class ApplicationService
     }
 
     public async Task<ApiResponse> SatisfyChecklistItemAsync(
-        Guid applicationId, Guid itemId, Guid userId, string userRole, Guid? evidenceDocumentId)
+        Guid applicationId, Guid itemId, Guid userId, string userRole, Guid? evidenceDocumentId, string? notes = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<Application.OfferAcceptance.Commands.SatisfyChecklistItemHandler>();
             var result = await handler.Handle(
                 new Application.OfferAcceptance.Commands.SatisfyChecklistItemCommand(
-                    applicationId, itemId, userId, userRole, evidenceDocumentId),
+                    applicationId, itemId, userId, userRole, evidenceDocumentId, notes),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error!);
         }
@@ -4508,14 +4554,14 @@ public partial class ApplicationService
     }
 
     public async Task<ApiResponse> SubmitForLegalReviewAsync(
-        Guid applicationId, Guid itemId, Guid userId, string userRole, Guid evidenceDocumentId)
+        Guid applicationId, Guid itemId, Guid userId, string userRole, Guid evidenceDocumentId, string? notes = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<Application.OfferAcceptance.Commands.SubmitForLegalReviewHandler>();
             var result = await handler.Handle(
                 new Application.OfferAcceptance.Commands.SubmitForLegalReviewCommand(
-                    applicationId, itemId, userId, userRole, evidenceDocumentId),
+                    applicationId, itemId, userId, userRole, evidenceDocumentId, notes),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error!);
         }
