@@ -31,6 +31,13 @@ public interface IFineractDirectService
     /// </summary>
     Task<Result<CustomerExposure>> GetCustomerExposureAsync(
         long clientId, string accountNumber, string customerName, CancellationToken ct = default);
+
+    /// <summary>
+    /// List all loan products configured in Fineract (GET /loanproducts).
+    /// When activeOnly=true, filters out products whose closeDate is in the past.
+    /// </summary>
+    Task<Result<IReadOnlyList<FineractLoanProduct>>> GetLoanProductsAsync(
+        bool activeOnly = true, CancellationToken ct = default);
 }
 
 // Schedule Calculation
@@ -147,4 +154,33 @@ public record FineractSchedulePeriod(
     decimal TotalPaid,
     decimal TotalOutstanding,
     bool Complete
+);
+
+// Loan Products
+public record FineractLoanProduct(
+    int Id,
+    string Name,
+    string ShortName,
+    string? Description,
+    string CurrencyCode,
+    string CurrencySymbol,
+    decimal MinPrincipal,
+    decimal DefaultPrincipal,
+    decimal MaxPrincipal,
+    decimal DefaultInterestRatePerPeriod,
+    decimal? MinInterestRatePerPeriod,
+    decimal? MaxInterestRatePerPeriod,
+    decimal AnnualInterestRate,
+    string InterestRateFrequencyType,  // "Per month", "Per year"
+    int DefaultNumberOfRepayments,
+    int? MinNumberOfRepayments,
+    int? MaxNumberOfRepayments,
+    int RepaymentEvery,
+    string RepaymentFrequencyType,     // "Months", "Weeks", "Days"
+    string AmortizationType,           // "Equal installments", "Equal principal payments"
+    string InterestType,               // "Declining Balance", "Flat"
+    int TransactionProcessingStrategyId,
+    DateTime? StartDate,
+    DateTime? CloseDate,
+    bool IsActive
 );
