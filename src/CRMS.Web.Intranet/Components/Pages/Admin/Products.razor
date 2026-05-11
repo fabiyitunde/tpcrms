@@ -10,7 +10,7 @@
         <h1 class="page-title">Loan Products</h1>
         <p class="page-subtitle">Configure loan products and pricing</p>
     </div>
-    <button class="btn btn-primary" @onclick="OpenCreateModal">
+    <button class="btn btn-primary" @onclick="() => OpenCreateModal()">
         <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
         Add Product
     </button>
@@ -48,7 +48,7 @@
                 </div>
             </div>
             <div class="product-card-footer">
-                <button class="btn btn-outline btn-sm" @onclick="() => EditProduct(product)">
+                <button class="btn btn-outline btn-sm" @onclick="() => EditProduct(product)" disabled="@isSaving">
                     <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
                     Edit
                 </button>
@@ -84,15 +84,40 @@
 @if (showProductModal)
 {
     <div class="modal-backdrop show" @onclick="CloseModal">
-        <div class="modal" style="max-width: 600px;" @onclick:stopPropagation>
+        <div class="modal" style="max-width: 600px; max-height: 90vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
             <div class="modal-header">
                 <h3 class="modal-title">@(isEditing ? "Edit Product" : "Add New Product")</h3>
                 <button class="modal-close" @onclick="CloseModal">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="overflow-y: auto; flex: 1; min-height: 0;">
                 <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">Core Banking Product</label>
+                        @if (isLoadingFineractProducts)
+                        {
+                            <div style="font-size: var(--text-sm); color: var(--gray-500); padding: var(--space-2) 0;">
+                                <span class="spinner" style="width: 14px; height: 14px; border-width: 2px; vertical-align: middle;"></span>
+                                Loading from core banking...
+                            </div>
+                        }
+                        else if (fineractProducts.Count > 0)
+                        {
+                            <select class="form-control" value="@(editingProduct.FineractProductId?.ToString() ?? "")" @onchange="OnFineractProductSelected">
+                                <option value="">— Not linked —</option>
+                                @foreach (var fp in fineractProducts)
+                                {
+                                    <option value="@fp.Id">@fp.Name (@fp.ShortName) — @fp.AnnualInterestRate% p.a.</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <input type="number" class="form-control" @bind="editingProduct.FineractProductId" placeholder="e.g. 1" />
+                        }
+                        <small style="color: var(--gray-500);">Selecting a product will pre-fill the fields below. Leave blank for in-house calculation.</small>
+                    </div>
                     <div class="form-group">
                         <label class="form-label">Product Name *</label>
                         <input type="text" class="form-control" @bind="editingProduct.Name" />
@@ -129,11 +154,6 @@
                             <option value="AssetFinance">Asset Finance</option>
                             <option value="TradeFinance">Trade Finance</option>
                         </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Fineract Product ID</label>
-                        <input type="number" class="form-control" @bind="editingProduct.FineractProductId" placeholder="e.g. 1" />
-                        <small style="color: var(--gray-500);">Maps to core banking loan product. Leave blank for in-house schedule calculation.</small>
                     </div>
                     <div class="form-group" style="grid-column: span 2;">
                         <label class="form-label">Description</label>
@@ -398,10 +418,12 @@
 
 @code {
     private List<ProductModel> products = [];
+    private List<FineractProductInfo> fineractProducts = [];
     private bool showProductModal;
     private bool isEditing;
     private bool isSaving;
     private bool isLoading = true;
+    private bool isLoadingFineractProducts;
     private string? saveError;
     private ProductModel editingProduct = new();
     private int currentPage = 1;
@@ -456,14 +478,15 @@
         }
     }
 
-    private void OpenCreateModal()
+    private async Task OpenCreateModal()
     {
         editingProduct = new();
         isEditing = false;
         showProductModal = true;
+        await LoadFineractProductsAsync();
     }
 
-    private void EditProduct(ProductModel product)
+    private async Task EditProduct(ProductModel product)
     {
         editingProduct = new()
         {
@@ -481,6 +504,47 @@
         };
         isEditing = true;
         showProductModal = true;
+        await LoadFineractProductsAsync();
+    }
+
+    private async Task LoadFineractProductsAsync()
+    {
+        isLoadingFineractProducts = true;
+        StateHasChanged();
+        fineractProducts = await AppService.GetFineractLoanProductsAsync();
+        isLoadingFineractProducts = false;
+    }
+
+    private void OnFineractProductSelected(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var id))
+        {
+            var fp = fineractProducts.FirstOrDefault(p => p.Id == id);
+            if (fp is not null)
+            {
+                editingProduct.FineractProductId = fp.Id;
+                editingProduct.Name = fp.Name;
+                editingProduct.Code = fp.ShortName;
+                editingProduct.BaseInterestRate = fp.AnnualInterestRate;
+                editingProduct.MinAmount = fp.MinPrincipal;
+                editingProduct.MaxAmount = fp.MaxPrincipal;
+                if (!string.IsNullOrEmpty(fp.Description))
+                    editingProduct.Description = fp.Description;
+                if (fp.RepaymentFrequencyType == "Months")
+                {
+                    editingProduct.MinTenorMonths = fp.MinNumberOfRepayments ?? fp.DefaultNumberOfRepayments;
+                    editingProduct.MaxTenorMonths = fp.MaxNumberOfRepayments ?? fp.DefaultNumberOfRepayments;
+                }
+            }
+            else
+            {
+                editingProduct.FineractProductId = id;
+            }
+        }
+        else
+        {
+            editingProduct.FineractProductId = null;
+        }
     }
 
     private void CloseModal()

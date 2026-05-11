@@ -842,5 +842,20 @@
         public decimal ParticipationRate { get; set; }
     }
 
+    public class FineractProductInfo
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string ShortName { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public decimal AnnualInterestRate { get; set; }
+        public decimal MinPrincipal { get; set; }
+        public decimal MaxPrincipal { get; set; }
+        public string RepaymentFrequencyType { get; set; } = string.Empty;
+        public int DefaultNumberOfRepayments { get; set; }
+        public int? MinNumberOfRepayments { get; set; }
+        public int? MaxNumberOfRepayments { get; set; }
+    }
+
 
 }

@@ -224,6 +224,78 @@ public class MockFineractDirectService : IFineractDirectService
         return Task.FromResult(Result.Success(result));
     }
 
+    public Task<Result<IReadOnlyList<FineractLoanProduct>>> GetLoanProductsAsync(
+        bool activeOnly = true, CancellationToken ct = default)
+    {
+        _logger.LogInformation("MockFineract: GetLoanProducts (activeOnly={ActiveOnly})", activeOnly);
+
+        var products = new List<FineractLoanProduct>
+        {
+            new(Id: 1, Name: "Corporate Term Loan", ShortName: "CTL",
+                Description: "Medium to long-term financing for capital expenditure and business expansion",
+                CurrencyCode: "NGN", CurrencySymbol: "₦",
+                MinPrincipal: 5_000_000m, DefaultPrincipal: 50_000_000m, MaxPrincipal: 500_000_000m,
+                DefaultInterestRatePerPeriod: 1.5m, MinInterestRatePerPeriod: 1.0m, MaxInterestRatePerPeriod: 2.5m,
+                AnnualInterestRate: 18m, InterestRateFrequencyType: "Per month",
+                DefaultNumberOfRepayments: 24, MinNumberOfRepayments: 6, MaxNumberOfRepayments: 60,
+                RepaymentEvery: 1, RepaymentFrequencyType: "Months",
+                AmortizationType: "Equal installments", InterestType: "Declining Balance",
+                TransactionProcessingStrategyId: 1,
+                StartDate: new DateTime(2023, 1, 1), CloseDate: null, IsActive: true),
+
+            new(Id: 2, Name: "Working Capital Facility", ShortName: "WCF",
+                Description: "Short-term revolving credit facility to finance day-to-day operations",
+                CurrencyCode: "NGN", CurrencySymbol: "₦",
+                MinPrincipal: 2_000_000m, DefaultPrincipal: 20_000_000m, MaxPrincipal: 200_000_000m,
+                DefaultInterestRatePerPeriod: 1.8m, MinInterestRatePerPeriod: 1.5m, MaxInterestRatePerPeriod: 2.5m,
+                AnnualInterestRate: 21.6m, InterestRateFrequencyType: "Per month",
+                DefaultNumberOfRepayments: 12, MinNumberOfRepayments: 3, MaxNumberOfRepayments: 12,
+                RepaymentEvery: 1, RepaymentFrequencyType: "Months",
+                AmortizationType: "Equal installments", InterestType: "Flat",
+                TransactionProcessingStrategyId: 1,
+                StartDate: new DateTime(2023, 1, 1), CloseDate: null, IsActive: true),
+
+            new(Id: 3, Name: "LPO Financing", ShortName: "LPO",
+                Description: "Local Purchase Order financing for businesses with confirmed purchase orders",
+                CurrencyCode: "NGN", CurrencySymbol: "₦",
+                MinPrincipal: 1_000_000m, DefaultPrincipal: 10_000_000m, MaxPrincipal: 100_000_000m,
+                DefaultInterestRatePerPeriod: 2.0m, MinInterestRatePerPeriod: 1.5m, MaxInterestRatePerPeriod: 3.0m,
+                AnnualInterestRate: 24m, InterestRateFrequencyType: "Per month",
+                DefaultNumberOfRepayments: 6, MinNumberOfRepayments: 1, MaxNumberOfRepayments: 6,
+                RepaymentEvery: 1, RepaymentFrequencyType: "Months",
+                AmortizationType: "Equal principal payments", InterestType: "Declining Balance",
+                TransactionProcessingStrategyId: 1,
+                StartDate: new DateTime(2023, 1, 1), CloseDate: null, IsActive: true),
+
+            new(Id: 4, Name: "Asset Finance", ShortName: "AF",
+                Description: "Equipment and vehicle acquisition financing",
+                CurrencyCode: "NGN", CurrencySymbol: "₦",
+                MinPrincipal: 5_000_000m, DefaultPrincipal: 30_000_000m, MaxPrincipal: 300_000_000m,
+                DefaultInterestRatePerPeriod: 1.6m, MinInterestRatePerPeriod: 1.2m, MaxInterestRatePerPeriod: 2.2m,
+                AnnualInterestRate: 19.2m, InterestRateFrequencyType: "Per month",
+                DefaultNumberOfRepayments: 36, MinNumberOfRepayments: 12, MaxNumberOfRepayments: 60,
+                RepaymentEvery: 1, RepaymentFrequencyType: "Months",
+                AmortizationType: "Equal installments", InterestType: "Declining Balance",
+                TransactionProcessingStrategyId: 1,
+                StartDate: new DateTime(2023, 1, 1), CloseDate: null, IsActive: true),
+
+            new(Id: 5, Name: "Invoice Discounting (Legacy)", ShortName: "ID-LEG",
+                Description: "Discontinued invoice discounting product",
+                CurrencyCode: "NGN", CurrencySymbol: "₦",
+                MinPrincipal: 1_000_000m, DefaultPrincipal: 5_000_000m, MaxPrincipal: 50_000_000m,
+                DefaultInterestRatePerPeriod: 2.5m, MinInterestRatePerPeriod: null, MaxInterestRatePerPeriod: null,
+                AnnualInterestRate: 30m, InterestRateFrequencyType: "Per month",
+                DefaultNumberOfRepayments: 3, MinNumberOfRepayments: null, MaxNumberOfRepayments: null,
+                RepaymentEvery: 1, RepaymentFrequencyType: "Months",
+                AmortizationType: "Equal installments", InterestType: "Flat",
+                TransactionProcessingStrategyId: 1,
+                StartDate: new DateTime(2020, 1, 1), CloseDate: new DateTime(2022, 12, 31), IsActive: false),
+        };
+
+        var result = activeOnly ? products.Where(p => p.IsActive).ToList() : products;
+        return Task.FromResult(Result.Success<IReadOnlyList<FineractLoanProduct>>(result));
+    }
+
     public async Task<Result<CustomerExposure>> GetCustomerExposureAsync(
         long clientId, string accountNumber, string customerName, CancellationToken ct = default)
     {

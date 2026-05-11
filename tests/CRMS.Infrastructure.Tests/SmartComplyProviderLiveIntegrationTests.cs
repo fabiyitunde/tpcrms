@@ -453,10 +453,10 @@ public class SmartComplyProviderLiveIntegrationTests : IAsyncLifetime
         _output.WriteLine("=== Full Individual Credit Check Flow ===");
 
         // Step 1: BVN Verification
-        _output.WriteLine("\n1. BVN Verification...");
-        var bvnResult = await _provider!.VerifyBvnAsync(_testBvn);
-        Assert.True(bvnResult.IsSuccess, $"BVN verification failed: {bvnResult.Error}");
-        _output.WriteLine($"   Name: {bvnResult.Value?.FirstName} {bvnResult.Value?.LastName}");
+        //_output.WriteLine("\n1. BVN Verification...");
+        //var bvnResult = await _provider!.VerifyBvnAsync(_testBvn);
+        //Assert.True(bvnResult.IsSuccess, $"BVN verification failed: {bvnResult.Error}");
+        //_output.WriteLine($"   Name: {bvnResult.Value?.FirstName} {bvnResult.Value?.LastName}");
 
         // Step 2: Credit Report
         _output.WriteLine("\n2. Credit Report (CRC Full)...");

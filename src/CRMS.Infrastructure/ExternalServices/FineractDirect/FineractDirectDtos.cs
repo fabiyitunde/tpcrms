@@ -359,3 +359,77 @@ public class FineractRepaymentScheduleDto
     [JsonPropertyName("periods")]
     public List<FineractSchedulePeriodDto>? Periods { get; set; }
 }
+
+// GET /loanproducts response — each element in the array
+public class FineractLoanProductDto
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("shortName")]
+    public string? ShortName { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("currency")]
+    public FineractCurrency? Currency { get; set; }
+
+    [JsonPropertyName("principal")]
+    public decimal Principal { get; set; }
+
+    [JsonPropertyName("minPrincipal")]
+    public decimal MinPrincipal { get; set; }
+
+    [JsonPropertyName("maxPrincipal")]
+    public decimal MaxPrincipal { get; set; }
+
+    [JsonPropertyName("numberOfRepayments")]
+    public int NumberOfRepayments { get; set; }
+
+    [JsonPropertyName("minNumberOfRepayments")]
+    public int? MinNumberOfRepayments { get; set; }
+
+    [JsonPropertyName("maxNumberOfRepayments")]
+    public int? MaxNumberOfRepayments { get; set; }
+
+    [JsonPropertyName("repaymentEvery")]
+    public int RepaymentEvery { get; set; }
+
+    [JsonPropertyName("repaymentFrequencyType")]
+    public FineractEnumDto? RepaymentFrequencyType { get; set; }
+
+    [JsonPropertyName("interestRatePerPeriod")]
+    public decimal InterestRatePerPeriod { get; set; }
+
+    [JsonPropertyName("minInterestRatePerPeriod")]
+    public decimal? MinInterestRatePerPeriod { get; set; }
+
+    [JsonPropertyName("maxInterestRatePerPeriod")]
+    public decimal? MaxInterestRatePerPeriod { get; set; }
+
+    [JsonPropertyName("interestRateFrequencyType")]
+    public FineractEnumDto? InterestRateFrequencyType { get; set; }
+
+    [JsonPropertyName("annualInterestRate")]
+    public decimal AnnualInterestRate { get; set; }
+
+    [JsonPropertyName("amortizationType")]
+    public FineractEnumDto? AmortizationType { get; set; }
+
+    [JsonPropertyName("interestType")]
+    public FineractEnumDto? InterestType { get; set; }
+
+    [JsonPropertyName("transactionProcessingStrategyId")]
+    public int TransactionProcessingStrategyId { get; set; }
+
+    // Fineract returns dates as [year, month, day] integer arrays; null means no date set
+    [JsonPropertyName("startDate")]
+    public List<int>? StartDate { get; set; }
+
+    [JsonPropertyName("closeDate")]
+    public List<int>? CloseDate { get; set; }
+}

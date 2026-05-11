@@ -50,6 +50,13 @@ public enum DocumentCategory
     Other
 }
 
+public enum OfferAcceptanceMethod
+{
+    InBranchSigning,
+    Courier,
+    Electronic
+}
+
 public enum DocumentStatus
 {
     Pending,

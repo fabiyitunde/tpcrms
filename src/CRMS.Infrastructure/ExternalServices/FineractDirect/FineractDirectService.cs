@@ -89,7 +89,7 @@ public class FineractDirectService : IFineractDirectService
             _logger.LogInformation("Fineract: POST /loans?command=calculateLoanSchedule (principal={Principal}, repayments={Repayments})",
                 request.Principal, request.NumberOfRepayments);
 
-            var response = await _httpClient.PostAsJsonAsync("/loans?command=calculateLoanSchedule", body, ct);
+            var response = await _httpClient.PostAsJsonAsync("loans?command=calculateLoanSchedule", body, ct);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -139,7 +139,7 @@ public class FineractDirectService : IFineractDirectService
     {
         try
         {
-            var url = $"/clients/{clientId}/accounts";
+            var url = $"clients/{clientId}/accounts";
             _logger.LogInformation("Fineract: GET {Url}", url);
 
             var response = await _httpClient.GetAsync(url, ct);
@@ -198,7 +198,7 @@ public class FineractDirectService : IFineractDirectService
     {
         try
         {
-            var url = $"/loans/{loanId}?associations=repaymentSchedule";
+            var url = $"loans/{loanId}?associations=repaymentSchedule";
             _logger.LogInformation("Fineract: GET {Url}", url);
 
             var response = await _httpClient.GetAsync(url, ct);
@@ -332,6 +332,76 @@ public class FineractDirectService : IFineractDirectService
             TotalApprovedLimit: totalApprovedLimit,
             Facilities: facilities
         ));
+    }
+
+    public async Task<Result<IReadOnlyList<FineractLoanProduct>>> GetLoanProductsAsync(
+        bool activeOnly = true, CancellationToken ct = default)
+    {
+        try
+        {
+            _logger.LogInformation("Fineract: GET /loanproducts (activeOnly={ActiveOnly})", activeOnly);
+
+            var response = await _httpClient.GetAsync("loanproducts", ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Fineract loanproducts failed ({Status}): {Body}", response.StatusCode, errorBody);
+                return Result.Failure<IReadOnlyList<FineractLoanProduct>>($"Fineract returned {(int)response.StatusCode}: {errorBody}");
+            }
+
+            var dtos = await response.Content.ReadFromJsonAsync<List<FineractLoanProductDto>>(_jsonOptions, ct);
+            if (dtos == null)
+                return Result.Failure<IReadOnlyList<FineractLoanProduct>>("Empty response from Fineract");
+
+            var today = DateTime.UtcNow.Date;
+            var products = dtos
+                .Select(dto =>
+                {
+                    var closeDate = ParseFineractDate(dto.CloseDate);
+                    var isActive = closeDate == null || closeDate.Value.Date >= today;
+                    return new FineractLoanProduct(
+                        Id: dto.Id,
+                        Name: dto.Name ?? "",
+                        ShortName: dto.ShortName ?? "",
+                        Description: dto.Description,
+                        CurrencyCode: dto.Currency?.Code ?? "",
+                        CurrencySymbol: dto.Currency?.DisplaySymbol ?? dto.Currency?.Code ?? "",
+                        MinPrincipal: dto.MinPrincipal,
+                        DefaultPrincipal: dto.Principal,
+                        MaxPrincipal: dto.MaxPrincipal,
+                        DefaultInterestRatePerPeriod: dto.InterestRatePerPeriod,
+                        MinInterestRatePerPeriod: dto.MinInterestRatePerPeriod,
+                        MaxInterestRatePerPeriod: dto.MaxInterestRatePerPeriod,
+                        AnnualInterestRate: dto.AnnualInterestRate,
+                        InterestRateFrequencyType: dto.InterestRateFrequencyType?.Value ?? "",
+                        DefaultNumberOfRepayments: dto.NumberOfRepayments,
+                        MinNumberOfRepayments: dto.MinNumberOfRepayments,
+                        MaxNumberOfRepayments: dto.MaxNumberOfRepayments,
+                        RepaymentEvery: dto.RepaymentEvery,
+                        RepaymentFrequencyType: dto.RepaymentFrequencyType?.Value ?? "",
+                        AmortizationType: dto.AmortizationType?.Value ?? "",
+                        InterestType: dto.InterestType?.Value ?? "",
+                        TransactionProcessingStrategyId: dto.TransactionProcessingStrategyId,
+                        StartDate: ParseFineractDate(dto.StartDate),
+                        CloseDate: closeDate,
+                        IsActive: isActive
+                    );
+                })
+                .Where(p => !activeOnly || p.IsActive)
+                .ToList();
+
+            return Result.Success<IReadOnlyList<FineractLoanProduct>>(products);
+        }
+        catch (TaskCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fineract loanproducts error");
+            return Result.Failure<IReadOnlyList<FineractLoanProduct>>($"Fineract error: {ex.Message}");
+        }
     }
 
     /// <summary>
