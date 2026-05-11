@@ -2421,6 +2421,36 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<List<FineractProductInfo>> GetFineractLoanProductsAsync()
+    {
+        try
+        {
+            var fineract = _sp.GetRequiredService<IFineractDirectService>();
+            var result = await fineract.GetLoanProductsAsync(activeOnly: true);
+            if (!result.IsSuccess || result.Value == null)
+                return [];
+            return result.Value.Select(p => new FineractProductInfo
+            {
+                Id = p.Id,
+                Name = p.Name,
+                ShortName = p.ShortName,
+                Description = p.Description,
+                AnnualInterestRate = p.AnnualInterestRate,
+                MinPrincipal = p.MinPrincipal,
+                MaxPrincipal = p.MaxPrincipal,
+                RepaymentFrequencyType = p.RepaymentFrequencyType,
+                DefaultNumberOfRepayments = p.DefaultNumberOfRepayments,
+                MinNumberOfRepayments = p.MinNumberOfRepayments,
+                MaxNumberOfRepayments = p.MaxNumberOfRepayments
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching Fineract loan products");
+            return [];
+        }
+    }
+
     public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths)
     {
         try

@@ -109,7 +109,9 @@ public static class DependencyInjection
             services.AddTransient<FineractDirectAuthHandler>();
             services.AddHttpClient<IFineractDirectService, FineractDirectService>(client =>
                 {
-                    client.BaseAddress = new Uri(fineractSection.GetValue<string>("BaseUrl") ?? "");
+                    var baseUrl = fineractSection.GetValue<string>("BaseUrl") ?? "";
+                    if (!baseUrl.EndsWith("/")) baseUrl += "/";
+                    client.BaseAddress = new Uri(baseUrl);
                     client.Timeout = TimeSpan.FromSeconds(fineractSection.GetValue<int>("TimeoutSeconds", 30));
                 })
                 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler

@@ -89,7 +89,7 @@ public class FineractDirectService : IFineractDirectService
             _logger.LogInformation("Fineract: POST /loans?command=calculateLoanSchedule (principal={Principal}, repayments={Repayments})",
                 request.Principal, request.NumberOfRepayments);
 
-            var response = await _httpClient.PostAsJsonAsync("/loans?command=calculateLoanSchedule", body, ct);
+            var response = await _httpClient.PostAsJsonAsync("loans?command=calculateLoanSchedule", body, ct);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -139,7 +139,7 @@ public class FineractDirectService : IFineractDirectService
     {
         try
         {
-            var url = $"/clients/{clientId}/accounts";
+            var url = $"clients/{clientId}/accounts";
             _logger.LogInformation("Fineract: GET {Url}", url);
 
             var response = await _httpClient.GetAsync(url, ct);
@@ -198,7 +198,7 @@ public class FineractDirectService : IFineractDirectService
     {
         try
         {
-            var url = $"/loans/{loanId}?associations=repaymentSchedule";
+            var url = $"loans/{loanId}?associations=repaymentSchedule";
             _logger.LogInformation("Fineract: GET {Url}", url);
 
             var response = await _httpClient.GetAsync(url, ct);
@@ -341,7 +341,7 @@ public class FineractDirectService : IFineractDirectService
         {
             _logger.LogInformation("Fineract: GET /loanproducts (activeOnly={ActiveOnly})", activeOnly);
 
-            var response = await _httpClient.GetAsync("/loanproducts", ct);
+            var response = await _httpClient.GetAsync("loanproducts", ct);
 
             if (!response.IsSuccessStatusCode)
             {
