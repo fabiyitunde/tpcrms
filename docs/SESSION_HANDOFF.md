@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-05-06 (Session 57)
+**Last Updated:** 2026-05-11 (Session 58)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -204,6 +204,10 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **LegalReview/LegalApproval wired into active workflow sequence (HOReview → LegalReview → LegalApproval → CommitteeCirculation)** | ✅ |
 | **`ReturnFromLegalReview` domain method + handler — Legal Officer can return application to HOReview** | ✅ |
 | **Approval gate at LegalReview — strict mode, blocks on uncleared collateral (`IsLegalCleared == false`)** | ✅ |
+| **`Tutorial_LoanLifecycle.html` credentials — all short usernames replaced with email addresses; password corrected to `Password1$$$`** | ✅ |
+| **Scalar API documentation (`/scalar/v1`) — `Scalar.AspNetCore` package added to `CRMS.API`; interactive OpenAPI UI in Development** | ✅ |
+| **Help guide comprehensively updated — all 13 roles, full 17-stage workflow, all tabs/features/stages accurately documented** | ✅ |
+| **Help guide role-aware — sidebar nav filtered by role; direct URL access blocked via `CanViewSection()` guard + `RenderAccessDenied()` fragment** | ✅ |
 
 ### What Is Pending
 
@@ -244,7 +248,7 @@ return result.IsSuccess
   - Forward path: `CreditAnalysis` → `HOReview` → `LegalReview` → `LegalApproval` → `CommitteeCirculation`
   - `LegalOfficer` at LegalReview: Submit Opinion (Approve) → LegalApproval; Return → HOReview
   - `HeadOfLegal` at LegalApproval: Approve → CommitteeCirculation; Return → LegalReview
-  - `LegalReview` and `LegalApproval` are also defined in the enum/AppStatus but not yet wired into the workflow transition sequence — where exactly they slot in has not been confirmed with the user.
+  - `LegalOfficer` at LegalReview can also **Return → HOReview** (added Session 55)
 
 ### Access Control Rules
 - `IsApplicationEditable` = `application.Status == "Draft"` — data entry (add/edit/delete) only allowed in Draft
@@ -340,57 +344,62 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-05-06 Session 57)
+## 5. Last Session Summary (2026-05-11 Session 58)
 
-### Completed — Remove DisbursementBranchApproval Stage
+### Completed — Tutorial Credential Fixes (`docs/Tutorial_LoanLifecycle.html`)
 
-**Context:** Operations was still being routed through a Branch Approver step (`DisbursementBranchApproval`) before reaching GM Finance. This extra hop was redundant in practice, so it was removed.
+All remaining short username references replaced with email addresses (login uses email not username):
+- Password note on setup section — `legalofficer` → `adewale.johnson@crms.ng`
+- Committee member list (3 entries) — short names → full emails
+- Full reference table (lines ~1782–1796) — all 13 role rows updated
+- Troubleshooting entry — `creditofficer` → `emeka.okonkwo@crms.ng`
+- Credit officer view reference — updated to email
 
-**New flow:** `DisbursementPending` (Operations) → `DisbursementHQApproval` (GMFinance) → `Disbursed`
-
-**Files changed (5 files, 13 touch-points):**
-- **`ApplicationService.cs`**: Approve path `"DisbursementPending" → DisbursementHQApproval`; removed `ApproveDisbursementBranch` handler block; Return path removed `DisbursementBranchApproval` entry and handler block
-- **`Detail.razor`**: Removed `DisbursementBranchApproval` from `ShowApproveButton`, `ShowReturnButton`, `CanUploadSignedMemo`, checklist tab visibility, `CanGenerateOfferLetter`, offer-letters fetch condition
-- **`Index.razor`**: Removed from filter dropdown and badge color mappings
-- **`OfferAcceptanceTab.razor`**: Removed from `ShowMemoCard` status check
-- **`ComprehensiveDataSeeder.cs`**: Initial transitions list updated; old upgrade block also updated
-
-Build: 0 errors.
+**Password corrected to `Password1$$$`** (three dollar signs) — confirmed from `ComprehensiveDataSeeder.cs` line `_passwordHasher.HashPassword("Password1$$")`. A previous session had incorrectly used `Password1$`; reverted using `replace_all=true`.
 
 ---
 
-### Completed — Workflow Transition DB Fix (DisbursementPending → DisbursementHQApproval)
+### Completed — Scalar API Documentation (`CRMS.API`)
 
-**Problem:** After the stage removal, Operations got "Transition from DisbursementPending to DisbursementHQApproval via Approve is not allowed". The DB still held the old `DisbursementPending → DisbursementBranchApproval` transition row and the new `DisbursementPending → DisbursementHQApproval` row had never been inserted.
-
-**Root cause — two layers:**
-1. `LoanApplication.PrepareDisbursementMemo()` domain method still targeted `DisbursementBranchApproval`
-2. Workflow DB had no `DisbursementPending → DisbursementHQApproval` transition row
-
-**Fixes:**
-- **`LoanApplication.cs`**: `PrepareDisbursementMemo()` now sets `Status = DisbursementHQApproval`
-- **`ComprehensiveDataSeeder.cs`**: New upgrade block (idempotent):
-  - `DELETE FROM WorkflowTransitions WHERE FromStatus='DisbursementPending' AND ToStatus='DisbursementBranchApproval'`
-  - `INSERT` (if missing) `DisbursementPending → DisbursementHQApproval` (Approve, Operations)
-  - `INSERT` (if missing) `DisbursementPending → SecurityPerfection` (Return, Operations)
-
-Build: 0 errors.
-
----
-
-### Completed — Data Repair for Stuck Applications
-
-**Problem:** After the first (failed) approve attempt, `PrepareDisbursementMemo()` had already persisted `DisbursementBranchApproval` on the domain entity, but the workflow transition failed so the workflow instance stayed at `DisbursementPending`. Result: the application was invisible — Operations sees `DisbursementPending` domain status, GMFinance sees `DisbursementHQApproval` domain status; neither matched `DisbursementBranchApproval`.
-
-**Pattern:** Domain command writes persist even when the subsequent workflow transition fails (no shared transaction). Any mismatch leaves apps invisible to all queues.
-
-**Fix — three idempotent SQL statements in seeder (run on every startup):**
-1. `UPDATE WorkflowInstances SET CurrentStatus = 'DisbursementHQApproval' WHERE CurrentStatus = 'DisbursementBranchApproval'` — advances seeded test apps
-2. Domain sync for case A (seeded): `WHERE la.Status='DisbursementBranchApproval' AND wi.CurrentStatus='DisbursementHQApproval'` → set domain to `DisbursementHQApproval`
-3. Domain sync for case B (stuck from failed attempt): `WHERE la.Status='DisbursementBranchApproval' AND wi.CurrentStatus='DisbursementPending'` → reset domain to `DisbursementPending`
+Project had `Microsoft.AspNetCore.OpenApi` (raw JSON only) but no interactive UI.
 
 **Files changed:**
-- `src/CRMS.Infrastructure/Persistence/ComprehensiveDataSeeder.cs`
+- **`src/CRMS.API/CRMS.API.csproj`**: Added `<PackageReference Include="Scalar.AspNetCore" Version="2.14.11" />`
+- **`src/CRMS.API/Program.cs`**: Added `using Scalar.AspNetCore;` + `app.MapScalarApiReference();` inside `IsDevelopment()` block
+
+Accessible at `https://localhost:7243/scalar/v1` in Development.
+
+---
+
+### Completed — In-App Help Guide Comprehensive Update (`Help/Index.razor`)
+
+Full rewrite of the help page (`~4200+ lines`) to accurately reflect all current features, stages, roles, and workflow.
+
+**Structural changes:**
+- **Role helper methods** added to `@code`:
+  - `IsAdmin` — `User.HasRole("SystemAdmin")`
+  - `Can(params string[] roles)` — admin bypasses all checks
+  - `CanViewSection(string section)` — centralized access control map for 30+ sections
+  - `RenderAccessDenied()` render fragment — shown when section URL is accessed directly without permission
+
+- **Sidebar nav** fully replaced with role-filtered nav (`@if (Can(...))` / `@if (IsAdmin)` wrappers on every restricted item)
+
+- **Main content guard** — switch statement now wrapped in `@if (!CanViewSection(CurrentSection)) { @RenderAccessDenied() } else { @switch... }`
+
+**Content added/updated:**
+- All 13 roles documented (including HOReviewer, LegalOfficer, HeadOfLegal, GMFinance — previously missing)
+- Full 17-stage workflow reference table (Admin only)
+- All 17 application statuses listed accurately
+- My Queue section shows all 9 roles with correct queue statuses
+- Collateral tab: actual seeded types; legal clearance step in lifecycle; approve button gate explained
+- 5 Approval Gates documented with requirements tables
+- Offer Acceptance tab guide (Operations role)
+- Admin Collateral Types page documented
+- All workflow actions including Disburse (GMFinance, DisbursementHQApproval)
+- Overview updated from 6-step to 8-step visual
+
+**Files changed:**
+- `src/CRMS.Web.Intranet/Components/Pages/Help/Index.razor`
 
 Build: 0 errors.
 
@@ -398,8 +407,16 @@ Build: 0 errors.
 
 ### Docs Updated This Session
 - [x] `docs/SESSION_HANDOFF.md` → updated (this file)
-- [x] `docs/UIGaps.md` → v6.7
-- [x] `docs/ImplementationTracker.md` → v7.9
+- [x] `docs/UIGaps.md` → v6.8
+- [x] `docs/ImplementationTracker.md` → v8.0
+
+---
+
+### Previous Session Summary (2026-05-06 Session 57)
+
+### Completed — Remove DisbursementBranchApproval Stage, Workflow DB Fix, Data Repair
+
+**New flow:** `DisbursementPending` (Operations) → `DisbursementHQApproval` (GMFinance) → `Disbursed`. `PrepareDisbursementMemo()` now targets `DisbursementHQApproval`. Seeder upgrade deletes old branch transition, inserts new Approve + Return transitions, and repairs any apps stuck at `DisbursementBranchApproval` on startup via idempotent SQL. Build: 0 errors.
 
 ---
 
