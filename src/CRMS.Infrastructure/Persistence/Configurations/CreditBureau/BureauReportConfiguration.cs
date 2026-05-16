@@ -81,7 +81,6 @@ public class BureauReportConfiguration : IEntityTypeConfiguration<BureauReport>
         builder.Property(x => x.PartyType)
             .HasMaxLength(50);
 
-        builder.HasIndex(x => x.ConsentRecordId);
         builder.HasIndex(x => x.PartyId);
         builder.HasIndex(x => x.LoanApplicationId);
         builder.HasIndex(x => x.RequestedByUserId);

@@ -35,11 +35,12 @@ public class OfferLetterRepository : IOfferLetterRepository
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<int> GetVersionCountAsync(Guid loanApplicationId, CancellationToken ct = default)
+    public async Task<int> GetMaxVersionAsync(Guid loanApplicationId, CancellationToken ct = default)
     {
+        // MaxAsync returns null when there are no rows; default to 0 so callers get next version = 1.
         return await _context.OfferLetters
             .Where(x => x.LoanApplicationId == loanApplicationId)
-            .CountAsync(ct);
+            .MaxAsync(x => (int?)x.Version, ct) ?? 0;
     }
 
     public async Task AddAsync(OfferLetter offerLetter, CancellationToken ct = default)

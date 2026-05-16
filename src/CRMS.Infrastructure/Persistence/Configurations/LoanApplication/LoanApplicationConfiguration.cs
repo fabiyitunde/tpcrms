@@ -93,11 +93,17 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
                 .HasMaxLength(3);
         });
 
+        builder.Navigation(x => x.ApprovedAmount).IsRequired(false);
+
         builder.Property(x => x.ApprovedInterestRate)
             .HasPrecision(5, 2);
 
         builder.Property(x => x.CoreBankingLoanId)
             .HasMaxLength(50);
+
+        builder.Property(x => x.DisbursementMemoStoragePath)
+            .HasMaxLength(500)
+            .IsRequired(false);
 
         builder.HasIndex(x => x.InitiatedByUserId);
         builder.HasIndex(x => x.BranchId);
@@ -122,14 +128,68 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
             .HasForeignKey(x => x.LoanApplicationId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(x => x.ChecklistItems)
+            .WithOne()
+            .HasForeignKey(x => x.LoanApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Offer lifecycle audit fields
+        builder.Property(x => x.OfferIssuedAt).IsRequired(false);
+        builder.Property(x => x.OfferIssuedByUserId).IsRequired(false);
+        builder.Property(x => x.OfferAcceptedAt).IsRequired(false);
+        builder.Property(x => x.OfferAcceptedByUserId).IsRequired(false);
+        builder.Property(x => x.CustomerSignedAt).IsRequired(false);
+        builder.Property(x => x.AcceptanceMethod)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .IsRequired(false);
+        builder.Property(x => x.KfsAcknowledged)
+            .HasDefaultValue(false)
+            .IsRequired();
+
         // Concurrency token disabled for MySQL compatibility
         // RowVersion stored as BLOB, must have default value to avoid DBNull issues
+        // ValueGeneratedNever() prevents EF from treating this as a DB-generated value,
+        // which would cause Pomelo to issue a post-INSERT SELECT that returns 0 rows on GUID-PK entities.
         builder.Property(x => x.RowVersion)
             .HasColumnType("BLOB")
             .HasDefaultValue(new byte[] { 0 })
-            .IsRequired(false);
+            .IsRequired(false)
+            .ValueGeneratedNever();
+
+        builder.HasMany(x => x.OverrideRecords)
+            .WithOne()
+            .HasForeignKey(x => x.LoanApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.Ignore(x => x.DomainEvents);
+    }
+}
+
+public class ApprovalOverrideRecordConfiguration : IEntityTypeConfiguration<LA.ApprovalOverrideRecord>
+{
+    public void Configure(EntityTypeBuilder<LA.ApprovalOverrideRecord> builder)
+    {
+        builder.ToTable("ApprovalOverrideRecords");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Stage)
+            .HasMaxLength(50)
+            .IsRequired();
+
+        builder.Property(x => x.ActorName)
+            .HasMaxLength(200)
+            .IsRequired();
+
+        builder.Property(x => x.NoteText)
+            .HasMaxLength(2000)
+            .IsRequired();
+
+        builder.Property(x => x.ResolvedByName)
+            .HasMaxLength(200);
+
+        builder.HasIndex(x => x.LoanApplicationId);
     }
 }
 

@@ -37,7 +37,8 @@ public class LocationConfiguration : IEntityTypeConfiguration<Domain.Aggregates.
             .HasMaxLength(100);
 
         builder.Property(x => x.SortOrder)
-            .HasDefaultValue(0);
+            .HasDefaultValue(0)
+            .ValueGeneratedNever();
 
         // Self-referencing relationship for hierarchy
         builder.HasOne(x => x.Parent)

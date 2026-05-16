@@ -259,7 +259,54 @@ public class VerifyFinancialStatementHandler : IRequestHandler<VerifyFinancialSt
         if (statement == null)
             return ApplicationResult<FinancialStatementDto>.Failure("Financial statement not found");
 
+        // Auto-submit if still Draft so the reviewer doesn't need a separate submit step
+        if (statement.Status == Domain.Enums.FinancialStatementStatus.Draft)
+        {
+            var submitResult = statement.Submit();
+            if (submitResult.IsFailure)
+                return ApplicationResult<FinancialStatementDto>.Failure(submitResult.Error);
+        }
+
         var result = statement.Verify(request.VerifiedByUserId, request.Notes);
+        if (result.IsFailure)
+            return ApplicationResult<FinancialStatementDto>.Failure(result.Error);
+
+        _repository.Update(statement);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return ApplicationResult<FinancialStatementDto>.Success(FinancialStatementMapper.ToDto(statement));
+    }
+}
+
+public record RejectFinancialStatementCommand(Guid FinancialStatementId, string Reason)
+    : IRequest<ApplicationResult<FinancialStatementDto>>;
+
+public class RejectFinancialStatementHandler : IRequestHandler<RejectFinancialStatementCommand, ApplicationResult<FinancialStatementDto>>
+{
+    private readonly IFinancialStatementRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public RejectFinancialStatementHandler(IFinancialStatementRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult<FinancialStatementDto>> Handle(RejectFinancialStatementCommand request, CancellationToken ct = default)
+    {
+        var statement = await _repository.GetByIdWithDetailsAsync(request.FinancialStatementId, ct);
+        if (statement == null)
+            return ApplicationResult<FinancialStatementDto>.Failure("Financial statement not found");
+
+        // Auto-submit if still Draft so the reviewer doesn't need a separate submit step
+        if (statement.Status == Domain.Enums.FinancialStatementStatus.Draft)
+        {
+            var submitResult = statement.Submit();
+            if (submitResult.IsFailure)
+                return ApplicationResult<FinancialStatementDto>.Failure(submitResult.Error);
+        }
+
+        var result = statement.Reject(request.Reason);
         if (result.IsFailure)
             return ApplicationResult<FinancialStatementDto>.Failure(result.Error);
 

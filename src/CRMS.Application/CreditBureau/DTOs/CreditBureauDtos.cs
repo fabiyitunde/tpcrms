@@ -44,8 +44,12 @@ public record BureauReportSummaryDto(
     string Status,
     int? CreditScore,
     string? ScoreGrade,
+    int TotalAccounts,
     int ActiveLoans,
+    int PerformingAccounts,
+    int ClosedAccounts,
     decimal TotalOutstandingBalance,
+    decimal TotalCreditLimit,
     decimal TotalOverdue,
     int MaxDelinquencyDays,
     bool HasLegalActions,
@@ -56,7 +60,8 @@ public record BureauReportSummaryDto(
     Guid? PartyId,
     string? PartyType,
     DateTime RequestedAt,
-    DateTime? CompletedAt
+    DateTime? CompletedAt,
+    string? ErrorMessage
 );
 
 public record BureauAccountDto(

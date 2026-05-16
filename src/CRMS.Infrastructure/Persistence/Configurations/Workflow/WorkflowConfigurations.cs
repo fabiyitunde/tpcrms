@@ -127,10 +127,13 @@ public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowIn
 
         // Concurrency token disabled for MySQL compatibility
         // RowVersion stored as BLOB, must have default value to avoid DBNull issues
+        // ValueGeneratedNever() prevents EF from treating this as a DB-generated value,
+        // which would cause Pomelo to issue a post-INSERT SELECT that returns 0 rows on GUID-PK entities.
         builder.Property(x => x.RowVersion)
             .HasColumnType("BLOB")
             .HasDefaultValue(new byte[] { 0 })
-            .IsRequired(false);
+            .IsRequired(false)
+            .ValueGeneratedNever();
 
         builder.HasMany(x => x.TransitionHistory)
             .WithOne()

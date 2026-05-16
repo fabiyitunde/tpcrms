@@ -35,6 +35,16 @@ public class BureauReportRepository : IBureauReportRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<BureauReport>> GetByLoanApplicationIdWithDetailsAsync(Guid loanApplicationId, CancellationToken ct = default)
+    {
+        return await _context.BureauReports
+            .Include(x => x.Accounts)
+            .Include(x => x.ScoreFactors)
+            .Where(x => x.LoanApplicationId == loanApplicationId)
+            .OrderByDescending(x => x.RequestedAt)
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<BureauReport>> GetByBVNAsync(string bvn, CancellationToken ct = default)
     {
         return await _context.BureauReports
@@ -64,5 +74,10 @@ public class BureauReportRepository : IBureauReportRepository
     public void Update(BureauReport report)
     {
         _context.BureauReports.Update(report);
+    }
+
+    public void Delete(BureauReport report)
+    {
+        _context.BureauReports.Remove(report);
     }
 }

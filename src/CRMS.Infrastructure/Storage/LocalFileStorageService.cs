@@ -34,7 +34,13 @@ public class LocalFileStorageService : IFileStorageService
 
         var uniqueFileName = $"{Guid.NewGuid():N}_{fileName}";
         var filePath = Path.Combine(containerPath, uniqueFileName);
-        
+
+        // fileName may contain path separators (e.g. "AppNumber/OfferLetter.pdf"),
+        // so ensure the full directory hierarchy exists before writing.
+        var fileDir = Path.GetDirectoryName(filePath);
+        if (fileDir != null && !Directory.Exists(fileDir))
+            Directory.CreateDirectory(fileDir);
+
         await File.WriteAllBytesAsync(filePath, content, ct);
         
         var storagePath = $"{containerName}/{uniqueFileName}";
@@ -100,5 +106,28 @@ public class LocalFileStorageService : IFileStorageService
         // Local file storage doesn't support pre-signed URLs
         // Return null - caller should use DownloadAsync instead
         return Task.FromResult<string?>(null);
+    }
+
+    public Task<IEnumerable<string>> ListFilesAsync(string containerName, string? prefix = null, CancellationToken ct = default)
+    {
+        var containerPath = Path.Combine(_basePath, containerName);
+        if (!Directory.Exists(containerPath))
+            return Task.FromResult(Enumerable.Empty<string>());
+
+        var searchPath = prefix != null
+            ? Path.Combine(containerPath, prefix.Replace('/', Path.DirectorySeparatorChar))
+            : containerPath;
+
+        var searchDir = Directory.Exists(searchPath) ? searchPath : containerPath;
+        var pattern = prefix != null && !Directory.Exists(searchPath) ? $"*{prefix}*" : "*";
+
+        var files = Directory.GetFiles(searchDir, pattern, SearchOption.AllDirectories)
+            .Select(f =>
+            {
+                var relative = Path.GetRelativePath(_basePath, f).Replace(Path.DirectorySeparatorChar, '/');
+                return relative;
+            });
+
+        return Task.FromResult(files);
     }
 }

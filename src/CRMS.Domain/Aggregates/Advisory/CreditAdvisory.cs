@@ -56,6 +56,20 @@ public class CreditAdvisory : AggregateRoot
     public List<Guid> FinancialStatementIds { get; private set; } = new();
     public Guid? CashflowAnalysisId { get; private set; }
 
+    // JSON-persisted snapshots (written before save, read back from DB when private fields are empty)
+    public string? RiskScoresJson { get; private set; }
+    public string? RedFlagsJson { get; private set; }
+    public string? ConditionsJson { get; private set; }
+    public string? CovenantsJson { get; private set; }
+
+    public void SetPersistedData(string? riskScoresJson, string? redFlagsJson, string? conditionsJson, string? covenantsJson)
+    {
+        RiskScoresJson = riskScoresJson;
+        RedFlagsJson = redFlagsJson;
+        ConditionsJson = conditionsJson;
+        CovenantsJson = covenantsJson;
+    }
+
     private CreditAdvisory() { }
 
     public static Result<CreditAdvisory> Create(

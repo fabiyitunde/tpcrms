@@ -300,12 +300,11 @@ public class BureauReportRequestedAuditHandler : IDomainEventHandler<BureauRepor
             null,
             null,
             null,
-            newValues: new 
-            { 
+            newValues: new
+            {
                 Provider = domainEvent.Provider.ToString(),
                 SubjectName = domainEvent.SubjectName,
-                BVN = maskedBvn, // Store masked BVN only
-                ConsentRecordId = domainEvent.ConsentRecordId
+                BVN = maskedBvn // Store masked BVN only
             },
             ct: ct);
     }

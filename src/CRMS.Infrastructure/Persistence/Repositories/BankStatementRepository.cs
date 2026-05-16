@@ -79,6 +79,12 @@ public class BankStatementRepository : IBankStatementRepository
         }
     }
 
+    public void AttachNewTransactions(IEnumerable<Domain.Aggregates.StatementAnalysis.StatementTransaction> transactions)
+    {
+        foreach (var txn in transactions)
+            _context.Entry(txn).State = EntityState.Added;
+    }
+
     public void Delete(BankStatement statement)
     {
         _context.BankStatements.Remove(statement);

@@ -1,0 +1,332 @@
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<div class="modal-backdrop show" @onclick="Close">
+    <div class="modal" style="max-width: 560px; max-height: 88vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <span class="material-symbols-outlined" style="font-size: 22px; vertical-align: middle; margin-right: var(--space-2); color: var(--warning-600);">gavel</span>
+                Record Legal Clearance
+            </h3>
+            <button type="button" class="modal-close" @onclick="Close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        <div class="modal-body" style="flex: 1; overflow-y: auto;">
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: var(--space-8);">
+                    <span class="material-symbols-outlined spinning">progress_activity</span>
+                </div>
+            }
+            else
+            {
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger mb-4" style="display: flex; gap: var(--space-2); align-items: flex-start;">
+                        <span class="material-symbols-outlined" style="color: var(--danger-600); font-size: 18px;">error</span>
+                        <span>@errorMessage</span>
+                    </div>
+                }
+
+                @* Collateral summary *@
+                <div class="alert alert-info mb-4" style="font-size: var(--text-sm);">
+                    <strong>@collateralType</strong> — @collateralDescription
+                    <div class="text-muted" style="margin-top: var(--space-1);">
+                        Confirm title is genuine, the asset is unencumbered, and the charge can be registered.
+                        The Credit Officer will then be able to formally approve this collateral.
+                    </div>
+                </div>
+
+                @* ── Document Upload Section ── *@
+                <div style="margin-bottom: var(--space-5);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2);">
+                        <label class="form-label" style="margin-bottom: 0;">
+                            Legal Clearance Documents <span style="color: var(--danger-600);">*</span>
+                        </label>
+                        <span style="font-size: var(--text-xs); color: var(--gray-500);">PDF, DOC, JPG, PNG (max 10 MB each)</span>
+                    </div>
+
+                    @if (stagedFiles.Count > 0)
+                    {
+                        <div style="border: 1px solid var(--gray-200); border-radius: var(--radius-md); margin-bottom: var(--space-2); overflow: hidden;">
+                            @foreach (var f in stagedFiles)
+                            {
+                                var staged = f;
+                                <div style="display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--gray-100);">
+                                    <span class="material-symbols-outlined" style="font-size: 22px; color: var(--primary-500);">@GetFileIcon(staged.FileName)</span>
+                                    <div style="min-width: 0;">
+                                        <div style="font-size: var(--text-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@staged.FileName</div>
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">@FormatFileSize(staged.FileSize)</div>
+                                    </div>
+                                    <select class="form-control" style="font-size: var(--text-xs); padding: var(--space-1) var(--space-2); min-width: 200px;"
+                                        @bind="staged.DocumentType" disabled="@isSubmitting">
+                                        <option value="LegalOpinion">Legal Opinion / Vetting Report</option>
+                                        <option value="TitleDeed">Title Deed / C of O</option>
+                                        <option value="SearchReport">Search Report</option>
+                                        <option value="GovernorsConsent">Governor's Consent</option>
+                                        <option value="DeedOfAssignment">Deed of Assignment / Mortgage</option>
+                                        <option value="VehicleRegistration">Vehicle Registration / Ownership</option>
+                                        <option value="InsuranceCertificate">Insurance Certificate</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                    <button type="button" class="btn btn-ghost btn-sm" title="Remove" style="color: var(--danger-600);"
+                                        @onclick="() => RemoveStagedFile(staged)" disabled="@isSubmitting">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">close</span>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <label class="btn btn-outline btn-sm" style="cursor: pointer; display: inline-flex; align-items: center; gap: var(--space-2);">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">attach_file</span>
+                        <span>Add Documents</span>
+                        <InputFile OnChange="HandleFilesSelected" multiple
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            style="display: none;" disabled="@isSubmitting" />
+                    </label>
+
+                    @if (fileError != null)
+                    {
+                        <div style="font-size: var(--text-xs); color: var(--danger-600); margin-top: var(--space-1);">@fileError</div>
+                    }
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: var(--space-1);">
+                        Upload the legal opinion letter, title search report, and any supporting title documents.
+                        At least one document is required.
+                    </div>
+                </div>
+
+                @* ── Clearance Notes ── *@
+                <div class="form-group">
+                    <label class="form-label">Clearance Notes <span class="text-muted">(optional)</span></label>
+                    <textarea class="form-control" rows="3" @bind="clearanceNotes"
+                        placeholder="e.g. Title deed verified, no encumbrances found, charge registration cleared..."
+                        disabled="@isSubmitting"></textarea>
+                </div>
+
+                @* Upload progress indicator *@
+                @if (isSubmitting && uploadProgressMessage != null)
+                {
+                    <div class="alert alert-info mt-3" style="display: flex; gap: var(--space-2); align-items: center; font-size: var(--text-sm);">
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                        <span>@uploadProgressMessage</span>
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" @onclick="Close" disabled="@isSubmitting">Cancel</button>
+            <button type="button" class="btn btn-warning" @onclick="Submit"
+                disabled="@(isSubmitting || isLoading || stagedFiles.Count == 0)">
+                @if (isSubmitting)
+                {
+                    <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                    <span>Recording...</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined" style="font-size: 18px;">gavel</span>
+                    <span>Record Legal Clearance</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .spinning {
+        animation: spin 1s linear infinite;
+    }
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    [Parameter] public Guid CollateralId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSuccess { get; set; }
+
+    private sealed class StagedFile
+    {
+        public string FileName { get; init; } = string.Empty;
+        public long FileSize { get; init; }
+        public string ContentType { get; init; } = string.Empty;
+        public byte[] Bytes { get; init; } = [];
+        public string DocumentType { get; set; } = "LegalOpinion"; // mutable — bound to per-row dropdown
+    }
+
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string? errorMessage;
+    private string? fileError;
+    private string? uploadProgressMessage;
+
+    private string collateralType = string.Empty;
+    private string collateralDescription = string.Empty;
+    private string clearanceNotes = string.Empty;
+    private List<StagedFile> stagedFiles = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var detail = await AppService.GetCollateralDetailAsync(CollateralId);
+        if (detail != null)
+        {
+            collateralType = FormatCollateralType(detail.Type);
+            collateralDescription = detail.Description;
+        }
+        isLoading = false;
+    }
+
+    private async Task HandleFilesSelected(InputFileChangeEventArgs e)
+    {
+        fileError = null;
+        foreach (var file in e.GetMultipleFiles(10))
+        {
+            if (file.Size > 10 * 1024 * 1024)
+            {
+                fileError = $"{file.Name} exceeds the 10 MB limit and was skipped.";
+                continue;
+            }
+            try
+            {
+                await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                stagedFiles.Add(new StagedFile
+                {
+                    FileName = file.Name,
+                    FileSize = file.Size,
+                    ContentType = file.ContentType,
+                    Bytes = ms.ToArray()
+                    // DocumentType defaults to "LegalOpinion"
+                });
+            }
+            catch
+            {
+                fileError = $"Could not read {file.Name}. Please try again.";
+            }
+        }
+    }
+
+    private void RemoveStagedFile(StagedFile file) => stagedFiles.Remove(file);
+
+    private async Task Submit()
+    {
+        if (stagedFiles.Count == 0)
+        {
+            errorMessage = "Please attach at least one legal clearance document before recording clearance.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+
+        try
+        {
+            // Upload all staged documents first
+            for (int i = 0; i < stagedFiles.Count; i++)
+            {
+                var f = stagedFiles[i];
+                uploadProgressMessage = $"Uploading document {i + 1} of {stagedFiles.Count}: {f.FileName}…";
+                StateHasChanged();
+
+                var uploadResult = await AppService.UploadCollateralDocumentAsync(
+                    new UploadCollateralDocumentRequest
+                    {
+                        CollateralId = CollateralId,
+                        DocumentType = f.DocumentType,
+                        FileName = f.FileName,
+                        FileContent = new MemoryStream(f.Bytes),
+                        FileSize = f.FileSize,
+                        ContentType = f.ContentType,
+                        Description = FormatDocumentTypeLabel(f.DocumentType)
+                    }, userId);
+
+                if (!uploadResult.Success)
+                {
+                    errorMessage = $"Failed to upload {f.FileName}: {uploadResult.Error}";
+                    return;
+                }
+            }
+
+            // Record the legal clearance
+            uploadProgressMessage = "Recording legal clearance…";
+            StateHasChanged();
+
+            var result = await AppService.RecordLegalClearanceAsync(
+                CollateralId, userId,
+                string.IsNullOrWhiteSpace(clearanceNotes) ? null : clearanceNotes);
+
+            if (result.Success)
+            {
+                await OnSuccess.InvokeAsync();
+            }
+            else
+            {
+                errorMessage = result.Error ?? "Failed to record legal clearance.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+            uploadProgressMessage = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+
+    private static string GetFileIcon(string fileName)
+    {
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        return ext switch
+        {
+            ".pdf"           => "picture_as_pdf",
+            ".doc" or ".docx" => "description",
+            ".jpg" or ".jpeg" or ".png" => "image",
+            _                => "insert_drive_file"
+        };
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes >= 1_000_000) return $"{bytes / 1_000_000.0:0.#} MB";
+        if (bytes >= 1_000)     return $"{bytes / 1_000.0:0.#} KB";
+        return $"{bytes} B";
+    }
+
+    private static string FormatDocumentTypeLabel(string docType) => docType switch
+    {
+        "LegalOpinion"      => "Legal Opinion / Vetting Report",
+        "TitleDeed"         => "Title Deed / C of O",
+        "SearchReport"      => "Search Report",
+        "GovernorsConsent"  => "Governor's Consent",
+        "DeedOfAssignment"  => "Deed of Assignment / Mortgage",
+        "VehicleRegistration" => "Vehicle Registration / Ownership",
+        "InsuranceCertificate" => "Insurance Certificate",
+        _                   => "Other"
+    };
+
+    private static string FormatCollateralType(string type) => type switch
+    {
+        "RealEstate"      => "Real Estate",
+        "CashDeposit"     => "Cash Deposit",
+        "FixedDeposit"    => "Fixed Deposit",
+        "TreasuryBills"   => "T-Bills",
+        "ContractProceeds" => "Contract Proceeds",
+        "InsurancePolicy" => "Insurance Policy",
+        _ => type
+    };
+}

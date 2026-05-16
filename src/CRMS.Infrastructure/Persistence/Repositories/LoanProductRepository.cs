@@ -72,7 +72,14 @@ public class LoanProductRepository : ILoanProductRepository
 
     public Task UpdateAsync(LoanProduct product, CancellationToken ct = default)
     {
-        _context.LoanProducts.Update(product);
+        // Only attach if not already tracked — avoids flipping Added children to Modified
+        if (_context.Entry(product).State == Microsoft.EntityFrameworkCore.EntityState.Detached)
+            _context.LoanProducts.Update(product);
         return Task.CompletedTask;
+    }
+
+    public async Task AddChecklistTemplateItemAsync(DisbursementChecklistTemplate item, CancellationToken ct = default)
+    {
+        await _context.DisbursementChecklistTemplates.AddAsync(item, ct);
     }
 }

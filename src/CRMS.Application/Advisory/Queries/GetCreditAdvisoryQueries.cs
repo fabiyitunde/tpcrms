@@ -2,6 +2,7 @@ using CRMS.Application.Advisory.DTOs;
 using CRMS.Application.Common;
 using CRMS.Domain.Aggregates.Advisory;
 using CRMS.Domain.Interfaces;
+using System.Text.Json;
 
 namespace CRMS.Application.Advisory.Queries;
 
@@ -115,8 +116,60 @@ public class GetScoreMatrixHandler : IRequestHandler<GetScoreMatrixQuery, Applic
 
 internal static class CreditAdvisoryMapper
 {
+    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+
+    // Deserializable shape matching what GenerateCreditAdvisoryHandler serializes
+    private sealed record PersistedRiskScore(
+        string Category, decimal Score, decimal Weight,
+        string Rating, string Rationale,
+        List<string> RedFlags, List<string> PositiveIndicators);
+
     public static CreditAdvisoryDto ToDto(CreditAdvisory advisory)
     {
+        // Prefer in-memory collections (freshly generated); fall back to persisted JSON on DB load
+        List<RiskScoreDto> riskScores;
+        if (advisory.RiskScores.Count > 0)
+        {
+            riskScores = advisory.RiskScores.Select(s => new RiskScoreDto(
+                s.Category.ToString(), s.Score, s.Weight, s.WeightedScore,
+                s.Rating.ToString(), s.Rationale,
+                s.RedFlags.ToList(), s.PositiveIndicators.ToList()
+            )).ToList();
+        }
+        else if (!string.IsNullOrEmpty(advisory.RiskScoresJson))
+        {
+            var persisted = JsonSerializer.Deserialize<List<PersistedRiskScore>>(advisory.RiskScoresJson, JsonOpts) ?? [];
+            riskScores = persisted.Select(s => new RiskScoreDto(
+                s.Category, s.Score, s.Weight, s.Score * s.Weight,
+                s.Rating, s.Rationale, s.RedFlags, s.PositiveIndicators
+            )).ToList();
+        }
+        else
+        {
+            riskScores = [];
+        }
+
+        var redFlags = advisory.RedFlags.Count > 0
+            ? advisory.RedFlags.ToList()
+            : (!string.IsNullOrEmpty(advisory.RedFlagsJson)
+                ? JsonSerializer.Deserialize<List<string>>(advisory.RedFlagsJson, JsonOpts) ?? []
+                : []);
+
+        var conditions = advisory.Conditions.Count > 0
+            ? advisory.Conditions.ToList()
+            : (!string.IsNullOrEmpty(advisory.ConditionsJson)
+                ? JsonSerializer.Deserialize<List<string>>(advisory.ConditionsJson, JsonOpts) ?? []
+                : []);
+
+        var covenants = advisory.Covenants.Count > 0
+            ? advisory.Covenants.ToList()
+            : (!string.IsNullOrEmpty(advisory.CovenantsJson)
+                ? JsonSerializer.Deserialize<List<string>>(advisory.CovenantsJson, JsonOpts) ?? []
+                : []);
+
+        var hasCriticalRedFlags = redFlags.Count >= 3 ||
+            riskScores.Any(s => s.Rating == "VeryHigh");
+
         return new CreditAdvisoryDto(
             advisory.Id,
             advisory.LoanApplicationId,
@@ -124,29 +177,20 @@ internal static class CreditAdvisoryMapper
             advisory.OverallScore,
             advisory.OverallRating.ToString(),
             advisory.Recommendation.ToString(),
-            advisory.RiskScores.Select(s => new RiskScoreDto(
-                s.Category.ToString(),
-                s.Score,
-                s.Weight,
-                s.WeightedScore,
-                s.Rating.ToString(),
-                s.Rationale,
-                s.RedFlags.ToList(),
-                s.PositiveIndicators.ToList()
-            )).ToList(),
+            riskScores,
             advisory.RecommendedAmount,
             advisory.RecommendedTenorMonths,
             advisory.RecommendedInterestRate,
             advisory.MaxExposure,
-            advisory.Conditions.ToList(),
-            advisory.Covenants.ToList(),
+            conditions,
+            covenants,
             advisory.ExecutiveSummary,
             advisory.StrengthsAnalysis,
             advisory.WeaknessesAnalysis,
             advisory.MitigatingFactors,
             advisory.KeyRisks,
-            advisory.RedFlags.ToList(),
-            advisory.HasCriticalRedFlags,
+            redFlags,
+            hasCriticalRedFlags,
             advisory.ModelVersion,
             advisory.GeneratedAt,
             advisory.ErrorMessage

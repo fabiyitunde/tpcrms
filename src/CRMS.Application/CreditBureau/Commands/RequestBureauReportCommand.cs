@@ -10,7 +10,6 @@ public record RequestBureauReportCommand(
     string BVN,
     string SubjectName,
     Guid RequestedByUserId,
-    Guid ConsentRecordId,
     CreditBureauProvider Provider = CreditBureauProvider.SmartComply,
     Guid? LoanApplicationId = null,
     bool IncludePdf = false
@@ -19,44 +18,27 @@ public record RequestBureauReportCommand(
 public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCommand, ApplicationResult<BureauReportDto>>
 {
     private readonly IBureauReportRepository _repository;
-    private readonly IConsentRecordRepository _consentRepository;
     private readonly ISmartComplyProvider _smartComplyProvider;
     private readonly IUnitOfWork _unitOfWork;
 
     public RequestBureauReportHandler(
         IBureauReportRepository repository,
-        IConsentRecordRepository consentRepository,
         ISmartComplyProvider smartComplyProvider,
         IUnitOfWork unitOfWork)
     {
         _repository = repository;
-        _consentRepository = consentRepository;
         _smartComplyProvider = smartComplyProvider;
         _unitOfWork = unitOfWork;
     }
 
     public async Task<ApplicationResult<BureauReportDto>> Handle(RequestBureauReportCommand request, CancellationToken ct = default)
     {
-        var consent = await _consentRepository.GetByIdAsync(request.ConsentRecordId, ct);
-        if (consent == null)
-            return ApplicationResult<BureauReportDto>.Failure(
-                "Consent record not found. Bureau access requires valid borrower consent.");
-
-        if (!consent.IsValid())
-            return ApplicationResult<BureauReportDto>.Failure(
-                $"Consent is {consent.Status}. Active consent is required for credit bureau checks.");
-
-        if (consent.ConsentType != ConsentType.CreditBureauCheck)
-            return ApplicationResult<BureauReportDto>.Failure(
-                "Consent type does not authorize credit bureau access. Required: CreditBureauCheck.");
-
         var reportResult = BureauReport.Create(
             CreditBureauProvider.SmartComply,
             SubjectType.Individual,
             request.SubjectName,
             request.BVN,
             request.RequestedByUserId,
-            request.ConsentRecordId,
             request.LoanApplicationId,
             taxId: null,
             partyId: null,

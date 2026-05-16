@@ -26,10 +26,12 @@ public class LoanProduct : AggregateRoot
     private readonly List<PricingTier> _pricingTiers = [];
     private readonly List<EligibilityRule> _eligibilityRules = [];
     private readonly List<DocumentRequirement> _documentRequirements = [];
+    private readonly List<DisbursementChecklistTemplate> _disbursementChecklist = [];
 
     public IReadOnlyCollection<PricingTier> PricingTiers => _pricingTiers.AsReadOnly();
     public IReadOnlyCollection<EligibilityRule> EligibilityRules => _eligibilityRules.AsReadOnly();
     public IReadOnlyCollection<DocumentRequirement> DocumentRequirements => _documentRequirements.AsReadOnly();
+    public IReadOnlyCollection<DisbursementChecklistTemplate> DisbursementChecklist => _disbursementChecklist.AsReadOnly();
 
     private LoanProduct() { }
 
@@ -242,6 +244,73 @@ public class LoanProduct : AggregateRoot
             return Result.Failure("Document requirement not found");
 
         _documentRequirements.Remove(req);
+        return Result.Success();
+    }
+
+    // -------------------------------------------------------------------------
+    // Disbursement checklist template management
+    // -------------------------------------------------------------------------
+
+    public Result<DisbursementChecklistTemplate> AddChecklistTemplateItem(
+        string itemName,
+        string description,
+        bool isMandatory,
+        Enums.ConditionType conditionType,
+        int? subsequentDueDays,
+        bool requiresDocumentUpload,
+        bool requiresLegalRatification,
+        bool canBeWaived,
+        int sortOrder)
+    {
+        if (Status == ProductStatus.Discontinued)
+            return Result.Failure<DisbursementChecklistTemplate>("Cannot modify a discontinued product");
+
+        var result = DisbursementChecklistTemplate.Create(
+            Id, itemName, description, isMandatory, conditionType,
+            subsequentDueDays, requiresDocumentUpload, requiresLegalRatification,
+            canBeWaived, sortOrder);
+
+        if (result.IsFailure)
+            return result;
+
+        _disbursementChecklist.Add(result.Value);
+        return result;
+    }
+
+    public Result UpdateChecklistTemplateItem(
+        Guid itemId,
+        string itemName,
+        string description,
+        bool isMandatory,
+        Enums.ConditionType conditionType,
+        int? subsequentDueDays,
+        bool requiresDocumentUpload,
+        bool requiresLegalRatification,
+        bool canBeWaived,
+        int sortOrder)
+    {
+        if (Status == ProductStatus.Discontinued)
+            return Result.Failure("Cannot modify a discontinued product");
+
+        var item = _disbursementChecklist.FirstOrDefault(i => i.Id == itemId);
+        if (item == null)
+            return Result.Failure("Checklist item not found");
+
+        return item.Update(itemName, description, isMandatory, conditionType,
+            subsequentDueDays, requiresDocumentUpload, requiresLegalRatification,
+            canBeWaived, sortOrder);
+    }
+
+    public Result RemoveChecklistTemplateItem(Guid itemId)
+    {
+        if (Status == ProductStatus.Discontinued)
+            return Result.Failure("Cannot modify a discontinued product");
+
+        var item = _disbursementChecklist.FirstOrDefault(i => i.Id == itemId);
+        if (item == null)
+            return Result.Failure("Checklist item not found");
+
+        _disbursementChecklist.Remove(item);
         return Result.Success();
     }
 }

@@ -114,6 +114,15 @@
         }
     }
 
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthService.GetAuthenticationStateAsync();
+        if (!(state.User.Identity?.IsAuthenticated ?? false))
+        {
+            Navigation.NavigateTo("/login", replace: true);
+        }
+    }
+
     private void ToggleSidebar() => SidebarCollapsed = !SidebarCollapsed;
     private void ToggleUserMenu() => ShowUserMenu = !ShowUserMenu;
     private void CloseUserMenu() => ShowUserMenu = false;

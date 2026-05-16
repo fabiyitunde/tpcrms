@@ -216,6 +216,41 @@ public class S3FileStorageService : IFileStorageService, IDisposable
         }
     }
 
+    public async Task<IEnumerable<string>> ListFilesAsync(string containerName, string? prefix = null, CancellationToken ct = default)
+    {
+        try
+        {
+            var keyPrefix = string.IsNullOrEmpty(_keyPrefix)
+                ? containerName
+                : $"{_keyPrefix}/{containerName}";
+
+            if (prefix != null)
+                keyPrefix += $"/{prefix}";
+
+            var request = new ListObjectsV2Request
+            {
+                BucketName = _bucketName,
+                Prefix = keyPrefix
+            };
+
+            var results = new List<string>();
+            ListObjectsV2Response response;
+            do
+            {
+                response = await _s3Client.ListObjectsV2Async(request, ct);
+                results.AddRange(response.S3Objects.Select(o => o.Key));
+                request.ContinuationToken = response.NextContinuationToken;
+            } while (response.IsTruncated == true);
+
+            return results;
+        }
+        catch (AmazonS3Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list files in S3: {Container}/{Prefix}", containerName, prefix);
+            return Enumerable.Empty<string>();
+        }
+    }
+
     private string BuildKey(string containerName, string fileName)
     {
         var uniqueFileName = $"{Guid.NewGuid():N}_{fileName}";

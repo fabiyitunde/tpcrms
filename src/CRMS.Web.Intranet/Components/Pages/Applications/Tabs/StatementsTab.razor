@@ -25,68 +25,98 @@
         else
         {
             <div style="padding: var(--space-4);">
-                <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3);">
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600;">@internal_.BankName</div>
-                        <div style="font-size: var(--text-xs); color: var(--gray-500);">@internal_.AccountNumber • @internal_.AccountName</div>
+
+                @* ── Header: bank info left │ badges + actions right ── *@
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-4);">
+                    <div>
+                        <div style="font-weight: 600; font-size: var(--text-base); color: var(--gray-900);">@internal_.BankName</div>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500); margin-top: var(--space-1);">
+                            @internal_.AccountNumber &nbsp;&bull;&nbsp; @internal_.AccountName
+                        </div>
+                        <div style="display: flex; gap: var(--space-2); margin-top: var(--space-2);">
+                            @TrustBadge(internal_.TrustWeight, internal_.IsInternal)
+                            @AnalysisBadge(internal_.AnalysisStatus)
+                        </div>
                     </div>
-                    @TrustBadge(internal_.TrustWeight, internal_.IsInternal)
-                    @AnalysisBadge(internal_.AnalysisStatus)
-                    <button class="btn btn-sm btn-outline" @onclick="() => OnViewTransactions.InvokeAsync(internal_.Id)" title="View transactions">
-                        <span class="material-symbols-outlined" style="font-size: 16px;">list</span>
-                        View
-                    </button>
-                    @if (internal_.AnalysisStatus == "Pending")
-                    {
-                        <button class="btn btn-sm btn-outline" @onclick="() => OnAnalyze.InvokeAsync(internal_.Id)" title="Run cashflow analysis">
-                            <span class="material-symbols-outlined" style="font-size: 16px;">analytics</span>
-                            Analyze
+                    <div style="display: flex; gap: var(--space-2); flex-shrink: 0; align-items: center;">
+                        <button class="btn btn-sm btn-outline" @onclick="() => OnViewTransactions.InvokeAsync(internal_.Id)">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">list</span>
+                            View Transactions
                         </button>
-                    }
+                        @if (internal_.TransactionCount == 0 && CanAnalyzeStatements)
+                        {
+                            <button class="btn btn-sm btn-outline" @onclick="HandleRefetch" disabled="@isRefetching">
+                                @if (isRefetching)
+                                {
+                                    <span class="spinner-border spinner-border-sm" style="width: 14px; height: 14px; border-width: 2px;" role="status"></span>
+                                    <span style="margin-left: var(--space-1);">Refreshing…</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">refresh</span>
+                                    <span>Refresh from Core Banking</span>
+                                }
+                            </button>
+                        }
+                        @if (internal_.AnalysisStatus == "Pending" && internal_.TransactionCount > 0 && CanAnalyzeStatements)
+                        {
+                            <button class="btn btn-sm btn-outline" @onclick="() => OnAnalyze.InvokeAsync(internal_.Id)">
+                                <span class="material-symbols-outlined" style="font-size: 16px;">analytics</span>
+                                Analyze
+                            </button>
+                        }
+                    </div>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-3);">
-                    <div class="stat-box">
-                        <span class="stat-label">Period</span>
-                        <span class="stat-value">@internal_.PeriodStart.ToString("MMM yyyy") – @internal_.PeriodEnd.ToString("MMM yyyy")</span>
+
+                @* ── Coverage stats: period / months / transactions ── *@
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1px; background: var(--gray-200); border: 1px solid var(--gray-200); border-radius: var(--radius-md); overflow: hidden; margin-bottom: var(--space-3);">
+                    <div style="background: var(--gray-50); padding: var(--space-3);">
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-1);">Period</div>
+                        <div style="font-weight: 600; font-size: var(--text-sm); color: var(--gray-900);">@internal_.PeriodStart.ToString("MMM yyyy") – @internal_.PeriodEnd.ToString("MMM yyyy")</div>
                     </div>
-                    <div class="stat-box">
-                        <span class="stat-label">Months Covered</span>
-                        <span class="stat-value">@internal_.MonthsCovered months</span>
+                    <div style="background: var(--gray-50); padding: var(--space-3);">
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-1);">Months Covered</div>
+                        <div style="font-weight: 600; font-size: var(--text-sm); color: var(--gray-900);">@internal_.MonthsCovered months</div>
                     </div>
-                    <div class="stat-box">
-                        <span class="stat-label">Transactions</span>
-                        <span class="stat-value">@internal_.TransactionCount</span>
+                    <div style="background: var(--gray-50); padding: var(--space-3);">
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-1);">Transactions</div>
+                        <div style="font-weight: 600; font-size: var(--text-sm); color: var(--gray-900);">@internal_.TransactionCount.ToString("N0")</div>
                     </div>
-                    @if (internal_.TotalCredits.HasValue)
-                    {
-                        <div class="stat-box">
-                            <span class="stat-label">Total Credits</span>
-                            <span class="stat-value" style="color: var(--success-600);">₦@FormatAmount(internal_.TotalCredits.Value)</span>
+                </div>
+
+                @* ── Financial stats: only shown after analysis ── *@
+                @if (internal_.TotalCredits.HasValue)
+                {
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; background: var(--gray-200); border: 1px solid var(--gray-200); border-radius: var(--radius-md); overflow: hidden;">
+                        <div style="background: white; padding: var(--space-3);">
+                            <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-1);">Total Credits</div>
+                            <div style="font-weight: 700; font-size: var(--text-base); color: var(--success-700);">₦@FormatAmount(internal_.TotalCredits.Value)</div>
                         </div>
-                        <div class="stat-box">
-                            <span class="stat-label">Total Debits</span>
-                            <span class="stat-value" style="color: var(--danger-600);">₦@FormatAmount(internal_.TotalDebits ?? 0)</span>
+                        <div style="background: white; padding: var(--space-3);">
+                            <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-1);">Total Debits</div>
+                            <div style="font-weight: 700; font-size: var(--text-base); color: var(--danger-600);">₦@FormatAmount(internal_.TotalDebits ?? 0)</div>
                         </div>
-                        <div class="stat-box">
-                            <span class="stat-label">Avg Monthly Balance</span>
-                            <span class="stat-value">₦@FormatAmount(internal_.AverageMonthlyBalance ?? 0)</span>
+                        <div style="background: white; padding: var(--space-3);">
+                            <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-1);">Avg Monthly Balance</div>
+                            <div style="font-weight: 700; font-size: var(--text-base); color: var(--gray-900);">₦@FormatAmount(internal_.AverageMonthlyBalance ?? 0)</div>
                         </div>
                         @if (internal_.BouncedTransactions.HasValue)
                         {
-                            <div class="stat-box">
-                                <span class="stat-label">Bounced</span>
-                                <span class="stat-value @(internal_.BouncedTransactions > 0 ? "text-danger" : "")">@internal_.BouncedTransactions</span>
+                            <div style="background: white; padding: var(--space-3);">
+                                <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-1);">Bounced</div>
+                                <div style="font-weight: 700; font-size: var(--text-base); color: @(internal_.BouncedTransactions > 0 ? "var(--danger-600)" : "var(--gray-900)");">@internal_.BouncedTransactions</div>
                             </div>
                         }
                         @if (internal_.GamblingTransactions.HasValue)
                         {
-                            <div class="stat-box">
-                                <span class="stat-label">Gambling Txns</span>
-                                <span class="stat-value @(internal_.GamblingTransactions > 0 ? "text-danger" : "")">@internal_.GamblingTransactions</span>
+                            <div style="background: white; padding: var(--space-3);">
+                                <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-1);">Gambling Txns</div>
+                                <div style="font-weight: 700; font-size: var(--text-base); color: @(internal_.GamblingTransactions > 0 ? "var(--danger-600)" : "var(--gray-900)");">@internal_.GamblingTransactions</div>
                             </div>
                         }
-                    }
-                </div>
+                    </div>
+                }
+
             </div>
         }
     </div>
@@ -147,7 +177,15 @@
                                 <div style="font-size: var(--text-xs); color: var(--gray-500);">@stmt.MonthsCovered months</div>
                             </td>
                             <td>@TrustBadge(stmt.TrustWeight, stmt.IsInternal)</td>
-                            <td>@VerificationBadge(stmt.VerificationStatus)</td>
+                            <td>
+                                @VerificationBadge(stmt.VerificationStatus)
+                                @if (stmt.VerificationStatus == "Rejected" && !string.IsNullOrEmpty(stmt.VerificationNotes))
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--danger-600); margin-top: var(--space-1); max-width: 160px;">
+                                        @stmt.VerificationNotes
+                                    </div>
+                                }
+                            </td>
                             <td>@AnalysisBadge(stmt.AnalysisStatus)</td>
                             <td>@stmt.TransactionCount</td>
                             <td>
@@ -166,7 +204,7 @@
                                             <span class="material-symbols-outlined" style="font-size: 16px;">list</span>
                                         </button>
                                     }
-                                    @if (stmt.VerificationStatus == "Pending")
+                                    @if (CanVerifyStatements && stmt.VerificationStatus == "Pending")
                                     {
                                         <button class="btn btn-sm btn-success" @onclick="() => OnVerify.InvokeAsync(stmt.Id)"
                                                 title="@(stmt.TransactionCount == 0 ? "Cannot verify — no transactions entered" : "Verify statement")"
@@ -177,7 +215,7 @@
                                             <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
                                         </button>
                                     }
-                                    @if (stmt.AnalysisStatus == "Pending" && stmt.VerificationStatus != "Rejected")
+                                    @if (CanAnalyzeStatements && stmt.AnalysisStatus == "Pending" && stmt.VerificationStatus != "Rejected")
                                     {
                                         <button class="btn btn-sm btn-outline" @onclick="() => OnAnalyze.InvokeAsync(stmt.Id)"
                                                 title="@(stmt.TransactionCount == 0 ? "Cannot analyze — no transactions entered" : "Run cashflow analysis")"
@@ -206,13 +244,26 @@
 @code {
     [Parameter] public List<BankStatementInfo> Statements { get; set; } = [];
     [Parameter] public bool IsEditable { get; set; }
+    [Parameter] public bool CanVerifyStatements { get; set; }
+    [Parameter] public bool CanAnalyzeStatements { get; set; }
+    private bool isRefetching;
+
     [Parameter] public EventCallback OnUpload { get; set; }
+    [Parameter] public EventCallback OnRefetch { get; set; }
     [Parameter] public EventCallback<Guid> OnEnterTransactions { get; set; }
     [Parameter] public EventCallback<Guid> OnVerify { get; set; }
     [Parameter] public EventCallback<Guid> OnReject { get; set; }
     [Parameter] public EventCallback<Guid> OnAnalyze { get; set; }
     [Parameter] public EventCallback<Guid> OnViewTransactions { get; set; }
     [Parameter] public EventCallback<Guid> OnDelete { get; set; }
+
+    private async Task HandleRefetch()
+    {
+        if (isRefetching) return;
+        isRefetching = true;
+        try { await OnRefetch.InvokeAsync(); }
+        finally { isRefetching = false; }
+    }
 
     private static string FormatAmount(decimal amount) =>
         amount >= 1_000_000_000 ? $"{amount / 1_000_000_000:N2}B"

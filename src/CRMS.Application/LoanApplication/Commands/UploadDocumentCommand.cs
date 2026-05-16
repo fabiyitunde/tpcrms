@@ -107,6 +107,44 @@ public class VerifyDocumentHandler : IRequestHandler<VerifyDocumentCommand, Appl
     }
 }
 
+public record DeleteDocumentCommand(Guid ApplicationId, Guid DocumentId) : IRequest<ApplicationResult>;
+
+public class DeleteDocumentHandler : IRequestHandler<DeleteDocumentCommand, ApplicationResult>
+{
+    private readonly ILoanApplicationRepository _repository;
+    private readonly ILoanApplicationDocumentRepository _documentRepository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public DeleteDocumentHandler(ILoanApplicationRepository repository, ILoanApplicationDocumentRepository documentRepository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _documentRepository = documentRepository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult> Handle(DeleteDocumentCommand request, CancellationToken ct = default)
+    {
+        var application = await _repository.GetByIdAsync(request.ApplicationId, ct);
+        if (application == null)
+            return ApplicationResult.Failure("Loan application not found");
+
+        if (application.Status != Domain.Enums.LoanApplicationStatus.Draft)
+            return ApplicationResult.Failure("Documents can only be deleted while the application is in Draft");
+
+        var document = application.Documents.FirstOrDefault(d => d.Id == request.DocumentId);
+        if (document == null)
+            return ApplicationResult.Failure("Document not found");
+
+        if (document.Status == Domain.Enums.DocumentStatus.Verified)
+            return ApplicationResult.Failure("Cannot delete a verified document");
+
+        await _documentRepository.DeleteAsync(request.DocumentId, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return ApplicationResult.Success();
+    }
+}
+
 public record RejectDocumentCommand(Guid ApplicationId, Guid DocumentId, Guid UserId, string Reason) : IRequest<ApplicationResult>;
 
 public class RejectDocumentHandler : IRequestHandler<RejectDocumentCommand, ApplicationResult>

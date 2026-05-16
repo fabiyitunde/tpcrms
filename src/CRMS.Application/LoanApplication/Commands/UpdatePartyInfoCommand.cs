@@ -28,8 +28,11 @@ public class UpdatePartyInfoHandler : IRequestHandler<UpdatePartyInfoCommand, Ap
         if (application == null)
             return ApplicationResult.Failure("Application not found");
 
-        if (application.Status.ToString() != "Draft")
-            return ApplicationResult.Failure("Party information can only be updated while the application is in Draft status.");
+        // Allow BVN/shareholding corrections through CreditAnalysis — data entry errors on BVNs
+        // are common and must be fixable after submission so credit checks can be re-run.
+        var allowedStatuses = new[] { "Draft", "Submitted", "DataGathering", "BranchReview", "BranchApproved", "CreditAnalysis" };
+        if (!allowedStatuses.Contains(application.Status.ToString()))
+            return ApplicationResult.Failure("Party information can only be updated before the application reaches HO Review.");
 
         var result = application.UpdatePartyFields(request.PartyId, request.BVN, request.ShareholdingPercent);
         if (result.IsFailure)

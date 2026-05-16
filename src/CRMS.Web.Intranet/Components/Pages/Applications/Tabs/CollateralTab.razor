@@ -85,6 +85,11 @@ else
                                 {
                                     <span>₦@FormatAmount(collateral.MarketValue)</span>
                                 }
+                                else if (collateral.IndicativeValue > 0)
+                                {
+                                    <span>₦@FormatAmount(collateral.IndicativeValue!.Value)</span>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">Indicative — pending valuation</div>
+                                }
                                 else
                                 {
                                     <span class="text-muted">Not valued</span>
@@ -95,9 +100,29 @@ else
                                     <span class="status-dot @GetStatusDotClass(collateral.Status)"></span>
                                     @collateral.Status
                                 </span>
+                                @if (collateral.Status == "Valued" && collateral.IsLegalCleared)
+                                {
+                                    <div style="display: inline-flex; align-items: center; gap: 3px; margin-top: var(--space-1); font-size: 10px; color: var(--warning-700); background: var(--warning-50); border: 1px solid var(--warning-200); border-radius: var(--radius-sm); padding: 2px var(--space-2);">
+                                        <span class="material-symbols-outlined" style="font-size: 11px;">pending_actions</span>
+                                        Awaiting credit approval
+                                    </div>
+                                }
+                                @if (collateral.Status == "Rejected" && !string.IsNullOrEmpty(collateral.RejectionReason))
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--danger-600); margin-top: var(--space-1); max-width: 180px;">
+                                        @collateral.RejectionReason
+                                    </div>
+                                }
                             </td>
                             <td>
-                                <div style="display: flex; gap: var(--space-1);">
+                                <div style="display: flex; gap: var(--space-1); align-items: center; flex-wrap: wrap;">
+                                    @if (collateral.IsLegalCleared)
+                                    {
+                                        <span class="badge badge-success" title="Legal clearance recorded on @collateral.LegalClearedAt?.ToString("MMM dd, yyyy")" style="font-size: 10px;">
+                                            <span class="material-symbols-outlined" style="font-size: 12px; vertical-align: middle;">gavel</span>
+                                            Legal ✓
+                                        </span>
+                                    }
                                     <button type="button" class="btn btn-ghost btn-sm" title="View Details" @onclick="() => OnViewCollateral.InvokeAsync(currentCollateral.Id)">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
                                     </button>
@@ -116,6 +141,12 @@ else
                                             </button>
                                         }
                                     }
+                                    @if (CanClearLegal && collateral.Status is "Proposed" or "UnderValuation" or "Valued" && !collateral.IsLegalCleared)
+                                    {
+                                        <button type="button" class="btn btn-ghost btn-sm" title="Record Legal Clearance" style="color: var(--warning-600);" @onclick="() => OnRecordLegalClearance.InvokeAsync(currentCollateral.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">gavel</span>
+                                        </button>
+                                    }
                                     @if (CanManageValuation)
                                     {
                                         @if (collateral.Status is "Proposed" or "UnderValuation")
@@ -126,9 +157,18 @@ else
                                         }
                                         @if (collateral.Status == "Valued")
                                         {
-                                            <button type="button" class="btn btn-ghost btn-sm" title="Approve Collateral" style="color: var(--success-600);" @onclick="() => OnApproveCollateral.InvokeAsync(currentCollateral.Id)">
-                                                <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
-                                            </button>
+                                            @if (collateral.IsLegalCleared)
+                                            {
+                                                <button type="button" class="btn btn-ghost btn-sm" title="Approve Collateral" style="color: var(--success-600);" @onclick="() => OnApproveCollateral.InvokeAsync(currentCollateral.Id)">
+                                                    <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span title="Awaiting legal clearance before approval" style="color: var(--gray-400); display: flex; align-items: center;">
+                                                    <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+                                                </span>
+                                            }
                                         }
                                     }
                                     @if (IsEditable || CanManageValuation)
@@ -165,12 +205,14 @@ else
     [Parameter] public List<CollateralInfo> Collaterals { get; set; } = [];
     [Parameter] public bool IsEditable { get; set; } = true;
     [Parameter] public bool CanManageValuation { get; set; }
+    [Parameter] public bool CanClearLegal { get; set; }
     [Parameter] public EventCallback OnAddCollateral { get; set; }
     [Parameter] public EventCallback<Guid> OnViewCollateral { get; set; }
     [Parameter] public EventCallback<Guid> OnEditCollateral { get; set; }
     [Parameter] public EventCallback<Guid> OnDeleteCollateral { get; set; }
     [Parameter] public EventCallback<Guid> OnSetValuation { get; set; }
     [Parameter] public EventCallback<Guid> OnApproveCollateral { get; set; }
+    [Parameter] public EventCallback<Guid> OnRecordLegalClearance { get; set; }
     [Parameter] public EventCallback<Guid> OnUploadDocument { get; set; }
 
     private async Task HandleAddCollateral() => await OnAddCollateral.InvokeAsync();

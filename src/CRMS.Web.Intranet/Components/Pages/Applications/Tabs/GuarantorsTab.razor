@@ -56,6 +56,12 @@
                                 <span class="badge @GetStatusBadgeClass(guarantor.Status)">
                                     @guarantor.Status
                                 </span>
+                                @if (guarantor.Status == "Rejected" && !string.IsNullOrEmpty(guarantor.RejectionReason))
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--danger-600); margin-top: var(--space-1); max-width: 180px;">
+                                        @guarantor.RejectionReason
+                                    </div>
+                                }
                             </td>
                             <td>
                                 @if (guarantor.HasBureauReport)

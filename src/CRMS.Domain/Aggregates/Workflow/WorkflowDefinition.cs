@@ -94,6 +94,23 @@ public class WorkflowDefinition : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>
+    /// Removes a transition from the in-memory collection so that EF Core detects it as an orphan
+    /// and generates a DELETE. Also clears the duplicate-check guard so that a replacement
+    /// transition with the same (From, To, Action) key can be added in the same unit of work.
+    /// </summary>
+    public Result RemoveTransition(LoanApplicationStatus fromStatus, LoanApplicationStatus toStatus, WorkflowAction action)
+    {
+        var transition = _transitions.FirstOrDefault(
+            t => t.FromStatus == fromStatus && t.ToStatus == toStatus && t.Action == action);
+
+        if (transition == null)
+            return Result.Failure($"Transition from {fromStatus} to {toStatus} via {action} not found in definition");
+
+        _transitions.Remove(transition);
+        return Result.Success();
+    }
+
     public WorkflowStage? GetStage(LoanApplicationStatus status)
     {
         return _stages.FirstOrDefault(s => s.Status == status);

@@ -1,5 +1,6 @@
 using CRMS.Application.Collateral.DTOs;
 using CRMS.Application.Common;
+using CRMS.Domain.Aggregates.Collateral;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Collateral.Queries;
@@ -27,16 +28,19 @@ public class GetCollateralByIdHandler : IRequestHandler<GetCollateralByIdQuery, 
     private static CollateralDto MapToDto(Domain.Aggregates.Collateral.Collateral c) => new(
         c.Id, c.LoanApplicationId, c.CollateralReference, c.Type.ToString(), c.Status.ToString(),
         c.PerfectionStatus.ToString(), c.Description, c.AssetIdentifier, c.Location, c.OwnerName,
-        c.OwnershipType, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount, c.HaircutPercentage,
-        c.AcceptableValue?.Amount, c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
+        c.OwnershipType, c.IndicativeValue?.Amount, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount,
+        c.HaircutPercentage, c.ValuationBasis, c.AcceptableValue?.Amount, c.ValuerAcceptableValue?.Amount,
+        c.ValuerName, c.ValuerCompany, c.ValuationReportPath,
+        c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
         c.LienType?.ToString(), c.LienReference, c.LienRegistrationDate, c.IsInsured,
         c.InsurancePolicyNumber, c.InsuredValue?.Amount, c.InsuranceExpiryDate, c.CreatedAt, c.ApprovedAt,
-        c.RejectionReason,
+        c.RejectionReason, c.CollateralTypeConfigId,
         c.Valuations.Select(v => new CollateralValuationDto(v.Id, v.Type.ToString(), v.Status.ToString(),
             v.ValuationDate, v.MarketValue.Amount, v.ForcedSaleValue?.Amount, v.MarketValue.Currency,
             v.ValuerName, v.ValuerCompany, v.ExpiryDate)).ToList(),
         c.Documents.Select(d => new CollateralDocumentDto(d.Id, d.DocumentType, d.FileName,
-            d.FileSizeBytes, d.IsVerified, d.UploadedAt)).ToList()
+            d.FileSizeBytes, d.IsVerified, d.UploadedAt, d.Description)).ToList(),
+        c.IsLegalCleared, c.LegalClearedAt, c.LegalClearanceNotes
     );
 }
 
@@ -123,4 +127,29 @@ public class CalculateLTVHandler : IRequestHandler<CalculateLTVQuery, Applicatio
             isAdequate, assessment, collateralDtos
         ));
     }
+}
+
+public record GetCollateralTypeConfigsQuery(bool ActiveOnly = true) : IRequest<ApplicationResult<List<CollateralTypeConfigDto>>>;
+
+public class GetCollateralTypeConfigsHandler : IRequestHandler<GetCollateralTypeConfigsQuery, ApplicationResult<List<CollateralTypeConfigDto>>>
+{
+    private readonly ICollateralTypeConfigRepository _repository;
+
+    public GetCollateralTypeConfigsHandler(ICollateralTypeConfigRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<ApplicationResult<List<CollateralTypeConfigDto>>> Handle(GetCollateralTypeConfigsQuery request, CancellationToken ct = default)
+    {
+        var configs = request.ActiveOnly
+            ? await _repository.GetActiveAsync(ct)
+            : await _repository.GetAllAsync(ct);
+
+        return ApplicationResult<List<CollateralTypeConfigDto>>.Success(
+            configs.Select(MapToDto).ToList());
+    }
+
+    internal static CollateralTypeConfigDto MapToDto(CollateralTypeConfig c) => new(
+        c.Id, c.Name, c.Code, c.Description, c.HaircutRate, c.ValuationBasis, c.IsActive, c.SortOrder);
 }

@@ -58,7 +58,8 @@ public enum BureauReportStatus
     Processing,
     Completed,
     Failed,
-    NotFound
+    NotFound,
+    ConsentRequired // Kept for backward compat with existing DB records — consent enforcement removed
 }
 
 public enum AccountStatus

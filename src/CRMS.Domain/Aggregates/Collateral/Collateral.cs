@@ -11,19 +11,33 @@ public class Collateral : AggregateRoot
     public CollateralType Type { get; private set; }
     public CollateralStatus Status { get; private set; }
     public PerfectionStatus PerfectionStatus { get; private set; }
-    
+
+    // Configurable type reference (nullable — existing records keep legacy Type enum only)
+    public Guid? CollateralTypeConfigId { get; private set; }
+
     // Asset Details
     public string Description { get; private set; } = string.Empty;
     public string? AssetIdentifier { get; private set; } // Reg number, title deed, certificate number
     public string? Location { get; private set; }
     public string? OwnerName { get; private set; }
     public string? OwnershipType { get; private set; } // Sole, Joint, Corporate
-    
+
     // Valuation
+    /// <summary>Indicative value entered by the Loan Officer at application creation.</summary>
+    public Money? IndicativeValue { get; private set; }
     public Money? MarketValue { get; private set; }
     public Money? ForcedSaleValue { get; private set; }
+    /// <summary>Haircut rate as a percentage (0–100). Snapshotted from CollateralTypeConfig at valuation time.</summary>
     public decimal HaircutPercentage { get; private set; }
-    public Money? AcceptableValue { get; private set; } // After haircut
+    /// <summary>"MarketValue" or "FSV" — which figure the haircut is applied to. Snapshotted at valuation time.</summary>
+    public string ValuationBasis { get; private set; } = "MarketValue";
+    /// <summary>System-computed acceptable value: ValuationBase × (1 − HaircutPercentage/100).</summary>
+    public Money? AcceptableValue { get; private set; }
+    /// <summary>Acceptable value as explicitly stated in the external valuer's report (for record and audit).</summary>
+    public Money? ValuerAcceptableValue { get; private set; }
+    public string? ValuerName { get; private set; }
+    public string? ValuerCompany { get; private set; }
+    public string? ValuationReportPath { get; private set; }
     public DateTime? LastValuationDate { get; private set; }
     public DateTime? NextRevaluationDue { get; private set; }
     
@@ -40,6 +54,11 @@ public class Collateral : AggregateRoot
     public Money? InsuredValue { get; private set; }
     public DateTime? InsuranceExpiryDate { get; private set; }
     
+    // Legal Clearance (must be completed by LegalOfficer/HeadOfLegal before Credit Officer can approve)
+    public Guid? LegalClearedByUserId { get; private set; }
+    public DateTime? LegalClearedAt { get; private set; }
+    public string? LegalClearanceNotes { get; private set; }
+
     // Audit
     public Guid CreatedByUserId { get; private set; }
     public Guid? ApprovedByUserId { get; private set; }
@@ -48,6 +67,8 @@ public class Collateral : AggregateRoot
     public DateTime? RejectedAt { get; private set; }
     public string? RejectionReason { get; private set; }
     public string? Notes { get; private set; }
+
+    public bool IsLegalCleared => LegalClearedAt.HasValue;
 
     private readonly List<CollateralValuation> _valuations = [];
     private readonly List<CollateralDocument> _documents = [];
@@ -65,7 +86,10 @@ public class Collateral : AggregateRoot
         string? assetIdentifier = null,
         string? location = null,
         string? ownerName = null,
-        string? ownershipType = null)
+        string? ownershipType = null,
+        Guid? collateralTypeConfigId = null,
+        decimal? indicativeValue = null,
+        string currency = "NGN")
     {
         if (loanApplicationId == Guid.Empty)
             return Result.Failure<Collateral>("Loan application ID is required");
@@ -78,6 +102,7 @@ public class Collateral : AggregateRoot
             LoanApplicationId = loanApplicationId,
             CollateralReference = GenerateReference(type),
             Type = type,
+            CollateralTypeConfigId = collateralTypeConfigId,
             Status = CollateralStatus.Proposed,
             PerfectionStatus = PerfectionStatus.NotStarted,
             Description = description,
@@ -86,6 +111,9 @@ public class Collateral : AggregateRoot
             OwnerName = ownerName,
             OwnershipType = ownershipType,
             HaircutPercentage = GetDefaultHaircut(type),
+            IndicativeValue = indicativeValue.HasValue && indicativeValue.Value > 0
+                ? Money.Create(indicativeValue.Value, currency)
+                : null,
             CreatedByUserId = createdByUserId,
             CreatedAt = DateTime.UtcNow
         };
@@ -126,21 +154,56 @@ public class Collateral : AggregateRoot
         };
     }
 
-    public Result SetValuation(Money marketValue, Money? forcedSaleValue, decimal? haircutPercentage = null)
+    public Result SetValuation(
+        Money marketValue,
+        Money? forcedSaleValue,
+        decimal? haircutPercentage = null,
+        string? valuationBasis = null,
+        Money? valuerAcceptableValue = null,
+        string? valuerName = null,
+        string? valuerCompany = null,
+        string? valuationReportPath = null)
     {
         if (marketValue.Amount <= 0)
             return Result.Failure("Market value must be greater than zero");
 
         MarketValue = marketValue;
         ForcedSaleValue = forcedSaleValue ?? Money.Create(marketValue.Amount * 0.7m, marketValue.Currency);
-        
+
         if (haircutPercentage.HasValue)
             HaircutPercentage = haircutPercentage.Value;
 
-        AcceptableValue = Money.Create(marketValue.Amount * (1 - HaircutPercentage / 100), marketValue.Currency);
+        if (!string.IsNullOrWhiteSpace(valuationBasis))
+            ValuationBasis = valuationBasis;
+
+        // Compute acceptable value based on configured basis
+        var basis = ValuationBasis == "FSV"
+            ? ForcedSaleValue.Amount
+            : MarketValue.Amount;
+        AcceptableValue = Money.Create(basis * (1 - HaircutPercentage / 100), marketValue.Currency);
+
+        ValuerAcceptableValue = valuerAcceptableValue;
+        ValuerName = valuerName;
+        ValuerCompany = valuerCompany;
+
+        if (!string.IsNullOrWhiteSpace(valuationReportPath))
+            ValuationReportPath = valuationReportPath;
+
         LastValuationDate = DateTime.UtcNow;
         NextRevaluationDue = DateTime.UtcNow.AddYears(1);
         Status = CollateralStatus.Valued;
+
+        return Result.Success();
+    }
+
+    public Result RecordLegalClearance(Guid userId, string? notes)
+    {
+        if (Status == CollateralStatus.Rejected || Status == CollateralStatus.Released)
+            return Result.Failure("Cannot record legal clearance for rejected or released collateral");
+
+        LegalClearedByUserId = userId;
+        LegalClearedAt = DateTime.UtcNow;
+        LegalClearanceNotes = notes;
 
         return Result.Success();
     }
@@ -152,6 +215,9 @@ public class Collateral : AggregateRoot
 
         if (MarketValue == null || MarketValue.Amount <= 0)
             return Result.Failure("Collateral must have a valid market value");
+
+        if (!IsLegalCleared)
+            return Result.Failure("Legal clearance must be recorded before collateral can be approved");
 
         Status = CollateralStatus.Approved;
         ApprovedByUserId = approvedByUserId;
@@ -236,7 +302,7 @@ public class Collateral : AggregateRoot
     }
 
     public Result UpdateBasicInfo(CollateralType type, string description, string? assetIdentifier,
-        string? location, string? ownerName, string? ownershipType)
+        string? location, string? ownerName, string? ownershipType, Guid? collateralTypeConfigId = null)
     {
         if (Status == CollateralStatus.Approved || Status == CollateralStatus.Perfected ||
             Status == CollateralStatus.Rejected || Status == CollateralStatus.Released)
@@ -246,6 +312,7 @@ public class Collateral : AggregateRoot
             return Result.Failure("Description is required");
 
         Type = type;
+        CollateralTypeConfigId = collateralTypeConfigId ?? CollateralTypeConfigId;
         Description = description;
         AssetIdentifier = assetIdentifier;
         Location = location;

@@ -32,6 +32,8 @@ public class LoanApplicationSummary
             "BranchRejected" => "Branch Rejected",
             "CreditAnalysis" => "Credit Analysis",
             "HOReview" => "HO Review",
+            "LegalReview" => "Legal Review",
+            "LegalApproval" => "Legal Approval",
             "CommitteeCirculation" => "Committee",
             "CommitteeApproved" => "Committee Approved",
             "CommitteeRejected" => "Committee Rejected",
@@ -40,6 +42,11 @@ public class LoanApplicationSummary
             "Rejected" => "Rejected",
             "OfferGenerated" => "Offer Generated",
             "OfferAccepted" => "Offer Accepted",
+            "SecurityPerfection" => "Security Perfection",
+            "SecurityApproval" => "Security Approval",
+            "DisbursementPending" => "Disbursement Pending",
+            "DisbursementBranchApproval" => "Disbursement — Branch Auth",
+            "DisbursementHQApproval" => "Disbursement — HQ Auth",
             "Disbursed" => "Disbursed",
             "Closed" => "Closed",
             "Cancelled" => "Cancelled",
@@ -91,6 +98,8 @@ public class LoanApplicationDetail
     public DateTime? LastUpdatedAt { get; set; }
 
     public string CreatedBy { get; set; } = string.Empty;
+
+    public string? DisbursementMemoStoragePath { get; set; }
 }
 
 public class CustomerInfo
@@ -144,6 +153,7 @@ public class PartyInfo
     public string? MandateType { get; set; }
     public bool HasBureauReport { get; set; }
     public string? BureauStatus { get; set; }
+    public Guid? BureauReportId { get; set; }
 }
 
 public class DocumentInfo
@@ -155,6 +165,7 @@ public class DocumentInfo
     public DateTime UploadedAt { get; set; }
     public string UploadedBy { get; set; } = string.Empty;
     public long SizeBytes { get; set; }
+    public string? RejectionReason { get; set; }
 }
 
 public class CollateralInfo
@@ -162,11 +173,16 @@ public class CollateralInfo
     public Guid Id { get; set; }
     public string Type { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public decimal? IndicativeValue { get; set; }
     public decimal MarketValue { get; set; }
     public decimal ForcedSaleValue { get; set; }
     public decimal LoanToValue { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime? LastValuationDate { get; set; }
+    public string? RejectionReason { get; set; }
+    public bool IsLegalCleared { get; set; }
+    public DateTime? LegalClearedAt { get; set; }
+    public string? LegalClearanceNotes { get; set; }
 }
 
 public class GuarantorInfo
@@ -177,6 +193,7 @@ public class GuarantorInfo
     public decimal GuaranteeAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public bool HasBureauReport { get; set; }
+    public string? RejectionReason { get; set; }
 }
 
 public class FinancialAnalysisInfo
@@ -211,8 +228,13 @@ public class BureauReportInfo
     public string Status { get; set; } = string.Empty;
     public int? CreditScore { get; set; }
     public string Rating { get; set; } = string.Empty;
+    public bool IsScoreDerived { get; set; }
+    public int TotalLoans { get; set; }
     public int ActiveLoans { get; set; }
+    public int PerformingLoans { get; set; }
+    public int ClosedLoans { get; set; }
     public decimal TotalExposure { get; set; }
+    public decimal HighestFacility { get; set; }
     public decimal TotalOverdue { get; set; }
     public int MaxDelinquencyDays { get; set; }
     public bool HasLegalIssues { get; set; }
@@ -223,6 +245,7 @@ public class BureauReportInfo
     // Party linkage
     public Guid? PartyId { get; set; }
     public string? PartyType { get; set; }
+    public string? ErrorMessage { get; set; }
 }
 
 public class AdvisoryInfo
@@ -260,16 +283,46 @@ public class CommitteeInfo
     public string CommitteeType { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public List<CommitteeMemberVote> Members { get; set; } = [];
+    // Recommended terms (captured before voting starts)
+    public decimal? RecommendedAmount { get; set; }
+    public int? RecommendedTenorMonths { get; set; }
+    public decimal? RecommendedInterestRate { get; set; }
+    public string? RecommendedConditions { get; set; }
+    // Vote tally
+    public int MinimumApprovalVotes { get; set; }
+    public int ApprovalVotes { get; set; }
+    public int RejectionVotes { get; set; }
+    public int AbstainVotes { get; set; }
+    public int PendingVotes { get; set; }
+    public bool HasQuorum { get; set; }
+    public bool HasMajorityApproval { get; set; }
+    public bool IsOverdue { get; set; }
+    // Decision
     public string? Decision { get; set; }
     public string? DecisionComments { get; set; }
     public DateTime? DecisionDate { get; set; }
+    // Approved terms (set when decision is confirmed)
+    public decimal? ApprovedAmount { get; set; }
+    public int? ApprovedTenorMonths { get; set; }
+    public decimal? ApprovedInterestRate { get; set; }
+    public string? ApprovalConditions { get; set; }
 }
+
+public record CommitteeDecisionArgs(
+    string Decision,
+    string Rationale,
+    decimal? Amount,
+    int? TenorMonths,
+    decimal? InterestRate,
+    string? Conditions
+);
 
 public class CommitteeMemberVote
 {
     public Guid UserId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public bool IsChairperson { get; set; }
     public string? Vote { get; set; }
     public string? Comments { get; set; }
     public DateTime? VotedAt { get; set; }
@@ -425,6 +478,7 @@ public class BankStatementInfo
     public decimal? NetMonthlyCashflow { get; set; }
     public int? BouncedTransactions { get; set; }
     public int? GamblingTransactions { get; set; }
+    public string? VerificationNotes { get; set; }
 }
 
 public class StatementTransactionInfo
@@ -571,6 +625,8 @@ public class FinancialStatementInfo
     public decimal Revenue { get; set; }
 
     public decimal NetProfit { get; set; }
+
+    public string? RejectionReason { get; set; }
 }
 
 public class LocationInfo
@@ -672,6 +728,107 @@ public class OfferLetterInfo
     public string StoragePath { get; set; } = string.Empty;
 }
 
+// ---------------------------------------------------------------------------
+// Disbursement Checklist Models (OfferGenerated / OfferAccepted stage)
+// ---------------------------------------------------------------------------
+
+public class DisbursementChecklistModel
+{
+    public Guid LoanApplicationId { get; set; }
+    public bool AllPrecedentResolved { get; set; }
+    public List<ChecklistItemModel> Items { get; set; } = [];
+
+    public IEnumerable<ChecklistItemModel> PrecedentItems =>
+        Items.Where(i => i.ConditionType == "Precedent").OrderBy(i => i.SortOrder);
+
+    public IEnumerable<ChecklistItemModel> SubsequentItems =>
+        Items.Where(i => i.ConditionType == "Subsequent").OrderBy(i => i.SortOrder);
+}
+
+public class ChecklistItemModel
+{
+    public Guid Id { get; set; }
+    public Guid TemplateItemId { get; set; }
+    public string ItemName { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool IsMandatory { get; set; }
+    public string ConditionType { get; set; } = string.Empty;
+    public int? SubsequentDueDays { get; set; }
+    public bool RequiresDocumentUpload { get; set; }
+    public bool RequiresLegalRatification { get; set; }
+    public bool CanBeWaived { get; set; }
+    public int SortOrder { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public bool IsResolved { get; set; }
+    public bool BlocksDisbursement { get; set; }
+
+    // Satisfaction
+    public Guid? SatisfiedByUserId { get; set; }
+    public DateTime? SatisfiedAt { get; set; }
+    public Guid? EvidenceDocumentId { get; set; }
+    public string? SatisfactionNotes { get; set; }
+
+    // Legal
+    public Guid? LegalRatifiedByUserId { get; set; }
+    public DateTime? LegalRatifiedAt { get; set; }
+    public string? LegalReturnReason { get; set; }
+
+    // Waiver
+    public Guid? WaiverProposedByUserId { get; set; }
+    public string? WaiverProposedByUserName { get; set; }
+    public DateTime? WaiverProposedAt { get; set; }
+    public string? WaiverReason { get; set; }
+    public Guid? WaiverRatifiedByUserId { get; set; }
+    public DateTime? WaiverRatifiedAt { get; set; }
+    public string? WaiverRejectionReason { get; set; }
+
+    // CS due date
+    public DateTime? DueDate { get; set; }
+    public DateTime? OriginalDueDate { get; set; }
+    public string? ExtensionReason { get; set; }
+
+    public string StatusBadgeClass => Status switch
+    {
+        "Satisfied" => "badge bg-success",
+        "Waived" => "badge bg-warning text-dark",
+        "PendingLegalReview" => "badge bg-info text-dark",
+        "LegalReturned" => "badge bg-danger",
+        "WaiverPending" => "badge bg-warning text-dark",
+        "Overdue" => "badge bg-danger",
+        "ExtensionPending" => "badge bg-secondary",
+        _ => "badge bg-light text-dark"
+    };
+
+    public string StatusDisplay => Status switch
+    {
+        "Pending" => "Pending",
+        "PendingLegalReview" => "Legal Review",
+        "LegalReturned" => "Returned by Legal",
+        "Satisfied" => "Satisfied",
+        "WaiverPending" => "Waiver Pending",
+        "Waived" => "Waived",
+        "Overdue" => "Overdue",
+        "ExtensionPending" => "Extension Pending",
+        _ => Status
+    };
+}
+
+public class ChecklistTemplateItemModel
+{
+    public Guid Id { get; set; }
+    public Guid LoanProductId { get; set; }
+    public string ItemName { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool IsMandatory { get; set; }
+    public string ConditionType { get; set; } = "Precedent";
+    public int? SubsequentDueDays { get; set; }
+    public bool RequiresDocumentUpload { get; set; }
+    public bool RequiresLegalRatification { get; set; }
+    public bool CanBeWaived { get; set; }
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; }
+}
+
 // Bureau Account Info for detail modal
 public class BureauAccountInfo
 {
@@ -685,4 +842,35 @@ public class BureauAccountInfo
     public decimal Balance { get; set; }
     public DateTime? DateOpened { get; set; }
     public DateTime? LastPaymentDate { get; set; }
+}
+
+public class ApprovalGateResultModel
+{
+    public bool IsStrict { get; set; }
+    public bool HasIssues => RejectedItems.Count > 0 || PendingItems.Count > 0;
+    public bool IsHardBlock => IsStrict && HasIssues;
+    public bool RequiresOverrideNote => !IsStrict && RejectedItems.Count > 0;
+    public List<GateItemModel> RejectedItems { get; set; } = [];
+    public List<GateItemModel> PendingItems { get; set; } = [];
+}
+
+public class GateItemModel
+{
+    public Guid ItemId { get; set; }
+    public string ItemType { get; set; } = string.Empty;
+    public string ItemLabel { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string? RejectionReason { get; set; }
+}
+
+public class ApprovalOverrideInfo
+{
+    public Guid Id { get; set; }
+    public string Stage { get; set; } = string.Empty;
+    public string ActorName { get; set; } = string.Empty;
+    public string NoteText { get; set; } = string.Empty;
+    public bool IsResolved { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    public string? ResolvedByName { get; set; }
+    public DateTime CreatedAt { get; set; }
 }

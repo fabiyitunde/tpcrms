@@ -641,7 +641,7 @@ public class MockAIAdvisoryService : IAIAdvisoryService
             _ => cfg.BelowScore50Multiplier
         };
 
-        var recAmount = Math.Round(requestedAmount * amountMultiplier, -3); // Round to thousands
+        var recAmount = Math.Round(requestedAmount * amountMultiplier / 1000m, 0) * 1000m;
         var recTenor = score >= cfg.LowScoreThresholdForTenorRestriction 
             ? requestedTenor 
             : Math.Min(requestedTenor, cfg.MaxTenorForLowScores);

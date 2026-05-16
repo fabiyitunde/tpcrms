@@ -143,8 +143,11 @@ public class UpdateGuarantorHandler : IRequestHandler<UpdateGuarantorCommand, Ap
         if (guarantor == null)
             return ApplicationResult.Failure("Guarantor not found");
 
-        if (guarantor.Status != GuarantorStatus.Proposed && guarantor.Status != GuarantorStatus.PendingVerification)
-            return ApplicationResult.Failure("Cannot update guarantor that has been verified or approved");
+        if (guarantor.Status == GuarantorStatus.Rejected ||
+            guarantor.Status == GuarantorStatus.Active ||
+            guarantor.Status == GuarantorStatus.Released ||
+            guarantor.Status == GuarantorStatus.Defaulted)
+            return ApplicationResult.Failure("Cannot update a guarantor that has been rejected, activated, released, or defaulted");
 
         var result = guarantor.UpdateBasicInfo(
             fullName: request.FullName,
@@ -252,14 +255,12 @@ public class RunGuarantorCreditCheckHandler : IRequestHandler<RunGuarantorCredit
         // Get existing guarantee count for this BVN
         var existingGuaranteeCount = await _guarantorRepository.GetActiveGuaranteeCountByBVNAsync(guarantor.BVN, ct);
 
-        // Create bureau report entity (consent required for NDPA compliance)
         var bureauReportResult = Domain.Aggregates.CreditBureau.BureauReport.Create(
             CreditBureauProvider.CreditRegistry,
             SubjectType.Individual,
             guarantor.FullName,
             guarantor.BVN,
             request.RequestedByUserId,
-            request.ConsentRecordId,
             guarantor.LoanApplicationId,
             taxId: null,
             partyId: guarantor.Id,

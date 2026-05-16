@@ -5,6 +5,7 @@ using CRMS.Domain.Aggregates.Advisory;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
+using System.Text.Json;
 
 namespace CRMS.Application.Advisory.Commands;
 
@@ -22,6 +23,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
     private readonly IGuarantorRepository _guarantorRepository;
     private readonly IBankStatementRepository _bankStatementRepository;
     private readonly IBureauReportRepository _bureauReportRepository;
+    private readonly IFineractDirectService _fineractService;
     private readonly IAIAdvisoryService _aiService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -33,6 +35,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
         IGuarantorRepository guarantorRepository,
         IBankStatementRepository bankStatementRepository,
         IBureauReportRepository bureauReportRepository,
+        IFineractDirectService fineractService,
         IAIAdvisoryService aiService,
         IUnitOfWork unitOfWork)
     {
@@ -43,6 +46,7 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
         _guarantorRepository = guarantorRepository;
         _bankStatementRepository = bankStatementRepository;
         _bureauReportRepository = bureauReportRepository;
+        _fineractService = fineractService;
         _aiService = aiService;
         _unitOfWork = unitOfWork;
     }
@@ -133,6 +137,26 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
             if (completeResult.IsFailure)
             {
                 advisory.MarkFailed(completeResult.Error);
+            }
+            else
+            {
+                // Serialize risk data to JSON so it survives DB round-trips
+                var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = null };
+                var riskScoresJson = JsonSerializer.Serialize(
+                    advisory.RiskScores.Select(s => new
+                    {
+                        Category = s.Category.ToString(),
+                        s.Score,
+                        s.Weight,
+                        Rating = s.Rating.ToString(),
+                        s.Rationale,
+                        s.RedFlags,
+                        s.PositiveIndicators
+                    }), jsonOpts);
+                var redFlagsJson = JsonSerializer.Serialize(advisory.RedFlags.ToList(), jsonOpts);
+                var conditionsJson = JsonSerializer.Serialize(advisory.Conditions.ToList(), jsonOpts);
+                var covenantsJson = JsonSerializer.Serialize(advisory.Covenants.ToList(), jsonOpts);
+                advisory.SetPersistedData(riskScoresJson, redFlagsJson, conditionsJson, covenantsJson);
             }
         }
         catch (Exception ex)
@@ -331,9 +355,19 @@ public class GenerateCreditAdvisoryHandler : IRequestHandler<GenerateCreditAdvis
             }
         }
 
-        // Derive existing exposure from the corporate bureau report (SmartComply)
+        // Derive existing exposure: Fineract live data first, fall back to bureau report
         var existingExposure = corporateBureauReport?.TotalOutstandingBalance ?? 0m;
         var existingFacilitiesCount = corporateBureauReport?.ActiveLoans ?? 0;
+        if (long.TryParse(loanApp.CustomerId, out var fineractClientId))
+        {
+            var exposureResult = await _fineractService.GetCustomerExposureAsync(
+                fineractClientId, loanApp.AccountNumber, loanApp.CustomerName, ct);
+            if (exposureResult.IsSuccess)
+            {
+                existingExposure = exposureResult.Value.TotalOutstandingBalance;
+                existingFacilitiesCount = exposureResult.Value.ActiveFacilitiesCount;
+            }
+        }
 
         return new AIAdvisoryRequest(
             loanApp.Id,

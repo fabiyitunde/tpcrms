@@ -32,7 +32,8 @@ public record LoanApplicationDto(
     List<LoanApplicationDocumentDto> Documents,
     List<LoanApplicationPartyDto> Parties,
     DateTime? IncorporationDate = null,
-    string? IndustrySector = null
+    string? IndustrySector = null,
+    string? DisbursementMemoStoragePath = null
 );
 
 public record LoanApplicationSummaryDto(

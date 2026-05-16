@@ -1,3 +1,5 @@
+using CRMS.Application.OfferAcceptance.DTOs;
+
 namespace CRMS.Application.ProductCatalog.DTOs;
 
 public record LoanProductDto(
@@ -16,7 +18,8 @@ public record LoanProductDto(
     int? FineractProductId,
     List<PricingTierDto> PricingTiers,
     List<EligibilityRuleDto> EligibilityRules,
-    List<DocumentRequirementDto> DocumentRequirements
+    List<DocumentRequirementDto> DocumentRequirements,
+    List<ChecklistTemplateItemDto> DisbursementChecklist
 );
 
 public record LoanProductSummaryDto(

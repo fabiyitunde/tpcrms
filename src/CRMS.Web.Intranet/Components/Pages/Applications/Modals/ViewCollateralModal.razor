@@ -80,6 +80,16 @@
                     VALUATION
                 </h4>
 
+                @if (collateral.IndicativeValue.HasValue)
+                {
+                    <div class="form-group mb-4">
+                        <label class="form-label text-muted">Indicative Value (at Registration)</label>
+                        <div style="font-weight: 500; color: var(--gray-700);">₦@FormatAmount(collateral.IndicativeValue.Value)
+                            <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: var(--space-2);">Entered at collateral registration — pending formal valuation</span>
+                        </div>
+                    </div>
+                }
+
                 @if (collateral.MarketValue.HasValue)
                 {
                     <div class="grid grid-cols-3 gap-4 mb-6">
@@ -193,15 +203,22 @@
                                         @GetFileIcon(doc.FileName)
                                     </span>
                                     <div style="flex: 1; min-width: 0;">
-                                        <div style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                            @doc.FileName
-                                        </div>
-                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">
-                                            @FormatDocumentType(doc.DocumentType) · @FormatFileSize(doc.FileSizeBytes) · @doc.UploadedAt.ToString("MMM dd, yyyy")
+                                        <div style="font-weight: 600; font-size: var(--text-xs); color: var(--primary-600); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px;">
+                                            @FormatDocumentType(doc.DocumentType)
                                             @if (doc.IsVerified)
                                             {
                                                 <span class="badge badge-success" style="margin-left: var(--space-2); font-size: 10px;">Verified</span>
                                             }
+                                        </div>
+                                        <div style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                            @doc.FileName
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(doc.Description))
+                                        {
+                                            <div style="font-size: var(--text-xs); color: var(--gray-600); margin-top: 2px;">@doc.Description</div>
+                                        }
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">
+                                            @FormatFileSize(doc.FileSizeBytes) · @doc.UploadedAt.ToString("MMM dd, yyyy")
                                         </div>
                                     </div>
                                 </div>

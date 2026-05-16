@@ -27,11 +27,11 @@
                     <span class="stat-value">₦@FormatAmt(Statement.OpeningBalance)</span>
                 </div>
                 <div class="stat-box" style="min-width: 140px;">
-                    <span class="stat-label">Total Credits</span>
+                    <span class="stat-label">@(ExistingTransactions?.Any() == true ? "New Credits" : "Total Credits")</span>
                     <span class="stat-value" style="color: var(--success-600);">₦@FormatAmt(TotalCredits)</span>
                 </div>
                 <div class="stat-box" style="min-width: 140px;">
-                    <span class="stat-label">Total Debits</span>
+                    <span class="stat-label">@(ExistingTransactions?.Any() == true ? "New Debits" : "Total Debits")</span>
                     <span class="stat-value" style="color: var(--danger-600);">₦@FormatAmt(TotalDebits)</span>
                 </div>
                 <div class="stat-box" style="min-width: 160px; border-color: @ReconciliationBorderColor; background: @ReconciliationBgColor;">
@@ -80,7 +80,7 @@
                 </div>
             }
 
-            @if (!IsReconciled && rows.Any())
+            @if (!IsReconciled && rows.Any(r => r.DebitAmount > 0 || r.CreditAmount > 0))
             {
                 <div class="alert alert-warning mb-3" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">
                     <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">warning</span>
@@ -91,8 +91,8 @@
             <table class="table" style="font-size: var(--text-sm);">
                 <thead>
                     <tr>
-                        <th style="width: 130px;">Date *</th>
-                        <th>Description *</th>
+                        <th style="width: 130px;">Date</th>
+                        <th>Description</th>
                         <th style="width: 120px;">Reference</th>
                         <th style="width: 140px; text-align: right;">Debit (₦)</th>
                         <th style="width: 140px; text-align: right;">Credit (₦)</th>
@@ -101,6 +101,33 @@
                     </tr>
                 </thead>
                 <tbody>
+                    @if (ExistingTransactions?.Any() == true)
+                    {
+                        <tr>
+                            <td colspan="7" style="background: var(--gray-50); padding: 6px 12px; font-size: var(--text-xs); color: var(--gray-500); font-weight: 500; border-bottom: 2px solid var(--gray-200);">
+                                <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle; margin-right: 4px;">lock</span>
+                                @ExistingTransactions.Count previously saved transaction(s) — read only
+                            </td>
+                        </tr>
+                        @foreach (var existing in ExistingTransactions.OrderBy(t => t.Date))
+                        {
+                            <tr style="background: var(--gray-50); color: var(--gray-500);">
+                                <td>@existing.Date.ToString("yyyy-MM-dd")</td>
+                                <td>@existing.Description</td>
+                                <td>@existing.Reference</td>
+                                <td style="text-align: right;">@(existing.Type == "Debit" ? FormatAmt(existing.Amount) : "")</td>
+                                <td style="text-align: right;">@(existing.Type == "Credit" ? FormatAmt(existing.Amount) : "")</td>
+                                <td style="text-align: right; font-weight: 500;">₦@FormatAmt(existing.RunningBalance)</td>
+                                <td></td>
+                            </tr>
+                        }
+                        <tr>
+                            <td colspan="7" style="background: var(--primary-50); padding: 6px 12px; font-size: var(--text-xs); color: var(--primary-700); font-weight: 500; border-top: 2px solid var(--primary-200);">
+                                <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle; margin-right: 4px;">add_circle</span>
+                                New transactions — continuing from ₦@FormatAmt(BaseBalance)
+                            </td>
+                        </tr>
+                    }
                     @for (var i = 0; i < rows.Count; i++)
                     {
                         var row = rows[i];
@@ -117,12 +144,12 @@
                             </td>
                             <td>
                                 <input type="text" class="form-control form-control-sm"
-                                       @bind="row.Description"
+                                       @bind="row.Description" @bind:event="oninput"
                                        placeholder="Transaction description" />
                             </td>
                             <td>
                                 <input type="text" class="form-control form-control-sm"
-                                       @bind="row.Reference"
+                                       @bind="row.Reference" @bind:event="oninput"
                                        placeholder="Optional" />
                             </td>
                             <td>
@@ -200,14 +227,21 @@
     [Parameter] public List<StatementTransactionRow>? PreloadedTransactions { get; set; }
     /// <summary>Optional message about the parse result to display to the user.</summary>
     [Parameter] public string? ParseMessage { get; set; }
+    /// <summary>Already-saved transactions for this statement (shown read-only for context when adding more).</summary>
+    [Parameter] public List<StatementTransactionInfo>? ExistingTransactions { get; set; }
 
     private List<StatementTransactionRow> rows = [];
     private bool isSaving;
     private string? error;
 
+    /// <summary>Running balance after all already-saved transactions; new rows continue from here.</summary>
+    private decimal BaseBalance => ExistingTransactions?.Any() == true
+        ? ExistingTransactions.OrderBy(t => t.Date).Last().RunningBalance
+        : Statement.OpeningBalance;
+
     private decimal TotalCredits => rows.Sum(r => r.CreditAmount ?? 0m);
     private decimal TotalDebits => rows.Sum(r => r.DebitAmount ?? 0m);
-    private decimal ComputedClosing => Statement.OpeningBalance + TotalCredits - TotalDebits;
+    private decimal ComputedClosing => BaseBalance + TotalCredits - TotalDebits;
     private bool IsReconciled => Math.Abs(ComputedClosing - Statement.ClosingBalance) <= 1.0m;
 
     private string ReconciliationBorderColor => rows.Any()
@@ -243,7 +277,7 @@
 
     private decimal ComputeRunningBalance(int upToIndex)
     {
-        var bal = Statement.OpeningBalance;
+        var bal = BaseBalance;
         for (var j = 0; j <= upToIndex; j++)
             bal += (rows[j].CreditAmount ?? 0m) - (rows[j].DebitAmount ?? 0m);
         return bal;
@@ -294,8 +328,8 @@
         StateHasChanged();
         try
         {
-            // Stamp final running balances before sending
-            decimal bal = Statement.OpeningBalance;
+            // Stamp final running balances before sending (continue from last saved transaction)
+            decimal bal = BaseBalance;
             foreach (var r in rows)
             {
                 bal += (r.CreditAmount ?? 0m) - (r.DebitAmount ?? 0m);
@@ -305,11 +339,9 @@
             var result = await AppService.AddStatementTransactionsAsync(Statement.Id, rows);
             if (result.Success)
             {
-                // If some rows were skipped (outside period), show a warning before closing
-                if (!string.IsNullOrEmpty(result.Message))
-                    error = $"⚠ {result.Message}";
-                else
-                    await OnSuccess.InvokeAsync();
+                // Always refresh the parent so the statement list reflects what was saved.
+                // If some rows were skipped (outside period) the backend still saved the valid ones.
+                await OnSuccess.InvokeAsync();
             }
             else
                 error = result.Error ?? "Failed to save transactions.";

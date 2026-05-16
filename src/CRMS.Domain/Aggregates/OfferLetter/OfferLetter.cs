@@ -59,7 +59,8 @@ public class OfferLetter : AggregateRoot
         string productName,
         decimal approvedAmount,
         int approvedTenorMonths,
-        decimal approvedInterestRate)
+        decimal approvedInterestRate,
+        int version = 1)
     {
         if (loanApplicationId == Guid.Empty)
             return Result.Failure<OfferLetter>("Loan application ID is required");
@@ -71,7 +72,7 @@ public class OfferLetter : AggregateRoot
         {
             LoanApplicationId = loanApplicationId,
             ApplicationNumber = applicationNumber,
-            Version = 1,
+            Version = version < 1 ? 1 : version,
             Status = OfferLetterStatus.Generating,
             GeneratedAt = DateTime.UtcNow,
             GeneratedByUserId = generatedByUserId,
@@ -84,7 +85,7 @@ public class OfferLetter : AggregateRoot
         };
 
         letter.AddDomainEvent(new OfferLetterGeneratedEvent(
-            letter.Id, loanApplicationId, applicationNumber, 1));
+            letter.Id, loanApplicationId, applicationNumber, letter.Version));
 
         return Result.Success(letter);
     }

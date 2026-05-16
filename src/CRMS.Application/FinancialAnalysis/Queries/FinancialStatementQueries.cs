@@ -50,7 +50,8 @@ public class GetFinancialStatementsByLoanApplicationHandler : IRequestHandler<Ge
             fs.IncomeStatement?.TotalRevenue,
             fs.IncomeStatement?.NetProfit,
             fs.CalculatedRatios?.GetOverallAssessment(),
-            fs.SubmittedAt
+            fs.SubmittedAt,
+            fs.RejectionReason
         )).OrderByDescending(x => x.FinancialYear).ToList();
 
         return ApplicationResult<List<FinancialStatementSummaryDto>>.Success(dtos);

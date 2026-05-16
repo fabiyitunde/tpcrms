@@ -41,4 +41,10 @@ public interface IFileStorageService
     /// Returns null if not supported by the implementation.
     /// </summary>
     Task<string?> GetPresignedUrlAsync(string storagePath, TimeSpan expiry, CancellationToken ct = default);
+
+    /// <summary>
+    /// List storage paths within a container, optionally filtered by a path prefix.
+    /// Returns full storage paths (containerName/...) suitable for DownloadAsync.
+    /// </summary>
+    Task<IEnumerable<string>> ListFilesAsync(string containerName, string? prefix = null, CancellationToken ct = default);
 }

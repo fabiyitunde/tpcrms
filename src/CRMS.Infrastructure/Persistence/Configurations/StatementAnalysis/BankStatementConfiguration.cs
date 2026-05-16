@@ -99,6 +99,8 @@ public class BankStatementConfiguration : IEntityTypeConfiguration<BankStatement
             cs.Property(p => p.DisposableIncomeRatio).HasColumnName("CS_DisposableRatio").HasPrecision(10, 4);
         });
 
+        builder.Navigation(x => x.CashflowSummary).IsRequired(false);
+
         builder.Ignore(x => x.DomainEvents);
     }
 }

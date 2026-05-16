@@ -59,7 +59,8 @@ public class LoanPack : AggregateRoot
         string generatedByUserName,
         string customerName,
         string productName,
-        decimal requestedAmount)
+        decimal requestedAmount,
+        int version = 1)
     {
         if (loanApplicationId == Guid.Empty)
             return Result.Failure<LoanPack>("Loan application ID is required");
@@ -71,7 +72,7 @@ public class LoanPack : AggregateRoot
         {
             LoanApplicationId = loanApplicationId,
             ApplicationNumber = applicationNumber,
-            Version = 1,
+            Version = version < 1 ? 1 : version,
             Status = LoanPackStatus.Generating,
             GeneratedAt = DateTime.UtcNow,
             GeneratedByUserId = generatedByUserId,

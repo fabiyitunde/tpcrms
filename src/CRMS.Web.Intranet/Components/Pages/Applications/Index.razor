@@ -31,15 +31,31 @@
                 <label class="form-label">Status</label>
                 <select class="form-control" @bind="filter.Status">
                     <option value="">All Statuses</option>
-                    <option value="Draft">Draft</option>
-                    <option value="Submitted">Submitted</option>
-                    <option value="BranchReview">Branch Review</option>
-                    <option value="CreditAnalysis">Credit Analysis</option>
-                    <option value="HOReview">HO Review</option>
-                    <option value="CommitteeCirculation">Committee</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="Disbursed">Disbursed</option>
+                    <optgroup label="── Active ──────────────">
+                        <option value="Draft">Draft</option>
+                        <option value="BranchReview">Branch Review</option>
+                        <option value="CreditAnalysis">Credit Analysis</option>
+                        <option value="HOReview">HO Review</option>
+                        <option value="LegalReview">Legal Review</option>
+                        <option value="LegalApproval">Legal Approval</option>
+                        <option value="CommitteeCirculation">Committee Circulation</option>
+                        <option value="CommitteeApproved">Committee Approved</option>
+                        <option value="FinalApproval">Final Approval</option>
+                        <option value="Approved">Approved</option>
+                        <option value="OfferGenerated">Offer Generated</option>
+                        <option value="OfferAccepted">Offer Accepted</option>
+                        <option value="SecurityPerfection">Security Perfection</option>
+                        <option value="SecurityApproval">Security Approval</option>
+                        <option value="DisbursementPending">Disbursement Pending</option>
+                        <option value="DisbursementHQApproval">Disbursement — HQ Approval</option>
+                        <option value="Disbursed">Disbursed</option>
+                    </optgroup>
+                    <optgroup label="── Terminal ────────────">
+                        <option value="Rejected">Rejected</option>
+                        <option value="CommitteeRejected">Committee Rejected</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="Closed">Closed</option>
+                    </optgroup>
                 </select>
             </div>
             <div style="width: 160px;">
@@ -208,20 +224,45 @@
             myApps = GenerateMockApplications();
         }
 
-        // Also get applications by status if a specific status is selected
-        if (!string.IsNullOrEmpty(filter.Status))
+        var user = AuthService.CurrentUser;
+
+        // Reviewer roles have a natural pending-review queue even with no explicit filter.
+        // Operations has two action points: OfferGenerated (record acceptance) and
+        // DisbursementPending (approve disbursement memo), so both are included.
+        var defaultReviewStatuses = user?.PrimaryRole switch
         {
-            var user = AuthService.CurrentUser;
-            var (statusApps, _) = await AppService.GetApplicationsByStatusAsync(
-                filter.Status, user?.LocationId, user?.PrimaryRole, user?.Id);
-            // Merge and deduplicate
-            var allApps = myApps.Concat(statusApps)
+            "BranchApprover" => new[] { "BranchReview" },
+            "CreditOfficer"  => new[] { "CreditAnalysis" },
+            "HOReviewer"     => new[] { "HOReview" },
+            "LegalOfficer"   => new[] { "LegalReview", "SecurityPerfection" },
+            "HeadOfLegal"    => new[] { "LegalApproval", "SecurityApproval" },
+            "FinalApprover"  => new[] { "FinalApproval" },
+            "Operations"     => new[] { "OfferGenerated", "DisbursementPending" },
+            "GMFinance"      => new[] { "DisbursementHQApproval" },
+            _                => Array.Empty<string>()
+        };
+
+        // If a specific status filter is active, use only that; otherwise use the role's default queue
+        var effectiveStatuses = !string.IsNullOrEmpty(filter.Status)
+            ? new[] { filter.Status }
+            : defaultReviewStatuses;
+
+        if (effectiveStatuses.Length > 0)
+        {
+            var allStatusApps = new List<LoanApplicationSummary>();
+            foreach (var status in effectiveStatuses)
+            {
+                var (statusApps, _) = await AppService.GetApplicationsByStatusAsync(
+                    status, user?.LocationId, user?.PrimaryRole, user?.Id);
+                allStatusApps.AddRange(statusApps);
+            }
+
+            // Merge own apps + status queue, deduplicate, then keep only the queued statuses
+            applications = myApps.Concat(allStatusApps)
                 .GroupBy(a => a.Id)
                 .Select(g => g.First())
+                .Where(a => effectiveStatuses.Contains(a.Status))
                 .ToList();
-            
-            // Filter by status
-            applications = allApps.Where(a => a.Status == filter.Status).ToList();
         }
         else
         {
@@ -306,20 +347,24 @@
     private static string GetStatusBadgeClass(string status) => status switch
     {
         "Draft" => "badge-gray",
-        "Submitted" or "DataGathering" => "badge-primary",
         "BranchReview" or "HOReview" or "CreditAnalysis" => "badge-warning",
-        "CommitteeCirculation" => "badge-primary",
-        "BranchApproved" or "CommitteeApproved" or "Approved" => "badge-success",
-        "BranchRejected" or "CommitteeRejected" or "Rejected" => "badge-danger",
-        "Disbursed" => "badge-success",
+        "LegalReview" or "LegalApproval" => "badge-info",
+        "CommitteeCirculation" or "FinalApproval" => "badge-primary",
+        "CommitteeApproved" or "Approved" or "Disbursed" => "badge-success",
+        "OfferGenerated" or "OfferAccepted" => "badge-primary",
+        "SecurityPerfection" or "SecurityApproval" => "badge-warning",
+        "DisbursementPending" or "DisbursementHQApproval" => "badge-primary",
+        "Rejected" or "CommitteeRejected" or "Cancelled" => "badge-danger",
+        "Closed" => "badge-gray",
         _ => "badge-gray"
     };
 
     private static string GetStatusDotClass(string status) => status switch
     {
-        "Draft" => "gray",
-        "Approved" or "Disbursed" or "BranchApproved" or "CommitteeApproved" => "success",
-        "Rejected" or "BranchRejected" or "CommitteeRejected" => "danger",
+        "Draft" or "Closed" or "Cancelled" => "gray",
+        "Approved" or "Disbursed" or "CommitteeApproved" => "success",
+        "OfferGenerated" or "OfferAccepted" => "info",
+        "Rejected" or "CommitteeRejected" => "danger",
         _ => "info"
     };
 

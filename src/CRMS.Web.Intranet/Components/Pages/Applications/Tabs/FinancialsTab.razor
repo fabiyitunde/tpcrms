@@ -152,6 +152,12 @@
                                     <span class="status-dot @GetStatusDotClass(stmt.Status)"></span>
                                     @stmt.Status
                                 </span>
+                                @if (stmt.Status == "Rejected" && !string.IsNullOrEmpty(stmt.RejectionReason))
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--danger-600); margin-top: var(--space-1); max-width: 180px;">
+                                        @stmt.RejectionReason
+                                    </div>
+                                }
                             </td>
                             <td>
                                 <div style="display: flex; gap: var(--space-2);">
@@ -165,6 +171,15 @@
                                         </button>
                                         <button type="button" class="btn btn-ghost btn-sm" title="Delete" style="color: var(--danger-600);" @onclick="() => OnDeleteStatement.InvokeAsync(currentStmt.Id)">
                                             <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                                        </button>
+                                    }
+                                    @if (CanVerifyFinancials && stmt.Status is "Draft" or "PendingReview")
+                                    {
+                                        <button type="button" class="btn btn-ghost btn-sm" title="Verify" style="color: var(--success-600);" @onclick="() => OnVerifyStatement.InvokeAsync(currentStmt.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span>
+                                        </button>
+                                        <button type="button" class="btn btn-ghost btn-sm" title="Reject" style="color: var(--danger-600);" @onclick="() => OnRejectStatement.InvokeAsync(currentStmt.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">cancel</span>
                                         </button>
                                     }
                                 </div>
@@ -309,11 +324,14 @@
     [Parameter] public List<FinancialStatementInfo> Statements { get; set; } = [];
     [Parameter] public DateTime? IncorporationDate { get; set; }
     [Parameter] public bool IsEditable { get; set; } = true;
+    [Parameter] public bool CanVerifyFinancials { get; set; }
     [Parameter] public EventCallback OnEnterFinancials { get; set; }
     [Parameter] public EventCallback OnUploadExcel { get; set; }
     [Parameter] public EventCallback<Guid> OnViewStatement { get; set; }
     [Parameter] public EventCallback<Guid> OnEditStatement { get; set; }
     [Parameter] public EventCallback<Guid> OnDeleteStatement { get; set; }
+    [Parameter] public EventCallback<Guid> OnVerifyStatement { get; set; }
+    [Parameter] public EventCallback<Guid> OnRejectStatement { get; set; }
     [Parameter] public EventCallback OnDeleteAll { get; set; }
 
     private async Task HandleUploadExcel() => await OnUploadExcel.InvokeAsync();

@@ -76,6 +76,36 @@ public class CollateralConfiguration : IEntityTypeConfiguration<Domain.Aggregate
             iv.Property(m => m.Currency).HasColumnName("InsuredValueCurrency").HasMaxLength(3);
         });
 
+        // Configurable type FK
+        builder.Property(x => x.CollateralTypeConfigId);
+
+        // Indicative value (entered at application creation)
+        builder.OwnsOne(x => x.IndicativeValue, iv =>
+        {
+            iv.Property(m => m.Amount).HasColumnName("IndicativeValue").HasPrecision(18, 2);
+            iv.Property(m => m.Currency).HasColumnName("IndicativeValueCurrency").HasMaxLength(3);
+        });
+
+        builder.Property(x => x.ValuationBasis)
+            .HasMaxLength(15)
+            .HasDefaultValue("MarketValue");
+
+        // Valuer's stated acceptable value (from report, for audit)
+        builder.OwnsOne(x => x.ValuerAcceptableValue, vav =>
+        {
+            vav.Property(m => m.Amount).HasColumnName("ValuerAcceptableValue").HasPrecision(18, 2);
+            vav.Property(m => m.Currency).HasColumnName("ValuerAcceptableValueCurrency").HasMaxLength(3);
+        });
+
+        builder.Property(x => x.ValuerName)
+            .HasMaxLength(200);
+
+        builder.Property(x => x.ValuerCompany)
+            .HasMaxLength(200);
+
+        builder.Property(x => x.ValuationReportPath)
+            .HasMaxLength(500);
+
         builder.Property(x => x.HaircutPercentage)
             .HasPrecision(5, 2);
 
@@ -97,6 +127,12 @@ public class CollateralConfiguration : IEntityTypeConfiguration<Domain.Aggregate
         builder.Property(x => x.InsuranceCompany)
             .HasMaxLength(200);
 
+        // Legal Clearance
+        builder.Property(x => x.LegalClearanceNotes)
+            .HasMaxLength(1000);
+
+        builder.Ignore(x => x.IsLegalCleared);
+
         // Audit
         builder.Property(x => x.RejectionReason)
             .HasMaxLength(1000);
@@ -116,6 +152,43 @@ public class CollateralConfiguration : IEntityTypeConfiguration<Domain.Aggregate
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Ignore(x => x.DomainEvents);
+    }
+}
+
+public class CollateralTypeConfigConfiguration : IEntityTypeConfiguration<CollateralTypeConfig>
+{
+    public void Configure(EntityTypeBuilder<CollateralTypeConfig> builder)
+    {
+        builder.ToTable("CollateralTypeConfigs");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Name)
+            .HasMaxLength(100)
+            .IsRequired();
+
+        builder.Property(x => x.Code)
+            .HasMaxLength(30)
+            .IsRequired();
+
+        builder.HasIndex(x => x.Code).IsUnique();
+
+        builder.Property(x => x.Description)
+            .HasMaxLength(500);
+
+        builder.Property(x => x.HaircutRate)
+            .HasPrecision(5, 4);
+
+        builder.Property(x => x.ValuationBasis)
+            .HasMaxLength(15)
+            .IsRequired()
+            .HasDefaultValue("MarketValue");
+
+        builder.Property(x => x.IsActive)
+            .HasDefaultValue(true);
+
+        builder.Property(x => x.SortOrder)
+            .HasDefaultValue(0);
     }
 }
 

@@ -7,20 +7,31 @@
             <div class="empty-state-icon">
                 <span class="material-symbols-outlined">psychology</span>
             </div>
-            <div class="empty-state-title">AI Advisory not generated</div>
-            <div class="empty-state-text">Generate an AI-powered risk assessment and recommendations.</div>
-            <button class="btn btn-primary" @onclick="OnGenerateAdvisory" disabled="@IsGenerating">
-                @if (IsGenerating)
-                {
-                    <span class="spinner"></span>
-                    <span>Generating...</span>
-                }
-                else
-                {
-                    <span class="material-symbols-outlined" style="font-size: 18px;">auto_awesome</span>
-                    <span>Generate Advisory</span>
-                }
-            </button>
+            @if (!CanGenerate)
+            {
+                <div class="empty-state-title">Advisory not available yet</div>
+                <div class="empty-state-text">
+                    The AI Advisory can only be generated after the application has been submitted for review,
+                    credit bureau checks have been completed, and supporting documents have been verified.
+                </div>
+            }
+            else
+            {
+                <div class="empty-state-title">AI Advisory not generated</div>
+                <div class="empty-state-text">Generate an AI-powered risk assessment and recommendations.</div>
+                <button class="btn btn-primary" @onclick="OnGenerateAdvisory" disabled="@IsGenerating">
+                    @if (IsGenerating)
+                    {
+                        <span class="spinner"></span>
+                        <span>Generating...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">auto_awesome</span>
+                        <span>Generate Advisory</span>
+                    }
+                </button>
+            }
         </div>
     </div>
 }
@@ -166,6 +177,7 @@ else
     [Parameter] public AdvisoryInfo? Advisory { get; set; }
     [Parameter] public EventCallback OnGenerateAdvisory { get; set; }
     [Parameter] public bool IsGenerating { get; set; }
+    [Parameter] public bool CanGenerate { get; set; }
 
     private static string GetRiskClass(string rating) => rating.ToLower() switch
     {

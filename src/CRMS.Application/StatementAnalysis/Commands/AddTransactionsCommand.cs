@@ -36,6 +36,7 @@ public class AddTransactionsHandler : IRequestHandler<AddTransactionsCommand, Ap
             return ApplicationResult<int>.Failure("Statement not found");
 
         var addedCount = 0;
+        var newTransactions = new List<CRMS.Domain.Aggregates.StatementAnalysis.StatementTransaction>();
         foreach (var txn in request.Transactions)
         {
             var result = statement.AddTransaction(
@@ -48,7 +49,10 @@ public class AddTransactionsHandler : IRequestHandler<AddTransactionsCommand, Ap
             );
 
             if (result.IsSuccess)
+            {
                 addedCount++;
+                newTransactions.Add(result.Value);
+            }
         }
 
         if (addedCount == 0)
@@ -58,7 +62,10 @@ public class AddTransactionsHandler : IRequestHandler<AddTransactionsCommand, Ap
         // Run data integrity check so BalanceReconciled is set (needed for Verify)
         statement.ValidateDataIntegrity();
 
-        _repository.Update(statement);
+        // The BankStatement is already tracked by EF Core (loaded above via GetByIdWithTransactionsAsync).
+        // Calling _repository.Update() would trigger a full-graph Update() which generates a problematic
+        // owned-entity UPDATE for the null CashflowSummary. Instead, register only the new transactions.
+        _repository.AttachNewTransactions(newTransactions);
         await _unitOfWork.SaveChangesAsync(ct);
 
         return ApplicationResult<int>.Success(addedCount);

@@ -38,7 +38,8 @@ public record BankStatementSummaryDto(
     int TransactionCount,
     string? OriginalFileName,
     DateTime CreatedAt,
-    CashflowSummaryDto? CashflowSummary
+    CashflowSummaryDto? CashflowSummary,
+    string? VerificationNotes = null
 );
 
 public record StatementTransactionDto(

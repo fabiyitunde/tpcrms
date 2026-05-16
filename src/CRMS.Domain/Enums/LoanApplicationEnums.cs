@@ -17,6 +17,8 @@ public enum LoanApplicationStatus
     BranchRejected,
     CreditAnalysis,
     HOReview,
+    LegalReview,
+    LegalApproval,
     CommitteeCirculation,
     CommitteeApproved,
     CommitteeRejected,
@@ -25,6 +27,11 @@ public enum LoanApplicationStatus
     Rejected,
     OfferGenerated,
     OfferAccepted,
+    SecurityPerfection,
+    SecurityApproval,
+    DisbursementPending,
+    DisbursementBranchApproval,
+    DisbursementHQApproval,
     Disbursed,
     Closed,
     Cancelled
@@ -39,6 +46,7 @@ public enum DocumentCategory
     BoardResolution,
     TaxClearance,
     CollateralDocument,
+    SignedDisbursementMemo,
     Other
 }
 
@@ -56,4 +64,11 @@ public enum PartyType
     Signatory,
     Guarantor,
     BeneficialOwner
+}
+
+public enum OfferAcceptanceMethod
+{
+    InBranchSigning,
+    Courier,
+    Electronic
 }

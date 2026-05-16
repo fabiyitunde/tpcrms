@@ -11,6 +11,11 @@ public record CommitteeReviewDto(
     DateTime? DeadlineAt,
     int RequiredVotes,
     int MinimumApprovalVotes,
+    // Recommended Terms
+    decimal? RecommendedAmount,
+    int? RecommendedTenorMonths,
+    decimal? RecommendedInterestRate,
+    string? RecommendedConditions,
     // Decision
     string? FinalDecision,
     DateTime? DecisionAt,

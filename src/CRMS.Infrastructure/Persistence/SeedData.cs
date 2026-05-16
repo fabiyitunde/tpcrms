@@ -131,16 +131,18 @@ public static class SeedData
 
     private static async Task SeedRolesAsync(CRMSDbContext context, ILogger logger)
     {
-        if (await context.Roles.AnyAsync())
+        var existingRoleNames = await context.Roles.Select(r => r.Name).ToListAsync();
+        var missingRoles = Roles.AllRoles.Where(r => !existingRoleNames.Contains(r)).ToList();
+
+        if (missingRoles.Count == 0)
         {
             logger.LogInformation("Roles already seeded, skipping");
             return;
         }
 
-        logger.LogInformation("Seeding roles...");
+        logger.LogInformation("Seeding {Count} missing role(s): {Roles}", missingRoles.Count, string.Join(", ", missingRoles));
 
-        // Use Roles.cs constants to ensure consistency with authorization attributes
-        foreach (var roleName in Roles.AllRoles)
+        foreach (var roleName in missingRoles)
         {
             var description = Roles.RoleDescriptions.GetValueOrDefault(roleName, roleName);
             var role = ApplicationRole.Create(roleName, description, RoleType.System);
@@ -148,7 +150,7 @@ public static class SeedData
         }
 
         await context.SaveChangesAsync();
-        logger.LogInformation("Roles seeded successfully ({Count} roles)", Roles.AllRoles.Length);
+        logger.LogInformation("Roles seeded successfully");
     }
 
     private static async Task SeedLoanProductsAsync(CRMSDbContext context, ILogger logger)

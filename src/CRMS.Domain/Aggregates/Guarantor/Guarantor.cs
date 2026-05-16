@@ -293,8 +293,13 @@ public class Guarantor : AggregateRoot
         decimal? shareholdingPercentage, string? occupation, string? employerName, 
         decimal? monthlyIncome, decimal? declaredNetWorth, decimal? guaranteeLimit)
     {
-        if (Status != GuarantorStatus.Proposed && Status != GuarantorStatus.PendingVerification)
-            return Result.Failure("Can only update guarantor in Proposed or PendingVerification status");
+        // Block updates only on terminal/post-active statuses — BVN corrections must be possible
+        // through the credit-check lifecycle so a wrong BVN can be fixed and re-checked.
+        if (Status == GuarantorStatus.Rejected ||
+            Status == GuarantorStatus.Active ||
+            Status == GuarantorStatus.Released ||
+            Status == GuarantorStatus.Defaulted)
+            return Result.Failure("Cannot update a guarantor that has been rejected, activated, released, or defaulted");
 
         if (string.IsNullOrWhiteSpace(fullName))
             return Result.Failure("Full name is required");

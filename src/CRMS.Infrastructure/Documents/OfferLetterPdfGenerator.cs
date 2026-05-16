@@ -92,9 +92,6 @@ public class OfferLetterPdfGenerator : IOfferLetterPdfGenerator
             // Facility Details
             col.Item().Element(c => ComposeFacilityDetails(c, data));
 
-            // Repayment Schedule
-            col.Item().Element(c => ComposeRepaymentSchedule(c, data));
-
             // Schedule Summary
             col.Item().Element(c => ComposeScheduleSummary(c, data));
 
@@ -218,7 +215,7 @@ public class OfferLetterPdfGenerator : IOfferLetterPdfGenerator
     {
         container.PaddingBottom(15).Column(col =>
         {
-            col.Item().Text("SCHEDULE SUMMARY").Bold().FontSize(12).FontColor(Color.FromHex(DarkBlue));
+            col.Item().Text("REPAYMENT SUMMARY").Bold().FontSize(12).FontColor(Color.FromHex(DarkBlue));
             col.Item().PaddingTop(5);
 
             col.Item().Border(1).BorderColor(Color.FromHex(MediumGray)).Column(box =>

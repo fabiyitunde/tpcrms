@@ -41,7 +41,7 @@ public interface ISmartComplyProvider
     Task<Result<SmartComplyNinResult>> VerifyNinAsync(string nin, CancellationToken ct = default);
     Task<Result<SmartComplyTinResult>> VerifyTinAsync(string tin, CancellationToken ct = default);
     Task<Result<SmartComplyCacResult>> VerifyCacAsync(string rcNumber, CancellationToken ct = default);
-    Task<Result<SmartComplyCacResult>> VerifyCacAdvancedAsync(string rcNumber, CancellationToken ct = default);
+    Task<Result<SmartComplyCacResult>> VerifyCacAdvancedAsync(string rcNumber, string companyName, string companyType = "RC", CancellationToken ct = default);
     
     #endregion
 }

@@ -56,7 +56,8 @@ public record GuarantorSummaryDto(
     bool HasCreditIssues,
     decimal? GuaranteeLimit,
     bool IsUnlimited,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    string? RejectionReason = null
 );
 
 public record GuarantorDocumentDto(

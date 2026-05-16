@@ -15,7 +15,10 @@ public record AddCollateralCommand(
     string? AssetIdentifier = null,
     string? Location = null,
     string? OwnerName = null,
-    string? OwnershipType = null
+    string? OwnershipType = null,
+    Guid? CollateralTypeConfigId = null,
+    decimal? IndicativeValue = null,
+    string Currency = "NGN"
 ) : IRequest<ApplicationResult<CollateralDto>>;
 
 public class AddCollateralHandler : IRequestHandler<AddCollateralCommand, ApplicationResult<CollateralDto>>
@@ -49,7 +52,10 @@ public class AddCollateralHandler : IRequestHandler<AddCollateralCommand, Applic
             request.AssetIdentifier,
             request.Location,
             request.OwnerName,
-            request.OwnershipType
+            request.OwnershipType,
+            request.CollateralTypeConfigId,
+            request.IndicativeValue,
+            request.Currency
         );
 
         if (result.IsFailure)
@@ -64,11 +70,13 @@ public class AddCollateralHandler : IRequestHandler<AddCollateralCommand, Applic
     private static CollateralDto MapToDto(Domain.Aggregates.Collateral.Collateral c) => new(
         c.Id, c.LoanApplicationId, c.CollateralReference, c.Type.ToString(), c.Status.ToString(),
         c.PerfectionStatus.ToString(), c.Description, c.AssetIdentifier, c.Location, c.OwnerName,
-        c.OwnershipType, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount, c.HaircutPercentage,
-        c.AcceptableValue?.Amount, c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
+        c.OwnershipType, c.IndicativeValue?.Amount, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount,
+        c.HaircutPercentage, c.ValuationBasis, c.AcceptableValue?.Amount, c.ValuerAcceptableValue?.Amount,
+        c.ValuerName, c.ValuerCompany, c.ValuationReportPath,
+        c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
         c.LienType?.ToString(), c.LienReference, c.LienRegistrationDate, c.IsInsured,
         c.InsurancePolicyNumber, c.InsuredValue?.Amount, c.InsuranceExpiryDate, c.CreatedAt, c.ApprovedAt,
-        c.RejectionReason, [], []
+        c.RejectionReason, c.CollateralTypeConfigId, [], []
     );
 }
 
@@ -114,7 +122,12 @@ public record SetCollateralValuationCommand(
     decimal MarketValue,
     decimal? ForcedSaleValue,
     string Currency,
-    decimal? HaircutPercentage
+    decimal? HaircutPercentage,
+    string? ValuationBasis = null,
+    decimal? ValuerAcceptableValue = null,
+    string? ValuerName = null,
+    string? ValuerCompany = null,
+    string? ValuationReportPath = null
 ) : IRequest<ApplicationResult<CollateralDto>>;
 
 public class SetCollateralValuationHandler : IRequestHandler<SetCollateralValuationCommand, ApplicationResult<CollateralDto>>
@@ -139,7 +152,13 @@ public class SetCollateralValuationHandler : IRequestHandler<SetCollateralValuat
             ? Money.Create(request.ForcedSaleValue.Value, request.Currency) 
             : null;
 
-        var result = collateral.SetValuation(marketValue, forcedSaleValue, request.HaircutPercentage);
+        var valuerAcceptableValue = request.ValuerAcceptableValue.HasValue
+            ? Money.Create(request.ValuerAcceptableValue.Value, request.Currency)
+            : null;
+
+        var result = collateral.SetValuation(
+            marketValue, forcedSaleValue, request.HaircutPercentage, request.ValuationBasis,
+            valuerAcceptableValue, request.ValuerName, request.ValuerCompany, request.ValuationReportPath);
         if (result.IsFailure)
             return ApplicationResult<CollateralDto>.Failure(result.Error);
 
@@ -152,16 +171,66 @@ public class SetCollateralValuationHandler : IRequestHandler<SetCollateralValuat
     private static CollateralDto MapToDto(Domain.Aggregates.Collateral.Collateral c) => new(
         c.Id, c.LoanApplicationId, c.CollateralReference, c.Type.ToString(), c.Status.ToString(),
         c.PerfectionStatus.ToString(), c.Description, c.AssetIdentifier, c.Location, c.OwnerName,
-        c.OwnershipType, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount, c.HaircutPercentage,
-        c.AcceptableValue?.Amount, c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
+        c.OwnershipType, c.IndicativeValue?.Amount, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount,
+        c.HaircutPercentage, c.ValuationBasis, c.AcceptableValue?.Amount, c.ValuerAcceptableValue?.Amount,
+        c.ValuerName, c.ValuerCompany, c.ValuationReportPath,
+        c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
         c.LienType?.ToString(), c.LienReference, c.LienRegistrationDate, c.IsInsured,
         c.InsurancePolicyNumber, c.InsuredValue?.Amount, c.InsuranceExpiryDate, c.CreatedAt, c.ApprovedAt,
-        c.RejectionReason,
+        c.RejectionReason, c.CollateralTypeConfigId,
         c.Valuations.Select(v => new CollateralValuationDto(v.Id, v.Type.ToString(), v.Status.ToString(),
             v.ValuationDate, v.MarketValue.Amount, v.ForcedSaleValue?.Amount, v.MarketValue.Currency,
             v.ValuerName, v.ValuerCompany, v.ExpiryDate)).ToList(),
         c.Documents.Select(d => new CollateralDocumentDto(d.Id, d.DocumentType, d.FileName,
-            d.FileSizeBytes, d.IsVerified, d.UploadedAt)).ToList()
+            d.FileSizeBytes, d.IsVerified, d.UploadedAt, d.Description)).ToList(),
+        c.IsLegalCleared, c.LegalClearedAt, c.LegalClearanceNotes
+    );
+}
+
+public record RecordLegalClearanceCommand(
+    Guid CollateralId,
+    Guid UserId,
+    string? Notes = null
+) : IRequest<ApplicationResult<CollateralDto>>;
+
+public class RecordLegalClearanceHandler : IRequestHandler<RecordLegalClearanceCommand, ApplicationResult<CollateralDto>>
+{
+    private readonly ICollateralRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public RecordLegalClearanceHandler(ICollateralRepository repository, IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<ApplicationResult<CollateralDto>> Handle(RecordLegalClearanceCommand request, CancellationToken ct = default)
+    {
+        var collateral = await _repository.GetByIdWithDetailsAsync(request.CollateralId, ct);
+        if (collateral == null)
+            return ApplicationResult<CollateralDto>.Failure("Collateral not found");
+
+        var result = collateral.RecordLegalClearance(request.UserId, request.Notes);
+        if (result.IsFailure)
+            return ApplicationResult<CollateralDto>.Failure(result.Error);
+
+        _repository.Update(collateral);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return ApplicationResult<CollateralDto>.Success(MapToDto(collateral));
+    }
+
+    private static CollateralDto MapToDto(Domain.Aggregates.Collateral.Collateral c) => new(
+        c.Id, c.LoanApplicationId, c.CollateralReference, c.Type.ToString(), c.Status.ToString(),
+        c.PerfectionStatus.ToString(), c.Description, c.AssetIdentifier, c.Location, c.OwnerName,
+        c.OwnershipType, c.IndicativeValue?.Amount, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount,
+        c.HaircutPercentage, c.ValuationBasis, c.AcceptableValue?.Amount, c.ValuerAcceptableValue?.Amount,
+        c.ValuerName, c.ValuerCompany, c.ValuationReportPath,
+        c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
+        c.LienType?.ToString(), c.LienReference, c.LienRegistrationDate, c.IsInsured,
+        c.InsurancePolicyNumber, c.InsuredValue?.Amount, c.InsuranceExpiryDate, c.CreatedAt, c.ApprovedAt,
+        c.RejectionReason, c.CollateralTypeConfigId, [], [],
+        c.IsLegalCleared, c.LegalClearedAt, c.LegalClearanceNotes
     );
 }
 
@@ -197,16 +266,19 @@ public class ApproveCollateralHandler : IRequestHandler<ApproveCollateralCommand
     private static CollateralDto MapToDto(Domain.Aggregates.Collateral.Collateral c) => new(
         c.Id, c.LoanApplicationId, c.CollateralReference, c.Type.ToString(), c.Status.ToString(),
         c.PerfectionStatus.ToString(), c.Description, c.AssetIdentifier, c.Location, c.OwnerName,
-        c.OwnershipType, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount, c.HaircutPercentage,
-        c.AcceptableValue?.Amount, c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
+        c.OwnershipType, c.IndicativeValue?.Amount, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount,
+        c.HaircutPercentage, c.ValuationBasis, c.AcceptableValue?.Amount, c.ValuerAcceptableValue?.Amount,
+        c.ValuerName, c.ValuerCompany, c.ValuationReportPath,
+        c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
         c.LienType?.ToString(), c.LienReference, c.LienRegistrationDate, c.IsInsured,
         c.InsurancePolicyNumber, c.InsuredValue?.Amount, c.InsuranceExpiryDate, c.CreatedAt, c.ApprovedAt,
-        c.RejectionReason,
+        c.RejectionReason, c.CollateralTypeConfigId,
         c.Valuations.Select(v => new CollateralValuationDto(v.Id, v.Type.ToString(), v.Status.ToString(),
             v.ValuationDate, v.MarketValue.Amount, v.ForcedSaleValue?.Amount, v.MarketValue.Currency,
             v.ValuerName, v.ValuerCompany, v.ExpiryDate)).ToList(),
         c.Documents.Select(d => new CollateralDocumentDto(d.Id, d.DocumentType, d.FileName,
-            d.FileSizeBytes, d.IsVerified, d.UploadedAt)).ToList()
+            d.FileSizeBytes, d.IsVerified, d.UploadedAt, d.Description)).ToList(),
+        c.IsLegalCleared, c.LegalClearedAt, c.LegalClearanceNotes
     );
 }
 
@@ -264,7 +336,8 @@ public class UploadCollateralDocumentHandler : IRequestHandler<UploadCollateralD
             document.FileName,
             document.FileSizeBytes,
             document.IsVerified,
-            document.UploadedAt
+            document.UploadedAt,
+            document.Description
         ));
     }
 }
@@ -339,15 +412,18 @@ public class RecordPerfectionHandler : IRequestHandler<RecordPerfectionCommand, 
     private static CollateralDto MapToDto(Domain.Aggregates.Collateral.Collateral c) => new(
         c.Id, c.LoanApplicationId, c.CollateralReference, c.Type.ToString(), c.Status.ToString(),
         c.PerfectionStatus.ToString(), c.Description, c.AssetIdentifier, c.Location, c.OwnerName,
-        c.OwnershipType, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount, c.HaircutPercentage,
-        c.AcceptableValue?.Amount, c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
+        c.OwnershipType, c.IndicativeValue?.Amount, c.MarketValue?.Amount, c.ForcedSaleValue?.Amount,
+        c.HaircutPercentage, c.ValuationBasis, c.AcceptableValue?.Amount, c.ValuerAcceptableValue?.Amount,
+        c.ValuerName, c.ValuerCompany, c.ValuationReportPath,
+        c.MarketValue?.Currency, c.LastValuationDate, c.NextRevaluationDue,
         c.LienType?.ToString(), c.LienReference, c.LienRegistrationDate, c.IsInsured,
         c.InsurancePolicyNumber, c.InsuredValue?.Amount, c.InsuranceExpiryDate, c.CreatedAt, c.ApprovedAt,
-        c.RejectionReason,
+        c.RejectionReason, c.CollateralTypeConfigId,
         c.Valuations.Select(v => new CollateralValuationDto(v.Id, v.Type.ToString(), v.Status.ToString(),
             v.ValuationDate, v.MarketValue.Amount, v.ForcedSaleValue?.Amount, v.MarketValue.Currency,
             v.ValuerName, v.ValuerCompany, v.ExpiryDate)).ToList(),
         c.Documents.Select(d => new CollateralDocumentDto(d.Id, d.DocumentType, d.FileName,
-            d.FileSizeBytes, d.IsVerified, d.UploadedAt)).ToList()
+            d.FileSizeBytes, d.IsVerified, d.UploadedAt, d.Description)).ToList(),
+        c.IsLegalCleared, c.LegalClearedAt, c.LegalClearanceNotes
     );
 }
