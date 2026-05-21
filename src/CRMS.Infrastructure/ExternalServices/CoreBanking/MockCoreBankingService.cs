@@ -292,6 +292,15 @@ public class MockCoreBankingService : ICoreBankingService
     public Task<Result<LoanStatus>> GetLoanStatusAsync(string loanId, CancellationToken ct = default)
         => Task.FromResult(Result.Failure<LoanStatus>("Loan status query not available from current CBS API."));
 
+    public Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
+    {
+        if (_accounts.TryGetValue(boaAccountNumber, out var acct))
+            return Task.FromResult(Result.Success(new NampBoaAccountInfo(acct.ClientId, "Active")));
+
+        return Task.FromResult(Result.Failure<NampBoaAccountInfo>(
+            $"NAMP BOA account '{boaAccountNumber}' not found in mock data."));
+    }
+
     // TODO: Replace with real CBS API call once endpoint is specified by core banking provider.
     // Returns mock zero exposure so AI advisory can run without blocking on this gap.
     public Task<Result<CustomerExposure>> GetCustomerExposureAsync(string accountNumber, CancellationToken ct = default)

@@ -6,6 +6,7 @@ namespace CRMS.Domain.Aggregates.CreditBureau;
 public class BureauReport : AggregateRoot
 {
     public Guid? LoanApplicationId { get; private set; }
+    public Guid? NampApplicationId { get; private set; }
     public CreditBureauProvider Provider { get; private set; }
     public SubjectType SubjectType { get; private set; }
     public BureauReportStatus Status { get; private set; }
@@ -67,6 +68,7 @@ public class BureauReport : AggregateRoot
         string? bvn,
         Guid requestedByUserId,
         Guid? loanApplicationId = null,
+        Guid? nampApplicationId = null,
         string? taxId = null,
         Guid? partyId = null,
         string? partyType = null)
@@ -88,6 +90,7 @@ public class BureauReport : AggregateRoot
             RequestedByUserId = requestedByUserId,
             RequestedAt = DateTime.UtcNow,
             LoanApplicationId = loanApplicationId,
+            NampApplicationId = nampApplicationId,
             RequestReference = GenerateRequestReference(),
             PartyId = partyId,
             PartyType = partyType

@@ -15,6 +15,7 @@ using GR = CRMS.Domain.Aggregates.Guarantor;
 using LA = CRMS.Domain.Aggregates.LoanApplication;
 using LO = CRMS.Domain.Aggregates.Location;
 using LP = CRMS.Domain.Aggregates.LoanPack;
+using NA = CRMS.Domain.Aggregates.Namp;
 using NF = CRMS.Domain.Aggregates.Notification;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
 using OL = CRMS.Domain.Aggregates.OfferLetter;
@@ -118,6 +119,20 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     // Location
     public DbSet<LO.Location> Locations => Set<LO.Location>();
 
+    // NAMP
+    public DbSet<NA.NampStagingRecord> NampStagingRecords => Set<NA.NampStagingRecord>();
+    public DbSet<NA.NampRoutingConfig> NampRoutingConfigs => Set<NA.NampRoutingConfig>();
+    public DbSet<NA.NampApplication> NampApplications => Set<NA.NampApplication>();
+    public DbSet<NA.NampDocument> NampDocuments => Set<NA.NampDocument>();
+    public DbSet<NA.NampStatusHistory> NampStatusHistory => Set<NA.NampStatusHistory>();
+    public DbSet<NA.NampWorkflowConfig> NampWorkflowConfigs => Set<NA.NampWorkflowConfig>();
+    public DbSet<NA.NampWorkflowInstance> NampWorkflowInstances => Set<NA.NampWorkflowInstance>();
+    public DbSet<NA.NampGuarantor> NampGuarantors => Set<NA.NampGuarantor>();
+    public DbSet<NA.NampCollateral> NampCollaterals => Set<NA.NampCollateral>();
+    public DbSet<NA.NampFinancialStatement> NampFinancialStatements => Set<NA.NampFinancialStatement>();
+    public DbSet<NA.NampTechnicalAppraisalReport> NampTechnicalAppraisalReports => Set<NA.NampTechnicalAppraisalReport>();
+    public DbSet<NA.NampFinancialAppraisalReport> NampFinancialAppraisalReports => Set<NA.NampFinancialAppraisalReport>();
+
     // Outbox
     public DbSet<CreditCheckOutboxEntry> CreditCheckOutbox => Set<CreditCheckOutboxEntry>();
 
@@ -129,6 +144,20 @@ public class CRMSDbContext : DbContext, IUnitOfWork
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        // EF Core attaches new entities discovered through collection navigations with non-default
+        // GUID keys as Modified (not Added), generating UPDATE for non-existent rows.
+        // These types are immutable (append-only), so Modified state always means a new record.
+        foreach (var entry in ChangeTracker.Entries<NA.NampStatusHistory>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        foreach (var entry in ChangeTracker.Entries<ApplicationUserRole>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+
         return await base.SaveChangesAsync(cancellationToken);
     }
 }

@@ -1,0 +1,80 @@
+using CRMS.Domain.Aggregates.Namp;
+using CRMS.Domain.Enums;
+using CRMS.Domain.Interfaces;
+using Microsoft.EntityFrameworkCore;
+
+namespace CRMS.Infrastructure.Persistence.Repositories.Namp;
+
+public class NampApplicationRepository : INampApplicationRepository
+{
+    private readonly CRMSDbContext _context;
+
+    public NampApplicationRepository(CRMSDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<NampApplication?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => await _context.NampApplications.FirstOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<NampApplication?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct = default)
+        => await _context.NampApplications
+            .Include(x => x.Documents)
+            .Include(x => x.StatusHistory.OrderByDescending(h => h.ChangedAt))
+            .Include(x => x.Guarantors)
+            .Include(x => x.Collaterals)
+            .Include(x => x.FinancialStatements)
+            .FirstOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<NampApplication?> GetByApplicationReferenceAsync(string applicationReference, CancellationToken ct = default)
+        => await _context.NampApplications.FirstOrDefaultAsync(x => x.ApplicationReference == applicationReference, ct);
+
+    public async Task<IReadOnlyList<NampApplication>> GetByStatusAsync(NampApplicationStatus status, Guid? branchId = null, CancellationToken ct = default)
+    {
+        var query = _context.NampApplications.Where(x => x.Status == status);
+        if (branchId.HasValue)
+            query = query.Where(x => x.BranchId == branchId.Value);
+        return await query.OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<NampApplication>> GetByStatusAndTierAsync(NampApplicationStatus status, NampCommitteeTier tier, Guid? branchId = null, CancellationToken ct = default)
+    {
+        var query = _context.NampApplications
+            .Where(x => x.Status == status && x.CommitteeTier == tier);
+        if (branchId.HasValue)
+            query = query.Where(x => x.BranchId == branchId.Value);
+        return await query.OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<NampApplication>> GetByBranchAsync(Guid branchId, CancellationToken ct = default)
+        => await _context.NampApplications
+            .Where(x => x.BranchId == branchId)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(ct);
+
+    public async Task AddAsync(NampApplication application, CancellationToken ct = default)
+        => await _context.NampApplications.AddAsync(application, ct);
+
+    public void Update(NampApplication application)
+        => _context.NampApplications.Update(application);
+
+    public async Task AddNampDocumentAsync(NampDocument document, CancellationToken ct = default)
+        => await _context.NampDocuments.AddAsync(document, ct);
+
+    public async Task<NampDocument?> GetNampDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
+        => await _context.NampDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct);
+
+    public async Task<NampTechnicalAppraisalReport?> GetTechnicalAppraisalReportAsync(Guid nampApplicationId, CancellationToken ct = default)
+        => await _context.NampTechnicalAppraisalReports
+            .FirstOrDefaultAsync(r => r.NampApplicationId == nampApplicationId, ct);
+
+    public async Task AddTechnicalAppraisalReportAsync(NampTechnicalAppraisalReport report, CancellationToken ct = default)
+        => await _context.NampTechnicalAppraisalReports.AddAsync(report, ct);
+
+    public async Task<NampFinancialAppraisalReport?> GetFinancialAppraisalReportAsync(Guid nampApplicationId, CancellationToken ct = default)
+        => await _context.NampFinancialAppraisalReports
+            .FirstOrDefaultAsync(r => r.NampApplicationId == nampApplicationId, ct);
+
+    public async Task AddFinancialAppraisalReportAsync(NampFinancialAppraisalReport report, CancellationToken ct = default)
+        => await _context.NampFinancialAppraisalReports.AddAsync(report, ct);
+}

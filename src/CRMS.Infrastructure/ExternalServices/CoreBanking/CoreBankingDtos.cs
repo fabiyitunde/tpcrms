@@ -260,6 +260,37 @@ public class CbsTransferDetails
     public string? SessionId { get; set; }
 }
 
+// GET /core_banking/api/tp/savingsaccounts/byexternalId/{externalId}
+public class NampSavingsAccountResponse
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("accountNo")]
+    public string? AccountNo { get; set; }
+
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; set; }
+
+    [JsonPropertyName("clientId")]
+    public long ClientId { get; set; }
+
+    [JsonPropertyName("clientName")]
+    public string? ClientName { get; set; }
+
+    [JsonPropertyName("status")]
+    public NampSavingsAccountStatus? Status { get; set; }
+}
+
+public class NampSavingsAccountStatus
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("value")]
+    public string? Value { get; set; }
+}
+
 // OAuth2 token response
 public class CbsOAuth2TokenResponse
 {

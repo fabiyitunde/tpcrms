@@ -4,6 +4,7 @@ namespace CRMS.Domain.Constants;
 
 public static class Roles
 {
+    // ── Corporate loan roles ─────────────────────────────────────
     public const string SystemAdmin = "SystemAdmin";
     public const string LoanOfficer = "LoanOfficer";
     public const string CreditOfficer = "CreditOfficer";
@@ -18,6 +19,20 @@ public static class Roles
     public const string HeadOfLegal = "HeadOfLegal";
     public const string Auditor = "Auditor";
     public const string Customer = "Customer";
+
+    // ── NAMP-specific roles ──────────────────────────────────────
+    public const string AgriculturalEngineer = "AgriculturalEngineer";       // Stage 2: Technical Appraisal
+    public const string BranchManager = "BranchManager";                     // Ratifies Branch committee decision
+    public const string ZonalManager = "ZonalManager";                       // Ratifies Zonal committee decision
+    public const string RegionalManager = "RegionalManager";                 // Ratifies Regional committee decision
+    public const string MdCeo = "MdCeo";                                     // Ratifies HO committee decision (MD/CEO)
+    public const string BranchCommitteeMember = "BranchCommitteeMember";     // Votes in Branch Credit Committee
+    public const string ZonalCommitteeMember = "ZonalCommitteeMember";       // Votes in Zonal Credit Committee
+    public const string RegionalCommitteeMember = "RegionalCommitteeMember"; // Votes in Regional Credit Committee
+    public const string HOCommitteeMember = "HOCommitteeMember";             // Votes in HO Credit Committee
+    public const string ComplianceOfficer = "ComplianceOfficer";             // Stage 6: Pre-deployment verification
+    public const string TrainingCoordinator = "TrainingCoordinator";         // Stage 7: Training tracking
+    public const string DeploymentOfficer = "DeploymentOfficer";             // Stage 8: Deployment tracking
 
     public static readonly string[] AllRoles =
     [
@@ -34,7 +49,20 @@ public static class Roles
         LegalOfficer,
         HeadOfLegal,
         Auditor,
-        Customer
+        Customer,
+        // NAMP
+        AgriculturalEngineer,
+        BranchManager,
+        ZonalManager,
+        RegionalManager,
+        MdCeo,
+        BranchCommitteeMember,
+        ZonalCommitteeMember,
+        RegionalCommitteeMember,
+        HOCommitteeMember,
+        ComplianceOfficer,
+        TrainingCoordinator,
+        DeploymentOfficer,
     ];
 
     public static readonly Dictionary<string, string> RoleDescriptions = new()
@@ -52,7 +80,20 @@ public static class Roles
         { LegalOfficer, "Prepares legal opinion and security documents" },
         { HeadOfLegal, "Countersigns legal opinion before committee circulation" },
         { Auditor, "Read-only audit access" },
-        { Customer, "Self-service retail loan applicant" }
+        { Customer, "Self-service retail loan applicant" },
+        // NAMP
+        { AgriculturalEngineer, "NAMP: Conducts technical appraisal of farm and equipment plans" },
+        { BranchManager, "NAMP: Ratifies Branch Credit Committee decision" },
+        { ZonalManager, "NAMP: Ratifies Zonal Credit Committee decision" },
+        { RegionalManager, "NAMP: Ratifies Regional Credit Committee decision" },
+        { MdCeo, "NAMP: Ratifies HO Credit Committee decision (MD/CEO)" },
+        { BranchCommitteeMember, "NAMP: Votes in Branch Credit Committee" },
+        { ZonalCommitteeMember, "NAMP: Votes in Zonal Credit Committee" },
+        { RegionalCommitteeMember, "NAMP: Votes in Regional Credit Committee" },
+        { HOCommitteeMember, "NAMP: Votes in HO Credit Committee" },
+        { ComplianceOfficer, "NAMP: Pre-deployment verification and conditions gate" },
+        { TrainingCoordinator, "NAMP: Tracks training delivery and uploads training certificate" },
+        { DeploymentOfficer, "NAMP: Tracks equipment deployment and confirms GPS activation" },
     };
 
     /// <summary>
@@ -62,20 +103,33 @@ public static class Roles
     /// </summary>
     public static readonly Dictionary<string, VisibilityScope> RoleVisibilityScopes = new()
     {
-        { SystemAdmin, VisibilityScope.Global },      // Superuser - sees all
-        { LoanOfficer, VisibilityScope.Branch },      // Sees applications in their branch
-        { CreditOfficer, VisibilityScope.Global },    // HO role - sees all
-        { RiskManager, VisibilityScope.Global },      // HO role - sees all
-        { BranchApprover, VisibilityScope.Branch },   // Approves applications in their branch
-        { HOReviewer, VisibilityScope.Global },       // HO role - sees all
-        { CommitteeMember, VisibilityScope.Global },  // Committee can see all (for voting)
-        { FinalApprover, VisibilityScope.Global },    // HO role - sees all
-        { Operations, VisibilityScope.Global },       // HO role - sees all
-        { GMFinance, VisibilityScope.Global },        // HQ role - sees all
-        { LegalOfficer, VisibilityScope.Global },     // HO role - sees all
-        { HeadOfLegal, VisibilityScope.Global },      // HO role - sees all
-        { Auditor, VisibilityScope.Global },          // Read-only audit - sees all
-        { Customer, VisibilityScope.Own }             // Customers see only their own applications
+        { SystemAdmin, VisibilityScope.Global },
+        { LoanOfficer, VisibilityScope.Branch },
+        { CreditOfficer, VisibilityScope.Branch },
+        { RiskManager, VisibilityScope.Global },
+        { BranchApprover, VisibilityScope.Branch },
+        { HOReviewer, VisibilityScope.Global },
+        { CommitteeMember, VisibilityScope.Global },
+        { FinalApprover, VisibilityScope.Global },
+        { Operations, VisibilityScope.Global },
+        { GMFinance, VisibilityScope.Global },
+        { LegalOfficer, VisibilityScope.Global },
+        { HeadOfLegal, VisibilityScope.Global },
+        { Auditor, VisibilityScope.Global },
+        { Customer, VisibilityScope.Own },
+        // NAMP
+        { AgriculturalEngineer, VisibilityScope.Branch },
+        { BranchManager, VisibilityScope.Branch },
+        { ZonalManager, VisibilityScope.Global },
+        { RegionalManager, VisibilityScope.Global },
+        { MdCeo, VisibilityScope.Global },
+        { BranchCommitteeMember, VisibilityScope.Branch },
+        { ZonalCommitteeMember, VisibilityScope.Global },
+        { RegionalCommitteeMember, VisibilityScope.Global },
+        { HOCommitteeMember, VisibilityScope.Global },
+        { ComplianceOfficer, VisibilityScope.Global },
+        { TrainingCoordinator, VisibilityScope.Global },
+        { DeploymentOfficer, VisibilityScope.Global },
     };
 
     /// <summary>

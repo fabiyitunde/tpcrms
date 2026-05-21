@@ -1,0 +1,121 @@
+@page "/admin/namp-workflow"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@using CRMS.Application.Namp.DTOs
+@inject ApplicationService AppService
+
+<PageTitle>NAMP Workflow Stages - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">NAMP Workflow Stages</h1>
+        <p class="page-subtitle">Read-only view of the NAMP application workflow stage configuration</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        @if (isLoading)
+        {
+            <div class="p-6 text-center">
+                <div class="spinner" style="margin: 0 auto;"></div>
+            </div>
+        }
+        else if (configs.Count == 0)
+        {
+            <div class="p-6 text-center text-muted">
+                No workflow stage config found.
+                <a href="/api/seed/namp" target="_blank">Run the NAMP seeder</a> to populate stage data.
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">#</th>
+                        <th>Stage</th>
+                        <th>Status Code</th>
+                        <th>Assigned Role</th>
+                        <th>SLA</th>
+                        <th>Terminal</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var cfg in configs)
+                    {
+                        <tr style="@(cfg.IsTerminal ? "opacity: 0.7;" : "")">
+                            <td style="color: var(--text-secondary); font-size: 0.8rem;">@cfg.SortOrder</td>
+                            <td>
+                                <span class="badge @StageBadgeClass(cfg)">@cfg.DisplayName</span>
+                            </td>
+                            <td style="font-family: monospace; font-size: 0.8rem; color: var(--text-secondary);">@cfg.Status</td>
+                            <td>@FormatRole(cfg.AssignedRole)</td>
+                            <td>
+                                @if (cfg.SlaHours > 0)
+                                {
+                                    <span>@SlaDisplay(cfg.SlaHours)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                @if (cfg.IsTerminal)
+                                {
+                                    <span class="material-symbols-outlined" style="font-size: 16px; color: var(--text-secondary);">check_circle</span>
+                                }
+                            </td>
+                            <td style="font-size: 0.85rem; color: var(--text-secondary); max-width: 320px;">@cfg.Description</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private List<NampWorkflowConfigDto> configs = [];
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { configs = await AppService.GetNampWorkflowConfigsAsync(); }
+        finally { isLoading = false; }
+    }
+
+    private static string StageBadgeClass(NampWorkflowConfigDto cfg)
+    {
+        if (cfg.IsTerminal) return "badge-secondary";
+        return cfg.Status switch
+        {
+            "Active" or "Closed" => "badge-success",
+            var s when s.Contains("Declined") || s.Contains("Lapsed") => "badge-danger",
+            "Ratification" or "OfferGenerated" or "OfferAccepted" => "badge-warning",
+            _ => "badge-info"
+        };
+    }
+
+    private static string FormatRole(string role) => role switch
+    {
+        "LoanOfficer" => "Loan Officer",
+        "AgriculturalEngineer" => "Agricultural Engineer",
+        "CreditOfficer" => "Credit Officer",
+        "CommitteeMember" => "Committee Member",
+        "FinalApprover" => "Final Approver",
+        "ComplianceOfficer" => "Compliance Officer",
+        "TrainingCoordinator" => "Training Coordinator",
+        "DeploymentOfficer" => "Deployment Officer",
+        "SystemAdmin" => "System",
+        _ => role
+    };
+
+    private static string SlaDisplay(int hours)
+    {
+        if (hours >= 168 && hours % 168 == 0) return $"{hours / 168}w";
+        if (hours >= 24 && hours % 24 == 0) return $"{hours / 24}d";
+        return $"{hours}h";
+    }
+}

@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NAMP → CRMS Integration Guide</title>
+  <style>
+    :root {
+      --green-dark: #1b5e20;
+      --green-mid:  #2e7d32;
+      --green-lite: #e8f5e9;
+      --blue-dark:  #0d47a1;
+      --blue-lite:  #e3f2fd;
+      --amber-lite: #fff8e1;
+      --amber-dark: #e65100;
+      --red-lite:   #ffebee;
+      --red-dark:   #b71c1c;
+      --grey-1:     #f5f5f5;
+      --grey-2:     #e0e0e0;
+      --grey-3:     #9e9e9e;
+      --text:       #212121;
+      --mono:       'Courier New', Courier, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: var(--text); line-height: 1.6; background: #fff; }
+
+    /* ── Layout ── */
+    .wrapper { display: flex; min-height: 100vh; }
+    nav { width: 240px; min-width: 240px; background: var(--green-dark); color: #fff; padding: 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+    nav .logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,.2); }
+    nav .logo h2 { font-size: 15px; font-weight: 700; color: #fff; }
+    nav .logo p  { font-size: 11px; color: rgba(255,255,255,.65); margin-top: 2px; }
+    nav ul { list-style: none; padding: 12px 0; }
+    nav ul li a { display: block; padding: 7px 20px; color: rgba(255,255,255,.8); text-decoration: none; font-size: 13px; transition: background .15s; }
+    nav ul li a:hover { background: rgba(255,255,255,.12); color: #fff; }
+    nav ul li.section-head { padding: 12px 20px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.45); }
+    main { flex: 1; padding: 40px 48px; max-width: 960px; }
+
+    /* ── Typography ── */
+    h1 { font-size: 26px; color: var(--green-dark); border-bottom: 3px solid var(--green-dark); padding-bottom: 10px; margin-bottom: 6px; }
+    h1 small { font-size: 13px; font-weight: 400; color: var(--grey-3); display: block; margin-top: 4px; }
+    h2 { font-size: 19px; color: var(--green-dark); margin: 40px 0 14px; padding-bottom: 6px; border-bottom: 2px solid var(--green-lite); }
+    h3 { font-size: 15px; color: var(--blue-dark); margin: 24px 0 10px; }
+    h4 { font-size: 13px; font-weight: 700; margin: 16px 0 6px; color: var(--text); }
+    p  { margin-bottom: 10px; }
+    a  { color: var(--blue-dark); }
+    ul, ol { padding-left: 22px; margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+
+    /* ── Callout boxes ── */
+    .box { border-radius: 6px; padding: 14px 18px; margin: 16px 0; }
+    .box-green  { background: var(--green-lite); border-left: 4px solid var(--green-mid); }
+    .box-blue   { background: var(--blue-lite);  border-left: 4px solid var(--blue-dark); }
+    .box-amber  { background: var(--amber-lite); border-left: 4px solid var(--amber-dark); }
+    .box-red    { background: var(--red-lite);   border-left: 4px solid var(--red-dark); }
+    .box strong { display: block; margin-bottom: 4px; }
+
+    /* ── Code ── */
+    pre { background: #263238; color: #cfd8dc; border-radius: 6px; padding: 18px 20px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; margin: 12px 0; }
+    code { font-family: var(--mono); font-size: 12.5px; background: #eceff1; padding: 1px 5px; border-radius: 3px; color: #b71c1c; }
+    pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+
+    /* ── JSON syntax colouring (manual spans) ── */
+    .j-key   { color: #80cbc4; }
+    .j-str   { color: #c3e88d; }
+    .j-num   { color: #f78c6c; }
+    .j-bool  { color: #c792ea; }
+    .j-null  { color: #546e7a; }
+    .j-cmt   { color: #546e7a; font-style: italic; }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 13px; }
+    th { background: var(--green-dark); color: #fff; padding: 8px 12px; text-align: left; font-weight: 600; }
+    td { padding: 7px 12px; border-bottom: 1px solid var(--grey-2); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--grey-1); }
+    td code { font-size: 12px; }
+    .required { color: var(--red-dark); font-weight: 700; }
+    .optional { color: var(--grey-3); }
+    .cat-all   { background: #e8f5e9; color: var(--green-dark); border-radius: 3px; padding: 1px 6px; font-size: 11px; font-weight: 700; }
+    .cat-co    { background: #fff3e0; color: #bf360c; border-radius: 3px; padding: 1px 6px; font-size: 11px; font-weight: 700; }
+    .cat-ind   { background: #e3f2fd; color: #0d47a1; border-radius: 3px; padding: 1px 6px; font-size: 11px; font-weight: 700; }
+
+    /* ── Sequence diagram ── */
+    .seq { background: var(--grey-1); border: 1px solid var(--grey-2); border-radius: 6px; padding: 20px 24px; font-family: var(--mono); font-size: 12px; line-height: 1.9; overflow-x: auto; margin: 12px 0; }
+
+    /* ── Chip badges ── */
+    .badge { display: inline-block; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; margin-right: 4px; }
+    .badge-post   { background: #1b5e20; color: #fff; }
+    .badge-get    { background: #0d47a1; color: #fff; }
+    .badge-200    { background: #2e7d32; color: #fff; }
+    .badge-400    { background: #e65100; color: #fff; }
+    .badge-401    { background: #b71c1c; color: #fff; }
+    .badge-idp    { background: #6a1b9a; color: #fff; }
+
+    /* ── Sticky section anchors offset ── */
+    .anchor { display: block; height: 60px; margin-top: -60px; visibility: hidden; }
+
+    /* ── Responsive ── */
+    @media (max-width: 800px) {
+      nav { display: none; }
+      main { padding: 24px 20px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SIDEBAR NAVIGATION
+═══════════════════════════════════════════════════════════════════ -->
+<nav>
+  <div class="logo">
+    <h2>NAMP → CRMS</h2>
+    <p>Integration Reference Guide<br>v1.1 · 2026-05-16</p>
+  </div>
+  <ul>
+    <li class="section-head">Overview</li>
+    <li><a href="#overview">What This Guide Covers</a></li>
+    <li><a href="#flow">Integration Flow</a></li>
+    <li><a href="#prerequisites">Prerequisites</a></li>
+    <li class="section-head">Webhook Contract</li>
+    <li><a href="#endpoint">Endpoint &amp; Auth</a></li>
+    <li><a href="#request">Request Format</a></li>
+    <li><a href="#response">Expected Response</a></li>
+    <li><a href="#errors">Error Handling</a></li>
+    <li><a href="#idempotency">Idempotency</a></li>
+    <li class="section-head">Payload Schema</li>
+    <li><a href="#root">Root Fields</a></li>
+    <li><a href="#guarantors">guarantors[]</a></li>
+    <li><a href="#collaterals">collaterals[]</a></li>
+    <li><a href="#financials">financialStatements[]</a></li>
+    <li><a href="#cart">equipmentCart[]</a></li>
+    <li><a href="#documents">documents[]</a></li>
+    <li class="section-head">Enum Reference</li>
+    <li><a href="#enums">All Enum Values</a></li>
+    <li class="section-head">Sample Payloads</li>
+    <li><a href="#sample-company">Mechanisation Company</a></li>
+    <li><a href="#sample-youth">Youth Entrepreneur</a></li>
+    <li><a href="#sample-woman">Woman Entrepreneur</a></li>
+  </ul>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     MAIN CONTENT
+═══════════════════════════════════════════════════════════════════ -->
+<main>
+
+  <h1>NAMP → CRMS Integration Guide
+    <small>National Agricultural Mechanization Program · Bank of Agriculture · Heifer Nigeria</small>
+  </h1>
+
+  <!-- ── OVERVIEW ─────────────────────────────────────────────────── -->
+  <span class="anchor" id="overview"></span>
+  <h2>1. What This Guide Covers</h2>
+  <p>
+    The NAMP applicant portal collects all loan application data from shortlisted
+    applicants across three categories: <strong>Mechanisation Company</strong>,
+    <strong>Youth Entrepreneur</strong>, and <strong>Woman Entrepreneur</strong>.
+    When an applicant completes all requirements and clicks <em>Submit to CRMS</em>,
+    the NAMP API calls your webhook with a single JSON payload containing the full
+    loan file — applicant details, credit profile, guarantors, collateral, financial
+    statements (company only), equipment cart, and uploaded supporting documents
+    with their AWS S3 storage locations.
+  </p>
+  <p>
+    This document tells you exactly what to expect, what to return, and how to
+    handle every field in the payload.
+  </p>
+
+  <div class="box box-green">
+    <strong>Summary — what you need to build</strong>
+    A single <code>POST</code> endpoint that: accepts a JSON body as described below,
+    creates the loan application in CRMS, and returns a JSON object containing
+    <code>applicationId</code> and <code>applicationNumber</code>.
+  </div>
+
+  <!-- ── FLOW ─────────────────────────────────────────────────────── -->
+  <span class="anchor" id="flow"></span>
+  <h2>2. Integration Flow</h2>
+
+  <div class="seq">
+Applicant Portal (NAMP)                          CRMS Webhook
+        │                                              │
+        │  Applicant completes all Phase 2 steps       │
+        │  and clicks "Submit to CRMS"                 │
+        │                                              │
+        │──── POST {WebhookUrl}  ──────────────────────▶│
+        │     Header: X-Api-Key: {ApiKey}              │
+        │     Body:   CrmsPayload (JSON, camelCase)     │
+        │                                              │
+        │                     Create loan application  │
+        │                     in CRMS system           │
+        │                                              │
+        │◀─── 200 OK ─────────────────────────────────│
+        │     { "applicationId": "...",                │
+        │       "applicationNumber": "..." }           │
+        │                                              │
+        │  NAMP stores both IDs against the            │
+        │  applicant record and marks CRMS             │
+        │  submission as complete.                     │
+        │  Applicant sees CRMS reference on screen.    │
+  </div>
+
+  <!-- ── PREREQUISITES ────────────────────────────────────────────── -->
+  <span class="anchor" id="prerequisites"></span>
+  <h2>3. Prerequisites (What Is Guaranteed Before Your Webhook Fires)</h2>
+  <p>
+    NAMP enforces these checks server-side before calling your webhook.
+    You will <strong>never</strong> receive an incomplete payload.
+  </p>
+  <table>
+    <thead><tr><th>Condition</th><th>All Categories</th><th>Company Only</th></tr></thead>
+    <tbody>
+      <tr><td>Applicant is shortlisted and Phase 2 window is open</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Credit profile exists (BOA account, loan purpose, tenor)</td><td>✅</td><td>✅</td></tr>
+      <tr><td>At least 1 guarantor entered</td><td>✅</td><td>✅</td></tr>
+      <tr><td>At least 1 collateral entered</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Equipment cart is non-empty</td><td>✅</td><td>✅</td></tr>
+      <tr><td>At least 1 audited financial statement uploaded</td><td></td><td>✅</td></tr>
+      <tr><td>Equity contribution has been received in full (virtual account)</td><td>✅</td><td>✅</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── ENDPOINT ─────────────────────────────────────────────────── -->
+  <span class="anchor" id="endpoint"></span>
+  <h2>4. Endpoint &amp; Authentication</h2>
+
+  <h3>4.1 Your Webhook Endpoint</h3>
+  <p>The CRMS team provides one URL. NAMP stores it in <code>appsettings.json</code> under <code>Crms:WebhookUrl</code>.</p>
+  <table>
+    <thead><tr><th>Property</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Method</td><td><span class="badge badge-post">POST</span></td></tr>
+      <tr><td>URL</td><td><em>Provided by CRMS team — e.g. <code>https://crms.yourbank.ng/api/namp/applications</code></em></td></tr>
+      <tr><td>Content-Type</td><td><code>application/json; charset=utf-8</code></td></tr>
+      <tr><td>Auth header</td><td><code>X-Api-Key: {ApiKey}</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>4.2 API Key</h3>
+  <p>
+    The CRMS team generates an API key and shares it with the NAMP technical team.
+    NAMP stores it in <code>appsettings.json → Crms:ApiKey</code> and sends it on
+    every call as the <code>X-Api-Key</code> header. Validate it server-side and
+    return <span class="badge badge-401">401</span> if it is missing or incorrect.
+  </p>
+
+  <!-- ── REQUEST ──────────────────────────────────────────────────── -->
+  <span class="anchor" id="request"></span>
+  <h2>5. Request Format</h2>
+  <p>
+    All field names are <strong>camelCase</strong>. All monetary values are
+    <strong>Nigerian Naira (NGN) as raw decimal numbers</strong> — no commas,
+    no currency symbols. Financial statement figures follow the same convention
+    (confirm with NAMP team if NGN '000 or full NGN is expected for your system).
+    Dates are <strong>ISO 8601</strong> strings: <code>"yyyy-MM-dd"</code> for dates,
+    <code>"O"</code> (round-trip) format for timestamps.
+  </p>
+
+  <!-- ── RESPONSE ─────────────────────────────────────────────────── -->
+  <span class="anchor" id="response"></span>
+  <h2>6. Expected Response</h2>
+  <p>On success return <span class="badge badge-200">200 OK</span> with:</p>
+<pre><code>{
+  <span class="j-key">"applicationId"</span>:     <span class="j-str">"crms-internal-uuid-or-id"</span>,
+  <span class="j-key">"applicationNumber"</span>: <span class="j-str">"NAMP-2026-XXXXXXXX"</span>
+}</code></pre>
+  <p>Both values are stored in the NAMP database and displayed to the admin and applicant.</p>
+  <ul>
+    <li><code>applicationId</code> — your internal unique identifier for the loan application (can be a UUID, integer ID, or reference string).</li>
+    <li><code>applicationNumber</code> — the human-readable reference the loan officer and applicant will use (e.g. <code>NAMP-2026-ABC12345</code>).</li>
+  </ul>
+
+  <!-- ── ERROR HANDLING ───────────────────────────────────────────── -->
+  <span class="anchor" id="errors"></span>
+  <h2>7. Error Handling</h2>
+  <table>
+    <thead><tr><th>HTTP Status</th><th>Meaning</th><th>NAMP Behaviour</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-200">200</span></td>
+        <td>Application created successfully</td>
+        <td>Stores <code>applicationId</code> + <code>applicationNumber</code>, marks CRMS as submitted, locks equity snapshot.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-400">4xx</span></td>
+        <td>Validation or business rule failure</td>
+        <td>Returns the error to the applicant screen. Applicant can retry. Application is <strong>not</strong> marked as submitted.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-401">401</span></td>
+        <td>Invalid or missing API key</td>
+        <td>Same as 4xx — error shown, not marked submitted.</td>
+      </tr>
+      <tr>
+        <td>5xx / timeout</td>
+        <td>Server error on CRMS side</td>
+        <td>Same as 4xx — applicant sees "CRMS service unavailable" and can retry.</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="box box-amber">
+    <strong>Important — do not return 200 on failure</strong>
+    If you cannot create the application, return a 4xx or 5xx status.
+    Returning 200 with an empty body or an error message will cause NAMP to
+    store blank CRMS references and mark the application as submitted — the
+    applicant will not be able to re-submit.
+  </div>
+
+  <!-- ── IDEMPOTENCY ───────────────────────────────────────────────── -->
+  <span class="anchor" id="idempotency"></span>
+  <h2>8. Idempotency</h2>
+  <p>
+    NAMP is idempotent on its side — once a successful response is received, the
+    endpoint will not call your webhook again for the same application; it returns
+    the stored CRMS references immediately.
+  </p>
+  <p>
+    However, network failures or retries mean you <strong>may</strong> receive the
+    same <code>applicationReference</code> more than once. We recommend treating
+    <code>applicationReference</code> as a unique key and returning the existing
+    CRMS IDs if the application already exists rather than creating a duplicate.
+  </p>
+  <div class="box box-blue">
+    <strong>Deduplication key:</strong> <code>applicationReference</code> —
+    a 32-character hex string (UUID without hyphens). It is unique per NAMP application
+    and never changes.
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PAYLOAD SCHEMA
+  ══════════════════════════════════════════════════════════════ -->
+  <span class="anchor" id="root"></span>
+  <h2>9. Payload Schema — Root Fields</h2>
+
+  <p>
+    <span class="cat-all">ALL</span> = sent for all three categories &nbsp;
+    <span class="cat-co">COMPANY</span> = Mechanisation Company only &nbsp;
+    <span class="cat-ind">INDIVIDUAL</span> = Youth / Woman Entrepreneur only
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:220px">Field (camelCase)</th>
+        <th style="width:80px">Type</th>
+        <th style="width:80px">Category</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="4" style="background:#f0f4f8; font-weight:700; color:#1b5e20;">Application Identity</td></tr>
+      <tr><td><code>applicationReference</code></td><td>string</td><td><span class="cat-all">ALL</span></td><td>NAMP application UUID (no hyphens, 32 chars). Use as deduplication key.</td></tr>
+      <tr><td><code>submittedAt</code></td><td>string (ISO 8601)</td><td><span class="cat-all">ALL</span></td><td>UTC timestamp of CRMS submission, e.g. <code>"2026-05-10T11:30:00.000Z"</code></td></tr>
+      <tr><td><code>category</code></td><td>string (enum)</td><td><span class="cat-all">ALL</span></td><td>One of: <code>YouthEntrepreneur</code>, <code>WomanEntrepreneur</code>, <code>MechanisationCompany</code></td></tr>
+
+      <tr><td colspan="4" style="background:#f0f4f8; font-weight:700; color:#1b5e20;">Applicant / Company Identity</td></tr>
+      <tr><td><code>fullName</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>Full legal name of individual applicant or primary contact (company).</td></tr>
+      <tr><td><code>email</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>Contact email address.</td></tr>
+      <tr><td><code>phone</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>Nigerian mobile number.</td></tr>
+      <tr><td><code>nationalIdNumber</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>NIN — 11-digit National Identification Number.</td></tr>
+      <tr><td><code>bankVerificationNumber</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>BVN — 11-digit Bank Verification Number.</td></tr>
+      <tr><td><code>stateOfResidence</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>Nigerian state, e.g. <code>"Kano"</code>.</td></tr>
+      <tr><td><code>localGovernmentArea</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>LGA within the state.</td></tr>
+      <tr><td><code>dateOfBirth</code></td><td>string? (yyyy-MM-dd)</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Applicant date of birth. <code>null</code> for company category.</td></tr>
+      <tr><td><code>companyName</code></td><td>string?</td><td><span class="cat-co">COMPANY</span></td><td>Registered company name. <code>null</code> for individual categories.</td></tr>
+      <tr><td><code>rcNumber</code></td><td>string?</td><td><span class="cat-co">COMPANY</span></td><td>CAC Registration Number, e.g. <code>"RC1234567"</code>. <code>null</code> for individual categories.</td></tr>
+
+      <tr><td colspan="4" style="background:#f0f4f8; font-weight:700; color:#1b5e20;">BOA Account &amp; Loan Terms</td></tr>
+      <tr><td><code>boaAccountNumber</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>10-digit BOA account NUBAN (validated against CBS before submission).</td></tr>
+      <tr><td><code>boaAccountName</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>Account name as returned by CBS validation.</td></tr>
+      <tr><td><code>loanPurpose</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>Free text description of the loan purpose.</td></tr>
+      <tr><td><code>industrySector</code></td><td>string?</td><td><span class="cat-all">ALL</span></td><td>Industry sector string, e.g. <code>"AgriculturalMechanisation"</code>.</td></tr>
+      <tr><td><code>requestedTenorMonths</code></td><td>int?</td><td><span class="cat-all">ALL</span></td><td>Loan tenor in months, e.g. <code>60</code> (5 years).</td></tr>
+
+      <tr><td colspan="4" style="background:#f0f4f8; font-weight:700; color:#1b5e20;">Individual Credit Profile (null for Company)</td></tr>
+      <tr><td><code>occupation</code></td><td>string?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Job title or occupation description.</td></tr>
+      <tr><td><code>employerName</code></td><td>string?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Name of employer or business.</td></tr>
+      <tr><td><code>employmentStatus</code></td><td>string? (enum)</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>See <a href="#enums">Enum Reference</a>. One of: <code>Employed</code>, <code>SelfEmployed</code>, <code>Farmer</code>, <code>BusinessOwner</code>, <code>Other</code>.</td></tr>
+      <tr><td><code>yearsOfExperience</code></td><td>int?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Years of experience in agriculture / mechanisation.</td></tr>
+      <tr><td><code>numberOfDependants</code></td><td>int?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Number of financial dependants.</td></tr>
+      <tr><td><code>estimatedMonthlyIncome</code></td><td>decimal?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Primary gross monthly income in NGN.</td></tr>
+      <tr><td><code>otherIncomeSource</code></td><td>string?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Description of any secondary income source.</td></tr>
+      <tr><td><code>otherMonthlyIncome</code></td><td>decimal?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Secondary monthly income in NGN.</td></tr>
+      <tr><td><code>monthlyLivingExpenses</code></td><td>decimal?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Total monthly household expenditure in NGN.</td></tr>
+      <tr><td><code>ownedAssetsDescription</code></td><td>string?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Free text description of assets owned (land, vehicles, property, etc.).</td></tr>
+      <tr><td><code>estimatedNetWorth</code></td><td>decimal?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Self-declared total net worth in NGN.</td></tr>
+      <tr><td><code>existingLoanObligations</code></td><td>string?</td><td><span class="cat-ind">INDIVIDUAL</span></td><td>Details of any existing loan repayment obligations.</td></tr>
+
+      <tr><td colspan="4" style="background:#f0f4f8; font-weight:700; color:#1b5e20;">Equity &amp; Loan Amounts</td></tr>
+      <tr><td><code>equityPercent</code></td><td>decimal</td><td><span class="cat-all">ALL</span></td><td>Equity contribution percentage applied (e.g. <code>20.0</code> = 20%). Set by BOA admin per category.</td></tr>
+      <tr><td><code>cartTotal</code></td><td>decimal</td><td><span class="cat-all">ALL</span></td><td>Total cost of equipment selected in NGN.</td></tr>
+      <tr><td><code>equityAmount</code></td><td>decimal</td><td><span class="cat-all">ALL</span></td><td>Equity contribution amount in NGN (<code>cartTotal × equityPercent / 100</code>). This amount has already been received before this call.</td></tr>
+      <tr><td><code>loanAmount</code></td><td>decimal</td><td><span class="cat-all">ALL</span></td><td>Requested loan amount in NGN (<code>cartTotal - equityAmount</code>).</td></tr>
+
+      <tr><td colspan="4" style="background:#f0f4f8; font-weight:700; color:#1b5e20;">Collections</td></tr>
+      <tr><td><code>guarantors</code></td><td>array</td><td><span class="cat-all">ALL</span></td><td>One or more guarantor objects. See <a href="#guarantors">Section 10</a>.</td></tr>
+      <tr><td><code>collaterals</code></td><td>array</td><td><span class="cat-all">ALL</span></td><td>One or more collateral objects. See <a href="#collaterals">Section 11</a>.</td></tr>
+      <tr><td><code>financialStatements</code></td><td>array</td><td><span class="cat-co">COMPANY</span></td><td>One or more annual financial statement objects. Empty array for individual categories. See <a href="#financials">Section 12</a>.</td></tr>
+      <tr><td><code>equipmentCart</code></td><td>array</td><td><span class="cat-all">ALL</span></td><td>One or more equipment line items. See <a href="#cart">Section 13</a>.</td></tr>
+      <tr><td><code>documents</code></td><td>array</td><td><span class="cat-all">ALL</span></td><td>Uploaded supporting documents with S3 storage metadata. May be empty if no documents were uploaded. See <a href="#documents">Section 14</a>.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── GUARANTORS ────────────────────────────────────────────────── -->
+  <span class="anchor" id="guarantors"></span>
+  <h2>10. guarantors[] — Guarantor Object</h2>
+  <table>
+    <thead><tr><th style="width:220px">Field</th><th style="width:80px">Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Identity</td></tr>
+      <tr><td><code>fullName</code></td><td>string</td><td>Full legal name of the guarantor. Always present.</td></tr>
+      <tr><td><code>bvn</code></td><td>string?</td><td>11-digit Bank Verification Number.</td></tr>
+      <tr><td><code>nin</code></td><td>string?</td><td>11-digit National Identification Number.</td></tr>
+      <tr><td><code>dateOfBirth</code></td><td>string? (yyyy-MM-dd)</td><td>Guarantor date of birth.</td></tr>
+      <tr><td><code>gender</code></td><td>string?</td><td><code>"Male"</code> or <code>"Female"</code>.</td></tr>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Corporate Identity (if guarantorType = Corporate)</td></tr>
+      <tr><td><code>companyName</code></td><td>string?</td><td>Corporate guarantor company name.</td></tr>
+      <tr><td><code>companyRegistrationNumber</code></td><td>string?</td><td>CAC registration number of guarantor company.</td></tr>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Contact</td></tr>
+      <tr><td><code>email</code></td><td>string?</td><td>Guarantor email address.</td></tr>
+      <tr><td><code>phone</code></td><td>string?</td><td>Guarantor mobile number.</td></tr>
+      <tr><td><code>address</code></td><td>string?</td><td>Residential or business address.</td></tr>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Type &amp; Relationship</td></tr>
+      <tr><td><code>guarantorType</code></td><td>string (enum)</td><td><code>Individual</code>, <code>Corporate</code>, <code>Director</code>, <code>Shareholder</code>, <code>ThirdParty</code>.</td></tr>
+      <tr><td><code>guaranteeType</code></td><td>string (enum)</td><td><code>Limited</code>, <code>Unlimited</code>, <code>Joint</code>, <code>JointAndSeveral</code>, <code>Continuing</code>.</td></tr>
+      <tr><td><code>relationshipToApplicant</code></td><td>string?</td><td>Free text, e.g. <code>"Business Partner"</code>, <code>"Spouse"</code>.</td></tr>
+      <tr><td><code>isDirector</code></td><td>bool</td><td><code>true</code> when <code>guarantorType == "Director"</code>.</td></tr>
+      <tr><td><code>isShareholder</code></td><td>bool</td><td><code>true</code> when <code>guarantorType == "Shareholder"</code>.</td></tr>
+      <tr><td><code>shareholdingPercentage</code></td><td>decimal?</td><td>Percentage shareholding if applicable.</td></tr>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Financial Standing</td></tr>
+      <tr><td><code>declaredNetWorth</code></td><td>decimal?</td><td>Self-declared net worth in NGN.</td></tr>
+      <tr><td><code>occupation</code></td><td>string?</td><td>Guarantor occupation.</td></tr>
+      <tr><td><code>employerName</code></td><td>string?</td><td>Guarantor employer or business name.</td></tr>
+      <tr><td><code>monthlyIncome</code></td><td>decimal?</td><td>Guarantor gross monthly income in NGN.</td></tr>
+      <tr><td><code>currency</code></td><td>string</td><td>Always <code>"NGN"</code>.</td></tr>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Guarantee Details</td></tr>
+      <tr><td><code>guaranteeLimit</code></td><td>decimal?</td><td>Maximum guarantee amount in NGN. <code>null</code> when <code>isUnlimited = true</code>.</td></tr>
+      <tr><td><code>isUnlimited</code></td><td>bool</td><td><code>true</code> when <code>guaranteeType == "Unlimited"</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── COLLATERALS ───────────────────────────────────────────────── -->
+  <span class="anchor" id="collaterals"></span>
+  <h2>11. collaterals[] — Collateral Object</h2>
+  <table>
+    <thead><tr><th style="width:220px">Field</th><th style="width:80px">Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Asset Details</td></tr>
+      <tr><td><code>collateralType</code></td><td>string (enum)</td><td><code>RealEstate</code>, <code>FarmLand</code>, <code>Vehicle</code>, <code>Equipment</code>, <code>Inventory</code>, <code>CashDeposit</code>, <code>FixedDeposit</code>, <code>Stocks</code>, <code>Other</code>.</td></tr>
+      <tr><td><code>description</code></td><td>string</td><td>Full description of the asset. Always present.</td></tr>
+      <tr><td><code>assetIdentifier</code></td><td>string?</td><td>Title number, certificate reference, chassis number, etc.</td></tr>
+      <tr><td><code>location</code></td><td>string?</td><td>Physical location of the asset.</td></tr>
+      <tr><td><code>ownerName</code></td><td>string?</td><td>Name of the asset owner (may differ from applicant).</td></tr>
+      <tr><td><code>ownershipType</code></td><td>string?</td><td>e.g. <code>"Individual"</code>, <code>"Corporate"</code>, <code>"Joint"</code>.</td></tr>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Valuation</td></tr>
+      <tr><td><code>marketValue</code></td><td>decimal?</td><td>Current market value in NGN.</td></tr>
+      <tr><td><code>forcedSaleValue</code></td><td>decimal?</td><td>Estimated forced sale / liquidation value in NGN.</td></tr>
+      <tr><td><code>currency</code></td><td>string</td><td>Always <code>"NGN"</code>.</td></tr>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Lien</td></tr>
+      <tr><td><code>lienType</code></td><td>string? (enum)</td><td><code>FirstCharge</code>, <code>SecondCharge</code>, <code>FloatingCharge</code>, <code>FixedCharge</code>, <code>Pledge</code>, <code>Hypothecation</code>, <code>Assignment</code>. May be <code>null</code>.</td></tr>
+      <tr><td><code>lienReference</code></td><td>string?</td><td>Lien registration reference number.</td></tr>
+      <tr><td><code>lienRegistrationAuthority</code></td><td>string?</td><td>Authority where lien is registered, e.g. <code>"Corporate Affairs Commission"</code>.</td></tr>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Insurance</td></tr>
+      <tr><td><code>isInsured</code></td><td>bool</td><td><code>true</code> if the asset is insured.</td></tr>
+      <tr><td><code>insurancePolicyNumber</code></td><td>string?</td><td>Policy number if insured.</td></tr>
+      <tr><td><code>insuranceCompany</code></td><td>string?</td><td>Name of the insurance provider.</td></tr>
+      <tr><td><code>insuredValue</code></td><td>decimal?</td><td>Insured amount in NGN.</td></tr>
+      <tr><td><code>insuranceExpiryDate</code></td><td>string? (yyyy-MM-dd)</td><td>Policy expiry date.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── FINANCIAL STATEMENTS ─────────────────────────────────────── -->
+  <span class="anchor" id="financials"></span>
+  <h2>12. financialStatements[] — Financial Statement Object</h2>
+
+  <div class="box box-amber">
+    <strong>Company applicants only.</strong>
+    This array is always empty (<code>[]</code>) for Youth Entrepreneur and Woman Entrepreneur categories.
+    For Mechanisation Company, it contains one object per audited financial year uploaded
+    (minimum 1, typically 1–3 years).
+  </div>
+
+  <table>
+    <thead><tr><th style="width:240px">Field</th><th style="width:80px">Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Metadata</td></tr>
+      <tr><td><code>financialYear</code></td><td>int</td><td>Year, e.g. <code>2023</code>.</td></tr>
+      <tr><td><code>yearEndDate</code></td><td>string? (yyyy-MM-dd)</td><td>Year-end date, e.g. <code>"2023-12-31"</code>.</td></tr>
+      <tr><td><code>financialYearType</code></td><td>string</td><td>Always <code>"Audited"</code>.</td></tr>
+      <tr><td><code>inputMethod</code></td><td>string</td><td>Always <code>"ExcelUpload"</code>.</td></tr>
+      <tr><td><code>currency</code></td><td>string</td><td>Always <code>"NGN"</code>.</td></tr>
+
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Income Statement</td></tr>
+      <tr><td><code>revenue</code></td><td>decimal?</td><td>Total revenue / turnover.</td></tr>
+      <tr><td><code>otherOperatingIncome</code></td><td>decimal?</td><td>Other income from operations.</td></tr>
+      <tr><td><code>costOfSales</code></td><td>decimal?</td><td>Direct cost of goods / services sold.</td></tr>
+      <tr><td><code>grossProfit</code></td><td>decimal?</td><td>Computed: Revenue + OtherOpIncome − CostOfSales.</td></tr>
+      <tr><td><code>sellingExpenses</code></td><td>decimal?</td><td>Marketing, distribution, selling costs.</td></tr>
+      <tr><td><code>administrativeExpenses</code></td><td>decimal?</td><td>General &amp; administrative overhead.</td></tr>
+      <tr><td><code>depreciationAmortization</code></td><td>decimal?</td><td>D&amp;A charge for the period.</td></tr>
+      <tr><td><code>otherOperatingExpenses</code></td><td>decimal?</td><td>Other operating costs not classified above.</td></tr>
+      <tr><td><code>operatingExpenses</code></td><td>decimal?</td><td>Sum of selling + admin + D&amp;A + other operating expenses.</td></tr>
+      <tr><td><code>ebitda</code></td><td>decimal?</td><td>Earnings before interest, tax, depreciation &amp; amortisation.</td></tr>
+      <tr><td><code>interestIncome</code></td><td>decimal?</td><td>Interest earned.</td></tr>
+      <tr><td><code>interestExpense</code></td><td>decimal?</td><td>Interest paid on borrowings.</td></tr>
+      <tr><td><code>otherFinanceCosts</code></td><td>decimal?</td><td>Bank charges and other finance costs.</td></tr>
+      <tr><td><code>incomeTaxExpense</code></td><td>decimal?</td><td>Income tax charge for the year.</td></tr>
+      <tr><td><code>dividendsDeclared</code></td><td>decimal?</td><td>Dividends declared to shareholders.</td></tr>
+      <tr><td><code>netProfit</code></td><td>decimal?</td><td>Profit after tax.</td></tr>
+
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Balance Sheet — Current Assets</td></tr>
+      <tr><td><code>cashAndCashEquivalents</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>tradeReceivables</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>inventory</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>prepaidExpenses</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>otherCurrentAssets</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>totalCurrentAssets</code></td><td>decimal?</td><td>Sum of all current asset lines.</td></tr>
+
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Balance Sheet — Non-Current Assets</td></tr>
+      <tr><td><code>propertyPlantEquipment</code></td><td>decimal?</td><td>Net book value of PP&amp;E.</td></tr>
+      <tr><td><code>intangibleAssets</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>longTermInvestments</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>deferredTaxAssets</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>otherNonCurrentAssets</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>totalNonCurrentAssets</code></td><td>decimal?</td><td>Sum of all non-current asset lines.</td></tr>
+      <tr><td><code>totalAssets</code></td><td>decimal?</td><td>totalCurrentAssets + totalNonCurrentAssets.</td></tr>
+
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Balance Sheet — Current Liabilities</td></tr>
+      <tr><td><code>tradePayables</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>shortTermBorrowings</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>currentPortionLongTermDebt</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>accruedExpenses</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>taxPayable</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>otherCurrentLiabilities</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>totalCurrentLiabilities</code></td><td>decimal?</td><td></td></tr>
+
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Balance Sheet — Non-Current Liabilities</td></tr>
+      <tr><td><code>longTermDebt</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>deferredTaxLiabilities</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>provisions</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>otherNonCurrentLiabilities</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>totalNonCurrentLiabilities</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>totalLiabilities</code></td><td>decimal?</td><td>totalCurrentLiabilities + totalNonCurrentLiabilities.</td></tr>
+
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Balance Sheet — Equity</td></tr>
+      <tr><td><code>shareCapital</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>sharePremium</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>retainedEarnings</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>otherReserves</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>totalEquity</code></td><td>decimal?</td><td>shareCapital + sharePremium + retainedEarnings + otherReserves.</td></tr>
+
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Cash Flow — Operating Activities</td></tr>
+      <tr><td><code>cfProfitBeforeTax</code></td><td>decimal?</td><td>Profit before income tax (indirect method starting point).</td></tr>
+      <tr><td><code>cfDepreciationAmortization</code></td><td>decimal?</td><td>D&amp;A added back.</td></tr>
+      <tr><td><code>cfInterestExpenseAddBack</code></td><td>decimal?</td><td>Interest expense added back.</td></tr>
+      <tr><td><code>cfChangesInWorkingCapital</code></td><td>decimal?</td><td>Net change in working capital (can be negative).</td></tr>
+      <tr><td><code>cfTaxPaid</code></td><td>decimal?</td><td>Taxes paid (typically negative).</td></tr>
+      <tr><td><code>cfOtherOperatingAdjustments</code></td><td>decimal?</td><td>Other adjustments to operating cash flow.</td></tr>
+      <tr><td><code>netCashFromOperating</code></td><td>decimal?</td><td>Net operating cash flow.</td></tr>
+
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Cash Flow — Investing Activities</td></tr>
+      <tr><td><code>cfPurchaseOfPpe</code></td><td>decimal?</td><td>Capital expenditure on PP&amp;E (typically negative).</td></tr>
+      <tr><td><code>cfSaleOfPpe</code></td><td>decimal?</td><td>Proceeds from disposal of PP&amp;E.</td></tr>
+      <tr><td><code>cfPurchaseOfInvestments</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>cfSaleOfInvestments</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>cfInterestReceived</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>cfDividendsReceived</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>cfOtherInvestingActivities</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>netCashFromInvesting</code></td><td>decimal?</td><td></td></tr>
+
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Cash Flow — Financing Activities</td></tr>
+      <tr><td><code>cfProceedsFromBorrowings</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>cfRepaymentOfBorrowings</code></td><td>decimal?</td><td>(typically negative)</td></tr>
+      <tr><td><code>cfInterestPaid</code></td><td>decimal?</td><td>(typically negative)</td></tr>
+      <tr><td><code>cfDividendsPaid</code></td><td>decimal?</td><td>(typically negative)</td></tr>
+      <tr><td><code>cfProceedsFromShareIssue</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>cfOtherFinancingActivities</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>netCashFromFinancing</code></td><td>decimal?</td><td></td></tr>
+      <tr><td><code>netChangeInCash</code></td><td>decimal?</td><td>netCashFromOperating + netCashFromInvesting + netCashFromFinancing.</td></tr>
+      <tr><td><code>cfOpeningCashBalance</code></td><td>decimal?</td><td>Cash balance at start of year.</td></tr>
+      <tr><td><code>closingCashBalance</code></td><td>decimal?</td><td>Cash balance at end of year (= cfOpeningCashBalance + netChangeInCash).</td></tr>
+
+      <tr><td colspan="3" style="background:#f0f4f8; font-weight:700">Audit</td></tr>
+      <tr><td><code>auditorName</code></td><td>string?</td><td>Signing auditor's name.</td></tr>
+      <tr><td><code>auditorFirm</code></td><td>string?</td><td>Audit firm name.</td></tr>
+      <tr><td><code>auditDate</code></td><td>string? (yyyy-MM-dd)</td><td>Date the accounts were signed off.</td></tr>
+      <tr><td><code>auditOpinion</code></td><td>string?</td><td>e.g. <code>"Unqualified"</code>, <code>"Qualified"</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── EQUIPMENT CART ────────────────────────────────────────────── -->
+  <span class="anchor" id="cart"></span>
+  <h2>13. equipmentCart[] — Equipment Cart Item</h2>
+  <table>
+    <thead><tr><th style="width:160px">Field</th><th style="width:80px">Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>equipmentName</code></td><td>string</td><td>Name of the equipment type as configured in the NAMP equipment catalog.</td></tr>
+      <tr><td><code>quantity</code></td><td>int</td><td>Number of units requested.</td></tr>
+      <tr><td><code>unitCost</code></td><td>decimal</td><td>Unit cost in NGN at the time the cart was saved (price-locked snapshot).</td></tr>
+      <tr><td><code>lineTotal</code></td><td>decimal</td><td><code>quantity × unitCost</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── DOCUMENTS ───────────────────────────────────────────────── -->
+  <span class="anchor" id="documents"></span>
+  <h2>14. documents[] — Uploaded Document Object</h2>
+
+  <p>
+    Each item represents one uploaded Phase 2 document. The CRMS team can retrieve
+    the actual file from AWS S3 using the <code>s3BucketName</code> +
+    <code>s3Key</code> pair: <code>GetObject(bucket, key)</code>. No presigned URL
+    is included — CRMS must use its own AWS credentials (or an IAM role) with
+    <code>s3:GetObject</code> permission on the NAMP bucket.
+  </p>
+
+  <div class="box box-blue">
+    <strong>S3 access note</strong>
+    Bucket: <code>bankofagriculturetpdirectdocs</code> (AWS region: <code>eu-west-1</code>).
+    The CRMS IAM role requires <code>s3:GetObject</code> on
+    <code>arn:aws:s3:::bankofagriculturetpdirectdocs/phase2-docs/*</code>.
+    Keys follow the pattern: <code>phase2-docs/{applicationId}/{documentType}/{timestamp}_{filename}</code>.
+  </div>
+
+  <table>
+    <thead><tr><th style="width:220px">Field</th><th style="width:80px">Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>documentType</code></td><td>string</td><td>Enum string identifying the document category. One of the six values below.</td></tr>
+      <tr><td><code>documentTypeLabel</code></td><td>string</td><td>Human-readable label, e.g. <code>"Certificate of Incorporation (CAC)"</code>. Safe to display to loan officers.</td></tr>
+      <tr><td><code>fileName</code></td><td>string</td><td>Original filename as uploaded by the applicant, e.g. <code>"cert_of_inc.pdf"</code>.</td></tr>
+      <tr><td><code>s3BucketName</code></td><td>string</td><td>AWS S3 bucket containing the file. Always <code>"bankofagriculturetpdirectdocs"</code>.</td></tr>
+      <tr><td><code>s3Key</code></td><td>string</td><td>Full S3 object key. Use with <code>s3BucketName</code> to retrieve the file.</td></tr>
+      <tr><td><code>contentType</code></td><td>string?</td><td>MIME type, e.g. <code>"application/pdf"</code>, <code>"image/jpeg"</code>. May be <code>null</code> if not detected at upload time.</td></tr>
+      <tr><td><code>fileSizeBytes</code></td><td>long</td><td>File size in bytes at upload time.</td></tr>
+      <tr><td><code>uploadedAt</code></td><td>string (ISO 8601)</td><td>UTC timestamp when the document was uploaded, e.g. <code>"2026-05-16T12:00:00.0000000Z"</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>documentType values</h3>
+  <table>
+    <thead><tr><th>Value</th><th>Label</th><th>Required for</th></tr></thead>
+    <tbody>
+      <tr><td><code>CertificateOfIncorporation</code></td><td>Certificate of Incorporation (CAC)</td><td><span class="cat-co">COMPANY</span></td></tr>
+      <tr><td><code>CompanyProfile</code></td><td>Company Profile</td><td><span class="cat-co">COMPANY</span></td></tr>
+      <tr><td><code>TaxClearanceCertificate</code></td><td>Tax Clearance Certificate (TCC)</td><td><span class="cat-all">ALL</span></td></tr>
+      <tr><td><code>ValidIdentification</code></td><td>Valid Means of Identification</td><td><span class="cat-all">ALL</span></td></tr>
+      <tr><td><code>AuditedAccounts</code></td><td>Audited Accounts (Last 3 Years)</td><td><span class="cat-co">COMPANY</span></td></tr>
+      <tr><td><code>BankStatement</code></td><td>Bank Statement (Last 1 Year)</td><td><span class="cat-all">ALL</span></td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── ENUM REFERENCE ────────────────────────────────────────────── -->
+  <span class="anchor" id="enums"></span>
+  <h2>15. Enum Reference</h2>
+
+  <h3>category</h3>
+  <table>
+    <thead><tr><th>Value</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>YouthEntrepreneur</code></td><td>Individual applicant aged 18–35 in agricultural mechanisation.</td></tr>
+      <tr><td><code>WomanEntrepreneur</code></td><td>Individual female applicant in agricultural mechanisation.</td></tr>
+      <tr><td><code>MechanisationCompany</code></td><td>Registered company / agribusiness with CAC registration.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>employmentStatus</h3>
+  <table>
+    <thead><tr><th>Value</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>Employed</code></td><td>Salaried or wage employee.</td></tr>
+      <tr><td><code>SelfEmployed</code></td><td>Runs own unregistered business or freelance.</td></tr>
+      <tr><td><code>Farmer</code></td><td>Primary agricultural producer.</td></tr>
+      <tr><td><code>BusinessOwner</code></td><td>Owns a registered business entity.</td></tr>
+      <tr><td><code>Other</code></td><td>None of the above.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>guarantorType</h3>
+  <table>
+    <thead><tr><th>Value</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>Individual</code></td><td>A private individual guarantor.</td></tr>
+      <tr><td><code>Corporate</code></td><td>A registered company acting as guarantor.</td></tr>
+      <tr><td><code>Director</code></td><td>A director of the applicant company. Sets <code>isDirector = true</code>.</td></tr>
+      <tr><td><code>Shareholder</code></td><td>A shareholder of the applicant company. Sets <code>isShareholder = true</code>.</td></tr>
+      <tr><td><code>ThirdParty</code></td><td>Unrelated third-party guarantor.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>guaranteeType</h3>
+  <table>
+    <thead><tr><th>Value</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>Limited</code></td><td>Guarantee limited to a specific amount (<code>guaranteeLimit</code>).</td></tr>
+      <tr><td><code>Unlimited</code></td><td>Unlimited guarantee. Sets <code>isUnlimited = true</code>, <code>guaranteeLimit = null</code>.</td></tr>
+      <tr><td><code>Joint</code></td><td>Joint guarantee with other guarantors.</td></tr>
+      <tr><td><code>JointAndSeveral</code></td><td>Each guarantor is individually liable for the full amount.</td></tr>
+      <tr><td><code>Continuing</code></td><td>Continuing guarantee covering future obligations.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>collateralType</h3>
+  <table>
+    <thead><tr><th>Value</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>RealEstate</code></td><td>Commercial or residential property.</td></tr>
+      <tr><td><code>FarmLand</code></td><td>Agricultural land.</td></tr>
+      <tr><td><code>Vehicle</code></td><td>Motor vehicle, truck, or heavy machinery.</td></tr>
+      <tr><td><code>Equipment</code></td><td>Agricultural or industrial equipment.</td></tr>
+      <tr><td><code>Inventory</code></td><td>Stock or commodities.</td></tr>
+      <tr><td><code>CashDeposit</code></td><td>Cash held in a designated account.</td></tr>
+      <tr><td><code>FixedDeposit</code></td><td>Fixed deposit / term deposit certificate.</td></tr>
+      <tr><td><code>Stocks</code></td><td>Listed or unlisted equity securities.</td></tr>
+      <tr><td><code>Other</code></td><td>Other asset type (described in <code>description</code> field).</td></tr>
+    </tbody>
+  </table>
+
+  <h3>lienType</h3>
+  <table>
+    <thead><tr><th>Value</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>FirstCharge</code></td><td>First-priority security interest.</td></tr>
+      <tr><td><code>SecondCharge</code></td><td>Second-priority security interest.</td></tr>
+      <tr><td><code>FloatingCharge</code></td><td>Floating charge over changing assets (e.g. inventory).</td></tr>
+      <tr><td><code>FixedCharge</code></td><td>Fixed charge on a specific identified asset.</td></tr>
+      <tr><td><code>Pledge</code></td><td>Asset physically pledged to the lender.</td></tr>
+      <tr><td><code>Hypothecation</code></td><td>Asset charged without transfer of possession.</td></tr>
+      <tr><td><code>Assignment</code></td><td>Rights assigned to the lender (e.g. insurance policy).</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       SAMPLE PAYLOADS
+  ══════════════════════════════════════════════════════════════ -->
+  <span class="anchor" id="sample-company"></span>
+  <h2>16. Sample Payload — Mechanisation Company</h2>
+  <p>All sections populated. <code>financialStatements</code> contains 1 year. Individual credit fields are <code>null</code>.</p>
+
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"</span>,
+  <span class="j-key">"submittedAt"</span>:          <span class="j-str">"2026-05-10T11:30:00.0000000Z"</span>,
+  <span class="j-key">"category"</span>:            <span class="j-str">"MechanisationCompany"</span>,
+
+  <span class="j-key">"fullName"</span>:            <span class="j-str">"Adewale Okafor"</span>,
+  <span class="j-key">"email"</span>:              <span class="j-str">"adewale@greenfields.ng"</span>,
+  <span class="j-key">"phone"</span>:              <span class="j-str">"08031234567"</span>,
+  <span class="j-key">"nationalIdNumber"</span>:    <span class="j-str">"12345678901"</span>,
+  <span class="j-key">"bankVerificationNumber"</span>: <span class="j-str">"22345678901"</span>,
+  <span class="j-key">"stateOfResidence"</span>:    <span class="j-str">"Kano"</span>,
+  <span class="j-key">"localGovernmentArea"</span>: <span class="j-str">"Kano Municipal"</span>,
+  <span class="j-key">"dateOfBirth"</span>:         <span class="j-null">null</span>,
+  <span class="j-key">"companyName"</span>:         <span class="j-str">"Greenfields Agro-Mechanisation Ltd"</span>,
+  <span class="j-key">"rcNumber"</span>:            <span class="j-str">"RC1234567"</span>,
+
+  <span class="j-key">"boaAccountNumber"</span>:    <span class="j-str">"0123456789"</span>,
+  <span class="j-key">"boaAccountName"</span>:      <span class="j-str">"GREENFIELDS AGRO-MECHANISATION LTD"</span>,
+  <span class="j-key">"loanPurpose"</span>:         <span class="j-str">"Purchase of tractor units and planting equipment"</span>,
+  <span class="j-key">"industrySector"</span>:      <span class="j-str">"AgriculturalMechanisation"</span>,
+  <span class="j-key">"requestedTenorMonths"</span>: <span class="j-num">60</span>,
+
+  <span class="j-cmt">// Individual credit fields — null for company category</span>
+  <span class="j-key">"occupation"</span>: <span class="j-null">null</span>, <span class="j-key">"employerName"</span>: <span class="j-null">null</span>, <span class="j-key">"employmentStatus"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"yearsOfExperience"</span>: <span class="j-null">null</span>, <span class="j-key">"numberOfDependants"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"estimatedMonthlyIncome"</span>: <span class="j-null">null</span>, <span class="j-key">"otherIncomeSource"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"otherMonthlyIncome"</span>: <span class="j-null">null</span>, <span class="j-key">"monthlyLivingExpenses"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"ownedAssetsDescription"</span>: <span class="j-null">null</span>, <span class="j-key">"estimatedNetWorth"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"existingLoanObligations"</span>: <span class="j-null">null</span>,
+
+  <span class="j-key">"equityPercent"</span>: <span class="j-num">20.0</span>,
+  <span class="j-key">"cartTotal"</span>:     <span class="j-num">25000000.00</span>,
+  <span class="j-key">"equityAmount"</span>:  <span class="j-num">5000000.00</span>,
+  <span class="j-key">"loanAmount"</span>:    <span class="j-num">20000000.00</span>,
+
+  <span class="j-key">"guarantors"</span>: [
+    {
+      <span class="j-key">"fullName"</span>: <span class="j-str">"Funmilayo Adeyemi"</span>,
+      <span class="j-key">"bvn"</span>: <span class="j-str">"22987654321"</span>, <span class="j-key">"nin"</span>: <span class="j-str">"98765432101"</span>,
+      <span class="j-key">"dateOfBirth"</span>: <span class="j-str">"1975-06-15"</span>, <span class="j-key">"gender"</span>: <span class="j-str">"Female"</span>,
+      <span class="j-key">"companyName"</span>: <span class="j-null">null</span>, <span class="j-key">"companyRegistrationNumber"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"email"</span>: <span class="j-str">"f.adeyemi@example.ng"</span>, <span class="j-key">"phone"</span>: <span class="j-str">"08099887766"</span>,
+      <span class="j-key">"address"</span>: <span class="j-str">"14 Broad Street, Lagos Island, Lagos"</span>,
+      <span class="j-key">"guarantorType"</span>: <span class="j-str">"Shareholder"</span>,
+      <span class="j-key">"guaranteeType"</span>: <span class="j-str">"Limited"</span>,
+      <span class="j-key">"relationshipToApplicant"</span>: <span class="j-str">"Business Partner"</span>,
+      <span class="j-key">"isDirector"</span>: <span class="j-bool">false</span>, <span class="j-key">"isShareholder"</span>: <span class="j-bool">true</span>,
+      <span class="j-key">"shareholdingPercentage"</span>: <span class="j-num">30.0</span>,
+      <span class="j-key">"declaredNetWorth"</span>: <span class="j-num">45000000.00</span>,
+      <span class="j-key">"occupation"</span>: <span class="j-str">"Business Owner"</span>,
+      <span class="j-key">"employerName"</span>: <span class="j-str">"Adeyemi Holdings Ltd"</span>,
+      <span class="j-key">"monthlyIncome"</span>: <span class="j-num">850000.00</span>,
+      <span class="j-key">"currency"</span>: <span class="j-str">"NGN"</span>,
+      <span class="j-key">"guaranteeLimit"</span>: <span class="j-num">10000000.00</span>,
+      <span class="j-key">"isUnlimited"</span>: <span class="j-bool">false</span>
+    }
+  ],
+
+  <span class="j-key">"collaterals"</span>: [
+    {
+      <span class="j-key">"collateralType"</span>: <span class="j-str">"RealEstate"</span>,
+      <span class="j-key">"description"</span>: <span class="j-str">"Commercial warehouse — 2,400 sqm, Kano Industrial Layout"</span>,
+      <span class="j-key">"assetIdentifier"</span>: <span class="j-str">"TITLE-KN/GRA/2019/0045"</span>,
+      <span class="j-key">"location"</span>: <span class="j-str">"Kano Industrial Layout, Kano State"</span>,
+      <span class="j-key">"ownerName"</span>: <span class="j-str">"Greenfields Agro-Mechanisation Ltd"</span>,
+      <span class="j-key">"ownershipType"</span>: <span class="j-str">"Corporate"</span>,
+      <span class="j-key">"marketValue"</span>: <span class="j-num">35000000.00</span>,
+      <span class="j-key">"forcedSaleValue"</span>: <span class="j-num">28000000.00</span>,
+      <span class="j-key">"currency"</span>: <span class="j-str">"NGN"</span>,
+      <span class="j-key">"lienType"</span>: <span class="j-str">"FirstCharge"</span>,
+      <span class="j-key">"lienReference"</span>: <span class="j-str">"BOA/LIEN/2026/0112"</span>,
+      <span class="j-key">"lienRegistrationAuthority"</span>: <span class="j-str">"Corporate Affairs Commission"</span>,
+      <span class="j-key">"isInsured"</span>: <span class="j-bool">true</span>,
+      <span class="j-key">"insurancePolicyNumber"</span>: <span class="j-str">"AIICO/COM/2025/88731"</span>,
+      <span class="j-key">"insuranceCompany"</span>: <span class="j-str">"AIICO Insurance Plc"</span>,
+      <span class="j-key">"insuredValue"</span>: <span class="j-num">35000000.00</span>,
+      <span class="j-key">"insuranceExpiryDate"</span>: <span class="j-str">"2027-03-31"</span>
+    }
+  ],
+
+  <span class="j-key">"financialStatements"</span>: [
+    {
+      <span class="j-key">"financialYear"</span>: <span class="j-num">2023</span>, <span class="j-key">"yearEndDate"</span>: <span class="j-str">"2023-12-31"</span>,
+      <span class="j-key">"financialYearType"</span>: <span class="j-str">"Audited"</span>, <span class="j-key">"inputMethod"</span>: <span class="j-str">"ExcelUpload"</span>, <span class="j-key">"currency"</span>: <span class="j-str">"NGN"</span>,
+      <span class="j-cmt">// Income Statement</span>
+      <span class="j-key">"revenue"</span>: <span class="j-num">180000000</span>, <span class="j-key">"otherOperatingIncome"</span>: <span class="j-num">4500000</span>,
+      <span class="j-key">"costOfSales"</span>: <span class="j-num">112000000</span>, <span class="j-key">"grossProfit"</span>: <span class="j-num">72500000</span>,
+      <span class="j-key">"sellingExpenses"</span>: <span class="j-num">8200000</span>, <span class="j-key">"administrativeExpenses"</span>: <span class="j-num">12400000</span>,
+      <span class="j-key">"depreciationAmortization"</span>: <span class="j-num">6100000</span>, <span class="j-key">"otherOperatingExpenses"</span>: <span class="j-num">2300000</span>,
+      <span class="j-key">"operatingExpenses"</span>: <span class="j-num">29000000</span>, <span class="j-key">"ebitda"</span>: <span class="j-num">49600000</span>,
+      <span class="j-key">"interestIncome"</span>: <span class="j-num">800000</span>, <span class="j-key">"interestExpense"</span>: <span class="j-num">5200000</span>,
+      <span class="j-key">"otherFinanceCosts"</span>: <span class="j-num">600000</span>, <span class="j-key">"incomeTaxExpense"</span>: <span class="j-num">7300000</span>,
+      <span class="j-key">"dividendsDeclared"</span>: <span class="j-num">3000000</span>, <span class="j-key">"netProfit"</span>: <span class="j-num">31200000</span>,
+      <span class="j-cmt">// Balance Sheet — Current Assets</span>
+      <span class="j-key">"cashAndCashEquivalents"</span>: <span class="j-num">22000000</span>, <span class="j-key">"tradeReceivables"</span>: <span class="j-num">18500000</span>,
+      <span class="j-key">"inventory"</span>: <span class="j-num">14000000</span>, <span class="j-key">"prepaidExpenses"</span>: <span class="j-num">2100000</span>,
+      <span class="j-key">"otherCurrentAssets"</span>: <span class="j-num">1800000</span>, <span class="j-key">"totalCurrentAssets"</span>: <span class="j-num">58400000</span>,
+      <span class="j-cmt">// Balance Sheet — Non-Current Assets</span>
+      <span class="j-key">"propertyPlantEquipment"</span>: <span class="j-num">95000000</span>, <span class="j-key">"intangibleAssets"</span>: <span class="j-num">1200000</span>,
+      <span class="j-key">"longTermInvestments"</span>: <span class="j-num">8000000</span>, <span class="j-key">"deferredTaxAssets"</span>: <span class="j-num">0</span>,
+      <span class="j-key">"otherNonCurrentAssets"</span>: <span class="j-num">3400000</span>, <span class="j-key">"totalNonCurrentAssets"</span>: <span class="j-num">107600000</span>,
+      <span class="j-key">"totalAssets"</span>: <span class="j-num">166000000</span>,
+      <span class="j-cmt">// Balance Sheet — Current Liabilities</span>
+      <span class="j-key">"tradePayables"</span>: <span class="j-num">21000000</span>, <span class="j-key">"shortTermBorrowings"</span>: <span class="j-num">15000000</span>,
+      <span class="j-key">"currentPortionLongTermDebt"</span>: <span class="j-num">8000000</span>, <span class="j-key">"accruedExpenses"</span>: <span class="j-num">4500000</span>,
+      <span class="j-key">"taxPayable"</span>: <span class="j-num">3200000</span>, <span class="j-key">"otherCurrentLiabilities"</span>: <span class="j-num">1800000</span>,
+      <span class="j-key">"totalCurrentLiabilities"</span>: <span class="j-num">53500000</span>,
+      <span class="j-cmt">// Balance Sheet — Non-Current Liabilities</span>
+      <span class="j-key">"longTermDebt"</span>: <span class="j-num">42000000</span>, <span class="j-key">"deferredTaxLiabilities"</span>: <span class="j-num">1200000</span>,
+      <span class="j-key">"provisions"</span>: <span class="j-num">800000</span>, <span class="j-key">"otherNonCurrentLiabilities"</span>: <span class="j-num">500000</span>,
+      <span class="j-key">"totalNonCurrentLiabilities"</span>: <span class="j-num">44500000</span>, <span class="j-key">"totalLiabilities"</span>: <span class="j-num">98000000</span>,
+      <span class="j-cmt">// Balance Sheet — Equity</span>
+      <span class="j-key">"shareCapital"</span>: <span class="j-num">20000000</span>, <span class="j-key">"sharePremium"</span>: <span class="j-num">5000000</span>,
+      <span class="j-key">"retainedEarnings"</span>: <span class="j-num">41000000</span>, <span class="j-key">"otherReserves"</span>: <span class="j-num">2000000</span>,
+      <span class="j-key">"totalEquity"</span>: <span class="j-num">68000000</span>,
+      <span class="j-cmt">// Cash Flow</span>
+      <span class="j-key">"cfProfitBeforeTax"</span>: <span class="j-num">38500000</span>, <span class="j-key">"cfDepreciationAmortization"</span>: <span class="j-num">6100000</span>,
+      <span class="j-key">"cfInterestExpenseAddBack"</span>: <span class="j-num">5200000</span>, <span class="j-key">"cfChangesInWorkingCapital"</span>: <span class="j-num">-4200000</span>,
+      <span class="j-key">"cfTaxPaid"</span>: <span class="j-num">-7300000</span>, <span class="j-key">"cfOtherOperatingAdjustments"</span>: <span class="j-num">0</span>,
+      <span class="j-key">"netCashFromOperating"</span>: <span class="j-num">38300000</span>,
+      <span class="j-key">"cfPurchaseOfPpe"</span>: <span class="j-num">-12000000</span>, <span class="j-key">"cfSaleOfPpe"</span>: <span class="j-num">2500000</span>,
+      <span class="j-key">"cfPurchaseOfInvestments"</span>: <span class="j-num">0</span>, <span class="j-key">"cfSaleOfInvestments"</span>: <span class="j-num">0</span>,
+      <span class="j-key">"cfInterestReceived"</span>: <span class="j-num">800000</span>, <span class="j-key">"cfDividendsReceived"</span>: <span class="j-num">0</span>,
+      <span class="j-key">"cfOtherInvestingActivities"</span>: <span class="j-num">0</span>, <span class="j-key">"netCashFromInvesting"</span>: <span class="j-num">-8700000</span>,
+      <span class="j-key">"cfProceedsFromBorrowings"</span>: <span class="j-num">10000000</span>, <span class="j-key">"cfRepaymentOfBorrowings"</span>: <span class="j-num">-18000000</span>,
+      <span class="j-key">"cfInterestPaid"</span>: <span class="j-num">-5200000</span>, <span class="j-key">"cfDividendsPaid"</span>: <span class="j-num">-3000000</span>,
+      <span class="j-key">"cfProceedsFromShareIssue"</span>: <span class="j-num">0</span>, <span class="j-key">"cfOtherFinancingActivities"</span>: <span class="j-num">0</span>,
+      <span class="j-key">"netCashFromFinancing"</span>: <span class="j-num">-16200000</span>, <span class="j-key">"netChangeInCash"</span>: <span class="j-num">13400000</span>,
+      <span class="j-key">"cfOpeningCashBalance"</span>: <span class="j-num">8600000</span>, <span class="j-key">"closingCashBalance"</span>: <span class="j-num">22000000</span>,
+      <span class="j-key">"auditorName"</span>: <span class="j-str">"Emeka Nwosu ACA"</span>,
+      <span class="j-key">"auditorFirm"</span>: <span class="j-str">"Nwosu &amp; Associates Chartered Accountants"</span>,
+      <span class="j-key">"auditDate"</span>: <span class="j-str">"2024-03-15"</span>, <span class="j-key">"auditOpinion"</span>: <span class="j-str">"Unqualified"</span>
+    }
+  ],
+
+  <span class="j-key">"equipmentCart"</span>: [
+    { <span class="j-key">"equipmentName"</span>: <span class="j-str">"John Deere 5075E Utility Tractor"</span>, <span class="j-key">"quantity"</span>: <span class="j-num">3</span>, <span class="j-key">"unitCost"</span>: <span class="j-num">6500000.00</span>, <span class="j-key">"lineTotal"</span>: <span class="j-num">19500000.00</span> },
+    { <span class="j-key">"equipmentName"</span>: <span class="j-str">"Massey Ferguson 3-Row Planter"</span>,   <span class="j-key">"quantity"</span>: <span class="j-num">2</span>, <span class="j-key">"unitCost"</span>: <span class="j-num">2750000.00</span>, <span class="j-key">"lineTotal"</span>: <span class="j-num">5500000.00</span>  }
+  ],
+
+  <span class="j-key">"documents"</span>: [
+    {
+      <span class="j-key">"documentType"</span>:      <span class="j-str">"CertificateOfIncorporation"</span>,
+      <span class="j-key">"documentTypeLabel"</span>: <span class="j-str">"Certificate of Incorporation (CAC)"</span>,
+      <span class="j-key">"fileName"</span>:          <span class="j-str">"cert_of_incorporation.pdf"</span>,
+      <span class="j-key">"s3BucketName"</span>:      <span class="j-str">"bankofagriculturetpdirectdocs"</span>,
+      <span class="j-key">"s3Key"</span>:             <span class="j-str">"phase2-docs/a1b2c3d4.../CertificateOfIncorporation/20260516120000_cert_of_incorporation.pdf"</span>,
+      <span class="j-key">"contentType"</span>:       <span class="j-str">"application/pdf"</span>,
+      <span class="j-key">"fileSizeBytes"</span>:     <span class="j-num">245760</span>,
+      <span class="j-key">"uploadedAt"</span>:        <span class="j-str">"2026-05-16T12:00:00.0000000Z"</span>
+    },
+    {
+      <span class="j-key">"documentType"</span>:      <span class="j-str">"TaxClearanceCertificate"</span>,
+      <span class="j-key">"documentTypeLabel"</span>: <span class="j-str">"Tax Clearance Certificate (TCC)"</span>,
+      <span class="j-key">"fileName"</span>:          <span class="j-str">"tax_clearance_2025.pdf"</span>,
+      <span class="j-key">"s3BucketName"</span>:      <span class="j-str">"bankofagriculturetpdirectdocs"</span>,
+      <span class="j-key">"s3Key"</span>:             <span class="j-str">"phase2-docs/a1b2c3d4.../TaxClearanceCertificate/20260516130000_tax_clearance_2025.pdf"</span>,
+      <span class="j-key">"contentType"</span>:       <span class="j-str">"application/pdf"</span>,
+      <span class="j-key">"fileSizeBytes"</span>:     <span class="j-num">189440</span>,
+      <span class="j-key">"uploadedAt"</span>:        <span class="j-str">"2026-05-16T13:00:00.0000000Z"</span>
+    },
+    {
+      <span class="j-key">"documentType"</span>:      <span class="j-str">"AuditedAccounts"</span>,
+      <span class="j-key">"documentTypeLabel"</span>: <span class="j-str">"Audited Accounts (Last 3 Years)"</span>,
+      <span class="j-key">"fileName"</span>:          <span class="j-str">"audited_accounts_2022_2024.pdf"</span>,
+      <span class="j-key">"s3BucketName"</span>:      <span class="j-str">"bankofagriculturetpdirectdocs"</span>,
+      <span class="j-key">"s3Key"</span>:             <span class="j-str">"phase2-docs/a1b2c3d4.../AuditedAccounts/20260516140000_audited_accounts_2022_2024.pdf"</span>,
+      <span class="j-key">"contentType"</span>:       <span class="j-str">"application/pdf"</span>,
+      <span class="j-key">"fileSizeBytes"</span>:     <span class="j-num">1048576</span>,
+      <span class="j-key">"uploadedAt"</span>:        <span class="j-str">"2026-05-16T14:00:00.0000000Z"</span>
+    }
+  ]
+}</code></pre>
+
+  <!-- ── SAMPLE: YOUTH ──────────────────────────────────────────────── -->
+  <span class="anchor" id="sample-youth"></span>
+  <h2>17. Sample Payload — Youth Entrepreneur</h2>
+  <p>Individual credit profile fields are populated. <code>companyName</code>, <code>rcNumber</code>, and <code>financialStatements</code> are <code>null</code> / empty array. Equity % is typically 10%.</p>
+
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"submittedAt"</span>:          <span class="j-str">"2026-05-10T09:15:00.0000000Z"</span>,
+  <span class="j-key">"category"</span>:            <span class="j-str">"YouthEntrepreneur"</span>,
+
+  <span class="j-key">"fullName"</span>:            <span class="j-str">"Chukwuemeka Nwachukwu"</span>,
+  <span class="j-key">"email"</span>:              <span class="j-str">"emeka.nwachukwu@example.ng"</span>,
+  <span class="j-key">"phone"</span>:              <span class="j-str">"08055443322"</span>,
+  <span class="j-key">"nationalIdNumber"</span>:    <span class="j-str">"23456789012"</span>,
+  <span class="j-key">"bankVerificationNumber"</span>: <span class="j-str">"33456789012"</span>,
+  <span class="j-key">"stateOfResidence"</span>:    <span class="j-str">"Enugu"</span>,
+  <span class="j-key">"localGovernmentArea"</span>: <span class="j-str">"Enugu North"</span>,
+  <span class="j-key">"dateOfBirth"</span>:         <span class="j-str">"2000-03-22"</span>,
+  <span class="j-key">"companyName"</span>:         <span class="j-null">null</span>,
+  <span class="j-key">"rcNumber"</span>:            <span class="j-null">null</span>,
+
+  <span class="j-key">"boaAccountNumber"</span>:    <span class="j-str">"0987654321"</span>,
+  <span class="j-key">"boaAccountName"</span>:      <span class="j-str">"CHUKWUEMEKA NWACHUKWU"</span>,
+  <span class="j-key">"loanPurpose"</span>:         <span class="j-str">"Acquisition of tractor hire service equipment for smallholder farmers"</span>,
+  <span class="j-key">"industrySector"</span>:      <span class="j-str">"AgriculturalMechanisation"</span>,
+  <span class="j-key">"requestedTenorMonths"</span>: <span class="j-num">48</span>,
+
+  <span class="j-cmt">// Individual credit profile</span>
+  <span class="j-key">"occupation"</span>:              <span class="j-str">"Agricultural Entrepreneur"</span>,
+  <span class="j-key">"employerName"</span>:            <span class="j-str">"Self-employed"</span>,
+  <span class="j-key">"employmentStatus"</span>:        <span class="j-str">"SelfEmployed"</span>,
+  <span class="j-key">"yearsOfExperience"</span>:       <span class="j-num">4</span>,
+  <span class="j-key">"numberOfDependants"</span>:      <span class="j-num">2</span>,
+  <span class="j-key">"estimatedMonthlyIncome"</span>:  <span class="j-num">350000.00</span>,
+  <span class="j-key">"otherIncomeSource"</span>:       <span class="j-str">"Crop sales during harvest season"</span>,
+  <span class="j-key">"otherMonthlyIncome"</span>:      <span class="j-num">75000.00</span>,
+  <span class="j-key">"monthlyLivingExpenses"</span>:   <span class="j-num">180000.00</span>,
+  <span class="j-key">"ownedAssetsDescription"</span>:  <span class="j-str">"2-acre farmland in Enugu North (family land); 2019 Toyota Hilux"</span>,
+  <span class="j-key">"estimatedNetWorth"</span>:       <span class="j-num">4500000.00</span>,
+  <span class="j-key">"existingLoanObligations"</span>: <span class="j-str">"No existing loans"</span>,
+
+  <span class="j-key">"equityPercent"</span>: <span class="j-num">10.0</span>,
+  <span class="j-key">"cartTotal"</span>:     <span class="j-num">8500000.00</span>,
+  <span class="j-key">"equityAmount"</span>:  <span class="j-num">850000.00</span>,
+  <span class="j-key">"loanAmount"</span>:    <span class="j-num">7650000.00</span>,
+
+  <span class="j-key">"guarantors"</span>: [
+    {
+      <span class="j-key">"fullName"</span>: <span class="j-str">"Obiageli Nwachukwu"</span>,
+      <span class="j-key">"bvn"</span>: <span class="j-str">"33112233445"</span>, <span class="j-key">"nin"</span>: <span class="j-str">"11223344556"</span>,
+      <span class="j-key">"dateOfBirth"</span>: <span class="j-str">"1967-11-05"</span>, <span class="j-key">"gender"</span>: <span class="j-str">"Female"</span>,
+      <span class="j-key">"companyName"</span>: <span class="j-null">null</span>, <span class="j-key">"companyRegistrationNumber"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"email"</span>: <span class="j-str">"obi.nwachukwu@example.ng"</span>, <span class="j-key">"phone"</span>: <span class="j-str">"08077665544"</span>,
+      <span class="j-key">"address"</span>: <span class="j-str">"No. 7 Independence Layout, Enugu"</span>,
+      <span class="j-key">"guarantorType"</span>: <span class="j-str">"Individual"</span>,
+      <span class="j-key">"guaranteeType"</span>: <span class="j-str">"Limited"</span>,
+      <span class="j-key">"relationshipToApplicant"</span>: <span class="j-str">"Mother"</span>,
+      <span class="j-key">"isDirector"</span>: <span class="j-bool">false</span>, <span class="j-key">"isShareholder"</span>: <span class="j-bool">false</span>,
+      <span class="j-key">"shareholdingPercentage"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"declaredNetWorth"</span>: <span class="j-num">12000000.00</span>,
+      <span class="j-key">"occupation"</span>: <span class="j-str">"Retired Civil Servant"</span>,
+      <span class="j-key">"employerName"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"monthlyIncome"</span>: <span class="j-num">95000.00</span>,
+      <span class="j-key">"currency"</span>: <span class="j-str">"NGN"</span>,
+      <span class="j-key">"guaranteeLimit"</span>: <span class="j-num">4000000.00</span>,
+      <span class="j-key">"isUnlimited"</span>: <span class="j-bool">false</span>
+    }
+  ],
+
+  <span class="j-key">"collaterals"</span>: [
+    {
+      <span class="j-key">"collateralType"</span>: <span class="j-str">"FarmLand"</span>,
+      <span class="j-key">"description"</span>: <span class="j-str">"2-acre farmland, Enugu North LGA"</span>,
+      <span class="j-key">"assetIdentifier"</span>: <span class="j-str">"SURVEY-EN/007/2015"</span>,
+      <span class="j-key">"location"</span>: <span class="j-str">"Enugu North, Enugu State"</span>,
+      <span class="j-key">"ownerName"</span>: <span class="j-str">"Nwachukwu Family"</span>,
+      <span class="j-key">"ownershipType"</span>: <span class="j-str">"Individual"</span>,
+      <span class="j-key">"marketValue"</span>: <span class="j-num">6000000.00</span>,
+      <span class="j-key">"forcedSaleValue"</span>: <span class="j-num">4800000.00</span>,
+      <span class="j-key">"currency"</span>: <span class="j-str">"NGN"</span>,
+      <span class="j-key">"lienType"</span>: <span class="j-str">"FirstCharge"</span>,
+      <span class="j-key">"lienReference"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"lienRegistrationAuthority"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"isInsured"</span>: <span class="j-bool">false</span>,
+      <span class="j-key">"insurancePolicyNumber"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"insuranceCompany"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"insuredValue"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"insuranceExpiryDate"</span>: <span class="j-null">null</span>
+    }
+  ],
+
+  <span class="j-key">"financialStatements"</span>: [],
+
+  <span class="j-key">"equipmentCart"</span>: [
+    { <span class="j-key">"equipmentName"</span>: <span class="j-str">"Sonalika 60 HP Tractor"</span>, <span class="j-key">"quantity"</span>: <span class="j-num">1</span>, <span class="j-key">"unitCost"</span>: <span class="j-num">5500000.00</span>, <span class="j-key">"lineTotal"</span>: <span class="j-num">5500000.00</span> },
+    { <span class="j-key">"equipmentName"</span>: <span class="j-str">"Disc Plough 3-Disc"</span>,       <span class="j-key">"quantity"</span>: <span class="j-num">1</span>, <span class="j-key">"unitCost"</span>: <span class="j-num">1800000.00</span>, <span class="j-key">"lineTotal"</span>: <span class="j-num">1800000.00</span> },
+    { <span class="j-key">"equipmentName"</span>: <span class="j-str">"Boom Sprayer 600L"</span>,         <span class="j-key">"quantity"</span>: <span class="j-num">1</span>, <span class="j-key">"unitCost"</span>: <span class="j-num">1200000.00</span>, <span class="j-key">"lineTotal"</span>: <span class="j-num">1200000.00</span> }
+  ],
+
+  <span class="j-key">"documents"</span>: [
+    {
+      <span class="j-key">"documentType"</span>:      <span class="j-str">"ValidIdentification"</span>,
+      <span class="j-key">"documentTypeLabel"</span>: <span class="j-str">"Valid Means of Identification"</span>,
+      <span class="j-key">"fileName"</span>:          <span class="j-str">"national_id_emeka.jpg"</span>,
+      <span class="j-key">"s3BucketName"</span>:      <span class="j-str">"bankofagriculturetpdirectdocs"</span>,
+      <span class="j-key">"s3Key"</span>:             <span class="j-str">"phase2-docs/b2c3d4e5.../ValidIdentification/20260516100000_national_id_emeka.jpg"</span>,
+      <span class="j-key">"contentType"</span>:       <span class="j-str">"image/jpeg"</span>,
+      <span class="j-key">"fileSizeBytes"</span>:     <span class="j-num">512000</span>,
+      <span class="j-key">"uploadedAt"</span>:        <span class="j-str">"2026-05-16T10:00:00.0000000Z"</span>
+    },
+    {
+      <span class="j-key">"documentType"</span>:      <span class="j-str">"TaxClearanceCertificate"</span>,
+      <span class="j-key">"documentTypeLabel"</span>: <span class="j-str">"Tax Clearance Certificate (TCC)"</span>,
+      <span class="j-key">"fileName"</span>:          <span class="j-str">"tcc_2025.pdf"</span>,
+      <span class="j-key">"s3BucketName"</span>:      <span class="j-str">"bankofagriculturetpdirectdocs"</span>,
+      <span class="j-key">"s3Key"</span>:             <span class="j-str">"phase2-docs/b2c3d4e5.../TaxClearanceCertificate/20260516110000_tcc_2025.pdf"</span>,
+      <span class="j-key">"contentType"</span>:       <span class="j-str">"application/pdf"</span>,
+      <span class="j-key">"fileSizeBytes"</span>:     <span class="j-num">204800</span>,
+      <span class="j-key">"uploadedAt"</span>:        <span class="j-str">"2026-05-16T11:00:00.0000000Z"</span>
+    },
+    {
+      <span class="j-key">"documentType"</span>:      <span class="j-str">"BankStatement"</span>,
+      <span class="j-key">"documentTypeLabel"</span>: <span class="j-str">"Bank Statement (Last 1 Year)"</span>,
+      <span class="j-key">"fileName"</span>:          <span class="j-str">"bank_statement_2025.pdf"</span>,
+      <span class="j-key">"s3BucketName"</span>:      <span class="j-str">"bankofagriculturetpdirectdocs"</span>,
+      <span class="j-key">"s3Key"</span>:             <span class="j-str">"phase2-docs/b2c3d4e5.../BankStatement/20260516115000_bank_statement_2025.pdf"</span>,
+      <span class="j-key">"contentType"</span>:       <span class="j-str">"application/pdf"</span>,
+      <span class="j-key">"fileSizeBytes"</span>:     <span class="j-num">368640</span>,
+      <span class="j-key">"uploadedAt"</span>:        <span class="j-str">"2026-05-16T11:50:00.0000000Z"</span>
+    }
+  ]
+}</code></pre>
+
+  <!-- ── SAMPLE: WOMAN ──────────────────────────────────────────────── -->
+  <span class="anchor" id="sample-woman"></span>
+  <h2>18. Sample Payload — Woman Entrepreneur</h2>
+  <p>Structurally identical to Youth Entrepreneur. The only difference is <code>category = "WomanEntrepreneur"</code> and equity % may differ (configured per-category by the BOA admin).</p>
+
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8"</span>,
+  <span class="j-key">"submittedAt"</span>:          <span class="j-str">"2026-05-10T14:00:00.0000000Z"</span>,
+  <span class="j-key">"category"</span>:            <span class="j-str">"WomanEntrepreneur"</span>,
+
+  <span class="j-key">"fullName"</span>:            <span class="j-str">"Aisha Musa Ibrahim"</span>,
+  <span class="j-key">"email"</span>:              <span class="j-str">"aisha.ibrahim@example.ng"</span>,
+  <span class="j-key">"phone"</span>:              <span class="j-str">"08022334455"</span>,
+  <span class="j-key">"nationalIdNumber"</span>:    <span class="j-str">"34567890123"</span>,
+  <span class="j-key">"bankVerificationNumber"</span>: <span class="j-str">"44567890123"</span>,
+  <span class="j-key">"stateOfResidence"</span>:    <span class="j-str">"Sokoto"</span>,
+  <span class="j-key">"localGovernmentArea"</span>: <span class="j-str">"Sokoto North"</span>,
+  <span class="j-key">"dateOfBirth"</span>:         <span class="j-str">"1988-07-14"</span>,
+  <span class="j-key">"companyName"</span>:         <span class="j-null">null</span>,
+  <span class="j-key">"rcNumber"</span>:            <span class="j-null">null</span>,
+
+  <span class="j-key">"boaAccountNumber"</span>:    <span class="j-str">"0112233445"</span>,
+  <span class="j-key">"boaAccountName"</span>:      <span class="j-str">"AISHA MUSA IBRAHIM"</span>,
+  <span class="j-key">"loanPurpose"</span>:         <span class="j-str">"Purchase of rice threshing and milling equipment"</span>,
+  <span class="j-key">"industrySector"</span>:      <span class="j-str">"AgriculturalMechanisation"</span>,
+  <span class="j-key">"requestedTenorMonths"</span>: <span class="j-num">36</span>,
+
+  <span class="j-key">"occupation"</span>:              <span class="j-str">"Rice Farmer and Processor"</span>,
+  <span class="j-key">"employerName"</span>:            <span class="j-str">"Ibrahim Farms"</span>,
+  <span class="j-key">"employmentStatus"</span>:        <span class="j-str">"Farmer"</span>,
+  <span class="j-key">"yearsOfExperience"</span>:       <span class="j-num">8</span>,
+  <span class="j-key">"numberOfDependants"</span>:      <span class="j-num">4</span>,
+  <span class="j-key">"estimatedMonthlyIncome"</span>:  <span class="j-num">220000.00</span>,
+  <span class="j-key">"otherIncomeSource"</span>:       <span class="j-null">null</span>,
+  <span class="j-key">"otherMonthlyIncome"</span>:      <span class="j-null">null</span>,
+  <span class="j-key">"monthlyLivingExpenses"</span>:   <span class="j-num">130000.00</span>,
+  <span class="j-key">"ownedAssetsDescription"</span>:  <span class="j-str">"5-acre irrigated rice farm, Sokoto North (certificate of occupancy held)"</span>,
+  <span class="j-key">"estimatedNetWorth"</span>:       <span class="j-num">8500000.00</span>,
+  <span class="j-key">"existingLoanObligations"</span>: <span class="j-str">"BOA Agric loan balance ₦250,000 — 4 months remaining"</span>,
+
+  <span class="j-key">"equityPercent"</span>: <span class="j-num">10.0</span>,
+  <span class="j-key">"cartTotal"</span>:     <span class="j-num">6200000.00</span>,
+  <span class="j-key">"equityAmount"</span>:  <span class="j-num">620000.00</span>,
+  <span class="j-key">"loanAmount"</span>:    <span class="j-num">5580000.00</span>,
+
+  <span class="j-key">"guarantors"</span>: [
+    {
+      <span class="j-key">"fullName"</span>: <span class="j-str">"Musa Usman Ibrahim"</span>,
+      <span class="j-key">"bvn"</span>: <span class="j-str">"44223344556"</span>, <span class="j-key">"nin"</span>: <span class="j-str">"22334455667"</span>,
+      <span class="j-key">"dateOfBirth"</span>: <span class="j-str">"1960-02-28"</span>, <span class="j-key">"gender"</span>: <span class="j-str">"Male"</span>,
+      <span class="j-key">"companyName"</span>: <span class="j-null">null</span>, <span class="j-key">"companyRegistrationNumber"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"email"</span>: <span class="j-null">null</span>, <span class="j-key">"phone"</span>: <span class="j-str">"08033221100"</span>,
+      <span class="j-key">"address"</span>: <span class="j-str">"Wurno Road, Sokoto"</span>,
+      <span class="j-key">"guarantorType"</span>: <span class="j-str">"Individual"</span>,
+      <span class="j-key">"guaranteeType"</span>: <span class="j-str">"JointAndSeveral"</span>,
+      <span class="j-key">"relationshipToApplicant"</span>: <span class="j-str">"Spouse"</span>,
+      <span class="j-key">"isDirector"</span>: <span class="j-bool">false</span>, <span class="j-key">"isShareholder"</span>: <span class="j-bool">false</span>,
+      <span class="j-key">"shareholdingPercentage"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"declaredNetWorth"</span>: <span class="j-num">9000000.00</span>,
+      <span class="j-key">"occupation"</span>: <span class="j-str">"Farmer"</span>,
+      <span class="j-key">"employerName"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"monthlyIncome"</span>: <span class="j-num">180000.00</span>,
+      <span class="j-key">"currency"</span>: <span class="j-str">"NGN"</span>,
+      <span class="j-key">"guaranteeLimit"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"isUnlimited"</span>: <span class="j-bool">false</span>
+    }
+  ],
+
+  <span class="j-key">"collaterals"</span>: [
+    {
+      <span class="j-key">"collateralType"</span>: <span class="j-str">"FarmLand"</span>,
+      <span class="j-key">"description"</span>: <span class="j-str">"5-acre irrigated rice farm with Certificate of Occupancy"</span>,
+      <span class="j-key">"assetIdentifier"</span>: <span class="j-str">"C-OF-O/SK/2018/11234"</span>,
+      <span class="j-key">"location"</span>: <span class="j-str">"Sokoto North, Sokoto State"</span>,
+      <span class="j-key">"ownerName"</span>: <span class="j-str">"Aisha Musa Ibrahim"</span>,
+      <span class="j-key">"ownershipType"</span>: <span class="j-str">"Individual"</span>,
+      <span class="j-key">"marketValue"</span>: <span class="j-num">9500000.00</span>,
+      <span class="j-key">"forcedSaleValue"</span>: <span class="j-num">7500000.00</span>,
+      <span class="j-key">"currency"</span>: <span class="j-str">"NGN"</span>,
+      <span class="j-key">"lienType"</span>: <span class="j-str">"FirstCharge"</span>,
+      <span class="j-key">"lienReference"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"lienRegistrationAuthority"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"isInsured"</span>: <span class="j-bool">false</span>,
+      <span class="j-key">"insurancePolicyNumber"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"insuranceCompany"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"insuredValue"</span>: <span class="j-null">null</span>,
+      <span class="j-key">"insuranceExpiryDate"</span>: <span class="j-null">null</span>
+    }
+  ],
+
+  <span class="j-key">"financialStatements"</span>: [],
+
+  <span class="j-key">"equipmentCart"</span>: [
+    { <span class="j-key">"equipmentName"</span>: <span class="j-str">"Rice Thresher (Engine-Powered)"</span>, <span class="j-key">"quantity"</span>: <span class="j-num">2</span>, <span class="j-key">"unitCost"</span>: <span class="j-num">1800000.00</span>, <span class="j-key">"lineTotal"</span>: <span class="j-num">3600000.00</span> },
+    { <span class="j-key">"equipmentName"</span>: <span class="j-str">"Mini Rice Milling Machine"</span>,      <span class="j-key">"quantity"</span>: <span class="j-num">1</span>, <span class="j-key">"unitCost"</span>: <span class="j-num">2600000.00</span>, <span class="j-key">"lineTotal"</span>: <span class="j-num">2600000.00</span> }
+  ],
+
+  <span class="j-key">"documents"</span>: [
+    {
+      <span class="j-key">"documentType"</span>:      <span class="j-str">"ValidIdentification"</span>,
+      <span class="j-key">"documentTypeLabel"</span>: <span class="j-str">"Valid Means of Identification"</span>,
+      <span class="j-key">"fileName"</span>:          <span class="j-str">"voters_card_fatima.pdf"</span>,
+      <span class="j-key">"s3BucketName"</span>:      <span class="j-str">"bankofagriculturetpdirectdocs"</span>,
+      <span class="j-key">"s3Key"</span>:             <span class="j-str">"phase2-docs/c3d4e5f6.../ValidIdentification/20260516090000_voters_card_fatima.pdf"</span>,
+      <span class="j-key">"contentType"</span>:       <span class="j-str">"application/pdf"</span>,
+      <span class="j-key">"fileSizeBytes"</span>:     <span class="j-num">307200</span>,
+      <span class="j-key">"uploadedAt"</span>:        <span class="j-str">"2026-05-16T09:00:00.0000000Z"</span>
+    },
+    {
+      <span class="j-key">"documentType"</span>:      <span class="j-str">"BankStatement"</span>,
+      <span class="j-key">"documentTypeLabel"</span>: <span class="j-str">"Bank Statement (Last 1 Year)"</span>,
+      <span class="j-key">"fileName"</span>:          <span class="j-str">"boa_statement_2025.pdf"</span>,
+      <span class="j-key">"s3BucketName"</span>:      <span class="j-str">"bankofagriculturetpdirectdocs"</span>,
+      <span class="j-key">"s3Key"</span>:             <span class="j-str">"phase2-docs/c3d4e5f6.../BankStatement/20260516093000_boa_statement_2025.pdf"</span>,
+      <span class="j-key">"contentType"</span>:       <span class="j-str">"application/pdf"</span>,
+      <span class="j-key">"fileSizeBytes"</span>:     <span class="j-num">425984</span>,
+      <span class="j-key">"uploadedAt"</span>:        <span class="j-str">"2026-05-16T09:30:00.0000000Z"</span>
+    }
+  ]
+}</code></pre>
+
+  <div class="box box-green" style="margin-top:40px">
+    <strong>Questions?</strong>
+    Contact the NAMP technical team. Share your webhook URL and API key once ready.
+    The CRMS dev team does not need access to the NAMP portal to test — the payload
+    above can be sent directly to your endpoint using Postman or curl to validate
+    your implementation before going live.
+  </div>
+
+  <p style="margin-top:40px; font-size:12px; color:#9e9e9e;">
+    Document generated 2026-05-16 · NAMP Portal v3.1 · Bank of Agriculture / Heifer Nigeria
+  </p>
+
+</main>
+</div>
+</body>
+</html>

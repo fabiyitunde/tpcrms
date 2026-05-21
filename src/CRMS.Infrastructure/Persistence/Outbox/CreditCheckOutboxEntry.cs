@@ -17,6 +17,7 @@ public class CreditCheckOutboxEntry
 {
     public Guid Id { get; set; }
     public Guid LoanApplicationId { get; set; }
+    public Guid? NampApplicationId { get; set; }
     public Guid SystemUserId { get; set; }
     public DateTime CreatedAt { get; set; }
     public CreditCheckOutboxStatus Status { get; set; }

@@ -3,7 +3,8 @@ namespace CRMS.Domain.Enums;
 public enum LoanProductType
 {
     Retail,
-    Corporate
+    Corporate,
+    Namp
 }
 
 public enum ProductStatus

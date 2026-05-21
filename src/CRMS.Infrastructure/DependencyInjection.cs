@@ -13,8 +13,10 @@ using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
 using CRMS.Infrastructure.BackgroundServices;
 using CRMS.Application.Advisory.Interfaces;
+using CRMS.Domain.Aggregates.Namp;
 using CRMS.Infrastructure.Events;
 using CRMS.Infrastructure.Events.Handlers;
+using CRMS.Infrastructure.ExternalServices.Namp;
 using CRMS.Infrastructure.ExternalServices.AI;
 using CRMS.Infrastructure.ExternalServices.AIServices;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
@@ -29,6 +31,7 @@ using CRMS.Infrastructure.Services;
 using CRMS.Infrastructure.Identity;
 using CRMS.Infrastructure.Persistence;
 using CRMS.Infrastructure.Persistence.Repositories;
+using CRMS.Infrastructure.Persistence.Repositories.Namp;
 using CRMS.Infrastructure.Workflow;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -52,7 +55,11 @@ public static class DependencyInjection
         services.AddDbContext<CRMSDbContext>((serviceProvider, options) =>
         {
             var interceptor = serviceProvider.GetRequiredService<DomainEventPublishingInterceptor>();
-            options.UseMySql(connectionString, serverVersion)
+            options.UseMySql(connectionString, serverVersion,
+                        mySqlOptions => mySqlOptions.EnableRetryOnFailure(
+                            maxRetryCount: 3,
+                            maxRetryDelay: TimeSpan.FromSeconds(5),
+                            errorNumbersToAdd: null))
                    .AddInterceptors(interceptor);
         });
 
@@ -174,6 +181,29 @@ public static class DependencyInjection
         // Location
         services.AddScoped<ILocationRepository, Persistence.Repositories.Location.LocationRepository>();
         services.AddScoped<VisibilityService>();
+
+        // NAMP — Repositories
+        services.AddScoped<INampStagingRepository, NampStagingRepository>();
+        services.AddScoped<INampRoutingConfigRepository, NampRoutingConfigRepository>();
+        services.AddScoped<INampApplicationRepository, NampApplicationRepository>();
+        services.AddScoped<INampWorkflowConfigRepository, NampWorkflowConfigRepository>();
+        services.AddScoped<INampWorkflowInstanceRepository, NampWorkflowInstanceRepository>();
+
+        var nampSection = configuration.GetSection(NampSettings.SectionName);
+        if (nampSection.Exists() && !nampSection.GetValue<bool>("UseMock"))
+        {
+            services.Configure<NampSettings>(nampSection);
+            services.AddHttpClient<INampCallbackService, NampCallbackService>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(nampSection.GetValue<int>("TimeoutSeconds", 30));
+            })
+            .AddPolicyHandler(GetNampCallbackRetryPolicy());
+        }
+        else
+        {
+            services.Configure<NampSettings>(nampSection);
+            services.AddScoped<INampCallbackService, MockNampCallbackService>();
+        }
 
         // FinancialStatement
         services.AddScoped<IFinancialStatementRepository, FinancialStatementRepository>();
@@ -516,6 +546,44 @@ public static class DependencyInjection
         services.AddScoped<Application.FinancialAnalysis.Queries.GetFinancialStatementsByLoanApplicationHandler>();
         services.AddScoped<Application.FinancialAnalysis.Queries.GetFinancialRatiosTrendHandler>();
 
+        // NAMP — Domain Event Handler (workflow instance SLA tracking)
+        services.AddScoped<IDomainEventHandler<NampStatusChangedEvent>, NampStatusChangedWorkflowHandler>();
+
+        // NAMP — Domain Event Handler (outbound PAYS callback on terminal status)
+        services.AddScoped<IDomainEventHandler<NampStatusChangedEvent>, NampCallbackEventHandler>();
+
+        // NAMP — Application Handlers
+        services.AddScoped<Application.Namp.Commands.RecallNampApplicationHandler>();
+        services.AddScoped<Application.Namp.Commands.SubmitNampApplicationHandler>();
+        services.AddScoped<Application.Namp.Commands.SubmitNampTechnicalAppraisalHandler>();
+        services.AddScoped<Application.Namp.Commands.SubmitNampFinancialAppraisalHandler>();
+        services.AddScoped<Application.Namp.Commands.CirculateNampToCommitteeHandler>();
+        services.AddScoped<Application.Namp.Commands.RecordNampCommitteeOutcomeHandler>();
+        services.AddScoped<Application.Namp.Commands.RatifyNampDecisionHandler>();
+        services.AddScoped<Application.Namp.Commands.DeclineNampRatificationHandler>();
+        services.AddScoped<Application.Namp.Commands.RecordNampOfferAcceptanceHandler>();
+        services.AddScoped<Application.Namp.Commands.LapseNampOfferHandler>();
+        services.AddScoped<Application.Namp.Commands.BeginNampPreDeploymentVerificationHandler>();
+        services.AddScoped<Application.Namp.Commands.CompleteNampPreDeploymentVerificationHandler>();
+        services.AddScoped<Application.Namp.Commands.CompleteNampTrainingHandler>();
+        services.AddScoped<Application.Namp.Commands.ConfirmNampDeploymentHandler>();
+        services.AddScoped<Application.Namp.Commands.UploadNampDocumentHandler>();
+        services.AddScoped<Application.Namp.Commands.DeleteNampDocumentHandler>();
+        services.AddScoped<Application.Namp.Commands.UpdateNampDocumentHandler>();
+        services.AddScoped<Application.Namp.Commands.CreateNampRoutingConfigHandler>();
+        services.AddScoped<Application.Namp.Commands.UpdateNampRoutingConfigHandler>();
+        services.AddScoped<Application.Namp.Commands.ToggleNampRoutingConfigHandler>();
+        services.AddScoped<Application.Namp.Queries.GetNampStagingQueueHandler>();
+        services.AddScoped<Application.Namp.Queries.GetNampStagingRecordByIdHandler>();
+        services.AddScoped<Application.Namp.Queries.GetNampApplicationByIdHandler>();
+        services.AddScoped<Application.Namp.Queries.GetNampApplicationsByStatusHandler>();
+        services.AddScoped<Application.Namp.Queries.GetNampApplicationsByStatusAndTierHandler>();
+        services.AddScoped<Application.Namp.Queries.GetNampRoutingConfigsHandler>();
+        services.AddScoped<Application.Namp.Queries.GetNampWorkflowConfigsHandler>();
+        services.AddScoped<Application.Namp.Commands.SaveNampTechnicalAppraisalReportHandler>();
+        services.AddScoped<Application.Namp.Commands.SaveNampFinancialAppraisalReportHandler>();
+        services.AddScoped<Application.CreditBureau.Commands.ProcessNampCreditChecksHandler>();
+
         // Approval Gate
         services.Configure<WorkflowApprovalGateSettings>(configuration.GetSection(WorkflowApprovalGateSettings.SectionName));
         services.AddScoped<Application.Workflow.Interfaces.IApprovalGateConfig, Workflow.ApprovalGateConfig>();
@@ -557,5 +625,16 @@ public static class DependencyInjection
         return HttpPolicyExtensions
             .HandleTransientHttpError()
             .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30));
+    }
+
+    /// <summary>
+    /// Retry policy for NAMP callback: 3 retries with exponential backoff (2s, 4s, 8s).
+    /// Callbacks are fire-and-forget from the domain perspective but we retry before giving up.
+    /// </summary>
+    private static IAsyncPolicy<HttpResponseMessage> GetNampCallbackRetryPolicy()
+    {
+        return HttpPolicyExtensions
+            .HandleTransientHttpError()
+            .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
     }
 }

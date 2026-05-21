@@ -8,4 +8,5 @@ namespace CRMS.Application.CreditBureau.Interfaces;
 public interface ICreditCheckOutbox
 {
     Task EnqueueAsync(Guid loanApplicationId, Guid systemUserId, CancellationToken ct = default);
+    Task EnqueueForNampAsync(Guid nampApplicationId, Guid systemUserId, CancellationToken ct = default);
 }

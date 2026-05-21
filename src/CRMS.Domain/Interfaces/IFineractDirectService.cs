@@ -38,7 +38,16 @@ public interface IFineractDirectService
     /// </summary>
     Task<Result<IReadOnlyList<FineractLoanProduct>>> GetLoanProductsAsync(
         bool activeOnly = true, CancellationToken ct = default);
+
+    /// <summary>
+    /// Get client details by clientId (GET /clients/{clientId}).
+    /// Returns officeId and officeName, which map to a CRMS branch/location.
+    /// Used at NAMP webhook ingest to resolve which branch the applicant belongs to.
+    /// </summary>
+    Task<Result<FineractClientInfo>> GetClientByIdAsync(long clientId, CancellationToken ct = default);
 }
+
+public record FineractClientInfo(long Id, int OfficeId, string OfficeName, string DisplayName);
 
 // Schedule Calculation
 public record ScheduleCalculationRequest(

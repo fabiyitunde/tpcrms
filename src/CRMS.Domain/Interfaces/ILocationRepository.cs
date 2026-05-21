@@ -31,6 +31,12 @@ public interface ILocationRepository
     /// </summary>
     Task<Location?> GetHierarchyTreeAsync(CancellationToken ct = default);
     
+    /// <summary>
+    /// Finds an active Branch location by name (case-insensitive).
+    /// Used to map a Fineract officeName to a CRMS branch ID at NAMP webhook ingest.
+    /// </summary>
+    Task<Location?> GetBranchByNameAsync(string name, CancellationToken ct = default);
+
     Task AddAsync(Location location, CancellationToken ct = default);
     void Update(Location location);
     Task<bool> ExistsAsync(Guid id, CancellationToken ct = default);

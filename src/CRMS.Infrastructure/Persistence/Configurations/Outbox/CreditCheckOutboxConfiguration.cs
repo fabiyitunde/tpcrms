@@ -12,7 +12,8 @@ public class CreditCheckOutboxConfiguration : IEntityTypeConfiguration<CreditChe
 
         builder.HasKey(e => e.Id);
 
-        builder.Property(e => e.LoanApplicationId).IsRequired();
+        builder.Property(e => e.LoanApplicationId); // nullable — either LoanApplicationId or NampApplicationId is set
+        builder.Property(e => e.NampApplicationId);
         builder.Property(e => e.SystemUserId).IsRequired();
         builder.Property(e => e.CreatedAt).IsRequired();
         builder.Property(e => e.Status)
@@ -25,5 +26,6 @@ public class CreditCheckOutboxConfiguration : IEntityTypeConfiguration<CreditChe
         // Fast lookup for the polling query
         builder.HasIndex(e => e.Status).HasDatabaseName("IX_CreditCheckOutbox_Status");
         builder.HasIndex(e => e.LoanApplicationId).HasDatabaseName("IX_CreditCheckOutbox_LoanApplicationId");
+        builder.HasIndex(e => e.NampApplicationId).HasDatabaseName("IX_CreditCheckOutbox_NampApplicationId");
     }
 }

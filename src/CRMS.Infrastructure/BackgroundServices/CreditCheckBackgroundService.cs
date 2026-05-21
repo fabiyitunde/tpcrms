@@ -109,61 +109,102 @@ public class CreditCheckBackgroundService : BackgroundService
         // Process each entry in its own scope so failures are isolated
         foreach (var entry in entries)
         {
-            await ProcessEntryAsync(entry.Id, entry.LoanApplicationId, entry.SystemUserId, entry.AttemptCount, ct);
+            await ProcessEntryAsync(entry.Id, entry.LoanApplicationId, entry.NampApplicationId, entry.SystemUserId, entry.AttemptCount, ct);
         }
     }
 
     private async Task ProcessEntryAsync(
         Guid entryId,
-        Guid loanApplicationId,
+        Guid? loanApplicationId,
+        Guid? nampApplicationId,
         Guid systemUserId,
         int attemptCount,
         CancellationToken ct)
     {
         using var processScope = _scopeFactory.CreateScope();
         var dbContext = processScope.ServiceProvider.GetRequiredService<CRMSDbContext>();
-        var handler = processScope.ServiceProvider
-            .GetRequiredService<IRequestHandler<ProcessLoanCreditChecksCommand, ApplicationResult<CreditCheckBatchResultDto>>>();
 
         var entry = await dbContext.CreditCheckOutbox.FindAsync([entryId], ct);
         if (entry == null) return;
 
+        var applicationId = nampApplicationId.HasValue
+            ? nampApplicationId.Value
+            : loanApplicationId!.Value;
+
         try
         {
             _logger.LogInformation(
-                "Processing credit checks for loan {LoanApplicationId} (attempt {Attempt}/{Max})",
-                loanApplicationId, attemptCount, MaxAttempts);
+                "Processing credit checks for application {ApplicationId} (attempt {Attempt}/{Max})",
+                applicationId, attemptCount, MaxAttempts);
 
-            var result = await handler.Handle(
-                new ProcessLoanCreditChecksCommand(loanApplicationId, systemUserId), ct);
-
-            if (result.IsSuccess)
+            if (nampApplicationId.HasValue)
             {
-                entry.Status = CreditCheckOutboxStatus.Completed;
-                entry.ProcessedAt = DateTime.UtcNow;
-                entry.ErrorMessage = null;
+                var nampHandler = processScope.ServiceProvider
+                    .GetRequiredService<Application.CreditBureau.Commands.ProcessNampCreditChecksHandler>();
+                var nampResult = await nampHandler.Handle(
+                    new Application.CreditBureau.Commands.ProcessNampCreditChecksCommand(nampApplicationId.Value, systemUserId), ct);
 
-                _logger.LogInformation(
-                    "Credit check batch completed for loan {LoanApplicationId}: " +
-                    "{Total} total, {Success} successful, {Failed} failed, {NotFound} not found",
-                    loanApplicationId,
-                    result.Data!.TotalChecks,
-                    result.Data.Successful,
-                    result.Data.Failed,
-                    result.Data.NotFound);
+                if (nampResult.IsSuccess)
+                {
+                    entry.Status = CreditCheckOutboxStatus.Completed;
+                    entry.ProcessedAt = DateTime.UtcNow;
+                    entry.ErrorMessage = null;
+
+                    _logger.LogInformation(
+                        "Credit check batch completed for NAMP application {NampApplicationId}: " +
+                        "{Total} total, {Success} successful, {Failed} failed",
+                        nampApplicationId.Value,
+                        nampResult.Data!.TotalChecks,
+                        nampResult.Data.Successful,
+                        nampResult.Data.Failed);
+                }
+                else
+                {
+                    var isFinalAttempt = attemptCount >= MaxAttempts;
+                    entry.Status = isFinalAttempt ? CreditCheckOutboxStatus.Failed : CreditCheckOutboxStatus.Pending;
+                    entry.ErrorMessage = nampResult.Error;
+                    if (isFinalAttempt) entry.ProcessedAt = DateTime.UtcNow;
+
+                    _logger.LogWarning(
+                        "Credit check batch failed for NAMP application {NampApplicationId} (attempt {Attempt}/{Max}): {Error}. {NextAction}",
+                        nampApplicationId.Value, attemptCount, MaxAttempts, nampResult.Error,
+                        isFinalAttempt ? "No more retries — marked as Failed." : "Will retry on next poll.");
+                }
             }
             else
             {
-                var isFinalAttempt = attemptCount >= MaxAttempts;
-                entry.Status = isFinalAttempt ? CreditCheckOutboxStatus.Failed : CreditCheckOutboxStatus.Pending;
-                entry.ErrorMessage = result.Error;
-                if (isFinalAttempt) entry.ProcessedAt = DateTime.UtcNow;
+                var handler = processScope.ServiceProvider
+                    .GetRequiredService<IRequestHandler<ProcessLoanCreditChecksCommand, ApplicationResult<CreditCheckBatchResultDto>>>();
+                var result = await handler.Handle(
+                    new ProcessLoanCreditChecksCommand(loanApplicationId!.Value, systemUserId), ct);
 
-                _logger.LogWarning(
-                    "Credit check batch failed for loan {LoanApplicationId} (attempt {Attempt}/{Max}): {Error}. " +
-                    "{NextAction}",
-                    loanApplicationId, attemptCount, MaxAttempts, result.Error,
-                    isFinalAttempt ? "No more retries — marked as Failed." : "Will retry on next poll.");
+                if (result.IsSuccess)
+                {
+                    entry.Status = CreditCheckOutboxStatus.Completed;
+                    entry.ProcessedAt = DateTime.UtcNow;
+                    entry.ErrorMessage = null;
+
+                    _logger.LogInformation(
+                        "Credit check batch completed for loan {LoanApplicationId}: " +
+                        "{Total} total, {Success} successful, {Failed} failed, {NotFound} not found",
+                        loanApplicationId.Value,
+                        result.Data!.TotalChecks,
+                        result.Data.Successful,
+                        result.Data.Failed,
+                        result.Data.NotFound);
+                }
+                else
+                {
+                    var isFinalAttempt = attemptCount >= MaxAttempts;
+                    entry.Status = isFinalAttempt ? CreditCheckOutboxStatus.Failed : CreditCheckOutboxStatus.Pending;
+                    entry.ErrorMessage = result.Error;
+                    if (isFinalAttempt) entry.ProcessedAt = DateTime.UtcNow;
+
+                    _logger.LogWarning(
+                        "Credit check batch failed for loan {LoanApplicationId} (attempt {Attempt}/{Max}): {Error}. {NextAction}",
+                        loanApplicationId.Value, attemptCount, MaxAttempts, result.Error,
+                        isFinalAttempt ? "No more retries — marked as Failed." : "Will retry on next poll.");
+                }
             }
         }
         catch (Exception ex)
@@ -174,8 +215,8 @@ public class CreditCheckBackgroundService : BackgroundService
             if (isFinalAttempt) entry.ProcessedAt = DateTime.UtcNow;
 
             _logger.LogError(ex,
-                "Exception processing credit checks for loan {LoanApplicationId} (attempt {Attempt}/{Max}). {NextAction}",
-                loanApplicationId, attemptCount, MaxAttempts,
+                "Exception processing credit checks for application {ApplicationId} (attempt {Attempt}/{Max}). {NextAction}",
+                applicationId, attemptCount, MaxAttempts,
                 isFinalAttempt ? "No more retries — marked as Failed." : "Will retry on next poll.");
         }
 
@@ -185,8 +226,7 @@ public class CreditCheckBackgroundService : BackgroundService
 
 /// <summary>
 /// Adds a credit check outbox entry to the ambient DbContext WITHOUT saving.
-/// The caller (ApproveBranchHandler) commits it atomically with the branch approval
-/// in a single SaveChangesAsync — guaranteeing no gap between approval and outbox entry.
+/// The caller commits it atomically with the triggering state change in a single SaveChangesAsync.
 /// </summary>
 public class CreditCheckOutboxWriter : Application.CreditBureau.Interfaces.ICreditCheckOutbox
 {
@@ -211,6 +251,21 @@ public class CreditCheckOutboxWriter : Application.CreditBureau.Interfaces.ICred
 
         await _dbContext.CreditCheckOutbox.AddAsync(entry, ct);
         // No SaveChangesAsync — the caller's SaveChangesAsync commits both this entry
-        // and the loan approval in one atomic transaction.
+        // and the triggering state change in one atomic transaction.
+    }
+
+    public async Task EnqueueForNampAsync(Guid nampApplicationId, Guid systemUserId, CancellationToken ct = default)
+    {
+        var entry = new CreditCheckOutboxEntry
+        {
+            Id = Guid.NewGuid(),
+            NampApplicationId = nampApplicationId,
+            SystemUserId = systemUserId,
+            CreatedAt = DateTime.UtcNow,
+            Status = CreditCheckOutboxStatus.Pending,
+            AttemptCount = 0
+        };
+        await _dbContext.CreditCheckOutbox.AddAsync(entry, ct);
     }
 }
+

@@ -1583,6 +1583,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("ModifiedBy")
                         .HasColumnType("longtext");
 
+                    b.Property<Guid?>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
                     b.Property<Guid?>("PartyId")
                         .HasColumnType("char(36)");
 
@@ -1664,6 +1667,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("BVN");
 
                     b.HasIndex("LoanApplicationId");
+
+                    b.HasIndex("NampApplicationId");
 
                     b.HasIndex("PartyId");
 
@@ -3219,6 +3224,1330 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("Locations", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampApplication", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("ApplicantCategory")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ApplicantEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ApplicantName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ApplicantPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("ApplicationNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("ApplicationReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("BoaAccountName")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("BoaAccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Bvn")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<decimal?>("CartTotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("CommitteeDecisionAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("CommitteeDecisionByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("CommitteeDecisionNote")
+                        .HasColumnType("text");
+
+                    b.Property<int>("CommitteeTier")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid?>("CurrentCommitteeReviewId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("DateOfBirth")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTime?>("DeployedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("DeployedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("DeploymentNote")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EmployerName")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("EmploymentStatus")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("EquipmentCartJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("EquipmentDescription")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<decimal>("EquipmentValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("EquityAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("EquityPercent")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal?>("EstimatedMonthlyIncome")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("EstimatedNetWorth")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ExistingLoanObligations")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("FinancialAppraisalAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("FinancialAppraisalByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("FinancialAppraisalNote")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("GpsActivated")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("IndustrySector")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<decimal?>("LoanAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("LoanProductId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("LoanPurpose")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LocalGovernmentArea")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal?>("MonthlyLivingExpenses")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Nin")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int?>("NumberOfDependants")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Occupation")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime?>("OfferAcceptedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("OfferAcceptedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("OfferGeneratedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("OfferLapsedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("OfferLetterStoragePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<Guid?>("OfficeId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("OtherIncomeSource")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<decimal?>("OtherMonthlyIncome")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("OwnedAssetsDescription")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PreDeploymentNote")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("PreDeploymentVerifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("PreDeploymentVerifiedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("RatificationDeclineNote")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RatifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("RatifiedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("RcNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime>("RecalledAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("RecalledByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int?>("RequestedTenorMonths")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StateOfResidence")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("TechnicalAppraisalAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("TechnicalAppraisalByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("TechnicalAppraisalNote")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("TrainingCompletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("TrainingCompletedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int?>("YearsOfExperience")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ApplicationReference")
+                        .IsUnique();
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("Status", "BranchId");
+
+                    b.ToTable("NampApplications", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampCollateral", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("AssetIdentifier")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("CollateralType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<decimal?>("ForcedSaleValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("InsuranceCompany")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("InsuranceExpiryDate")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("InsurancePolicyNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal?>("InsuredValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsInsured")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("LienReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("LienRegistrationAuthority")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("LienType")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<decimal?>("MarketValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("OwnerName")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("OwnershipType")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId");
+
+                    b.ToTable("NampCollaterals", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Category")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Stage")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StoragePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId");
+
+                    b.HasIndex("NampApplicationId", "Stage");
+
+                    b.ToTable("NampDocuments", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampFinancialAppraisalReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("CreditBureauSummary")
+                        .HasColumnType("text");
+
+                    b.Property<int>("CreditOfficerRecommendation")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("DebtServiceCoverageRatio")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<string>("EquityAssessmentNote")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("LoanToValueRatio")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal?>("MonthlyDisposableIncome")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("PreparedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("RepaymentCapacityRating")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SavedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("SummaryNotes")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId")
+                        .IsUnique();
+
+                    b.ToTable("NampFinancialAppraisalReports", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampFinancialStatement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal?>("AccruedExpenses")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("AdministrativeExpenses")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("AuditDate")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("AuditOpinion")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("AuditorFirm")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("AuditorName")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<decimal?>("CashAndCashEquivalents")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfChangesInWorkingCapital")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfDepreciationAmortization")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfDividendsPaid")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfDividendsReceived")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfInterestExpenseAddBack")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfInterestPaid")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfInterestReceived")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfOpeningCashBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfOtherFinancingActivities")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfOtherInvestingActivities")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfOtherOperatingAdjustments")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfProceedsFromBorrowings")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfProceedsFromShareIssue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfProfitBeforeTax")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfPurchaseOfInvestments")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfPurchaseOfPpe")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfRepaymentOfBorrowings")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfSaleOfInvestments")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfSaleOfPpe")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CfTaxPaid")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("ClosingCashBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("CostOfSales")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<decimal?>("CurrentPortionLongTermDebt")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("DeferredTaxAssets")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("DeferredTaxLiabilities")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("DepreciationAmortization")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("DividendsDeclared")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("Ebitda")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("FinancialYear")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FinancialYearType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<decimal?>("GrossProfit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("IncomeTaxExpense")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("InputMethod")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<decimal?>("IntangibleAssets")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("InterestExpense")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("InterestIncome")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("Inventory")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("LongTermDebt")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("LongTermInvestments")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal?>("NetCashFromFinancing")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("NetCashFromInvesting")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("NetCashFromOperating")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("NetChangeInCash")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("NetProfit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OperatingExpenses")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OtherCurrentAssets")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OtherCurrentLiabilities")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OtherFinanceCosts")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OtherNonCurrentAssets")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OtherNonCurrentLiabilities")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OtherOperatingExpenses")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OtherOperatingIncome")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("OtherReserves")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PrepaidExpenses")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PropertyPlantEquipment")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("Provisions")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("RetainedEarnings")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("Revenue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("SellingExpenses")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("ShareCapital")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("SharePremium")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("ShortTermBorrowings")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TaxPayable")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TotalAssets")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TotalCurrentAssets")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TotalCurrentLiabilities")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TotalEquity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TotalLiabilities")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TotalNonCurrentAssets")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TotalNonCurrentLiabilities")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TradePayables")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("TradeReceivables")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("YearEndDate")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId");
+
+                    b.HasIndex("NampApplicationId", "FinancialYear")
+                        .IsUnique();
+
+                    b.ToTable("NampFinancialStatements", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampGuarantor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("Bvn")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("CompanyRegistrationNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("DateOfBirth")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<decimal?>("DeclaredNetWorth")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("EmployerName")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("Gender")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<decimal?>("GuaranteeLimit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("GuaranteeType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("GuarantorType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<bool>("IsDirector")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsShareholder")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsUnlimited")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal?>("MonthlyIncome")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Nin")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Occupation")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("RelationshipToApplicant")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<decimal?>("ShareholdingPercentage")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId");
+
+                    b.ToTable("NampGuarantors", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampRoutingConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("ApplicantCategory")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CommitteeTier")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<decimal>("MaxEquipmentValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("MinEquipmentValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicantCategory");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("ApplicantCategory", "IsActive", "Priority");
+
+                    b.ToTable("NampRoutingConfigs", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampStagingRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("ApplicantCategory")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ApplicantEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ApplicantName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ApplicantPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("ApplicationReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("BoaAccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("BranchResolutionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("CrmsApplicationNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("EquipmentDescription")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<decimal>("EquipmentValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsRecalled")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("RawPayload")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("RecalledAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("RecalledByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("ResolvedBranchId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("ResolvedLocationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("ResolvedOfficeId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationReference")
+                        .IsUnique();
+
+                    b.HasIndex("IsRecalled");
+
+                    b.HasIndex("ReceivedAt");
+
+                    b.HasIndex("ResolvedBranchId");
+
+                    b.ToTable("NampStagingRecords", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId");
+
+                    b.HasIndex("NampApplicationId", "ChangedAt");
+
+                    b.ToTable("NampStatusHistory", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampTechnicalAppraisalReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("EngineerRecommendation")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FarmLocationDescription")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("GpsCoordinates")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("InfrastructureNotes")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("LandAreaAssessedHectares")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("OverallViabilityRating")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PreparedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ProposedEquipmentSuitability")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RecommendedMitigations")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RisksIdentified")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("SavedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("SoilConditionRating")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SummaryNotes")
+                        .HasColumnType("text");
+
+                    b.Property<string>("WaterSourceAvailability")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId")
+                        .IsUnique();
+
+                    b.ToTable("NampTechnicalAppraisalReports", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampWorkflowConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("AssignedRole")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("IsTerminal")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("SlaHours")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SortOrder");
+
+                    b.HasIndex("Status")
+                        .IsUnique();
+
+                    b.ToTable("NampWorkflowConfigs", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampWorkflowInstance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("AssignedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("AssignedRole")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid?>("AssignedToUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("CurrentStageName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("CurrentStatus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("EnteredCurrentStageAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("EscalationLevel")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FinalStatus")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsSLABreached")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("SLADueAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedRole");
+
+                    b.HasIndex("IsSLABreached");
+
+                    b.HasIndex("NampApplicationId")
+                        .IsUnique();
+
+                    b.HasIndex("IsCompleted", "AssignedRole");
+
+                    b.ToTable("NampWorkflowInstances", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Notification.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4631,6 +5960,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("LoanApplicationId")
                         .HasColumnType("char(36)");
 
+                    b.Property<Guid?>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("datetime(6)");
 
@@ -4646,6 +5978,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("LoanApplicationId")
                         .HasDatabaseName("IX_CreditCheckOutbox_LoanApplicationId");
+
+                    b.HasIndex("NampApplicationId")
+                        .HasDatabaseName("IX_CreditCheckOutbox_NampApplicationId");
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_CreditCheckOutbox_Status");
@@ -5352,6 +6687,51 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Navigation("Parent");
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampCollateral", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
+                        .WithMany("Collaterals")
+                        .HasForeignKey("NampApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDocument", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
+                        .WithMany("Documents")
+                        .HasForeignKey("NampApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampFinancialStatement", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
+                        .WithMany("FinancialStatements")
+                        .HasForeignKey("NampApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampGuarantor", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
+                        .WithMany("Guarantors")
+                        .HasForeignKey("NampApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampStatusHistory", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
+                        .WithMany("StatusHistory")
+                        .HasForeignKey("NampApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.ProductCatalog.DisbursementChecklistTemplate", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.ProductCatalog.LoanProduct", null)
@@ -5782,6 +7162,19 @@ namespace CRMS.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("CRMS.Domain.Aggregates.Location.Location", b =>
                 {
                     b.Navigation("Children");
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampApplication", b =>
+                {
+                    b.Navigation("Collaterals");
+
+                    b.Navigation("Documents");
+
+                    b.Navigation("FinancialStatements");
+
+                    b.Navigation("Guarantors");
+
+                    b.Navigation("StatusHistory");
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.ProductCatalog.LoanProduct", b =>

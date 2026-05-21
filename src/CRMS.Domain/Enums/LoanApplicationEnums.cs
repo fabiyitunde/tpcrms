@@ -3,7 +3,8 @@ namespace CRMS.Domain.Enums;
 public enum LoanApplicationType
 {
     Retail,
-    Corporate
+    Corporate,
+    Namp,
 }
 
 public enum LoanApplicationStatus
@@ -73,9 +74,9 @@ public enum PartyType
     BeneficialOwner
 }
 
-public enum OfferAcceptanceMethod
-{
-    InBranchSigning,
-    Courier,
-    Electronic
-}
+//public enum OfferAcceptanceMethod
+//{
+//    InBranchSigning,
+//    Courier,
+//    Electronic
+//}

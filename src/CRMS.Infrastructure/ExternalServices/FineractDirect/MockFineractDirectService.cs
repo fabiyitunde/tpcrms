@@ -224,6 +224,23 @@ public class MockFineractDirectService : IFineractDirectService
         return Task.FromResult(Result.Success(result));
     }
 
+    public Task<Result<FineractClientInfo>> GetClientByIdAsync(long clientId, CancellationToken ct = default)
+    {
+        _logger.LogInformation("MockFineract: GetClientById for clientId={ClientId}", clientId);
+
+        // Mock: clientId 1643 → Enugu Branch (matching the mock BOA account 1234567890)
+        var mockClients = new Dictionary<long, FineractClientInfo>
+        {
+            [1643] = new(Id: 1643, OfficeId: 5, OfficeName: "Enugu Branch", DisplayName: "Acme Industries Ltd"),
+        };
+
+        if (mockClients.TryGetValue(clientId, out var info))
+            return Task.FromResult(Result.Success(info));
+
+        return Task.FromResult(Result.Failure<FineractClientInfo>(
+            $"MockFineract: client {clientId} not found."));
+    }
+
     public Task<Result<IReadOnlyList<FineractLoanProduct>>> GetLoanProductsAsync(
         bool activeOnly = true, CancellationToken ct = default)
     {
@@ -279,7 +296,19 @@ public class MockFineractDirectService : IFineractDirectService
                 TransactionProcessingStrategyId: 1,
                 StartDate: new DateTime(2023, 1, 1), CloseDate: null, IsActive: true),
 
-            new(Id: 5, Name: "Invoice Discounting (Legacy)", ShortName: "ID-LEG",
+            new(Id: 5, Name: "RHNAMP Agricultural Equipment Loan", ShortName: "NAMP-AEL",
+                Description: "Renewed Hope NAMP — Pay-As-You-Sell (PAYS) agricultural equipment financing for youth, women agripreneurs and agro-service companies",
+                CurrencyCode: "NGN", CurrencySymbol: "₦",
+                MinPrincipal: 500_000m, DefaultPrincipal: 5_000_000m, MaxPrincipal: 100_000_000m,
+                DefaultInterestRatePerPeriod: 0.416m, MinInterestRatePerPeriod: 0.416m, MaxInterestRatePerPeriod: 0.416m,
+                AnnualInterestRate: 5m, InterestRateFrequencyType: "Per month",
+                DefaultNumberOfRepayments: 36, MinNumberOfRepayments: 12, MaxNumberOfRepayments: 60,
+                RepaymentEvery: 1, RepaymentFrequencyType: "Months",
+                AmortizationType: "Equal installments", InterestType: "Declining Balance",
+                TransactionProcessingStrategyId: 1,
+                StartDate: new DateTime(2024, 1, 1), CloseDate: null, IsActive: true),
+
+            new(Id: 6, Name: "Invoice Discounting (Legacy)", ShortName: "ID-LEG",
                 Description: "Discontinued invoice discounting product",
                 CurrencyCode: "NGN", CurrencySymbol: "₦",
                 MinPrincipal: 1_000_000m, DefaultPrincipal: 5_000_000m, MaxPrincipal: 50_000_000m,

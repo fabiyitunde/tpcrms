@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-05-11 (Session 58)
+**Last Updated:** 2026-05-19 (Session 59)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -344,7 +344,91 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-05-11 Session 58)
+## 5. Last Session Summary (2026-05-19 Session 59)
+
+### Completed — NAMP Detail Page: Document Management + Appraisal Decision Modals
+
+#### Feature 1 — NAMP Document Operations (View / Edit / Delete)
+
+Full document lifecycle on the NAMP Detail page. All operations apply to documents on the Technical Appraisal and Financial Appraisal tabs, and view-only is also available on the Documents tab for downstream actors.
+
+**New commands:**
+- `DeleteNampDocumentCommand` — loads app via `GetByIdWithDetailsAsync`, calls `app.RemoveDocument()`, saves
+- `UpdateNampDocumentCommand` — loads `NampDocument` directly via `GetNampDocumentByIdAsync`, calls `doc.UpdateMetadata(category, description)`, saves
+
+**Domain changes (`NampDocument.cs`):**
+- `Create()` made `public` (was `internal`)
+- `UpdateMetadata(NampDocumentCategory, string?)` added
+
+**Domain changes (`NampApplication.cs`):**
+- `UploadDocument()` return type changed `void → NampDocument` so handlers can explicitly add via DbSet
+- `RemoveDocument(Guid)` added — returns `Result`
+
+**Repository changes (`INampApplicationRepository` + `NampApplicationRepository`):**
+- `AddNampDocumentAsync(NampDocument)` — explicit DbSet.Add to ensure EF tracks as Added (not Modified)
+- `GetNampDocumentByIdAsync(Guid)` — direct document lookup
+
+**EF Core tracking fix:** New `NampDocument` entities via navigation collection were tracked as `Modified` (non-default GUID key). Fixed by switching `UploadNampDocumentHandler` to call `_repo.AddNampDocumentAsync(doc)` explicitly after `app.UploadDocument()`. `CRMSDbContext.SaveChangesAsync` override remains for `NampStatusHistory` only.
+
+**Inline document view endpoint:** `GET /api/namp-documents/{id}/view` added to `Program.cs` — serves files inline via `IFileStorageService` with correct `Content-Disposition: inline`.
+
+**ApplicationService methods added:**
+- `UploadNampDocumentAsync` — uploads file via `IFileStorageService` then calls handler
+- `DeleteNampDocumentAsync`
+- `UpdateNampDocumentAsync`
+- `SaveNampTechnicalAppraisalReportAsync`
+- `SaveNampFinancialAppraisalReportAsync`
+
+**DI:** `DeleteNampDocumentHandler` + `UpdateNampDocumentHandler` registered in `DependencyInjection.cs`.
+
+**Detail.razor UI changes:**
+- View modal: in-app preview using `<iframe>` (PDF), `<img>` (images), fallback "Open in new tab" link for other types. `z-index: 1100` so it layers above the Edit modal.
+- Edit modal: Category + Description fields + "Current file" display card (icon, name, size, preview button) + optional "Replace file" `InputFile`. If new file selected → upload new + delete old. If no file → metadata-only update.
+- Delete modal: confirmation dialog.
+- `GetDocIcon(string)` helper — maps extension to Material Symbols icon name.
+- Documents tab: added Category column + View button on every row (for downstream actors).
+
+---
+
+#### Feature 2 — Appraisal Decision Moved to Header Modal (consistent UX pattern)
+
+Previously the Technical/Financial Appraisal decision (Approve/Decline) was an inline card scrolled to the bottom of each appraisal tab. This was inconsistent with every other workflow action on the page (Submit, Circulate, Ratify, etc.) which all use header buttons → modals.
+
+**Changes:**
+- Header buttons renamed from "Technical Appraisal" / "Financial Appraisal" to **"Technical Appraisal Decision"** / **"Financial Appraisal Decision"**
+- Buttons now call `OpenTechDecisionModal()` / `OpenFinDecisionModal()` instead of navigating tabs
+- Two new modals added: show gate errors (report not saved / required doc missing) if prereqs not met; otherwise show Approve/Decline radio + note textarea + submit button
+- Inline `<!-- Decision Panel -->` cards removed from both appraisal tabs
+- Read-only "decision recorded" cards (showing outcome after submission) retained in both tabs for audit visibility
+- `showTechDecisionModal` + `showFinDecisionModal` state variables added
+- Open/close methods reset decision state on open
+
+**Files changed:** `src/CRMS.Web.Intranet/Components/Pages/Namp/Detail.razor` (primary), `ApplicationService.cs`, `DependencyInjection.cs`, `INampApplicationRepository.cs`, `NampApplicationRepository.cs`, `NampDocument.cs`, `NampApplication.cs`, `Program.cs`
+
+Build: 0 errors.
+
+---
+
+### Completed — Legacy Seeder Account Fix
+
+`@crms.test` accounts created by `SeedData.cs` were Status=0 (inactive) and hashed with `Test@123`. `ComprehensiveDataSeeder` skips users whose username already exists, so it never created the `@crms.ng` equivalents or fixed these accounts.
+
+**Fix:** Extended the seeder's startup fix block to also target known usernames that are inactive or have a non-mocked legacy hash — sets password to `Password1$$$` and calls `Activate()`.
+
+**File changed:** `src/CRMS.Infrastructure/Persistence/ComprehensiveDataSeeder.cs`
+
+**Effective login emails documented in Section 8** — `@crms.test` for roles from the old seeder, `@crms.ng` for NAMP-specific roles.
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → not updated (NAMP is a new module; no existing gaps closed)
+- [x] `docs/ImplementationTracker.md` → v8.2
+
+---
+
+### Previous Session Summary (2026-05-11 Session 58)
 
 ### Completed — Tutorial Credential Fixes (`docs/Tutorial_LoanLifecycle.html`)
 
@@ -352,7 +436,7 @@ All remaining short username references replaced with email addresses (login use
 - Password note on setup section — `legalofficer` → `adewale.johnson@crms.ng`
 - Committee member list (3 entries) — short names → full emails
 - Full reference table (lines ~1782–1796) — all 13 role rows updated
-- Troubleshooting entry — `creditofficer` → `emeka.okonkwo@crms.ng`
+- Troubleshooting entry — `creditofficer` → `creditofficer@crms.test`
 - Credit officer view reference — updated to email
 
 **Password corrected to `Password1$$$`** (three dollar signs) — confirmed from `ComprehensiveDataSeeder.cs` line `_passwordHasher.HashPassword("Password1$$")`. A previous session had incorrectly used `Password1$`; reverted using `replace_all=true`.
@@ -2952,7 +3036,30 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ## 6. Suggested Next Task
 
-### Option A — Collateral Perfection: Multi-Actor Sign-Off (Legal + Credit)
+### Option A — NAMP: Complete Remaining Workflow Stages (Committee → Ratification → Offer → Pre-Deployment → Training → Deployment)
+
+The Technical and Financial Appraisal stages are now fully wired. The next NAMP phases are:
+
+1. **Committee stage** — Circulate to committee (auto-routed by `EquipmentValue` + `ApplicantCategory`). Reuse `CreateCommitteeReviewCommand` + existing committee voting pattern. `NampRoutingConfig` entity already exists.
+2. **Ratification** — Final Approver ratifies committee decision. `RatifyNampDecisionCommand` needed.
+3. **Offer Letter** — Generate/upload offer; LO records countersignature.
+4. **Pre-Deployment / Training / Deployment** — Sequential stages with evidence uploads.
+5. **Active/Monitoring** — GPS confirmation, mark active.
+6. **Outbound callbacks** — `INampCallbackService` calls to PAYS on key lifecycle events.
+
+**Key files:**
+```
+src/CRMS.Application/Namp/Commands/          ← add remaining stage commands
+src/CRMS.Infrastructure/DependencyInjection.cs  ← register handlers
+src/CRMS.Web.Intranet/Services/ApplicationService.cs  ← add wrapper methods
+src/CRMS.Web.Intranet/Components/Pages/Namp/Detail.razor  ← wire header buttons + modals
+memory/project_namp_implementation_plan.md   ← full phase breakdown
+memory/project_namp_workflow_design.md       ← design spec
+```
+
+---
+
+### Option B — Collateral Perfection: Multi-Actor Sign-Off (Legal + Credit)
 
 The `LegalReview`/`LegalApproval` workflow stages are now fully wired. The next natural follow-on is completing the collateral perfection workflow, which uses the same actors (`LegalOfficer`, `HeadOfLegal`) on the collateral side. Currently a single "Approve" button with no role separation. The design calls for:
 1. **Legal clearance** — `IsLegalCleared` already exists on the domain. Need: `RecordLegalClearanceCommand` handler, CollateralTab legal clearance button for `LegalOfficer`/`HeadOfLegal`
@@ -2969,7 +3076,7 @@ src/CRMS.Web.Intranet/Components/Pages/Applications/Detail.razor               �
 
 ---
 
-### Option B — Retail Loan System (Phase 2)
+### Option C — Retail Loan System (Phase 2)
 
 The corporate loan system is now fully feature-complete. Phase 2 introduces the customer-facing **Retail Loan** portal with automated decisioning.
 
@@ -2987,7 +3094,7 @@ src/CRMS.Web.Portal/                               ← customer self-service Bla
 
 ---
 
-### Option C — Guarantor Approval: Guarantee Deed Legal Sign-Off (Deferred Design Decision)
+### Option D — Guarantor Approval: Guarantee Deed Legal Sign-Off (Deferred Design Decision)
 
 Discussed in Session 52. Credit Officer owns guarantor approval/rejection (bureau check, net worth vs loan exposure). This is already wired and operationally correct. Optional deferred addition: a **legal team sign-off** on guarantee deed enforceability (similar to `IsLegalCleared` on collateral). To implement when ready:
 1. Add `IsLegalCleared` + `LegalClearedAt` to `Guarantor` aggregate
@@ -3039,6 +3146,39 @@ If you see that error again, run `dotnet --version` first — it must say `9.0.x
 ---
 
 ## 8. Mock Data Reference
+
+### Seeded User Accounts
+
+All accounts use password **`Password1$$$`** (three dollar signs).
+
+**Important — two seeders run on startup:**
+- `SeedData.cs` — creates legacy `@crms.test` accounts (Status=0 / inactive by default)
+- `ComprehensiveDataSeeder.cs` — matches by **username**; if a username already exists it skips creation. On each startup it fixes any inactive or legacy-hashed accounts and activates them.
+
+**Result:** the effective login emails are the `@crms.test` addresses for roles that existed in the old seeder, and `@crms.ng` addresses for NAMP-specific roles added later.
+
+| Role | Login Email |
+|---|---|
+| SystemAdmin | `admin@crms.test` |
+| LoanOfficer | `loanofficer@crms.test` |
+| LoanOfficer (Abuja) | `loanofficer.abuja@crms.test` |
+| BranchApprover | `branchapprover@crms.test` |
+| CreditOfficer | `creditofficer@crms.test` |
+| HOReviewer | `horeviewer@crms.test` |
+| CommitteeMember | `emeka.nnamdi@crms.ng` |
+| FinalApprover | `yusuf.mohammed@crms.ng` |
+| AgriculturalEngineer | `chukwudi.okafor@crms.ng` |
+| BranchManager | `kemi.adeleke@crms.ng` |
+| ZonalManager | `rotimi.fasanya@crms.ng` |
+| RegionalManager | `ngozi.obi@crms.ng` |
+| MdCeo | `babatunde.adekunle@crms.ng` |
+| LegalOfficer | `adewale.johnson@crms.ng` |
+| HeadOfLegal | `chidinma.obi@crms.ng` |
+| GMFinance | `folake.balogun@crms.ng` |
+
+---
+
+
 
 ### Core Banking Mock (CBS)
 Account `1234567890` ("Acme Industries Ltd", clientType=BUSINESS, RC=RC123456):

@@ -44,6 +44,15 @@ public class AuthService : AuthenticationStateProvider
                 return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
             }
 
+            if (IsTokenExpired(token))
+            {
+                _logger.LogInformation("JWT token expired for user {UserId} — clearing session", user.Id);
+                await _localStorage.RemoveItemAsync(TokenKey);
+                await _localStorage.RemoveItemAsync(UserKey);
+                _authState = new AuthState();
+                return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+            }
+
             _authState = new AuthState
             {
                 IsAuthenticated = true,
@@ -171,6 +180,34 @@ public class AuthService : AuthenticationStateProvider
     {
         var state = await GetAuthenticationStateAsync();
         return roles.Any(r => state.User.IsInRole(r));
+    }
+
+    private static bool IsTokenExpired(string token)
+    {
+        try
+        {
+            var parts = token.Split('.');
+            if (parts.Length != 3) return true;
+
+            var payload = parts[1];
+            // Pad base64url to standard base64
+            payload = payload.Replace('-', '+').Replace('_', '/');
+            payload += new string('=', (4 - payload.Length % 4) % 4);
+
+            var bytes = Convert.FromBase64String(payload);
+            using var doc = System.Text.Json.JsonDocument.Parse(bytes);
+
+            if (doc.RootElement.TryGetProperty("exp", out var exp))
+            {
+                var expiry = DateTimeOffset.FromUnixTimeSeconds(exp.GetInt64());
+                return expiry < DateTimeOffset.UtcNow;
+            }
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     private static IEnumerable<Claim> BuildClaims(UserInfo user)

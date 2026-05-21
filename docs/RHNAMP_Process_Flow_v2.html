@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RHNAMP — Process Flow | Bank of Agriculture</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --applicant-bg: #FDE8DF;
+  --applicant-border: #E07A52;
+  --applicant-text: #7A2E0E;
+  --applicant-lane: #FEF3EE;
+  --maker-bg: #D9F1E8;
+  --maker-border: #2E9E72;
+  --maker-text: #0D5C3A;
+  --maker-lane: #EEF9F4;
+  --checker-bg: #DDE8FB;
+  --checker-border: #3B6FD4;
+  --checker-text: #1A3A7A;
+  --checker-lane: #EEF2FD;
+  --external-bg: #FFF0C2;
+  --external-border: #C49A00;
+  --external-text: #6B4F00;
+  --external-lane: #FFFBEE;
+  --gate-bg: #E8E6FB;
+  --gate-border: #6C5CE7;
+  --gate-text: #2D1B80;
+  --gate-lane: #F3F2FD;
+  --closure-bg: #E2EDF8;
+  --closure-border: #2E75B6;
+  --closure-text: #0D3C6E;
+  --page-bg: #F2F5FA;
+  --card-bg: #FFFFFF;
+  --font: 'DM Sans', sans-serif;
+  --mono: 'DM Mono', monospace;
+  --brown: #5A3800;
+  --brown-mid: #7B4F00;
+  --brown-light: #FFF8EE;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--page-bg);
+  color: #1A1A2E;
+  min-width: 1160px;
+}
+
+/* ── HEADER ── */
+.doc-header {
+  background: linear-gradient(135deg, #3D2000 0%, #5A3800 55%, #7B5200 100%);
+  color: white;
+  padding: 44px 64px 36px;
+  position: relative;
+  overflow: hidden;
+}
+.doc-header::before {
+  content: '';
+  position: absolute;
+  top: -80px; right: -80px;
+  width: 340px; height: 340px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+}
+.doc-header::after {
+  content: '';
+  position: absolute;
+  bottom: -50px; left: 260px;
+  width: 200px; height: 200px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.03);
+}
+.header-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.header-eyebrow-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #F0BB6A;
+}
+.header-eyebrow-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(255,255,255,0.25);
+}
+.header-eyebrow-sub {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.header-title {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+.header-title span {
+  color: #F0BB6A;
+}
+.header-subtitle {
+  font-size: 14px;
+  color: rgba(255,255,255,0.65);
+  margin-bottom: 28px;
+  max-width: 700px;
+  line-height: 1.6;
+}
+.header-stats {
+  display: flex;
+  gap: 0;
+  flex-wrap: wrap;
+}
+.stat-box {
+  padding: 12px 24px 12px 0;
+  margin-right: 24px;
+  border-right: 1px solid rgba(255,255,255,0.12);
+  position: relative;
+  z-index: 1;
+}
+.stat-box:last-child { border-right: none; }
+.stat-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: #F0BB6A;
+  line-height: 1;
+  margin-bottom: 4px;
+  font-family: var(--mono);
+}
+.stat-label {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── LEGEND BAR ── */
+.legend-bar {
+  background: white;
+  border-bottom: 2px solid #EEF1F7;
+  padding: 12px 64px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.legend-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #94A3B8;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+.legend-chip {
+  width: 26px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1.5px solid;
+  flex-shrink: 0;
+}
+.legend-sep {
+  width: 1px;
+  height: 16px;
+  background: #E5E7EB;
+}
+
+/* ── APPROVAL NOTICE ── */
+.approval-notice {
+  background: #FFFBEB;
+  border: 1.5px dashed #D97706;
+  border-radius: 10px;
+  padding: 14px 20px;
+  margin: 24px 64px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.approval-notice-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.approval-notice-text {
+  font-size: 13px;
+  color: #92400E;
+  line-height: 1.5;
+}
+.approval-notice-text strong {
+  font-weight: 700;
+  color: #78350F;
+}
+
+/* ── CONTENT ── */
+.content {
+  padding: 28px 64px 72px;
+}
+
+/* ── ELIGIBILITY PANEL ── */
+.eligibility-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #E5E7EB;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.elig-col {
+  padding: 18px 20px;
+  border-right: 1px solid #E5E7EB;
+}
+.elig-col:last-child { border-right: none; }
+.elig-col.individual { background: #FFF8EE; }
+.elig-col.enterprise { background: #FFF3E8; }
+.elig-col.benefits   { background: #EEF9F4; }
+.elig-col-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.elig-col.individual .elig-col-title { color: var(--brown-mid); }
+.elig-col.enterprise .elig-col-title { color: #7C3400; }
+.elig-col.benefits   .elig-col-title { color: var(--maker-text); }
+.elig-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.55;
+  margin-bottom: 5px;
+}
+.elig-col.individual .elig-row { color: #5A3000; }
+.elig-col.enterprise .elig-row { color: #5A2800; }
+.elig-col.benefits   .elig-row { color: #0D4A2E; }
+.elig-check {
+  flex-shrink: 0;
+  font-size: 11px;
+  margin-top: 1px;
+}
+.elig-col.individual .elig-check { color: var(--brown-mid); }
+.elig-col.enterprise .elig-check { color: #C05621; }
+.elig-col.benefits   .elig-check { color: var(--maker-border); }
+.elig-highlight {
+  font-weight: 700;
+}
+
+/* ── SECTION CARD ── */
+.section-card {
+  background: var(--card-bg);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.04);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.section-card-header {
+  background: var(--brown);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.section-card-num {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--mono);
+  min-width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  flex-shrink: 0;
+  letter-spacing: 0.3px;
+}
+.section-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  flex: 1;
+}
+.section-card-badge {
+  background: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.9);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+/* ── SWIMLANE ── */
+.swimlane-wrap {
+  padding: 20px 24px 24px;
+}
+.flow-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.flow-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, #CBD5E1 0%, transparent 100%);
+}
+.flow-phase {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #94A3B8;
+  white-space: nowrap;
+}
+.lane {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 6px;
+  min-height: 76px;
+}
+.lane + .lane { margin-top: 4px; }
+.lane-label {
+  width: 110px;
+  min-width: 110px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  padding: 8px 6px;
+  text-align: center;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.4;
+  flex-shrink: 0;
+  color: white;
+}
+.lane-label.applicant { background: var(--applicant-border); }
+.lane-label.maker     { background: var(--maker-border); }
+.lane-label.checker   { background: var(--checker-border); }
+.lane-label.external  { background: var(--external-border); }
+.lane-label.gate      { background: var(--gate-border); }
+
+.lane-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 10px 0 10px 14px;
+  border-radius: 0 10px 10px 0;
+  border: 1px solid #EEF1F7;
+  border-left: 3px solid;
+  min-height: 76px;
+}
+.lane.applicant .lane-body { border-left-color: var(--applicant-border); background: var(--applicant-lane); }
+.lane.maker .lane-body     { border-left-color: var(--maker-border);     background: var(--maker-lane); }
+.lane.checker .lane-body   { border-left-color: var(--checker-border);   background: var(--checker-lane); }
+.lane.external .lane-body  { border-left-color: var(--external-border);  background: var(--external-lane); }
+.lane.gate .lane-body      { border-left-color: var(--gate-border);      background: var(--gate-lane); }
+
+.step-group {
+  display: flex;
+  align-items: center;
+}
+.step-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  cursor: default;
+}
+.node-box {
+  border-radius: 10px;
+  border: 1.5px solid;
+  padding: 9px 12px;
+  width: 152px;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.node-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.13);
+  z-index: 2;
+}
+.node-num {
+  position: absolute;
+  top: -9px; left: -9px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--mono);
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid white;
+  color: white;
+}
+.node-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.node-sub {
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.4;
+  opacity: 0.8;
+}
+.node-box.applicant { background: var(--applicant-bg); border-color: var(--applicant-border); }
+.node-box.applicant .node-title { color: var(--applicant-text); }
+.node-box.applicant .node-sub   { color: var(--applicant-text); }
+.node-box.applicant .node-num   { background: var(--applicant-border); }
+
+.node-box.maker { background: var(--maker-bg); border-color: var(--maker-border); }
+.node-box.maker .node-title { color: var(--maker-text); }
+.node-box.maker .node-sub   { color: var(--maker-text); }
+.node-box.maker .node-num   { background: var(--maker-border); }
+
+.node-box.checker { background: var(--checker-bg); border-color: var(--checker-border); }
+.node-box.checker .node-title { color: var(--checker-text); }
+.node-box.checker .node-sub   { color: var(--checker-text); }
+.node-box.checker .node-num   { background: var(--checker-border); }
+
+.node-box.external { background: var(--external-bg); border-color: var(--external-border); }
+.node-box.external .node-title { color: var(--external-text); }
+.node-box.external .node-sub   { color: var(--external-text); }
+.node-box.external .node-num   { background: var(--external-border); }
+
+.node-box.gate {
+  background: var(--gate-bg);
+  border-color: var(--gate-border);
+  border-style: dashed;
+  border-width: 2px;
+  border-radius: 12px;
+}
+.node-box.gate .node-title { color: var(--gate-text); }
+.node-box.gate .node-sub   { color: var(--gate-text); }
+.node-box.gate .node-num   { background: var(--gate-border); }
+.node-box.gate::before {
+  content: '◇';
+  position: absolute;
+  top: 2px; right: 7px;
+  font-size: 12px;
+  color: var(--gate-border);
+  opacity: 0.45;
+}
+
+.node-box.closure { background: var(--closure-bg); border-color: var(--closure-border); border-width: 2px; }
+.node-box.closure .node-title { color: var(--closure-text); }
+.node-box.closure .node-sub   { color: var(--closure-text); }
+.node-box.closure .node-num   { background: var(--closure-border); }
+
+.arrow {
+  display: flex;
+  align-items: center;
+  padding: 0 3px;
+  flex-shrink: 0;
+}
+
+/* ── REPOSSESSION ALERT ── */
+.repossession-note {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 11px;
+  color: #7F1D1D;
+  font-weight: 500;
+  margin-left: 12px;
+  align-self: center;
+  flex-shrink: 0;
+  max-width: 200px;
+  line-height: 1.5;
+}
+
+/* ── FOOTER ── */
+.doc-footer {
+  background: #3D2000;
+  color: rgba(255,255,255,0.4);
+  padding: 20px 64px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.doc-footer strong { color: #F0BB6A; }
+.footer-approval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+}
+.footer-approval-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #F59E0B;
+  flex-shrink: 0;
+}
+
+@media print {
+  body { min-width: auto; background: white; }
+  .section-card { break-inside: avoid; box-shadow: none; border: 1px solid #DDD; }
+  .approval-notice { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="doc-header">
+  <div class="header-eyebrow">
+    <span class="header-eyebrow-tag">Bank of Agriculture Nigeria</span>
+    <div class="header-eyebrow-divider"></div>
+    <span class="header-eyebrow-sub">Credit Operations · Programme Flow Document</span>
+  </div>
+  <div class="header-title">Renewed Hope <span>National Agricultural</span><br>Mechanization Program <span style="font-size:18px;opacity:0.7">(RHNAMP)</span></div>
+  <div class="header-subtitle">End-to-end loan process flow — all 6 phases, 19 steps, key actors, and maker-checker control points from application to tractor title transfer. Source: boanig.com/namp</div>
+  <div class="header-stats">
+    <div class="stat-box"><div class="stat-val">2,000</div><div class="stat-label">Tractors available</div></div>
+    <div class="stat-box"><div class="stat-val">9,000</div><div class="stat-label">Implements</div></div>
+    <div class="stat-box"><div class="stat-val">19</div><div class="stat-label">Process steps</div></div>
+    <div class="stat-box"><div class="stat-val">3</div><div class="stat-label">Approval levels</div></div>
+    <div class="stat-box"><div class="stat-val">PAYS</div><div class="stat-label">Repayment model</div></div>
+    <div class="stat-box"><div class="stat-val">3–5 yr</div><div class="stat-label">Lease tenure</div></div>
+    <div class="stat-box"><div class="stat-val">FREE</div><div class="stat-label">Application fee</div></div>
+  </div>
+</div>
+
+<!-- LEGEND BAR -->
+<div class="legend-bar">
+  <span class="legend-title">Role key</span>
+  <div class="legend-item"><div class="legend-chip" style="background:var(--applicant-bg);border-color:var(--applicant-border)"></div>Applicant action</div>
+  <div class="legend-sep"></div>
+  <div class="legend-item"><div class="legend-chip" style="background:var(--maker-bg);border-color:var(--maker-border)"></div>Maker — BOA staff (initiates / prepares)</div>
+  <div class="legend-sep"></div>
+  <div class="legend-item"><div class="legend-chip" style="background:var(--checker-bg);border-color:var(--checker-border)"></div>Checker / Approver (reviews / signs off)</div>
+  <div class="legend-sep"></div>
+  <div class="legend-item"><div class="legend-chip" style="background:var(--external-bg);border-color:var(--external-border)"></div>External / third-party</div>
+  <div class="legend-sep"></div>
+  <div class="legend-item"><div class="legend-chip" style="background:var(--gate-bg);border-color:var(--gate-border);border-style:dashed"></div>Decision gate / committee</div>
+  <div class="legend-sep"></div>
+  <div class="legend-item"><div class="legend-chip" style="background:var(--closure-bg);border-color:var(--closure-border);border-width:2px"></div>Closure / final step</div>
+</div>
+
+<!-- APPROVAL NOTICE -->
+<div class="approval-notice">
+  <div class="approval-notice-icon">📋</div>
+  <div class="approval-notice-text">
+    <strong>Submitted for team review and approval.</strong> This document maps the RHNAMP loan process flow as derived from the official BOA programme page (boanig.com/namp) and BOA internal credit guidelines. Please review all 6 phases and 19 steps and provide comments or approval.
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ELIGIBILITY PANEL -->
+  <div class="eligibility-panel">
+    <div class="elig-col individual">
+      <div class="elig-col-title">👤 Individual applicants</div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Nigerian citizen or registered agribusiness</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span><span class="elig-highlight">Youth (18–35)</span> or <span class="elig-highlight">Women agripreneurs</span>, or Agro-service companies</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Min. <span class="elig-highlight">350 hectares</span> contiguous farmland per tractor</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Valid business plan: coverage, pricing, revenue projections</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span><span class="elig-highlight">10–25% equity</span> down payment required</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Agree to GPS tracking + <span class="elig-highlight">certified operator only</span></span></div>
+    </div>
+    <div class="elig-col enterprise">
+      <div class="elig-col-title">🏢 Enterprise / company applicants</div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Registered business (CAC cert) or cooperative</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Min. <span class="elig-highlight">500 hectares within 50km radius</span> per tractor</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Trained tractor operators + booking agents employed</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>TIN + bank statement + operational base in agric zone</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Commit to operator & technician training participation</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Digital tracking system adoption mandatory</span></div>
+    </div>
+    <div class="elig-col benefits">
+      <div class="elig-col-title">🚜 What beneficiaries receive</div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Fully equipped tractor + implements (lease-to-own)</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span><span class="elig-highlight">Free 3-year servicing</span> at BOA-approved hubs</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>GPS IoT tracking device fitted to tractor</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Business support: bookings, revenue, farmer relations</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>Mandatory training: operations, maintenance, finance</span></div>
+      <div class="elig-row"><span class="elig-check">✔</span><span>⚠ Repossession after <span class="elig-highlight">3 consecutive missed payments</span></span></div>
+    </div>
+  </div>
+
+  <!-- PHASE 1 -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <div class="section-card-num">Phase 1</div>
+      <div class="section-card-title">Stage 1 — Online Application &amp; Eligibility Screening</div>
+      <div class="section-card-badge">Steps 1–4 · Application is FREE</div>
+    </div>
+    <div class="swimlane-wrap">
+
+      <div class="lane applicant">
+        <div class="lane-label applicant">Applicant</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box applicant"><div class="node-num">1</div><div class="node-title">Stage 1 — Online application submitted</div><div class="node-sub">Via boanig.com/namp-application · Application is FREE · Declares type: Youth / Women / Agro-Service Company</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lane maker">
+        <div class="lane-label maker">Maker<br>Programme Officer (BOA)</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box maker"><div class="node-num">2</div><div class="node-title">KYC &amp; eligibility screening</div><div class="node-sub">Online screening · Nigerian citizen / registered entity confirmed · Agric involvement verified · BVN + ID checked</div></div></div>
+            <div class="arrow"><svg width="36" height="20"><defs><marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M1 1l6 3-6 3" fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round"/></marker></defs><line x1="2" y1="10" x2="32" y2="10" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#ah)"/></svg></div>
+            <div class="step-node"><div class="node-box maker"><div class="node-num">3</div><div class="node-title">Applicant type classification</div><div class="node-sub">Categorized as Youth (18–35), Women Agripreneur, or Agro-Service Company · Determines tenure (3yr or 5yr) and hectare threshold</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lane gate">
+        <div class="lane-label gate">Decision<br>Gate</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box gate"><div class="node-num">4</div><div class="node-title">Stage 1 shortlisting decision</div><div class="node-sub">Pass → invited to Stage 2 · Fail → application closed (incomplete / ineligible) · Applicant notified</div></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PHASE 2 -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <div class="section-card-num">Phase 2</div>
+      <div class="section-card-title">Stage 2 — Detailed Document Submission (Shortlisted Applicants Only)</div>
+      <div class="section-card-badge">Step 5</div>
+    </div>
+    <div class="swimlane-wrap">
+
+      <div class="lane applicant">
+        <div class="lane-label applicant">Shortlisted<br>Applicant</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box applicant"><div class="node-num">5</div><div class="node-title">Stage 2 — Detailed document package submitted</div><div class="node-sub">Business plan (coverage, pricing, revenue projections) · Proof of farmland access (350ha individuals / 500ha companies within 50km) · CAC cert / cooperative registration · TIN · 6-month bank statement · 10–25% equity deposit evidence</div></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PHASE 3 -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <div class="section-card-num">Phase 3</div>
+      <div class="section-card-title">Technical &amp; Financial Appraisal</div>
+      <div class="section-card-badge">Steps 6–8 · Maker stage</div>
+    </div>
+    <div class="swimlane-wrap">
+
+      <div class="lane maker">
+        <div class="lane-label maker">Maker<br>Agricultural Engineer</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box maker"><div class="node-num">6</div><div class="node-title">Technical assessment — land &amp; capacity</div><div class="node-sub">Contiguous farmland or clustered service area verified · Hectarage confirmed (350ha individual / 500ha enterprise) · Equipment management capacity assessed · Certified tractor operator availability confirmed</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lane maker">
+        <div class="lane-label maker">Maker<br>Credit Officer</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box maker"><div class="node-num">7</div><div class="node-title">Financial appraisal — PAYS model stress test</div><div class="node-sub">10–25% equity deposit confirmed in applicant's account · Business plan revenue projections reviewed · Usage-linked repayment schedule modelled · 3yr tenure (women/youth) or 5yr (companies) confirmed</div></div></div>
+            <div class="arrow"><svg width="36" height="20"><line x1="2" y1="10" x2="32" y2="10" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#ah)"/></svg></div>
+            <div class="step-node"><div class="node-box maker"><div class="node-num">8</div><div class="node-title">Credit appraisal memo drafted</div><div class="node-sub">Combines eligibility screening, technical assessment, and financial appraisal into full recommendation memo for credit committee</div></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PHASE 4 — DAA MODEL -->
+  <div class="section-card">
+    <div class="section-card-header" style="background:#1F3A5F">
+      <div class="section-card-num">Phase 4</div>
+      <div class="section-card-title">Delegated Approval Authority (DAA) — Single-Committee Routing</div>
+      <div class="section-card-badge">Steps 9–12 · One committee only, based on applicant type &amp; facility size</div>
+    </div>
+
+    <!-- DAA EXPLANATION BAND -->
+    <div style="background:#EEF3FA;border-bottom:1px solid #D0DDF0;padding:14px 24px;display:flex;align-items:flex-start;gap:16px">
+      <div style="font-size:22px;flex-shrink:0;margin-top:2px">⚡</div>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#1F3A5F;margin-bottom:4px">How DAA routing works</div>
+        <div style="font-size:12px;color:#374151;line-height:1.7">
+          Each application is routed to <strong>one approving authority only</strong> — determined at Step 9 by applicant type and total facility value.
+          The file goes directly to that authority and stops there. It does <strong>not</strong> pass through lower levels first.
+          This eliminates unnecessary delays for small-ticket individual leases while preserving full governance for large fleet applications.
+        </div>
+      </div>
+    </div>
+
+    <!-- DAA ROUTING TABLE -->
+    <div style="padding:20px 24px 4px">
+      <div style="font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#94A3B8;margin-bottom:10px">Approval routing matrix</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#E5E7EB;border-radius:10px;overflow:hidden;border:1px solid #E5E7EB">
+
+        <!-- TIER A -->
+        <div style="background:#EEF9F4;padding:16px 18px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="background:#2E9E72;color:white;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;font-family:var(--mono)">TIER A</div>
+            <div style="font-size:11px;font-weight:700;color:#0D5C3A">Branch Approval</div>
+          </div>
+          <div style="font-size:11.5px;color:#0D4A2E;line-height:1.65">
+            <div style="margin-bottom:4px"><strong>Who:</strong> Youth Agripreneurs &amp; Women Agripreneurs</div>
+            <div style="margin-bottom:4px"><strong>Tractors:</strong> 1–2 tractors per applicant</div>
+            <div style="margin-bottom:4px"><strong>Approver:</strong> Branch Manager</div>
+            <div style="margin-bottom:4px"><strong>Tenure:</strong> 3 years (PAYS)</div>
+            <div style="background:#C6F0DC;border-radius:4px;padding:4px 8px;font-size:10.5px;font-weight:600;color:#0D5C3A;margin-top:8px">✔ Decision at branch — no escalation needed</div>
+          </div>
+        </div>
+
+        <!-- TIER B -->
+        <div style="background:#EEF2FD;padding:16px 18px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="background:#3B6FD4;color:white;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;font-family:var(--mono)">TIER B</div>
+            <div style="font-size:11px;font-weight:700;color:#1A3A7A">Zonal Approval</div>
+          </div>
+          <div style="font-size:11.5px;color:#1A3A7A;line-height:1.65">
+            <div style="margin-bottom:4px"><strong>Who:</strong> Youth / Women requesting 3+ tractors OR small agro-service companies</div>
+            <div style="margin-bottom:4px"><strong>Tractors:</strong> 3–9 tractors</div>
+            <div style="margin-bottom:4px"><strong>Approver:</strong> Zonal Manager + Zonal Risk Officer</div>
+            <div style="margin-bottom:4px"><strong>Tenure:</strong> 3–5 years</div>
+            <div style="background:#C7D8F8;border-radius:4px;padding:4px 8px;font-size:10.5px;font-weight:600;color:#1A3A7A;margin-top:8px">✔ Decision at zone — branch endorses only</div>
+          </div>
+        </div>
+
+        <!-- TIER C -->
+        <div style="background:#FFF8EE;padding:16px 18px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="background:#C49A00;color:white;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;font-family:var(--mono)">TIER C</div>
+            <div style="font-size:11px;font-weight:700;color:#6B4F00">HO Approval</div>
+          </div>
+          <div style="font-size:11.5px;color:#5A3800;line-height:1.65">
+            <div style="margin-bottom:4px"><strong>Who:</strong> Large agro-service companies / fleet operators</div>
+            <div style="margin-bottom:4px"><strong>Tractors:</strong> 10+ tractors</div>
+            <div style="margin-bottom:4px"><strong>Approver:</strong> MD/CEO + ED Credit + Head of Risk</div>
+            <div style="margin-bottom:4px"><strong>Tenure:</strong> Up to 5 years</div>
+            <div style="background:#FFE9B0;border-radius:4px;padding:4px 8px;font-size:10.5px;font-weight:600;color:#7B4F00;margin-top:8px">✔ Head Office decision — highest exposure</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- OVERRIDE RULE -->
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-top:12px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;padding:10px 14px">
+        <div style="font-size:16px;flex-shrink:0">⚠</div>
+        <div style="font-size:11.5px;color:#78350F;line-height:1.6">
+          <strong>Override rule:</strong> If any Tier A or Tier B applicant presents risk indicators flagged during appraisal
+          (e.g. adverse credit history, unusually large land claim, prior BOA default), the Credit Officer may
+          <strong>manually escalate</strong> to the next tier regardless of facility size. This override must be documented in the credit memo.
+        </div>
+      </div>
+    </div>
+
+    <div class="swimlane-wrap" style="padding-top:20px">
+
+      <!-- STEP 9: ROUTING GATE -->
+      <div class="flow-label"><div class="flow-phase">Step 9 — DAA routing decision</div><div class="flow-line"></div></div>
+      <div class="lane gate">
+        <div class="lane-label gate">DAA<br>Routing Gate</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box gate"><div class="node-num">9</div>
+              <div class="node-title">Applicant type &amp; facility size assessed</div>
+              <div class="node-sub">Programme Officer reads memo · Checks: applicant type + number of tractors requested → assigns Tier A, B, or C · File routed directly to the correct authority</div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROUTING BRANCHES -->
+      <div class="flow-label" style="margin-top:20px"><div class="flow-phase">Step 10 — Single approving authority (one tier only — file stops here)</div><div class="flow-line"></div></div>
+
+      <!-- TIER A -->
+      <div class="lane" style="margin-bottom:6px">
+        <div class="lane-label" style="background:#2E9E72;font-size:9.5px">Tier A<br>Branch Mgr</div>
+        <div class="lane-body" style="border-left-color:#2E9E72;background:#EEF9F4">
+          <div class="step-group">
+            <div style="display:flex;align-items:center;gap:6px;margin-right:8px">
+              <div style="background:#C6F0DC;color:#0D5C3A;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;white-space:nowrap">Youth / Women · 1–2 tractors</div>
+            </div>
+            <div class="step-node"><div class="node-box maker" style="background:#D9F1E8;border-color:#2E9E72"><div class="node-num" style="background:#2E9E72">10a</div>
+              <div class="node-title">Branch Manager approves</div>
+              <div class="node-sub">Sole approver · Signs credit memo · No further escalation · Target: 3–5 working days from memo receipt</div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIER B -->
+      <div class="lane" style="margin-bottom:6px">
+        <div class="lane-label" style="background:#3B6FD4;font-size:9.5px">Tier B<br>Zonal Mgr</div>
+        <div class="lane-body" style="border-left-color:#3B6FD4;background:#EEF2FD">
+          <div class="step-group">
+            <div style="display:flex;align-items:center;gap:6px;margin-right:8px">
+              <div style="background:#C7D8F8;color:#1A3A7A;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;white-space:nowrap">3–9 tractors</div>
+            </div>
+            <div class="step-node"><div class="node-box checker"><div class="node-num">10b</div>
+              <div class="node-title">Branch endorses → Zonal Manager approves</div>
+              <div class="node-sub">Branch Manager endorses (does not approve) · Zonal Manager + Zonal Risk Officer make final decision · Target: 5–7 working days</div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIER C -->
+      <div class="lane" style="margin-bottom:6px">
+        <div class="lane-label" style="background:#C49A00;font-size:9.5px">Tier C<br>Head Office</div>
+        <div class="lane-body" style="border-left-color:#C49A00;background:#FFFBEE">
+          <div class="step-group">
+            <div style="display:flex;align-items:center;gap:6px;margin-right:8px">
+              <div style="background:#FFE9B0;color:#7B4F00;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;white-space:nowrap">10+ tractors / fleet</div>
+            </div>
+            <div class="step-node"><div class="node-box external" style="background:#FFF0C2;border-color:#C49A00"><div class="node-num" style="background:#C49A00">10c</div>
+              <div class="node-title">Branch endorses → Zonal endorses → HO Committee approves</div>
+              <div class="node-sub">MD/CEO + ED Credit + Head of Risk · Final binding decision · Target: 10–14 working days</div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 11: DECLINED HANDLING -->
+      <div class="flow-label" style="margin-top:16px"><div class="flow-phase">Step 11 — Decline handling (all tiers)</div><div class="flow-line"></div></div>
+      <div class="lane gate">
+        <div class="lane-label gate">Decline<br>Route</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box gate"><div class="node-num">11</div>
+              <div class="node-title">Application declined</div>
+              <div class="node-sub">Applicant notified in writing with stated reasons · May reapply after 6 months if conditions are remedied · Lien deposit returned within 5 working days</div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 12: OFFER LETTER -->
+      <div class="flow-label" style="margin-top:16px"><div class="flow-phase">Step 12 — Offer letter / lease agreement (all approved tiers)</div><div class="flow-line"></div></div>
+      <div class="lane checker">
+        <div class="lane-label checker">Checker<br>Approving Authority</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box checker"><div class="node-num">12</div>
+              <div class="node-title">Offer letter / lease agreement issued</div>
+              <div class="node-sub">Signed by the approving authority for that tier · States: tractor model, PAYS repayment schedule, tenure (3yr youth/women · 5yr companies), down payment amount, GPS compliance obligation · Applicant countersigns within 7 days</div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PHASE 5 -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <div class="section-card-num">Phase 5</div>
+      <div class="section-card-title">Pre-Deployment Verification, Onboarding Training &amp; Tractor Delivery</div>
+      <div class="section-card-badge">Steps 13–15 · External stage</div>
+    </div>
+    <div class="swimlane-wrap">
+
+      <div class="lane checker">
+        <div class="lane-label checker">Checker<br>Compliance + Legal</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box checker"><div class="node-num">13</div><div class="node-title">Pre-deployment conditions verified</div><div class="node-sub">Compliance Officer · Equity deposit confirmed · Lease documents fully signed · GPS consent on record · NAIC insurance policy in place before delivery</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lane external">
+        <div class="lane-label external">External<br>BOA + Heifer Nigeria</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box external"><div class="node-num">14</div><div class="node-title">Mandatory onboarding training</div><div class="node-sub">All successful applicants attend before deployment · Tractor operation &amp; maintenance · Financial management · Mechanization service delivery · Operator certification issued on completion</div></div></div>
+            <div class="arrow"><svg width="36" height="20"><line x1="2" y1="10" x2="32" y2="10" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#ah)"/></svg></div>
+            <div class="step-node"><div class="node-box external"><div class="node-num">15</div><div class="node-title">Tractor delivery + GPS IoT device fitted</div><div class="node-sub">Heifer Nigeria / Vendor delivers fully equipped tractor + implements · GPS IoT tracking device installed · Digital monitoring platform activated · Mechanization hub assigned for spare parts &amp; repairs</div></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PHASE 6 -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <div class="section-card-num">Phase 6</div>
+      <div class="section-card-title">PAYS Repayment Monitoring, 3-Year Servicing Plan &amp; Lease Closure</div>
+      <div class="section-card-badge">Steps 16–19 · Ongoing + closure</div>
+    </div>
+    <div class="swimlane-wrap">
+
+      <div class="lane maker">
+        <div class="lane-label maker">Maker<br>BOA Digital Monitoring + Heifer Nigeria</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box maker"><div class="node-num">16</div><div class="node-title">Ongoing GPS &amp; PAYS monitoring</div><div class="node-sub">Real-time GPS location tracking · Hours worked + hectares serviced logged · Maintenance alerts auto-generated · Performance data reviewed quarterly · 3 consecutive missed payments → repossession initiated</div></div></div>
+            <div class="arrow"><svg width="36" height="20"><line x1="2" y1="10" x2="32" y2="10" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#ah)"/></svg></div>
+            <div class="step-node"><div class="node-box maker"><div class="node-num">17</div><div class="node-title">Mandatory 3-year free servicing plan</div><div class="node-sub">Free of charge to beneficiary for first 3 years · Only BOA-approved technicians / certified partners may service · Servicing outside approved hubs voids warranty + GPS coverage · After 3yr: voluntary continuation</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lane applicant">
+        <div class="lane-label applicant">Applicant</div>
+        <div class="lane-body">
+          <div class="step-group">
+            <div class="step-node"><div class="node-box applicant"><div class="node-num">18</div><div class="node-title">PAYS repayments over 3–5 years</div><div class="node-sub">Linked to tractor usage income + seasonal cash flows · Women &amp; youth: 3yr tenure · Companies: up to 5yr · Outright purchase option available (GPS tracking still mandatory)</div></div></div>
+            <div class="arrow"><svg width="36" height="20"><line x1="2" y1="10" x2="32" y2="10" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#ah)"/></svg></div>
+            <div class="step-node"><div class="node-box closure"><div class="node-num">19</div><div class="node-title">Lease closed · Tractor title transferred</div><div class="node-sub">Full repayment → ownership title transferred to beneficiary · GPS tracking deactivated · Beneficiary may continue voluntary servicing plan at approved hubs</div></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- end content -->
+
+<!-- FOOTER -->
+<div class="doc-footer">
+  <div><strong>Bank of Agriculture Nigeria</strong> · RHNAMP Process Flow · Prepared May 2026 · Source: boanig.com/namp</div>
+  <div class="footer-approval">
+    <div class="footer-approval-dot"></div>
+    Pending team review &amp; approval
+  </div>
+</div>
+
+</body>
+</html>

@@ -3,6 +3,7 @@ using CRMS.Infrastructure;
 using CRMS.Infrastructure.Persistence;
 using CRMS.Web.Intranet.Components;
 using CRMS.Web.Intranet.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,6 +27,12 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddAuthorizationCore();
+
+// Required so that [Authorize] pages can redirect to /login on hard refresh
+// instead of crashing with "IAuthenticationService not found".
+// The Blazor circuit manages actual auth state via AuthService.
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options => { options.LoginPath = "/login"; });
 
 // Application service (direct calls to handlers - no HTTP)
 builder.Services.Configure<CRMS.Web.Intranet.Services.BankSettings>(builder.Configuration.GetSection(CRMS.Web.Intranet.Services.BankSettings.SectionName));
@@ -64,6 +71,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found");
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseAuthentication();
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
@@ -149,6 +157,27 @@ app.MapGet("/api/collateral-documents/{id:guid}/download", async (Guid id, CRMSD
     {
         var fileBytes = await fileStorage.DownloadAsync(document.StoragePath);
         return Results.File(fileBytes, "application/octet-stream", document.FileName);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error retrieving file: {ex.Message}");
+    }
+}).DisableAntiforgery();
+
+// NAMP document file serving endpoints
+app.MapGet("/api/namp-documents/{id:guid}/view", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
+{
+    var document = await db.Set<CRMS.Domain.Aggregates.Namp.NampDocument>()
+        .FirstOrDefaultAsync(d => d.Id == id);
+
+    if (document == null)
+        return Results.NotFound("Document not found");
+
+    try
+    {
+        var fileBytes = await fileStorage.DownloadAsync(document.StoragePath);
+        httpContext.Response.Headers.ContentDisposition = $"inline; filename=\"{document.FileName}\"";
+        return Results.File(fileBytes, document.ContentType);
     }
     catch (Exception ex)
     {

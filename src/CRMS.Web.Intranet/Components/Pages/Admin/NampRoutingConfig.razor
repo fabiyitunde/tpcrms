@@ -1,0 +1,252 @@
+@page "/admin/namp-routing"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@using CRMS.Application.Namp.DTOs
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<PageTitle>NAMP Routing Config - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">NAMP Routing Config</h1>
+        <p class="page-subtitle">Define committee tier routing bands by applicant category and equipment value</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal">
+        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+        Add Band
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(pageError))
+{
+    <div class="alert alert-danger">@pageError</div>
+}
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        @if (isLoading)
+        {
+            <div class="p-6 text-center">
+                <div class="spinner" style="margin: 0 auto;"></div>
+            </div>
+        }
+        else if (configs.Count == 0)
+        {
+            <div class="p-6 text-center text-muted">No routing configs found. Add a band to get started.</div>
+        }
+        else
+        {
+            @foreach (var category in configs.GroupBy(c => c.ApplicantCategory).OrderBy(g => g.Key))
+            {
+                <div class="p-4" style="border-bottom: 1px solid var(--border-color);">
+                    <h4 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                        @FormatCategory(category.Key)
+                    </h4>
+                    <table class="table" style="margin-bottom: 0;">
+                        <thead>
+                            <tr>
+                                <th>Committee Tier</th>
+                                <th>Min Value (₦)</th>
+                                <th>Max Value (₦)</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var cfg in category.OrderBy(c => c.Priority))
+                            {
+                                <tr>
+                                    <td><span class="badge badge-info">@cfg.CommitteeTier</span></td>
+                                    <td>@cfg.MinEquipmentValue.ToString("N0")</td>
+                                    <td>@(cfg.MaxEquipmentValue >= decimal.MaxValue / 2 ? "Unlimited" : cfg.MaxEquipmentValue.ToString("N0"))</td>
+                                    <td>@cfg.Priority</td>
+                                    <td>
+                                        <span class="badge @(cfg.IsActive ? "badge-success" : "badge-secondary")">
+                                            @(cfg.IsActive ? "Active" : "Inactive")
+                                        </span>
+                                    </td>
+                                    <td style="white-space: nowrap;">
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => OpenEditModal(cfg)">Edit</button>
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => ToggleConfig(cfg)">
+                                            @(cfg.IsActive ? "Deactivate" : "Activate")
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseModal">
+        <div class="modal" style="max-width: 520px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@(isEditing ? "Edit Routing Band" : "Add Routing Band")</h3>
+                <button class="modal-close" @onclick="CloseModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @if (!isEditing)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Applicant Category *</label>
+                        <select class="form-control" @bind="form.ApplicantCategory">
+                            <option value="">-- Select --</option>
+                            <option value="YouthAgripreneur">Youth Agripreneur</option>
+                            <option value="WomenAgripreneur">Women Agripreneur</option>
+                            <option value="AgroServiceCompany">Agro-Service Company</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Committee Tier *</label>
+                        <select class="form-control" @bind="form.CommitteeTier">
+                            <option value="">-- Select --</option>
+                            <option value="Branch">Branch</option>
+                            <option value="Zonal">Zonal</option>
+                            <option value="Regional">Regional</option>
+                            <option value="HeadOffice">Head Office</option>
+                        </select>
+                    </div>
+                }
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Min Equipment Value (₦) *</label>
+                        <input type="number" class="form-control" min="0" @bind="form.MinValue" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Max Equipment Value (₦) *</label>
+                        <input type="number" class="form-control" min="1" @bind="form.MaxValue" />
+                        <small class="form-text text-muted">Use 9999999999999 for unlimited</small>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <input type="number" class="form-control" min="0" @bind="form.Priority" />
+                    <small class="form-text text-muted">Lower number = higher priority when bands overlap</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                @if (!string.IsNullOrEmpty(saveError))
+                {
+                    <div class="alert alert-danger" style="margin: 0; flex: 1; font-size: 0.85rem;">@saveError</div>
+                }
+                <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="Save" disabled="@isSaving">
+                    @if (isSaving) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                    @(isEditing ? "Update" : "Create")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<NampRoutingConfigDto> configs = [];
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showModal;
+    private bool isEditing;
+    private string? saveError;
+    private string? pageError;
+    private Guid editingId;
+
+    private FormModel form = new();
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        isLoading = true;
+        pageError = null;
+        try { configs = await AppService.GetNampRoutingConfigsAsync(); }
+        finally { isLoading = false; }
+    }
+
+    private void OpenCreateModal()
+    {
+        form = new();
+        editingId = Guid.Empty;
+        isEditing = false;
+        saveError = null;
+        showModal = true;
+    }
+
+    private void OpenEditModal(NampRoutingConfigDto cfg)
+    {
+        form = new()
+        {
+            ApplicantCategory = cfg.ApplicantCategory,
+            CommitteeTier = cfg.CommitteeTier,
+            MinValue = cfg.MinEquipmentValue,
+            MaxValue = cfg.MaxEquipmentValue >= decimal.MaxValue / 2 ? 9999999999999m : cfg.MaxEquipmentValue,
+            Priority = cfg.Priority
+        };
+        editingId = cfg.Id;
+        isEditing = true;
+        saveError = null;
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        saveError = null;
+    }
+
+    private async Task Save()
+    {
+        if (!isEditing && string.IsNullOrEmpty(form.ApplicantCategory))
+        { saveError = "Applicant category is required."; return; }
+        if (!isEditing && string.IsNullOrEmpty(form.CommitteeTier))
+        { saveError = "Committee tier is required."; return; }
+        if (form.MaxValue <= form.MinValue)
+        { saveError = "Max value must be greater than min value."; return; }
+
+        isSaving = true;
+        saveError = null;
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+
+        try
+        {
+            var result = isEditing
+                ? await AppService.UpdateNampRoutingConfigAsync(editingId, form.MinValue, form.MaxValue, form.Priority, userId)
+                : await AppService.CreateNampRoutingConfigAsync(form.ApplicantCategory, form.CommitteeTier, form.MinValue, form.MaxValue, form.Priority, userId);
+
+            if (result.Success) { CloseModal(); await Load(); }
+            else saveError = result.Error ?? "Failed to save";
+        }
+        finally { isSaving = false; }
+    }
+
+    private async Task ToggleConfig(NampRoutingConfigDto cfg)
+    {
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        var result = await AppService.ToggleNampRoutingConfigAsync(cfg.Id, !cfg.IsActive, userId);
+        if (result.Success) await Load();
+        else pageError = result.Error ?? "Failed to update status";
+    }
+
+    private static string FormatCategory(string raw) => raw switch
+    {
+        "YouthAgripreneur" => "Youth Agripreneur",
+        "WomenAgripreneur" => "Women Agripreneur",
+        "AgroServiceCompany" => "Agro-Service Company",
+        _ => raw
+    };
+
+    private class FormModel
+    {
+        public string ApplicantCategory { get; set; } = string.Empty;
+        public string CommitteeTier { get; set; } = string.Empty;
+        public decimal MinValue { get; set; } = 0;
+        public decimal MaxValue { get; set; } = 5_000_000;
+        public int Priority { get; set; } = 0;
+    }
+}

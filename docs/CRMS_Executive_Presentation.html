@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRMS — Executive Briefing | Bank of Agriculture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --g950:#0d2813;--g900:#0f3a1a;--g800:#155023;--g700:#1a5f2a;
+  --g600:#1a6e30;--g400:#4ade80;--g300:#86efac;--g100:#dcfce7;--g50:#f0fdf4;
+  --gray900:#111827;--gray700:#374151;--gray600:#4b5563;--gray500:#6b7280;
+  --gray300:#d1d5db;--gray200:#e5e7eb;--gray100:#f3f4f6;--white:#ffffff;
+  --amber:#f59e0b;--amberlt:#fef3c7;--amberdk:#92400e;
+  --blue:#3b82f6;--bluelt:#dbeafe;--bluedk:#1d4ed8;
+  --red:#ef4444;--redlt:#fee2e2;--reddk:#991b1b;
+  --purple:#7c3aed;--cyan:#0891b2;
+}
+html,body{width:100%;height:100%;font-family:'Inter',-apple-system,sans-serif;background:#000;overflow:hidden;}
+.deck{width:100vw;height:100vh;position:relative;overflow:hidden;}
+
+/* ── SLIDES ── */
+.slide{
+  position:absolute;inset:0;width:100%;height:100%;
+  display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;
+  transition:opacity 0.38s ease,transform 0.38s ease;
+  transform:translateX(56px);
+  overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:all;transform:translateX(0);}
+.slide.prev{opacity:0;transform:translateX(-56px);}
+
+/* ── PROGRESS + NAV ── */
+#progress-bar{position:fixed;bottom:0;left:0;height:4px;background:var(--g400);transition:width 0.38s ease;z-index:100;}
+.nav{position:fixed;bottom:18px;right:24px;display:flex;align-items:center;gap:10px;z-index:100;}
+.nav-btn{width:46px;height:46px;border-radius:50%;border:2px solid rgba(255,255,255,0.35);background:rgba(0,0,0,0.5);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;}
+.nav-btn:hover{background:rgba(255,255,255,0.2);}
+#ctr{color:#fff;font-size:16px;font-weight:700;background:rgba(0,0,0,0.5);padding:6px 14px;border-radius:20px;min-width:76px;text-align:center;}
+
+/* ── SLIDE ANATOMY ── */
+.sh{padding:16px 44px 12px;flex-shrink:0;background:var(--g800);border-bottom:3px solid var(--g400);}
+.sh h2{font-size:36px;font-weight:800;color:var(--white);line-height:1.1;letter-spacing:-0.3px;}
+.sh p{font-size:16px;color:var(--g300);margin-top:4px;font-weight:500;}
+.sb{flex:1;overflow:hidden;padding:18px 44px;display:flex;flex-direction:column;justify-content:center;}
+.sb-top{justify-content:flex-start;padding-top:14px;}
+
+/* ── BACKGROUNDS ── */
+.dark{background:var(--g950);}
+.mid{background:var(--g800);}
+.light{background:var(--g50);}
+.white{background:var(--white);}
+
+/* ── COVER ── */
+.cover-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 60px;background:var(--g950);gap:0;}
+.boa-logo{margin-bottom:36px;}
+.cover-title{font-size:68px;font-weight:800;color:var(--white);line-height:1.05;letter-spacing:-2px;margin-bottom:14px;}
+.cover-title span{color:var(--g400);}
+.cover-sub{font-size:26px;color:var(--g300);font-weight:400;}
+
+/* ── GRIDS ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;}
+.split-6040{display:grid;grid-template-columns:3fr 2fr;gap:28px;align-items:start;}
+
+/* ── CARDS ── */
+.card{background:var(--white);border:1px solid var(--gray200);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px;}
+.card-dk{background:var(--g900);border:1px solid var(--g700);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px;}
+.card-icon{font-size:28px;}
+.c-title{font-size:17px;font-weight:800;color:var(--g700);}
+.c-title-lt{font-size:17px;font-weight:800;color:var(--g400);}
+.c-body{font-size:14px;color:var(--gray600);line-height:1.5;}
+.c-body-lt{font-size:14px;color:var(--g300);line-height:1.5;}
+
+/* ── AGENDA ── */
+.ag-card{background:var(--g900);border:1px solid var(--g700);border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;}
+.ag-num{width:40px;height:40px;border-radius:50%;background:var(--g700);color:var(--g400);font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ag-text{font-size:20px;font-weight:600;color:var(--white);}
+
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:collapse;font-size:14px;}
+.tbl th{background:var(--g800);color:var(--white);padding:8px 12px;text-align:left;font-size:13px;font-weight:700;letter-spacing:.2px;}
+.tbl td{padding:7px 12px;border-bottom:1px solid var(--gray200);vertical-align:middle;line-height:1.35;}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:nth-child(even) td{background:var(--g50);}
+
+/* ── BADGES / PILLS ── */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:12px;font-weight:700;white-space:nowrap;}
+.bg-green{background:var(--g100);color:var(--g700);}
+.bg-amber{background:var(--amberlt);color:var(--amberdk);}
+.bg-blue{background:var(--bluelt);color:var(--bluedk);}
+.bg-red{background:var(--redlt);color:var(--reddk);}
+.bg-gray{background:var(--gray100);color:var(--gray700);}
+
+.rp{display:inline-block;padding:3px 12px;border-radius:100px;font-size:13px;font-weight:700;white-space:nowrap;}
+.rp-g{background:var(--g700);color:var(--white);}
+.rp-b{background:var(--blue);color:var(--white);}
+.rp-a{background:var(--amber);color:#000;}
+.rp-p{background:var(--purple);color:var(--white);}
+.rp-c{background:var(--cyan);color:var(--white);}
+.rp-gr{background:var(--gray700);color:var(--white);}
+
+/* ── STAT BOXES ── */
+.stat-col{display:flex;flex-direction:column;gap:12px;}
+.stat-box{background:var(--g800);border-radius:12px;padding:16px 20px;text-align:center;}
+.sv{font-size:44px;font-weight:800;color:var(--g400);line-height:1;}
+.sl{font-size:15px;color:var(--g300);margin-top:6px;line-height:1.3;}
+
+/* ── FLOW STAGES ── */
+.flow{display:flex;align-items:center;flex-wrap:wrap;gap:0;}
+.fs{flex-shrink:0;background:var(--g800);color:var(--white);border-radius:10px;padding:10px 14px;text-align:center;min-width:96px;}
+.fs-r{font-size:11px;color:var(--g300);font-weight:600;margin-bottom:2px;}
+.fs-n{font-size:14px;font-weight:800;}
+.fs.term{background:var(--red);}
+.fs.term .fs-r{color:rgba(255,255,255,0.8);}
+.fs.sys{background:var(--g600);}
+.farr{font-size:22px;color:var(--g400);margin:0 4px;flex-shrink:0;}
+.farr-r{font-size:22px;color:var(--red);margin:0 4px;flex-shrink:0;}
+
+/* ── MAKER-CHECKER ── */
+.mc{display:flex;align-items:stretch;gap:12px;margin-bottom:12px;}
+.mc-maker{flex:1;border-radius:12px;padding:14px 18px;background:var(--g100);border:2px solid var(--g400);}
+.mc-checker{flex:1;border-radius:12px;padding:14px 18px;background:var(--bluelt);border:2px solid var(--blue);}
+.mc-lbl{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;}
+.mc-lbl.mk{color:var(--g700);}
+.mc-lbl.ck{color:var(--bluedk);}
+.mc-role{font-size:20px;font-weight:800;margin-bottom:4px;color:var(--gray900);}
+.mc-desc{font-size:14px;color:var(--gray600);line-height:1.5;}
+.mc-arr{font-size:30px;color:var(--g400);align-self:center;flex-shrink:0;}
+
+/* ── GATE BOX ── */
+.gate{background:var(--white);border:2px solid var(--amber);border-radius:12px;padding:14px 18px;}
+.gate-t{font-size:16px;font-weight:800;color:var(--amberdk);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.gate-t span{color:var(--amber);font-size:20px;}
+.gate-list{list-style:none;}
+.gate-list li{font-size:14px;padding:3px 0;display:flex;align-items:flex-start;gap:8px;color:var(--gray700);}
+.gate-list li::before{content:"✓";color:var(--g600);font-weight:800;flex-shrink:0;}
+
+/* ── CHECK LIST ── */
+.ck-list{list-style:none;}
+.ck-list li{font-size:17px;padding:7px 0;display:flex;align-items:flex-start;gap:12px;border-bottom:1px solid var(--gray200);color:var(--gray700);line-height:1.4;}
+.ck-list li:last-child{border-bottom:none;}
+.ck-list li .ic{color:var(--g600);font-weight:800;flex-shrink:0;}
+
+/* ── PHASE BANNER ── */
+.ph-banner{background:var(--g800);color:var(--white);border-radius:10px;padding:10px 18px;margin-bottom:14px;display:flex;align-items:center;gap:12px;}
+.ph-num{width:42px;height:42px;border-radius:50%;background:var(--g400);color:var(--g950);font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ph-title{font-size:20px;font-weight:800;}
+.ph-sub{font-size:14px;color:var(--g300);margin-top:1px;}
+
+/* ── INTEGRATION CARDS ── */
+.int-card{background:var(--g900);border:1px solid var(--g700);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:6px;}
+.int-name{font-size:19px;font-weight:800;color:var(--g400);}
+.int-prov{font-size:13px;color:var(--g300);font-weight:600;}
+.int-desc{font-size:14px;color:var(--gray400);line-height:1.5;}
+
+/* ── OUTCOME CARDS ── */
+.out-cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;}
+.out-card{background:var(--white);border:1px solid var(--gray200);border-radius:10px;padding:12px 16px;}
+.out-card .ot{font-size:16px;font-weight:800;margin-bottom:4px;}
+.out-card .od{font-size:13px;color:var(--gray600);line-height:1.4;}
+
+/* ── Q&A SLIDE ── */
+.qa-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;background:var(--g950);}
+
+/* ── UTIL ── */
+.fw8{font-weight:800;} .fw6{font-weight:600;}
+.f20{font-size:20px;} .f18{font-size:18px;} .f16{font-size:16px;}
+.tg4{color:var(--g400);} .tg3{color:var(--g300);} .tgr{color:var(--gray600);}
+.mt4{margin-top:4px;} .mt8{margin-top:8px;} .mt12{margin-top:12px;} .mt16{margin-top:16px;}
+.mb4{margin-bottom:4px;} .mb8{margin-bottom:8px;} .mb12{margin-bottom:12px;} .mb16{margin-bottom:16px;}
+.lh14{line-height:1.4;} .lh15{line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 1 · COVER
+═══════════════════════════════════════════════ -->
+<div class="slide active" id="s1">
+  <div class="cover-body">
+    <!-- BOA Logo -->
+    <div class="boa-logo">
+      <img src="boa_logo.png" alt="Bank of Agriculture" style="height:100px;object-fit:contain;">
+    </div>
+    <!-- Main title -->
+    <div class="cover-title">Credit Risk<br>Management<br><span>System</span></div>
+    <div class="cover-sub" style="margin-top:12px;">CRMS Platform &nbsp;·&nbsp; Executive Briefing</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 2 · AGENDA
+═══════════════════════════════════════════════ -->
+<div class="slide dark" id="s2">
+  <div class="sh"><h2>Agenda</h2><p>What we will cover today</p></div>
+  <div class="sb">
+    <div class="g2">
+      <div class="ag-card"><div class="ag-num">1</div><div class="ag-text">System Overview &amp; Core Modules</div></div>
+      <div class="ag-card"><div class="ag-num">2</div><div class="ag-text">User Roles &amp; Access Control</div></div>
+      <div class="ag-card"><div class="ag-num">3</div><div class="ag-text">End-to-End Credit Journey (18 Stages)</div></div>
+      <div class="ag-card"><div class="ag-num">4</div><div class="ag-text">Maker-Checker Controls &amp; Approval Gates</div></div>
+      <div class="ag-card"><div class="ag-num">5</div><div class="ag-text">Credit Assessment — Bureau, AI &amp; Scoring</div></div>
+      <div class="ag-card"><div class="ag-num">6</div><div class="ag-text">Collateral, Guarantor &amp; Document Management</div></div>
+      <div class="ag-card"><div class="ag-num">7</div><div class="ag-text">Administration, Reporting &amp; Audit</div></div>
+      <div class="ag-card"><div class="ag-num">8</div><div class="ag-text">Integration Architecture</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 3 · WHAT IS CRMS
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s3">
+  <div class="sh"><h2>What is CRMS?</h2><p>End-to-end credit origination and risk management platform for Bank of Agriculture</p></div>
+  <div class="sb">
+    <div class="split">
+      <div>
+        <p style="font-size:20px;line-height:1.6;color:var(--gray700);margin-bottom:18px;">CRMS digitises the <strong>complete lifecycle</strong> of corporate and retail loan applications — from origination through disbursement — with full governance controls and real-time visibility.</p>
+        <ul class="ck-list">
+          <li><span class="ic">✓</span>Fully digital — no paper handoffs, no manual routing</li>
+          <li><span class="ic">✓</span>Maker-checker enforcement at every critical decision point</li>
+          <li><span class="ic">✓</span>SLA tracking and breach alerts at every workflow stage</li>
+          <li><span class="ic">✓</span>Real-time pipeline visibility for supervisors and management</li>
+          <li><span class="ic">✓</span>Complete, tamper-evident audit trail of all actions</li>
+          <li><span class="ic">✓</span>Integrated with core banking, credit bureaus, AI advisory</li>
+        </ul>
+      </div>
+      <div class="stat-col">
+        <div class="stat-box"><div class="sv">18</div><div class="sl">Workflow Stages<br>Corporate Loan Lifecycle</div></div>
+        <div class="stat-box"><div class="sv">14</div><div class="sl">User Roles<br>Data-Scoped Access</div></div>
+        <div class="stat-box"><div class="sv">4</div><div class="sl">Approval Gates<br>Blocking Invalid Advances</div></div>
+        <div class="stat-box"><div class="sv">6</div><div class="sl">External Integrations<br>Live Connections</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 4 · PLATFORM MODULES
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s4">
+  <div class="sh"><h2>Platform Modules</h2><p>Eight core areas working together as one integrated system</p></div>
+  <div class="sb sb-top">
+    <div class="g4">
+      <div class="card"><div class="card-icon">📋</div><div class="c-title">Loan Origination</div><div class="c-body">Application creation, party info, documents, bank &amp; financial statements, submission and tracking</div></div>
+      <div class="card"><div class="card-icon">🔍</div><div class="c-title">Credit Assessment</div><div class="c-body">Financial analysis, credit bureau (4 providers), AI risk advisory, configurable scoring</div></div>
+      <div class="card"><div class="card-icon">🏠</div><div class="c-title">Collateral Management</div><div class="c-body">Multi-type collateral registry, valuation, legal clearance, lien perfection lifecycle</div></div>
+      <div class="card"><div class="card-icon">🏛️</div><div class="c-title">Committee &amp; Governance</div><div class="c-body">Standing committees, digital loan pack, member voting, decision recording with audit</div></div>
+      <div class="card"><div class="card-icon">📁</div><div class="c-title">Document Management</div><div class="c-body">Upload, categorise, verify; generate offer letters, credit memos, loan packs</div></div>
+      <div class="card"><div class="card-icon">⚙️</div><div class="c-title">Administration</div><div class="c-body">Loan products, users &amp; roles, branch setup, notification templates, scoring config</div></div>
+      <div class="card"><div class="card-icon">📊</div><div class="c-title">Reporting &amp; Audit</div><div class="c-body">Pipeline, committee, performance reports; full audit log; SLA breach alerts</div></div>
+      <div class="card"><div class="card-icon">🔗</div><div class="c-title">Integrations</div><div class="c-body">Apache Fineract, SmartComply, AI engine, Mono Connect, Email/SMS/WhatsApp</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 5 · USER ROLES
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s5">
+  <div class="sh"><h2>User Roles &amp; Access Control</h2><p>14 defined roles — each with a data-visibility scope (Branch / Global / Own) and a designated workflow function</p></div>
+  <div class="sb sb-top">
+    <table class="tbl">
+      <thead>
+        <tr><th style="width:18%">Role</th><th style="width:10%">Scope</th><th style="width:9%">Type</th><th>Primary Responsibility</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="rp rp-g">Loan Officer</span></td><td><span class="badge bg-amber">Branch</span></td><td class="fw6">Maker</td><td>Creates and prepares applications; captures parties, documents, financials, guarantors, collaterals; submits</td></tr>
+        <tr><td><span class="rp rp-b">Branch Approver</span></td><td><span class="badge bg-amber">Branch</span></td><td class="fw6">Checker</td><td>First-level review; approves, returns to Loan Officer, or rejects branch applications</td></tr>
+        <tr><td><span class="rp rp-g">Credit Officer</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Maker</td><td>Full credit analysis; bureau checks; financial ratios; AI advisory; guarantor &amp; collateral review; credit memo</td></tr>
+        <tr><td><span class="rp rp-b">HO Reviewer</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Checker</td><td>Head office review of credit package; approval gate check; circulates loan pack to committee</td></tr>
+        <tr><td><span class="rp rp-c">Committee Member</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Checker</td><td>Reviews digital loan pack; casts formal vote — Approve / Reject / Abstain</td></tr>
+        <tr><td><span class="rp rp-b">Final Approver</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Checker</td><td>Ultimate credit authority (MD/CEO level); final decision after committee</td></tr>
+        <tr><td><span class="rp rp-a">Operations</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Maker</td><td>Issues offer letter; tracks applicant acceptance; prepares disbursement memo; books loan in CBS</td></tr>
+        <tr><td><span class="rp rp-a">GM Finance</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Checker</td><td>Final funds-release authoriser; approves disbursement memo before core banking booking</td></tr>
+        <tr><td><span class="rp rp-p">Legal Officer</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Maker</td><td>Prepares legal opinion; drafts security documents; records legal clearance on collateral</td></tr>
+        <tr><td><span class="rp rp-p">Head of Legal</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Checker</td><td>Countersigns legal opinion before committee circulation; final legal sign-off</td></tr>
+        <tr><td><span class="rp rp-gr">Risk Manager</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Override</td><td>Senior authority; bypasses non-strict approval gates with documented justification</td></tr>
+        <tr><td><span class="rp rp-gr">System Admin</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Admin</td><td>Full system configuration; user &amp; role management; can perform any workflow action</td></tr>
+        <tr><td><span class="rp rp-gr">Auditor</span></td><td><span class="badge bg-green">Global</span></td><td class="fw6">Read-Only</td><td>Full read-only access to all applications, history, decisions, and audit logs</td></tr>
+        <tr><td><span class="rp rp-g">Customer</span></td><td><span class="badge bg-gray">Own</span></td><td class="fw6">Self-Service</td><td>Retail loan applicant — views and tracks own applications only</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 6 · CREDIT JOURNEY OVERVIEW
+═══════════════════════════════════════════════ -->
+<div class="slide dark" id="s6">
+  <div class="sh"><h2>End-to-End Credit Journey</h2><p>18 stages from application creation to disbursement — corporate loan workflow</p></div>
+  <div class="sb">
+    <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="background:var(--g700);color:var(--white);font-size:13px;font-weight:800;padding:5px 12px;border-radius:8px;min-width:150px;text-align:center;flex-shrink:0;">ORIGINATION</div>
+        <div class="flow">
+          <div class="fs"><div class="fs-r">Loan Officer</div><div class="fs-n">Draft</div></div>
+          <div class="farr">→</div>
+          <div class="fs"><div class="fs-r">Loan Officer</div><div class="fs-n">Submitted</div></div>
+          <div class="farr">→</div>
+          <div class="fs"><div class="fs-r">Loan Officer</div><div class="fs-n">Data Gathering</div></div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="background:var(--g700);color:var(--white);font-size:13px;font-weight:800;padding:5px 12px;border-radius:8px;min-width:150px;text-align:center;flex-shrink:0;">BRANCH REVIEW</div>
+        <div class="flow">
+          <div class="fs"><div class="fs-r">Branch Approver</div><div class="fs-n">Branch Review</div></div>
+          <div class="farr">→</div>
+          <div class="fs sys"><div class="fs-r">System</div><div class="fs-n">Approved</div></div>
+          <div class="farr-r">&nbsp;↩&nbsp;</div>
+          <div class="fs"><div class="fs-r">Loan Officer</div><div class="fs-n">Returned</div></div>
+          <div class="farr-r">&nbsp;✕&nbsp;</div>
+          <div class="fs term"><div class="fs-r">Terminal</div><div class="fs-n">Rejected</div></div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="background:var(--g700);color:var(--white);font-size:13px;font-weight:800;padding:5px 12px;border-radius:8px;min-width:150px;text-align:center;flex-shrink:0;">CREDIT ANALYSIS</div>
+        <div class="flow">
+          <div class="fs"><div class="fs-r">Credit Officer</div><div class="fs-n">Credit Analysis</div></div>
+          <div class="farr">→</div>
+          <div class="fs"><div class="fs-r">HO Reviewer</div><div class="fs-n">HO Review</div></div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="background:var(--g700);color:var(--white);font-size:13px;font-weight:800;padding:5px 12px;border-radius:8px;min-width:150px;text-align:center;flex-shrink:0;">COMMITTEE</div>
+        <div class="flow">
+          <div class="fs"><div class="fs-r">Comm. Members</div><div class="fs-n">Circulation</div></div>
+          <div class="farr">→</div>
+          <div class="fs sys"><div class="fs-r">System</div><div class="fs-n">Comm. Approved</div></div>
+          <div class="farr-r">&nbsp;✕&nbsp;</div>
+          <div class="fs term"><div class="fs-r">Terminal</div><div class="fs-n">Comm. Rejected</div></div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="background:var(--g700);color:var(--white);font-size:13px;font-weight:800;padding:5px 12px;border-radius:8px;min-width:150px;text-align:center;flex-shrink:0;">FINAL APPROVAL</div>
+        <div class="flow">
+          <div class="fs"><div class="fs-r">Final Approver</div><div class="fs-n">Final Approval</div></div>
+          <div class="farr">→</div>
+          <div class="fs sys"><div class="fs-r">System</div><div class="fs-n">Approved</div></div>
+          <div class="farr-r">&nbsp;✕&nbsp;</div>
+          <div class="fs term"><div class="fs-r">Terminal</div><div class="fs-n">Rejected</div></div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="background:var(--g700);color:var(--white);font-size:13px;font-weight:800;padding:5px 12px;border-radius:8px;min-width:150px;text-align:center;flex-shrink:0;">OFFER &amp; DISBURSE</div>
+        <div class="flow">
+          <div class="fs"><div class="fs-r">Operations</div><div class="fs-n">Offer Generated</div></div>
+          <div class="farr">→</div>
+          <div class="fs"><div class="fs-r">Operations</div><div class="fs-n">Offer Accepted</div></div>
+          <div class="farr">→</div>
+          <div class="fs sys"><div class="fs-r">GM Finance</div><div class="fs-n">Disbursed ✓</div></div>
+        </div>
+      </div>
+
+    </div>
+    <div style="display:flex;gap:24px;margin-top:14px;align-items:center;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:14px;color:var(--g300);"><div style="width:18px;height:10px;background:var(--g800);border-radius:3px;"></div>Active Stage</div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:14px;color:var(--g300);"><div style="width:18px;height:10px;background:var(--g600);border-radius:3px;"></div>System Transition</div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:14px;color:var(--g300);"><div style="width:18px;height:10px;background:var(--red);border-radius:3px;"></div>Terminal State</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 7 · ORIGINATION & BRANCH REVIEW
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s7">
+  <div class="sh"><h2>Origination &amp; Branch Review</h2><p>Stages 1–4: Loan Officer (Maker) prepares; Branch Approver (Checker) reviews</p></div>
+  <div class="sb">
+    <div class="mc mb12">
+      <div class="mc-maker">
+        <div class="mc-lbl mk">Maker — Stages 1–3</div>
+        <div class="mc-role">Loan Officer <span style="font-size:14px;color:var(--gray500)">(Branch scope)</span></div>
+        <div class="mc-desc">
+          Creates application; captures borrower details and loan purpose<br>
+          Registers Directors, Signatories, Beneficial Owners (25%+ stake)<br>
+          Uploads all required documents (CAC, Board Resolution, Tax Clearance, IDs, etc.)<br>
+          Uploads and confirms bank statements (manual or CBS pull)<br>
+          Uploads financial statements (Audited, Management Accounts, Projections)<br>
+          Registers guarantors with KYC and proposes collateral assets<br>
+          Submits complete package for Branch Review
+        </div>
+      </div>
+      <div class="mc-arr">→</div>
+      <div class="mc-checker">
+        <div class="mc-lbl ck">Checker — Stage 4</div>
+        <div class="mc-role">Branch Approver <span style="font-size:14px;color:var(--gray500)">(Branch scope)</span></div>
+        <div class="mc-desc">
+          Reviews completeness and quality of the submitted package<br>
+          System blocks approval if Approval Gate is not satisfied<br>
+          Must provide a comment when making any decision<br><br>
+          <strong>Outcomes:</strong><br>
+          ✅ Approve → advances to Credit Analysis<br>
+          ↩ Return → back to Loan Officer for correction<br>
+          ✕ Reject → application terminated
+        </div>
+      </div>
+    </div>
+    <div class="gate">
+      <div class="gate-t"><span>⛔</span>Approval Gate 1 — Branch Review (all required before approval)</div>
+      <ul class="gate-list" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px 20px;">
+        <li>All documents uploaded and verified</li>
+        <li>Bank statements uploaded and confirmed</li>
+        <li>Financial statements uploaded and confirmed</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 8 · CREDIT ANALYSIS & HO REVIEW
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s8">
+  <div class="sh"><h2>Credit Analysis &amp; HO Review</h2><p>Stages 5–6: Credit Officer (Maker, 48 hrs) → HO Reviewer (Checker, 24 hrs)</p></div>
+  <div class="sb">
+    <div class="mc mb12">
+      <div class="mc-maker">
+        <div class="mc-lbl mk">Maker — Credit Analysis</div>
+        <div class="mc-role">Credit Officer</div>
+        <div class="mc-desc">
+          Reviews financial statements — ratios, trends, viability<br>
+          Runs bank statement cashflow analysis (AI-categorised transactions)<br>
+          Orders credit bureau checks via SmartComply (4 providers)<br>
+          Triggers AI Advisory risk scoring across 8 risk categories<br>
+          Reviews and approves/rejects each guarantor<br>
+          Initiates collateral valuation; confirms coverage adequacy<br>
+          Prepares credit memo with recommendation<br>
+          Refers completed package to HO Reviewer
+        </div>
+      </div>
+      <div class="mc-arr">→</div>
+      <div class="mc-checker">
+        <div class="mc-lbl ck">Checker — HO Review</div>
+        <div class="mc-role">HO Reviewer</div>
+        <div class="mc-desc">
+          Reviews the complete credit analysis package<br>
+          Reviews bureau outputs, AI advisory, and credit memo<br>
+          Reviews legal opinion (Legal Officer + Head of Legal sign-off)<br>
+          System checks Approval Gate 2 before allowing circulation<br>
+          Approves for committee and assembles digital Loan Pack<br><br>
+          <strong>Outcomes:</strong><br>
+          ✅ Approve → Loan Pack circulated to Committee<br>
+          ↩ Return → back to Credit Officer for rework
+        </div>
+      </div>
+    </div>
+    <div class="gate">
+      <div class="gate-t"><span>⛔</span>Approval Gate 2 — HO Review (all required before committee circulation)</div>
+      <ul class="gate-list" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px 20px;">
+        <li>All documents verified</li>
+        <li>Bank statements verified</li>
+        <li>Financial statements confirmed</li>
+        <li>All collateral assets valued</li>
+        <li>All guarantors approved</li>
+        <li>Cashflow analysis completed</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 9 · LEGAL TRACK
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s9">
+  <div class="sh"><h2>Legal Track — Parallel Workflow</h2><p>Legal Officer (Maker) → Head of Legal (Checker) — runs concurrently with Credit Analysis</p></div>
+  <div class="sb">
+    <div class="mc mb16">
+      <div class="mc-maker">
+        <div class="mc-lbl mk">Maker</div>
+        <div class="mc-role">Legal Officer</div>
+        <div class="mc-desc">
+          Reviews title instruments and ownership documents for each collateral asset<br>
+          Prepares a formal legal opinion on each collateral item<br>
+          Validates encumbrances, lien registration, and existing charges<br>
+          Drafts security and perfection documentation<br>
+          Records legal clearance on collateral (status: Approved)<br>
+          Tracks lien perfection: Lien Registered → Perfected
+        </div>
+      </div>
+      <div class="mc-arr">→</div>
+      <div class="mc-checker">
+        <div class="mc-lbl ck">Checker</div>
+        <div class="mc-role">Head of Legal</div>
+        <div class="mc-desc">
+          Reviews legal opinion prepared by Legal Officer<br>
+          Countersigns — dual legal sign-off required before committee<br>
+          Signed legal opinion is included in the committee Loan Pack<br>
+          Confirms perfection status of all collateral assets<br>
+          Final legal clearance recorded on the application record
+        </div>
+      </div>
+    </div>
+    <div style="background:var(--g800);border-radius:12px;padding:16px 20px;">
+      <div class="f18 fw8 mb8 tg4">Collateral Status Lifecycle</div>
+      <div class="flow" style="gap:0;">
+        <div class="fs" style="min-width:80px;"><div class="fs-n" style="font-size:13px;">Proposed</div></div>
+        <div class="farr">→</div>
+        <div class="fs" style="min-width:80px;"><div class="fs-n" style="font-size:13px;">Under Valuation</div></div>
+        <div class="farr">→</div>
+        <div class="fs" style="min-width:80px;"><div class="fs-n" style="font-size:13px;">Valued</div></div>
+        <div class="farr">→</div>
+        <div class="fs sys" style="min-width:80px;"><div class="fs-n" style="font-size:13px;">Approved</div></div>
+        <div class="farr">→</div>
+        <div class="fs" style="min-width:80px;"><div class="fs-n" style="font-size:13px;">Perfection Started</div></div>
+        <div class="farr">→</div>
+        <div class="fs sys" style="min-width:80px;"><div class="fs-n" style="font-size:13px;">Perfected ✓</div></div>
+      </div>
+      <div style="margin-top:10px;font-size:14px;color:var(--g300);">Lien Types: First Charge &nbsp;·&nbsp; Second Charge &nbsp;·&nbsp; Floating Charge &nbsp;·&nbsp; Fixed Charge &nbsp;·&nbsp; Pledge &nbsp;·&nbsp; Hypothecation &nbsp;·&nbsp; Assignment</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 10 · COMMITTEE REVIEW & VOTING
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s10">
+  <div class="sh"><h2>Committee Circulation &amp; Voting</h2><p>Stages 7–8: HO Reviewer circulates → Committee Members vote — SLA: 72 hours</p></div>
+  <div class="sb">
+    <div class="split">
+      <div>
+        <div class="ph-banner">
+          <div class="ph-num">C</div>
+          <div><div class="ph-title">Committee Process</div><div class="ph-sub">Multiple checkers — each member votes independently</div></div>
+        </div>
+        <ul class="ck-list">
+          <li><span class="ic">1</span>HO Reviewer selects committee and circulates digital Loan Pack</li>
+          <li><span class="ic">2</span>Loan Pack auto-assembles: credit memo, financial analysis, bureau reports, AI advisory, legal opinion, collateral summary</li>
+          <li><span class="ic">3</span>Each Committee Member receives notification and reviews the full pack</li>
+          <li><span class="ic">4</span>Each member casts a formal vote: <strong>Approve / Reject / Abstain</strong></li>
+          <li><span class="ic">5</span>Members may attach comments (Internal or Committee visibility)</li>
+          <li><span class="ic">6</span>System aggregates votes and records the committee decision</li>
+        </ul>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="background:var(--g800);border-radius:12px;padding:16px 20px;color:var(--white);">
+          <div class="f18 fw8 mb8 tg4">Decision Types</div>
+          <div style="font-size:16px;line-height:2;color:var(--g300);">
+            ✅ Approved<br>
+            ⚠️ Approved with Conditions<br>
+            ❌ Rejected (terminal)<br>
+            ⏳ Deferred (pending information)<br>
+            ⬆️ Escalated (higher committee)
+          </div>
+        </div>
+        <div style="background:var(--g800);border-radius:12px;padding:16px 20px;color:var(--white);">
+          <div class="f18 fw8 mb8 tg4">Committee Types</div>
+          <div style="font-size:15px;line-height:1.9;color:var(--g300);">
+            Branch Credit Committee<br>
+            Regional Credit Committee<br>
+            Head Office Credit Committee<br>
+            Management Credit Committee<br>
+            Board Credit Committee
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 11 · FINAL APPROVAL & OFFER LETTER
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s11">
+  <div class="sh"><h2>Final Approval &amp; Offer Letter</h2><p>Stages 9–12: Final Approver (MD/CEO level) → Operations — 24–48 hrs SLA</p></div>
+  <div class="sb">
+    <div class="mc mb12">
+      <div class="mc-maker" style="background:var(--bluelt);border-color:var(--blue);">
+        <div class="mc-lbl" style="color:var(--cyan);">Committee Decision</div>
+        <div class="mc-role">Committee (collective)</div>
+        <div class="mc-desc">Approved vote result is forwarded to the Final Approver for ultimate credit sign-off. Committee decision is binding input, not final authority.</div>
+      </div>
+      <div class="mc-arr">→</div>
+      <div class="mc-checker">
+        <div class="mc-lbl ck">Checker — Approval Gate 3</div>
+        <div class="mc-role">Final Approver (MD/CEO)</div>
+        <div class="mc-desc">Reviews committee decision, credit memo, and all risk factors. Gate 3 must be satisfied. Issues final Approve or Reject.</div>
+      </div>
+    </div>
+    <div class="gate mb12">
+      <div class="gate-t"><span>⛔</span>Approval Gate 3 — Final Approval</div>
+      <ul class="gate-list"><li>All collateral assets approved — legal clearance recorded AND credit officer sign-off on each asset</li></ul>
+    </div>
+    <div class="mc" style="margin-bottom:0;">
+      <div class="mc-maker">
+        <div class="mc-lbl mk">Maker — Offer &amp; Conditions</div>
+        <div class="mc-role">Operations</div>
+        <div class="mc-desc">
+          Generates formal Offer Letter with approved terms<br>
+          Tracks applicant countersignature (In-Branch / Courier / Electronic)<br>
+          Prepares Disbursement Checklist (Conditions Precedent &amp; Subsequent)<br>
+          Marks each condition Satisfied before unlocking disbursement
+        </div>
+      </div>
+      <div class="mc-arr">→</div>
+      <div class="mc-checker">
+        <div class="mc-lbl ck">Checker — Funds Release</div>
+        <div class="mc-role">GM Finance</div>
+        <div class="mc-desc">
+          Reviews and approves the disbursement memo<br>
+          Final funds-release authority<br>
+          Confirms loan booking in Apache Fineract (CBS)<br>
+          Application status set to: <strong>Disbursed</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 12 · MAKER-CHECKER COMPLETE MATRIX
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s12">
+  <div class="sh"><h2>Maker-Checker Controls — End to End</h2><p>Every critical decision has a designated maker and an independent checker</p></div>
+  <div class="sb sb-top">
+    <table class="tbl">
+      <thead>
+        <tr><th style="width:16%">Phase</th><th style="width:20%">Maker</th><th>Maker's Action</th><th style="width:20%">Checker</th><th style="width:8%">Gate</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="fw6">Origination</td><td><span class="rp rp-g">Loan Officer</span></td><td>Prepares full application — parties, documents, statements, guarantors, collaterals</td><td style="color:var(--gray500)">—</td><td style="color:var(--gray500)">—</td></tr>
+        <tr><td class="fw6">Branch Review</td><td><span class="rp rp-g">Loan Officer</span></td><td>Submits application for review</td><td><span class="rp rp-b">Branch Approver</span></td><td><span class="badge bg-amber">Gate 1</span></td></tr>
+        <tr><td class="fw6">Credit Analysis</td><td><span class="rp rp-g">Credit Officer</span></td><td>Full credit analysis, bureau checks, AI advisory, credit memo</td><td style="color:var(--gray500)">—</td><td style="color:var(--gray500)">—</td></tr>
+        <tr><td class="fw6">HO Review</td><td><span class="rp rp-g">Credit Officer</span></td><td>Refers completed analysis for head office review</td><td><span class="rp rp-b">HO Reviewer</span></td><td><span class="badge bg-amber">Gate 2</span></td></tr>
+        <tr><td class="fw6">Legal Opinion</td><td><span class="rp rp-p">Legal Officer</span></td><td>Drafts legal opinion; records legal clearance on collateral</td><td><span class="rp rp-p">Head of Legal</span></td><td style="color:var(--gray500)">—</td></tr>
+        <tr><td class="fw6">Committee</td><td><span class="rp rp-b">HO Reviewer</span></td><td>Circulates digital loan pack to committee</td><td><span class="rp rp-c">Committee Members</span></td><td style="color:var(--gray500)">—</td></tr>
+        <tr><td class="fw6">Final Approval</td><td><span class="rp rp-c">Committee</span></td><td>Collective vote result forwarded for final sign-off</td><td><span class="rp rp-b">Final Approver</span></td><td><span class="badge bg-amber">Gate 3</span></td></tr>
+        <tr><td class="fw6">Offer Letter</td><td><span class="rp rp-a">Operations</span></td><td>Issues offer letter; tracks applicant acceptance; conditions checklist</td><td style="color:var(--gray500)">—</td><td style="color:var(--gray500)">—</td></tr>
+        <tr><td class="fw6">Disbursement</td><td><span class="rp rp-a">Operations</span></td><td>Satisfies conditions precedent; prepares disbursement memo</td><td><span class="rp rp-a">GM Finance</span></td><td><span class="badge bg-amber">Gate 4</span></td></tr>
+        <tr><td class="fw6">Override</td><td colspan="2" style="color:var(--gray600)">Any gate may be bypassed with documented justification</td><td><span class="rp rp-gr">Risk Manager</span></td><td><span class="badge bg-red">Override</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 13 · APPROVAL GATES
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s13">
+  <div class="sh"><h2>Approval Gates</h2><p>System-enforced checkpoints that block workflow advancement until all conditions are satisfied</p></div>
+  <div class="sb">
+    <div class="g2" style="gap:14px;align-items:start;">
+      <div class="gate">
+        <div class="gate-t"><span>⛔</span>Gate 1 — Branch Review</div>
+        <ul class="gate-list">
+          <li>All required documents uploaded and verified</li>
+          <li>Bank statements uploaded and confirmed</li>
+          <li>Financial statements uploaded and confirmed</li>
+        </ul>
+      </div>
+      <div class="gate">
+        <div class="gate-t"><span>⛔</span>Gate 2 — HO Review (for Committee)</div>
+        <ul class="gate-list">
+          <li>All documents verified</li>
+          <li>Bank statements verified</li>
+          <li>Financial statements confirmed</li>
+          <li>All collateral assets valued</li>
+          <li>All guarantors approved (credit-check complete)</li>
+          <li>Bank statement cashflow analysis completed</li>
+        </ul>
+      </div>
+      <div class="gate">
+        <div class="gate-t"><span>⛔</span>Gate 3 — Final Approval</div>
+        <ul class="gate-list">
+          <li>All collateral assets approved — legal clearance recorded AND credit sign-off on each asset</li>
+        </ul>
+      </div>
+      <div class="gate">
+        <div class="gate-t"><span>⛔</span>Gate 4 — Disbursement</div>
+        <ul class="gate-list">
+          <li>Offer letter countersigned by applicant</li>
+          <li>All Conditions Precedent marked Satisfied</li>
+          <li>Disbursement memo prepared and uploaded</li>
+          <li>GM Finance approval received</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top:14px;background:var(--gray100);border-radius:10px;padding:12px 18px;border-left:4px solid var(--gray400);">
+      <span class="fw8 f16">Override: </span><span style="font-size:15px;color:var(--gray600);">Risk Manager may bypass any non-strict gate with a documented override note. All overrides are permanently recorded in the audit trail with the actor, timestamp, and justification.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 14 · CREDIT ASSESSMENT
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s14">
+  <div class="sh"><h2>Credit Assessment Tools</h2><p>Three integrated layers — bureau data, AI advisory, and configurable scoring</p></div>
+  <div class="sb">
+    <div class="g3" style="gap:16px;align-items:start;">
+      <div class="card" style="border-top:4px solid var(--g400);">
+        <div class="card-icon">🏦</div>
+        <div class="c-title">Credit Bureau</div>
+        <div class="c-body"><strong>4 Providers via SmartComply:</strong><br>CreditRegistry · FirstCentral · CRC · SmartComply Direct<br><br><strong>15+ Report Types:</strong><br>Individual · Corporate · Fraud Check · KYC (BVN, NIN, CAC, Passport, Driver's Licence, etc.)<br><br><strong>Key Outputs:</strong><br>Credit score · Delinquency history · Non-performing accounts · Legal status · Existing exposures · Account performance ratings</div>
+      </div>
+      <div class="card" style="border-top:4px solid var(--blue);">
+        <div class="card-icon">🤖</div>
+        <div class="c-title">AI Advisory Engine</div>
+        <div class="c-body"><strong>Risk Scored Across 8 Categories:</strong><br>Credit History · Financial Health · Cashflow Stability · Debt Service Capacity · Collateral Coverage · Management Risk · Industry Risk · Concentration Risk<br><br><strong>Risk Rating:</strong> Very Low → Very High<br><br><strong>Recommendation:</strong><br>Strong Approve · Approve · Approve with Conditions · Refer · Decline</div>
+      </div>
+      <div class="card" style="border-top:4px solid var(--amber);">
+        <div class="card-icon">⚙️</div>
+        <div class="c-title">Configurable Scoring</div>
+        <div class="c-body"><strong>Admin-Configurable Parameters:</strong><br>Numeric · Percentage · Currency · Score types<br><br><strong>Comparison Operators:</strong><br>= · ≠ · &gt; · &lt; · Between · In Set<br><br><strong>Eligibility Rules:</strong><br>Age · Min/Max Income · Geography · Sector · Credit Score · Debt-to-Income · Employment Type · Business Age<br><br><strong>Governance:</strong> Parameter changes require approval (Pending → Approved)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 15 · COLLATERAL & GUARANTOR
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s15">
+  <div class="sh"><h2>Collateral &amp; Guarantor Management</h2><p>Full lifecycle tracking — from proposal through legal perfection; Credit Officer owns approval</p></div>
+  <div class="sb">
+    <div class="split">
+      <div>
+        <div style="font-size:17px;font-weight:800;color:var(--g700);margin-bottom:10px;">Collateral — 13 Asset Types</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:15px;color:var(--gray700);margin-bottom:16px;">
+          <div>🏘️ Real Estate</div><div>🚗 Vehicle</div>
+          <div>🏭 Equipment</div><div>📦 Inventory</div>
+          <div>💵 Cash / Fixed Deposit</div><div>📜 Treasury Bills</div>
+          <div>📈 Stocks &amp; Bonds</div><div>🧾 Invoice / Contract</div>
+          <div>🛡️ Insurance Policy</div><div>+ Other (configurable)</div>
+        </div>
+        <div style="font-size:16px;font-weight:800;color:var(--g700);margin-bottom:6px;">Valuation Types</div>
+        <div style="font-size:15px;color:var(--gray600);">Initial · Revaluation · Forced Sale · Market Value · Insurance</div>
+        <div style="font-size:16px;font-weight:800;color:var(--g700);margin-top:12px;margin-bottom:6px;">Lien Types</div>
+        <div style="font-size:15px;color:var(--gray600);">First Charge · Second Charge · Floating Charge · Fixed Charge · Pledge · Hypothecation · Assignment</div>
+      </div>
+      <div>
+        <div style="font-size:17px;font-weight:800;color:var(--g700);margin-bottom:10px;">Guarantor Management</div>
+        <div style="background:var(--g800);border-radius:12px;padding:16px 20px;color:var(--white);margin-bottom:12px;">
+          <div style="font-size:16px;font-weight:800;color:var(--g400);margin-bottom:6px;">Guarantor Types</div>
+          <div style="font-size:14px;color:var(--g300);line-height:1.8;">Individual · Corporate · Director · Shareholder · Third Party · Government</div>
+          <div style="font-size:16px;font-weight:800;color:var(--g400);margin-top:12px;margin-bottom:6px;">Guarantee Types</div>
+          <div style="font-size:14px;color:var(--g300);line-height:1.8;">Unlimited · Limited · Joint · Joint &amp; Several · Continuing</div>
+        </div>
+        <div style="font-size:15px;font-weight:800;color:var(--g700);margin-bottom:8px;">Guarantor Status Lifecycle</div>
+        <div class="flow" style="flex-wrap:wrap;">
+          <div class="fs" style="min-width:80px;"><div class="fs-n" style="font-size:12px;">Proposed</div></div>
+          <div class="farr" style="font-size:16px;">→</div>
+          <div class="fs" style="min-width:80px;"><div class="fs-n" style="font-size:12px;">Verification</div></div>
+          <div class="farr" style="font-size:16px;">→</div>
+          <div class="fs" style="min-width:80px;"><div class="fs-n" style="font-size:12px;">Credit Check</div></div>
+          <div class="farr" style="font-size:16px;">→</div>
+          <div class="fs sys" style="min-width:80px;"><div class="fs-n" style="font-size:12px;">Approved ✓</div></div>
+        </div>
+        <div style="margin-top:8px;font-size:14px;color:var(--gray600);">Credit Officer owns the approve/reject decision for each guarantor</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 16 · DOCUMENT & FINANCIAL MANAGEMENT
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s16">
+  <div class="sh"><h2>Document &amp; Financial Statement Management</h2><p>Structured upload, categorisation, verification, and AI-assisted analysis</p></div>
+  <div class="sb">
+    <div class="split">
+      <div>
+        <div style="font-size:17px;font-weight:800;color:var(--g700);margin-bottom:10px;">Document Management</div>
+        <ul class="ck-list" style="margin-bottom:14px;">
+          <li><span class="ic">📄</span>10 defined document categories (CAC, Board Resolution, Tax Clearance, IDs, financials, collateral docs, etc.)</li>
+          <li><span class="ic">✓</span>Status tracked: Pending → Uploaded → Verified / Rejected</li>
+          <li><span class="ic">⚙️</span>Generated documents: Offer Letter, Credit Memo, Loan Pack (15 sections), Disbursement Memo</li>
+        </ul>
+        <div style="font-size:17px;font-weight:800;color:var(--g700);margin-bottom:10px;">Bank Statement Analysis</div>
+        <ul class="ck-list">
+          <li><span class="ic">🏦</span>Pull from internal CBS or manual upload</li>
+          <li><span class="ic">🤖</span>AI-assisted transaction categorisation (16 categories)</li>
+          <li><span class="ic">📊</span>Cashflow analysis: credits, debits, averages, trends</li>
+          <li><span class="ic">🚩</span>Flags gambling, irregular income, existing loan repayments</li>
+        </ul>
+      </div>
+      <div>
+        <div style="font-size:17px;font-weight:800;color:var(--g700);margin-bottom:10px;">Financial Statement Analysis</div>
+        <div style="background:var(--g800);border-radius:12px;padding:16px 20px;color:var(--white);margin-bottom:12px;">
+          <div style="font-size:15px;font-weight:800;color:var(--g400);margin-bottom:6px;">Statement Types</div>
+          <div style="font-size:14px;color:var(--g300);line-height:1.8;">Audited · Reviewed · Management Accounts · Interim · Projected</div>
+          <div style="font-size:15px;font-weight:800;color:var(--g400);margin-top:12px;margin-bottom:6px;">Upload Methods</div>
+          <div style="font-size:14px;color:var(--g300);line-height:1.8;">Manual Entry · Excel Upload · PDF Extraction · API Import</div>
+          <div style="font-size:15px;font-weight:800;color:var(--g400);margin-top:12px;margin-bottom:6px;">Status Lifecycle</div>
+          <div style="font-size:14px;color:var(--g300);line-height:1.8;">Draft → Pending Review → Verified / Rejected</div>
+        </div>
+        <div style="background:var(--g800);border-radius:12px;padding:14px 20px;color:var(--white);">
+          <div style="font-size:15px;font-weight:800;color:var(--g400);margin-bottom:6px;">Loan Pack — 15 Sections</div>
+          <div style="font-size:13px;color:var(--g300);line-height:1.7;">Cover Page · Executive Summary · Customer Profile · Credit History · Financial Analysis · Bank Statement Analysis · AI Advisory · Bureau Reports · Collateral Summary · Legal Opinion · Guarantor Summary · Risk Assessment · Committee Recommendation · Appendices</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 17 · ADMINISTRATION
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s17">
+  <div class="sh"><h2>Administration &amp; Configuration</h2><p>System Admin controls all platform settings — no hardcoding required</p></div>
+  <div class="sb sb-top">
+    <div class="g4">
+      <div class="card"><div class="card-icon">📦</div><div class="c-title">Loan Product Catalog</div><div class="c-body">Create &amp; manage loan products — rates, amounts, tenor, eligibility rules, pricing tiers. Sync from Apache Fineract (CBS).</div></div>
+      <div class="card"><div class="card-icon">👥</div><div class="c-title">User &amp; Role Management</div><div class="c-body">Create users, assign roles, set data-visibility scope (Branch / Global / Own), enable or disable accounts.</div></div>
+      <div class="card"><div class="card-icon">🏢</div><div class="c-title">Locations &amp; Branches</div><div class="c-body">Register all branches and locations. Branch assignment controls which applications a Loan Officer can access.</div></div>
+      <div class="card"><div class="card-icon">🏛️</div><div class="c-title">Standing Committees</div><div class="c-body">Configure committees (Branch, Regional, HO, Management, Board). Define membership and quorum rules.</div></div>
+      <div class="card"><div class="card-icon">🔔</div><div class="c-title">Notification Templates</div><div class="c-body">Configure templates for Email, SMS, WhatsApp, In-App, and Push. 15+ event triggers across the workflow.</div></div>
+      <div class="card"><div class="card-icon">⚖️</div><div class="c-title">Scoring Configuration</div><div class="c-body">Define and adjust scoring parameters and eligibility rules. Changes require approval before taking effect.</div></div>
+      <div class="card"><div class="card-icon">🏷️</div><div class="c-title">Collateral Types</div><div class="c-body">Configure accepted collateral types, valuation methods, required documentation, and applicable haircut rates.</div></div>
+      <div class="card"><div class="card-icon">📄</div><div class="c-title">Document Templates</div><div class="c-body">Manage offer letter, credit memo, and disbursement document templates. Version-controlled outputs.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 18 · REPORTING, QUEUES & AUDIT
+═══════════════════════════════════════════════ -->
+<div class="slide light" id="s18">
+  <div class="sh"><h2>Reporting, Work Queues &amp; Audit Trail</h2><p>Full visibility into pipeline, SLA compliance, team performance, and system activity</p></div>
+  <div class="sb">
+    <div class="g3" style="gap:16px;align-items:start;">
+      <div>
+        <div style="font-size:17px;font-weight:800;color:var(--g700);margin-bottom:10px;">Work Queues</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="card" style="border-left:4px solid var(--g400);padding:12px 16px;"><div class="c-title">My Queue</div><div class="c-body">Applications currently assigned to the logged-in user, sorted by SLA urgency. Each role sees only their relevant stage.</div></div>
+          <div class="card" style="border-left:4px solid var(--blue);padding:12px 16px;"><div class="c-title">All Queues</div><div class="c-body">Team-wide pipeline view across every stage (Global roles). Management oversight of full workload.</div></div>
+          <div class="card" style="border-left:4px solid var(--red);padding:12px 16px;"><div class="c-title">Overdue Queue</div><div class="c-body">Applications that have breached SLA. Triggers escalation action for supervisors and managers.</div></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:17px;font-weight:800;color:var(--g700);margin-bottom:10px;">Reports</div>
+        <ul class="ck-list">
+          <li><span class="ic">📊</span>Pipeline Report — applications by stage, status, and amount</li>
+          <li><span class="ic">🏛️</span>Committee Report — voting history and decisions</li>
+          <li><span class="ic">📈</span>Performance Metrics — stage turnaround and SLA rates</li>
+          <li><span class="ic">🔍</span>Audit Report — full log export by date range</li>
+          <li><span class="ic">📋</span>Application Summary — individual loan dossier</li>
+        </ul>
+        <div style="margin-top:12px;background:var(--g800);border-radius:10px;padding:12px 16px;">
+          <div style="font-size:15px;font-weight:800;color:var(--g400);margin-bottom:4px;">SLA per Stage</div>
+          <div style="font-size:13px;color:var(--g300);line-height:1.7;">Branch Review: 8 hrs · Credit Analysis: 48 hrs · HO Review: 24 hrs · Committee: 72 hrs · Final Approval: 24 hrs · Offer: 48 hrs</div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:17px;font-weight:800;color:var(--g700);margin-bottom:10px;">Audit Trail</div>
+        <div style="background:var(--g800);border-radius:12px;padding:16px 20px;color:var(--white);">
+          <div style="font-size:15px;font-weight:800;color:var(--g400);margin-bottom:8px;">Every action is permanently logged:</div>
+          <div style="font-size:14px;color:var(--g300);line-height:1.8;">
+            Create · Update · Submit<br>
+            Approve · Reject · Vote<br>
+            Override · Document Upload<br>
+            Bureau Request · AI Advisory<br>
+            Login · Logout · Data Access
+          </div>
+          <div style="font-size:15px;font-weight:800;color:var(--g400);margin-top:12px;margin-bottom:6px;">Each entry captures:</div>
+          <div style="font-size:14px;color:var(--g300);line-height:1.8;">
+            Who · What · When · Source IP<br>
+            Before &amp; after values (changes)<br>
+            Data access type (View / Export)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 19 · INTEGRATION ARCHITECTURE
+═══════════════════════════════════════════════ -->
+<div class="slide dark" id="s19">
+  <div class="sh"><h2>Integration Architecture</h2><p>Six external system integrations — CRMS as the central credit hub</p></div>
+  <div class="sb">
+    <div class="g3" style="gap:14px;align-items:start;">
+      <div class="int-card">
+        <div class="int-name">Apache Fineract</div>
+        <div class="int-prov">Core Banking System (CBS)</div>
+        <div class="int-desc">Loan product sync from CBS; account data lookup; loan schedule calculation; loan account creation at disbursement; repayment schedule retrieval</div>
+      </div>
+      <div class="int-card">
+        <div class="int-name">SmartComply</div>
+        <div class="int-prov">Credit Bureau Aggregator</div>
+        <div class="int-desc">Single integration covering CreditRegistry, FirstCentral, CRC, and SmartComply direct. 15+ report types: individual, corporate, fraud, KYC (BVN, NIN, CAC, Passport, Driver's Licence)</div>
+      </div>
+      <div class="int-card">
+        <div class="int-name">AI Advisory Engine</div>
+        <div class="int-prov">Risk Intelligence Platform</div>
+        <div class="int-desc">Automated risk scoring across 8 risk categories. Outputs risk rating (Very Low to Very High) and actionable recommendation (Strong Approve to Decline)</div>
+      </div>
+      <div class="int-card">
+        <div class="int-name">Mono Connect</div>
+        <div class="int-prov">Open Banking / Account Data</div>
+        <div class="int-desc">Direct bank statement retrieval via open banking APIs — verified, machine-readable transaction data for cashflow analysis; supplements manual uploads</div>
+      </div>
+      <div class="int-card">
+        <div class="int-name">Notification Services</div>
+        <div class="int-prov">Multi-Channel Communications</div>
+        <div class="int-desc">Email, SMS, WhatsApp, In-App, and Push notifications. Template-driven with 15+ event triggers. Priority levels: Low / Normal / High / Urgent</div>
+      </div>
+      <div class="int-card">
+        <div class="int-name">Document Generation</div>
+        <div class="int-prov">PDF &amp; Report Engine</div>
+        <div class="int-desc">Server-side generation of offer letters, credit memos, loan packs (15 sections), and disbursement memos. Template-managed; version-controlled output</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 20 · SUMMARY
+═══════════════════════════════════════════════ -->
+<div class="slide dark" id="s20">
+  <div class="sh"><h2>Summary</h2><p>What CRMS delivers to Bank of Agriculture</p></div>
+  <div class="sb">
+    <div class="g4">
+      <div class="card-dk"><div class="c-title-lt">✅ End-to-End Digitisation</div><div class="c-body-lt">18 workflow stages from application to disbursement — fully digital, fully tracked, zero paper handoffs</div></div>
+      <div class="card-dk"><div class="c-title-lt">🔒 Maker-Checker at Every Stage</div><div class="c-body-lt">Defined maker and checker for every critical decision. 4 system-enforced gates. Override with full documentation.</div></div>
+      <div class="card-dk"><div class="c-title-lt">👥 14 Defined Roles</div><div class="c-body-lt">Each role has a defined scope (Branch / Global / Own), permissions, and workflow authority. No access beyond role.</div></div>
+      <div class="card-dk"><div class="c-title-lt">🏛️ Committee Governance</div><div class="c-body-lt">Digital loan pack, formal voting across 5 committee types, 5 decision types, full audit of votes and comments</div></div>
+      <div class="card-dk"><div class="c-title-lt">📊 360° Credit Assessment</div><div class="c-body-lt">Bureau (4 providers), AI advisory (8 risk categories), configurable scoring, financial ratios, cashflow — in one platform</div></div>
+      <div class="card-dk"><div class="c-title-lt">🏠 Collateral Lifecycle</div><div class="c-body-lt">13 asset types tracked from proposal through valuation, legal clearance, and full lien perfection. Maker-checker enforced.</div></div>
+      <div class="card-dk"><div class="c-title-lt">🔗 6 Live Integrations</div><div class="c-body-lt">Apache Fineract (CBS), SmartComply (Bureau), AI Engine, Mono Connect, Notification Services, Document Generation</div></div>
+      <div class="card-dk"><div class="c-title-lt">📈 SLA &amp; Audit</div><div class="c-body-lt">SLA clock per stage, overdue alerts, full audit trail of every action — who, what, when, and before/after values</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 21 · Q&A
+═══════════════════════════════════════════════ -->
+<div class="slide" id="s21">
+  <div class="qa-body">
+    <div style="font-size:80px;margin-bottom:20px;">💬</div>
+    <div style="font-size:64px;font-weight:800;color:var(--white);margin-bottom:14px;letter-spacing:-2px;">Questions?</div>
+    <div style="font-size:26px;color:var(--g300);max-width:640px;line-height:1.5;">Thank you for your time.<br>We welcome your questions and feedback.</div>
+    <div style="margin-top:48px;display:flex;gap:48px;">
+      <div style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--g400);">14 Roles</div><div style="font-size:15px;color:var(--g300);margin-top:3px;">Defined &amp; Scoped</div></div>
+      <div style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--g400);">18 Stages</div><div style="font-size:15px;color:var(--g300);margin-top:3px;">Full Lifecycle</div></div>
+      <div style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--g400);">4 Gates</div><div style="font-size:15px;color:var(--g300);margin-top:3px;">Enforced Checks</div></div>
+      <div style="text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--g400);">6 Integrations</div><div style="font-size:15px;color:var(--g300);margin-top:3px;">Live Connections</div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<div id="progress-bar"></div>
+<div class="nav">
+  <button class="nav-btn" onclick="go(-1)">&#8592;</button>
+  <span id="ctr">1 / 21</span>
+  <button class="nav-btn" onclick="go(1)">&#8594;</button>
+</div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+let cur = 0;
+
+function showSlide(n) {
+  slides[cur].classList.remove('active');
+  slides[cur].classList.add('prev');
+  setTimeout(() => slides[cur].classList.remove('prev'), 420);
+  cur = (n + total) % total;
+  slides[cur].classList.add('active');
+  document.getElementById('ctr').textContent = (cur + 1) + ' / ' + total;
+  document.getElementById('progress-bar').style.width = ((cur + 1) / total * 100) + '%';
+}
+
+function go(d) { showSlide(cur + d); }
+
+document.addEventListener('keydown', e => {
+  if (['ArrowRight','ArrowDown','PageDown'].includes(e.key) || e.code === 'Space') { e.preventDefault(); go(1); }
+  else if (['ArrowLeft','ArrowUp','PageUp'].includes(e.key)) { e.preventDefault(); go(-1); }
+  else if (e.key === 'Home') { e.preventDefault(); showSlide(0); }
+  else if (e.key === 'End') { e.preventDefault(); showSlide(total - 1); }
+});
+
+let tx = 0;
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+});
+
+document.getElementById('progress-bar').style.width = (1 / total * 100) + '%';
+</script>
+</body>
+</html>

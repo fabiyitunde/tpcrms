@@ -137,6 +137,30 @@ public class SeedController : ControllerBase
     }
 
     /// <summary>
+    /// Seeds NAMP workflow stage config and default routing config.
+    /// Safe to run on an already-seeded database — idempotent.
+    /// </summary>
+    [HttpPost("namp")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SeedNamp()
+    {
+        if (!_environment.IsDevelopment())
+            return BadRequest(new { error = "Seeding is only available in Development environment" });
+
+        try
+        {
+            _logger.LogInformation("Seeding NAMP workflow config...");
+            await NampWorkflowSeeder.SeedAsync(_context, _logger);
+            return Ok(new { success = true, message = "NAMP workflow config seeded.", timestamp = DateTime.UtcNow });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during NAMP seeding");
+            return StatusCode(500, new { error = "NAMP seeding failed", message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Returns the row counts for all seeded tables.
     /// </summary>
     [HttpGet("status")]
@@ -184,7 +208,14 @@ public class SeedController : ControllerBase
             ["WorkflowTransitionLogs"] = await _context.WorkflowTransitionLogs.CountAsync(),
             ["AuditLogs"] = await _context.AuditLogs.CountAsync(),
             ["DataAccessLogs"] = await _context.DataAccessLogs.CountAsync(),
-            ["Notifications"] = await _context.Notifications.CountAsync()
+            ["Notifications"] = await _context.Notifications.CountAsync(),
+            ["NampStagingRecords"] = await _context.NampStagingRecords.CountAsync(),
+            ["NampRoutingConfigs"] = await _context.NampRoutingConfigs.CountAsync(),
+            ["NampApplications"] = await _context.NampApplications.CountAsync(),
+            ["NampDocuments"] = await _context.NampDocuments.CountAsync(),
+            ["NampStatusHistory"] = await _context.NampStatusHistory.CountAsync(),
+            ["NampWorkflowConfigs"] = await _context.NampWorkflowConfigs.CountAsync(),
+            ["NampWorkflowInstances"] = await _context.NampWorkflowInstances.CountAsync()
         };
 
         var totalRows = counts.Values.Sum();

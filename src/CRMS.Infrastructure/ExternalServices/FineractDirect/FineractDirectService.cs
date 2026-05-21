@@ -334,6 +334,46 @@ public class FineractDirectService : IFineractDirectService
         ));
     }
 
+    public async Task<Result<FineractClientInfo>> GetClientByIdAsync(long clientId, CancellationToken ct = default)
+    {
+        try
+        {
+            var url = $"clients/{clientId}";
+            _logger.LogInformation("Fineract: GET {Url}", url);
+
+            var response = await _httpClient.GetAsync(url, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Fineract client detail failed ({Status}): {Body}", response.StatusCode, errorBody);
+                return Result.Failure<FineractClientInfo>($"Fineract returned {(int)response.StatusCode}: {errorBody}");
+            }
+
+            var client = await response.Content.ReadFromJsonAsync<FineractClientDetailResponse>(_jsonOptions, ct);
+            if (client == null)
+                return Result.Failure<FineractClientInfo>("Empty response from Fineract.");
+
+            if (string.IsNullOrWhiteSpace(client.OfficeName))
+                return Result.Failure<FineractClientInfo>($"Client {clientId} has no office name in Fineract.");
+
+            return Result.Success(new FineractClientInfo(
+                client.Id,
+                client.OfficeId,
+                client.OfficeName,
+                client.DisplayName ?? $"{client.Firstname} {client.Lastname}".Trim()));
+        }
+        catch (TaskCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fineract client detail error for clientId={ClientId}", clientId);
+            return Result.Failure<FineractClientInfo>($"Fineract error: {ex.Message}");
+        }
+    }
+
     public async Task<Result<IReadOnlyList<FineractLoanProduct>>> GetLoanProductsAsync(
         bool activeOnly = true, CancellationToken ct = default)
     {

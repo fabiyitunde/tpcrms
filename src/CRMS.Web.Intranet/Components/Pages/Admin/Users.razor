@@ -25,18 +25,39 @@
                 <label class="form-label">Search</label>
                 <input type="text" class="form-control" placeholder="Name, email..." @bind="searchTerm" />
             </div>
-            <div style="width: 180px;">
+            <div style="width: 200px;">
                 <label class="form-label">Role</label>
                 <select class="form-control" @bind="selectedRole">
                     <option value="">All Roles</option>
-                    <option value="SystemAdmin">System Admin</option>
-                    <option value="LoanOfficer">Loan Officer</option>
-                    <option value="CreditOfficer">Credit Officer</option>
-                    <option value="BranchApprover">Branch Approver</option>
-                    <option value="HOReviewer">HO Reviewer</option>
-                    <option value="CommitteeMember">Committee Member</option>
-                    <option value="RiskManager">Risk Manager</option>
-                    <option value="Auditor">Auditor</option>
+                    <optgroup label="── Corporate ──">
+                        <option value="SystemAdmin">System Admin</option>
+                        <option value="LoanOfficer">Loan Officer</option>
+                        <option value="CreditOfficer">Credit Officer</option>
+                        <option value="BranchApprover">Branch Approver</option>
+                        <option value="HOReviewer">HO Reviewer</option>
+                        <option value="CommitteeMember">Committee Member</option>
+                        <option value="FinalApprover">Final Approver</option>
+                        <option value="RiskManager">Risk Manager</option>
+                        <option value="Operations">Operations</option>
+                        <option value="GMFinance">GM Finance</option>
+                        <option value="LegalOfficer">Legal Officer</option>
+                        <option value="HeadOfLegal">Head of Legal</option>
+                        <option value="Auditor">Auditor</option>
+                    </optgroup>
+                    <optgroup label="── NAMP ──">
+                        <option value="AgriculturalEngineer">Agricultural Engineer</option>
+                        <option value="BranchManager">Branch Manager</option>
+                        <option value="ZonalManager">Zonal Manager</option>
+                        <option value="RegionalManager">Regional Manager</option>
+                        <option value="MdCeo">MD / CEO</option>
+                        <option value="BranchCommitteeMember">Branch Committee Member</option>
+                        <option value="ZonalCommitteeMember">Zonal Committee Member</option>
+                        <option value="RegionalCommitteeMember">Regional Committee Member</option>
+                        <option value="HOCommitteeMember">HO Committee Member</option>
+                        <option value="ComplianceOfficer">Compliance Officer</option>
+                        <option value="TrainingCoordinator">Training Coordinator</option>
+                        <option value="DeploymentOfficer">Deployment Officer</option>
+                    </optgroup>
                 </select>
             </div>
             <div style="width: 140px;">
@@ -66,7 +87,7 @@
                 <thead>
                     <tr>
                         <th>User</th>
-                        <th>Role</th>
+                        <th>Roles</th>
                         <th>Branch</th>
                         <th>Status</th>
                         <th>Last Login</th>
@@ -87,7 +108,16 @@
                                 </div>
                             </td>
                             <td>
-                                <span class="badge @GetRoleBadgeClass(user.Role)">@user.Role</span>
+                                <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                    @foreach (var role in user.Roles)
+                                    {
+                                        <span class="badge @GetRoleBadgeClass(role)" style="font-size: 0.7rem;">@FormatRoleName(role)</span>
+                                    }
+                                    @if (user.Roles.Count == 0)
+                                    {
+                                        <span class="text-muted" style="font-size: var(--text-sm);">No role</span>
+                                    }
+                                </div>
                             </td>
                             <td>@(user.Branch ?? "-")</td>
                             <td>
@@ -145,14 +175,14 @@
 @if (showUserModal)
 {
     <div class="modal-backdrop show" @onclick="CloseModal">
-        <div class="modal" style="max-width: 500px;" @onclick:stopPropagation>
+        <div class="modal" style="max-width: 520px;" @onclick:stopPropagation>
             <div class="modal-header">
                 <h3 class="modal-title">@(isEditing ? "Edit User" : "Add New User")</h3>
                 <button class="modal-close" @onclick="CloseModal">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <div class="form-group">
                     <label class="form-label">First Name *</label>
                     <input type="text" class="form-control" @bind="editingUser.FirstName" />
@@ -165,22 +195,37 @@
                     <label class="form-label">Email *</label>
                     <input type="email" class="form-control" @bind="editingUser.Email" disabled="@isEditing" />
                 </div>
+
                 <div class="form-group">
-                    <label class="form-label">Role *</label>
-                    <select class="form-control" @bind="editingUser.Role">
-                        <option value="">Select Role</option>
-                        <option value="SystemAdmin">System Admin</option>
-                        <option value="LoanOfficer">Loan Officer</option>
-                        <option value="CreditOfficer">Credit Officer</option>
-                        <option value="BranchApprover">Branch Approver</option>
-                        <option value="HOReviewer">HO Reviewer</option>
-                        <option value="CommitteeMember">Committee Member</option>
-                        <option value="FinalApprover">Final Approver</option>
-                        <option value="RiskManager">Risk Manager</option>
-                        <option value="Operations">Operations</option>
-                        <option value="Auditor">Auditor</option>
-                    </select>
+                    <label class="form-label">Roles * <small style="font-weight:400; color: var(--gray-500);">(select one or more)</small></label>
+                    <div class="role-checkbox-list">
+                        <div class="role-group-label">Corporate Loan Roles</div>
+                        @foreach (var (value, label) in CorporateRoles)
+                        {
+                            <label class="role-checkbox-item">
+                                <input type="checkbox"
+                                       checked="@editingUser.Roles.Contains(value)"
+                                       @onchange="e => ToggleRole(value, (bool)e.Value!)" />
+                                <span>@label</span>
+                            </label>
+                        }
+                        <div class="role-group-label" style="margin-top: 0.75rem;">NAMP Roles</div>
+                        @foreach (var (value, label) in NampRoles)
+                        {
+                            <label class="role-checkbox-item">
+                                <input type="checkbox"
+                                       checked="@editingUser.Roles.Contains(value)"
+                                       @onchange="e => ToggleRole(value, (bool)e.Value!)" />
+                                <span>@label</span>
+                            </label>
+                        }
+                    </div>
+                    @if (editingUser.Roles.Count == 0)
+                    {
+                        <small style="color: var(--danger-500);">At least one role is required.</small>
+                    }
                 </div>
+
                 <div class="form-group">
                     <label class="form-label">Location</label>
                     <select class="form-control" @bind="editingUser.LocationId">
@@ -199,7 +244,7 @@
                     <div class="alert alert-danger" style="margin: 0; flex: 1; font-size: var(--text-sm);">@saveError</div>
                 }
                 <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
-                <button class="btn btn-primary" @onclick="SaveUser" disabled="@isSaving">
+                <button class="btn btn-primary" @onclick="SaveUser" disabled="@(isSaving || editingUser.Roles.Count == 0)">
                     @if (isSaving)
                     {
                         <span class="spinner"></span>
@@ -221,6 +266,34 @@
     }
     .pagination-info { font-size: var(--text-sm); color: var(--gray-500); }
     .pagination-controls { display: flex; align-items: center; gap: var(--space-1); }
+
+    .role-checkbox-list {
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-md);
+        padding: 0.75rem;
+        max-height: 260px;
+        overflow-y: auto;
+        background: var(--gray-50);
+    }
+    .role-group-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--gray-500);
+        margin-bottom: 0.5rem;
+    }
+    .role-checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.3rem 0.25rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+        border-radius: var(--radius-sm);
+    }
+    .role-checkbox-item:hover { background: var(--gray-100); }
+    .role-checkbox-item input[type="checkbox"] { cursor: pointer; }
 </style>
 
 @code {
@@ -237,9 +310,41 @@
     private bool isEditing;
     private bool isSaving;
     private string? saveError;
-    private string newUserPassword = string.Empty;
     private UserModel editingUser = new();
     private List<LocationInfo> availableLocations = [];
+
+    private static readonly (string Value, string Label)[] CorporateRoles =
+    [
+        ("SystemAdmin",      "System Admin"),
+        ("LoanOfficer",      "Loan Officer"),
+        ("CreditOfficer",    "Credit Officer"),
+        ("BranchApprover",   "Branch Approver"),
+        ("HOReviewer",       "HO Reviewer"),
+        ("CommitteeMember",  "Committee Member"),
+        ("FinalApprover",    "Final Approver"),
+        ("RiskManager",      "Risk Manager"),
+        ("Operations",       "Operations"),
+        ("GMFinance",        "GM Finance"),
+        ("LegalOfficer",     "Legal Officer"),
+        ("HeadOfLegal",      "Head of Legal"),
+        ("Auditor",          "Auditor"),
+    ];
+
+    private static readonly (string Value, string Label)[] NampRoles =
+    [
+        ("AgriculturalEngineer",    "Agricultural Engineer"),
+        ("BranchManager",           "Branch Manager"),
+        ("ZonalManager",            "Zonal Manager"),
+        ("RegionalManager",         "Regional Manager"),
+        ("MdCeo",                   "MD / CEO"),
+        ("BranchCommitteeMember",   "Branch Committee Member"),
+        ("ZonalCommitteeMember",    "Zonal Committee Member"),
+        ("RegionalCommitteeMember", "Regional Committee Member"),
+        ("HOCommitteeMember",       "HO Committee Member"),
+        ("ComplianceOfficer",       "Compliance Officer"),
+        ("TrainingCoordinator",     "Training Coordinator"),
+        ("DeploymentOfficer",       "Deployment Officer"),
+    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -268,7 +373,7 @@
                 }
 
                 if (!string.IsNullOrWhiteSpace(selectedRole))
-                    query = query.Where(u => u.Role == selectedRole);
+                    query = query.Where(u => u.Roles.Contains(selectedRole));
 
                 if (!string.IsNullOrWhiteSpace(selectedStatus))
                 {
@@ -282,25 +387,10 @@
                     FirstName = u.FirstName,
                     LastName = u.LastName,
                     Email = u.Email,
-                    Role = u.Role,
+                    Roles = u.Roles,
                     IsActive = u.IsActive,
                     LocationId = u.LocationId
                 }).ToList();
-            }
-            else if (AuthService.CurrentUser?.Username == "admin")
-            {
-                // Mock data only for the seeded admin demo account
-                users =
-                [
-                    new() { Id = Guid.NewGuid(), FirstName = "John", LastName = "Adeyemi", Email = "john.adeyemi@bank.com", Role = "BranchApprover", Branch = "Lagos Main", IsActive = true, LastLogin = DateTime.Now.AddHours(-2) },
-                    new() { Id = Guid.NewGuid(), FirstName = "Sarah", LastName = "Okonkwo", Email = "sarah.okonkwo@bank.com", Role = "HOReviewer", Branch = null, IsActive = true, LastLogin = DateTime.Now.AddHours(-5) },
-                    new() { Id = Guid.NewGuid(), FirstName = "Michael", LastName = "Eze", Email = "michael.eze@bank.com", Role = "LoanOfficer", Branch = "Victoria Island", IsActive = true, LastLogin = DateTime.Now.AddDays(-1) },
-                    new() { Id = Guid.NewGuid(), FirstName = "Amina", LastName = "Ibrahim", Email = "amina.ibrahim@bank.com", Role = "CommitteeMember", Branch = null, IsActive = true, LastLogin = DateTime.Now.AddHours(-8) },
-                    new() { Id = Guid.NewGuid(), FirstName = "David", LastName = "Okafor", Email = "david.okafor@bank.com", Role = "CreditOfficer", Branch = null, IsActive = true, LastLogin = DateTime.Now.AddDays(-2) },
-                    new() { Id = Guid.NewGuid(), FirstName = "Grace", LastName = "Adekunle", Email = "grace.adekunle@bank.com", Role = "RiskManager", Branch = null, IsActive = true, LastLogin = DateTime.Now.AddHours(-1) },
-                    new() { Id = Guid.NewGuid(), FirstName = "Peter", LastName = "Uche", Email = "peter.uche@bank.com", Role = "Auditor", Branch = null, IsActive = false, LastLogin = DateTime.Now.AddDays(-30) },
-                    new() { Id = Guid.NewGuid(), FirstName = "Admin", LastName = "User", Email = "admin@bank.com", Role = "SystemAdmin", Branch = null, IsActive = true, LastLogin = DateTime.Now.AddMinutes(-30) }
-                ];
             }
         }
         finally
@@ -314,7 +404,6 @@
     private void OpenCreateModal()
     {
         editingUser = new();
-        newUserPassword = string.Empty;
         saveError = null;
         isEditing = false;
         showUserModal = true;
@@ -328,7 +417,7 @@
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
-            Role = user.Role,
+            Roles = [.. user.Roles],
             Branch = user.Branch,
             LocationId = user.LocationId
         };
@@ -340,25 +429,37 @@
     {
         showUserModal = false;
         editingUser = new();
-        newUserPassword = string.Empty;
         saveError = null;
+    }
+
+    private void ToggleRole(string role, bool add)
+    {
+        if (add && !editingUser.Roles.Contains(role))
+            editingUser.Roles.Add(role);
+        else if (!add)
+            editingUser.Roles.Remove(role);
     }
 
     private async Task SaveUser()
     {
+        if (editingUser.Roles.Count == 0)
+        {
+            saveError = "At least one role must be selected.";
+            return;
+        }
+
         isSaving = true;
         saveError = null;
         try
         {
-            var roles = string.IsNullOrEmpty(editingUser.Role) ? new List<string>() : new List<string> { editingUser.Role };
             ApiResponse result;
             if (isEditing)
             {
-                result = await AppService.UpdateUserAsync(editingUser.Id, editingUser.FirstName, editingUser.LastName, null, editingUser.LocationId, roles);
+                result = await AppService.UpdateUserAsync(editingUser.Id, editingUser.FirstName, editingUser.LastName, null, editingUser.LocationId, editingUser.Roles);
             }
             else
             {
-                result = await AppService.CreateUserAsync(editingUser.Email, editingUser.FirstName, editingUser.LastName, null, roles);
+                result = await AppService.CreateUserAsync(editingUser.Email, editingUser.FirstName, editingUser.LastName, null, editingUser.Roles);
             }
 
             if (result.Success)
@@ -391,11 +492,43 @@
 
     private static string GetRoleBadgeClass(string role) => role switch
     {
-        "SystemAdmin" => "badge-danger",
-        "RiskManager" => "badge-warning",
-        "CommitteeMember" => "badge-primary",
-        "Auditor" => "badge-gray",
-        _ => "badge-primary"
+        "SystemAdmin"                                        => "badge-danger",
+        "RiskManager" or "AuditOfficer"                     => "badge-warning",
+        "BranchManager" or "ZonalManager" or
+        "RegionalManager" or "MdCeo"                        => "badge-primary",
+        "BranchCommitteeMember" or "ZonalCommitteeMember" or
+        "RegionalCommitteeMember" or "HOCommitteeMember" or
+        "CommitteeMember"                                   => "badge-info",
+        "Auditor" or "Customer"                             => "badge-gray",
+        _                                                   => "badge-secondary"
+    };
+
+    private static string FormatRoleName(string role) => role switch
+    {
+        "SystemAdmin"             => "Admin",
+        "LoanOfficer"             => "Loan Officer",
+        "CreditOfficer"           => "Credit Officer",
+        "BranchApprover"          => "Branch Approver",
+        "HOReviewer"              => "HO Reviewer",
+        "CommitteeMember"         => "Committee",
+        "FinalApprover"           => "Final Approver",
+        "RiskManager"             => "Risk Manager",
+        "GMFinance"               => "GM Finance",
+        "LegalOfficer"            => "Legal Officer",
+        "HeadOfLegal"             => "Head of Legal",
+        "AgriculturalEngineer"    => "Agr. Engineer",
+        "BranchManager"           => "Branch Mgr",
+        "ZonalManager"            => "Zonal Mgr",
+        "RegionalManager"         => "Regional Mgr",
+        "MdCeo"                   => "MD/CEO",
+        "BranchCommitteeMember"   => "Branch Cmte",
+        "ZonalCommitteeMember"    => "Zonal Cmte",
+        "RegionalCommitteeMember" => "Regional Cmte",
+        "HOCommitteeMember"       => "HO Cmte",
+        "ComplianceOfficer"       => "Compliance",
+        "TrainingCoordinator"     => "Training",
+        "DeploymentOfficer"       => "Deployment",
+        _                         => role
     };
 
     private class UserModel
@@ -404,7 +537,7 @@
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
-        public string Role { get; set; } = string.Empty;
+        public List<string> Roles { get; set; } = [];
         public string? Branch { get; set; }
         public Guid? LocationId { get; set; }
         public bool IsActive { get; set; }

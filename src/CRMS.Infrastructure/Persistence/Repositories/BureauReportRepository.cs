@@ -66,6 +66,18 @@ public class BureauReportRepository : IBureauReportRepository
             .FirstOrDefaultAsync(ct);
     }
 
+    public async Task<IReadOnlyList<BureauReport>> GetByNampApplicationIdAsync(Guid nampApplicationId, CancellationToken ct = default)
+        => await _context.BureauReports
+            .Where(r => r.NampApplicationId == nampApplicationId)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<BureauReport>> GetByNampApplicationIdWithDetailsAsync(Guid nampApplicationId, CancellationToken ct = default)
+        => await _context.BureauReports
+            .Include(r => r.Accounts)
+            .Include(r => r.ScoreFactors)
+            .Where(r => r.NampApplicationId == nampApplicationId)
+            .ToListAsync(ct);
+
     public async Task AddAsync(BureauReport report, CancellationToken ct = default)
     {
         await _context.BureauReports.AddAsync(report, ct);

@@ -101,27 +101,47 @@ public static class ComprehensiveDataSeeder
         logger.LogInformation("Comprehensive data seeding completed successfully! (100% table coverage)");
     }
 
-    // All user accounts the system needs — shared between fresh-seed and supplement paths.
-    // Tuple: (userName, firstName, lastName, roleName, email, userType)
-    private static readonly (string UserName, string FirstName, string LastName, string RoleName, string Email, UserType UserType)[] AllUserDefinitions =
+    // Users who physically work at Lagos Main Branch (BR-LAG-001).
+    // Their LocationId is set to Lagos Main Branch so the branch-scoped queue filter works correctly.
+    // HO/senior staff have null LocationId and see all applications across branches.
+    private static readonly HashSet<string> BranchLevelUserNames =
     [
-        ("admin",          "System",      "Administrator", Roles.SystemAdmin,      "admin@crms.ng",              UserType.Staff),
-        ("loanofficer",    "Adewale",     "Johnson",       Roles.LoanOfficer,      "adewale.johnson@crms.ng",    UserType.Staff),
-        ("loanofficer2",   "Chioma",      "Okonkwo",       Roles.LoanOfficer,      "chioma.okonkwo@crms.ng",     UserType.Staff),
-        ("branchapprover", "Oluwaseun",   "Adeyemi",       Roles.BranchApprover,   "oluwaseun.adeyemi@crms.ng",  UserType.Staff),
-        ("creditofficer",  "Uche",        "Eze",           Roles.CreditOfficer,    "uche.eze@crms.ng",           UserType.Staff),
-        ("horeviewer",     "Fatima",      "Ibrahim",       Roles.HOReviewer,       "fatima.ibrahim@crms.ng",     UserType.Staff),
-        ("committee1",     "Emeka",       "Nnamdi",        Roles.CommitteeMember,  "emeka.nnamdi@crms.ng",       UserType.Staff),
-        ("committee2",     "Blessing",    "Okafor",        Roles.CommitteeMember,  "blessing.okafor@crms.ng",    UserType.Staff),
-        ("committee3",     "Tunde",       "Bakare",        Roles.CommitteeMember,  "tunde.bakare@crms.ng",       UserType.Staff),
-        ("finalapprover",  "Yusuf",       "Mohammed",      Roles.FinalApprover,    "yusuf.mohammed@crms.ng",     UserType.Staff),
-        ("operations",     "Folake",      "Balogun",       Roles.Operations,       "folake.balogun@crms.ng",     UserType.Staff),
-        ("gmfinance",      "Chidi",       "Okafor",        Roles.GMFinance,        "chidi.okafor@crms.ng",       UserType.Staff),
-        ("legalofficer",   "Adaeze",      "Nwosu",         Roles.LegalOfficer,     "adaeze.nwosu@crms.ng",       UserType.Staff),
-        ("headoflegal",    "Obiageli",    "Okonkwo",       Roles.HeadOfLegal,      "obiageli.okonkwo@crms.ng",   UserType.Staff),
-        ("riskmanager",    "Chukwuemeka", "Obi",           Roles.RiskManager,      "chukwuemeka.obi@crms.ng",    UserType.Staff),
-        ("auditor",        "Amina",       "Suleiman",      Roles.Auditor,          "amina.suleiman@crms.ng",     UserType.Staff),
-        ("customer",       "Demo",        "Customer",      Roles.Customer,         "customer@crms.ng",           UserType.Customer),
+        "loanofficer", "loanofficer2", "branchapprover", "branchmanager", "agrengineer", "creditofficer"
+    ];
+
+    // All user accounts the system needs — shared between fresh-seed and supplement paths.
+    // Tuple: (userName, firstName, lastName, roleNames[], email, userType)
+    // Multiple roles per user are supported — each role name is added via AddRole().
+    private static readonly (string UserName, string FirstName, string LastName, string[] RoleNames, string Email, UserType UserType)[] AllUserDefinitions =
+    [
+        ("admin",          "System",      "Administrator", [Roles.SystemAdmin],                                                    "admin@crms.ng",              UserType.Staff),
+        ("loanofficer",    "Adewale",     "Johnson",       [Roles.LoanOfficer],                                                   "adewale.johnson@crms.ng",    UserType.Staff),
+        ("loanofficer2",   "Chioma",      "Okonkwo",       [Roles.LoanOfficer],                                                   "chioma.okonkwo@crms.ng",     UserType.Staff),
+        ("branchapprover", "Oluwaseun",   "Adeyemi",       [Roles.BranchApprover],                                                "oluwaseun.adeyemi@crms.ng",  UserType.Staff),
+        // Credit Officer is branch-level and also a Branch Committee Member (demonstrates multi-role)
+        ("creditofficer",  "Uche",        "Eze",           [Roles.CreditOfficer, Roles.BranchCommitteeMember],                    "uche.eze@crms.ng",           UserType.Staff),
+        ("horeviewer",     "Fatima",      "Ibrahim",       [Roles.HOReviewer],                                                    "fatima.ibrahim@crms.ng",     UserType.Staff),
+        ("committee1",     "Emeka",       "Nnamdi",        [Roles.CommitteeMember],                                               "emeka.nnamdi@crms.ng",       UserType.Staff),
+        ("committee2",     "Blessing",    "Okafor",        [Roles.CommitteeMember],                                               "blessing.okafor@crms.ng",    UserType.Staff),
+        ("committee3",     "Tunde",       "Bakare",        [Roles.CommitteeMember],                                               "tunde.bakare@crms.ng",       UserType.Staff),
+        ("finalapprover",  "Yusuf",       "Mohammed",      [Roles.FinalApprover],                                                 "yusuf.mohammed@crms.ng",     UserType.Staff),
+        // ── NAMP-specific users (managers also hold committee member roles) ──
+        ("agrengineer",    "Chukwudi",    "Okafor",        [Roles.AgriculturalEngineer],                                          "chukwudi.okafor@crms.ng",    UserType.Staff),
+        ("branchmanager",  "Kemi",        "Adeleke",       [Roles.BranchManager, Roles.BranchCommitteeMember],                    "kemi.adeleke@crms.ng",       UserType.Staff),
+        ("zonalmanager",   "Rotimi",      "Fasanya",       [Roles.ZonalManager, Roles.ZonalCommitteeMember],                      "rotimi.fasanya@crms.ng",     UserType.Staff),
+        ("regionalmanager","Ngozi",       "Obi",           [Roles.RegionalManager, Roles.RegionalCommitteeMember],                "ngozi.obi@crms.ng",          UserType.Staff),
+        ("mdceo",          "Babatunde",   "Adekunle",      [Roles.MdCeo, Roles.HOCommitteeMember],                                "babatunde.adekunle@crms.ng", UserType.Staff),
+        ("compliance",     "Ifeoma",      "Okeke",         [Roles.ComplianceOfficer],                                             "ifeoma.okeke@crms.ng",       UserType.Staff),
+        ("training",       "Segun",       "Adesanya",      [Roles.TrainingCoordinator],                                           "segun.adesanya@crms.ng",     UserType.Staff),
+        ("deployment",     "Musa",        "Garba",         [Roles.DeploymentOfficer],                                             "musa.garba@crms.ng",         UserType.Staff),
+        // ────────────────────────────────────────────────────────────────────
+        ("operations",     "Folake",      "Balogun",       [Roles.Operations],                                                    "folake.balogun@crms.ng",     UserType.Staff),
+        ("gmfinance",      "Chidi",       "Okafor",        [Roles.GMFinance],                                                     "chidi.okafor@crms.ng",       UserType.Staff),
+        ("legalofficer",   "Adaeze",      "Nwosu",         [Roles.LegalOfficer],                                                  "adaeze.nwosu@crms.ng",       UserType.Staff),
+        ("headoflegal",    "Obiageli",    "Okonkwo",       [Roles.HeadOfLegal],                                                   "obiageli.okonkwo@crms.ng",   UserType.Staff),
+        ("riskmanager",    "Chukwuemeka", "Obi",           [Roles.RiskManager],                                                   "chukwuemeka.obi@crms.ng",    UserType.Staff),
+        ("auditor",        "Amina",       "Suleiman",      [Roles.Auditor],                                                       "amina.suleiman@crms.ng",     UserType.Staff),
+        ("customer",       "Demo",        "Customer",      [Roles.Customer],                                                      "customer@crms.ng",           UserType.Customer),
     ];
 
     private static async Task<(ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover,
@@ -132,6 +152,12 @@ public static class ComprehensiveDataSeeder
     {
         var roles = await context.Roles.ToListAsync();
 
+        // Lagos Main Branch (BR-LAG-001) is the home branch for all branch-level staff.
+        // Used by both the fresh-seed and supplement paths.
+        var lagosMainBranch = await context.Locations
+            .FirstOrDefaultAsync(l => l.Code == "BR-LAG-001");
+        var lagosMainBranchId = lagosMainBranch?.Id;
+
         if (await context.Users.AnyAsync())
         {
             logger.LogInformation("Users already exist, checking for missing role accounts...");
@@ -139,35 +165,88 @@ public static class ComprehensiveDataSeeder
                 .Include(u => u.UserRoles)
                 .ToListAsync();
 
-            // Fix any users with mocked password hashes
+            // Fix any users with mocked or legacy password hashes, and ensure all known accounts are active
             if (_passwordHasher != null)
             {
-                var usersWithMockedPasswords = existingUsers
-                    .Where(u => u.PasswordHash.StartsWith("AQAAAAIAAYagAAAAEMocked"))
+                var validHash = _passwordHasher.HashPassword("Password1$$$");
+                var knownUserNames = AllUserDefinitions.Select(d => d.UserName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var usersNeedingFix = existingUsers
+                    .Where(u => knownUserNames.Contains(u.UserName ?? "") &&
+                                (u.PasswordHash.StartsWith("AQAAAAIAAYagAAAAEMocked") ||
+                                 u.Email.EndsWith("@crms.test", StringComparison.OrdinalIgnoreCase) ||
+                                 u.Status != UserStatus.Active))
                     .ToList();
 
-                if (usersWithMockedPasswords.Any())
+                if (usersNeedingFix.Any())
                 {
-                    logger.LogInformation("Fixing {Count} users with mocked password hashes...", usersWithMockedPasswords.Count);
-                    var validHash = _passwordHasher.HashPassword("Password1$$$");
-                    foreach (var user in usersWithMockedPasswords)
+                    logger.LogInformation("Fixing {Count} legacy/inactive user accounts...", usersNeedingFix.Count);
+                    foreach (var user in usersNeedingFix)
+                    {
                         user.SetPasswordHash(validHash);
+                        user.Activate();
+                    }
                     await context.SaveChangesAsync();
-                    logger.LogInformation("Password hashes updated successfully. Password for all users: Password1$$$");
+                    logger.LogInformation("Legacy accounts fixed. Password for all users: Password1$$$");
                 }
+            }
+
+            // Fix branch assignments: ensure branch-level users are assigned to Lagos Main Branch
+            // and HO-level users have no branch assignment.
+            bool locationFixed = false;
+            foreach (var user in existingUsers)
+            {
+                var expectedLocationId = BranchLevelUserNames.Contains(user.UserName ?? "")
+                    ? lagosMainBranchId
+                    : (Guid?)null;
+
+                if (user.LocationId != expectedLocationId)
+                {
+                    user.SetLocation(expectedLocationId);
+                    locationFixed = true;
+                }
+            }
+            if (locationFixed)
+            {
+                await context.SaveChangesAsync();
+                logger.LogInformation("Branch assignments corrected for existing users (branch staff → Lagos Main Branch, HO staff → null).");
+            }
+
+            // Ensure existing users have all their expected roles (handles new roles added over time)
+            bool rolesFixed = false;
+            foreach (var def in AllUserDefinitions)
+            {
+                var user = existingUsers.FirstOrDefault(u =>
+                    string.Equals(u.UserName, def.UserName, StringComparison.OrdinalIgnoreCase));
+                if (user == null) continue;
+
+                var existingRoleIds = user.UserRoles.Select(ur => ur.RoleId).ToHashSet();
+                foreach (var roleName in def.RoleNames)
+                {
+                    var role = roles.FirstOrDefault(r => r.Name == roleName);
+                    if (role == null || existingRoleIds.Contains(role.Id)) continue;
+                    user.AddRole(role);
+                    rolesFixed = true;
+                    logger.LogInformation("Adding missing role {Role} to existing user {UserName}", roleName, def.UserName);
+                }
+            }
+            if (rolesFixed)
+            {
+                await context.SaveChangesAsync();
+                logger.LogInformation("Missing roles assigned to existing users.");
             }
 
             // Supplement: add any accounts that are absent (e.g. only the basic seed ran before this)
             var existingUserNames = existingUsers.Select(u => u.UserName)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var locationId = existingUsers.FirstOrDefault()?.LocationId;
             bool addedAny = false;
 
             foreach (var def in AllUserDefinitions)
             {
                 if (existingUserNames.Contains(def.UserName)) continue;
 
-                logger.LogInformation("Adding missing user: {UserName} ({Role})", def.UserName, def.RoleName);
+                logger.LogInformation("Adding missing user: {UserName} ({Roles})", def.UserName, string.Join(", ", def.RoleNames));
+                var locationId = BranchLevelUserNames.Contains(def.UserName) ? lagosMainBranchId : (Guid?)null;
                 var userResult = ApplicationUser.Create(
                     def.Email, def.UserName, def.FirstName, def.LastName,
                     def.UserType, "+234801234" + _random.Next(1000, 9999), locationId);
@@ -176,8 +255,11 @@ public static class ComprehensiveDataSeeder
                     var passwordHash = _passwordHasher?.HashPassword("Password1$$$")
                         ?? "AQAAAAIAAYagAAAAEMocked" + Guid.NewGuid().ToString("N");
                     userResult.Value.SetPasswordHash(passwordHash);
-                    var role = roles.FirstOrDefault(r => r.Name == def.RoleName);
-                    if (role != null) userResult.Value.AddRole(role);
+                    foreach (var roleName in def.RoleNames)
+                    {
+                        var role = roles.FirstOrDefault(r => r.Name == roleName);
+                        if (role != null) userResult.Value.AddRole(role);
+                    }
                     await context.Users.AddAsync(userResult.Value);
                     existingUsers.Add(userResult.Value);
                     addedAny = true;
@@ -210,38 +292,43 @@ public static class ComprehensiveDataSeeder
         }
 
         logger.LogInformation("Seeding users...");
-        var locationIdFresh = (Guid?)null; // HO/global users have no specific branch
 
         var createdUsers = new List<ApplicationUser>();
         foreach (var def in AllUserDefinitions)
         {
+            var locationId = BranchLevelUserNames.Contains(def.UserName) ? lagosMainBranchId : (Guid?)null;
             var userResult = ApplicationUser.Create(
                 def.Email, def.UserName, def.FirstName, def.LastName,
-                def.UserType, "+234801234" + _random.Next(1000, 9999), locationIdFresh);
+                def.UserType, "+234801234" + _random.Next(1000, 9999), locationId);
             if (userResult.IsSuccess)
             {
                 var passwordHash = _passwordHasher?.HashPassword("Password1$$$")
                     ?? "AQAAAAIAAYagAAAAEMocked" + Guid.NewGuid().ToString("N");
                 userResult.Value.SetPasswordHash(passwordHash);
-                var role = roles.FirstOrDefault(r => r.Name == def.RoleName);
-                if (role != null) userResult.Value.AddRole(role);
+                foreach (var roleName in def.RoleNames)
+                {
+                    var role = roles.FirstOrDefault(r => r.Name == roleName);
+                    if (role != null) userResult.Value.AddRole(role);
+                }
                 await context.Users.AddAsync(userResult.Value);
                 createdUsers.Add(userResult.Value);
             }
         }
 
         await context.SaveChangesAsync();
-        logger.LogInformation("Users seeded successfully ({Count} users)", createdUsers.Count);
+        logger.LogInformation("Users seeded successfully ({Count} users, branch staff → Lagos Main Branch)", createdUsers.Count);
 
         // Indices into createdUsers (matches AllUserDefinitions order):
         // 0=admin, 1=loanofficer, 2=loanofficer2, 3=branchapprover, 4=creditofficer,
         // 5=horeviewer, 6=committee1, 7=committee2, 8=committee3, 9=finalapprover,
-        // 10=operations, 11=gmfinance, 12=legalofficer, 13=headoflegal, 14=riskmanager, 15=auditor, 16=customer
+        // 10=agrengineer, 11=branchmanager, 12=zonalmanager, 13=regionalmanager, 14=mdceo,
+        // 15=compliance, 16=training, 17=deployment, 18=operations, 19=gmfinance,
+        // 20=legalofficer, 21=headoflegal, 22=riskmanager, 23=auditor, 24=customer
         return (
             createdUsers[0],  createdUsers[1],  createdUsers[3],  createdUsers[4],
-            createdUsers[5],  createdUsers[12], createdUsers[13], createdUsers[6],
-            createdUsers[7],  createdUsers[8],  createdUsers[9],  createdUsers[10],
-            createdUsers[11], createdUsers[14], createdUsers[15]
+            createdUsers[5],  createdUsers[20], createdUsers[21], createdUsers[6],
+            createdUsers[7],  createdUsers[8],  createdUsers[9],  createdUsers[18],
+            createdUsers[19], createdUsers[22], createdUsers[23]
         );
     }
 

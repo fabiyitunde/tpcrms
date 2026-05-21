@@ -171,6 +171,16 @@ public class LocationRepository : ILocationRepository
         return allLocations.FirstOrDefault(x => x.Type == LocationType.HeadOffice);
     }
 
+    public async Task<Domain.Aggregates.Location.Location?> GetBranchByNameAsync(string name, CancellationToken ct = default)
+    {
+        var normalizedName = name.Trim().ToLowerInvariant();
+        return await _context.Locations
+            .FirstOrDefaultAsync(x =>
+                x.Type == LocationType.Branch &&
+                x.IsActive &&
+                x.Name.ToLower() == normalizedName, ct);
+    }
+
     public async Task AddAsync(Domain.Aggregates.Location.Location location, CancellationToken ct = default)
     {
         await _context.Locations.AddAsync(location, ct);

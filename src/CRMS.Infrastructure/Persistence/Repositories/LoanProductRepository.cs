@@ -58,6 +58,12 @@ public class LoanProductRepository : ILoanProductRepository
             .ToListAsync(ct);
     }
 
+    public async Task<LoanProduct?> GetActiveNampProductAsync(CancellationToken ct = default)
+    {
+        return await _context.LoanProducts
+            .FirstOrDefaultAsync(p => p.Type == LoanProductType.Namp && p.Status == ProductStatus.Active, ct);
+    }
+
     public async Task<bool> ExistsAsync(string code, CancellationToken ct = default)
     {
         var normalizedCode = code.ToUpperInvariant();

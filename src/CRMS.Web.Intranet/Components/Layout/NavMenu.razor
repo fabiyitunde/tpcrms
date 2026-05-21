@@ -83,6 +83,20 @@
         </div>
     }
 
+    @if (CanViewNamp)
+    {
+        <div class="nav-section">
+            @if (!Collapsed)
+            {
+                <div class="nav-section-title">NAMP</div>
+            }
+            <NavLink href="/namp" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">agriculture</span>
+                @if (!Collapsed) { <span class="nav-item-text">NAMP Queue</span> }
+            </NavLink>
+        </div>
+    }
+
     @if (CanViewReports)
     {
         <div class="nav-section">
@@ -139,6 +153,14 @@
                 <span class="material-symbols-outlined nav-item-icon">mail</span>
                 @if (!Collapsed) { <span class="nav-item-text">Templates</span> }
             </NavLink>
+            <NavLink href="/admin/namp-routing" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">route</span>
+                @if (!Collapsed) { <span class="nav-item-text">NAMP Routing</span> }
+            </NavLink>
+            <NavLink href="/admin/namp-workflow" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">account_tree</span>
+                @if (!Collapsed) { <span class="nav-item-text">NAMP Workflow</span> }
+            </NavLink>
         </div>
     }
 
@@ -171,6 +193,7 @@
     private bool CanViewReports => User?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer", "HOReviewer", "Auditor") ?? false;
     private bool CanViewAudit => User?.HasAnyRole("SystemAdmin", "RiskManager", "Auditor") ?? false;
     private bool IsAdmin => User?.HasRole("SystemAdmin") ?? false;
+    private bool CanViewNamp => User?.HasAnyRole("SystemAdmin", "LoanOfficer", "AgriculturalEngineer", "CreditOfficer", "CommitteeMember", "FinalApprover", "ComplianceOfficer", "TrainingCoordinator", "DeploymentOfficer") ?? false;
 
     protected override async Task OnInitializedAsync()
     {

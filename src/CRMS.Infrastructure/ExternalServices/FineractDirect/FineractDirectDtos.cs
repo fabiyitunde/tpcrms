@@ -30,6 +30,46 @@ public class FineractRoleInfo
     public string? Name { get; set; }
 }
 
+// GET /clients/{clientId}
+public class FineractClientDetailResponse
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("accountNo")]
+    public string? AccountNo { get; set; }
+
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; set; }
+
+    [JsonPropertyName("officeId")]
+    public int OfficeId { get; set; }
+
+    [JsonPropertyName("officeName")]
+    public string? OfficeName { get; set; }
+
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
+    [JsonPropertyName("firstname")]
+    public string? Firstname { get; set; }
+
+    [JsonPropertyName("lastname")]
+    public string? Lastname { get; set; }
+
+    [JsonPropertyName("status")]
+    public FineractClientStatus? Status { get; set; }
+}
+
+public class FineractClientStatus
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("value")]
+    public string? Value { get; set; }
+}
+
 // POST /loans?command=calculateLoanSchedule response
 public class FineractScheduleResponse
 {

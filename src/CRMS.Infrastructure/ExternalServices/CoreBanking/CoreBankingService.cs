@@ -42,6 +42,43 @@ public class CoreBankingService : ICoreBankingService
         };
     }
 
+    #region NAMP Operations
+
+    public async Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
+    {
+        try
+        {
+            var url = $"/core_banking/api/tp/savingsaccounts/byexternalId/{Uri.EscapeDataString(boaAccountNumber)}";
+            _logger.LogInformation("CBS NAMP: GET {Url}", url);
+
+            var response = await _httpClient.GetAsync(url, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("CBS NAMP savings account lookup failed ({Status}): {Body}", response.StatusCode, errorBody);
+                return Result.Failure<NampBoaAccountInfo>($"Account lookup returned {(int)response.StatusCode}: {errorBody}");
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<NampSavingsAccountResponse>(_jsonOptions, ct);
+            if (result == null)
+                return Result.Failure<NampBoaAccountInfo>("Empty response from core banking.");
+
+            return Result.Success(new NampBoaAccountInfo(result.ClientId, result.Status?.Value ?? "Unknown"));
+        }
+        catch (TaskCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CBS NAMP savings account lookup error for {Account}", boaAccountNumber);
+            return Result.Failure<NampBoaAccountInfo>($"Core banking error: {ex.Message}");
+        }
+    }
+
+    #endregion
+
     #region Core Methods — Backed by Real API
 
     private async Task<Result<FullDetailsByNubanResponse>> GetFullDetailsAsync(string nuban, CancellationToken ct)

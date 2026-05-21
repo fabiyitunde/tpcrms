@@ -3,10 +3,11 @@ namespace CRMS.Domain.Enums;
 public enum CommitteeType
 {
     BranchCredit,       // Branch-level credit committee
+    ZonalCredit,        // Zonal credit committee (NAMP)
     RegionalCredit,     // Regional credit committee
     HeadOfficeCredit,   // HO credit committee
     ManagementCredit,   // Management credit committee (larger facilities)
-    BoardCredit         // Board credit committee (very large facilities)
+    BoardCredit,        // Board credit committee (very large facilities)
 }
 
 public enum CommitteeReviewStatus

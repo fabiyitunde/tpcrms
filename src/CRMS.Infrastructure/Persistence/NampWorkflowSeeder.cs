@@ -1,0 +1,158 @@
+using CRMS.Domain.Aggregates.Namp;
+using CRMS.Domain.Constants;
+using CRMS.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+
+namespace CRMS.Infrastructure.Persistence;
+
+/// <summary>
+/// Seeds NampWorkflowConfig rows (one per NampApplicationStatus) and default NampRoutingConfig rows.
+/// Idempotent — skips if data already exists.
+/// </summary>
+public static class NampWorkflowSeeder
+{
+    public static async Task SeedAsync(CRMSDbContext context, ILogger logger)
+    {
+        await SeedWorkflowConfigAsync(context, logger);
+        await SeedRoutingConfigAsync(context, logger);
+    }
+
+    // ── Stage config ──────────────────────────────────────────────────────
+
+    private static async Task SeedWorkflowConfigAsync(CRMSDbContext context, ILogger logger)
+    {
+        if (await context.NampWorkflowConfigs.AnyAsync())
+        {
+            logger.LogInformation("NAMP workflow config already seeded, skipping.");
+            return;
+        }
+
+        logger.LogInformation("Seeding NAMP workflow stage config...");
+
+        var stages = new[]
+        {
+            // ── Pre-stage (staging only; included for completeness) ────────
+            Stage(NampApplicationStatus.Received, "Received from PAYS", "Inbound webhook received; awaiting Loan Officer recall.", Roles.LoanOfficer, slaHours: 48, sort: 0),
+            Stage(NampApplicationStatus.RecallPending, "Recall Pending", "Loan Officer recall queue.", Roles.LoanOfficer, slaHours: 48, sort: 1),
+
+            // ── Stage 1: Loan Officer ─────────────────────────────────────
+            Stage(NampApplicationStatus.Draft, "Draft", "Recalled from staging; Loan Officer reviewing before submission.", Roles.LoanOfficer, slaHours: 48, sort: 10),
+            Stage(NampApplicationStatus.Submitted, "Submitted for Technical Appraisal", "Awaiting Agricultural Engineer review.", Roles.AgriculturalEngineer, slaHours: 72, sort: 20),
+
+            // ── Stage 2: Technical Appraisal ──────────────────────────────
+            Stage(NampApplicationStatus.TechnicalAppraisal, "Technical Appraisal", "Agricultural Engineer conducting farm and equipment review.", Roles.AgriculturalEngineer, slaHours: 72, sort: 30),
+            Stage(NampApplicationStatus.TechnicalDeclined, "Technical Appraisal Declined", "Application failed technical appraisal.", Roles.SystemAdmin, slaHours: 0, sort: 35, isTerminal: true),
+
+            // ── Stage 3: Financial Appraisal ──────────────────────────────
+            Stage(NampApplicationStatus.FinancialAppraisal, "Financial Appraisal", "Credit Officer reviewing financial viability.", Roles.CreditOfficer, slaHours: 72, sort: 40),
+            Stage(NampApplicationStatus.FinancialDeclined, "Financial Appraisal Declined", "Application failed financial appraisal.", Roles.SystemAdmin, slaHours: 0, sort: 45, isTerminal: true),
+
+            // ── Stage 4: Committee Circulation ───────────────────────────
+            Stage(NampApplicationStatus.BranchCommitteeCirculation, "Branch Committee Review", "Branch Credit Committee voting in progress.", Roles.CommitteeMember, slaHours: 120, sort: 50),
+            Stage(NampApplicationStatus.BranchCommitteeDeclined, "Branch Committee Declined", "Branch Credit Committee declined the application.", Roles.SystemAdmin, slaHours: 0, sort: 55, isTerminal: true),
+            Stage(NampApplicationStatus.ZonalCommitteeCirculation, "Zonal Committee Review", "Zonal Credit Committee voting in progress.", Roles.CommitteeMember, slaHours: 120, sort: 60),
+            Stage(NampApplicationStatus.ZonalCommitteeDeclined, "Zonal Committee Declined", "Zonal Credit Committee declined the application.", Roles.SystemAdmin, slaHours: 0, sort: 65, isTerminal: true),
+            Stage(NampApplicationStatus.RegionalCommitteeCirculation, "Regional Committee Review", "Regional Credit Committee voting in progress.", Roles.CommitteeMember, slaHours: 120, sort: 70),
+            Stage(NampApplicationStatus.RegionalCommitteeDeclined, "Regional Committee Declined", "Regional Credit Committee declined the application.", Roles.SystemAdmin, slaHours: 0, sort: 75, isTerminal: true),
+            Stage(NampApplicationStatus.HOCommitteeCirculation, "Head Office Committee Review", "HO Credit Committee voting in progress.", Roles.CommitteeMember, slaHours: 120, sort: 80),
+            Stage(NampApplicationStatus.HOCommitteeDeclined, "HO Committee Declined", "HO Credit Committee declined the application.", Roles.SystemAdmin, slaHours: 0, sort: 85, isTerminal: true),
+
+            // ── Stage 5: Ratification & Offer ─────────────────────────────
+            Stage(NampApplicationStatus.Ratification, "Ratification", "Final Approver (Branch Manager / Zonal Manager / Regional Manager / MD-CEO) ratifying committee vote.", Roles.FinalApprover, slaHours: 48, sort: 90),
+            Stage(NampApplicationStatus.RatificationDeclined, "Ratification Declined", "Final Approver declined to ratify the committee decision.", Roles.SystemAdmin, slaHours: 0, sort: 95, isTerminal: true),
+            Stage(NampApplicationStatus.OfferGenerated, "Offer Letter Generated", "Offer letter sent to applicant; awaiting countersignature.", Roles.LoanOfficer, slaHours: 168, sort: 100),
+            Stage(NampApplicationStatus.OfferAccepted, "Offer Accepted", "Applicant countersigned offer letter; moving to pre-deployment.", Roles.ComplianceOfficer, slaHours: 48, sort: 105),
+            Stage(NampApplicationStatus.OfferLapsed, "Offer Lapsed", "Applicant did not countersign within SLA.", Roles.SystemAdmin, slaHours: 0, sort: 108, isTerminal: true),
+
+            // ── Stage 6: Pre-Deployment Verification ──────────────────────
+            Stage(NampApplicationStatus.PreDeploymentVerification, "Pre-Deployment Verification", "Compliance Officer verifying 4 gate conditions before equipment deployment.", Roles.ComplianceOfficer, slaHours: 48, sort: 110),
+
+            // ── Stage 7: Training ─────────────────────────────────────────
+            Stage(NampApplicationStatus.Training, "Training", "Training Coordinator tracking Heifer Nigeria training delivery.", Roles.TrainingCoordinator, slaHours: 336, sort: 120),
+
+            // ── Stage 8: Deployment ───────────────────────────────────────
+            Stage(NampApplicationStatus.Deployment, "Deployment", "Deployment Officer tracking equipment delivery and GPS activation.", Roles.DeploymentOfficer, slaHours: 168, sort: 130),
+
+            // ── Stage 9: Active ───────────────────────────────────────────
+            Stage(NampApplicationStatus.Active, "Active", "GPS confirmed; PAYS repayment cycle running.", Roles.SystemAdmin, slaHours: 0, sort: 140),
+
+            // ── Terminal ──────────────────────────────────────────────────
+            Stage(NampApplicationStatus.Closed, "Closed", "Full PAYS repayment completed.", Roles.SystemAdmin, slaHours: 0, sort: 150, isTerminal: true),
+            Stage(NampApplicationStatus.Declined, "Declined", "Application declined (outbound NAMP callback sent).", Roles.SystemAdmin, slaHours: 0, sort: 160, isTerminal: true),
+        };
+
+        await context.NampWorkflowConfigs.AddRangeAsync(stages);
+        await context.SaveChangesAsync();
+        logger.LogInformation("Seeded {Count} NAMP workflow stage config rows.", stages.Length);
+    }
+
+    // ── Routing config (default bands) ────────────────────────────────────
+
+    private static async Task SeedRoutingConfigAsync(CRMSDbContext context, ILogger logger)
+    {
+        if (await context.NampRoutingConfigs.AnyAsync())
+        {
+            logger.LogInformation("NAMP routing config already seeded, skipping.");
+            return;
+        }
+
+        logger.LogInformation("Seeding default NAMP routing config...");
+
+        // Default routing bands (₦ values). Adjust via admin UI after seeding.
+        //  Youth / Women Agripreneurs:  ≤ ₦5M → Branch, ≤ ₦20M → Zonal, ≤ ₦50M → Regional, > ₦50M → HO
+        //  Agro-Service Companies:      ≤ ₦20M → Zonal, ≤ ₦100M → Regional, > ₦100M → HO
+
+        var configs = new[]
+        {
+            // Youth Agripreneur
+            Routing(NampApplicantCategory.YouthAgripreneur, NampCommitteeTier.Branch,      0m,           5_000_000m,   priority: 0),
+            Routing(NampApplicantCategory.YouthAgripreneur, NampCommitteeTier.Zonal,       5_000_001m,   20_000_000m,  priority: 1),
+            Routing(NampApplicantCategory.YouthAgripreneur, NampCommitteeTier.Regional,    20_000_001m,  50_000_000m,  priority: 2),
+            Routing(NampApplicantCategory.YouthAgripreneur, NampCommitteeTier.HeadOffice,  50_000_001m,  decimal.MaxValue / 2, priority: 3),
+
+            // Women Agripreneur — same bands as Youth
+            Routing(NampApplicantCategory.WomenAgripreneur, NampCommitteeTier.Branch,      0m,           5_000_000m,   priority: 0),
+            Routing(NampApplicantCategory.WomenAgripreneur, NampCommitteeTier.Zonal,       5_000_001m,   20_000_000m,  priority: 1),
+            Routing(NampApplicantCategory.WomenAgripreneur, NampCommitteeTier.Regional,    20_000_001m,  50_000_000m,  priority: 2),
+            Routing(NampApplicantCategory.WomenAgripreneur, NampCommitteeTier.HeadOffice,  50_000_001m,  decimal.MaxValue / 2, priority: 3),
+
+            // Agro-Service Company — higher starting tier
+            Routing(NampApplicantCategory.AgroServiceCompany, NampCommitteeTier.Zonal,      0m,           20_000_000m,  priority: 0),
+            Routing(NampApplicantCategory.AgroServiceCompany, NampCommitteeTier.Regional,   20_000_001m,  100_000_000m, priority: 1),
+            Routing(NampApplicantCategory.AgroServiceCompany, NampCommitteeTier.HeadOffice, 100_000_001m, decimal.MaxValue / 2, priority: 2),
+        };
+
+        await context.NampRoutingConfigs.AddRangeAsync(configs);
+        await context.SaveChangesAsync();
+        logger.LogInformation("Seeded {Count} NAMP routing config rows.", configs.Length);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    private static NampWorkflowConfig Stage(
+        NampApplicationStatus status,
+        string displayName,
+        string description,
+        string assignedRole,
+        int slaHours,
+        int sort,
+        bool isTerminal = false)
+    {
+        var config = NampWorkflowConfig.Create(status, displayName, description, assignedRole, slaHours, sort, isTerminal);
+        config.SetAuditInfo("seed", isNew: true);
+        return config;
+    }
+
+    private static NampRoutingConfig Routing(
+        NampApplicantCategory category,
+        NampCommitteeTier tier,
+        decimal min,
+        decimal max,
+        int priority)
+    {
+        var config = NampRoutingConfig.Create(category, tier, min, max, priority);
+        config.SetAuditInfo("seed", isNew: true);
+        return config;
+    }
+}
