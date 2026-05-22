@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-05-19 (Session 59)
+**Last Updated:** 2026-05-22 (Session 61)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\fabiy\source\repos\crms`
 
@@ -208,6 +208,12 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **Scalar API documentation (`/scalar/v1`) — `Scalar.AspNetCore` package added to `CRMS.API`; interactive OpenAPI UI in Development** | ✅ |
 | **Help guide comprehensively updated — all 13 roles, full 17-stage workflow, all tabs/features/stages accurately documented** | ✅ |
 | **Help guide role-aware — sidebar nav filtered by role; direct URL access blocked via `CanViewSection()` guard + `RenderAccessDenied()` fragment** | ✅ |
+| **NAMP StandingCommittee LocationId — FK added; committee routing now location-aware; Committees admin page updated** | ✅ |
+| **NAMP AgroServiceCompany tech appraisal fields — extended `NampTechnicalAppraisalReport` with site visit, soil test, company-specific fields** | ✅ |
+| **NAMP Pre-Deployment checklist — `NampPreDeploymentChecklistTemplate` + `NampPreDeploymentChecklistItem`; admin config page `/admin/namp-predeploy-checklist`; gate blocks BeginPreDeployment until all items checked** | ✅ |
+| **NAMP Offer Letter PDF — `NampOfferLetterPdfGenerator` (QuestPDF + Fineract amortisation table); Offer Letter tab (system-generated + countersigned upload); OfferAccepted/OfferLapsed workflow buttons** | ✅ |
+| **NAMP Loan Pack PDF — `NampLoanPackPdfGenerator` (on-demand 12-section PDF; no storage); download button visible to relevant roles from any post-Draft status** | ✅ |
+| **NAMP Advisory — `NampAdvisory` entity (JSON-stored scores); `NampViabilityScoreConfig` (admin-configurable Viable/Marginal/NotViable → score + weight); 5-category weighted AI advisory; AI Advisory tab in Detail.razor; admin page `/admin/namp-viability`** | ✅ |
 
 ### What Is Pending
 
@@ -216,6 +222,9 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | Wire customer exposure into AI Advisory (replace bureau-derived exposure) | P2 | `IFineractDirectService.GetCustomerExposureAsync` ready; needs wiring into `GenerateCreditAdvisoryHandler` to replace/supplement `corporateBureauReport.TotalOutstandingBalance` |
 | **Collateral approval — multi-actor role design** | P2 | Currently a single "Approve" button with no role separation. Design decision: requires at minimum Legal clearance (title/encumbrance check) + Credit/Risk Officer adequacy sign-off as two distinct steps. Valuation comes from external certified valuer. Existing state machine (`Proposed → UnderValuation → Valued → Approved → Perfected`) has the right shape but approval roles per step are undefined. Revisit when implementing collateral perfection stage. See `memory/project_collateral_approval.md`. |
 | G8: Domain events with no handlers (`LoanApplicationCreatedEvent`, `SubmittedEvent`, `ApprovedEvent`, `DisbursedEvent`) | P3 | Deferred to next sprint — no downstream automation on key lifecycle events |
+| **NAMP — Fineract loan creation at deployment** | P1 (NAMP critical) | `CreateLoan` + `ApproveLoan` + `DisburseLoan` calls needed at `ConfirmDeployment`. Without this, `Active` status has no CBS backing. `IFineractDirectService` is available; store CBS loan ID on `NampApplication`. |
+| **NAMP — Outbound callbacks** | P2 (NAMP) | `Received`, `Approved`, `Declined`, `Active` callbacks to NAMP portal not implemented. `INampCallbackService` + event handlers deferred. |
+| **NAMP — Active/Closed monitoring UI** | P3 (NAMP) | Stage 9 (Active) has no monitoring UI — no repayment tracking, no account balance view. Closed transition not implemented. |
 
 ---
 
@@ -344,7 +353,72 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-05-19 Session 59)
+## 5. Last Session Summary (2026-05-21/22 Sessions 60–61)
+
+### Completed — NAMP: StandingCommittee LocationId, Pre-Deploy Checklist, Offer Letter, Loan Pack, AI Advisory
+
+#### Feature 1 — StandingCommittee LocationId
+
+Added `LocationId` (nullable FK to `Locations`) to `StandingCommittee` domain entity. Updated EF configuration (`StandingCommitteeConfiguration`), `IStandingCommitteeRepository`, `StandingCommitteeRepository`, `StandingCommitteeCommands.cs`, `StandingCommitteeDtos.cs`, and `Committees.razor` admin page. Migration: `20260521064643_AddStandingCommitteeLocationId`.
+
+#### Feature 2 — AgroServiceCompany Technical Appraisal Report Fields
+
+Expanded `NampTechnicalAppraisalReport` with company-specific fields: site visit date, soil test results, irrigation assessment, yield projection, field counts. Updated `NampTechnicalAppraisalReportConfiguration` and `SaveNampTechnicalAppraisalReportCommand`. Migration: `20260521160811_AddCompanyTechAppraisalFields`.
+
+#### Feature 3 — Pre-Deployment Gate Checklist (Structured)
+
+**Domain:** `NampPreDeploymentChecklistTemplate` (admin-configurable items), `NampPreDeploymentChecklistItem` (per-application instances). `NampPreDeploymentChecklistItem.FromTemplate()` factory method.
+
+**Application:** `SaveNampPreDeploymentChecklistCommand` + handler; gate enforcement in `BeginPreDeploymentHandler` — loads checklist items and blocks if any are incomplete.
+
+**Infrastructure:** `NampPreDeploymentChecklistItemConfiguration`, `NampPreDeploymentChecklistTemplateConfiguration`, `INampPreDeploymentChecklistTemplateRepository` + repo, DI registered. Migrations: `20260521165849_AddPreDeploymentGateChecklist` + `20260521183532_AddNampPreDeploymentChecklist`. Seeder extended to seed default checklist templates (equity deposit, lease sign-off, GPS consent, NAIC insurance).
+
+**Web:** Admin page `/admin/namp-predeploy-checklist` — CRUD for templates. `Detail.razor` — checklist tab with checkbox grid, save button, gate error display. NavMenu updated.
+
+**Seed repair:** `POST /api/seed/namp-repair-checklist` endpoint added to `SeedController` — seeds checklist items for any app already in `PreDeploymentVerification` status without items.
+
+#### Feature 4 — NAMP Offer Letter PDF + Offer Letter Tab
+
+**Domain:** `NampOfferLetterPdfGenerator` + `INampOfferLetterPdfGenerator` interface. PDF includes facility summary, applicant profile, full amortisation table (via `IFineractDirectService`), terms, signature section.
+
+**Infrastructure:** Registered in DI. Offer letter stored via `IFileStorageService` under `namp-offerletters/`.
+
+**Web:** Offer Letter tab in `Detail.razor` — system-generated copy (download button), countersigned copy upload (category = `SignedNampOfferLetter` enum value 7). `OfferAccepted`/`OfferLapsed` workflow buttons.
+
+#### Feature 5 — NAMP Loan Pack PDF (On-Demand)
+
+**Application:** `GenerateNampLoanPackCommand` + `GenerateNampLoanPackHandler` — builds 12-section PDF from all NAMP data and returns bytes directly (no storage).
+
+**Infrastructure:** `NampLoanPackPdfGenerator` + `INampLoanPackGenerator`. Sections: Application summary, Applicant profile, Equipment & finance, Technical appraisal, Financial appraisal, Guarantors, Collaterals, Bureau, Financial statements, Committee, Document register, Workflow history.
+
+**DI:** Registered. **Web:** Download button visible to relevant roles from any post-Draft status.
+
+#### Feature 6 — NAMP AI Advisory (End-to-End)
+
+**Domain:** `NampAdvisory` entity — JSON-stored risk scores (`RiskScoresJson`, `RedFlagsJson`, etc.), `TechnicalViabilityRating/Score/CategoryWeight` snapshot fields, `DetermineRating()` static helper. `NampViabilityScoreConfig` — maps `NampViabilityRating` enum (Viable/Marginal/NotViable) → Score (0–100) + CategoryWeight.
+
+**Application:** `GenerateNampAdvisoryHandler` — calls `IAIAdvisoryService` for 4 standard categories, then adds TechnicalViability as 5th synthetic category using `NampViabilityScoreConfig` lookup. Weighted average computes overall score across all 5. Gated on ≥1 completed bureau report + technical appraisal with a viability rating recorded. `AdditionalContext` field added to `AIAdvisoryRequest` to inject tech appraisal summary into LLM prompt. `GetNampAdvisoryHandler`, `UpdateNampViabilityScoreConfigHandler`, `GetNampViabilityScoreConfigsHandler`. `MapToDto` is `internal static` (reused by query handler).
+
+**Infrastructure:** `NampAdvisoryConfiguration`, `NampViabilityScoreConfigConfiguration`. `NampAdvisoryRepository`, `NampViabilityScoreConfigRepository`. `INampAdvisoryRepository`, `INampViabilityScoreConfigRepository`. DI registered. Migration: `20260522134519_AddNampAdvisory`. Seeder: `SeedViabilityScoreConfigAsync()` seeds 3 rows: Viable(85,20), Marginal(50,20), NotViable(20,20) via `POST /api/seed/namp`.
+
+**Web:** AI Advisory tab in `Detail.razor` (after Financial Appraisal) — Generate/Regenerate button, 5-category score grid, technical viability callout, narrative sections (summary, red flags, conditions, covenants). Admin page `/admin/namp-viability` — table + edit modal. NavMenu: `psychology` icon link.
+
+**LLMNarrativeGenerator.cs:** `AdditionalContext` block injected into user prompt when provided.
+
+#### Security Incident: OpenAI Key in appsettings.json
+
+OpenAI key was present in `src/CRMS.Web.Intranet/appsettings.json` and was committed. GitHub push protection blocked the push. Key was cleared from the file, commit amended (`git commit --amend`), and pushed successfully. **Action required: rotate the OpenAI API key — it was briefly in local git history.**
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/UIGaps.md` → v6.9
+- [x] `docs/ImplementationTracker.md` → v8.3
+
+---
+
+### Previous Session Summary (2026-05-19 Session 59)
 
 ### Completed — NAMP Detail Page: Document Management + Appraisal Decision Modals
 
@@ -3036,26 +3110,38 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ## 6. Suggested Next Task
 
-### Option A — NAMP: Complete Remaining Workflow Stages (Committee → Ratification → Offer → Pre-Deployment → Training → Deployment)
+### Option A — NAMP: Fineract Loan Creation at Deployment (Critical Gap)
 
-The Technical and Financial Appraisal stages are now fully wired. The next NAMP phases are:
+All NAMP workflow stages through Deployment are implemented in the UI. The critical missing piece is that the loan is **never actually created in Fineract**. Currently Fineract is only used at ratification to calculate the offer letter repayment schedule.
 
-1. **Committee stage** — Circulate to committee (auto-routed by `EquipmentValue` + `ApplicantCategory`). Reuse `CreateCommitteeReviewCommand` + existing committee voting pattern. `NampRoutingConfig` entity already exists.
-2. **Ratification** — Final Approver ratifies committee decision. `RatifyNampDecisionCommand` needed.
-3. **Offer Letter** — Generate/upload offer; LO records countersignature.
-4. **Pre-Deployment / Training / Deployment** — Sequential stages with evidence uploads.
-5. **Active/Monitoring** — GPS confirmation, mark active.
-6. **Outbound callbacks** — `INampCallbackService` calls to PAYS on key lifecycle events.
+**What needs to happen:**
+- At `ConfirmDeployment` (Stage 8) — call `IFineractDirectService` to: (1) `CreateLoan`, (2) `ApproveLoan`, (3) `DisburseLoan`
+- Store the CBS loan ID (`FineractLoanId`) on `NampApplication`
+- Without this, `Active` status has no core banking backing and the PAYS repayment cycle cannot start
 
 **Key files:**
 ```
-src/CRMS.Application/Namp/Commands/          ← add remaining stage commands
-src/CRMS.Infrastructure/DependencyInjection.cs  ← register handlers
-src/CRMS.Web.Intranet/Services/ApplicationService.cs  ← add wrapper methods
-src/CRMS.Web.Intranet/Components/Pages/Namp/Detail.razor  ← wire header buttons + modals
-memory/project_namp_implementation_plan.md   ← full phase breakdown
-memory/project_namp_workflow_design.md       ← design spec
+src/CRMS.Domain/Aggregates/Namp/NampApplication.cs             ← add FineractLoanId field + ConfirmDeployment() update
+src/CRMS.Application/Namp/Commands/NampWorkflowCommands.cs     ← ConfirmDeploymentHandler calls IFineractDirectService
+src/CRMS.Infrastructure/DependencyInjection.cs                 ← no new registrations needed (IFineractDirectService already registered)
+src/CRMS.Infrastructure/Persistence/Migrations/               ← new migration for FineractLoanId column
+src/CRMS.Web.Intranet/Services/ApplicationService.cs           ← ConfirmNampDeploymentAsync already exists; handler update needed
 ```
+
+---
+
+### Option B — NAMP: Outbound Callbacks to NAMP Portal
+
+Send `Received`, `Approved`, `Declined`, `Active` lifecycle events back to the NAMP portal when NAMP application status changes.
+
+**What needs to happen:**
+- `INampCallbackService` interface + `HttpNampCallbackService` implementation
+- Trigger from domain event handlers at key status transitions
+- Config: NAMP portal base URL + auth token in `appsettings.json`
+
+---
+
+### Option C — Collateral Perfection: Multi-Actor Sign-Off (Legal + Credit)
 
 ---
 
