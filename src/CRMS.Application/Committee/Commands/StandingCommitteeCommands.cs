@@ -13,7 +13,8 @@ public record CreateStandingCommitteeCommand(
     int MinimumApprovalVotes,
     int DefaultDeadlineHours,
     decimal MinAmountThreshold,
-    decimal? MaxAmountThreshold
+    decimal? MaxAmountThreshold,
+    Guid? LocationId = null
 ) : IRequest<ApplicationResult<StandingCommitteeDto>>;
 
 public class CreateStandingCommitteeHandler : IRequestHandler<CreateStandingCommitteeCommand, ApplicationResult<StandingCommitteeDto>>
@@ -29,15 +30,16 @@ public class CreateStandingCommitteeHandler : IRequestHandler<CreateStandingComm
 
     public async Task<ApplicationResult<StandingCommitteeDto>> Handle(CreateStandingCommitteeCommand request, CancellationToken ct = default)
     {
-        var existing = await _repository.GetByCommitteeTypeAsync(request.CommitteeType, ct);
+        var existing = await _repository.GetByCommitteeTypeAndLocationAsync(request.CommitteeType, request.LocationId, ct);
         if (existing != null)
-            return ApplicationResult<StandingCommitteeDto>.Failure($"A standing committee already exists for type {request.CommitteeType}");
+            return ApplicationResult<StandingCommitteeDto>.Failure($"A standing committee already exists for type {request.CommitteeType} at this location");
 
         var result = StandingCommittee.Create(
             request.Name, request.CommitteeType,
             request.RequiredVotes, request.MinimumApprovalVotes,
             request.DefaultDeadlineHours,
-            request.MinAmountThreshold, request.MaxAmountThreshold);
+            request.MinAmountThreshold, request.MaxAmountThreshold,
+            request.LocationId);
 
         if (result.IsFailure)
             return ApplicationResult<StandingCommitteeDto>.Failure(result.Error);
@@ -49,7 +51,7 @@ public class CreateStandingCommitteeHandler : IRequestHandler<CreateStandingComm
     }
 
     internal static StandingCommitteeDto MapToDto(StandingCommittee c) => new(
-        c.Id, c.Name, c.CommitteeType.ToString(),
+        c.Id, c.Name, c.CommitteeType.ToString(), c.LocationId,
         c.RequiredVotes, c.MinimumApprovalVotes, c.DefaultDeadlineHours,
         c.MinAmountThreshold, c.MaxAmountThreshold, c.IsActive,
         c.Members.Select(m => new StandingCommitteeMemberDto(m.Id, m.UserId, m.UserName, m.Role, m.IsChairperson)).ToList()

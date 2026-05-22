@@ -15,11 +15,18 @@ public class NampTechnicalAppraisalReportConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.PreparedByUserId).IsRequired();
         builder.Property(x => x.SavedAt).IsRequired();
 
-        builder.Property(x => x.FarmLocationDescription).IsRequired().HasColumnType("text");
+        // Individual applicant fields (nullable — not applicable to AgroServiceCompany)
+        builder.Property(x => x.FarmLocationDescription).HasColumnType("text");
         builder.Property(x => x.GpsCoordinates).HasMaxLength(100);
         builder.Property(x => x.LandAreaAssessedHectares).HasColumnType("decimal(10,4)");
-        builder.Property(x => x.SoilConditionRating).IsRequired().HasConversion<int>();
-        builder.Property(x => x.WaterSourceAvailability).IsRequired().HasColumnType("text");
+        builder.Property(x => x.SoilConditionRating).HasConversion<int>();
+        builder.Property(x => x.WaterSourceAvailability).HasColumnType("text");
+
+        // AgroServiceCompany fields (nullable — not applicable to individual applicants)
+        builder.Property(x => x.OperationalCoverageArea).HasColumnType("text");
+        builder.Property(x => x.CurrentServiceContracts).HasColumnType("text");
+        builder.Property(x => x.StorageFacilityDescription).HasColumnType("text");
+
         builder.Property(x => x.ProposedEquipmentSuitability).IsRequired().HasColumnType("text");
         builder.Property(x => x.InfrastructureNotes).HasColumnType("text");
         builder.Property(x => x.RisksIdentified).HasColumnType("text");

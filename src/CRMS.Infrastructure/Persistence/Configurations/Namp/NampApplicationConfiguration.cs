@@ -105,8 +105,7 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
         builder.Property(x => x.OfferLetterStoragePath)
             .HasMaxLength(500);
 
-        builder.Property(x => x.PreDeploymentNote)
-            .HasColumnType("text");
+        builder.Property(x => x.PreDeploymentNote).HasColumnType("text");
 
         builder.Property(x => x.DeploymentNote)
             .HasColumnType("text");
@@ -141,6 +140,11 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
         builder.HasMany(x => x.FinancialStatements)
             .WithOne()
             .HasForeignKey(f => f.NampApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.PreDeploymentChecklist)
+            .WithOne()
+            .HasForeignKey(i => i.NampApplicationId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Indexes

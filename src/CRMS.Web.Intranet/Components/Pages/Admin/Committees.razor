@@ -36,6 +36,15 @@ else
                 <div style="display: flex; align-items: center; gap: var(--space-3);">
                     <h3 class="card-title">@committee.Name</h3>
                     <span class="badge @GetTypeBadgeClass(committee.CommitteeType)">@FormatType(committee.CommitteeType)</span>
+                    @if (committee.LocationId.HasValue)
+                    {
+                        var branchName = branches.FirstOrDefault(b => b.Id == committee.LocationId)?.Name ?? "Branch";
+                        <span class="badge badge-secondary" title="Branch-specific committee">@branchName</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-gray" title="Applies to all branches">All Branches</span>
+                    }
                     @if (!committee.IsActive)
                     {
                         <span class="badge badge-gray">Inactive</span>
@@ -152,12 +161,27 @@ else
                     <select class="form-control" @bind="formType">
                         <option value="">Select type</option>
                         <option value="BranchCredit">Branch Credit</option>
+                        <option value="ZonalCredit">Zonal Credit</option>
                         <option value="RegionalCredit">Regional Credit</option>
                         <option value="HeadOfficeCredit">Head Office Credit</option>
                         <option value="ManagementCredit">Management Credit</option>
                         <option value="BoardCredit">Board Credit</option>
                     </select>
                 </div>
+                @if (formType == "BranchCredit")
+                {
+                    <div class="form-group">
+                        <label class="form-label">Branch (Optional)</label>
+                        <select class="form-control" @bind="formLocationId">
+                            <option value="">All Branches (default)</option>
+                            @foreach (var b in branches)
+                            {
+                                <option value="@b.Id">@b.Name</option>
+                            }
+                        </select>
+                        <small style="color: var(--gray-500);">Leave as "All Branches" to create the default shared committee. Select a specific branch to override for that branch only.</small>
+                    </div>
+                }
             }
             <div class="grid grid-cols-2 gap-4">
                 <div class="form-group">
@@ -268,6 +292,7 @@ else
 @code {
     private List<StandingCommitteeInfo> committees = [];
     private List<UserSummary> availableUsers = [];
+    private List<LocationInfo> branches = [];
     private bool isLoading = true;
     private bool isLoadingUsers;
     private int currentPage = 1;
@@ -280,6 +305,7 @@ else
     private Guid editingId;
     private string formName = "";
     private string formType = "";
+    private string formLocationId = "";
     private decimal formMinAmount;
     private decimal formMaxAmount;
     private int formRequiredVotes = 3;
@@ -299,6 +325,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        branches = await AppService.GetBranchesAsync();
         await LoadCommittees();
     }
 
@@ -316,6 +343,7 @@ else
         editingId = Guid.Empty;
         formName = "";
         formType = "";
+        formLocationId = "";
         formMinAmount = 0;
         formMaxAmount = 0;
         formRequiredVotes = 3;
@@ -358,8 +386,9 @@ else
             else
             {
                 if (string.IsNullOrEmpty(formType)) { modalError = "Please select a committee type"; return; }
+                Guid? locationId = Guid.TryParse(formLocationId, out var locParsed) ? locParsed : null;
                 var result = await AppService.CreateStandingCommitteeAsync(
-                    formName, formType, formRequiredVotes, formMinApproval, formDeadline, formMinAmount, max);
+                    formName, formType, formRequiredVotes, formMinApproval, formDeadline, formMinAmount, max, locationId);
                 if (!result.Success) { modalError = result.Error; return; }
             }
             showCommitteeModal = false;
@@ -427,17 +456,19 @@ else
 
     private static string FormatType(string type) => type switch
     {
-        "BranchCredit" => "Branch",
-        "RegionalCredit" => "Regional",
-        "HeadOfficeCredit" => "Head Office",
-        "ManagementCredit" => "Management",
-        "BoardCredit" => "Board",
+        "BranchCredit" => "Branch Credit",
+        "ZonalCredit" => "Zonal Credit",
+        "RegionalCredit" => "Regional Credit",
+        "HeadOfficeCredit" => "Head Office Credit",
+        "ManagementCredit" => "Management Credit",
+        "BoardCredit" => "Board Credit",
         _ => type
     };
 
     private static string GetTypeBadgeClass(string type) => type switch
     {
         "BranchCredit" => "badge-info",
+        "ZonalCredit" => "badge-secondary",
         "RegionalCredit" => "badge-warning",
         "HeadOfficeCredit" => "badge-primary",
         "ManagementCredit" => "badge-success",

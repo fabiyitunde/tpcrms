@@ -342,6 +342,7 @@ public class StandingCommitteeInfo
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string CommitteeType { get; set; } = string.Empty;
+    public Guid? LocationId { get; set; }
     public int RequiredVotes { get; set; }
     public int MinimumApprovalVotes { get; set; }
     public int DefaultDeadlineHours { get; set; }

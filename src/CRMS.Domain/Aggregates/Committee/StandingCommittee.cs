@@ -7,6 +7,7 @@ public class StandingCommittee : AggregateRoot
 {
     public string Name { get; private set; } = string.Empty;
     public CommitteeType CommitteeType { get; private set; }
+    public Guid? LocationId { get; private set; }   // null = applies to all branches (default); set = branch-specific
     public int RequiredVotes { get; private set; }
     public int MinimumApprovalVotes { get; private set; }
     public int DefaultDeadlineHours { get; private set; }
@@ -28,7 +29,8 @@ public class StandingCommittee : AggregateRoot
         int minimumApprovalVotes,
         int defaultDeadlineHours,
         decimal minAmountThreshold,
-        decimal? maxAmountThreshold)
+        decimal? maxAmountThreshold,
+        Guid? locationId = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             return Result.Failure<StandingCommittee>("Committee name is required");
@@ -49,6 +51,7 @@ public class StandingCommittee : AggregateRoot
         {
             Name = name,
             CommitteeType = committeeType,
+            LocationId = locationId,
             RequiredVotes = requiredVotes,
             MinimumApprovalVotes = minimumApprovalVotes,
             DefaultDeadlineHours = defaultDeadlineHours,

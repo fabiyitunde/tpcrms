@@ -42,7 +42,11 @@ public record AIAdvisoryRequest(
     
     // Existing Exposure
     decimal ExistingExposure,
-    int ExistingFacilitiesCount
+    int ExistingFacilitiesCount,
+
+    // Optional free-text context injected verbatim into the LLM prompt
+    // (e.g. NAMP technical appraisal summary, product-specific notes)
+    string? AdditionalContext = null
 );
 
 public record BureauDataInput(

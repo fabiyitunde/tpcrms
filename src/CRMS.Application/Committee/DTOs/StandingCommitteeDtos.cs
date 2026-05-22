@@ -4,6 +4,7 @@ public record StandingCommitteeDto(
     Guid Id,
     string Name,
     string CommitteeType,
+    Guid? LocationId,
     int RequiredVotes,
     int MinimumApprovalVotes,
     int DefaultDeadlineHours,

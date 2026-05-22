@@ -6,6 +6,7 @@
 @inject ApplicationService AppService
 @inject AuthService AuthService
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>@(app?.ApplicationNumber ?? "NAMP Application") - CRMS</PageTitle>
 
@@ -51,9 +52,9 @@ else
             {
                 <button class="btn btn-primary" @onclick="OpenCommitteeModal">Circulate to Committee</button>
             }
-            @if (ShowRecordOutcomeButton)
+            @if (ShowConfirmDecisionButton)
             {
-                <button class="btn btn-warning" @onclick="OpenCommitteeOutcomeModal">Record Committee Outcome</button>
+                <button class="btn btn-warning" @onclick="OpenCommitteeOutcomeModal">Confirm Committee Decision</button>
             }
             @if (ShowRatifyButton)
             {
@@ -80,6 +81,20 @@ else
             @if (ShowDeploymentButton)
             {
                 <button class="btn btn-success" @onclick="OpenDeploymentModal">Confirm Deployment</button>
+            }
+            @if (CanGenerateLoanPack)
+            {
+                <button class="btn btn-outline" @onclick="GenerateNampLoanPack" disabled="@isGeneratingLoanPack">
+                    @if (isGeneratingLoanPack)
+                    {
+                        <span class="spinner" style="width: 14px; height: 14px;"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 16px;">inventory_2</span>
+                    }
+                    Loan Pack
+                </button>
             }
         </div>
     </div>
@@ -140,6 +155,11 @@ else
                 Collateral <span class="badge badge-secondary" style="margin-left: 4px;">@app.Collaterals.Count</span>
             </div>
         }
+        <div class="tab @(detailTab == "documents" ? "active" : "")" @onclick='() => detailTab = "documents"'>
+            Documents
+            @if (app.Documents.Count > 0)
+            { <span class="badge badge-secondary" style="margin-left: 4px;">@app.Documents.Count</span> }
+        </div>
         @if (app.ApplicantCategory == "AgroServiceCompany")
         {
             <div class="tab @(detailTab == "financials" ? "active" : "")" @onclick='() => detailTab = "financials"'>
@@ -155,13 +175,6 @@ else
                 @if (app.TechnicalAppraisalReport != null) { <span class="badge badge-success" style="margin-left: 4px;">✓</span> }
             </div>
         }
-        @if (ShowFinancialAppraisalTab)
-        {
-            <div class="tab @(detailTab == "financial-appraisal" ? "active" : "")" @onclick='() => detailTab = "financial-appraisal"'>
-                Financial Appraisal
-                @if (app.FinancialAppraisalReport != null) { <span class="badge badge-success" style="margin-left: 4px;">✓</span> }
-            </div>
-        }
         @if (app.BureauReports.Count > 0 || ShowFinancialAppraisalTab)
         {
             <div class="tab @(detailTab == "credit-bureau" ? "active" : "")" @onclick='() => detailTab = "credit-bureau"'>
@@ -169,11 +182,46 @@ else
                 @if (app.BureauReports.Count > 0) { <span class="badge badge-secondary" style="margin-left: 4px;">@app.BureauReports.Count</span> }
             </div>
         }
-        <div class="tab @(detailTab == "documents" ? "active" : "")" @onclick='() => detailTab = "documents"'>
-            Documents
-            @if (app.Documents.Count > 0)
-            { <span class="badge badge-secondary" style="margin-left: 4px;">@app.Documents.Count</span> }
-        </div>
+        @if (ShowFinancialAppraisalTab)
+        {
+            <div class="tab @(detailTab == "financial-appraisal" ? "active" : "")" @onclick='() => detailTab = "financial-appraisal"'>
+                Financial Appraisal
+                @if (app.FinancialAppraisalReport != null) { <span class="badge badge-success" style="margin-left: 4px;">✓</span> }
+            </div>
+        }
+        @if (ShowAdvisoryTab)
+        {
+            <div class="tab @(detailTab == "advisory" ? "active" : "")" @onclick="SwitchToAdvisoryTab">
+                <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">psychology</span>
+                AI Advisory
+                @if (nampAdvisory?.Status == "Completed") { <span class="badge badge-success" style="margin-left: 4px;">✓</span> }
+                else if (advisoryLoading) { <span class="badge badge-secondary" style="margin-left: 4px;">…</span> }
+            </div>
+        }
+        @if (app.CurrentCommitteeReviewId != null || IsCommitteeStatus || IsAfter(app!, "BranchCommitteeCirculation"))
+        {
+            <div class="tab @(detailTab == "committee" ? "active" : "")" @onclick='() => detailTab = "committee"'>
+                Committee
+                @if (app.CommitteeDecisionAt != null) { <span class="badge badge-success" style="margin-left: 4px;">✓</span> }
+                else if (app.CurrentCommitteeReviewId != null) { <span class="badge badge-warning" style="margin-left: 4px;">In Progress</span> }
+            </div>
+        }
+        @if (app.OfferLetterStoragePath != null)
+        {
+            <div class="tab @(detailTab == "offer-letter" ? "active" : "")" @onclick='() => detailTab = "offer-letter"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">mail</span>
+                Offer Letter
+            </div>
+        }
+        @if (ShowPreDeploymentTab)
+        {
+            <div class="tab @(detailTab == "pre-deployment" ? "active" : "")" @onclick='() => detailTab = "pre-deployment"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">checklist</span>
+                Pre-Deployment
+                @if (app.PreDeploymentVerifiedAt != null) { <span class="badge badge-success" style="margin-left: 4px;">✓</span> }
+                else if (app.Status == "PreDeploymentVerification") { <span class="badge badge-warning" style="margin-left: 4px;">In Progress</span> }
+            </div>
+        }
         <div class="tab @(detailTab == "workflow" ? "active" : "")" @onclick='() => detailTab = "workflow"'>
             Workflow <span class="badge badge-secondary" style="margin-left: 4px;">@app.StatusHistory.Count</span>
         </div>
@@ -619,6 +667,46 @@ else
                 </div>
                 <div class="card-body">
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+
+                    @if (app.ApplicantCategory == "AgroServiceCompany")
+                    {
+                        <!-- AgroServiceCompany-specific fields -->
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Operational Coverage Area *</label>
+                            <textarea class="form-control" rows="2" @bind="techCoverageArea" disabled="@(!canEditTech)" placeholder="Describe the geographic area of operations..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Existing Fleet Size</label>
+                            <input type="number" class="form-control" @bind="techFleetSize" disabled="@(!canEditTech)" placeholder="Number of equipment units owned" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Has Maintenance Facility</label>
+                            <select class="form-control" @bind="techHasMaintenanceFacility" disabled="@(!canEditTech)">
+                                <option value="">-- Select --</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Technical Staff Count</label>
+                            <input type="number" class="form-control" @bind="techTechnicalStaff" disabled="@(!canEditTech)" placeholder="Number of qualified technical staff" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Years in Operation</label>
+                            <input type="number" class="form-control" @bind="techYearsInOperation" disabled="@(!canEditTech)" />
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Current Service Contracts</label>
+                            <textarea class="form-control" rows="2" @bind="techCurrentContracts" disabled="@(!canEditTech)" placeholder="Summary of active service agreements..."></textarea>
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Storage Facility Description</label>
+                            <textarea class="form-control" rows="2" @bind="techStorageFacility" disabled="@(!canEditTech)" placeholder="Describe available storage for equipment and inputs..."></textarea>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Individual applicant (farmer) fields -->
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label class="form-label">Farm / Site Location Description *</label>
                             <textarea class="form-control" rows="2" @bind="techFarmLocation" disabled="@(!canEditTech)" placeholder="Describe the farm location..."></textarea>
@@ -641,6 +729,13 @@ else
                                 <option value="Poor">Poor</option>
                             </select>
                         </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Water Source Availability *</label>
+                            <textarea class="form-control" rows="2" @bind="techWaterSource" disabled="@(!canEditTech)" placeholder="Describe water availability..."></textarea>
+                        </div>
+                    }
+
+                        <!-- Shared fields -->
                         <div class="form-group">
                             <label class="form-label">Overall Viability Rating *</label>
                             <select class="form-control" @bind="techViabilityRating" disabled="@(!canEditTech)">
@@ -650,13 +745,10 @@ else
                                 <option value="NotViable">Not Viable</option>
                             </select>
                         </div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Water Source Availability *</label>
-                            <textarea class="form-control" rows="2" @bind="techWaterSource" disabled="@(!canEditTech)" placeholder="Describe water availability..."></textarea>
-                        </div>
+                        <div style="grid-column: 2 / -1;"></div>
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label class="form-label">Proposed Equipment Suitability *</label>
-                            <textarea class="form-control" rows="2" @bind="techEquipSuitability" disabled="@(!canEditTech)" placeholder="Assess suitability of requested equipment for the site..."></textarea>
+                            <textarea class="form-control" rows="2" @bind="techEquipSuitability" disabled="@(!canEditTech)" placeholder="Assess suitability of requested equipment..."></textarea>
                         </div>
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label class="form-label">Infrastructure Notes</label>
@@ -1131,6 +1223,222 @@ else
     }
 
     <!-- ══════════════════════════════════════════════
+         COMMITTEE TAB
+    ══════════════════════════════════════════════ -->
+    @if (detailTab == "committee")
+    {
+        var myMember = committeeReview?.Members.FirstOrDefault(m => m.UserId == (User?.Id ?? Guid.Empty));
+        var iAmCommitteeMember = myMember != null;
+        var iHaveVoted = myMember?.Vote != null;
+        var reviewInProgress = committeeReview?.Status == "InProgress";
+        var reviewVotingComplete = committeeReview?.Status == "VotingComplete";
+        var decisionRecorded = app.CommitteeDecisionAt != null;
+        var committeeDecisionIsApproved = decisionRecorded &&
+            app.Status != "BranchCommitteeDeclined" &&
+            app.Status != "ZonalCommitteeDeclined" &&
+            app.Status != "RegionalCommitteeDeclined" &&
+            app.Status != "HOCommitteeDeclined";
+        <div style="display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; align-items: start;">
+            @* Left: members + vote table *@
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Committee Members</h3>
+                        @if (committeeReview != null)
+                        {
+                            <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">
+                                @committeeReview.CommitteeType.Replace("Credit", "") Committee ·
+                                Circulated @committeeReview.CirculatedAt.ToString("MMM dd, yyyy")
+                                @if (committeeReview.DeadlineAt.HasValue)
+                                {
+                                    <span> · Deadline @committeeReview.DeadlineAt.Value.ToString("MMM dd, yyyy")</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <span class="badge @(decisionRecorded ? "badge-success" : (reviewVotingComplete ? "badge-info" : (reviewInProgress ? "badge-warning" : "badge-gray")))">
+                        @(decisionRecorded ? "Decided" : (reviewVotingComplete ? "All Voted" : (reviewInProgress ? "Voting" : "Not Started")))
+                    </span>
+                </div>
+                @if (committeeReview == null || committeeReview.Members.Count == 0)
+                {
+                    <div class="empty-state" style="padding: var(--space-8);">
+                        <div class="empty-state-icon"><span class="material-symbols-outlined">groups</span></div>
+                        <div class="empty-state-title">No committee members</div>
+                        <div class="empty-state-text">The committee has not been circulated yet.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="card-body" style="padding: 0;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Member</th>
+                                    <th>Role</th>
+                                    <th>Vote</th>
+                                    <th>Voted At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var m in committeeReview.Members)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                                <div class="user-avatar" style="width: 32px; height: 32px; font-size: var(--text-xs);">
+                                                    @GetInitials(m.UserName)
+                                                </div>
+                                                <div>
+                                                    <span style="font-weight: 500;">@m.UserName</span>
+                                                    @if (m.IsChairperson)
+                                                    {
+                                                        <span style="font-size: var(--text-xs); color: var(--primary-600); margin-left: var(--space-2);">Chair</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td style="font-size: var(--text-sm); color: var(--gray-600);">@m.Role</td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(m.Vote))
+                                            {
+                                                <span class="badge @GetCommitteeVoteBadgeClass(m.Vote)">
+                                                    <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">@GetCommitteeVoteIcon(m.Vote)</span>
+                                                    @m.Vote
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge badge-gray">Pending</span>
+                                            }
+                                        </td>
+                                        <td style="font-size: var(--text-sm); color: var(--gray-500);">
+                                            @(m.VotedAt.HasValue ? m.VotedAt.Value.ToString("MMM dd, HH:mm") : "—")
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @* Vote tally (if any votes cast) *@
+                    @if (committeeReview.ApprovalVotes + committeeReview.RejectionVotes + committeeReview.AbstainVotes > 0)
+                    {
+                        <div class="card-footer" style="padding: var(--space-3) var(--space-4);">
+                            <div style="display: flex; gap: var(--space-6); font-size: var(--text-sm);">
+                                <span style="color: var(--success-700); font-weight: 600;">✓ @committeeReview.ApprovalVotes Approve</span>
+                                <span style="color: var(--danger-700); font-weight: 600;">✗ @committeeReview.RejectionVotes Reject</span>
+                                <span style="color: var(--gray-500);">— @committeeReview.AbstainVotes Abstain</span>
+                                @if (committeeReview.PendingVotes > 0)
+                                {
+                                    <span style="color: var(--warning-600);">⧗ @committeeReview.PendingVotes Pending</span>
+                                }
+                            </div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); margin-top: 4px;">
+                                Quorum: @committeeReview.RequiredVotes votes required · Minimum @committeeReview.MinimumApprovalVotes to approve
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            @* Right panel *@
+            <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+                @* Cast Vote — for committee members who haven't voted yet *@
+                @if (iAmCommitteeMember && reviewInProgress && !iHaveVoted && !decisionRecorded)
+                {
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Cast Your Vote</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label class="form-label">Your Decision</label>
+                                <select class="form-control" @bind="selectedVote">
+                                    <option value="">Select your vote</option>
+                                    <option value="Approve">Approve</option>
+                                    <option value="Reject">Reject</option>
+                                    <option value="Abstain">Abstain</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Comments (Optional)</label>
+                                <textarea class="form-control" rows="3" @bind="voteComment" placeholder="Add your comments..."></textarea>
+                            </div>
+                            @if (!string.IsNullOrEmpty(voteError))
+                            {
+                                <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">@voteError</div>
+                            }
+                            <button class="btn btn-primary" style="width: 100%;"
+                                    @onclick="HandleCastVote"
+                                    disabled="@(string.IsNullOrEmpty(selectedVote) || isCastingVote)">
+                                @if (isCastingVote) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                                else { <span class="material-symbols-outlined" style="font-size: 16px;">how_to_vote</span> }
+                                Submit Vote
+                            </button>
+                        </div>
+                    </div>
+                }
+                else if (iAmCommitteeMember && iHaveVoted)
+                {
+                    <div class="card">
+                        <div class="card-header"><h3 class="card-title">Your Vote</h3></div>
+                        <div class="card-body text-center" style="padding: var(--space-5);">
+                            <span class="material-symbols-outlined" style="font-size: 36px; display: block; margin-bottom: var(--space-2); color: var(--success-500);">how_to_vote</span>
+                            <p style="font-weight: 500; margin-bottom: var(--space-2);">You have voted</p>
+                            <span class="badge @GetCommitteeVoteBadgeClass(myMember!.Vote!) " style="font-size: var(--text-sm);">@myMember!.Vote</span>
+                            @if (!string.IsNullOrEmpty(myMember.VoteComment))
+                            {
+                                <p style="font-size: var(--text-sm); color: var(--gray-500); margin-top: var(--space-3); font-style: italic;">"@myMember.VoteComment"</p>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @* Decision outcome card *@
+                @if (decisionRecorded)
+                {
+                    <div class="card" style="border: 1px solid @(committeeDecisionIsApproved ? "var(--success-200)" : "var(--danger-200)");">
+                        <div class="card-header" style="background: @(committeeDecisionIsApproved ? "var(--success-50)" : "var(--danger-50)");">
+                            <h3 class="card-title" style="color: @(committeeDecisionIsApproved ? "var(--success-800)" : "var(--danger-800)");">Committee Decision</h3>
+                        </div>
+                        <div class="card-body">
+                            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3);">
+                                <span class="material-symbols-outlined" style="font-size: 28px; color: @(committeeDecisionIsApproved ? "var(--success-600)" : "var(--danger-600)");">
+                                    @(committeeDecisionIsApproved ? "check_circle" : "cancel")
+                                </span>
+                                <div>
+                                    <div style="font-weight: 700; font-size: var(--text-lg); color: @(committeeDecisionIsApproved ? "var(--success-800)" : "var(--danger-800)");">
+                                        @(committeeDecisionIsApproved ? "Approved" : "Declined")
+                                    </div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">@app.CommitteeDecisionAt!.Value.ToString("MMM dd, yyyy 'at' HH:mm")</div>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(app.CommitteeDecisionNote))
+                            {
+                                <div style="font-size: var(--text-xs); font-weight: 600; color: var(--gray-500); text-transform: uppercase; margin-bottom: 4px;">Notes</div>
+                                <p style="font-size: var(--text-sm); color: var(--gray-700); font-style: italic; margin: 0;">"@app.CommitteeDecisionNote"</p>
+                            }
+                        </div>
+                    </div>
+                }
+                else if (!iAmCommitteeMember && !decisionRecorded)
+                {
+                    <div class="card">
+                        <div class="card-header"><h3 class="card-title">Decision Status</h3></div>
+                        <div class="card-body text-center" style="padding: var(--space-6);">
+                            <span class="material-symbols-outlined" style="font-size: 36px; display: block; margin-bottom: var(--space-2); opacity: 0.4;">pending</span>
+                            <div style="font-size: var(--text-sm); color: var(--gray-500);">
+                                @(reviewVotingComplete ? "All votes cast. Awaiting CO confirmation." : "Voting in progress...")
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ══════════════════════════════════════════════
          DOCUMENTS TAB
     ══════════════════════════════════════════════ -->
     @if (detailTab == "documents")
@@ -1182,6 +1490,488 @@ else
                             </tbody>
                         </table>
                     </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ══════════════════════════════════════════════
+         OFFER LETTER TAB
+    ══════════════════════════════════════════════ -->
+    @if (detailTab == "offer-letter")
+    {
+        @if (app.OfferLetterStoragePath != null && app.Status == "OfferGenerated" && SignedOfferLetterDoc == null)
+        {
+            <div style="padding: var(--space-3) var(--space-4); background: var(--warning-50); border: 1px solid var(--warning-200); border-radius: var(--radius-md); display: flex; gap: var(--space-3); align-items: center; margin-bottom: var(--space-4);">
+                <span class="material-symbols-outlined" style="color: var(--warning-600); font-size: 20px;">pending_actions</span>
+                <span style="font-size: var(--text-sm); color: var(--warning-800);">
+                    Offer letter has been issued. Once the applicant countersigns, upload the signed copy to confirm acceptance.
+                </span>
+            </div>
+        }
+        <div class="card">
+            <div class="card-header">
+                <div style="display: flex; align-items: center; gap: var(--space-2);">
+                    <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary-600);">mail</span>
+                    <div>
+                        <h3 class="card-title" style="margin: 0;">Offer Letter</h3>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">System-generated at ratification</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                @if (string.IsNullOrEmpty(app.OfferLetterStoragePath))
+                {
+                    <div class="empty-state" style="padding: var(--space-8) 0;">
+                        <div class="empty-state-icon"><span class="material-symbols-outlined">mail</span></div>
+                        <div class="empty-state-title">No offer letter generated yet</div>
+                        <div class="empty-state-text">The offer letter is generated automatically when the decision is ratified.</div>
+                    </div>
+                }
+                else
+                {
+                    @* Row 1: System-Generated Copy *@
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--gray-100);">
+                        <div style="display: flex; align-items: center; gap: var(--space-3);">
+                            <span class="material-symbols-outlined" style="color: var(--danger-400); font-size: 20px;">picture_as_pdf</span>
+                            <div>
+                                <div style="font-size: var(--text-sm); font-weight: 500;">System-Generated Copy</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                                    Generated @(app.OfferGeneratedAt?.ToLocalTime().ToString("dd MMM yyyy") ?? "—") ·
+                                    @if (app.OfferAcceptedAt.HasValue)
+                                    {
+                                        <span class="badge badge-success" style="font-size: 10px;">Accepted</span>
+                                    }
+                                    else if (app.OfferLapsedAt.HasValue)
+                                    {
+                                        <span class="badge badge-secondary" style="font-size: 10px;">Lapsed</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-info" style="font-size: 10px;">Issued</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" @onclick="DownloadNampOfferLetter" disabled="@isDownloadingOfferLetter">
+                            @if (isDownloadingOfferLetter)
+                            {
+                                <span class="spinner" style="width: 14px; height: 14px;"></span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                            }
+                            Download
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(offerLetterDownloadError))
+                    {
+                        <div style="padding: var(--space-2) var(--space-4); color: var(--danger-600); font-size: var(--text-xs);">@offerLetterDownloadError</div>
+                    }
+
+                    @* Row 2: Countersigned Copy *@
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4);">
+                        <div style="display: flex; align-items: center; gap: var(--space-3);">
+                            <span class="material-symbols-outlined" style="color: @(SignedOfferLetterDoc != null ? "var(--success-500)" : "var(--gray-300)"); font-size: 20px;">@(SignedOfferLetterDoc != null ? "task" : "pending_actions")</span>
+                            <div>
+                                <div style="font-size: var(--text-sm); font-weight: 500;">Countersigned Copy</div>
+                                @if (SignedOfferLetterDoc != null)
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">@SignedOfferLetterDoc.FileName — uploaded @SignedOfferLetterDoc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                }
+                                else
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--gray-400); font-style: italic;">Not yet uploaded — print, get countersignature, then upload</div>
+                                }
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: var(--space-2); align-items: center;">
+                            @if (SignedOfferLetterDoc != null)
+                            {
+                                <button class="btn btn-secondary btn-sm" @onclick="() => DownloadSignedOfferLetter(SignedOfferLetterDoc.Id)">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                    Download
+                                </button>
+                            }
+                            @if (CanUploadSignedOfferLetter)
+                            {
+                                <button class="btn btn-primary btn-sm" @onclick="OpenUploadSignedOfferModal">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+                                    @(SignedOfferLetterDoc != null ? "Replace" : "Upload Signed Copy")
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ══════════════════════════════════════════════
+         PRE-DEPLOYMENT TAB
+    ══════════════════════════════════════════════ -->
+    @if (detailTab == "pre-deployment")
+    {
+        // Compliance Officer controls gate checkboxes and saves the checklist
+        var canEditGates = app.Status == "PreDeploymentVerification" &&
+                           (User?.HasAnyRole("ComplianceOfficer", "SystemAdmin") ?? false);
+        // Branch staff (Loan Officer) can upload evidence documents collected from the applicant
+        var canUploadGateDocs = app.Status == "PreDeploymentVerification" &&
+                                (User?.HasAnyRole("LoanOfficer", "ComplianceOfficer", "SystemAdmin") ?? false);
+
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+            @if (!canEditGates && app.PreDeploymentVerifiedAt.HasValue)
+            {
+                <div style="padding: var(--space-3) var(--space-4); background: var(--success-50); border: 1px solid var(--success-200); border-radius: var(--radius-md); display: flex; gap: var(--space-3); align-items: center;">
+                    <span class="material-symbols-outlined" style="color: var(--success-600); font-size: 20px;">verified</span>
+                    <span style="font-size: var(--text-sm); color: var(--success-800);">
+                        All 4 gate conditions verified on @app.PreDeploymentVerifiedAt.Value.ToLocalTime().ToString("dd MMM yyyy").
+                        @if (!string.IsNullOrEmpty(app.PreDeploymentNote)) { <span>Note: @app.PreDeploymentNote</span> }
+                    </span>
+                </div>
+            }
+
+            @* Checklist items *@
+            @if (!app.PreDeploymentChecklist.Any())
+            {
+                <div class="card">
+                    <div class="card-body text-center" style="color: var(--text-secondary); padding: 2rem;">
+                        No checklist items have been seeded. Ask a System Administrator to configure the pre-deployment checklist template.
+                    </div>
+                </div>
+            }
+            else
+            {
+                @foreach (var item in app.PreDeploymentChecklist.OrderBy(i => i.SortOrder))
+                {
+                    var itemDocs = !string.IsNullOrEmpty(item.DocumentCategory)
+                        ? app.Documents.Where(d => d.Stage == "PreDeploymentVerification" && d.Category == item.DocumentCategory).ToList()
+                        : new List<CRMS.Application.Namp.DTOs.NampDocumentDto>();
+
+                    <div class="card">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                <span class="material-symbols-outlined" style="font-size: 20px; color: @(item.IsConfirmed == true ? "var(--success-600)" : "var(--gray-400)");">task_alt</span>
+                                <div>
+                                    <h3 class="card-title" style="margin: 0;">@item.Title</h3>
+                                    @if (!string.IsNullOrEmpty(item.Description))
+                                    { <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">@item.Description</div> }
+                                </div>
+                                @if (!item.IsMandatory) { <span class="badge badge-secondary">Optional</span> }
+                                @if (item.IsConfirmed == true) { <span class="badge badge-success">Confirmed</span> }
+                                else if (item.IsConfirmed == false) { <span class="badge badge-danger">Not Confirmed</span> }
+                                else { <span class="badge badge-secondary">Pending</span> }
+                            </div>
+                            @if (canUploadGateDocs && item.RequiresDocumentUpload && !string.IsNullOrEmpty(item.DocumentCategory))
+                            {
+                                <button class="btn btn-secondary btn-sm" @onclick="() => OpenChecklistDocUpload(item.Id, item.DocumentCategory!)">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">upload</span> Upload Document
+                                </button>
+                            }
+                        </div>
+                        <div class="card-body">
+                            @if (canEditGates)
+                            {
+                                <div style="display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 0.75rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; font-weight: 500; padding-top: 2px;">
+                                        <input type="checkbox"
+                                               checked="@(GetItemConfirmed(item.Id) == true)"
+                                               @onchange="e => SetItemConfirmed(item.Id, (bool)e.Value!)" />
+                                        I confirm this condition has been satisfied
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Notes</label>
+                                    <textarea class="form-control" rows="2"
+                                              value="@GetItemNote(item.Id)"
+                                              @onchange="e => SetItemNote(item.Id, e.Value?.ToString())"
+                                              placeholder="Optional notes..."></textarea>
+                                </div>
+                                @if (!string.IsNullOrEmpty(GetItemError(item.Id)))
+                                { <div class="alert alert-danger" style="margin-bottom: 0.5rem;">@GetItemError(item.Id)</div> }
+                                <button class="btn btn-secondary btn-sm" @onclick="() => SaveChecklistItem(item.Id)" disabled="@IsItemSaving(item.Id)">
+                                    @if (IsItemSaving(item.Id)) { <span class="spinner" style="width: 12px; height: 12px;"></span> }
+                                    Save
+                                </button>
+                            }
+                            else if (item.IsConfirmed.HasValue)
+                            {
+                                <div style="font-size: 0.875rem; color: var(--text-secondary);">
+                                    @if (!string.IsNullOrEmpty(item.Notes)) { <span>@item.Notes</span> }
+                                    else { <span style="font-style: italic;">No notes recorded.</span> }
+                                </div>
+                                @if (item.ConfirmedAt.HasValue)
+                                {
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                        Confirmed on @item.ConfirmedAt.Value.ToLocalTime().ToString("dd MMM yyyy")
+                                    </div>
+                                }
+                            }
+
+                            @if (itemDocs.Any())
+                            {
+                                <div style="margin-top: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                                    <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.5rem;">Uploaded Evidence</div>
+                                    @foreach (var doc in itemDocs)
+                                    {
+                                        var capturedDoc = doc;
+                                        var preDeployStage = "PreDeploymentVerification";
+                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--gray-100);">
+                                            <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
+                                                <span class="material-symbols-outlined" style="font-size: 16px; color: var(--text-secondary); flex-shrink: 0;">@GetDocIcon(capturedDoc.FileName)</span>
+                                                <div style="min-width: 0;">
+                                                    <div style="font-size: 0.875rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@capturedDoc.FileName</div>
+                                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">@capturedDoc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm") · @FormatFileSize(capturedDoc.FileSize)</div>
+                                                </div>
+                                            </div>
+                                            <div style="display: flex; gap: 0.25rem; flex-shrink: 0;">
+                                                <button class="btn btn-ghost btn-sm" title="View" @onclick="() => OpenDocView(capturedDoc.Id, capturedDoc.FileName, capturedDoc.ContentType)">
+                                                    <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                                                </button>
+                                                @if (canUploadGateDocs)
+                                                {
+                                                    <button class="btn btn-ghost btn-sm" title="Edit" @onclick="() => OpenEditDoc(capturedDoc.Id, capturedDoc.Category, capturedDoc.Description, preDeployStage, capturedDoc.FileName, capturedDoc.FileSize, capturedDoc.ContentType)">
+                                                        <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+                                                    </button>
+                                                    <button class="btn btn-ghost btn-sm" title="Delete" style="color: var(--danger-600);" @onclick="() => OpenDeleteDoc(capturedDoc.Id)">
+                                                        <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                                    </button>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+            @* Checklist document upload modal *@
+            @if (showChecklistDocModal)
+            {
+                <div class="modal-backdrop show" @onclick="CloseChecklistDocModal">
+                    <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+                        <div class="modal-header">
+                            <h3 class="modal-title">Upload Document</h3>
+                            <button class="modal-close" @onclick="CloseChecklistDocModal"><span class="material-symbols-outlined">close</span></button>
+                        </div>
+                        <div class="modal-body">
+                            <InputFile OnChange="OnChecklistDocSelected" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="form-control" />
+                            @if (checklistDocFile != null)
+                            {
+                                <div style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary);">
+                                    @checklistDocFile.Name · @FormatFileSize(checklistDocFile.Size)
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(checklistDocError))
+                            { <div class="alert alert-danger" style="margin-top: 0.75rem;">@checklistDocError</div> }
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" @onclick="CloseChecklistDocModal">Cancel</button>
+                            <button class="btn btn-primary" @onclick="UploadChecklistDoc" disabled="@(checklistDocFile == null || isUploadingChecklistDoc)">
+                                @if (isUploadingChecklistDoc) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                                Upload
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- ══════════════════════════════════════════════
+         AI ADVISORY TAB
+    ══════════════════════════════════════════════ -->
+    @if (detailTab == "advisory")
+    {
+        <div class="card">
+            <div class="card-body">
+
+                @if (advisoryLoading)
+                {
+                    <div class="p-4 text-center"><div class="spinner" style="margin: 0 auto;"></div><div class="mt-2 text-muted">Loading advisory…</div></div>
+                }
+                else if (advisoryGenerating)
+                {
+                    <div class="p-4 text-center"><div class="spinner" style="margin: 0 auto;"></div><div class="mt-2 text-muted">Generating AI Advisory — this may take up to 30 seconds…</div></div>
+                }
+                else if (!string.IsNullOrEmpty(advisoryError))
+                {
+                    <div class="alert alert-danger">@advisoryError</div>
+                    <button class="btn btn-secondary btn-sm" @onclick="LoadAdvisory">Retry</button>
+                }
+                else if (nampAdvisory == null)
+                {
+                    <div class="p-4 text-center" style="color: var(--text-secondary);">
+                        <span class="material-symbols-outlined" style="font-size: 48px; margin-bottom: 12px; display: block; opacity: 0.4;">psychology</span>
+                        <div style="font-size: 1rem; font-weight: 600; margin-bottom: 8px;">No Advisory Generated</div>
+                        <div style="font-size: 0.875rem; max-width: 420px; margin: 0 auto 16px;">
+                            Generate an AI credit advisory combining bureau data, financials, collateral, guarantors, and the Technical Viability score from the Agricultural Engineer's report.
+                        </div>
+                        @if (CanGenerateAdvisory)
+                        {
+                            <button class="btn btn-primary" @onclick="GenerateAdvisory">
+                                <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 6px; vertical-align: middle;">auto_awesome</span>
+                                Generate Advisory
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning" style="text-align: left; max-width: 460px; margin: 0 auto;">
+                                Advisory can only be generated at the Financial Appraisal stage once bureau reports are available.
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <!-- Advisory Header -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem;">
+                        <div>
+                            <h5 style="margin: 0 0 4px;">AI Credit Advisory</h5>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                                Generated @nampAdvisory.GeneratedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                                · Model: @nampAdvisory.ModelVersion
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            @{
+                                var advisoryBadge = nampAdvisory.OverallRating switch
+                                {
+                                    "VeryLow" or "Low" => "badge-success",
+                                    "Medium" => "badge-warning",
+                                    _ => "badge-danger"
+                                };
+                                var recBadge = nampAdvisory.Recommendation switch
+                                {
+                                    "Approve" or "ConditionalApprove" => "badge-success",
+                                    "Decline" => "badge-danger",
+                                    _ => "badge-warning"
+                                };
+                            }
+                            <span class="badge @advisoryBadge" style="font-size: 0.95rem; padding: 6px 12px;">
+                                Score: @nampAdvisory.OverallScore.ToString("N1") — @nampAdvisory.OverallRating Risk
+                            </span>
+                            <span class="badge @recBadge" style="font-size: 0.95rem; padding: 6px 12px;">
+                                @nampAdvisory.Recommendation
+                            </span>
+                            @if (CanGenerateAdvisory)
+                            {
+                                <button class="btn btn-outline-secondary btn-sm" @onclick="GenerateAdvisory">
+                                    <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">refresh</span>
+                                    Regenerate
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    @if (nampAdvisory.HasCriticalRedFlags)
+                    {
+                        <div class="alert alert-danger" style="margin-bottom: 1rem;">
+                            <strong>⚠ Critical Red Flags Identified</strong>
+                            <ul style="margin: 6px 0 0; padding-left: 20px;">
+                                @foreach (var flag in nampAdvisory.RedFlags)
+                                { <li>@flag</li> }
+                            </ul>
+                        </div>
+                    }
+
+                    <!-- Score Grid -->
+                    @if (nampAdvisory.RiskScores.Any())
+                    {
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
+                            @foreach (var score in nampAdvisory.RiskScores)
+                            {
+                                var scoreBadge = score.Score >= 65 ? "badge-success" : score.Score >= 40 ? "badge-warning" : "badge-danger";
+                                <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; text-align: center;">
+                                    <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;">
+                                        @FormatCategoryName(score.Category)
+                                    </div>
+                                    <div style="font-size: 1.5rem; font-weight: 700;">@score.Score.ToString("N0")</div>
+                                    <span class="badge @scoreBadge" style="font-size: 0.7rem;">@score.Rating</span>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <!-- Technical Viability Callout -->
+                    @if (!string.IsNullOrEmpty(nampAdvisory.TechnicalViabilityRating))
+                    {
+                        var tvBadge = nampAdvisory.TechnicalViabilityRating == "Viable" ? "badge-success"
+                                    : nampAdvisory.TechnicalViabilityRating == "Marginal" ? "badge-warning" : "badge-danger";
+                        <div style="background: var(--bg-secondary); border-radius: 8px; padding: 0.875rem 1rem; margin-bottom: 1.25rem; border-left: 4px solid var(--border-color);">
+                            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">TECHNICAL VIABILITY</span>
+                            <span class="badge @tvBadge" style="margin-left: 8px;">@nampAdvisory.TechnicalViabilityRating</span>
+                            <span style="font-size: 0.875rem; margin-left: 12px; color: var(--text-secondary);">
+                                Score: @nampAdvisory.TechnicalViabilityScore?.ToString("N0") / 100
+                            </span>
+                        </div>
+                    }
+
+                    <!-- Narrative Sections -->
+                    @if (!string.IsNullOrEmpty(nampAdvisory.ExecutiveSummary))
+                    {
+                        <div style="margin-bottom: 1rem;">
+                            <div style="font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Executive Summary</div>
+                            <div style="font-size: 0.9rem; line-height: 1.6;">@nampAdvisory.ExecutiveSummary</div>
+                        </div>
+                    }
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        @if (!string.IsNullOrEmpty(nampAdvisory.StrengthsAnalysis))
+                        {
+                            <div style="background: #f0fdf4; border-radius: 8px; padding: 0.875rem;">
+                                <div style="font-weight: 600; color: #15803d; font-size: 0.85rem; margin-bottom: 6px;">✓ Strengths</div>
+                                <div style="font-size: 0.875rem; line-height: 1.5;">@nampAdvisory.StrengthsAnalysis</div>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(nampAdvisory.WeaknessesAnalysis))
+                        {
+                            <div style="background: #fef2f2; border-radius: 8px; padding: 0.875rem;">
+                                <div style="font-weight: 600; color: #b91c1c; font-size: 0.85rem; margin-bottom: 6px;">⚠ Weaknesses</div>
+                                <div style="font-size: 0.875rem; line-height: 1.5;">@nampAdvisory.WeaknessesAnalysis</div>
+                            </div>
+                        }
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(nampAdvisory.MitigatingFactors))
+                    {
+                        <div style="margin-bottom: 0.875rem;">
+                            <div style="font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Mitigating Factors</div>
+                            <div style="font-size: 0.875rem; line-height: 1.5;">@nampAdvisory.MitigatingFactors</div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(nampAdvisory.KeyRisks))
+                    {
+                        <div style="margin-bottom: 0.875rem;">
+                            <div style="font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Key Risks</div>
+                            <div style="font-size: 0.875rem; line-height: 1.5;">@nampAdvisory.KeyRisks</div>
+                        </div>
+                    }
+
+                    @if (nampAdvisory.Conditions.Any())
+                    {
+                        <div style="margin-bottom: 0.875rem;">
+                            <div style="font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Recommended Conditions</div>
+                            <ul style="font-size: 0.875rem; margin: 0; padding-left: 20px; line-height: 1.7;">
+                                @foreach (var c in nampAdvisory.Conditions) { <li>@c</li> }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (nampAdvisory.Covenants.Any())
+                    {
+                        <div>
+                            <div style="font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Recommended Covenants</div>
+                            <ul style="font-size: 0.875rem; margin: 0; padding-left: 20px; line-height: 1.7;">
+                                @foreach (var c in nampAdvisory.Covenants) { <li>@c</li> }
+                            </ul>
+                        </div>
+                    }
                 }
             </div>
         </div>
@@ -1397,10 +2187,13 @@ else
                 <button class="modal-close" @onclick="CloseModals"><span class="material-symbols-outlined">close</span></button>
             </div>
             <div class="modal-body">
+                <p>
+                    Ratifying this decision will <strong>generate the NAMP Offer Letter</strong> as a PDF and make it available for download.
+                    The applicant will proceed to offer acceptance once you confirm.
+                </p>
                 <div class="form-group">
-                    <label class="form-label">Offer Letter Storage Path (optional)</label>
-                    <input type="text" class="form-control" @bind="ratifyOfferPath" placeholder="e.g. namp/offers/NAMP2024...pdf" />
-                    <small class="form-text text-muted">Leave blank if offer letter will be uploaded separately.</small>
+                    <label class="form-label">Note <span class="text-muted">(optional)</span></label>
+                    <textarea class="form-control" rows="3" @bind="ratifyNote" placeholder="Any remarks or conditions for the ratification record..."></textarea>
                 </div>
                 @if (!string.IsNullOrEmpty(modalError))
                 { <div class="alert alert-danger">@modalError</div> }
@@ -1409,7 +2202,7 @@ else
                 <button class="btn btn-secondary" @onclick="CloseModals">Cancel</button>
                 <button class="btn btn-success" @onclick="ExecuteRatify" disabled="@isProcessing">
                     @if (isProcessing) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
-                    Ratify &amp; Generate Offer
+                    Ratify &amp; Generate Offer Letter
                 </button>
             </div>
         </div>
@@ -1583,18 +2376,21 @@ else
                 <button class="modal-close" @onclick="CloseEditDoc"><span class="material-symbols-outlined">close</span></button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label class="form-label">Category *</label>
-                    <select class="form-control" @bind="editDocCategory">
-                        <option value="TechnicalReport">Technical Report</option>
-                        <option value="SitePhoto">Site Photo</option>
-                        <option value="SoilTestResult">Soil Test Result</option>
-                        <option value="FinancialModel">Financial Model</option>
-                        <option value="CreditReport">Credit Report</option>
-                        <option value="SupportingDocument">Supporting Document</option>
-                        <option value="General">General</option>
-                    </select>
-                </div>
+                @if (editDocStage != "PreDeploymentVerification")
+                {
+                    <div class="form-group">
+                        <label class="form-label">Category *</label>
+                        <select class="form-control" @bind="editDocCategory">
+                            <option value="TechnicalReport">Technical Report</option>
+                            <option value="SitePhoto">Site Photo</option>
+                            <option value="SoilTestResult">Soil Test Result</option>
+                            <option value="FinancialModel">Financial Model</option>
+                            <option value="CreditReport">Credit Report</option>
+                            <option value="SupportingDocument">Supporting Document</option>
+                            <option value="General">General</option>
+                        </select>
+                    </div>
+                }
                 <div class="form-group">
                     <label class="form-label">Description</label>
                     <input type="text" class="form-control" @bind="editDocDescription" placeholder="Optional description..." />
@@ -1784,6 +2580,46 @@ else
     </div>
 }
 
+@if (showUploadSignedOfferModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseUploadSignedOfferModal">
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Upload Countersigned Offer Letter</h3>
+                <button class="btn btn-ghost btn-sm" @onclick="CloseUploadSignedOfferModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-4);">
+                    Upload the countersigned copy of the offer letter after the applicant has signed and returned it.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Signed Offer Letter <span style="color: var(--danger-600);">*</span></label>
+                    <InputFile OnChange="HandleSignedOfferFileSelected" accept=".pdf,.jpg,.jpeg,.png" class="form-control" style="padding: var(--space-2);" />
+                    @if (signedOfferFile != null)
+                    {
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">
+                            Selected: @signedOfferFile.Name (@FormatFileSize(signedOfferFile.Size))
+                        </div>
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(signedOfferUploadError))
+                {
+                    <div style="color: var(--danger-600); font-size: var(--text-sm); margin-top: var(--space-2);">@signedOfferUploadError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseUploadSignedOfferModal" disabled="@isUploadingSignedOffer">Cancel</button>
+                <button class="btn btn-primary" @onclick="UploadSignedOfferLetter" disabled="@isUploadingSignedOffer">
+                    @if (isUploadingSignedOffer) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                    Upload
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 <style>
     .namp-bureau-card {
         border: 1px solid var(--gray-200);
@@ -1855,6 +2691,19 @@ else
     private bool isLoading = true;
     private string? actionError;
     private string detailTab = "overview";
+    private NampCommitteeReviewDto? committeeReview;
+
+    // Advisory
+    private NampAdvisoryDto? nampAdvisory;
+    private bool advisoryLoading;
+    private bool advisoryGenerating;
+    private string? advisoryError;
+
+    // Committee voting
+    private string selectedVote = "";
+    private string voteComment = "";
+    private bool isCastingVote;
+    private string? voteError;
 
     // Modal state
     private bool showConfirmModal;
@@ -1871,8 +2720,21 @@ else
     private string noteText = "";
     private bool appraisalApproved = true;
     private string appraisalType = "";
-    private string ratifyOfferPath = "";
+    private string ratifyNote = "";
     private bool deployGpsActivated = true;
+
+    // Loan Pack
+    private bool isGeneratingLoanPack;
+
+    // Offer letter download
+    private bool isDownloadingOfferLetter;
+    private string? offerLetterDownloadError;
+
+    // Signed offer letter upload
+    private bool showUploadSignedOfferModal;
+    private IBrowserFile? signedOfferFile;
+    private bool isUploadingSignedOffer;
+    private string? signedOfferUploadError;
 
     // Committee modal
     private List<NampCommitteeMemberInput> committeeMembers = [];
@@ -1880,12 +2742,21 @@ else
     private int committeeMinApprovalVotes = 2;
     private int committeeDeadlineHours = 72;
 
-    // Technical Appraisal form
+    // Technical Appraisal form — individual applicant fields
     private string techFarmLocation = "";
     private string? techGpsCoords;
     private decimal? techLandArea;
     private string techSoilRating = "";
     private string techWaterSource = "";
+    // Technical Appraisal form — AgroServiceCompany fields
+    private string techCoverageArea = "";
+    private int? techFleetSize;
+    private bool? techHasMaintenanceFacility;
+    private int? techTechnicalStaff;
+    private int? techYearsInOperation;
+    private string? techCurrentContracts;
+    private string? techStorageFacility;
+    // Technical Appraisal form — shared fields
     private string techEquipSuitability = "";
     private string? techInfraNotes;
     private string? techRisks;
@@ -1900,6 +2771,19 @@ else
     private string? techDecisionError;
     private bool showTechDecisionModal;
     private bool showFinDecisionModal;
+
+    // Pre-Deployment dynamic checklist
+    private Dictionary<Guid, bool?> checklistConfirmed = new();
+    private Dictionary<Guid, string?> checklistNotes = new();
+    private Dictionary<Guid, bool> savingChecklist = new();
+    private Dictionary<Guid, string?> checklistErrors = new();
+    // Checklist document upload
+    private bool showChecklistDocModal;
+    private Guid checklistDocItemId;
+    private string checklistDocCategory = "";
+    private IBrowserFile? checklistDocFile;
+    private bool isUploadingChecklistDoc;
+    private string? checklistDocError;
 
     // Financial Appraisal form
     private decimal? finMonthlyIncome;
@@ -1978,6 +2862,14 @@ else
         IsAfter(app!, "FinancialAppraisal") ||
         app?.FinancialAppraisalReport != null;
 
+    private bool ShowAdvisoryTab =>
+        app?.Status == "FinancialAppraisal" ||
+        IsAfter(app!, "FinancialAppraisal");
+
+    private bool CanGenerateAdvisory =>
+        (app?.Status == "FinancialAppraisal" || IsAfter(app!, "FinancialAppraisal")) &&
+        (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
+
     private bool TechDecisionBlocked =>
         app?.TechnicalAppraisalReport == null ||
         !app.Documents.Any(d => d.Stage == "TechnicalAppraisal" && d.Category == "TechnicalReport");
@@ -1994,16 +2886,18 @@ else
         IsCommitteeStatus && app?.CurrentCommitteeReviewId == null &&
         (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
-    private bool ShowRecordOutcomeButton =>
+    private bool ShowConfirmDecisionButton =>
         IsCommitteeStatus && app?.CurrentCommitteeReviewId != null &&
-        (IsCommitteeMemberForCurrentStatus || (User?.HasRole("SystemAdmin") ?? false));
+        app?.CommitteeDecisionAt == null &&
+        (committeeReview?.HasQuorum == true || committeeReview?.Status == "VotingComplete") &&
+        (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
     private bool IsCommitteeMemberForCurrentStatus => app?.Status switch
     {
-        "BranchCommitteeCirculation"   => User?.HasRole("BranchCommitteeMember") ?? false,
-        "ZonalCommitteeCirculation"    => User?.HasRole("ZonalCommitteeMember") ?? false,
-        "RegionalCommitteeCirculation" => User?.HasRole("RegionalCommitteeMember") ?? false,
-        "HOCommitteeCirculation"       => User?.HasRole("HOCommitteeMember") ?? false,
+        "BranchCommitteeCirculation"   => User?.HasAnyRole("BranchCommitteeMember", "CommitteeMember") ?? false,
+        "ZonalCommitteeCirculation"    => User?.HasAnyRole("ZonalCommitteeMember", "CommitteeMember") ?? false,
+        "RegionalCommitteeCirculation" => User?.HasAnyRole("RegionalCommitteeMember", "CommitteeMember") ?? false,
+        "HOCommitteeCirculation"       => User?.HasAnyRole("HOCommitteeMember", "CommitteeMember") ?? false,
         _                              => false
     };
 
@@ -2024,13 +2918,33 @@ else
         app?.Status == "OfferGenerated" &&
         (User?.HasAnyRole("LoanOfficer", "SystemAdmin") ?? false);
 
+    private bool CanGenerateLoanPack =>
+        app?.Status is not (null or "Draft") &&
+        (User?.HasAnyRole("LoanOfficer", "CreditOfficer", "AgriculturalEngineer", "BranchManager",
+            "ZonalManager", "RegionalManager", "MdCeo", "Operations", "SystemAdmin") ?? false);
+
+    private NampDocumentDto? SignedOfferLetterDoc =>
+        app?.Documents.FirstOrDefault(d => d.Category == "SignedNampOfferLetter");
+
+    private bool CanUploadSignedOfferLetter =>
+        app?.OfferLetterStoragePath != null &&
+        app.Status is "OfferGenerated" or "OfferAccepted" or "PreDeploymentVerification" or "Training" or "Deployment" or "Deployed" &&
+        (User?.HasAnyRole("LoanOfficer", "Operations", "SystemAdmin") ?? false);
+
     private bool ShowBeginPreDeploymentButton =>
         app?.Status == "OfferAccepted" &&
         (User?.HasAnyRole("ComplianceOfficer", "SystemAdmin") ?? false);
 
     private bool ShowCompletePreDeploymentButton =>
         app?.Status == "PreDeploymentVerification" &&
+        app?.PreDeploymentChecklist.Any() == true &&
+        app?.PreDeploymentChecklist.Where(i => i.IsMandatory).All(i => i.IsConfirmed == true) == true &&
         (User?.HasAnyRole("ComplianceOfficer", "SystemAdmin") ?? false);
+
+    private bool ShowPreDeploymentTab =>
+        app?.Status is "PreDeploymentVerification" or "Training" or "Deployment" or "Active" or "Closed" ||
+        app?.PreDeploymentVerifiedAt != null ||
+        app?.PreDeploymentChecklist.Any() == true;
 
     private bool ShowTrainingButton =>
         app?.Status == "Training" &&
@@ -2050,22 +2964,98 @@ else
         try
         {
             app = await AppService.GetNampApplicationByIdAsync(Id);
-            if (app != null) PopulateFormFields();
+            if (app != null)
+            {
+                PopulateFormFields();
+                if (app.CurrentCommitteeReviewId.HasValue)
+                    committeeReview = await AppService.GetNampCommitteeReviewAsync(app.CurrentCommitteeReviewId.Value);
+            }
         }
         finally { isLoading = false; }
     }
 
+    private async Task SwitchToAdvisoryTab()
+    {
+        detailTab = "advisory";
+        if (nampAdvisory == null && !advisoryLoading)
+            await LoadAdvisory();
+    }
+
+    private async Task LoadAdvisory()
+    {
+        advisoryLoading = true;
+        advisoryError = null;
+        try
+        {
+            var result = await AppService.GetNampAdvisoryAsync(Id);
+            nampAdvisory = result.Success ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            advisoryError = ex.Message;
+        }
+        finally { advisoryLoading = false; }
+    }
+
+    private async Task GenerateAdvisory()
+    {
+        if (User == null) return;
+        advisoryGenerating = true;
+        advisoryError = null;
+        try
+        {
+            var result = await AppService.GenerateNampAdvisoryAsync(Id, User.Id);
+            if (result.Success)
+                await LoadAdvisory();
+            else
+                advisoryError = result.Error ?? "Advisory generation failed";
+        }
+        catch (Exception ex)
+        {
+            advisoryError = ex.Message;
+        }
+        finally { advisoryGenerating = false; }
+    }
+
+    private static string FormatCategoryName(string category) => category switch
+    {
+        "CreditHistory" => "Credit History",
+        "FinancialHealth" => "Financial Health",
+        "CashflowStability" => "Cashflow",
+        "DebtServiceCapacity" => "DSCR",
+        "TechnicalViability" => "Technical Viability",
+        _ => category,
+    };
+
     private void PopulateFormFields()
     {
         if (app == null) return;
+        // Pre-deployment checklist dictionaries
+        checklistConfirmed.Clear(); checklistNotes.Clear();
+        foreach (var item in app.PreDeploymentChecklist)
+        {
+            checklistConfirmed[item.Id] = item.IsConfirmed;
+            checklistNotes[item.Id] = item.Notes;
+        }
+
         var tr = app.TechnicalAppraisalReport;
         if (tr != null)
         {
-            techFarmLocation = tr.FarmLocationDescription;
+            // Individual fields
+            techFarmLocation = tr.FarmLocationDescription ?? "";
             techGpsCoords = tr.GpsCoordinates;
             techLandArea = tr.LandAreaAssessedHectares;
-            techSoilRating = tr.SoilConditionRating;
-            techWaterSource = tr.WaterSourceAvailability;
+            techSoilRating = tr.SoilConditionRating ?? "";
+            techWaterSource = tr.WaterSourceAvailability ?? "";
+            // Company fields
+            techCoverageArea = tr.OperationalCoverageArea ?? "";
+            techFleetSize = tr.ExistingFleetSize;
+            techHasMaintenanceFacility = tr.HasMaintenanceFacility;
+            techTechnicalStaff = tr.TechnicalStaffCount;
+            techYearsInOperation = tr.YearsInOperation;
+            techCurrentContracts = tr.CurrentServiceContracts;
+            techStorageFacility = tr.StorageFacilityDescription;
+            // Shared fields
             techEquipSuitability = tr.ProposedEquipmentSuitability;
             techInfraNotes = tr.InfrastructureNotes;
             techRisks = tr.RisksIdentified;
@@ -2104,6 +3094,29 @@ else
     // ── Modal openers ─────────────────────────────────────────────────────
 
     private void OpenSubmitModal() => OpenConfirmModal("submit", "Submit for Technical Appraisal", "Submit this application for Agricultural Engineer review?");
+    private async Task HandleCastVote()
+    {
+        if (string.IsNullOrEmpty(selectedVote) || app?.CurrentCommitteeReviewId == null) return;
+        var uid = User?.Id;
+        if (uid == null) return;
+        isCastingVote = true;
+        voteError = null;
+        var result = await AppService.CastNampCommitteeVoteAsync(
+            app.CurrentCommitteeReviewId.Value, uid.Value, selectedVote,
+            string.IsNullOrWhiteSpace(voteComment) ? null : voteComment);
+        if (result.Success && result.Data != null)
+        {
+            committeeReview = result.Data;
+            selectedVote = "";
+            voteComment = "";
+        }
+        else
+        {
+            voteError = result.Error ?? "Failed to cast vote.";
+        }
+        isCastingVote = false;
+    }
+
     private void OpenTechnicalAppraisalModal() => OpenAppraisalModal("technical");
     private void OpenFinancialAppraisalModal() => OpenAppraisalModal("financial");
     private void OpenCommitteeOutcomeModal() => OpenAppraisalModal("committee");
@@ -2156,7 +3169,7 @@ else
             _            => app.CommitteeTier ?? ""
         };
 
-        var sc = await AppService.GetStandingCommitteeByTypeAsync(tierType);
+        var sc = await AppService.GetStandingCommitteeByTypeAsync(tierType, app!.BranchId);
         if (sc == null)
         {
             modalError = $"No active standing committee configured for {app.CommitteeTier} tier. Please configure it in Admin > Committees first.";
@@ -2173,7 +3186,7 @@ else
         showCommitteeModal = true;
     }
 
-    private void OpenRatifyModal() { ratifyOfferPath = ""; modalError = null; showRatifyModal = true; }
+    private void OpenRatifyModal() { ratifyNote = ""; modalError = null; showRatifyModal = true; }
     private void OpenDeploymentModal() { deployGpsActivated = true; noteText = ""; modalError = null; showDeploymentModal = true; }
 
     private void CloseModals()
@@ -2206,6 +3219,117 @@ else
             else modalError = result.Error ?? "Action failed";
         }
         finally { isProcessing = false; }
+    }
+
+    private async Task GenerateNampLoanPack()
+    {
+        isGeneratingLoanPack = true;
+        try
+        {
+            var user = User;
+            if (user == null) return;
+            var result = await AppService.GenerateNampLoanPackAsync(Id, user.Id, user.FullName ?? "System");
+            if (result.Success && result.Data != null)
+            {
+                var fileName = $"NampLoanPack_{app?.ApplicationNumber}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", result.Data);
+            }
+            else
+            {
+                // surface error in a place the user can see
+                modalError = result.Error ?? "Failed to generate loan pack.";
+            }
+        }
+        finally
+        {
+            isGeneratingLoanPack = false;
+        }
+    }
+
+    private async Task DownloadNampOfferLetter()
+    {
+        isDownloadingOfferLetter = true;
+        offerLetterDownloadError = null;
+        try
+        {
+            var path = app?.OfferLetterStoragePath;
+            if (string.IsNullOrEmpty(path)) { offerLetterDownloadError = "Offer letter path not found."; return; }
+
+            var bytes = await AppService.DownloadGeneratedFileAsync(path);
+            if (bytes == null) { offerLetterDownloadError = "Could not retrieve file. It may have been moved or deleted."; return; }
+
+            var fileName = GetOfferLetterFileName(path);
+            await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", bytes);
+        }
+        finally { isDownloadingOfferLetter = false; }
+    }
+
+    private static string GetOfferLetterFileName(string storagePath)
+    {
+        var segment = storagePath.Split('/', '\\').LastOrDefault() ?? storagePath;
+        return segment.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? segment : segment + ".pdf";
+    }
+
+    private void OpenUploadSignedOfferModal()
+    {
+        signedOfferFile = null;
+        signedOfferUploadError = null;
+        showUploadSignedOfferModal = true;
+    }
+
+    private void CloseUploadSignedOfferModal()
+    {
+        showUploadSignedOfferModal = false;
+        signedOfferFile = null;
+        signedOfferUploadError = null;
+    }
+
+    private void HandleSignedOfferFileSelected(InputFileChangeEventArgs e)
+    {
+        signedOfferFile = e.File;
+        signedOfferUploadError = null;
+    }
+
+    private async Task UploadSignedOfferLetter()
+    {
+        if (signedOfferFile == null) { signedOfferUploadError = "Please select a file to upload."; return; }
+        if (User == null) { signedOfferUploadError = "Not authenticated."; return; }
+
+        isUploadingSignedOffer = true;
+        signedOfferUploadError = null;
+        try
+        {
+            const long maxFileSize = 20 * 1024 * 1024;
+            using var stream = signedOfferFile.OpenReadStream(maxFileSize);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            var result = await AppService.UploadNampDocumentAsync(
+                Id, User.Id, "Offer", signedOfferFile.Name,
+                string.IsNullOrEmpty(signedOfferFile.ContentType) ? "application/pdf" : signedOfferFile.ContentType,
+                signedOfferFile.Size, ms,
+                category: "SignedNampOfferLetter",
+                description: "Countersigned Offer Letter");
+
+            if (!result.Success)
+            {
+                signedOfferUploadError = result.Error ?? "Upload failed.";
+                return;
+            }
+
+            CloseUploadSignedOfferModal();
+            await Load();
+        }
+        finally
+        {
+            isUploadingSignedOffer = false;
+        }
+    }
+
+    private async Task DownloadSignedOfferLetter(Guid documentId)
+    {
+        await JS.InvokeVoidAsync("open", $"/api/namp-documents/{documentId}/view", "_blank");
     }
 
     private async Task ExecuteNoteAction()
@@ -2272,7 +3396,7 @@ else
         isProcessing = true; modalError = null;
         try
         {
-            var result = await AppService.RatifyNampDecisionAsync(Id, User?.Id ?? Guid.Empty, NullIfEmpty(ratifyOfferPath));
+            var result = await AppService.RatifyNampDecisionAsync(Id, User?.Id ?? Guid.Empty, NullIfEmpty(ratifyNote));
             if (result.Success) { CloseModals(); await Load(); }
             else modalError = result.Error ?? "Ratification failed";
         }
@@ -2298,20 +3422,33 @@ else
 
     private async Task SaveTechReport()
     {
-        if (string.IsNullOrWhiteSpace(techFarmLocation) || string.IsNullOrWhiteSpace(techSoilRating) ||
-            string.IsNullOrWhiteSpace(techWaterSource) || string.IsNullOrWhiteSpace(techEquipSuitability) ||
-            string.IsNullOrWhiteSpace(techViabilityRating))
+        var category = app?.ApplicantCategory ?? "";
+        var isCompany = category == "AgroServiceCompany";
+
+        if (isCompany)
         {
-            techReportError = "Farm location, soil rating, water source, equipment suitability and viability rating are required.";
-            return;
+            if (string.IsNullOrWhiteSpace(techCoverageArea) || string.IsNullOrWhiteSpace(techEquipSuitability) ||
+                string.IsNullOrWhiteSpace(techViabilityRating))
+            { techReportError = "Operational coverage area, equipment suitability and viability rating are required."; return; }
         }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(techFarmLocation) || string.IsNullOrWhiteSpace(techSoilRating) ||
+                string.IsNullOrWhiteSpace(techWaterSource) || string.IsNullOrWhiteSpace(techEquipSuitability) ||
+                string.IsNullOrWhiteSpace(techViabilityRating))
+            { techReportError = "Farm location, soil rating, water source, equipment suitability and viability rating are required."; return; }
+        }
+
         isSavingTechReport = true; techReportError = null;
         try
         {
             var result = await AppService.SaveNampTechnicalAppraisalReportAsync(
-                Id, User?.Id ?? Guid.Empty,
-                techFarmLocation, NullIfEmpty(techGpsCoords), techLandArea,
-                techSoilRating, techWaterSource, techEquipSuitability,
+                Id, User?.Id ?? Guid.Empty, category,
+                NullIfEmpty(techFarmLocation), NullIfEmpty(techGpsCoords), techLandArea,
+                NullIfEmpty(techSoilRating), NullIfEmpty(techWaterSource),
+                NullIfEmpty(techCoverageArea), techFleetSize, techHasMaintenanceFacility,
+                techTechnicalStaff, techYearsInOperation, NullIfEmpty(techCurrentContracts), NullIfEmpty(techStorageFacility),
+                techEquipSuitability,
                 NullIfEmpty(techInfraNotes), NullIfEmpty(techRisks), NullIfEmpty(techMitigations),
                 techViabilityRating, DraftTechRecommendation,
                 NullIfEmpty(techSummaryNotes));
@@ -2323,6 +3460,67 @@ else
 
     private void OpenTechDecisionModal() { techDecisionApproved = true; techDecisionNote = null; techDecisionError = null; showTechDecisionModal = true; }
     private void CloseTechDecisionModal() => showTechDecisionModal = false;
+
+    // ── Pre-deployment gate checklist helpers ─────────────────────────────
+
+    private bool? GetItemConfirmed(Guid id) => checklistConfirmed.TryGetValue(id, out var v) ? v : null;
+    private string? GetItemNote(Guid id) => checklistNotes.TryGetValue(id, out var v) ? v : null;
+    private string? GetItemError(Guid id) => checklistErrors.TryGetValue(id, out var v) ? v : null;
+    private bool IsItemSaving(Guid id) => savingChecklist.TryGetValue(id, out var v) && v;
+
+    private void SetItemConfirmed(Guid id, bool value) => checklistConfirmed[id] = value;
+    private void SetItemNote(Guid id, string? value) => checklistNotes[id] = value;
+
+    private async Task SaveChecklistItem(Guid itemId)
+    {
+        savingChecklist[itemId] = true;
+        checklistErrors.Remove(itemId);
+        StateHasChanged();
+        try
+        {
+            var result = await AppService.ConfirmNampChecklistItemAsync(
+                Id, itemId, User?.Id ?? Guid.Empty,
+                GetItemConfirmed(itemId), NullIfEmpty(GetItemNote(itemId)));
+            if (result.Success) await Load();
+            else checklistErrors[itemId] = result.Error ?? "Failed to save";
+        }
+        finally { savingChecklist[itemId] = false; StateHasChanged(); }
+    }
+
+    private void OpenChecklistDocUpload(Guid itemId, string category)
+    {
+        checklistDocItemId = itemId; checklistDocCategory = category;
+        checklistDocFile = null; checklistDocError = null;
+        showChecklistDocModal = true;
+    }
+
+    private void CloseChecklistDocModal() { showChecklistDocModal = false; checklistDocFile = null; checklistDocError = null; }
+
+    private void OnChecklistDocSelected(InputFileChangeEventArgs e) => checklistDocFile = e.File;
+
+    private async Task UploadChecklistDoc()
+    {
+        if (checklistDocFile == null) return;
+        isUploadingChecklistDoc = true; checklistDocError = null;
+        try
+        {
+            using var stream = checklistDocFile.OpenReadStream(10 * 1024 * 1024);
+            var result = await AppService.UploadNampDocumentAsync(
+                Id, User?.Id ?? Guid.Empty,
+                stage: "PreDeploymentVerification",
+                fileName: checklistDocFile.Name,
+                contentType: checklistDocFile.ContentType,
+                fileSize: checklistDocFile.Size,
+                fileContent: stream,
+                category: checklistDocCategory,
+                description: null);
+            if (result.Success) { CloseChecklistDocModal(); await Load(); }
+            else checklistDocError = result.Error ?? "Upload failed";
+        }
+        catch (Exception ex) { checklistDocError = ex.Message; }
+        finally { isUploadingChecklistDoc = false; }
+    }
+
     private void OpenFinDecisionModal() { finDecisionApproved = true; finDecisionNote = null; finDecisionError = null; showFinDecisionModal = true; }
     private void CloseFinDecisionModal() => showFinDecisionModal = false;
 
@@ -2335,21 +3533,33 @@ else
         if (techViabilityRating == "NotViable" && techDecisionApproved)
         { techDecisionError = "Cannot approve — viability is rated Not Viable. Change the rating or select Decline."; return; }
 
-        if (string.IsNullOrWhiteSpace(techFarmLocation) || string.IsNullOrWhiteSpace(techSoilRating) ||
-            string.IsNullOrWhiteSpace(techWaterSource) || string.IsNullOrWhiteSpace(techEquipSuitability) ||
-            string.IsNullOrWhiteSpace(techViabilityRating))
+        var category = app?.ApplicantCategory ?? "";
+        var isCompany = category == "AgroServiceCompany";
+
+        if (isCompany)
         {
-            techDecisionError = "Complete and save the report before submitting a decision.";
-            return;
+            if (string.IsNullOrWhiteSpace(techCoverageArea) || string.IsNullOrWhiteSpace(techEquipSuitability) ||
+                string.IsNullOrWhiteSpace(techViabilityRating))
+            { techDecisionError = "Complete and save the report before submitting a decision."; return; }
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(techFarmLocation) || string.IsNullOrWhiteSpace(techSoilRating) ||
+                string.IsNullOrWhiteSpace(techWaterSource) || string.IsNullOrWhiteSpace(techEquipSuitability) ||
+                string.IsNullOrWhiteSpace(techViabilityRating))
+            { techDecisionError = "Complete and save the report before submitting a decision."; return; }
         }
 
         isSubmittingTechDecision = true; techDecisionError = null;
         try
         {
             var saveResult = await AppService.SaveNampTechnicalAppraisalReportAsync(
-                Id, User?.Id ?? Guid.Empty,
-                techFarmLocation, NullIfEmpty(techGpsCoords), techLandArea,
-                techSoilRating, techWaterSource, techEquipSuitability,
+                Id, User?.Id ?? Guid.Empty, category,
+                NullIfEmpty(techFarmLocation), NullIfEmpty(techGpsCoords), techLandArea,
+                NullIfEmpty(techSoilRating), NullIfEmpty(techWaterSource),
+                NullIfEmpty(techCoverageArea), techFleetSize, techHasMaintenanceFacility,
+                techTechnicalStaff, techYearsInOperation, NullIfEmpty(techCurrentContracts), NullIfEmpty(techStorageFacility),
+                techEquipSuitability,
                 NullIfEmpty(techInfraNotes), NullIfEmpty(techRisks), NullIfEmpty(techMitigations),
                 techViabilityRating, techDecisionApproved ? "Pass" : "Fail",
                 NullIfEmpty(techSummaryNotes));
@@ -2666,6 +3876,30 @@ else
         // camelCase / PascalCase → "Title Case With Spaces"
         var spaced = System.Text.RegularExpressions.Regex.Replace(key, "([A-Z])", " $1").Trim();
         return char.ToUpper(spaced[0]) + spaced[1..];
+    }
+
+    private static string GetCommitteeVoteBadgeClass(string vote) => vote switch
+    {
+        "Approve" => "badge-success",
+        "Reject"  => "badge-danger",
+        "Abstain" => "badge-gray",
+        _         => "badge-gray"
+    };
+
+    private static string GetCommitteeVoteIcon(string vote) => vote switch
+    {
+        "Approve" => "check",
+        "Reject"  => "close",
+        "Abstain" => "remove",
+        _         => "radio_button_unchecked"
+    };
+
+    private static string GetInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[^1][0]}";
+        return name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
     }
 
     private static string GetStatusBadgeClass(string status) => status switch

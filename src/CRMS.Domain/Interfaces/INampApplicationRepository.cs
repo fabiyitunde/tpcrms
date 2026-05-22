@@ -11,6 +11,8 @@ public interface INampApplicationRepository
     Task<IReadOnlyList<NampApplication>> GetByStatusAsync(NampApplicationStatus status, Guid? branchId = null, CancellationToken ct = default);
     Task<IReadOnlyList<NampApplication>> GetByStatusAndTierAsync(NampApplicationStatus status, NampCommitteeTier tier, Guid? branchId = null, CancellationToken ct = default);
     Task<IReadOnlyList<NampApplication>> GetByBranchAsync(Guid branchId, CancellationToken ct = default);
+    Task<IReadOnlyList<NampApplication>> GetByCommitteeMembershipAsync(Guid userId, CancellationToken ct = default);
+    Task<IReadOnlyList<NampApplication>> GetByParticipationAsync(Guid userId, CancellationToken ct = default);
     Task AddAsync(NampApplication application, CancellationToken ct = default);
     void Update(NampApplication application);
     Task AddNampDocumentAsync(NampDocument document, CancellationToken ct = default);
@@ -19,4 +21,5 @@ public interface INampApplicationRepository
     Task AddTechnicalAppraisalReportAsync(NampTechnicalAppraisalReport report, CancellationToken ct = default);
     Task<NampFinancialAppraisalReport?> GetFinancialAppraisalReportAsync(Guid nampApplicationId, CancellationToken ct = default);
     Task AddFinancialAppraisalReportAsync(NampFinancialAppraisalReport report, CancellationToken ct = default);
+    Task AddPreDeploymentChecklistItemsAsync(IEnumerable<NampPreDeploymentChecklistItem> items, CancellationToken ct = default);
 }

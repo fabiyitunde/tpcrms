@@ -122,12 +122,14 @@ public class NampApplication : AggregateRoot
     private readonly List<NampGuarantor> _guarantors = [];
     private readonly List<NampCollateral> _collaterals = [];
     private readonly List<NampFinancialStatement> _financialStatements = [];
+    private readonly List<NampPreDeploymentChecklistItem> _preDeploymentChecklist = [];
 
     public IReadOnlyList<NampDocument> Documents => _documents.AsReadOnly();
     public IReadOnlyList<NampStatusHistory> StatusHistory => _statusHistory.AsReadOnly();
     public IReadOnlyList<NampGuarantor> Guarantors => _guarantors.AsReadOnly();
     public IReadOnlyList<NampCollateral> Collaterals => _collaterals.AsReadOnly();
     public IReadOnlyList<NampFinancialStatement> FinancialStatements => _financialStatements.AsReadOnly();
+    public IReadOnlyList<NampPreDeploymentChecklistItem> PreDeploymentChecklist => _preDeploymentChecklist.AsReadOnly();
 
     private NampApplication() { }
 
@@ -260,7 +262,7 @@ public class NampApplication : AggregateRoot
 
     // ── Stage 5: Ratification ─────────────────────────────────────────────
 
-    public Result Ratify(Guid userId, string? offerLetterPath = null)
+    public Result Ratify(Guid userId, string? offerLetterPath = null, string? note = null)
     {
         if (Status != NampApplicationStatus.Ratification)
             return Result.Failure("Application must be in Ratification status.");
@@ -270,7 +272,10 @@ public class NampApplication : AggregateRoot
         OfferLetterStoragePath = offerLetterPath;
         OfferGeneratedAt = DateTime.UtcNow;
         Status = NampApplicationStatus.OfferGenerated;
-        AddStatusHistory(Status, userId, "Decision ratified. Offer letter generated.");
+        var historyNote = string.IsNullOrWhiteSpace(note)
+            ? "Decision ratified. Offer letter generated."
+            : $"Decision ratified. Offer letter generated. Note: {note}";
+        AddStatusHistory(Status, userId, historyNote);
         return Result.Success();
     }
 
@@ -324,16 +329,44 @@ public class NampApplication : AggregateRoot
         return Result.Success();
     }
 
+    public void SeedPreDeploymentChecklist(IEnumerable<NampPreDeploymentChecklistTemplate> templates)
+    {
+        var existingTemplateIds = _preDeploymentChecklist.Select(i => i.TemplateItemId).ToHashSet();
+        foreach (var template in templates.Where(t => t.IsActive).OrderBy(t => t.SortOrder))
+        {
+            if (existingTemplateIds.Contains(template.Id))
+                continue;
+            _preDeploymentChecklist.Add(NampPreDeploymentChecklistItem.FromTemplate(Id, template));
+        }
+    }
+
+    public Result ConfirmChecklistItem(Guid itemId, Guid userId, bool? isConfirmed, string? notes)
+    {
+        if (Status != NampApplicationStatus.PreDeploymentVerification)
+            return Result.Failure("Checklist items can only be updated during Pre-Deployment Verification.");
+
+        var item = _preDeploymentChecklist.FirstOrDefault(i => i.Id == itemId);
+        if (item is null)
+            return Result.Failure("Checklist item not found.");
+
+        item.SetConfirmation(userId, isConfirmed, notes);
+        return Result.Success();
+    }
+
     public Result CompletePreDeploymentVerification(Guid userId, string? note)
     {
         if (Status != NampApplicationStatus.PreDeploymentVerification)
             return Result.Failure("Application must be in PreDeploymentVerification status.");
 
+        var blockers = _preDeploymentChecklist.Where(i => i.BlocksCompletion).Select(i => i.Title).ToList();
+        if (blockers.Count > 0)
+            return Result.Failure($"The following mandatory checklist items are not confirmed: {string.Join(", ", blockers)}.");
+
         PreDeploymentVerifiedByUserId = userId;
         PreDeploymentVerifiedAt = DateTime.UtcNow;
         PreDeploymentNote = note;
         Status = NampApplicationStatus.Training;
-        AddStatusHistory(Status, userId, $"Pre-deployment gate conditions verified.{(note != null ? $" Note: {note}" : "")}");
+        AddStatusHistory(Status, userId, $"All pre-deployment checklist items verified.{(note != null ? $" Note: {note}" : "")}");
         return Result.Success();
     }
 

@@ -310,6 +310,13 @@ OUTPUT FORMAT (JSON):
         }
         sb.AppendLine();
 
+        if (!string.IsNullOrWhiteSpace(request.AdditionalContext))
+        {
+            sb.AppendLine("=== ADDITIONAL CONTEXT ===");
+            sb.AppendLine(request.AdditionalContext);
+            sb.AppendLine();
+        }
+
         sb.AppendLine("Based on the above data and the FINAL scores/recommendation from the rules engine, generate the narrative analysis in JSON format.");
 
         return sb.ToString();

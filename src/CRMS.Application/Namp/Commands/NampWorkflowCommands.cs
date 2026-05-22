@@ -1,8 +1,11 @@
 using CRMS.Application.Common;
 using CRMS.Application.CreditBureau.Interfaces;
 using CRMS.Application.Namp.DTOs;
+using CRMS.Application.Namp.Interfaces;
 using CRMS.Application.Namp.Queries;
+using CRMS.Application.OfferLetter.Interfaces;
 using CRMS.Domain.Aggregates.Committee;
+using CRMS.Domain.Aggregates.Namp;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
@@ -212,6 +215,11 @@ public class CirculateNampToCommitteeHandler
                 return ApplicationResult<NampApplicationDto>.Failure($"Could not add member {m.UserName}: {addResult.Error}");
         }
 
+        // Auto-start voting immediately upon circulation
+        var startResult = committeeReview.StartVoting();
+        if (startResult.IsFailure)
+            return ApplicationResult<NampApplicationDto>.Failure(startResult.Error);
+
         await _committeeRepo.AddAsync(committeeReview, ct);
 
         var circulateResult = app.CirculateToCommittee(committeeReview.Id, request.CirculatedByUserId);
@@ -225,7 +233,57 @@ public class CirculateNampToCommitteeHandler
     }
 }
 
-// ── Stage 4b: Record Committee Outcome ────────────────────────────────────
+// ── Stage 4b: Cast Individual Committee Vote ───────────────────────────────
+
+public record CastNampCommitteeVoteCommand(
+    Guid CommitteeReviewId,
+    Guid UserId,
+    string Vote,
+    string? Comment
+) : IRequest<ApplicationResult<NampCommitteeReviewDto>>;
+
+public class CastNampCommitteeVoteHandler
+    : IRequestHandler<CastNampCommitteeVoteCommand, ApplicationResult<NampCommitteeReviewDto>>
+{
+    private readonly ICommitteeReviewRepository _committeeRepo;
+    private readonly IUnitOfWork _uow;
+
+    public CastNampCommitteeVoteHandler(ICommitteeReviewRepository committeeRepo, IUnitOfWork uow)
+    {
+        _committeeRepo = committeeRepo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampCommitteeReviewDto>> Handle(
+        CastNampCommitteeVoteCommand request, CancellationToken ct = default)
+    {
+        var review = await _committeeRepo.GetByIdAsync(request.CommitteeReviewId, ct);
+        if (review is null) return ApplicationResult<NampCommitteeReviewDto>.Failure("Committee review not found.");
+
+        if (!Enum.TryParse<CommitteeVote>(request.Vote, ignoreCase: true, out var vote))
+            return ApplicationResult<NampCommitteeReviewDto>.Failure($"Invalid vote value: '{request.Vote}'.");
+
+        var result = review.CastVote(request.UserId, vote, request.Comment);
+        if (result.IsFailure) return ApplicationResult<NampCommitteeReviewDto>.Failure(result.Error);
+
+        _committeeRepo.Update(review);
+        await _uow.SaveChangesAsync(ct);
+
+        var dto = new NampCommitteeReviewDto(
+            review.Id, review.CommitteeType.ToString(), review.Status.ToString(),
+            review.CirculatedAt, review.DeadlineAt, review.RequiredVotes, review.MinimumApprovalVotes,
+            review.ApprovalVotes, review.RejectionVotes, review.AbstainVotes, review.PendingVotes,
+            review.HasQuorum, review.HasMajorityApproval, review.IsOverdue,
+            review.Members.Select(m => new NampCommitteeMemberViewDto(
+                m.UserId, m.UserName, m.Role, m.IsChairperson, m.AssignedAt,
+                m.Vote?.ToString(), m.VotedAt, m.VoteComment
+            )).ToList()
+        );
+        return ApplicationResult<NampCommitteeReviewDto>.Success(dto);
+    }
+}
+
+// ── Stage 4c: Confirm Committee Outcome (CO after quorum) ─────────────────
 
 public record RecordNampCommitteeOutcomeCommand(
     Guid NampApplicationId,
@@ -267,18 +325,34 @@ public class RecordNampCommitteeOutcomeHandler
 public record RatifyNampDecisionCommand(
     Guid NampApplicationId,
     Guid UserId,
-    string? OfferLetterStoragePath = null
+    string BankName,
+    string BranchName,
+    string? Note = null
 ) : IRequest<ApplicationResult<NampApplicationDto>>;
 
 public class RatifyNampDecisionHandler
     : IRequestHandler<RatifyNampDecisionCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly ILoanProductRepository _productRepo;
+    private readonly IFineractDirectService _fineractService;
+    private readonly INampOfferLetterPdfGenerator _pdfGenerator;
+    private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _uow;
 
-    public RatifyNampDecisionHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public RatifyNampDecisionHandler(
+        INampApplicationRepository repo,
+        ILoanProductRepository productRepo,
+        IFineractDirectService fineractService,
+        INampOfferLetterPdfGenerator pdfGenerator,
+        IFileStorageService fileStorage,
+        IUnitOfWork uow)
     {
         _repo = repo;
+        _productRepo = productRepo;
+        _fineractService = fineractService;
+        _pdfGenerator = pdfGenerator;
+        _fileStorage = fileStorage;
         _uow = uow;
     }
 
@@ -288,7 +362,99 @@ public class RatifyNampDecisionHandler
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
 
-        var result = app.Ratify(request.UserId, request.OfferLetterStoragePath);
+        if (app.LoanAmount is null or <= 0)
+            return ApplicationResult<NampApplicationDto>.Failure("Loan amount must be set before ratification.");
+        if (app.RequestedTenorMonths is null or <= 0)
+            return ApplicationResult<NampApplicationDto>.Failure("Loan tenor must be set before ratification.");
+
+        // ── Resolve product and interest rate ─────────────────────────────────
+        var product = await _productRepo.GetByIdAsync(app.LoanProductId, ct);
+        var fineractProductId = product?.FineractProductId ?? 0;
+
+        // Get interest rate from Fineract product catalogue (authoritative source)
+        decimal interestRate = 9m; // fallback
+        if (fineractProductId > 0)
+        {
+            var productsResult = await _fineractService.GetLoanProductsAsync(activeOnly: true, ct);
+            if (productsResult.IsSuccess)
+            {
+                var fineractProduct = productsResult.Value
+                    .FirstOrDefault(p => p.Id == fineractProductId);
+                if (fineractProduct != null)
+                    interestRate = fineractProduct.AnnualInterestRate;
+            }
+        }
+
+        // ── Calculate repayment schedule (Fineract first, in-house fallback) ──
+        var scheduleRequest = new ScheduleCalculationRequest(
+            ProductId: fineractProductId,
+            Principal: app.LoanAmount.Value,
+            NumberOfRepayments: app.RequestedTenorMonths.Value,
+            RepaymentEvery: 1,
+            RepaymentFrequencyType: 2,           // Months
+            InterestRatePerPeriod: interestRate,
+            InterestRateFrequencyType: 3,        // Per Year
+            AmortizationType: 1,                 // Equal Installments (EMI)
+            InterestType: 0,                     // Declining Balance
+            InterestCalculationPeriodType: 1,    // Same as Repayment Period
+            ExpectedDisbursementDate: DateTime.Today.AddDays(14)
+        );
+
+        var scheduleResult = await _fineractService.CalculateRepaymentScheduleAsync(scheduleRequest, ct);
+        if (scheduleResult.IsFailure)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                $"Failed to calculate repayment schedule: {scheduleResult.Error}");
+
+        var schedule = scheduleResult.Value;
+        var scheduleSource = fineractProductId > 0 ? "Fineract" : "InHouse";
+        var monthlyInstallment = schedule.Installments.Any()
+            ? Math.Round(schedule.Installments.Average(i => i.TotalDue), 2)
+            : 0;
+
+        // ── Build and generate offer letter PDF ────────────────────────────────
+        var offerData = new NampOfferLetterData(
+            ApplicationNumber: app.ApplicationNumber,
+            ApplicationReference: app.ApplicationReference,
+            GeneratedDate: DateTime.UtcNow,
+            ApplicantName: app.ApplicantName,
+            BoaAccountNumber: app.BoaAccountNumber,
+            ApplicantCategory: app.ApplicantCategory.ToString(),
+            EquipmentDescription: app.EquipmentDescription,
+            EquipmentValue: app.EquipmentValue,
+            LoanAmount: app.LoanAmount,
+            EquityAmount: app.EquityAmount,
+            EquityPercent: app.EquityPercent,
+            TenorMonths: app.RequestedTenorMonths,
+            InterestRatePerAnnum: interestRate,
+            LoanPurpose: app.LoanPurpose,
+            CommitteeConditions: app.CommitteeDecisionNote,
+            BankName: request.BankName,
+            BranchName: request.BranchName,
+            RepaymentSchedule: schedule.Installments.Select(i => new ScheduleInstallmentData(
+                InstallmentNumber: i.PeriodNumber,
+                DueDate: i.DueDate,
+                Principal: i.PrincipalDue,
+                Interest: i.InterestDue,
+                TotalPayment: i.TotalDue,
+                OutstandingBalance: i.OutstandingBalance
+            )).ToList(),
+            TotalPrincipal: schedule.TotalPrincipal,
+            TotalInterest: schedule.TotalInterest,
+            TotalRepayment: schedule.TotalRepayment,
+            MonthlyInstallment: monthlyInstallment,
+            ScheduleSource: scheduleSource
+        );
+
+        var pdfBytes = await _pdfGenerator.GenerateAsync(offerData, ct);
+        var fileName = $"NAMP_OfferLetter_{app.ApplicationNumber}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
+        var storagePath = await _fileStorage.UploadAsync(
+            "namp-offerletters",
+            $"{app.ApplicationNumber}/{fileName}",
+            pdfBytes,
+            "application/pdf",
+            ct);
+
+        var result = app.Ratify(request.UserId, storagePath, request.Note);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
 
         app.SetAuditInfo(request.UserId.ToString());
@@ -405,11 +571,16 @@ public class BeginNampPreDeploymentVerificationHandler
     : IRequestHandler<BeginNampPreDeploymentVerificationCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampPreDeploymentChecklistTemplateRepository _templateRepo;
     private readonly IUnitOfWork _uow;
 
-    public BeginNampPreDeploymentVerificationHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public BeginNampPreDeploymentVerificationHandler(
+        INampApplicationRepository repo,
+        INampPreDeploymentChecklistTemplateRepository templateRepo,
+        IUnitOfWork uow)
     {
         _repo = repo;
+        _templateRepo = templateRepo;
         _uow = uow;
     }
 
@@ -421,6 +592,20 @@ public class BeginNampPreDeploymentVerificationHandler
 
         var result = app.BeginPreDeploymentVerification(request.UserId);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
+        // Seed checklist items from active templates (skip if already seeded)
+        if (!app.PreDeploymentChecklist.Any())
+        {
+            var templates = await _templateRepo.GetAllAsync(ct);
+            var items = templates
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.SortOrder)
+                .Select(t => NampPreDeploymentChecklistItem.FromTemplate(app.Id, t))
+                .ToList();
+
+            if (items.Count > 0)
+                await _repo.AddPreDeploymentChecklistItemsAsync(items, ct);
+        }
 
         app.SetAuditInfo(request.UserId.ToString());
         await _uow.SaveChangesAsync(ct);

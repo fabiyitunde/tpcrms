@@ -1,0 +1,265 @@
+@page "/admin/namp-predeploy-checklist"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@using CRMS.Application.Namp.DTOs
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<PageTitle>NAMP Pre-Deployment Checklist - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">NAMP Pre-Deployment Checklist</h1>
+        <p class="page-subtitle">Configure the checklist items that must be verified before an applicant proceeds to training</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal">
+        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+        Add Item
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(pageError))
+{
+    <div class="alert alert-danger">@pageError</div>
+}
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        @if (isLoading)
+        {
+            <div class="p-6 text-center">
+                <div class="spinner" style="margin: 0 auto;"></div>
+            </div>
+        }
+        else if (templates.Count == 0)
+        {
+            <div class="p-6 text-center text-muted">No checklist items configured. Add the first item to get started.</div>
+        }
+        else
+        {
+            <table class="table" style="margin-bottom: 0;">
+                <thead>
+                    <tr>
+                        <th style="width: 48px;">#</th>
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>Mandatory</th>
+                        <th>Doc Upload</th>
+                        <th>Doc Category</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in templates.OrderBy(x => x.SortOrder))
+                    {
+                        <tr style="@(!t.IsActive ? "opacity: 0.6;" : "")">
+                            <td style="color: var(--text-secondary); font-size: 0.8rem;">@t.SortOrder</td>
+                            <td>
+                                <div style="font-weight: 500;">@t.Title</div>
+                            </td>
+                            <td style="max-width: 260px; font-size: 0.85rem; color: var(--text-secondary);">
+                                @(string.IsNullOrEmpty(t.Description) ? "—" : t.Description)
+                            </td>
+                            <td>
+                                @if (t.IsMandatory) { <span class="badge badge-warning">Mandatory</span> }
+                                else { <span class="badge badge-secondary">Optional</span> }
+                            </td>
+                            <td>
+                                @if (t.RequiresDocumentUpload) { <span class="material-symbols-outlined" style="font-size: 18px; color: var(--success-600);">check_circle</span> }
+                                else { <span style="color: var(--text-secondary);">—</span> }
+                            </td>
+                            <td style="font-size: 0.85rem;">
+                                @(string.IsNullOrEmpty(t.DocumentCategory) ? "—" : FormatCategory(t.DocumentCategory))
+                            </td>
+                            <td>
+                                <span class="badge @(t.IsActive ? "badge-success" : "badge-secondary")">
+                                    @(t.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td style="white-space: nowrap;">
+                                <button class="btn btn-ghost btn-sm" @onclick="() => OpenEditModal(t)">Edit</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseModal">
+        <div class="modal" style="max-width: 540px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@(isEditing ? "Edit Checklist Item" : "Add Checklist Item")</h3>
+                <button class="modal-close" @onclick="CloseModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(modalError))
+                { <div class="alert alert-danger">@modalError</div> }
+
+                <div class="form-group">
+                    <label class="form-label">Title *</label>
+                    <input class="form-control" @bind="form.Title" placeholder="e.g. Equity Deposit Confirmed" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" rows="2" @bind="form.Description" placeholder="Optional description shown to the compliance officer"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sort Order *</label>
+                    <input type="number" class="form-control" @bind="form.SortOrder" min="1" />
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; font-weight: 500;">
+                        <input type="checkbox" @bind="form.IsMandatory" />
+                        Mandatory (blocks completion of pre-deployment stage if not confirmed)
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; font-weight: 500;">
+                        <input type="checkbox" @bind="form.RequiresDocumentUpload" />
+                        Requires Document Upload
+                    </label>
+                </div>
+                @if (form.RequiresDocumentUpload)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Document Category *</label>
+                        <select class="form-control" @bind="form.DocumentCategory">
+                            <option value="">-- Select category --</option>
+                            <option value="EquityDepositReceipt">Equity Deposit Receipt</option>
+                            <option value="LeaseAgreement">Lease Agreement</option>
+                            <option value="GpsConsentForm">GPS Consent Form</option>
+                            <option value="InsuranceCertificate">Insurance Certificate</option>
+                            <option value="SignedNampOfferLetter">Signed NAMP Offer Letter</option>
+                            <option value="General">General</option>
+                        </select>
+                    </div>
+                }
+                @if (isEditing)
+                {
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; font-weight: 500;">
+                            <input type="checkbox" @bind="form.IsActive" />
+                            Active (inactive items are not seeded for new applications)
+                        </label>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="Save" disabled="@isSaving">
+                    @if (isSaving) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                    @(isEditing ? "Update" : "Add Item")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<NampPreDeploymentChecklistTemplateDto> templates = new();
+    private bool isLoading = true;
+    private string? pageError;
+
+    private bool showModal;
+    private bool isEditing;
+    private bool isSaving;
+    private string? modalError;
+    private Guid editingId;
+
+    private FormModel form = new();
+
+    private class FormModel
+    {
+        public string Title { get; set; } = "";
+        public string? Description { get; set; }
+        public bool IsMandatory { get; set; } = true;
+        public bool RequiresDocumentUpload { get; set; }
+        public string? DocumentCategory { get; set; }
+        public int SortOrder { get; set; } = 10;
+        public bool IsActive { get; set; } = true;
+    }
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        isLoading = true;
+        try { templates = await AppService.GetNampChecklistTemplatesAsync(); }
+        catch (Exception ex) { pageError = ex.Message; }
+        finally { isLoading = false; }
+    }
+
+    private void OpenCreateModal()
+    {
+        isEditing = false; modalError = null;
+        form = new FormModel { SortOrder = templates.Count > 0 ? templates.Max(t => t.SortOrder) + 10 : 10 };
+        showModal = true;
+    }
+
+    private void OpenEditModal(NampPreDeploymentChecklistTemplateDto t)
+    {
+        isEditing = true; editingId = t.Id; modalError = null;
+        form = new FormModel
+        {
+            Title = t.Title,
+            Description = t.Description,
+            IsMandatory = t.IsMandatory,
+            RequiresDocumentUpload = t.RequiresDocumentUpload,
+            DocumentCategory = t.DocumentCategory,
+            SortOrder = t.SortOrder,
+            IsActive = t.IsActive
+        };
+        showModal = true;
+    }
+
+    private void CloseModal() { showModal = false; modalError = null; }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(form.Title))
+        { modalError = "Title is required."; return; }
+        if (form.RequiresDocumentUpload && string.IsNullOrEmpty(form.DocumentCategory))
+        { modalError = "Document category is required when document upload is enabled."; return; }
+
+        isSaving = true; modalError = null;
+        try
+        {
+            if (isEditing)
+            {
+                var result = await AppService.UpdateNampChecklistTemplateItemAsync(
+                    editingId, form.Title, form.Description,
+                    form.RequiresDocumentUpload, form.RequiresDocumentUpload ? form.DocumentCategory : null,
+                    form.IsMandatory, form.SortOrder, form.IsActive);
+                if (!result.Success) { modalError = result.Error ?? "Failed to update item."; return; }
+            }
+            else
+            {
+                var result = await AppService.AddNampChecklistTemplateItemAsync(
+                    form.Title, form.Description,
+                    form.RequiresDocumentUpload, form.RequiresDocumentUpload ? form.DocumentCategory : null,
+                    form.IsMandatory, form.SortOrder);
+                if (!result.Success) { modalError = result.Error ?? "Failed to add item."; return; }
+            }
+
+            CloseModal();
+            await Load();
+        }
+        finally { isSaving = false; }
+    }
+
+    private static string FormatCategory(string category) => category switch
+    {
+        "EquityDepositReceipt" => "Equity Deposit Receipt",
+        "LeaseAgreement" => "Lease Agreement",
+        "GpsConsentForm" => "GPS Consent Form",
+        "InsuranceCertificate" => "Insurance Certificate",
+        "SignedNampOfferLetter" => "Signed Offer Letter",
+        _ => category
+    };
+}

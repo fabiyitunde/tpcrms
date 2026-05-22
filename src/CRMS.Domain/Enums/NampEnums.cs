@@ -105,6 +105,11 @@ public enum NampDocumentCategory
     FinancialModel,       // Required at Financial Appraisal (at least 1)
     CreditReport,
     SupportingDocument,
+    SignedNampOfferLetter, // Countersigned offer letter uploaded post-ratification
+    EquityDepositReceipt,  // Gate 1: Equity deposit payment evidence
+    LeaseAgreement,        // Gate 2: Signed lease/hire-purchase agreement
+    GpsConsentForm,        // Gate 3: Signed GPS tracking consent form
+    InsuranceCertificate,  // Gate 4: NAIC insurance certificate
 }
 
 public enum NampSoilConditionRating

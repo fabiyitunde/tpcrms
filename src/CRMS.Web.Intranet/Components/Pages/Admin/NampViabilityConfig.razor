@@ -1,0 +1,199 @@
+@page "/admin/namp-viability"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@using CRMS.Application.Namp.DTOs
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<PageTitle>NAMP Viability Score Config - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">NAMP Viability Score Config</h1>
+        <p class="page-subtitle">Configure how the Agricultural Engineer's qualitative viability rating maps to a numeric score and category weight in the AI Advisory.</p>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(pageError))
+{
+    <div class="alert alert-danger">@pageError</div>
+}
+@if (!string.IsNullOrEmpty(pageSuccess))
+{
+    <div class="alert alert-success">@pageSuccess</div>
+}
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        @if (isLoading)
+        {
+            <div class="p-6 text-center"><div class="spinner" style="margin: 0 auto;"></div></div>
+        }
+        else if (configs.Count == 0)
+        {
+            <div class="p-6 text-center text-muted">
+                No viability config found. Run <code>POST /api/seed/namp</code> to seed defaults.
+            </div>
+        }
+        else
+        {
+            <table class="table" style="margin-bottom: 0;">
+                <thead>
+                    <tr>
+                        <th>Viability Rating</th>
+                        <th>Score (0–100)</th>
+                        <th>Category Weight</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var cfg in configs)
+                    {
+                        <tr>
+                            <td>
+                                @{
+                                    var ratingBadge = cfg.ViabilityRating switch
+                                    {
+                                        "Viable" => "badge-success",
+                                        "Marginal" => "badge-warning",
+                                        _ => "badge-danger"
+                                    };
+                                }
+                                <span class="badge @ratingBadge">@cfg.ViabilityRating</span>
+                            </td>
+                            <td style="font-weight: 600; font-size: 1.1rem;">@cfg.Score.ToString("N0")</td>
+                            <td>@cfg.CategoryWeight.ToString("N0")</td>
+                            <td style="font-size: 0.875rem; color: var(--text-secondary); max-width: 320px;">@cfg.Description</td>
+                            <td>
+                                @if (cfg.IsActive) { <span class="badge badge-success">Active</span> }
+                                else { <span class="badge badge-secondary">Inactive</span> }
+                            </td>
+                            <td>
+                                <button class="btn btn-outline-secondary btn-sm" @onclick="() => OpenEdit(cfg)">Edit</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@if (showEditModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 480px;">
+            <div class="modal-header">
+                <h5>Edit — @editingConfig?.ViabilityRating</h5>
+                <button class="btn-close" @onclick="CloseModal">✕</button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(modalError))
+                {
+                    <div class="alert alert-danger">@modalError</div>
+                }
+
+                <div class="alert alert-info" style="font-size: 0.85rem;">
+                    <strong>Score</strong> is the numeric value (0–100) assigned to this viability rating in the AI Advisory.<br/>
+                    <strong>Category Weight</strong> determines how much this category contributes to the overall advisory score relative to other categories (e.g., 20 means 20 weight units).
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Score (0–100) *</label>
+                    <input type="number" class="form-control" min="0" max="100" step="1"
+                           @bind="editScore" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category Weight *</label>
+                    <input type="number" class="form-control" min="1" step="1"
+                           @bind="editCategoryWeight" />
+                    <small class="form-text text-muted">Absolute weight units. Other categories from the standard scoring engine typically sum to ~80.</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" rows="3" @bind="editDescription"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModal" disabled="@isSaving">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveEdit" disabled="@isSaving">
+                    @if (isSaving) { <span class="spinner-border spinner-border-sm" style="margin-right: 6px;"></span> }
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<NampViabilityScoreConfigDto> configs = [];
+    private bool isLoading = true;
+    private string? pageError;
+    private string? pageSuccess;
+
+    // Edit modal
+    private bool showEditModal;
+    private NampViabilityScoreConfigDto? editingConfig;
+    private decimal editScore;
+    private decimal editCategoryWeight;
+    private string? editDescription;
+    private bool isSaving;
+    private string? modalError;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        isLoading = true;
+        pageError = null;
+        try
+        {
+            var result = await AppService.GetNampViabilityScoreConfigsAsync();
+            configs = result.Success ? result.Data ?? [] : [];
+            if (!result.Success) pageError = result.Error;
+        }
+        catch (Exception ex) { pageError = ex.Message; }
+        finally { isLoading = false; }
+    }
+
+    private void OpenEdit(NampViabilityScoreConfigDto cfg)
+    {
+        editingConfig = cfg;
+        editScore = cfg.Score;
+        editCategoryWeight = cfg.CategoryWeight;
+        editDescription = cfg.Description;
+        modalError = null;
+        showEditModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showEditModal = false;
+        editingConfig = null;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (editingConfig == null) return;
+        isSaving = true;
+        modalError = null;
+        try
+        {
+            var result = await AppService.UpdateNampViabilityScoreConfigAsync(
+                editingConfig.Id, editScore, editCategoryWeight, editDescription);
+            if (result.Success)
+            {
+                pageSuccess = $"Viability config for '{editingConfig.ViabilityRating}' updated successfully.";
+                CloseModal();
+                await Load();
+            }
+            else
+            {
+                modalError = result.Error ?? "Update failed";
+            }
+        }
+        catch (Exception ex) { modalError = ex.Message; }
+        finally { isSaving = false; }
+    }
+}

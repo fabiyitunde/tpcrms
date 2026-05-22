@@ -16,6 +16,8 @@ public static class NampWorkflowSeeder
     {
         await SeedWorkflowConfigAsync(context, logger);
         await SeedRoutingConfigAsync(context, logger);
+        await SeedPreDeploymentChecklistAsync(context, logger);
+        await SeedViabilityScoreConfigAsync(context, logger);
     }
 
     // ── Stage config ──────────────────────────────────────────────────────
@@ -128,6 +130,89 @@ public static class NampWorkflowSeeder
         logger.LogInformation("Seeded {Count} NAMP routing config rows.", configs.Length);
     }
 
+    // ── Pre-Deployment Checklist ──────────────────────────────────────────
+
+    private static async Task SeedPreDeploymentChecklistAsync(CRMSDbContext context, ILogger logger)
+    {
+        if (await context.NampPreDeploymentChecklistTemplates.AnyAsync())
+        {
+            logger.LogInformation("NAMP pre-deployment checklist already seeded, skipping.");
+            return;
+        }
+
+        logger.LogInformation("Seeding NAMP pre-deployment checklist templates...");
+
+        var items = new[]
+        {
+            Checklist(
+                title: "Equity Deposit Confirmed",
+                description: "Confirm that the applicant has paid the required equity deposit and a receipt has been received at the branch.",
+                requiresDoc: true,
+                docCategory: NampDocumentCategory.EquityDepositReceipt,
+                isMandatory: true,
+                sortOrder: 10),
+            Checklist(
+                title: "Lease / Hire-Purchase Agreement Signed",
+                description: "Confirm that the applicant has signed the equipment lease or hire-purchase agreement and a copy is on file.",
+                requiresDoc: true,
+                docCategory: NampDocumentCategory.LeaseAgreement,
+                isMandatory: true,
+                sortOrder: 20),
+            Checklist(
+                title: "GPS Tracking Consent Obtained",
+                description: "Confirm that the applicant has signed the GPS tracking consent form authorising installation and monitoring of the equipment.",
+                requiresDoc: true,
+                docCategory: NampDocumentCategory.GpsConsentForm,
+                isMandatory: true,
+                sortOrder: 30),
+            Checklist(
+                title: "NAIC Insurance In Place",
+                description: "Confirm that a valid NAIC (Nigerian Agricultural Insurance Corporation) policy is in place and the certificate has been received.",
+                requiresDoc: true,
+                docCategory: NampDocumentCategory.InsuranceCertificate,
+                isMandatory: true,
+                sortOrder: 40),
+            Checklist(
+                title: "Signed NAMP Offer Letter Returned",
+                description: "Confirm that the applicant has signed and returned the official NAMP offer letter.",
+                requiresDoc: true,
+                docCategory: NampDocumentCategory.SignedNampOfferLetter,
+                isMandatory: true,
+                sortOrder: 50),
+        };
+
+        await context.NampPreDeploymentChecklistTemplates.AddRangeAsync(items);
+        await context.SaveChangesAsync();
+        logger.LogInformation("Seeded {Count} NAMP pre-deployment checklist template items.", items.Length);
+    }
+
+    // ── Viability Score Config ────────────────────────────────────────────
+
+    private static async Task SeedViabilityScoreConfigAsync(CRMSDbContext context, ILogger logger)
+    {
+        if (await context.NampViabilityScoreConfigs.AnyAsync())
+        {
+            logger.LogInformation("NAMP viability score config already seeded, skipping.");
+            return;
+        }
+
+        logger.LogInformation("Seeding NAMP viability score config...");
+
+        var configs = new[]
+        {
+            ViabilityConfig(NampViabilityRating.Viable,    score: 85m, weight: 20m,
+                "Farm/operation rated Viable by Agricultural Engineer — strong technical foundation for equipment deployment."),
+            ViabilityConfig(NampViabilityRating.Marginal,  score: 50m, weight: 20m,
+                "Farm/operation rated Marginal — acceptable with mitigations; monitor post-disbursement."),
+            ViabilityConfig(NampViabilityRating.NotViable, score: 20m, weight: 20m,
+                "Farm/operation rated Not Viable — significant technical concerns flagged by Agricultural Engineer."),
+        };
+
+        await context.NampViabilityScoreConfigs.AddRangeAsync(configs);
+        await context.SaveChangesAsync();
+        logger.LogInformation("Seeded {Count} NAMP viability score config rows.", configs.Length);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private static NampWorkflowConfig Stage(
@@ -154,5 +239,30 @@ public static class NampWorkflowSeeder
         var config = NampRoutingConfig.Create(category, tier, min, max, priority);
         config.SetAuditInfo("seed", isNew: true);
         return config;
+    }
+
+    private static NampViabilityScoreConfig ViabilityConfig(
+        NampViabilityRating rating,
+        decimal score,
+        decimal weight,
+        string? description = null)
+    {
+        var config = NampViabilityScoreConfig.Create(rating, score, weight, description);
+        config.SetAuditInfo("seed", isNew: true);
+        return config;
+    }
+
+    private static NampPreDeploymentChecklistTemplate Checklist(
+        string title,
+        string description,
+        bool requiresDoc,
+        NampDocumentCategory? docCategory,
+        bool isMandatory,
+        int sortOrder)
+    {
+        var result = NampPreDeploymentChecklistTemplate.Create(title, description, requiresDoc, docCategory, isMandatory, sortOrder);
+        var item = result.Value;
+        item.SetAuditInfo("seed", isNew: true);
+        return item;
     }
 }

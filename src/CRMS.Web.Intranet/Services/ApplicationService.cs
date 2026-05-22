@@ -1543,6 +1543,7 @@ public partial class ApplicationService
                 Id = c.Id,
                 Name = c.Name,
                 CommitteeType = c.CommitteeType,
+                LocationId = c.LocationId,
                 RequiredVotes = c.RequiredVotes,
                 MinimumApprovalVotes = c.MinimumApprovalVotes,
                 DefaultDeadlineHours = c.DefaultDeadlineHours,
@@ -1568,7 +1569,7 @@ public partial class ApplicationService
 
     public async Task<ApiResponse<Guid>> CreateStandingCommitteeAsync(
         string name, string committeeType, int requiredVotes, int minimumApprovalVotes,
-        int deadlineHours, decimal minAmount, decimal? maxAmount)
+        int deadlineHours, decimal minAmount, decimal? maxAmount, Guid? locationId = null)
     {
         try
         {
@@ -1576,7 +1577,7 @@ public partial class ApplicationService
             var ctEnum = Enum.Parse<CommitteeType>(committeeType, ignoreCase: true);
             var result = await handler.Handle(
                 new Application.Committee.Commands.CreateStandingCommitteeCommand(
-                    name, ctEnum, requiredVotes, minimumApprovalVotes, deadlineHours, minAmount, maxAmount),
+                    name, ctEnum, requiredVotes, minimumApprovalVotes, deadlineHours, minAmount, maxAmount, locationId),
                 CancellationToken.None);
             if (!result.IsSuccess || result.Data == null)
                 return ApiResponse<Guid>.Fail(result.Error ?? "Failed to create committee");
@@ -1676,6 +1677,7 @@ public partial class ApplicationService
                 Id = c.Id,
                 Name = c.Name,
                 CommitteeType = c.CommitteeType,
+                LocationId = c.LocationId,
                 RequiredVotes = c.RequiredVotes,
                 MinimumApprovalVotes = c.MinimumApprovalVotes,
                 DefaultDeadlineHours = c.DefaultDeadlineHours,
@@ -1699,22 +1701,21 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<StandingCommitteeInfo?> GetStandingCommitteeByTypeAsync(string committeeType)
+    public async Task<StandingCommitteeInfo?> GetStandingCommitteeByTypeAsync(string committeeType, Guid? locationId = null)
     {
         try
         {
-            var handler = _sp.GetRequiredService<Application.Committee.Queries.GetAllStandingCommitteesHandler>();
-            var result = await handler.Handle(new Application.Committee.Queries.GetAllStandingCommitteesQuery(false), CancellationToken.None);
-            if (!result.IsSuccess || result.Data == null) return null;
-
-            var c = result.Data.FirstOrDefault(x => x.CommitteeType.Equals(committeeType, StringComparison.OrdinalIgnoreCase));
+            var repo = _sp.GetRequiredService<IStandingCommitteeRepository>();
+            var ctEnum = Enum.Parse<CommitteeType>(committeeType, ignoreCase: true);
+            var c = await repo.GetByCommitteeTypeAndLocationAsync(ctEnum, locationId);
             if (c == null) return null;
 
             return new StandingCommitteeInfo
             {
                 Id = c.Id,
                 Name = c.Name,
-                CommitteeType = c.CommitteeType,
+                CommitteeType = c.CommitteeType.ToString(),
+                LocationId = c.LocationId,
                 RequiredVotes = c.RequiredVotes,
                 MinimumApprovalVotes = c.MinimumApprovalVotes,
                 DefaultDeadlineHours = c.DefaultDeadlineHours,
@@ -5001,6 +5002,71 @@ public partial class ApplicationService
         return results.OrderByDescending(a => a.CreatedAt).ToList();
     }
 
+    public async Task<List<CRMS.Application.Namp.DTOs.NampApplicationSummaryDto>> GetNampApplicationsByCommitteeMembershipAsync(Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetNampApplicationsByCommitteeMembershipHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Queries.GetNampApplicationsByCommitteeMembershipQuery(userId), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading NAMP applications by committee membership for user {UserId}", userId);
+            return [];
+        }
+    }
+
+    public async Task<List<CRMS.Application.Namp.DTOs.NampApplicationSummaryDto>> GetMyNampApplicationsAsync(Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetNampApplicationsByParticipationHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Queries.GetNampApplicationsByParticipationQuery(userId), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading NAMP applications by participation for user {UserId}", userId);
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampCommitteeReviewDto>> CastNampCommitteeVoteAsync(
+        Guid committeeReviewId, Guid userId, string vote, string? comment)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.CastNampCommitteeVoteHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Commands.CastNampCommitteeVoteCommand(committeeReviewId, userId, vote, comment),
+                CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampCommitteeReviewDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampCommitteeReviewDto>.Fail(result.Error ?? "Failed to cast vote");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error casting NAMP committee vote for review {ReviewId}", committeeReviewId);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampCommitteeReviewDto>.Fail("An error occurred casting the vote");
+        }
+    }
+
+    public async Task<CRMS.Application.Namp.DTOs.NampCommitteeReviewDto?> GetNampCommitteeReviewAsync(Guid committeeReviewId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetNampCommitteeReviewHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Queries.GetNampCommitteeReviewQuery(committeeReviewId), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading NAMP committee review {ReviewId}", committeeReviewId);
+            return null;
+        }
+    }
+
     public async Task<CRMS.Application.Namp.DTOs.NampApplicationDto?> GetNampApplicationByIdAsync(Guid id)
     {
         try
@@ -5123,12 +5189,13 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> RatifyNampDecisionAsync(Guid id, Guid userId, string? offerLetterPath)
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> RatifyNampDecisionAsync(Guid id, Guid userId, string? note = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.RatifyNampDecisionHandler>();
-            var result = await handler.Handle(new CRMS.Application.Namp.Commands.RatifyNampDecisionCommand(id, userId, offerLetterPath), CancellationToken.None);
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.RatifyNampDecisionCommand(
+                id, userId, _bankSettings.BankName, _bankSettings.BranchName, note), CancellationToken.None);
             return result.IsSuccess
                 ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
                 : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Ratification failed");
@@ -5137,6 +5204,24 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error ratifying NAMP decision {Id}", id);
             return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to ratify decision: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<byte[]>> GenerateNampLoanPackAsync(Guid id, Guid userId, string userName)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.GenerateNampLoanPackHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.GenerateNampLoanPackCommand(
+                id, userId, userName, _bankSettings.BankName, _bankSettings.BranchName), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<byte[]>.Ok(result.Data!)
+                : ApiResponse<byte[]>.Fail(result.Error ?? "Loan pack generation failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating NAMP loan pack {Id}", id);
+            return ApiResponse<byte[]>.Fail($"Failed to generate loan pack: {ex.Message}");
         }
     }
 
@@ -5205,6 +5290,78 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error beginning NAMP pre-deployment verification {Id}", id);
             return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to begin pre-deployment verification: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> ConfirmNampChecklistItemAsync(
+        Guid nampApplicationId, Guid checklistItemId, Guid userId, bool? isConfirmed, string? notes)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.ConfirmNampChecklistItemHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.ConfirmNampChecklistItemCommand(
+                nampApplicationId, checklistItemId, userId, isConfirmed, notes), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to save checklist item");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error confirming NAMP checklist item {ItemId}", checklistItemId);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<List<CRMS.Application.Namp.DTOs.NampPreDeploymentChecklistTemplateDto>> GetNampChecklistTemplatesAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetNampPreDeploymentChecklistTemplatesHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Queries.GetNampPreDeploymentChecklistTemplatesQuery(), CancellationToken.None);
+            return result.IsSuccess ? result.Data! : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching NAMP checklist templates");
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampPreDeploymentChecklistTemplateDto>> AddNampChecklistTemplateItemAsync(
+        string title, string? description, bool requiresDocumentUpload, string? documentCategory, bool isMandatory, int sortOrder)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.AddNampChecklistTemplateItemHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.AddNampChecklistTemplateItemCommand(
+                title, description, requiresDocumentUpload, documentCategory, isMandatory, sortOrder), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampPreDeploymentChecklistTemplateDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampPreDeploymentChecklistTemplateDto>.Fail(result.Error ?? "Failed to add template item");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding NAMP checklist template item");
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampPreDeploymentChecklistTemplateDto>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampPreDeploymentChecklistTemplateDto>> UpdateNampChecklistTemplateItemAsync(
+        Guid id, string title, string? description, bool requiresDocumentUpload, string? documentCategory, bool isMandatory, int sortOrder, bool isActive)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.UpdateNampChecklistTemplateItemHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.UpdateNampChecklistTemplateItemCommand(
+                id, title, description, requiresDocumentUpload, documentCategory, isMandatory, sortOrder, isActive), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampPreDeploymentChecklistTemplateDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampPreDeploymentChecklistTemplateDto>.Fail(result.Error ?? "Failed to update template item");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating NAMP checklist template item {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampPreDeploymentChecklistTemplateDto>.Fail(ex.Message);
         }
     }
 
@@ -5398,20 +5555,28 @@ public partial class ApplicationService
     }
 
     public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampTechnicalAppraisalReportDto>> SaveNampTechnicalAppraisalReportAsync(
-        Guid nampApplicationId, Guid userId,
-        string farmLocationDescription, string? gpsCoordinates, decimal? landAreaAssessedHectares,
-        string soilConditionRating, string waterSourceAvailability, string proposedEquipmentSuitability,
-        string? infrastructureNotes, string? risksIdentified, string? recommendedMitigations,
-        string overallViabilityRating, string engineerRecommendation, string? summaryNotes)
+        Guid nampApplicationId, Guid userId, string applicantCategory,
+        // Individual fields
+        string? farmLocationDescription, string? gpsCoordinates, decimal? landAreaAssessedHectares,
+        string? soilConditionRating, string? waterSourceAvailability,
+        // AgroServiceCompany fields
+        string? operationalCoverageArea, int? existingFleetSize, bool? hasMaintenanceFacility,
+        int? technicalStaffCount, int? yearsInOperation, string? currentServiceContracts, string? storageFacilityDescription,
+        // Shared fields
+        string proposedEquipmentSuitability, string? infrastructureNotes, string? risksIdentified,
+        string? recommendedMitigations, string overallViabilityRating, string engineerRecommendation, string? summaryNotes)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.SaveNampTechnicalAppraisalReportHandler>();
             var result = await handler.Handle(new CRMS.Application.Namp.Commands.SaveNampTechnicalAppraisalReportCommand(
-                nampApplicationId, userId, farmLocationDescription, gpsCoordinates, landAreaAssessedHectares,
-                soilConditionRating, waterSourceAvailability, proposedEquipmentSuitability,
-                infrastructureNotes, risksIdentified, recommendedMitigations,
-                overallViabilityRating, engineerRecommendation, summaryNotes),
+                nampApplicationId, userId, applicantCategory,
+                farmLocationDescription, gpsCoordinates, landAreaAssessedHectares,
+                soilConditionRating, waterSourceAvailability,
+                operationalCoverageArea, existingFleetSize, hasMaintenanceFacility,
+                technicalStaffCount, yearsInOperation, currentServiceContracts, storageFacilityDescription,
+                proposedEquipmentSuitability, infrastructureNotes, risksIdentified,
+                recommendedMitigations, overallViabilityRating, engineerRecommendation, summaryNotes),
                 CancellationToken.None);
             return result.IsSuccess
                 ? ApiResponse<CRMS.Application.Namp.DTOs.NampTechnicalAppraisalReportDto>.Ok(result.Data!)
@@ -5446,6 +5611,85 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error saving NAMP financial appraisal report for application {Id}", nampApplicationId);
             return ApiResponse<CRMS.Application.Namp.DTOs.NampFinancialAppraisalReportDto>.Fail(ex.Message);
+        }
+    }
+
+    // ── NAMP Advisory ──────────────────────────────────────────────────────
+
+    public async Task<ApiResponse> GenerateNampAdvisoryAsync(Guid nampApplicationId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.GenerateNampAdvisoryHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Commands.GenerateNampAdvisoryCommand(nampApplicationId, userId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Advisory generation failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating NAMP advisory for application {Id}", nampApplicationId);
+            return ApiResponse.Fail("Failed to generate NAMP advisory");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampAdvisoryDto>> GetNampAdvisoryAsync(Guid nampApplicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetNampAdvisoryHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Queries.GetNampAdvisoryQuery(nampApplicationId),
+                CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampAdvisoryDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampAdvisoryDto>.Fail(result.Error ?? "Not found");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching NAMP advisory for application {Id}", nampApplicationId);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampAdvisoryDto>.Fail(ex.Message);
+        }
+    }
+
+    // ── NAMP Viability Score Config ────────────────────────────────────────
+
+    public async Task<ApiResponse<List<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>>> GetNampViabilityScoreConfigsAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetNampViabilityScoreConfigsHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Queries.GetNampViabilityScoreConfigsQuery(),
+                CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<List<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>>.Ok(result.Data!)
+                : ApiResponse<List<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>>.Fail(result.Error ?? "Failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching NAMP viability score configs");
+            return ApiResponse<List<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>> UpdateNampViabilityScoreConfigAsync(
+        Guid id, decimal score, decimal categoryWeight, string? description)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.UpdateNampViabilityScoreConfigHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Commands.UpdateNampViabilityScoreConfigCommand(id, score, categoryWeight, description),
+                CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>.Fail(result.Error ?? "Update failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating NAMP viability score config {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>.Fail(ex.Message);
         }
     }
 }

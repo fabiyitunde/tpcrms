@@ -42,6 +42,13 @@
             <span class="badge badge-info" style="margin-left: 6px;">@myQueue.Count</span>
         }
     </div>
+    <div class="tab @(activeTab == "myapps" ? "active" : "")" @onclick='() => SwitchTab("myapps")'>
+        My Applications
+        @if (myApps.Count > 0)
+        {
+            <span class="badge badge-secondary" style="margin-left: 6px;">@myApps.Count</span>
+        }
+    </div>
     @if (IsAdmin)
     {
         <div class="tab @(activeTab == "all" ? "active" : "")" @onclick='() => SwitchTab("all")'>
@@ -213,7 +220,7 @@
                                         <td><span class="badge badge-info">@FormatCategory(app.ApplicantCategory)</span></td>
                                         <td style="font-weight: 500;">₦@app.EquipmentValue.ToString("N0")</td>
                                         <td><span class="badge badge-secondary">@app.CommitteeTier</span></td>
-                                        <td><span class="badge @GetStatusBadgeClass(app.Status)">@FormatStatus(app.Status)</span></td>
+                                        <td><span class="badge @GetStatusBadgeClass(app.Status)">@FormatStatusDisplay(app)</span></td>
                                         <td style="font-size: var(--text-sm); color: var(--text-secondary); white-space: nowrap;">@app.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
                                         <td @onclick:stopPropagation>
                                             <button class="btn btn-ghost btn-sm" @onclick='() => Navigation.NavigateTo($"/namp/{app.Id}")'>
@@ -238,6 +245,106 @@
                                     Previous
                                 </button>
                                 <button class="btn btn-outline btn-sm" disabled="@(myQueuePage >= totalPages)" @onclick="() => myQueuePage++">
+                                    Next
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                }
+            }
+        </div>
+    </div>
+}
+
+<!-- ── My Applications Tab ── -->
+@if (activeTab == "myapps")
+{
+    <div class="card mb-4">
+        <div class="card-body" style="padding: var(--space-4);">
+            <div style="display: flex; gap: var(--space-4); align-items: flex-end;">
+                <div style="flex: 1;">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-control" placeholder="App #, applicant name, status…"
+                           @bind="myAppsSearch" @bind:event="oninput" @bind:after="() => myAppsPage = 1" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body" style="padding: 0;">
+            @if (isLoadingMyApps)
+            {
+                <div class="p-6 text-center"><div class="spinner" style="margin: 0 auto;"></div></div>
+            }
+            else if (myApps.Count == 0)
+            {
+                <div class="p-6 text-center text-muted">
+                    <span class="material-symbols-outlined" style="font-size: 48px; opacity: 0.3;">folder_open</span>
+                    <div style="margin-top: 0.5rem;">No applications found where you have taken an action.</div>
+                </div>
+            }
+            else
+            {
+                var filtered = FilteredMyApps;
+                var paged = filtered.Skip((myAppsPage - 1) * PageSize).Take(PageSize).ToList();
+                var totalPages = (int)Math.Ceiling(filtered.Count / (double)PageSize);
+
+                @if (filtered.Count == 0)
+                {
+                    <div class="p-6 text-center text-muted">No records match your search.</div>
+                }
+                else
+                {
+                    <div class="table-wrapper">
+                        <table class="table table-clickable">
+                            <thead>
+                                <tr>
+                                    <th>App #</th>
+                                    <th>Applicant</th>
+                                    <th>Category</th>
+                                    <th>Equipment Value</th>
+                                    <th>Tier</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var app in paged)
+                                {
+                                    <tr style="cursor: pointer;" @onclick='() => Navigation.NavigateTo($"/namp/{app.Id}")'>
+                                        <td style="font-weight: 600; color: var(--primary-600); font-family: monospace;">@app.ApplicationNumber</td>
+                                        <td>@app.ApplicantName</td>
+                                        <td><span class="badge badge-info">@FormatCategory(app.ApplicantCategory)</span></td>
+                                        <td style="font-weight: 500;">₦@app.EquipmentValue.ToString("N0")</td>
+                                        <td><span class="badge badge-secondary">@app.CommitteeTier</span></td>
+                                        <td><span class="badge @GetStatusBadgeClass(app.Status)">@FormatStatusDisplay(app)</span></td>
+                                        <td style="font-size: var(--text-sm); color: var(--text-secondary); white-space: nowrap;">@app.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                        <td @onclick:stopPropagation>
+                                            <button class="btn btn-ghost btn-sm" @onclick='() => Navigation.NavigateTo($"/namp/{app.Id}")'>
+                                                <span class="material-symbols-outlined">chevron_right</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if (totalPages > 1)
+                    {
+                        <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: var(--text-sm); color: var(--gray-500);">
+                                Showing @((myAppsPage - 1) * PageSize + 1)–@Math.Min(myAppsPage * PageSize, filtered.Count) of @filtered.Count
+                            </span>
+                            <div style="display: flex; gap: var(--space-2);">
+                                <button class="btn btn-outline btn-sm" disabled="@(myAppsPage <= 1)" @onclick="() => myAppsPage--">
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>
+                                    Previous
+                                </button>
+                                <button class="btn btn-outline btn-sm" disabled="@(myAppsPage >= totalPages)" @onclick="() => myAppsPage++">
                                     Next
                                     <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
                                 </button>
@@ -330,7 +437,7 @@
                                         <td><span class="badge badge-info">@FormatCategory(app.ApplicantCategory)</span></td>
                                         <td style="font-weight: 500;">₦@app.EquipmentValue.ToString("N0")</td>
                                         <td><span class="badge badge-secondary">@app.CommitteeTier</span></td>
-                                        <td><span class="badge @GetStatusBadgeClass(app.Status)">@FormatStatus(app.Status)</span></td>
+                                        <td><span class="badge @GetStatusBadgeClass(app.Status)">@FormatStatusDisplay(app)</span></td>
                                         <td style="font-size: var(--text-sm); color: var(--text-secondary); white-space: nowrap;">@app.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
                                         <td @onclick:stopPropagation>
                                             <button class="btn btn-ghost btn-sm" @onclick='() => Navigation.NavigateTo($"/namp/{app.Id}")'>
@@ -406,22 +513,26 @@
     private string activeTab = "staging";
     private bool isLoading = true;
     private bool isLoadingAll = false;
+    private bool isLoadingMyApps = false;
     private string? pageError;
 
     // Data
     private List<NampStagingRecordSummaryDto> stagingQueue = [];
     private List<NampApplicationSummaryDto> myQueue = [];
+    private List<NampApplicationSummaryDto> myApps = [];
     private List<NampApplicationSummaryDto> allApps = [];
     private string filterStatus = "";
 
     // Search state (per tab)
     private string stagingSearch = "";
     private string myQueueSearch = "";
+    private string myAppsSearch = "";
     private string allAppsSearch = "";
 
     // Pagination state (per tab)
     private int stagingPage = 1;
     private int myQueuePage = 1;
+    private int myAppsPage = 1;
     private int allAppsPage = 1;
 
     // Recall modal
@@ -437,9 +548,10 @@
 
     private string QueueSubtitle => activeTab switch
     {
-        "staging" => $"{stagingQueue.Count} pending recall{(stagingQueue.Count == 1 ? "" : "s")}",
-        "apps"    => $"{myQueue.Count} pending action{(myQueue.Count == 1 ? "" : "s")}",
-        _         => "All applications"
+        "staging"  => $"{stagingQueue.Count} pending recall{(stagingQueue.Count == 1 ? "" : "s")}",
+        "apps"     => $"{myQueue.Count} pending action{(myQueue.Count == 1 ? "" : "s")}",
+        "myapps"   => $"{myApps.Count} application{(myApps.Count == 1 ? "" : "s")} you have contributed to",
+        _          => "All applications"
     };
 
     // Filtered views
@@ -472,6 +584,20 @@
         }
     }
 
+    private List<NampApplicationSummaryDto> FilteredMyApps
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(myAppsSearch)) return myApps;
+            var q = myAppsSearch.Trim().ToLowerInvariant();
+            return myApps.Where(a =>
+                a.ApplicationNumber.ToLowerInvariant().Contains(q) ||
+                a.ApplicantName.ToLowerInvariant().Contains(q) ||
+                FormatStatus(a.Status).ToLowerInvariant().Contains(q)
+            ).ToList();
+        }
+    }
+
     private List<NampApplicationSummaryDto> FilteredAllApps
     {
         get
@@ -496,6 +622,7 @@
     {
         activeTab = tab;
         if (tab == "all" && allApps.Count == 0) await LoadAdminAll();
+        if (tab == "myapps" && myApps.Count == 0) await LoadMyApplications();
     }
 
     private async Task LoadAll()
@@ -516,6 +643,18 @@
     {
         stagingQueue = await AppService.GetNampStagingQueueAsync(branchId);
         stagingPage = 1;
+    }
+
+    private async Task LoadMyApplications()
+    {
+        if (User == null) { myApps = []; return; }
+        isLoadingMyApps = true;
+        try
+        {
+            myApps = await AppService.GetMyNampApplicationsAsync(User.Id);
+            myAppsPage = 1;
+        }
+        finally { isLoadingMyApps = false; }
     }
 
     private async Task LoadMyQueue()
@@ -539,6 +678,13 @@
         {
             var globalApps = await AppService.GetNampApplicationsByStatusesAsync(globalStatuses, null);
             results.AddRange(globalApps);
+        }
+
+        // Committee members: load via actual committee review membership (not role+branch filter)
+        if (IsCommitteeMemberRole(user))
+        {
+            var committeeApps = await AppService.GetNampApplicationsByCommitteeMembershipAsync(user.Id);
+            results.AddRange(committeeApps);
         }
 
         // Ratification: filtered by the manager's tier (BranchManager sees Branch-tier ratifications, etc.)
@@ -566,9 +712,7 @@
         if (user.HasAnyRole("AgriculturalEngineer", "SystemAdmin"))
             statuses.UnionWith(["Submitted", "TechnicalAppraisal"]);
         if (user.HasAnyRole("CreditOfficer", "SystemAdmin"))
-            statuses.UnionWith(["FinancialAppraisal"]);
-        if (user.HasAnyRole("BranchCommitteeMember", "SystemAdmin"))
-            statuses.Add("BranchCommitteeCirculation");
+            statuses.UnionWith(["FinancialAppraisal", "BranchCommitteeCirculation"]);
         if (user.HasAnyRole("ComplianceOfficer", "SystemAdmin"))
             statuses.UnionWith(["OfferAccepted", "PreDeploymentVerification"]);
         if (user.HasAnyRole("TrainingCoordinator", "SystemAdmin"))
@@ -579,20 +723,20 @@
         return [.. statuses];
     }
 
-    /// <summary>Global statuses (no branch filter) — higher-level committee circulation.</summary>
+    /// <summary>Global statuses (no branch filter) — higher-level committee circulation for CreditOfficers/Admins.</summary>
     private static string[] GetGlobalStatuses(UserInfo user)
     {
         var statuses = new HashSet<string>();
 
-        if (user.HasAnyRole("ZonalCommitteeMember", "SystemAdmin"))
-            statuses.Add("ZonalCommitteeCirculation");
-        if (user.HasAnyRole("RegionalCommitteeMember", "SystemAdmin"))
-            statuses.Add("RegionalCommitteeCirculation");
-        if (user.HasAnyRole("HOCommitteeMember", "SystemAdmin"))
-            statuses.Add("HOCommitteeCirculation");
+        if (user.HasAnyRole("CreditOfficer", "SystemAdmin"))
+            statuses.UnionWith(["ZonalCommitteeCirculation", "RegionalCommitteeCirculation", "HOCommitteeCirculation"]);
 
         return [.. statuses];
     }
+
+    /// <summary>Returns true if the user has any committee member role (queue is loaded via membership query instead).</summary>
+    private static bool IsCommitteeMemberRole(UserInfo user) =>
+        user.HasAnyRole("CommitteeMember", "BranchCommitteeMember", "ZonalCommitteeMember", "RegionalCommitteeMember", "HOCommitteeMember");
 
     /// <summary>Returns the CommitteeTier string for ratification if this user is a tier manager; null otherwise.</summary>
     private static string? GetRatificationTier(UserInfo user)
@@ -670,6 +814,23 @@
         "Closed"                                                     => "badge-success",
         _                                                            => "badge-gray"
     };
+
+    private static string FormatStatusDisplay(NampApplicationSummaryDto app)
+    {
+        // After circulation (CommitteeReviewId set), show "Voting" to distinguish from pre-circulation
+        if (app.CurrentCommitteeReviewId != null && app.Status.EndsWith("CommitteeCirculation"))
+        {
+            return app.Status switch
+            {
+                "BranchCommitteeCirculation"   => "Branch Committee Voting",
+                "ZonalCommitteeCirculation"    => "Zonal Committee Voting",
+                "RegionalCommitteeCirculation" => "Regional Committee Voting",
+                "HOCommitteeCirculation"       => "HO Committee Voting",
+                _                              => FormatStatus(app.Status)
+            };
+        }
+        return FormatStatus(app.Status);
+    }
 
     private static string FormatStatus(string status) => status switch
     {

@@ -1,4 +1,6 @@
 using CRMS.Application.Identity.Interfaces;
+using CRMS.Domain.Aggregates.Namp;
+using CRMS.Domain.Enums;
 using CRMS.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -215,7 +217,9 @@ public class SeedController : ControllerBase
             ["NampDocuments"] = await _context.NampDocuments.CountAsync(),
             ["NampStatusHistory"] = await _context.NampStatusHistory.CountAsync(),
             ["NampWorkflowConfigs"] = await _context.NampWorkflowConfigs.CountAsync(),
-            ["NampWorkflowInstances"] = await _context.NampWorkflowInstances.CountAsync()
+            ["NampWorkflowInstances"] = await _context.NampWorkflowInstances.CountAsync(),
+            ["NampAdvisories"] = await _context.NampAdvisories.CountAsync(),
+            ["NampViabilityScoreConfigs"] = await _context.NampViabilityScoreConfigs.CountAsync()
         };
 
         var totalRows = counts.Values.Sum();
@@ -234,5 +238,70 @@ public class SeedController : ControllerBase
             },
             tables = counts.OrderByDescending(c => c.Value).ToDictionary(c => c.Key, c => c.Value)
         });
+    }
+
+    /// <summary>
+    /// Seeds pre-deployment checklist items for any NAMP application that is in
+    /// PreDeploymentVerification status but has no checklist items yet.
+    /// Safe to run multiple times — skips applications that already have items.
+    /// </summary>
+    [HttpPost("namp-repair-checklist")]
+    [AllowAnonymous]
+    public async Task<IActionResult> RepairNampChecklist()
+    {
+        if (!_environment.IsDevelopment())
+            return BadRequest(new { error = "Seeding is only available in Development environment" });
+
+        try
+        {
+            var templates = await _context.NampPreDeploymentChecklistTemplates
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.SortOrder)
+                .ToListAsync();
+
+            if (templates.Count == 0)
+                return BadRequest(new { error = "No active checklist templates found. Run /api/seed/namp first." });
+
+            var appsNeedingChecklist = await _context.NampApplications
+                .Where(a => a.Status == NampApplicationStatus.PreDeploymentVerification)
+                .Include(a => a.PreDeploymentChecklist)
+                .ToListAsync();
+
+            var seededApps = new List<string>();
+            var skippedApps = new List<string>();
+
+            foreach (var app in appsNeedingChecklist)
+            {
+                if (app.PreDeploymentChecklist.Any())
+                {
+                    skippedApps.Add(app.ApplicationNumber);
+                    continue;
+                }
+
+                var items = templates
+                    .Select(t => NampPreDeploymentChecklistItem.FromTemplate(app.Id, t))
+                    .ToList();
+
+                await _context.NampPreDeploymentChecklistItems.AddRangeAsync(items);
+                seededApps.Add(app.ApplicationNumber);
+            }
+
+            if (seededApps.Count > 0)
+                await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = $"Seeded checklist for {seededApps.Count} application(s). Skipped {skippedApps.Count} (already had items).",
+                seeded = seededApps,
+                skipped = skippedApps,
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during NAMP checklist repair");
+            return StatusCode(500, new { error = "Repair failed", message = ex.Message });
+        }
     }
 }

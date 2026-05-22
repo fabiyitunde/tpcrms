@@ -161,6 +161,14 @@
                 <span class="material-symbols-outlined nav-item-icon">account_tree</span>
                 @if (!Collapsed) { <span class="nav-item-text">NAMP Workflow</span> }
             </NavLink>
+            <NavLink href="/admin/namp-predeploy-checklist" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">checklist</span>
+                @if (!Collapsed) { <span class="nav-item-text">NAMP Pre-Deploy Checklist</span> }
+            </NavLink>
+            <NavLink href="/admin/namp-viability" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">psychology</span>
+                @if (!Collapsed) { <span class="nav-item-text">NAMP Viability Scores</span> }
+            </NavLink>
         </div>
     }
 
@@ -193,7 +201,10 @@
     private bool CanViewReports => User?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer", "HOReviewer", "Auditor") ?? false;
     private bool CanViewAudit => User?.HasAnyRole("SystemAdmin", "RiskManager", "Auditor") ?? false;
     private bool IsAdmin => User?.HasRole("SystemAdmin") ?? false;
-    private bool CanViewNamp => User?.HasAnyRole("SystemAdmin", "LoanOfficer", "AgriculturalEngineer", "CreditOfficer", "CommitteeMember", "FinalApprover", "ComplianceOfficer", "TrainingCoordinator", "DeploymentOfficer") ?? false;
+    private bool CanViewNamp => User?.HasAnyRole("SystemAdmin", "LoanOfficer", "AgriculturalEngineer", "CreditOfficer",
+        "CommitteeMember", "BranchCommitteeMember", "ZonalCommitteeMember", "RegionalCommitteeMember", "HOCommitteeMember",
+        "BranchManager", "ZonalManager", "RegionalManager", "MdCeo",
+        "FinalApprover", "ComplianceOfficer", "TrainingCoordinator", "DeploymentOfficer") ?? false;
 
     protected override async Task OnInitializedAsync()
     {

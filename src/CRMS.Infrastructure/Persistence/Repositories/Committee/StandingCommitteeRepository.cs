@@ -28,6 +28,23 @@ public class StandingCommitteeRepository : IStandingCommitteeRepository
             .FirstOrDefaultAsync(c => c.CommitteeType == type && c.IsActive, ct);
     }
 
+    public async Task<StandingCommittee?> GetByCommitteeTypeAndLocationAsync(CommitteeType type, Guid? locationId, CancellationToken ct = default)
+    {
+        // Try exact branch-specific match first
+        if (locationId.HasValue)
+        {
+            var specific = await _context.StandingCommittees
+                .Include(c => c.Members)
+                .FirstOrDefaultAsync(c => c.CommitteeType == type && c.LocationId == locationId && c.IsActive, ct);
+            if (specific != null) return specific;
+        }
+
+        // Fall back to the global default (LocationId = null)
+        return await _context.StandingCommittees
+            .Include(c => c.Members)
+            .FirstOrDefaultAsync(c => c.CommitteeType == type && c.LocationId == null && c.IsActive, ct);
+    }
+
     public async Task<StandingCommittee?> GetForAmountAsync(decimal amount, CancellationToken ct = default)
     {
         return await _context.StandingCommittees

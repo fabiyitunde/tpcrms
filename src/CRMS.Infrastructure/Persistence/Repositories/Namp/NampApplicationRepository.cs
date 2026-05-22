@@ -24,6 +24,7 @@ public class NampApplicationRepository : INampApplicationRepository
             .Include(x => x.Guarantors)
             .Include(x => x.Collaterals)
             .Include(x => x.FinancialStatements)
+            .Include(x => x.PreDeploymentChecklist.OrderBy(i => i.SortOrder))
             .FirstOrDefaultAsync(x => x.Id == id, ct);
 
     public async Task<NampApplication?> GetByApplicationReferenceAsync(string applicationReference, CancellationToken ct = default)
@@ -52,6 +53,38 @@ public class NampApplicationRepository : INampApplicationRepository
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<NampApplication>> GetByCommitteeMembershipAsync(Guid userId, CancellationToken ct = default)
+    {
+        var reviewIds = await _context.CommitteeMembers
+            .Where(m => m.UserId == userId)
+            .Select(m => m.CommitteeReviewId)
+            .ToListAsync(ct);
+
+        if (reviewIds.Count == 0) return [];
+
+        return await _context.NampApplications
+            .Where(a => a.CurrentCommitteeReviewId.HasValue && reviewIds.Contains(a.CurrentCommitteeReviewId.Value))
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<NampApplication>> GetByParticipationAsync(Guid userId, CancellationToken ct = default)
+    {
+        // Find all application IDs where this user has taken any action (captured in status history)
+        var appIds = await _context.NampStatusHistory
+            .Where(h => h.ChangedByUserId == userId)
+            .Select(h => h.NampApplicationId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        if (appIds.Count == 0) return [];
+
+        return await _context.NampApplications
+            .Where(a => appIds.Contains(a.Id))
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync(ct);
+    }
+
     public async Task AddAsync(NampApplication application, CancellationToken ct = default)
         => await _context.NampApplications.AddAsync(application, ct);
 
@@ -77,4 +110,7 @@ public class NampApplicationRepository : INampApplicationRepository
 
     public async Task AddFinancialAppraisalReportAsync(NampFinancialAppraisalReport report, CancellationToken ct = default)
         => await _context.NampFinancialAppraisalReports.AddAsync(report, ct);
+
+    public async Task AddPreDeploymentChecklistItemsAsync(IEnumerable<NampPreDeploymentChecklistItem> items, CancellationToken ct = default)
+        => await _context.NampPreDeploymentChecklistItems.AddRangeAsync(items, ct);
 }

@@ -12,7 +12,7 @@ public class StandingCommitteeConfiguration : IEntityTypeConfiguration<StandingC
 
         builder.HasKey(x => x.Id);
 
-        builder.HasIndex(x => x.CommitteeType).IsUnique();
+        builder.HasIndex(x => new { x.CommitteeType, x.LocationId }).IsUnique();
         builder.HasIndex(x => x.IsActive);
 
         builder.Property(x => x.Name)

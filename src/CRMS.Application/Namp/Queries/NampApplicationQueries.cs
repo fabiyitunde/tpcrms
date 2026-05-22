@@ -5,6 +5,7 @@ using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Aggregates.Namp;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
+using CM = CRMS.Domain.Aggregates.Committee;
 
 namespace CRMS.Application.Namp.Queries;
 
@@ -176,6 +177,20 @@ public class GetNampApplicationByIdHandler
             r.FraudRecommendation,
             r.ErrorMessage,
             r.CreatedAt
+        )).ToList(),
+        app.PreDeploymentChecklist.Select(i => new NampPreDeploymentChecklistItemDto(
+            i.Id,
+            i.TemplateItemId,
+            i.Title,
+            i.Description,
+            i.RequiresDocumentUpload,
+            i.DocumentCategory?.ToString(),
+            i.IsMandatory,
+            i.SortOrder,
+            i.IsConfirmed,
+            i.ConfirmedByUserId,
+            i.ConfirmedAt,
+            i.Notes
         )).ToList()
     );
 }
@@ -212,7 +227,8 @@ public class GetNampApplicationsByStatusHandler
             a.CommitteeTier.ToString(),
             a.BranchId,
             a.CreatedAt,
-            a.SubmittedAt
+            a.SubmittedAt,
+            a.CurrentCommitteeReviewId
         )).ToList();
 
         return ApplicationResult<List<NampApplicationSummaryDto>>.Success(dtos);
@@ -248,9 +264,149 @@ public class GetNampApplicationsByStatusAndTierHandler
             a.CommitteeTier.ToString(),
             a.BranchId,
             a.CreatedAt,
-            a.SubmittedAt
+            a.SubmittedAt,
+            a.CurrentCommitteeReviewId
         )).ToList();
 
         return ApplicationResult<List<NampApplicationSummaryDto>>.Success(dtos);
+    }
+}
+
+public record GetNampApplicationsByCommitteeMembershipQuery(Guid UserId)
+    : IRequest<ApplicationResult<List<NampApplicationSummaryDto>>>;
+
+public class GetNampApplicationsByCommitteeMembershipHandler
+    : IRequestHandler<GetNampApplicationsByCommitteeMembershipQuery, ApplicationResult<List<NampApplicationSummaryDto>>>
+{
+    private readonly INampApplicationRepository _repo;
+
+    public GetNampApplicationsByCommitteeMembershipHandler(INampApplicationRepository repo) => _repo = repo;
+
+    public async Task<ApplicationResult<List<NampApplicationSummaryDto>>> Handle(
+        GetNampApplicationsByCommitteeMembershipQuery request, CancellationToken ct = default)
+    {
+        var apps = await _repo.GetByCommitteeMembershipAsync(request.UserId, ct);
+        var dtos = apps.Select(a => new NampApplicationSummaryDto(
+            a.Id,
+            a.ApplicationNumber,
+            a.ApplicationReference,
+            a.Status.ToString(),
+            a.ApplicantName,
+            a.BoaAccountNumber,
+            a.ApplicantCategory.ToString(),
+            a.EquipmentValue,
+            a.CommitteeTier.ToString(),
+            a.BranchId,
+            a.CreatedAt,
+            a.SubmittedAt,
+            a.CurrentCommitteeReviewId
+        )).ToList();
+
+        return ApplicationResult<List<NampApplicationSummaryDto>>.Success(dtos);
+    }
+}
+
+public record GetNampApplicationsByParticipationQuery(Guid UserId)
+    : IRequest<ApplicationResult<List<NampApplicationSummaryDto>>>;
+
+public class GetNampApplicationsByParticipationHandler
+    : IRequestHandler<GetNampApplicationsByParticipationQuery, ApplicationResult<List<NampApplicationSummaryDto>>>
+{
+    private readonly INampApplicationRepository _repo;
+
+    public GetNampApplicationsByParticipationHandler(INampApplicationRepository repo) => _repo = repo;
+
+    public async Task<ApplicationResult<List<NampApplicationSummaryDto>>> Handle(
+        GetNampApplicationsByParticipationQuery request, CancellationToken ct = default)
+    {
+        var apps = await _repo.GetByParticipationAsync(request.UserId, ct);
+        var dtos = apps.Select(a => new NampApplicationSummaryDto(
+            a.Id,
+            a.ApplicationNumber,
+            a.ApplicationReference,
+            a.Status.ToString(),
+            a.ApplicantName,
+            a.BoaAccountNumber,
+            a.ApplicantCategory.ToString(),
+            a.EquipmentValue,
+            a.CommitteeTier.ToString(),
+            a.BranchId,
+            a.CreatedAt,
+            a.SubmittedAt,
+            a.CurrentCommitteeReviewId
+        )).ToList();
+
+        return ApplicationResult<List<NampApplicationSummaryDto>>.Success(dtos);
+    }
+}
+
+public record GetNampCommitteeReviewQuery(Guid CommitteeReviewId)
+    : IRequest<ApplicationResult<NampCommitteeReviewDto>>;
+
+public class GetNampCommitteeReviewHandler
+    : IRequestHandler<GetNampCommitteeReviewQuery, ApplicationResult<NampCommitteeReviewDto>>
+{
+    private readonly ICommitteeReviewRepository _committeeRepo;
+
+    public GetNampCommitteeReviewHandler(ICommitteeReviewRepository committeeRepo) => _committeeRepo = committeeRepo;
+
+    public async Task<ApplicationResult<NampCommitteeReviewDto>> Handle(
+        GetNampCommitteeReviewQuery request, CancellationToken ct = default)
+    {
+        var review = await _committeeRepo.GetByIdAsync(request.CommitteeReviewId, ct);
+        if (review is null)
+            return ApplicationResult<NampCommitteeReviewDto>.Failure("Committee review not found.");
+
+        var dto = new NampCommitteeReviewDto(
+            review.Id,
+            review.CommitteeType.ToString(),
+            review.Status.ToString(),
+            review.CirculatedAt,
+            review.DeadlineAt,
+            review.RequiredVotes,
+            review.MinimumApprovalVotes,
+            review.ApprovalVotes,
+            review.RejectionVotes,
+            review.AbstainVotes,
+            review.PendingVotes,
+            review.HasQuorum,
+            review.HasMajorityApproval,
+            review.IsOverdue,
+            review.Members.Select(m => new NampCommitteeMemberViewDto(
+                m.UserId,
+                m.UserName,
+                m.Role,
+                m.IsChairperson,
+                m.AssignedAt,
+                m.Vote?.ToString(),
+                m.VotedAt,
+                m.VoteComment
+            )).ToList()
+        );
+
+        return ApplicationResult<NampCommitteeReviewDto>.Success(dto);
+    }
+}
+
+public record GetNampPreDeploymentChecklistTemplatesQuery
+    : IRequest<ApplicationResult<List<NampPreDeploymentChecklistTemplateDto>>>;
+
+public class GetNampPreDeploymentChecklistTemplatesHandler
+    : IRequestHandler<GetNampPreDeploymentChecklistTemplatesQuery, ApplicationResult<List<NampPreDeploymentChecklistTemplateDto>>>
+{
+    private readonly INampPreDeploymentChecklistTemplateRepository _repo;
+
+    public GetNampPreDeploymentChecklistTemplatesHandler(INampPreDeploymentChecklistTemplateRepository repo)
+        => _repo = repo;
+
+    public async Task<ApplicationResult<List<NampPreDeploymentChecklistTemplateDto>>> Handle(
+        GetNampPreDeploymentChecklistTemplatesQuery request, CancellationToken ct = default)
+    {
+        var templates = await _repo.GetAllAsync(ct);
+        var dtos = templates.Select(t => new NampPreDeploymentChecklistTemplateDto(
+            t.Id, t.Title, t.Description, t.RequiresDocumentUpload,
+            t.DocumentCategory?.ToString(), t.IsMandatory, t.SortOrder, t.IsActive, t.CreatedAt
+        )).ToList();
+        return ApplicationResult<List<NampPreDeploymentChecklistTemplateDto>>.Success(dtos);
     }
 }

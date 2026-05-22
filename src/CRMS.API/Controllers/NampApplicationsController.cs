@@ -3,6 +3,7 @@ using CRMS.Application.Namp.Commands;
 using CRMS.Application.Namp.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 
 namespace CRMS.API.Controllers;
 
@@ -33,6 +34,7 @@ public class NampApplicationsController : ControllerBase
     private readonly CompleteNampTrainingHandler _completeTraining;
     private readonly ConfirmNampDeploymentHandler _confirmDeployment;
     private readonly UploadNampDocumentHandler _uploadDocument;
+    private readonly IConfiguration _config;
 
     public NampApplicationsController(
         GetNampStagingQueueHandler getStagingQueue,
@@ -53,7 +55,8 @@ public class NampApplicationsController : ControllerBase
         CompleteNampPreDeploymentVerificationHandler completePdv,
         CompleteNampTrainingHandler completeTraining,
         ConfirmNampDeploymentHandler confirmDeployment,
-        UploadNampDocumentHandler uploadDocument)
+        UploadNampDocumentHandler uploadDocument,
+        IConfiguration config)
     {
         _getStagingQueue = getStagingQueue;
         _getStagingById = getStagingById;
@@ -74,6 +77,7 @@ public class NampApplicationsController : ControllerBase
         _completeTraining = completeTraining;
         _confirmDeployment = confirmDeployment;
         _uploadDocument = uploadDocument;
+        _config = config;
     }
 
     // ── Staging Queue ──────────────────────────────────────────────────────
@@ -176,11 +180,13 @@ public class NampApplicationsController : ControllerBase
     // ── Stage 5: Ratification ─────────────────────────────────────────────
 
     [HttpPost("{id:guid}/ratify")]
-    public async Task<IActionResult> Ratify(Guid id, [FromBody] RatifyRequest? body, CancellationToken ct)
+    public async Task<IActionResult> Ratify(Guid id, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
+        var bankName = _config["BankSettings:BankName"] ?? "The Bank";
+        var branchName = _config["BankSettings:BranchName"] ?? "";
         var result = await _ratify.Handle(
-            new RatifyNampDecisionCommand(id, userId, body?.OfferLetterStoragePath), ct);
+            new RatifyNampDecisionCommand(id, userId, bankName, branchName), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
@@ -277,7 +283,6 @@ public class NampApplicationsController : ControllerBase
 public record RecallRequest(Guid StagingRecordId);
 public record AppraisalRequest(bool IsApproved, string? Note);
 public record OutcomeRequest(bool IsApproved, string? Note);
-public record RatifyRequest(string? OfferLetterStoragePath);
 public record NoteRequest(string? Note);
 public record DeploymentRequest(bool GpsActivated, string? Note);
 public record NampUploadDocumentRequest(string Stage, string FileName, string ContentType, long FileSize, string StoragePath, string? Description);

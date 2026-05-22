@@ -1028,6 +1028,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("char(36)");
+
                     b.Property<decimal?>("MaxAmountThreshold")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1055,10 +1058,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CommitteeType")
-                        .IsUnique();
-
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("CommitteeType", "LocationId")
+                        .IsUnique();
 
                     b.ToTable("StandingCommittees", (string)null);
                 });
@@ -3224,6 +3227,116 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("Locations", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampAdvisory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ConditionsJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CovenantsJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("ExecutiveSummary")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("GeneratedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<bool>("HasCriticalRedFlags")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("KeyRisks")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("MitigatingFactors")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("OverallRating")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("OverallScore")
+                        .HasColumnType("decimal(6,2)");
+
+                    b.Property<int>("Recommendation")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("RecommendedAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("RecommendedInterestRate")
+                        .HasColumnType("decimal(6,4)");
+
+                    b.Property<int?>("RecommendedTenorMonths")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RedFlagsJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("RiskScoresJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StrengthsAnalysis")
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal?>("TechnicalViabilityCategoryWeight")
+                        .HasColumnType("decimal(8,2)");
+
+                    b.Property<string>("TechnicalViabilityRating")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<decimal?>("TechnicalViabilityScore")
+                        .HasColumnType("decimal(6,2)");
+
+                    b.Property<string>("WeaknessesAnalysis")
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId")
+                        .IsUnique();
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("NampAdvisories", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampApplication", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4134,6 +4247,128 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("NampGuarantors", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampPreDeploymentChecklistItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("ConfirmedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("DocumentCategory")
+                        .HasColumnType("int");
+
+                    b.Property<bool?>("IsConfirmed")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsMandatory")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("RequiresDocumentUpload")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TemplateItemId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId");
+
+                    b.HasIndex("NampApplicationId", "TemplateItemId")
+                        .IsUnique();
+
+                    b.ToTable("NampPreDeploymentChecklistItems", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampPreDeploymentChecklistTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("DocumentCategory")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsMandatory")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("RequiresDocumentUpload")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("SortOrder");
+
+                    b.ToTable("NampPreDeploymentChecklistTemplates", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampRoutingConfig", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4348,16 +4583,24 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 
+                    b.Property<string>("CurrentServiceContracts")
+                        .HasColumnType("text");
+
                     b.Property<int>("EngineerRecommendation")
                         .HasColumnType("int");
 
+                    b.Property<int?>("ExistingFleetSize")
+                        .HasColumnType("int");
+
                     b.Property<string>("FarmLocationDescription")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("GpsCoordinates")
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
+
+                    b.Property<bool?>("HasMaintenanceFacility")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<string>("InfrastructureNotes")
                         .HasColumnType("text");
@@ -4374,6 +4617,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("NampApplicationId")
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("OperationalCoverageArea")
+                        .HasColumnType("text");
 
                     b.Property<int>("OverallViabilityRating")
                         .HasColumnType("int");
@@ -4394,15 +4640,23 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("SavedAt")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<int>("SoilConditionRating")
+                    b.Property<int?>("SoilConditionRating")
                         .HasColumnType("int");
+
+                    b.Property<string>("StorageFacilityDescription")
+                        .HasColumnType("text");
 
                     b.Property<string>("SummaryNotes")
                         .HasColumnType("text");
 
+                    b.Property<int?>("TechnicalStaffCount")
+                        .HasColumnType("int");
+
                     b.Property<string>("WaterSourceAvailability")
-                        .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int?>("YearsInOperation")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -4410,6 +4664,53 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("NampTechnicalAppraisalReports", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampViabilityScoreConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("CategoryWeight")
+                        .HasColumnType("decimal(8,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal>("Score")
+                        .HasColumnType("decimal(6,2)");
+
+                    b.Property<int>("ViabilityRating")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("ViabilityRating")
+                        .IsUnique();
+
+                    b.ToTable("NampViabilityScoreConfigs", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampWorkflowConfig", b =>
@@ -6723,6 +7024,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampPreDeploymentChecklistItem", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
+                        .WithMany("PreDeploymentChecklist")
+                        .HasForeignKey("NampApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampStatusHistory", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
@@ -7173,6 +7483,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Navigation("FinancialStatements");
 
                     b.Navigation("Guarantors");
+
+                    b.Navigation("PreDeploymentChecklist");
 
                     b.Navigation("StatusHistory");
                 });

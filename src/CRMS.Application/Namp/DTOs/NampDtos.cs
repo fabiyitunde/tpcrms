@@ -46,7 +46,8 @@ public record NampApplicationSummaryDto(
     string CommitteeTier,
     Guid BranchId,
     DateTime CreatedAt,
-    DateTime? SubmittedAt
+    DateTime? SubmittedAt,
+    Guid? CurrentCommitteeReviewId = null
 );
 
 public record NampApplicationDto(
@@ -141,7 +142,8 @@ public record NampApplicationDto(
     List<NampFinancialStatementDto> FinancialStatements,
     NampTechnicalAppraisalReportDto? TechnicalAppraisalReport,
     NampFinancialAppraisalReportDto? FinancialAppraisalReport,
-    List<NampBureauReportDto> BureauReports
+    List<NampBureauReportDto> BureauReports,
+    List<NampPreDeploymentChecklistItemDto> PreDeploymentChecklist
 );
 
 public record NampBureauReportDto(
@@ -268,16 +270,55 @@ public record NampFinancialStatementDto(
     string? AuditOpinion
 );
 
+public record NampCommitteeMemberViewDto(
+    Guid UserId,
+    string UserName,
+    string Role,
+    bool IsChairperson,
+    DateTime AssignedAt,
+    string? Vote,
+    DateTime? VotedAt,
+    string? VoteComment
+);
+
+public record NampCommitteeReviewDto(
+    Guid Id,
+    string CommitteeType,
+    string Status,
+    DateTime CirculatedAt,
+    DateTime? DeadlineAt,
+    int RequiredVotes,
+    int MinimumApprovalVotes,
+    int ApprovalVotes,
+    int RejectionVotes,
+    int AbstainVotes,
+    int PendingVotes,
+    bool HasQuorum,
+    bool HasMajorityApproval,
+    bool IsOverdue,
+    List<NampCommitteeMemberViewDto> Members
+);
+
 public record NampTechnicalAppraisalReportDto(
     Guid Id,
     Guid NampApplicationId,
     Guid PreparedByUserId,
     DateTime SavedAt,
-    string FarmLocationDescription,
+    // Individual applicant fields
+    string? FarmLocationDescription,
     string? GpsCoordinates,
     decimal? LandAreaAssessedHectares,
-    string SoilConditionRating,
-    string WaterSourceAvailability,
+    string? SoilConditionRating,
+    string? WaterSourceAvailability,
+    // AgroServiceCompany fields
+    string? OperationalCoverageArea,
+    int? ExistingFleetSize,
+    bool? HasMaintenanceFacility,
+    int? TechnicalStaffCount,
+    int? YearsInOperation,
+    string? CurrentServiceContracts,
+    string? StorageFacilityDescription,
+    // Shared fields
     string ProposedEquipmentSuitability,
     string? InfrastructureNotes,
     string? RisksIdentified,
@@ -300,4 +341,85 @@ public record NampFinancialAppraisalReportDto(
     string? CreditBureauSummary,
     string CreditOfficerRecommendation,
     string? SummaryNotes
+);
+
+public record NampPreDeploymentChecklistTemplateDto(
+    Guid Id,
+    string Title,
+    string? Description,
+    bool RequiresDocumentUpload,
+    string? DocumentCategory,
+    bool IsMandatory,
+    int SortOrder,
+    bool IsActive,
+    DateTime CreatedAt
+);
+
+public record NampPreDeploymentChecklistItemDto(
+    Guid Id,
+    Guid TemplateItemId,
+    string Title,
+    string? Description,
+    bool RequiresDocumentUpload,
+    string? DocumentCategory,
+    bool IsMandatory,
+    int SortOrder,
+    bool? IsConfirmed,
+    Guid? ConfirmedByUserId,
+    DateTime? ConfirmedAt,
+    string? Notes
+);
+
+// ── NAMP Advisory ──────────────────────────────────────────────────────────
+
+public record NampAdvisoryDto(
+    Guid Id,
+    Guid NampApplicationId,
+    string Status,
+    decimal OverallScore,
+    string OverallRating,
+    string Recommendation,
+    decimal? RecommendedAmount,
+    int? RecommendedTenorMonths,
+    decimal? RecommendedInterestRate,
+    string? ExecutiveSummary,
+    string? StrengthsAnalysis,
+    string? WeaknessesAnalysis,
+    string? MitigatingFactors,
+    string? KeyRisks,
+    string? TechnicalViabilityRating,
+    decimal? TechnicalViabilityScore,
+    bool HasCriticalRedFlags,
+    string ModelVersion,
+    DateTime GeneratedAt,
+    string? ErrorMessage,
+    // Deserialized collections (populated by the query handler from JSON fields)
+    List<NampAdvisoryRiskScoreDto> RiskScores,
+    List<string> RedFlags,
+    List<string> Conditions,
+    List<string> Covenants
+);
+
+public record NampAdvisoryRiskScoreDto(
+    string Category,
+    decimal Score,
+    decimal Weight,
+    decimal WeightedScore,
+    string Rating,
+    string Rationale,
+    List<string> RedFlags,
+    List<string> PositiveIndicators
+);
+
+// ── NAMP Viability Score Config ────────────────────────────────────────────
+
+public record NampViabilityScoreConfigDto(
+    Guid Id,
+    string ViabilityRating,
+    decimal Score,
+    decimal CategoryWeight,
+    string? Description,
+    bool IsActive,
+    DateTime CreatedAt,
+    DateTime? ModifiedAt
 );
