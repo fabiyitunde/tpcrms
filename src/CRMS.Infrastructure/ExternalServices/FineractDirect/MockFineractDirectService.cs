@@ -339,4 +339,30 @@ public class MockFineractDirectService : IFineractDirectService
             Facilities: facilities
         ));
     }
+
+    public Task<Result<FineractBookingResult>> BookApprovedLoanAsync(
+        FineractLoanBookingRequest request, CancellationToken ct = default)
+    {
+        _logger.LogInformation("MockFineract: Initiating automated booking for client {ClientId}, product {ProductId}, principal {Principal}",
+            request.ClientId, request.ProductId, request.Principal);
+
+        var random = new Random();
+        var loanId = 3000L + random.Next(1, 1000);
+        var loanAccountNumber = $"LN-{loanId:D6}";
+
+        _logger.LogInformation("MockFineract: Successfully booked loan application (LoanId={LoanId}, AccountNo={AccountNo})",
+            loanId, loanAccountNumber);
+
+        var result = new FineractBookingResult(
+            LoanId: loanId,
+            LoanAccountNumber: loanAccountNumber,
+            Booked: true,
+            Approved: true,
+            Disbursed: true,
+            Status: "Active"
+        );
+
+        return Task.FromResult(Result.Success(result));
+    }
 }
+

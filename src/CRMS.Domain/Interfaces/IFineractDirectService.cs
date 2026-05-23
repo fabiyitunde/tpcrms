@@ -38,7 +38,34 @@ public interface IFineractDirectService
     /// </summary>
     Task<Result<IReadOnlyList<FineractLoanProduct>>> GetLoanProductsAsync(
         bool activeOnly = true, CancellationToken ct = default);
+
+    /// <summary>
+    /// Automates the booking, approval, and disbursement of an approved loan in Fineract.
+    /// </summary>
+    Task<Result<FineractBookingResult>> BookApprovedLoanAsync(
+        FineractLoanBookingRequest request, CancellationToken ct = default);
 }
+
+// Loan Booking and Disbursement
+public record FineractLoanBookingRequest(
+    long ClientId,
+    int ProductId,
+    decimal Principal,
+    int TenorMonths,
+    decimal InterestRatePerAnnum,
+    DateTime ValueDate,
+    string RepaymentAccountNumber,
+    bool DisburseToSavings
+);
+
+public record FineractBookingResult(
+    long LoanId,
+    string LoanAccountNumber,
+    bool Booked,
+    bool Approved,
+    bool Disbursed,
+    string Status
+);
 
 // Schedule Calculation
 public record ScheduleCalculationRequest(
