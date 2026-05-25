@@ -1,10 +1,12 @@
 using System.Text.Json;
 using CRMS.Application.Common;
 using CRMS.Application.Namp.DTOs;
+using CRMS.Application.Namp.Interfaces;
 using CRMS.Application.Namp.Queries;
 using CRMS.Domain.Aggregates.Namp;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace CRMS.Application.Namp.Commands;
 
@@ -28,19 +30,28 @@ public class RecallNampApplicationHandler
     private readonly INampRoutingConfigRepository _routingRepo;
     private readonly ILoanProductRepository _productRepo;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly INampPortalS3Downloader _nampPortalS3;
+    private readonly IFileStorageService _fileStorage;
+    private readonly ILogger<RecallNampApplicationHandler> _logger;
 
     public RecallNampApplicationHandler(
         INampStagingRepository stagingRepo,
         INampApplicationRepository appRepo,
         INampRoutingConfigRepository routingRepo,
         ILoanProductRepository productRepo,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        INampPortalS3Downloader nampPortalS3,
+        IFileStorageService fileStorage,
+        ILogger<RecallNampApplicationHandler> logger)
     {
-        _stagingRepo = stagingRepo;
-        _appRepo = appRepo;
-        _routingRepo = routingRepo;
-        _productRepo = productRepo;
-        _unitOfWork = unitOfWork;
+        _stagingRepo   = stagingRepo;
+        _appRepo       = appRepo;
+        _routingRepo   = routingRepo;
+        _productRepo   = productRepo;
+        _unitOfWork    = unitOfWork;
+        _nampPortalS3  = nampPortalS3;
+        _fileStorage   = fileStorage;
+        _logger        = logger;
     }
 
     public async Task<ApplicationResult<NampApplicationDto>> Handle(
@@ -183,7 +194,9 @@ public class RecallNampApplicationHandler
                     insuranceExpiryDate: c.InsuranceExpiryDate));
             }
 
-            // Origination documents (S3 references from NAMP portal)
+            // Origination documents — download from NAMP portal S3 and copy into CRMS storage.
+            // Each document is transferred individually; a failure on one doc is logged and skipped
+            // rather than aborting the entire recall.
             foreach (var doc in payload.Documents ?? [])
             {
                 if (string.IsNullOrWhiteSpace(doc.S3Key) || string.IsNullOrWhiteSpace(doc.FileName))
@@ -200,12 +213,39 @@ public class RecallNampApplicationHandler
                     _                              => NampDocumentCategory.General,
                 };
 
+                string storagePath;
+                try
+                {
+                    var fileBytes = await _nampPortalS3.DownloadAsync(doc.S3Key, ct);
+                    if (fileBytes is null)
+                    {
+                        _logger.LogWarning(
+                            "NAMP recall: could not download document '{FileName}' (S3Key: {S3Key}) — skipped.",
+                            doc.FileName, doc.S3Key);
+                        continue;
+                    }
+
+                    storagePath = await _fileStorage.UploadAsync(
+                        containerName: $"namp/{app.Id}/documents",
+                        fileName: doc.FileName,
+                        content: fileBytes,
+                        contentType: doc.ContentType ?? "application/octet-stream",
+                        ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "NAMP recall: failed to transfer document '{FileName}' — skipped.",
+                        doc.FileName);
+                    continue;
+                }
+
                 app.UploadDocument(
                     stage: NampDocumentStage.Origination,
                     fileName: doc.FileName,
                     contentType: doc.ContentType ?? "application/octet-stream",
                     fileSize: doc.FileSizeBytes ?? 0,
-                    storagePath: doc.S3Key,
+                    storagePath: storagePath,
                     uploadedByUserId: Guid.Empty,
                     category: docCategory,
                     description: doc.DocumentTypeLabel);

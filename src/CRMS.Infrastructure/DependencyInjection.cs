@@ -295,6 +295,20 @@ public static class DependencyInjection
             services.AddScoped<IFileStorageService, Storage.LocalFileStorageService>();
         }
 
+        // NAMP portal S3 downloader — copies origination documents from the NAMP portal's
+        // separate S3 bucket into CRMS storage at recall time.
+        var nampPortalS3Section = configuration.GetSection("NampPortalS3");
+        if (nampPortalS3Section.Exists() && !nampPortalS3Section.GetValue<bool>("UseMock"))
+        {
+            services.AddScoped<Application.Namp.Interfaces.INampPortalS3Downloader,
+                Storage.NampPortalS3Downloader>();
+        }
+        else
+        {
+            services.AddScoped<Application.Namp.Interfaces.INampPortalS3Downloader,
+                Storage.MockNampPortalS3Downloader>();
+        }
+
         // Notification
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<INotificationTemplateRepository, NotificationTemplateRepository>();

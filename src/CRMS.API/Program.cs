@@ -128,7 +128,10 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+var enableApiDocs = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("EnableApiDocs");
+
+if (enableApiDocs)
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
