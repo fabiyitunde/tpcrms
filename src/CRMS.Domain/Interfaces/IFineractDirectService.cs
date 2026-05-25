@@ -45,9 +45,36 @@ public interface IFineractDirectService
     /// Used at NAMP webhook ingest to resolve which branch the applicant belongs to.
     /// </summary>
     Task<Result<FineractClientInfo>> GetClientByIdAsync(long clientId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Automates the booking, approval, and disbursement of an approved loan in Fineract.
+    /// </summary>
+    Task<Result<FineractBookingResult>> BookApprovedLoanAsync(
+        FineractLoanBookingRequest request, CancellationToken ct = default);
 }
 
 public record FineractClientInfo(long Id, int OfficeId, string OfficeName, string DisplayName);
+
+// Loan Booking and Disbursement
+public record FineractLoanBookingRequest(
+    long ClientId,
+    int ProductId,
+    decimal Principal,
+    int TenorMonths,
+    decimal InterestRatePerAnnum,
+    DateTime ValueDate,
+    string RepaymentAccountNumber,
+    bool DisburseToSavings
+);
+
+public record FineractBookingResult(
+    long LoanId,
+    string LoanAccountNumber,
+    bool Booked,
+    bool Approved,
+    bool Disbursed,
+    string Status
+);
 
 // Schedule Calculation
 public record ScheduleCalculationRequest(

@@ -473,3 +473,17 @@ public class FineractLoanProductDto
     [JsonPropertyName("closeDate")]
     public List<int>? CloseDate { get; set; }
 }
+
+// POST /loans response
+public class FineractCreateLoanResponse
+{
+    [JsonPropertyName("clientId")]
+    public long ClientId { get; set; }
+
+    [JsonPropertyName("loanId")]
+    public long LoanId { get; set; }
+
+    [JsonPropertyName("resourceId")]
+    public long ResourceId { get; set; }
+}
+

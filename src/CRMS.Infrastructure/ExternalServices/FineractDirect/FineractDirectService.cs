@@ -444,6 +444,207 @@ public class FineractDirectService : IFineractDirectService
         }
     }
 
+    public async Task<Result<FineractBookingResult>> BookApprovedLoanAsync(
+        FineractLoanBookingRequest request, CancellationToken ct = default)
+    {
+        try
+        {
+            _logger.LogInformation("Fineract: Initiating automated booking for client {ClientId}, product {ProductId}, principal {Principal}",
+                request.ClientId, request.ProductId, request.Principal);
+
+            // Step 1: Fetch Fineract Loan Product config to map settings
+            var productsResult = await GetLoanProductsAsync(activeOnly: false, ct);
+            if (productsResult.IsFailure)
+            {
+                return Result.Failure<FineractBookingResult>($"Failed to retrieve Fineract loan products: {productsResult.Error}");
+            }
+
+            var fineractProduct = productsResult.Value.FirstOrDefault(p => p.Id == request.ProductId);
+            if (fineractProduct == null)
+            {
+                return Result.Failure<FineractBookingResult>($"Fineract loan product with ID {request.ProductId} was not found.");
+            }
+
+            // Step 2: Resolve linked savings account ID if repayment account is provided
+            long? linkAccountId = null;
+            if (!string.IsNullOrWhiteSpace(request.RepaymentAccountNumber))
+            {
+                var accountsResult = await GetClientAccountsAsync(request.ClientId, ct);
+                if (accountsResult.IsSuccess)
+                {
+                    var savingsAccount = accountsResult.Value.SavingsAccounts
+                        .FirstOrDefault(sa => sa.AccountNo.Trim().Equals(request.RepaymentAccountNumber.Trim(), StringComparison.OrdinalIgnoreCase));
+
+                    if (savingsAccount != null)
+                    {
+                        linkAccountId = savingsAccount.Id;
+                        _logger.LogInformation("Fineract: Resolved repayment savings account ID {SavingsId} for NUBAN {Nuban}",
+                            linkAccountId, request.RepaymentAccountNumber);
+                    }
+                }
+
+                if (linkAccountId == null && request.DisburseToSavings)
+                {
+                    return Result.Failure<FineractBookingResult>(
+                        $"Cannot disburse to savings: savings account matching NUBAN '{request.RepaymentAccountNumber}' was not found for client {request.ClientId}.");
+                }
+            }
+
+            // Step 3: Map product settings to Fineract loan application payload
+            var isMonthlyInterest = fineractProduct.InterestRateFrequencyType.Contains("month", StringComparison.OrdinalIgnoreCase);
+            var interestRateFrequencyType = isMonthlyInterest ? 2 : 3; // 2 = Per Month, 3 = Per Year
+            var interestRatePerPeriod = isMonthlyInterest ? request.InterestRatePerAnnum / 12m : request.InterestRatePerAnnum;
+
+            var isEmi = fineractProduct.AmortizationType.Contains("installment", StringComparison.OrdinalIgnoreCase);
+            var amortizationType = isEmi ? 1 : 0; // 1 = Equal Installments, 0 = Equal Principal
+
+            var isFlat = fineractProduct.InterestType.Contains("flat", StringComparison.OrdinalIgnoreCase);
+            var interestType = isFlat ? 1 : 0; // 1 = Flat, 0 = Declining Balance
+
+            var repaymentFrequencyType = 2; // Default to Months
+            if (fineractProduct.RepaymentFrequencyType.Contains("week", StringComparison.OrdinalIgnoreCase))
+                repaymentFrequencyType = 1;
+            else if (fineractProduct.RepaymentFrequencyType.Contains("day", StringComparison.OrdinalIgnoreCase))
+                repaymentFrequencyType = 0;
+
+            var formattedDate = request.ValueDate.ToString("dd MMMM yyyy");
+
+            var loanBody = new Dictionary<string, object>
+            {
+                ["dateFormat"] = "dd MMMM yyyy",
+                ["locale"] = "en",
+                ["clientId"] = request.ClientId,
+                ["productId"] = request.ProductId,
+                ["principal"] = request.Principal,
+                ["loanTermFrequency"] = request.TenorMonths * fineractProduct.RepaymentEvery,
+                ["loanTermFrequencyType"] = repaymentFrequencyType,
+                ["numberOfRepayments"] = request.TenorMonths,
+                ["repaymentEvery"] = fineractProduct.RepaymentEvery,
+                ["repaymentFrequencyType"] = repaymentFrequencyType,
+                ["interestRatePerPeriod"] = interestRatePerPeriod,
+                ["interestRateFrequencyType"] = interestRateFrequencyType,
+                ["amortizationType"] = amortizationType,
+                ["interestType"] = interestType,
+                ["interestCalculationPeriodType"] = 1, // Same as repayment period
+                ["expectedDisbursementDate"] = formattedDate,
+                ["submittedOnDate"] = formattedDate,
+                ["loanType"] = "individual",
+                ["transactionProcessingStrategyId"] = fineractProduct.TransactionProcessingStrategyId
+            };
+
+            if (linkAccountId.HasValue)
+            {
+                loanBody["linkAccountId"] = linkAccountId.Value;
+            }
+
+            // Step 4: Book the loan
+            _logger.LogInformation("Fineract: Booking loan (POST /loans)");
+            var bookResponse = await _httpClient.PostAsJsonAsync("/loans", loanBody, ct);
+            if (!bookResponse.IsSuccessStatusCode)
+            {
+                var errorBody = await bookResponse.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Fineract: Booking loan failed ({Status}): {Body}", bookResponse.StatusCode, errorBody);
+                return Result.Failure<FineractBookingResult>($"Fineract booking failed: {errorBody}");
+            }
+
+            var createResponse = await bookResponse.Content.ReadFromJsonAsync<FineractCreateLoanResponse>(_jsonOptions, ct);
+            if (createResponse == null || createResponse.LoanId <= 0)
+            {
+                return Result.Failure<FineractBookingResult>("Empty or invalid booking response from Fineract.");
+            }
+
+            var loanId = createResponse.LoanId;
+            _logger.LogInformation("Fineract: Loan successfully booked with ID {LoanId}", loanId);
+
+            // Step 5: Approve the loan
+            _logger.LogInformation("Fineract: Approving loan {LoanId} (POST /loans/{LoanId}?command=approve)", loanId, loanId);
+            var approveBody = new Dictionary<string, object>
+            {
+                ["dateFormat"] = "dd MMMM yyyy",
+                ["locale"] = "en",
+                ["approvedOnDate"] = formattedDate,
+                ["approvedLoanAmount"] = request.Principal,
+                ["expectedDisbursementDate"] = formattedDate,
+                ["note"] = "Approved automatically by CRMS booking workflow"
+            };
+
+            var approveResponse = await _httpClient.PostAsJsonAsync($"/loans/{loanId}?command=approve", approveBody, ct);
+            if (!approveResponse.IsSuccessStatusCode)
+            {
+                var errorBody = await approveResponse.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Fineract: Approving loan {LoanId} failed ({Status}): {Body}", loanId, approveResponse.StatusCode, errorBody);
+                return Result.Success(new FineractBookingResult(
+                    LoanId: loanId,
+                    LoanAccountNumber: "",
+                    Booked: true,
+                    Approved: false,
+                    Disbursed: false,
+                    Status: "Submitted and pending approval"
+                ));
+            }
+
+            _logger.LogInformation("Fineract: Loan {LoanId} successfully approved", loanId);
+
+            // Step 6: Disburse the loan
+            var command = request.DisburseToSavings ? "disburseToSavings" : "disburse";
+            _logger.LogInformation("Fineract: Disbursing loan {LoanId} using command {Command}", loanId, command);
+
+            var disburseBody = new Dictionary<string, object>
+            {
+                ["dateFormat"] = "dd MMMM yyyy",
+                ["locale"] = "en",
+                ["actualDisbursementDate"] = formattedDate,
+                ["transactionAmount"] = request.Principal,
+                ["note"] = $"Disbursed automatically by CRMS booking workflow ({command})"
+            };
+
+            var disburseResponse = await _httpClient.PostAsJsonAsync($"/loans/{loanId}?command={command}", disburseBody, ct);
+            if (!disburseResponse.IsSuccessStatusCode)
+            {
+                var errorBody = await disburseResponse.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Fineract: Disbursing loan {LoanId} failed ({Status}): {Body}", loanId, disburseResponse.StatusCode, errorBody);
+                return Result.Success(new FineractBookingResult(
+                    LoanId: loanId,
+                    LoanAccountNumber: "",
+                    Booked: true,
+                    Approved: true,
+                    Disbursed: false,
+                    Status: "Approved"
+                ));
+            }
+
+            _logger.LogInformation("Fineract: Loan {LoanId} successfully disbursed", loanId);
+
+            // Step 7: Retrieve the final loan details to get the generated loan account number
+            var loanNo = "";
+            var statusStr = "Active";
+            var detailResult = await GetLoanDetailAsync(loanId, ct);
+            if (detailResult.IsSuccess)
+            {
+                loanNo = detailResult.Value.AccountNo;
+                statusStr = detailResult.Value.Status;
+            }
+
+            return Result.Success(new FineractBookingResult(
+                LoanId: loanId,
+                LoanAccountNumber: loanNo,
+                Booked: true,
+                Approved: true,
+                Disbursed: true,
+                Status: statusStr
+            ));
+        }
+        catch (TaskCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fineract automated booking error");
+            return Result.Failure<FineractBookingResult>($"Fineract automated booking error: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// Fineract returns dates as [year, month, day] integer arrays.
     /// </summary>
@@ -461,3 +662,4 @@ public class FineractDirectService : IFineractDirectService
         }
     }
 }
+
