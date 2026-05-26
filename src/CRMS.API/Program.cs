@@ -109,7 +109,7 @@ using (var scope = app.Services.CreateScope())
         // Seed initial data (roles, products, templates, test users)
         logger.LogInformation("Seeding initial data...");
         var passwordHasher = scope.ServiceProvider.GetRequiredService<CRMS.Application.Identity.Interfaces.IPasswordHasher>();
-        await SeedData.SeedAsync(dbContext, logger, passwordHasher);
+        await SeedData.SeedAsync(dbContext, logger, passwordHasher, app.Environment.IsDevelopment());
         logger.LogInformation("Initial data seeded successfully.");
 
         // Seed comprehensive test data in Development
@@ -137,7 +137,11 @@ if (enableApiDocs)
     app.MapScalarApiReference();
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseRateLimiter();
 

@@ -1,0 +1,3317 @@
+[
+    {
+        "id": 1,
+        "name": "Head Office",
+        "nameDecorated": "Head Office",
+        "externalId": "1",
+        "openingDate": [
+            2009,
+            1,
+            1
+        ],
+        "hierarchy": "."
+    },
+    {
+        "id": 2,
+        "name": "Bank Of Agriculture HQ",
+        "nameDecorated": "....Bank Of Agriculture HQ",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.",
+        "parentId": 1,
+        "parentName": "Head Office"
+    },
+    {
+        "id": 127,
+        "name": "Kano Zonal Office",
+        "nameDecorated": "........Kano Zonal Office",
+        "externalId": "5001",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.",
+        "parentId": 2,
+        "parentName": "Bank Of Agriculture HQ"
+    },
+    {
+        "id": 128,
+        "name": "Birnin Kudu",
+        "nameDecorated": "............Birnin Kudu",
+        "externalId": "5011",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.128.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 129,
+        "name": "Dutse",
+        "nameDecorated": "............Dutse",
+        "externalId": "5012",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.129.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 130,
+        "name": "Gumel",
+        "nameDecorated": "............Gumel",
+        "externalId": "5013",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.130.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 131,
+        "name": "Hadejia",
+        "nameDecorated": "............Hadejia",
+        "externalId": "5014",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.131.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 132,
+        "name": "Kazaure",
+        "nameDecorated": "............Kazaure",
+        "externalId": "5015",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.132.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 133,
+        "name": "Birnin Gwari",
+        "nameDecorated": "............Birnin Gwari",
+        "externalId": "5041",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.133.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 134,
+        "name": "Ikara",
+        "nameDecorated": "............Ikara",
+        "externalId": "5042",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.134.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 135,
+        "name": "Kachia",
+        "nameDecorated": "............Kachia",
+        "externalId": "5043",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.135.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 136,
+        "name": "Head Office Branch",
+        "nameDecorated": "............Head Office Branch",
+        "externalId": "5044",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.136.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 137,
+        "name": "Kaduna (NDA)",
+        "nameDecorated": "............Kaduna (NDA)",
+        "externalId": "5045",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.137.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 138,
+        "name": "Kafanchan",
+        "nameDecorated": "............Kafanchan",
+        "externalId": "5046",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.138.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 139,
+        "name": "Zaria",
+        "nameDecorated": "............Zaria",
+        "externalId": "5047",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.139.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 140,
+        "name": "Lere BOARBI Centre",
+        "nameDecorated": "............Lere BOARBI Centre",
+        "externalId": "5048",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.140.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 141,
+        "name": "Dambata",
+        "nameDecorated": "............Dambata",
+        "externalId": "5071",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.141.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 142,
+        "name": "Gezawa",
+        "nameDecorated": "............Gezawa",
+        "externalId": "5072",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.142.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 143,
+        "name": "Kano Airport Road Branch",
+        "nameDecorated": "............Kano Airport Road Branch",
+        "externalId": "5073",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.143.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 144,
+        "name": "Kano City Br.",
+        "nameDecorated": "............Kano City Br.",
+        "externalId": "5074",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.144.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 145,
+        "name": "Minjibir",
+        "nameDecorated": "............Minjibir",
+        "externalId": "5075",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.145.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 146,
+        "name": "Tudun Wada",
+        "nameDecorated": "............Tudun Wada",
+        "externalId": "5076",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.146.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 147,
+        "name": "Wudil",
+        "nameDecorated": "............Wudil",
+        "externalId": "5077",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.147.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 148,
+        "name": "Daura",
+        "nameDecorated": "............Daura",
+        "externalId": "5101",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.148.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 149,
+        "name": "DutsinMa",
+        "nameDecorated": "............DutsinMa",
+        "externalId": "5102",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.149.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 150,
+        "name": "Funtua",
+        "nameDecorated": "............Funtua",
+        "externalId": "5103",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.150.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 151,
+        "name": "Jibia",
+        "nameDecorated": "............Jibia",
+        "externalId": "5104",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.151.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 152,
+        "name": "Katsina",
+        "nameDecorated": "............Katsina",
+        "externalId": "5106",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.152.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 153,
+        "name": "Malunfashi",
+        "nameDecorated": "............Malunfashi",
+        "externalId": "5107",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.153.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 154,
+        "name": "Daura BOARBI Centre",
+        "nameDecorated": "............Daura BOARBI Centre",
+        "externalId": "5108",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.154.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 155,
+        "name": "Argungun",
+        "nameDecorated": "............Argungun",
+        "externalId": "5131",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.155.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 156,
+        "name": "Birnin Kebbi",
+        "nameDecorated": "............Birnin Kebbi",
+        "externalId": "5132",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.156.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 157,
+        "name": "Jega",
+        "nameDecorated": "............Jega",
+        "externalId": "5133",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.157.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 158,
+        "name": "YauriYelwa",
+        "nameDecorated": "............YauriYelwa",
+        "externalId": "5134",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.158.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 159,
+        "name": "Zuru",
+        "nameDecorated": "............Zuru",
+        "externalId": "5135",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.159.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 160,
+        "name": "Koko Besse BOARBI Centre",
+        "nameDecorated": "............Koko Besse BOARBI Centre",
+        "externalId": "5136",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.160.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 161,
+        "name": "Illela",
+        "nameDecorated": "............Illela",
+        "externalId": "5161",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.161.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 162,
+        "name": "Sokoto",
+        "nameDecorated": "............Sokoto",
+        "externalId": "5162",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.162.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 163,
+        "name": "Tangaza",
+        "nameDecorated": "............Tangaza",
+        "externalId": "5163",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.163.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 164,
+        "name": "Tambuwal",
+        "nameDecorated": "............Tambuwal",
+        "externalId": "5164",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.164.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 165,
+        "name": "Isa",
+        "nameDecorated": "............Isa",
+        "externalId": "5165",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.165.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 166,
+        "name": "Goronyo BOARBI Centre",
+        "nameDecorated": "............Goronyo BOARBI Centre",
+        "externalId": "5166",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.166.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 167,
+        "name": "Gumi",
+        "nameDecorated": "............Gumi",
+        "externalId": "5191",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.167.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 168,
+        "name": "Gusau (NACB)",
+        "nameDecorated": "............Gusau (NACB)",
+        "externalId": "5192",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.168.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 169,
+        "name": "Talata Mafara",
+        "nameDecorated": "............Talata Mafara",
+        "externalId": "5193",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.169.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 170,
+        "name": "Kaura Namoda",
+        "nameDecorated": "............Kaura Namoda",
+        "externalId": "5194",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.170.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 171,
+        "name": "Kaura Namoda BOARBI Centre",
+        "nameDecorated": "............Kaura Namoda BOARBI Centre",
+        "externalId": "5195",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.171.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 172,
+        "name": "TOFA Boarbi Centre",
+        "nameDecorated": "............TOFA Boarbi Centre",
+        "externalId": "5196",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.172.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 238,
+        "name": "Bichi Branch",
+        "nameDecorated": "............Bichi Branch",
+        "externalId": "5078",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.127.238.",
+        "parentId": 127,
+        "parentName": "Kano Zonal Office"
+    },
+    {
+        "id": 173,
+        "name": "PortHarcourt Zonal Office",
+        "nameDecorated": "........PortHarcourt Zonal Office",
+        "externalId": "6001",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.",
+        "parentId": 2,
+        "parentName": "Bank Of Agriculture HQ"
+    },
+    {
+        "id": 174,
+        "name": "Abak",
+        "nameDecorated": "............Abak",
+        "externalId": "6011",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.174.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 175,
+        "name": "Oron",
+        "nameDecorated": "............Oron",
+        "externalId": "6012",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.175.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 176,
+        "name": "Ukanafun",
+        "nameDecorated": "............Ukanafun",
+        "externalId": "6013",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.176.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 177,
+        "name": "Uyo",
+        "nameDecorated": "............Uyo",
+        "externalId": "6014",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.177.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 178,
+        "name": "Eket",
+        "nameDecorated": "............Eket",
+        "externalId": "6016",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.178.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 179,
+        "name": "BAYELSA",
+        "nameDecorated": "............BAYELSA",
+        "externalId": "6040",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.179.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 180,
+        "name": "Yenegoa",
+        "nameDecorated": "............Yenegoa",
+        "externalId": "6041",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.180.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 181,
+        "name": "Sagbama",
+        "nameDecorated": "............Sagbama",
+        "externalId": "6042",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.181.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 182,
+        "name": "Akamkpa",
+        "nameDecorated": "............Akamkpa",
+        "externalId": "6071",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.182.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 183,
+        "name": "Apiapum",
+        "nameDecorated": "............Apiapum",
+        "externalId": "6072",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.183.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 184,
+        "name": "Calabar",
+        "nameDecorated": "............Calabar",
+        "externalId": "6073",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.184.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 185,
+        "name": "Ogoja",
+        "nameDecorated": "............Ogoja",
+        "externalId": "6074",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.185.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 186,
+        "name": "Agbor",
+        "nameDecorated": "............Agbor",
+        "externalId": "6101",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.186.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 187,
+        "name": "Asaba",
+        "nameDecorated": "............Asaba",
+        "externalId": "6102",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.187.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 188,
+        "name": "Ugheli",
+        "nameDecorated": "............Ugheli",
+        "externalId": "6104",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.188.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 189,
+        "name": "Eku",
+        "nameDecorated": "............Eku",
+        "externalId": "6105",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.189.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 190,
+        "name": "IGBODO BRANCH",
+        "nameDecorated": "............IGBODO BRANCH",
+        "externalId": "6106",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.190.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 191,
+        "name": "Benin",
+        "nameDecorated": "............Benin",
+        "externalId": "6131",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.191.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 192,
+        "name": "Fugar",
+        "nameDecorated": "............Fugar",
+        "externalId": "6132",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.192.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 193,
+        "name": "Ibillo",
+        "nameDecorated": "............Ibillo",
+        "externalId": "6133",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.193.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 194,
+        "name": "Irrua",
+        "nameDecorated": "............Irrua",
+        "externalId": "6134",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.194.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 195,
+        "name": "SaboOra",
+        "nameDecorated": "............SaboOra",
+        "externalId": "6135",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.195.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 196,
+        "name": "Ahoada",
+        "nameDecorated": "............Ahoada",
+        "externalId": "6161",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.196.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 197,
+        "name": "Buguma",
+        "nameDecorated": "............Buguma",
+        "externalId": "6162",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.197.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 198,
+        "name": "Port Harcourt (Aba Rd.)",
+        "nameDecorated": "............Port Harcourt (Aba Rd.)",
+        "externalId": "6163",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.198.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 199,
+        "name": "Port Harcourt (Olu Obasanjo Rd.)",
+        "nameDecorated": "............Port Harcourt (Olu Obasanjo Rd.)",
+        "externalId": "6164",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.199.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 200,
+        "name": "Port Harcourt Owerri Road Branch",
+        "nameDecorated": "............Port Harcourt Owerri Road Branch",
+        "externalId": "6165",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.200.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 237,
+        "name": "Ikot-Ekpene",
+        "nameDecorated": "............Ikot-Ekpene",
+        "externalId": "6015",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.173.237.",
+        "parentId": 173,
+        "parentName": "PortHarcourt Zonal Office"
+    },
+    {
+        "id": 201,
+        "name": "Bauchi Zonal Office",
+        "nameDecorated": "........Bauchi Zonal Office",
+        "externalId": "7001",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.",
+        "parentId": 2,
+        "parentName": "Bank Of Agriculture HQ"
+    },
+    {
+        "id": 202,
+        "name": "Fufore",
+        "nameDecorated": "............Fufore",
+        "externalId": "7011",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.202.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 203,
+        "name": "Jada/Ganye",
+        "nameDecorated": "............Jada/Ganye",
+        "externalId": "7012",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.203.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 204,
+        "name": "Guyuk",
+        "nameDecorated": "............Guyuk",
+        "externalId": "7013",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.204.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 205,
+        "name": "Mayo Belwa",
+        "nameDecorated": "............Mayo Belwa",
+        "externalId": "7014",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.205.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 206,
+        "name": "Michika",
+        "nameDecorated": "............Michika",
+        "externalId": "7015",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.206.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 207,
+        "name": "Mubi",
+        "nameDecorated": "............Mubi",
+        "externalId": "7016",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.207.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 208,
+        "name": "Yola",
+        "nameDecorated": "............Yola",
+        "externalId": "7017",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.208.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 209,
+        "name": "Numan Boarbi",
+        "nameDecorated": "............Numan Boarbi",
+        "externalId": "7018",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.209.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 210,
+        "name": "Azare",
+        "nameDecorated": "............Azare",
+        "externalId": "7041",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.210.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 211,
+        "name": "Bauchi",
+        "nameDecorated": "............Bauchi",
+        "externalId": "7042",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.211.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 212,
+        "name": "Dass",
+        "nameDecorated": "............Dass",
+        "externalId": "7043",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.212.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 213,
+        "name": "Jama\u0027are",
+        "nameDecorated": "............Jama\u0027are",
+        "externalId": "7044",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.213.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 214,
+        "name": "Shira",
+        "nameDecorated": "............Shira",
+        "externalId": "7045",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.214.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 215,
+        "name": "Bauchi Boarbi",
+        "nameDecorated": "............Bauchi Boarbi",
+        "externalId": "7046",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.215.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 216,
+        "name": "Bama",
+        "nameDecorated": "............Bama",
+        "externalId": "7071",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.216.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 217,
+        "name": "Biu",
+        "nameDecorated": "............Biu",
+        "externalId": "7072",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.217.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 218,
+        "name": "Damboa",
+        "nameDecorated": "............Damboa",
+        "externalId": "7073",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.218.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 219,
+        "name": "Gwoza",
+        "nameDecorated": "............Gwoza",
+        "externalId": "7074",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.219.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 220,
+        "name": "Maiduguri",
+        "nameDecorated": "............Maiduguri",
+        "externalId": "7075",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.220.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 221,
+        "name": "Biliri",
+        "nameDecorated": "............Biliri",
+        "externalId": "7101",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.221.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 222,
+        "name": "Gombe",
+        "nameDecorated": "............Gombe",
+        "externalId": "7102",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.222.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 223,
+        "name": "Bajoga",
+        "nameDecorated": "............Bajoga",
+        "externalId": "7103",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.223.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 224,
+        "name": "Dadin Kowa",
+        "nameDecorated": "............Dadin Kowa",
+        "externalId": "7104",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.224.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 225,
+        "name": "Kumo",
+        "nameDecorated": "............Kumo",
+        "externalId": "7105",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.225.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 226,
+        "name": "Gembu",
+        "nameDecorated": "............Gembu",
+        "externalId": "7131",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.226.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 227,
+        "name": "Jalingo",
+        "nameDecorated": "............Jalingo",
+        "externalId": "7132",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.227.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 228,
+        "name": "Wukari",
+        "nameDecorated": "............Wukari",
+        "externalId": "7133",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.228.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 229,
+        "name": "Bali",
+        "nameDecorated": "............Bali",
+        "externalId": "7134",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.229.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 230,
+        "name": "Bali Boarbi Centre",
+        "nameDecorated": "............Bali Boarbi Centre",
+        "externalId": "7135",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.230.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 231,
+        "name": "Buni Yadi",
+        "nameDecorated": "............Buni Yadi",
+        "externalId": "7161",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.231.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 232,
+        "name": "Damaturu",
+        "nameDecorated": "............Damaturu",
+        "externalId": "7162",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.232.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 233,
+        "name": "Fika",
+        "nameDecorated": "............Fika",
+        "externalId": "7163",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.233.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 234,
+        "name": "Gashua",
+        "nameDecorated": "............Gashua",
+        "externalId": "7164",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.234.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 235,
+        "name": "Nguru",
+        "nameDecorated": "............Nguru",
+        "externalId": "7165",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.235.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 236,
+        "name": "Potiskum",
+        "nameDecorated": "............Potiskum",
+        "externalId": "7166",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.201.236.",
+        "parentId": 201,
+        "parentName": "Bauchi Zonal Office"
+    },
+    {
+        "id": 3,
+        "name": "Abuja Zonal Office",
+        "nameDecorated": "........Abuja Zonal Office",
+        "externalId": "2001",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.",
+        "parentId": 2,
+        "parentName": "Bank Of Agriculture HQ"
+    },
+    {
+        "id": 10,
+        "name": "Oju",
+        "nameDecorated": "............Oju",
+        "externalId": "2017",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.10.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 11,
+        "name": "Abaji",
+        "nameDecorated": "............Abaji",
+        "externalId": "2041",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.11.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 12,
+        "name": "Garki",
+        "nameDecorated": "............Garki",
+        "externalId": "2042",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.12.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 13,
+        "name": "Wuse",
+        "nameDecorated": "............Wuse",
+        "externalId": "2043",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.13.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 14,
+        "name": "KOGI",
+        "nameDecorated": "............KOGI",
+        "externalId": "2070",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.14.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 15,
+        "name": "Aiyetoro- Gbede",
+        "nameDecorated": "............Aiyetoro- Gbede",
+        "externalId": "2071",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.15.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 16,
+        "name": "Ankpa",
+        "nameDecorated": "............Ankpa",
+        "externalId": "2072",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.16.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 17,
+        "name": "Ayangba",
+        "nameDecorated": "............Ayangba",
+        "externalId": "2073",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.17.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 18,
+        "name": "Kabba",
+        "nameDecorated": "............Kabba",
+        "externalId": "2074",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.18.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 19,
+        "name": "Lokoja",
+        "nameDecorated": "............Lokoja",
+        "externalId": "2075",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.19.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 20,
+        "name": "Okene",
+        "nameDecorated": "............Okene",
+        "externalId": "2076",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.20.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 21,
+        "name": "Okene BOARBI Centre",
+        "nameDecorated": "............Okene BOARBI Centre",
+        "externalId": "2077",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.21.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 22,
+        "name": "Ilorin",
+        "nameDecorated": "............Ilorin",
+        "externalId": "2101",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.22.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 23,
+        "name": "Lafiagi",
+        "nameDecorated": "............Lafiagi",
+        "externalId": "2102",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.23.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 24,
+        "name": "Offa",
+        "nameDecorated": "............Offa",
+        "externalId": "2103",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.24.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 25,
+        "name": "Okuta",
+        "nameDecorated": "............Okuta",
+        "externalId": "2104",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.25.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 26,
+        "name": "OmuAran",
+        "nameDecorated": "............OmuAran",
+        "externalId": "2105",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.26.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 27,
+        "name": "IwoIsin",
+        "nameDecorated": "............IwoIsin",
+        "externalId": "2107",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.27.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 28,
+        "name": "Share",
+        "nameDecorated": "............Share",
+        "externalId": "2112",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.28.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 29,
+        "name": "Pategi Branch Office",
+        "nameDecorated": "............Pategi Branch Office",
+        "externalId": "2113",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.29.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 30,
+        "name": "Erinle BOARBI Centre",
+        "nameDecorated": "............Erinle BOARBI Centre",
+        "externalId": "2114",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.30.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 31,
+        "name": "Akwanga",
+        "nameDecorated": "............Akwanga",
+        "externalId": "2131",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.31.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 32,
+        "name": "Doma",
+        "nameDecorated": "............Doma",
+        "externalId": "2132",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.32.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 34,
+        "name": "Keffi",
+        "nameDecorated": "............Keffi",
+        "externalId": "2133",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.34.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 35,
+        "name": "Lafia",
+        "nameDecorated": "............Lafia",
+        "externalId": "2134",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.35.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 36,
+        "name": "Nasarawa",
+        "nameDecorated": "............Nasarawa",
+        "externalId": "2135",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.36.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 37,
+        "name": "Bida",
+        "nameDecorated": "............Bida",
+        "externalId": "2161",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.37.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 38,
+        "name": "Kontagora",
+        "nameDecorated": "............Kontagora",
+        "externalId": "2162",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.38.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 39,
+        "name": "Lapai",
+        "nameDecorated": "............Lapai",
+        "externalId": "2163",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.39.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 4,
+        "name": "Gboko",
+        "nameDecorated": "............Gboko",
+        "externalId": "2011",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.4.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 40,
+        "name": "Minna",
+        "nameDecorated": "............Minna",
+        "externalId": "2164",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.40.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 41,
+        "name": "New Bussa",
+        "nameDecorated": "............New Bussa",
+        "externalId": "2165",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.41.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 42,
+        "name": "Paiko",
+        "nameDecorated": "............Paiko",
+        "externalId": "2166",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.42.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 43,
+        "name": "Suleja",
+        "nameDecorated": "............Suleja",
+        "externalId": "2167",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.43.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 44,
+        "name": "Wushishi",
+        "nameDecorated": "............Wushishi",
+        "externalId": "2168",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.44.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 45,
+        "name": "Paiko BOARBI Centre",
+        "nameDecorated": "............Paiko BOARBI Centre",
+        "externalId": "2169",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.45.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 46,
+        "name": "Namu",
+        "nameDecorated": "............Namu",
+        "externalId": "2191",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.46.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 47,
+        "name": "BarkinLadi",
+        "nameDecorated": "............BarkinLadi",
+        "externalId": "2192",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.47.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 48,
+        "name": "Jos",
+        "nameDecorated": "............Jos",
+        "externalId": "2193",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.48.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 49,
+        "name": "Langtang",
+        "nameDecorated": "............Langtang",
+        "externalId": "2194",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.49.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 5,
+        "name": "Makurdi",
+        "nameDecorated": "............Makurdi",
+        "externalId": "2012",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.5.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 50,
+        "name": "Mangu",
+        "nameDecorated": "............Mangu",
+        "externalId": "2195",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.50.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 51,
+        "name": "Pankshin",
+        "nameDecorated": "............Pankshin",
+        "externalId": "2196",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.51.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 52,
+        "name": "Shendam",
+        "nameDecorated": "............Shendam",
+        "externalId": "2197",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.52.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 53,
+        "name": "Wase",
+        "nameDecorated": "............Wase",
+        "externalId": "2198",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.53.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 54,
+        "name": "Bassa B/O",
+        "nameDecorated": "............Bassa B/O",
+        "externalId": "2199",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.54.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 6,
+        "name": "Otukpo",
+        "nameDecorated": "............Otukpo",
+        "externalId": "2013",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.6.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 7,
+        "name": "Ugbokolo",
+        "nameDecorated": "............Ugbokolo",
+        "externalId": "2014",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.7.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 8,
+        "name": "Vandekya",
+        "nameDecorated": "............Vandekya",
+        "externalId": "2015",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.8.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 9,
+        "name": "Zaki Biam",
+        "nameDecorated": "............Zaki Biam",
+        "externalId": "2016",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.3.9.",
+        "parentId": 3,
+        "parentName": "Abuja Zonal Office"
+    },
+    {
+        "id": 55,
+        "name": "Enugu Zonal Office",
+        "nameDecorated": "........Enugu Zonal Office",
+        "externalId": "3001",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.",
+        "parentId": 2,
+        "parentName": "Bank Of Agriculture HQ"
+    },
+    {
+        "id": 56,
+        "name": "AkoliImenyi",
+        "nameDecorated": "............AkoliImenyi",
+        "externalId": "3011",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.56.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 57,
+        "name": "Isuochi",
+        "nameDecorated": "............Isuochi",
+        "externalId": "3012",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.57.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 58,
+        "name": "Ohafia",
+        "nameDecorated": "............Ohafia",
+        "externalId": "3013",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.58.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 59,
+        "name": "Aba Branch",
+        "nameDecorated": "............Aba Branch",
+        "externalId": "3014",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.59.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 60,
+        "name": "Umuahia",
+        "nameDecorated": "............Umuahia",
+        "externalId": "3015",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.60.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 61,
+        "name": "Awka",
+        "nameDecorated": "............Awka",
+        "externalId": "3041",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.61.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 62,
+        "name": "Ihiala",
+        "nameDecorated": "............Ihiala",
+        "externalId": "3042",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.62.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 63,
+        "name": "Nteje",
+        "nameDecorated": "............Nteje",
+        "externalId": "3043",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.63.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 64,
+        "name": "Oko",
+        "nameDecorated": "............Oko",
+        "externalId": "3044",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.64.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 65,
+        "name": "Onitsha",
+        "nameDecorated": "............Onitsha",
+        "externalId": "3045",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.65.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 66,
+        "name": "Ukpo",
+        "nameDecorated": "............Ukpo",
+        "externalId": "3046",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.66.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 67,
+        "name": "Oko Boarbi",
+        "nameDecorated": "............Oko Boarbi",
+        "externalId": "3047",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.67.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 68,
+        "name": "Abakiliki",
+        "nameDecorated": "............Abakiliki",
+        "externalId": "3071",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.68.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 69,
+        "name": "Afikpo",
+        "nameDecorated": "............Afikpo",
+        "externalId": "3072",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.69.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 70,
+        "name": "Akaeze",
+        "nameDecorated": "............Akaeze",
+        "externalId": "3073",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.70.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 71,
+        "name": "Onicha",
+        "nameDecorated": "............Onicha",
+        "externalId": "3074",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.71.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 72,
+        "name": "Uburu",
+        "nameDecorated": "............Uburu",
+        "externalId": "3075",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.72.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 73,
+        "name": "Enugu (Ogui Road)",
+        "nameDecorated": "............Enugu (Ogui Road)",
+        "externalId": "3101",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.73.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 74,
+        "name": "Mgbowo",
+        "nameDecorated": "............Mgbowo",
+        "externalId": "3102",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.74.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 75,
+        "name": "Nsukka",
+        "nameDecorated": "............Nsukka",
+        "externalId": "3103",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.75.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 76,
+        "name": "Oji River",
+        "nameDecorated": "............Oji River",
+        "externalId": "3104",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.76.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 77,
+        "name": "Aboh Mbaise",
+        "nameDecorated": "............Aboh Mbaise",
+        "externalId": "3131",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.77.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 78,
+        "name": "Okigwe / Atta",
+        "nameDecorated": "............Okigwe / Atta",
+        "externalId": "3132",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.78.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 79,
+        "name": "Ideato",
+        "nameDecorated": "............Ideato",
+        "externalId": "3133",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.79.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 80,
+        "name": "Oguta",
+        "nameDecorated": "............Oguta",
+        "externalId": "3134",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.80.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 81,
+        "name": "Orlu",
+        "nameDecorated": "............Orlu",
+        "externalId": "3135",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.81.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 82,
+        "name": "Owerri",
+        "nameDecorated": "............Owerri",
+        "externalId": "3136",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.55.82.",
+        "parentId": 55,
+        "parentName": "Enugu Zonal Office"
+    },
+    {
+        "id": 83,
+        "name": "Ibadan Zonal Office",
+        "nameDecorated": "........Ibadan Zonal Office",
+        "externalId": "4001",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.",
+        "parentId": 2,
+        "parentName": "Bank Of Agriculture HQ"
+    },
+    {
+        "id": 100,
+        "name": "Ago Iwoye",
+        "nameDecorated": "............Ago Iwoye",
+        "externalId": "4073",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.100.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 101,
+        "name": "Ayetoro",
+        "nameDecorated": "............Ayetoro",
+        "externalId": "4074",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.101.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 102,
+        "name": "Imeko",
+        "nameDecorated": "............Imeko",
+        "externalId": "4075",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.102.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 103,
+        "name": "Odeda",
+        "nameDecorated": "............Odeda",
+        "externalId": "4076",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.103.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 104,
+        "name": "Sango Ota",
+        "nameDecorated": "............Sango Ota",
+        "externalId": "4077",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.104.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 105,
+        "name": "Sagamu",
+        "nameDecorated": "............Sagamu",
+        "externalId": "4078",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.105.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 106,
+        "name": "Odeda BOARBI Centre",
+        "nameDecorated": "............Odeda BOARBI Centre",
+        "externalId": "4079",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.106.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 107,
+        "name": "Akure",
+        "nameDecorated": "............Akure",
+        "externalId": "4101",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.107.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 108,
+        "name": "Ikare",
+        "nameDecorated": "............Ikare",
+        "externalId": "4102",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.108.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 109,
+        "name": "OkitiPupa",
+        "nameDecorated": "............OkitiPupa",
+        "externalId": "4103",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.109.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 110,
+        "name": "Ondo",
+        "nameDecorated": "............Ondo",
+        "externalId": "4104",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.110.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 111,
+        "name": "Owo",
+        "nameDecorated": "............Owo",
+        "externalId": "4105",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.111.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 112,
+        "name": "Ife",
+        "nameDecorated": "............Ife",
+        "externalId": "4131",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.112.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 113,
+        "name": "Ifetedo",
+        "nameDecorated": "............Ifetedo",
+        "externalId": "4132",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.113.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 114,
+        "name": "Ila Orangun",
+        "nameDecorated": "............Ila Orangun",
+        "externalId": "4133",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.114.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 115,
+        "name": "Ilesa",
+        "nameDecorated": "............Ilesa",
+        "externalId": "4134",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.115.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 116,
+        "name": "OdeOmu",
+        "nameDecorated": "............OdeOmu",
+        "externalId": "4135",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.116.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 117,
+        "name": "Osogbo",
+        "nameDecorated": "............Osogbo",
+        "externalId": "4136",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.117.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 118,
+        "name": "Ibadan (Agodi)",
+        "nameDecorated": "............Ibadan (Agodi)",
+        "externalId": "4161",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.118.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 119,
+        "name": "Iganna",
+        "nameDecorated": "............Iganna",
+        "externalId": "4162",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.119.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 120,
+        "name": "IgboOra",
+        "nameDecorated": "............IgboOra",
+        "externalId": "4163",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.120.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 121,
+        "name": "Irawo",
+        "nameDecorated": "............Irawo",
+        "externalId": "4164",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.121.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 122,
+        "name": "Iseyin",
+        "nameDecorated": "............Iseyin",
+        "externalId": "4165",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.122.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 123,
+        "name": "Oyo/Awe",
+        "nameDecorated": "............Oyo/Awe",
+        "externalId": "4166",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.123.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 124,
+        "name": "Molete",
+        "nameDecorated": "............Molete",
+        "externalId": "4167",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.124.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 125,
+        "name": "Igbo-ora Boarbi Centre",
+        "nameDecorated": "............Igbo-ora Boarbi Centre",
+        "externalId": "4168",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.125.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 126,
+        "name": "Ogbomosho Boarbi Centre",
+        "nameDecorated": "............Ogbomosho Boarbi Centre",
+        "externalId": "4169",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.126.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 84,
+        "name": "AdoEkiti",
+        "nameDecorated": "............AdoEkiti",
+        "externalId": "4011",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.84.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 85,
+        "name": "IgogoEkiti",
+        "nameDecorated": "............IgogoEkiti",
+        "externalId": "4012",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.85.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 86,
+        "name": "IjeroEkiti",
+        "nameDecorated": "............IjeroEkiti",
+        "externalId": "4013",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.86.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 87,
+        "name": "IkereEkiti",
+        "nameDecorated": "............IkereEkiti",
+        "externalId": "4014",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.87.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 88,
+        "name": "IkoleEkiti",
+        "nameDecorated": "............IkoleEkiti",
+        "externalId": "4015",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.88.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 89,
+        "name": "Agege",
+        "nameDecorated": "............Agege",
+        "externalId": "4041",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.89.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 90,
+        "name": "Ajegunle/Apapa",
+        "nameDecorated": "............Ajegunle/Apapa",
+        "externalId": "4042",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.90.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 91,
+        "name": "Badagry",
+        "nameDecorated": "............Badagry",
+        "externalId": "4043",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.91.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 92,
+        "name": "Cantonment",
+        "nameDecorated": "............Cantonment",
+        "externalId": "4044",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.92.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 93,
+        "name": "Epe",
+        "nameDecorated": "............Epe",
+        "externalId": "4045",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.93.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 94,
+        "name": "Ikeja",
+        "nameDecorated": "............Ikeja",
+        "externalId": "4046",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.94.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 95,
+        "name": "Ikorodu",
+        "nameDecorated": "............Ikorodu",
+        "externalId": "4047",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.95.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 96,
+        "name": "Lagos Island",
+        "nameDecorated": "............Lagos Island",
+        "externalId": "4048",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.96.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 97,
+        "name": "Somolu",
+        "nameDecorated": "............Somolu",
+        "externalId": "4049",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.97.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 98,
+        "name": "Abeokuta",
+        "nameDecorated": "............Abeokuta",
+        "externalId": "4071",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.98.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    },
+    {
+        "id": 99,
+        "name": "Abigi",
+        "nameDecorated": "............Abigi",
+        "externalId": "4072",
+        "openingDate": [
+            2025,
+            1,
+            1
+        ],
+        "hierarchy": ".2.83.99.",
+        "parentId": 83,
+        "parentName": "Ibadan Zonal Office"
+    }
+]

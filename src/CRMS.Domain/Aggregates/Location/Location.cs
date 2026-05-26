@@ -146,19 +146,17 @@ public class Location : AggregateRoot
 
     /// <summary>
     /// Validates that the parent type is correct for this location type.
+    /// A child must always sit at a deeper level than its parent — intermediate
+    /// levels may be skipped to support institutions with shallower hierarchies
+    /// (e.g. HO → Zone → Branch with no Region).
     /// </summary>
     public Result ValidateParentType(LocationType parentType)
     {
-        var expectedParentType = Type switch
-        {
-            LocationType.Region => LocationType.HeadOffice,
-            LocationType.Zone => LocationType.Region,
-            LocationType.Branch => LocationType.Zone,
-            _ => (LocationType?)null
-        };
+        if (Type == LocationType.HeadOffice)
+            return Result.Success();
 
-        if (expectedParentType.HasValue && parentType != expectedParentType.Value)
-            return Result.Failure($"{Type} must have a {expectedParentType.Value} as parent, not {parentType}");
+        if ((int)parentType >= (int)Type)
+            return Result.Failure($"A {Type} cannot be placed under a {parentType}. Parent must be at a higher level in the hierarchy.");
 
         return Result.Success();
     }

@@ -17,7 +17,17 @@ namespace CRMS.Infrastructure.Persistence;
 /// </summary>
 public static class SeedData
 {
-    public static async Task SeedAsync(CRMSDbContext context, ILogger logger, IPasswordHasher? passwordHasher = null)
+    // Depth → LocationType mapping for Bank of Agriculture.
+    // BOA's Fineract hierarchy has no Region level, so Zones sit directly under HO.
+    // Adjust this map when deploying for institutions with different hierarchies.
+    private static readonly Dictionary<int, LocationType> BoaDepthMap = new()
+    {
+        [1] = LocationType.HeadOffice,
+        [2] = LocationType.Zone,
+        [3] = LocationType.Branch,
+    };
+
+    public static async Task SeedAsync(CRMSDbContext context, ILogger logger, IPasswordHasher? passwordHasher = null, bool isDevelopment = false)
     {
         await SeedLocationsAsync(context, logger);
         await SeedRolesAsync(context, logger);
@@ -25,108 +35,19 @@ public static class SeedData
         await SeedStandingCommitteesAsync(context, logger);
         if (passwordHasher != null)
         {
-            await SeedTestUsersAsync(context, logger, passwordHasher);
+            await SeedBootstrapAdminAsync(context, logger, passwordHasher);
+            if (isDevelopment)
+                await SeedTestUsersAsync(context, logger, passwordHasher);
         }
     }
 
     private static async Task SeedLocationsAsync(CRMSDbContext context, ILogger logger)
     {
-        if (await context.Locations.AnyAsync())
-        {
-            logger.LogInformation("Locations already seeded, skipping");
-            return;
-        }
-
-        logger.LogInformation("Seeding locations...");
-
-        // Create HeadOffice (root)
-        var hoResult = Location.CreateHeadOffice("HO", "Head Office", "Corporate Headquarters, Victoria Island, Lagos");
-        if (hoResult.IsFailure) { logger.LogError("Failed to create HeadOffice: {Error}", hoResult.Error); return; }
-        var ho = hoResult.Value;
-        await context.Locations.AddAsync(ho);
-        await context.SaveChangesAsync(); // Save to get the ID
-
-        // Create Regions
-        var southernResult = Location.CreateRegion("RG-SOUTH", "Southern Region", ho.Id, 1);
-        var northernResult = Location.CreateRegion("RG-NORTH", "Northern Region", ho.Id, 2);
-        
-        if (southernResult.IsFailure || northernResult.IsFailure)
-        {
-            logger.LogError("Failed to create regions");
-            return;
-        }
-        
-        var southern = southernResult.Value;
-        var northern = northernResult.Value;
-        await context.Locations.AddRangeAsync(southern, northern);
-        await context.SaveChangesAsync();
-
-        // Create Zones under Southern Region
-        var swZoneResult = Location.CreateZone("ZN-SW", "South-West Zone", southern.Id, 1);
-        var seZoneResult = Location.CreateZone("ZN-SE", "South-East Zone", southern.Id, 2);
-        var ssZoneResult = Location.CreateZone("ZN-SS", "South-South Zone", southern.Id, 3);
-        
-        // Create Zones under Northern Region
-        var ncZoneResult = Location.CreateZone("ZN-NC", "North-Central Zone", northern.Id, 1);
-        var nwZoneResult = Location.CreateZone("ZN-NW", "North-West Zone", northern.Id, 2);
-        var neZoneResult = Location.CreateZone("ZN-NE", "North-East Zone", northern.Id, 3);
-
-        var zones = new[] { swZoneResult, seZoneResult, ssZoneResult, ncZoneResult, nwZoneResult, neZoneResult };
-        foreach (var zoneResult in zones)
-        {
-            if (zoneResult.IsSuccess)
-                await context.Locations.AddAsync(zoneResult.Value);
-        }
-        await context.SaveChangesAsync();
-
-        var swZone = swZoneResult.Value;
-        var seZone = seZoneResult.Value;
-        var ssZone = ssZoneResult.Value;
-        var ncZone = ncZoneResult.Value;
-        var nwZone = nwZoneResult.Value;
-        var neZone = neZoneResult.Value;
-
-        // Create Branches under South-West Zone (Lagos)
-        var branches = new List<Result<Location>>
-        {
-            Location.CreateBranch("BR-LAG-001", "Lagos Main Branch", swZone.Id, "123 Marina Road, Lagos Island", "John Adeyemi", "08012345678", 1),
-            Location.CreateBranch("BR-LAG-002", "Victoria Island Branch", swZone.Id, "Plot 45, Adeola Odeku Street, VI", "Sarah Okonkwo", "08023456789", 2),
-            Location.CreateBranch("BR-LAG-003", "Ikeja Branch", swZone.Id, "15 Allen Avenue, Ikeja", "Michael Eze", "08034567890", 3),
-            Location.CreateBranch("BR-LAG-004", "Lekki Branch", swZone.Id, "Admiralty Way, Lekki Phase 1", "Grace Adekunle", "08045678901", 4),
-            Location.CreateBranch("BR-IBD-001", "Ibadan Branch", swZone.Id, "Ring Road, Ibadan", "Peter Uche", "08056789012", 5),
-            
-            // South-East Zone (Port Harcourt, Enugu)
-            Location.CreateBranch("BR-PH-001", "Port Harcourt Main Branch", seZone.Id, "Aba Road, Port Harcourt", "Amina Ibrahim", "08067890123", 1),
-            Location.CreateBranch("BR-ENU-001", "Enugu Branch", seZone.Id, "Ogui Road, Enugu", "David Okafor", "08078901234", 2),
-            
-            // South-South Zone
-            Location.CreateBranch("BR-BEN-001", "Benin Branch", ssZone.Id, "Airport Road, Benin City", "Comfort Idowu", "08089012345", 1),
-            
-            // North-Central Zone (Abuja)
-            Location.CreateBranch("BR-ABJ-001", "Abuja Main Branch", ncZone.Id, "Central Business District, Abuja", "Hassan Mohammed", "08090123456", 1),
-            Location.CreateBranch("BR-ABJ-002", "Wuse Branch", ncZone.Id, "Zone 5, Wuse, Abuja", "Fatima Bello", "08001234567", 2),
-            
-            // North-West Zone
-            Location.CreateBranch("BR-KAN-001", "Kano Branch", nwZone.Id, "Murtala Mohammed Way, Kano", "Usman Yakubu", "08012345679", 1),
-            Location.CreateBranch("BR-KAD-001", "Kaduna Branch", nwZone.Id, "Ahmadu Bello Way, Kaduna", "Musa Garba", "08023456780", 2),
-            
-            // North-East Zone (GAP-5 fix: add branches under NE zone)
-            Location.CreateBranch("BR-MAI-001", "Maiduguri Branch", neZone.Id, "Bama Road, Maiduguri", "Ibrahim Shettima", "08034567891", 1),
-            Location.CreateBranch("BR-BAU-001", "Bauchi Branch", neZone.Id, "Jos Road, Bauchi", "Abubakar Tafawa", "08045678902", 2)
-        };
-
-        var branchCount = 0;
-        foreach (var branchResult in branches)
-        {
-            if (branchResult.IsSuccess)
-            {
-                await context.Locations.AddAsync(branchResult.Value);
-                branchCount++;
-            }
-        }
-
-        await context.SaveChangesAsync();
-        logger.LogInformation("Locations seeded successfully (1 HO, 2 Regions, 6 Zones, {BranchCount} Branches)", branchCount);
+        await FineractOfficeSeeder.SeedAsync(
+            context,
+            logger,
+            embeddedResourceName: "boaoffices.json",
+            depthMap: BoaDepthMap);
     }
 
     private static async Task SeedRolesAsync(CRMSDbContext context, ILogger logger)
@@ -253,21 +174,70 @@ public static class SeedData
         logger.LogInformation("Loan products seeded successfully ({Count} products)", seededCount);
     }
 
+    private static async Task SeedBootstrapAdminAsync(CRMSDbContext context, ILogger logger, IPasswordHasher passwordHasher)
+    {
+        const string adminEmail = "admin@crms.ng";
+        const string adminUsername = "sysadmin";
+
+        if (await context.Users.AnyAsync(u => u.Email == adminEmail))
+        {
+            logger.LogInformation("Bootstrap admin already exists, skipping");
+            return;
+        }
+
+        // Look up by type, not code — the code varies per institution (e.g. "BOA-HQ-2")
+        var ho = await context.Locations.FirstOrDefaultAsync(l => l.Type == LocationType.HeadOffice);
+        var sysAdminRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == Roles.SystemAdmin);
+
+        if (sysAdminRole is null)
+        {
+            logger.LogError("Cannot seed bootstrap admin — SystemAdmin role not found. Ensure roles are seeded first.");
+            return;
+        }
+
+        if (ho is null)
+        {
+            logger.LogWarning("Bootstrap admin: no HeadOffice location found — location seeding may have failed. Admin will be created without a location once locations are seeded.");
+            return;
+        }
+
+        var userResult = ApplicationUser.Create(
+            adminEmail, adminUsername, "System", "Administrator",
+            UserType.Staff, string.Empty, ho.Id);
+
+        if (userResult.IsFailure)
+        {
+            logger.LogError("Failed to create bootstrap admin: {Error}", userResult.Error);
+            return;
+        }
+
+        userResult.Value.SetPasswordHash(passwordHasher.HashPassword("Admin@CRMS2026!"));
+        userResult.Value.AddRole(sysAdminRole);
+        await context.Users.AddAsync(userResult.Value);
+        await context.SaveChangesAsync();
+
+        logger.LogInformation("Bootstrap admin seeded: {Email} — change password immediately after first login", adminEmail);
+    }
+
     private static async Task SeedTestUsersAsync(CRMSDbContext context, ILogger logger, IPasswordHasher passwordHasher)
     {
-        if (await context.Users.AnyAsync())
+        if (await context.Users.AnyAsync(u => u.Email != "admin@crms.ng"))
         {
-            logger.LogInformation("Users already seeded, skipping");
+            logger.LogInformation("Test users already seeded, skipping");
             return;
         }
 
         logger.LogInformation("Seeding test users...");
 
-        // Get locations for assignment
-        var lagosMain = await context.Locations.FirstOrDefaultAsync(l => l.Code == "BR-LAG-001");
-        var abujaMain = await context.Locations.FirstOrDefaultAsync(l => l.Code == "BR-ABJ-001");
-        var swZone = await context.Locations.FirstOrDefaultAsync(l => l.Code == "ZN-SW");
-        var ho = await context.Locations.FirstOrDefaultAsync(l => l.Code == "HO");
+        // Get locations for assignment — pick by type rather than hardcoded codes
+        // so the test seeder works regardless of which institution's offices are loaded
+        var branches = await context.Locations
+            .Where(l => l.Type == LocationType.Branch && l.IsActive)
+            .OrderBy(l => l.SortOrder)
+            .ToListAsync();
+        var lagosMain = branches.FirstOrDefault();
+        var abujaMain = branches.Skip(1).FirstOrDefault() ?? lagosMain;
+        var ho = await context.Locations.FirstOrDefaultAsync(l => l.Type == LocationType.HeadOffice);
 
         // Get roles
         var loanOfficerRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == Roles.LoanOfficer);

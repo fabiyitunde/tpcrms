@@ -14,7 +14,7 @@ public class LocationConfiguration : IEntityTypeConfiguration<Domain.Aggregates.
 
         builder.Property(x => x.Code)
             .IsRequired()
-            .HasMaxLength(20);
+            .HasMaxLength(50);
 
         builder.Property(x => x.Name)
             .IsRequired()

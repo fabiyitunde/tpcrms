@@ -26,4 +26,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Persistence\SeedData\boaoffices.json" />
+  </ItemGroup>
+
 </Project>

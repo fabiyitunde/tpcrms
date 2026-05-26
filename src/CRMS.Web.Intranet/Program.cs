@@ -50,16 +50,30 @@ var app = builder.Build();
 // Apply migrations on startup
 using (var scope = app.Services.CreateScope())
 {
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var db = scope.ServiceProvider.GetRequiredService<CRMSDbContext>();
-    await db.Database.MigrateAsync();
-    
-    // Seed data
-    var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("SeedData");
-    var passwordHasher = scope.ServiceProvider.GetRequiredService<CRMS.Application.Identity.Interfaces.IPasswordHasher>();
-    await SeedData.SeedAsync(db, seedLogger, passwordHasher);
-    
-    // Seed comprehensive test data (users, applications, etc.)
-    await ComprehensiveDataSeeder.SeedComprehensiveDataAsync(db, seedLogger, passwordHasher);
+
+    try
+    {
+        startupLogger.LogInformation("Applying database migrations...");
+        await db.Database.MigrateAsync();
+        startupLogger.LogInformation("Migrations applied successfully.");
+
+        var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("SeedData");
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<CRMS.Application.Identity.Interfaces.IPasswordHasher>();
+
+        startupLogger.LogInformation("Seeding data (isDevelopment={IsDev})...", app.Environment.IsDevelopment());
+        await SeedData.SeedAsync(db, seedLogger, passwordHasher, app.Environment.IsDevelopment());
+        startupLogger.LogInformation("Seeding complete.");
+
+        if (app.Environment.IsDevelopment())
+            await ComprehensiveDataSeeder.SeedComprehensiveDataAsync(db, seedLogger, passwordHasher);
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogError(ex, "Startup failed during migration or seeding.");
+        throw;
+    }
 }
 
 if (!app.Environment.IsDevelopment())
