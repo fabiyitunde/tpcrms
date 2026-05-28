@@ -31,8 +31,15 @@ public static class SeedData
     {
         await SeedLocationsAsync(context, logger);
         await SeedRolesAsync(context, logger);
-        await SeedLoanProductsAsync(context, logger);
-        await SeedStandingCommitteesAsync(context, logger);
+
+        // Loan products and committees are configured by the admin via the UI in production.
+        // In development they are seeded with mock data for testing convenience.
+        if (isDevelopment)
+        {
+            await SeedLoanProductsAsync(context, logger);
+            await SeedStandingCommitteesAsync(context, logger);
+        }
+
         if (passwordHasher != null)
         {
             await SeedBootstrapAdminAsync(context, logger, passwordHasher);

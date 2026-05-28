@@ -118,6 +118,10 @@ public class GetNampApplicationByIdHandler
         app.DeployedAt,
         app.GpsActivated,
         app.DeploymentNote,
+        app.FineractClientId,
+        app.ApprovedInterestRate,
+        app.FineractLoanId,
+        app.FineractLoanAccountNumber,
         app.CreatedAt,
         app.ModifiedAt,
         app.Documents.Select(d => new NampDocumentDto(

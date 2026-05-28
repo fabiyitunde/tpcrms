@@ -133,6 +133,11 @@ public record NampApplicationDto(
     DateTime? DeployedAt,
     bool GpsActivated,
     string? DeploymentNote,
+    // Fineract integration
+    long? FineractClientId,
+    decimal? ApprovedInterestRate,
+    long? FineractLoanId,
+    string? FineractLoanAccountNumber,
     DateTime CreatedAt,
     DateTime? ModifiedAt,
     List<NampDocumentDto> Documents,

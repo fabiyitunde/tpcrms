@@ -78,6 +78,19 @@ public class NampWebhookController : ControllerBase
         if (category is null)
             return BadRequest($"Unknown category: '{payload.Category}'. Expected: YouthEntrepreneur, WomanEntrepreneur, MechanisationCompany.");
 
+        // Deep payload validation — ensures all fields required for the full CRMS processing flow are present
+        var validationErrors = NampPayloadValidator.Validate(payload, category.Value);
+        if (validationErrors.Count > 0)
+        {
+            _logger.LogWarning("NAMP webhook: payload validation failed for {Ref} ({Category}) — {Count} error(s): {Errors}",
+                payload.ApplicationReference, category.Value, validationErrors.Count, string.Join("; ", validationErrors));
+            return UnprocessableEntity(new
+            {
+                message = $"Payload validation failed for {category.Value} application.",
+                errors = validationErrors
+            });
+        }
+
         // Serialize full payload as RawPayload blob (needed for both create and update paths)
         var rawPayload = JsonSerializer.Serialize(payload, new JsonSerializerOptions
         {

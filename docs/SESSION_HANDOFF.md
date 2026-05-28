@@ -1,8 +1,8 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-05-22 (Session 61)
+**Last Updated:** 2026-05-28 (Session 63)
 **Project:** Credit Risk Management System (CRMS)
-**Working Directory:** `C:\Users\fabiy\source\repos\crms`
+**Working Directory:** `C:\Users\adeta\source\repos\tpcrms`
 
 ---
 
@@ -209,11 +209,19 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **Help guide comprehensively updated — all 13 roles, full 17-stage workflow, all tabs/features/stages accurately documented** | ✅ |
 | **Help guide role-aware — sidebar nav filtered by role; direct URL access blocked via `CanViewSection()` guard + `RenderAccessDenied()` fragment** | ✅ |
 | **NAMP StandingCommittee LocationId — FK added; committee routing now location-aware; Committees admin page updated** | ✅ |
+| **FineractOfficeSeeder — BOA locations loaded from embedded `boaoffices.json` (1 HO, 6 Zones, 229 Branches); upserts by externalId; race-condition safe** | ✅ |
+| **Bootstrap admin pattern — `admin@crms.ng` always seeded in all environments; HO lookup by `LocationType.HeadOffice` (not hardcoded code)** | ✅ |
+| **isDevelopment gating — loan products and standing committees NOT seeded in production; admin configures via UI** | ✅ |
+| **Location Code varchar(20→50) migration (`ExpandLocationCodeLength`) — prevents truncation on long office names** | ✅ |
+| **File storage switched to S3 — `crms-documents` bucket, `eu-west-1`, IAM role (no credentials in config)** | ✅ |
+| **CoreBanking live in intranet production — `UseMock: false`; OAuth2 auth + `/core/account/fulldetailsbynuban` + `/core/transactions` all active** | ✅ |
 | **NAMP AgroServiceCompany tech appraisal fields — extended `NampTechnicalAppraisalReport` with site visit, soil test, company-specific fields** | ✅ |
 | **NAMP Pre-Deployment checklist — `NampPreDeploymentChecklistTemplate` + `NampPreDeploymentChecklistItem`; admin config page `/admin/namp-predeploy-checklist`; gate blocks BeginPreDeployment until all items checked** | ✅ |
 | **NAMP Offer Letter PDF — `NampOfferLetterPdfGenerator` (QuestPDF + Fineract amortisation table); Offer Letter tab (system-generated + countersigned upload); OfferAccepted/OfferLapsed workflow buttons** | ✅ |
 | **NAMP Loan Pack PDF — `NampLoanPackPdfGenerator` (on-demand 12-section PDF; no storage); download button visible to relevant roles from any post-Draft status** | ✅ |
 | **NAMP Advisory — `NampAdvisory` entity (JSON-stored scores); `NampViabilityScoreConfig` (admin-configurable Viable/Marginal/NotViable → score + weight); 5-category weighted AI advisory; AI Advisory tab in Detail.razor; admin page `/admin/namp-viability`** | ✅ |
+| **NAMP Fineract loan booking at deployment — `BookApprovedLoanAsync` called in `ConfirmNampDeploymentHandler`; `FineractClientId` persisted at recall; `ApprovedInterestRate` locked at ratification; `FineractLoanId` + `FineractLoanAccountNumber` stored after booking; migration `AddNampFineractLoanBookingFields`** | ✅ |
+| **`FineractDirect.UseMock: false` in intranet production — real Fineract now active for repayment schedule, product catalogue, and loan booking** | ✅ |
 
 ### What Is Pending
 
@@ -222,7 +230,7 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | Wire customer exposure into AI Advisory (replace bureau-derived exposure) | P2 | `IFineractDirectService.GetCustomerExposureAsync` ready; needs wiring into `GenerateCreditAdvisoryHandler` to replace/supplement `corporateBureauReport.TotalOutstandingBalance` |
 | **Collateral approval — multi-actor role design** | P2 | Currently a single "Approve" button with no role separation. Design decision: requires at minimum Legal clearance (title/encumbrance check) + Credit/Risk Officer adequacy sign-off as two distinct steps. Valuation comes from external certified valuer. Existing state machine (`Proposed → UnderValuation → Valued → Approved → Perfected`) has the right shape but approval roles per step are undefined. Revisit when implementing collateral perfection stage. See `memory/project_collateral_approval.md`. |
 | G8: Domain events with no handlers (`LoanApplicationCreatedEvent`, `SubmittedEvent`, `ApprovedEvent`, `DisbursedEvent`) | P3 | Deferred to next sprint — no downstream automation on key lifecycle events |
-| **NAMP — Fineract loan creation at deployment** | P1 (NAMP critical) | `CreateLoan` + `ApproveLoan` + `DisburseLoan` calls needed at `ConfirmDeployment`. Without this, `Active` status has no CBS backing. `IFineractDirectService` is available; store CBS loan ID on `NampApplication`. |
+| **NAMP — Admin must set `FineractProductId` on the NAMP loan product** | P1 (NAMP critical) | Loan booking at deployment silently skips if `LoanProduct.FineractProductId` is null. Admin must go to `/admin/products`, import the NAMP product from Fineract dropdown, and save before any application reaches deployment. |
 | **NAMP — Outbound callbacks** | P2 (NAMP) | `Received`, `Approved`, `Declined`, `Active` callbacks to NAMP portal not implemented. `INampCallbackService` + event handlers deferred. |
 | **NAMP — Active/Closed monitoring UI** | P3 (NAMP) | Stage 9 (Active) has no monitoring UI — no repayment tracking, no account balance view. Closed transition not implemented. |
 
@@ -353,7 +361,85 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-05-21/22 Sessions 60–61)
+## 5. Last Session Summary (2026-05-27/28 Sessions 62–63)
+
+### Completed — NAMP Fineract Loan Booking + Config Updates (2026-05-28 Session 63 cont.)
+
+#### Feature — Fineract Loan Booking at Deployment
+
+**Domain (`NampApplication.cs`):** Added 4 fields: `FineractClientId` (long?), `ApprovedInterestRate` (decimal?), `FineractLoanId` (long?), `FineractLoanAccountNumber` (string?). Added setters: `SetFineractClientId`, `SetApprovedInterestRate`, `SetFineractLoanResult`.
+
+**EF + Migration:** `NampApplicationConfiguration.cs` updated. Migration `20260528132642_AddNampFineractLoanBookingFields` adds all 4 columns to `NampApplications`.
+
+**DTO + MapToDto:** `NampApplicationDto` and `MapToDto` in `NampApplicationQueries.cs` updated to include the 4 new fields.
+
+**`RecallNampApplicationHandler`:** Injected `ICoreBankingService`. After app is created, calls `GetNampBoaAccountAsync(staging.BoaAccountNumber)` and stores `FineractClientId`. Non-fatal — recall proceeds even if CBS unavailable.
+
+**`RatifyNampDecisionHandler`:** Calls `app.SetApprovedInterestRate(interestRate)` immediately after resolving the rate from the Fineract product catalogue, locking it to the value the offer letter was generated with.
+
+**`ConfirmNampDeploymentHandler`:** Injected `IFineractDirectService`, `ILoanProductRepository`, `ILogger`. Builds `FineractLoanBookingRequest` and calls `BookApprovedLoanAsync` before transitioning to Active. Guards: skips if `FineractClientId` null (warning), skips if `FineractProductId` not configured (warning), returns failure if Fineract call fails. `DisburseToSavings: false` — disbursal goes to vendor not applicant savings.
+
+**Config:** `FineractDirect.UseMock: false` in intranet production — real Fineract now active.
+
+**Webhook:** No product check at webhook receive time — the webhook only stages the record and resolves the branch. Product resolution happens at recall (`GetActiveNampProductAsync`). If no active NAMP product is configured, recall fails with a user-facing error.
+
+---
+
+### Completed — Production Deployment Setup + Config Cleanup
+
+#### Feature 1 — FineractOfficeSeeder (Location seeding from Fineract office data)
+
+Replaced hardcoded location seed data with a JSON-driven idempotent seeder.
+
+**`src/CRMS.Infrastructure/Persistence/FineractOfficeSeeder.cs`** (new) — reads `boaoffices.json` from embedded resource, maps depth→LocationType via caller-supplied dictionary, upserts by externalId (used as Code). `OfficeCode` generates `{INITIALS}-{fineractId}` for offices without externalId. Race-condition safe: catches `DbUpdateException` with "Duplicate entry" for concurrent EBS instance startups.
+
+**`src/CRMS.Infrastructure/Persistence/SeedData/boaoffices.json`** (embedded resource) — 237 Fineract offices: 1 root (depth 0, skipped), 1 BOA HQ (→ HO), 6 Zonal Offices (→ Zone), 229 Branches (→ Branch). BOA depth map: `{[1]=HeadOffice, [2]=Zone, [3]=Branch}`.
+
+**`src/CRMS.Infrastructure/CRMS.Infrastructure.csproj`** — `<EmbeddedResource Include="Persistence\SeedData\boaoffices.json" />` added.
+
+**`src/CRMS.Domain/Aggregates/Location/Location.cs`** — `ValidateParentType` relaxed: a child just needs a numerically higher `LocationType` than its parent (allows skipping hierarchy levels e.g. Zone directly under HO with no Region level).
+
+#### Feature 2 — SeedData Refactor (isDevelopment gating + bootstrap admin)
+
+**`src/CRMS.Infrastructure/Persistence/SeedData.cs`** refactored:
+- `SeedAsync` gains `isDevelopment` parameter
+- `SeedLoanProductsAsync` + `SeedStandingCommitteesAsync` gated to `isDevelopment` only — admin configures these via UI in production
+- `SeedBootstrapAdminAsync` always runs — creates `admin@crms.ng / Admin@CRMS2026!`; looks up HO by `l.Type == LocationType.HeadOffice` (not hardcoded code); split null checks: role-not-found logs error and returns; HO-not-found logs warning and returns
+- `SeedTestUsersAsync` gated to `isDevelopment` only; picks branches by `LocationType` not hardcoded codes
+
+**`src/CRMS.Web.Intranet/Program.cs`** — migration/seeding wrapped in try-catch with structured logging; `SeedData.SeedAsync` now receives `app.Environment.IsDevelopment()`; `ComprehensiveDataSeeder` gated to development only.
+
+#### Feature 3 — Location Code Column Expansion
+
+**Migration `20260526125036_ExpandLocationCodeLength`** — expands `Locations.Code` from `varchar(20)` to `varchar(50)` with Pomelo MySql charset annotations. **`LocationConfiguration.cs`** updated to `HasMaxLength(50)`. **`CRMSDbContextModelSnapshot.cs`** updated accordingly.
+
+Root cause: `OfficeCode` for "Bank Of Agriculture HQ" previously generated full-name code that exceeded varchar(20), causing MySQL duplicate-entry on EBS restart.
+
+#### Feature 4 — Production Config Review + S3 + CoreBanking Live
+
+**appsettings.Production.json (both intranet + API):**
+- `FileStorage` switched from `Local` to `S3`: bucket `crms-documents`, region `eu-west-1`, IAM role (no AccessKey/SecretKey)
+- `S3FileStorageService` was already fully implemented; DI switches provider based on `FileStorage:Provider` value
+
+**appsettings.Production.json (intranet only):**
+- `CoreBanking.UseMock` switched from `true` to `false` — real tpgateway now active
+- tpgateway endpoints now live: `POST /security/authenticate` (auto via OAuth2 handler), `GET /core/account/fulldetailsbynuban/{nuban}`, `GET /core/transactions/{nuban}`
+
+**Outstanding production config decisions (deferred):**
+- `AIAdvisory.UseLLMNarrative: true` in intranet production with empty OpenAI key — falls back to template (harmless)
+- `Namp.CallbackUrl` in API production still placeholder
+- `FineractDirect.TenantId` — intranet uses `"sandbox"`, API uses `"default"`; both currently `UseMock: true`
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → no UI changes this session
+- [ ] `docs/ImplementationTracker.md` → no feature additions this session
+
+---
+
+## Previous Session Summary (2026-05-21/22 Sessions 60–61)
 
 ### Completed — NAMP: StandingCommittee LocationId, Pre-Deploy Checklist, Offer Letter, Loan Pack, AI Advisory
 

@@ -116,6 +116,12 @@ public class NampApplication : AggregateRoot
     public bool GpsActivated { get; private set; }
     public string? DeploymentNote { get; private set; }
 
+    // ── Fineract Integration ───────────────────────────────────────────────
+    public long? FineractClientId { get; private set; }         // Resolved at recall from BOA account lookup
+    public decimal? ApprovedInterestRate { get; private set; }  // Locked at ratification from Fineract product catalogue
+    public long? FineractLoanId { get; private set; }           // Set after deployment booking
+    public string? FineractLoanAccountNumber { get; private set; } // Set after deployment booking
+
     // ── Collections ───────────────────────────────────────────────────────
     private readonly List<NampDocument> _documents = [];
     private readonly List<NampStatusHistory> _statusHistory = [];
@@ -398,6 +404,18 @@ public class NampApplication : AggregateRoot
         Status = NampApplicationStatus.Active;
         AddStatusHistory(Status, userId, $"Equipment deployed. GPS activated: {gpsActivated}.{(note != null ? $" Note: {note}" : "")}");
         return Result.Success();
+    }
+
+    // ── Fineract Integration Setters ──────────────────────────────────────
+
+    public void SetFineractClientId(long clientId) => FineractClientId = clientId;
+
+    public void SetApprovedInterestRate(decimal rate) => ApprovedInterestRate = rate;
+
+    public void SetFineractLoanResult(long loanId, string loanAccountNumber)
+    {
+        FineractLoanId = loanId;
+        FineractLoanAccountNumber = loanAccountNumber;
     }
 
     // ── Extended Info Setters (called at recall time) ──────────────────────

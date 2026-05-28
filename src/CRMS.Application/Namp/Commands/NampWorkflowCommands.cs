@@ -8,6 +8,7 @@ using CRMS.Domain.Aggregates.Committee;
 using CRMS.Domain.Aggregates.Namp;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace CRMS.Application.Namp.Commands;
 
@@ -385,6 +386,9 @@ public class RatifyNampDecisionHandler
             }
         }
 
+        // Lock the interest rate onto the application so deployment can use it without re-fetching
+        app.SetApprovedInterestRate(interestRate);
+
         // ── Calculate repayment schedule (Fineract first, in-house fallback) ──
         var scheduleRequest = new ScheduleCalculationRequest(
             ProductId: fineractProductId,
@@ -694,12 +698,23 @@ public class ConfirmNampDeploymentHandler
     : IRequestHandler<ConfirmNampDeploymentCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly ILoanProductRepository _productRepo;
+    private readonly IFineractDirectService _fineractService;
     private readonly IUnitOfWork _uow;
+    private readonly ILogger<ConfirmNampDeploymentHandler> _logger;
 
-    public ConfirmNampDeploymentHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public ConfirmNampDeploymentHandler(
+        INampApplicationRepository repo,
+        ILoanProductRepository productRepo,
+        IFineractDirectService fineractService,
+        IUnitOfWork uow,
+        ILogger<ConfirmNampDeploymentHandler> logger)
     {
-        _repo = repo;
-        _uow = uow;
+        _repo           = repo;
+        _productRepo    = productRepo;
+        _fineractService = fineractService;
+        _uow            = uow;
+        _logger         = logger;
     }
 
     public async Task<ApplicationResult<NampApplicationDto>> Handle(
@@ -707,6 +722,57 @@ public class ConfirmNampDeploymentHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        // ── Fineract loan booking ─────────────────────────────────────────────
+        if (app.FineractClientId is null)
+        {
+            _logger.LogWarning("NAMP deployment: FineractClientId not set on application {Id} — loan will not be booked in Fineract.", app.Id);
+        }
+        else
+        {
+            var product = await _productRepo.GetByIdAsync(app.LoanProductId, ct);
+            var fineractProductId = product?.FineractProductId ?? 0;
+
+            if (fineractProductId <= 0)
+            {
+                _logger.LogWarning("NAMP deployment: LoanProduct {ProductId} has no FineractProductId — loan will not be booked.", app.LoanProductId);
+            }
+            else if (app.LoanAmount is null or <= 0)
+            {
+                _logger.LogWarning("NAMP deployment: LoanAmount is not set on application {Id} — loan will not be booked.", app.Id);
+            }
+            else
+            {
+                var interestRate = app.ApprovedInterestRate ?? 9m; // fallback matches ratification default
+                var tenorMonths = app.RequestedTenorMonths ?? 12;
+
+                var bookingRequest = new FineractLoanBookingRequest(
+                    ClientId: app.FineractClientId.Value,
+                    ProductId: fineractProductId,
+                    Principal: app.LoanAmount.Value,
+                    TenorMonths: tenorMonths,
+                    InterestRatePerAnnum: interestRate,
+                    ValueDate: DateTime.UtcNow,
+                    RepaymentAccountNumber: app.BoaAccountNumber,
+                    DisburseToSavings: false   // NAMP equipment loans disburse to vendor, not applicant savings
+                );
+
+                var bookingResult = await _fineractService.BookApprovedLoanAsync(bookingRequest, ct);
+                if (bookingResult.IsSuccess)
+                {
+                    app.SetFineractLoanResult(bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber);
+                    _logger.LogInformation("NAMP deployment: Fineract loan booked — LoanId={LoanId}, Account={Account}, Disbursed={Disbursed}",
+                        bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber, bookingResult.Value.Disbursed);
+                }
+                else
+                {
+                    _logger.LogError("NAMP deployment: Fineract loan booking failed for application {Id}: {Error}",
+                        app.Id, bookingResult.Error);
+                    return ApplicationResult<NampApplicationDto>.Failure(
+                        $"Fineract loan booking failed: {bookingResult.Error}");
+                }
+            }
+        }
 
         var result = app.ConfirmDeployment(request.UserId, request.GpsActivated, request.Note);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);

@@ -29,6 +29,7 @@ public class RecallNampApplicationHandler
     private readonly INampApplicationRepository _appRepo;
     private readonly INampRoutingConfigRepository _routingRepo;
     private readonly ILoanProductRepository _productRepo;
+    private readonly ICoreBankingService _coreBankingService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly INampPortalS3Downloader _nampPortalS3;
     private readonly IFileStorageService _fileStorage;
@@ -39,19 +40,21 @@ public class RecallNampApplicationHandler
         INampApplicationRepository appRepo,
         INampRoutingConfigRepository routingRepo,
         ILoanProductRepository productRepo,
+        ICoreBankingService coreBankingService,
         IUnitOfWork unitOfWork,
         INampPortalS3Downloader nampPortalS3,
         IFileStorageService fileStorage,
         ILogger<RecallNampApplicationHandler> logger)
     {
-        _stagingRepo   = stagingRepo;
-        _appRepo       = appRepo;
-        _routingRepo   = routingRepo;
-        _productRepo   = productRepo;
-        _unitOfWork    = unitOfWork;
-        _nampPortalS3  = nampPortalS3;
-        _fileStorage   = fileStorage;
-        _logger        = logger;
+        _stagingRepo         = stagingRepo;
+        _appRepo             = appRepo;
+        _routingRepo         = routingRepo;
+        _productRepo         = productRepo;
+        _coreBankingService  = coreBankingService;
+        _unitOfWork          = unitOfWork;
+        _nampPortalS3        = nampPortalS3;
+        _fileStorage         = fileStorage;
+        _logger              = logger;
     }
 
     public async Task<ApplicationResult<NampApplicationDto>> Handle(
@@ -308,6 +311,15 @@ public class RecallNampApplicationHandler
                     auditDate: fs.AuditDate, auditOpinion: fs.AuditOpinion));
             }
         }
+
+        // Resolve and persist Fineract clientId from the BOA savings account.
+        // Non-fatal — recall proceeds even if CBS is unavailable; deployment handler will log missing clientId.
+        var boaResult = await _coreBankingService.GetNampBoaAccountAsync(staging.BoaAccountNumber, ct);
+        if (boaResult.IsSuccess)
+            app.SetFineractClientId(boaResult.Value.ClientId);
+        else
+            _logger.LogWarning("NAMP recall: could not resolve Fineract clientId for BOA account {Account}: {Error}",
+                staging.BoaAccountNumber, boaResult.Error);
 
         app.SetAuditInfo(request.RecalledByUserId.ToString(), isNew: true);
 
