@@ -369,20 +369,25 @@ public class RatifyNampDecisionHandler
             return ApplicationResult<NampApplicationDto>.Failure("Loan tenor must be set before ratification.");
 
         // ── Resolve product and interest rate ─────────────────────────────────
-        var product = await _productRepo.GetByIdAsync(app.LoanProductId, ct);
-        var fineractProductId = product?.FineractProductId ?? 0;
+        // Use the Fineract product details already resolved and stored at recall time.
+        // Fall back to a live catalogue fetch only if the application pre-dates this feature (fields null).
+        var fineractProductId = app.FineractProductId ?? 0;
+        decimal interestRate = app.FineractNominalInterestRate ?? 9m; // fallback: 9% or stored nominal rate
 
-        // Get interest rate from Fineract product catalogue (authoritative source)
-        decimal interestRate = 9m; // fallback
-        if (fineractProductId > 0)
+        if (fineractProductId <= 0)
         {
-            var productsResult = await _fineractService.GetLoanProductsAsync(activeOnly: true, ct);
-            if (productsResult.IsSuccess)
+            // Pre-recall data missing — attempt a live fetch so ratification is not blocked
+            var product = await _productRepo.GetByIdAsync(app.LoanProductId, ct);
+            fineractProductId = product?.FineractProductId ?? 0;
+            if (fineractProductId > 0)
             {
-                var fineractProduct = productsResult.Value
-                    .FirstOrDefault(p => p.Id == fineractProductId);
-                if (fineractProduct != null)
-                    interestRate = fineractProduct.AnnualInterestRate;
+                var productsResult = await _fineractService.GetLoanProductsAsync(activeOnly: false, ct);
+                if (productsResult.IsSuccess)
+                {
+                    var fp = productsResult.Value.FirstOrDefault(p => p.Id == fineractProductId);
+                    if (fp is not null)
+                        interestRate = fp.AnnualInterestRate;
+                }
             }
         }
 
@@ -730,12 +735,18 @@ public class ConfirmNampDeploymentHandler
         }
         else
         {
-            var product = await _productRepo.GetByIdAsync(app.LoanProductId, ct);
-            var fineractProductId = product?.FineractProductId ?? 0;
+            // Use FineractProductId stored on the application at recall. Fall back to a product repo
+            // lookup only for applications recalled before this feature was added.
+            var fineractProductId = app.FineractProductId ?? 0;
+            if (fineractProductId <= 0)
+            {
+                var product = await _productRepo.GetByIdAsync(app.LoanProductId, ct);
+                fineractProductId = product?.FineractProductId ?? 0;
+            }
 
             if (fineractProductId <= 0)
             {
-                _logger.LogWarning("NAMP deployment: LoanProduct {ProductId} has no FineractProductId — loan will not be booked.", app.LoanProductId);
+                _logger.LogWarning("NAMP deployment: no FineractProductId on application {Id} or its LoanProduct — loan will not be booked.", app.Id);
             }
             else if (app.LoanAmount is null or <= 0)
             {

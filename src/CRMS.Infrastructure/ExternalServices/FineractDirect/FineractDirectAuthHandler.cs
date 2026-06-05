@@ -37,6 +37,7 @@ public class FineractDirectAuthHandler : DelegatingHandler
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", authKey);
         }
         request.Headers.TryAddWithoutValidation("fineract-platform-tenantid", _settings.TenantId);
+        request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0");
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         return await base.SendAsync(request, cancellationToken);
@@ -87,6 +88,7 @@ public class FineractDirectAuthHandler : DelegatingHandler
         };
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.TryAddWithoutValidation("fineract-platform-tenantid", _settings.TenantId);
+        request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0");
 
         try
         {

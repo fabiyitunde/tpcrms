@@ -1,5 +1,6 @@
 using CRMS.Domain.Interfaces;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
+using CRMS.Infrastructure.ExternalServices.FineractDirect;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -35,6 +36,16 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
     private readonly string _testIndividualNuban;
     private ICoreBankingService? _service;
 
+    // Fineract Direct
+    private readonly FineractDirectSettings _fineractSettings;
+    private readonly long _fineractTestClientId;
+    private readonly int _fineractTestProductId;
+    private readonly decimal _fineractTestPrincipal;
+    private readonly int _fineractTestTenorMonths;
+    private readonly decimal _fineractTestInterestRatePerAnnum;
+    private readonly string _fineractTestRepaymentAccount;
+    private IFineractDirectService? _fineractService;
+
     public CoreBankingServiceLiveIntegrationTests(ITestOutputHelper output)
     {
         _output = output;
@@ -60,38 +71,90 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
         
         _testNuban = cbsSection["TestNuban"] ?? "";
         _testIndividualNuban = cbsSection["TestIndividualNuban"] ?? "";
+
+        // Fineract Direct settings
+        var fineractSection = configuration.GetSection("FineractDirect");
+        _fineractSettings = new FineractDirectSettings
+        {
+            BaseUrl        = fineractSection["BaseUrl"] ?? "",
+            Username       = fineractSection["Username"] ?? "",
+            Password       = fineractSection["Password"] ?? "",
+            TenantId       = fineractSection["TenantId"] ?? "bankofagriculture",
+            TimeoutSeconds = int.TryParse(fineractSection["TimeoutSeconds"], out var fts) ? fts : 60,
+            UseMock        = false
+        };
+
+        long.TryParse(fineractSection["TestClientId"], out _fineractTestClientId);
+        int.TryParse(fineractSection["TestProductId"], out _fineractTestProductId);
+        decimal.TryParse(fineractSection["TestPrincipal"], out _fineractTestPrincipal);
+        int.TryParse(fineractSection["TestTenorMonths"], out _fineractTestTenorMonths);
+        decimal.TryParse(fineractSection["TestInterestRatePerAnnum"], out _fineractTestInterestRatePerAnnum);
+        _fineractTestRepaymentAccount = fineractSection["TestRepaymentAccountNumber"] ?? "";
     }
 
     public Task InitializeAsync()
     {
-        if (string.IsNullOrEmpty(_settings.BaseUrl))
+        // Initialise CoreBankingService if configured
+        if (!string.IsNullOrEmpty(_settings.BaseUrl))
         {
-            _output.WriteLine("CBS_BASE_URL not configured - live tests will be skipped");
-            return Task.CompletedTask;
+            var authHandler = new CoreBankingAuthHandler(
+                Options.Create(_settings),
+                new Mock<ILogger<CoreBankingAuthHandler>>().Object)
+            {
+                InnerHandler = new HttpClientHandler()
+            };
+
+            var httpClient = new HttpClient(authHandler)
+            {
+                BaseAddress = new Uri(_settings.BaseUrl),
+                Timeout     = TimeSpan.FromSeconds(_settings.TimeoutSeconds)
+            };
+
+            _service = new CoreBankingService(
+                httpClient,
+                Options.Create(_settings),
+                new Mock<ILogger<CoreBankingService>>().Object);
+
+            _output.WriteLine($"Initialized CoreBankingService with BaseUrl: {_settings.BaseUrl}");
+        }
+        else
+        {
+            _output.WriteLine("CBS_BASE_URL not configured - CoreBanking live tests will be skipped");
         }
 
-        var loggerMock = new Mock<ILogger<CoreBankingService>>();
-        var authHandlerLogger = new Mock<ILogger<CoreBankingAuthHandler>>();
-        
-        var authHandler = new CoreBankingAuthHandler(
-            Options.Create(_settings),
-            authHandlerLogger.Object)
+        // Initialise FineractDirectService if configured (independent of CoreBanking)
+        if (!string.IsNullOrEmpty(_fineractSettings.BaseUrl))
         {
-            InnerHandler = new HttpClientHandler()
-        };
-        
-        var httpClient = new HttpClient(authHandler)
+            var fineractAuthHandler = new FineractDirectAuthHandler(
+                Options.Create(_fineractSettings),
+                new Mock<ILogger<FineractDirectAuthHandler>>().Object)
+            {
+                InnerHandler = new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback = (_, _, _, errors) =>
+                        errors == System.Net.Security.SslPolicyErrors.None ||
+                        errors == System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch
+                }
+            };
+
+            var baseUrl = _fineractSettings.BaseUrl.TrimEnd('/') + "/";
+            var fineractHttpClient = new HttpClient(fineractAuthHandler)
+            {
+                BaseAddress = new Uri(baseUrl),
+                Timeout     = TimeSpan.FromSeconds(_fineractSettings.TimeoutSeconds)
+            };
+
+            _fineractService = new FineractDirectService(
+                fineractHttpClient,
+                new Mock<ILogger<FineractDirectService>>().Object);
+
+            _output.WriteLine($"Initialized FineractDirectService with BaseUrl: {_fineractSettings.BaseUrl}");
+        }
+        else
         {
-            BaseAddress = new Uri(_settings.BaseUrl),
-            Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds)
-        };
-        
-        _service = new CoreBankingService(
-            httpClient,
-            Options.Create(_settings),
-            loggerMock.Object);
-            
-        _output.WriteLine($"Initialized CoreBankingService with BaseUrl: {_settings.BaseUrl}");
+            _output.WriteLine("FineractDirect:BaseUrl not configured - Fineract live tests will be skipped");
+        }
+
         return Task.CompletedTask;
     }
 
@@ -326,6 +389,114 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
 
         Assert.False(result.IsSuccess);
         Assert.Contains("manually", result.Error ?? "", StringComparison.OrdinalIgnoreCase);
+    }
+
+    #endregion
+
+    #region Fineract Loan Booking
+
+    private void SkipIfFineractNotConfigured()
+    {
+        Skip.If(string.IsNullOrEmpty(_fineractSettings.BaseUrl),   "FineractDirect:BaseUrl not configured");
+        Skip.If(string.IsNullOrEmpty(_fineractSettings.Username),  "FineractDirect:Username not configured");
+        Skip.If(_fineractTestClientId <= 0,                        "FineractDirect:TestClientId not configured");
+        Skip.If(_fineractTestProductId <= 0,                       "FineractDirect:TestProductId not configured");
+        Skip.If(_fineractTestPrincipal <= 0,                       "FineractDirect:TestPrincipal not configured");
+        Skip.If(_fineractTestTenorMonths <= 0,                     "FineractDirect:TestTenorMonths not configured");
+        Skip.If(string.IsNullOrEmpty(_fineractTestRepaymentAccount),"FineractDirect:TestRepaymentAccountNumber not configured");
+    }
+
+    /// <summary>
+    /// Live end-to-end test for BookApprovedLoanAsync.
+    /// Creates, approves, and disburses a loan in the configured Fineract environment.
+    ///
+    /// ⚠️  THIS TEST WRITES DATA TO FINERACT. Run only against a sandbox/test tenant.
+    ///
+    /// Required in appsettings.test.json (or environment variables):
+    ///   FineractDirect:BaseUrl                  — e.g. https://tpapi.bankofagriculture.com/core_banking/api/v1
+    ///   FineractDirect:Username                 — Fineract username
+    ///   FineractDirect:Password                 — Fineract password
+    ///   FineractDirect:TenantId                 — e.g. bankofagriculture
+    ///   FineractDirect:TestClientId             — existing Fineract client ID (long)
+    ///   FineractDirect:TestProductId            — NAMP loan product ID (int)
+    ///   FineractDirect:TestPrincipal            — loan amount, e.g. 500000
+    ///   FineractDirect:TestTenorMonths          — e.g. 12
+    ///   FineractDirect:TestInterestRatePerAnnum — e.g. 9
+    ///   FineractDirect:TestRepaymentAccountNumber — BOA savings account number
+    /// </summary>
+    [SkippableFact]
+    public async Task BookApprovedLoanAsync_WithValidRequest_BooksApprovesAndDisburses()
+    {
+        SkipIfFineractNotConfigured();
+
+        var valueDate = DateTime.UtcNow.Date;
+        var request = new FineractLoanBookingRequest(
+            ClientId:                _fineractTestClientId,
+            ProductId:               _fineractTestProductId,
+            Principal:               _fineractTestPrincipal,
+            TenorMonths:             _fineractTestTenorMonths,
+            InterestRatePerAnnum:    _fineractTestInterestRatePerAnnum > 0 ? _fineractTestInterestRatePerAnnum : 9m,
+            ValueDate:               valueDate,
+            RepaymentAccountNumber:  _fineractTestRepaymentAccount,
+            DisburseToSavings:       false
+        );
+
+        _output.WriteLine("=== Fineract Loan Booking ===");
+        _output.WriteLine($"ClientId:            {request.ClientId}");
+        _output.WriteLine($"ProductId:           {request.ProductId}");
+        _output.WriteLine($"Principal:           {request.Principal:N2}");
+        _output.WriteLine($"TenorMonths:         {request.TenorMonths}");
+        _output.WriteLine($"InterestRate (p.a.): {request.InterestRatePerAnnum:N2}%");
+        _output.WriteLine($"ValueDate:           {request.ValueDate:yyyy-MM-dd}");
+        _output.WriteLine($"RepaymentAccount:    {request.RepaymentAccountNumber}");
+
+        var result = await _fineractService!.BookApprovedLoanAsync(request);
+
+        _output.WriteLine($"\nResult: IsSuccess={result.IsSuccess}, Error={result.Error}");
+
+        if (result.IsSuccess)
+        {
+            _output.WriteLine($"LoanId:            {result.Value.LoanId}");
+            _output.WriteLine($"LoanAccountNumber: {result.Value.LoanAccountNumber}");
+            _output.WriteLine($"Booked:            {result.Value.Booked}");
+            _output.WriteLine($"Approved:          {result.Value.Approved}");
+            _output.WriteLine($"Disbursed:         {result.Value.Disbursed}");
+            _output.WriteLine($"Status:            {result.Value.Status}");
+        }
+
+        Assert.True(result.IsSuccess, $"BookApprovedLoanAsync failed: {result.Error}");
+        Assert.True(result.Value.LoanId > 0, "Expected a positive LoanId");
+        Assert.False(string.IsNullOrWhiteSpace(result.Value.LoanAccountNumber), "Expected a non-empty LoanAccountNumber");
+        Assert.True(result.Value.Booked,    "Expected Booked = true");
+        Assert.True(result.Value.Approved,  "Expected Approved = true");
+        Assert.True(result.Value.Disbursed, "Expected Disbursed = true");
+    }
+
+    /// <summary>
+    /// Verifies that the product catalogue is reachable and the configured test product exists.
+    /// A safe read-only check to run before attempting the destructive booking test.
+    /// </summary>
+    [SkippableFact]
+    public async Task GetLoanProductsAsync_ConfiguredProductExists()
+    {
+        Skip.If(string.IsNullOrEmpty(_fineractSettings.BaseUrl), "FineractDirect:BaseUrl not configured");
+        Skip.If(_fineractTestProductId <= 0, "FineractDirect:TestProductId not configured");
+
+        var result = await _fineractService!.GetLoanProductsAsync(activeOnly: false);
+
+        _output.WriteLine($"Result: IsSuccess={result.IsSuccess}, Error={result.Error}");
+
+        Assert.True(result.IsSuccess, $"GetLoanProductsAsync failed: {result.Error}");
+        Assert.NotNull(result.Value);
+        Assert.NotEmpty(result.Value);
+
+        _output.WriteLine($"Total products returned: {result.Value.Count}");
+        foreach (var p in result.Value)
+            _output.WriteLine($"  [{p.Id}] {p.Name} — {p.AnnualInterestRate:N2}% p.a., active={p.IsActive}");
+
+        var testProduct = result.Value.FirstOrDefault(p => p.Id == _fineractTestProductId);
+        Assert.NotNull(testProduct);
+        _output.WriteLine($"\nTest product found: [{testProduct!.Id}] {testProduct.Name} — {testProduct.AnnualInterestRate:N2}% p.a.");
     }
 
     #endregion

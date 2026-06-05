@@ -35,16 +35,7 @@ public interface ICoreBankingService
     // Required by: GenerateCreditAdvisoryCommand — ExistingExposure field in AIAdvisoryRequest.
     Task<Result<CustomerExposure>> GetCustomerExposureAsync(string accountNumber, CancellationToken ct = default);
 
-    // NAMP Operations
-    /// <summary>
-    /// Looks up a BOA savings account by its external ID to retrieve the Fineract clientId.
-    /// Endpoint: GET /core_banking/api/tp/savingsaccounts/byexternalId/{boaAccountNumber}
-    /// Used at NAMP webhook ingest to resolve which client (and therefore which branch) owns the account.
-    /// </summary>
-    Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default);
 }
-
-public record NampBoaAccountInfo(long ClientId, string AccountStatus);
 
 // Customer Models
 public record CustomerInfo(

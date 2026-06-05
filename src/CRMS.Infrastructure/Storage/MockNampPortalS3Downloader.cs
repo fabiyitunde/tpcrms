@@ -17,10 +17,10 @@ public class MockNampPortalS3Downloader : INampPortalS3Downloader
         _logger = logger;
     }
 
-    public Task<byte[]?> DownloadAsync(string s3Key, CancellationToken ct = default)
+    public Task<byte[]?> DownloadAsync(string bucketName, string s3Key, CancellationToken ct = default)
     {
         _logger.LogInformation(
-            "MockNampPortalS3Downloader: skipping document download (mock mode). Key: {S3Key}", s3Key);
+            "MockNampPortalS3Downloader: skipping document download (mock mode). Bucket: {Bucket}, Key: {S3Key}", bucketName, s3Key);
         return Task.FromResult<byte[]?>(null);
     }
 }

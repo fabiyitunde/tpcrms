@@ -33,6 +33,7 @@ public class UpdateLoanProductHandler : IRequestHandler<UpdateLoanProductCommand
             maxAmount,
             request.MinTenorMonths,
             request.MaxTenorMonths,
+            request.BaseInterestRate,
             request.FineractProductId
         );
 

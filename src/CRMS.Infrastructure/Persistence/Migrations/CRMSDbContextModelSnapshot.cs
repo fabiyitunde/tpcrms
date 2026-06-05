@@ -3484,6 +3484,16 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<long?>("FineractLoanId")
                         .HasColumnType("bigint");
 
+                    b.Property<decimal?>("FineractNominalInterestRate")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<int?>("FineractProductId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FineractProductName")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
                     b.Property<bool>("GpsActivated")
                         .HasColumnType("tinyint(1)");
 
@@ -5378,6 +5388,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
+
+                    b.Property<decimal>("BaseInterestRate")
+                        .HasPrecision(8, 4)
+                        .HasColumnType("decimal(8,4)");
 
                     b.Property<string>("Code")
                         .IsRequired()

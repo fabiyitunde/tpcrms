@@ -135,6 +135,9 @@ public record NampApplicationDto(
     string? DeploymentNote,
     // Fineract integration
     long? FineractClientId,
+    int? FineractProductId,
+    string? FineractProductName,
+    decimal? FineractNominalInterestRate,
     decimal? ApprovedInterestRate,
     long? FineractLoanId,
     string? FineractLoanAccountNumber,

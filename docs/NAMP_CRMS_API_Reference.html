@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRMS Portal Status API — NAMP Integration</title>
+  <style>
+    :root {
+      --green-dark: #1b5e20;
+      --green-mid:  #2e7d32;
+      --green-lite: #e8f5e9;
+      --blue-dark:  #0d47a1;
+      --blue-lite:  #e3f2fd;
+      --amber-lite: #fff8e1;
+      --amber-dark: #e65100;
+      --red-lite:   #ffebee;
+      --red-dark:   #b71c1c;
+      --grey-1:     #f5f5f5;
+      --grey-2:     #e0e0e0;
+      --grey-3:     #9e9e9e;
+      --text:       #212121;
+      --mono:       'Courier New', Courier, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: var(--text); line-height: 1.6; background: #fff; }
+
+    .wrapper { display: flex; min-height: 100vh; }
+    nav { width: 240px; min-width: 240px; background: var(--green-dark); color: #fff; padding: 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+    nav .logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,.2); }
+    nav .logo h2 { font-size: 15px; font-weight: 700; color: #fff; }
+    nav .logo p  { font-size: 11px; color: rgba(255,255,255,.65); margin-top: 2px; }
+    nav ul { list-style: none; padding: 12px 0; }
+    nav ul li a { display: block; padding: 7px 20px; color: rgba(255,255,255,.8); text-decoration: none; font-size: 13px; transition: background .15s; }
+    nav ul li a:hover { background: rgba(255,255,255,.12); color: #fff; }
+    nav ul li.section-head { padding: 12px 20px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.45); }
+    main { flex: 1; padding: 40px 48px; max-width: 960px; }
+
+    h1 { font-size: 26px; color: var(--green-dark); border-bottom: 3px solid var(--green-dark); padding-bottom: 10px; margin-bottom: 6px; }
+    h1 small { font-size: 13px; font-weight: 400; color: var(--grey-3); display: block; margin-top: 4px; }
+    h2 { font-size: 19px; color: var(--green-dark); margin: 40px 0 14px; padding-bottom: 6px; border-bottom: 2px solid var(--green-lite); }
+    h3 { font-size: 15px; color: var(--blue-dark); margin: 24px 0 10px; }
+    p  { margin-bottom: 10px; }
+    a  { color: var(--blue-dark); }
+    ul, ol { padding-left: 22px; margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+
+    .box { border-radius: 6px; padding: 14px 18px; margin: 16px 0; }
+    .box-green  { background: var(--green-lite); border-left: 4px solid var(--green-mid); }
+    .box-blue   { background: var(--blue-lite);  border-left: 4px solid var(--blue-dark); }
+    .box-amber  { background: var(--amber-lite); border-left: 4px solid var(--amber-dark); }
+    .box-red    { background: var(--red-lite);   border-left: 4px solid var(--red-dark); }
+    .box strong { display: block; margin-bottom: 4px; }
+
+    pre { background: #263238; color: #cfd8dc; border-radius: 6px; padding: 18px 20px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; margin: 12px 0; }
+    code { font-family: var(--mono); font-size: 12.5px; background: #eceff1; padding: 1px 5px; border-radius: 3px; color: #b71c1c; }
+    pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+
+    .j-key  { color: #80cbc4; }
+    .j-str  { color: #c3e88d; }
+    .j-num  { color: #f78c6c; }
+    .j-bool { color: #c792ea; }
+    .j-null { color: #546e7a; }
+    .j-cmt  { color: #546e7a; font-style: italic; }
+
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 13px; }
+    th { background: var(--green-dark); color: #fff; padding: 8px 12px; text-align: left; font-weight: 600; }
+    td { padding: 7px 12px; border-bottom: 1px solid var(--grey-2); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--grey-1); }
+    td code { font-size: 12px; }
+
+    .badge { display: inline-block; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; margin-right: 4px; }
+    .badge-get  { background: #0d47a1; color: #fff; }
+    .badge-200  { background: #2e7d32; color: #fff; }
+    .badge-401  { background: #b71c1c; color: #fff; }
+
+    .status-pill { display: inline-block; border-radius: 12px; padding: 2px 10px; font-size: 11px; font-weight: 700; margin: 2px; white-space: nowrap; }
+    .s-review    { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+    .s-declined  { background: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
+    .s-offer     { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+    .s-processing{ background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; }
+    .s-active    { background: #e8f5e9; color: #1b5e20; border: 1px solid #2e7d32; font-weight: 800; }
+    .s-closed    { background: #f5f5f5; color: #616161; border: 1px solid #bdbdbd; }
+    .s-lapsed    { background: #fce4ec; color: #880e4f; border: 1px solid #f48fb1; }
+
+    .seq { background: var(--grey-1); border: 1px solid var(--grey-2); border-radius: 6px; padding: 20px 24px; font-family: var(--mono); font-size: 12px; line-height: 1.9; overflow-x: auto; margin: 12px 0; }
+
+    .anchor { display: block; height: 60px; margin-top: -60px; visibility: hidden; }
+
+    @media (max-width: 800px) {
+      nav { display: none; }
+      main { padding: 24px 20px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+<nav>
+  <div class="logo">
+    <h2>CRMS Portal Status API</h2>
+    <p>NAMP Integration · Bank of Agriculture<br>v1.0 · 2026-06-04</p>
+  </div>
+  <ul>
+    <li class="section-head">Overview</li>
+    <li><a href="#overview">Introduction</a></li>
+    <li><a href="#auth">Authentication</a></li>
+    <li><a href="#endpoint">Endpoint</a></li>
+    <li><a href="#flow">Integration Flow</a></li>
+
+    <li class="section-head">Response</li>
+    <li><a href="#root">Root Object</a></li>
+    <li><a href="#applicant">applicant</a></li>
+    <li><a href="#application-details">applicationDetails</a></li>
+    <li><a href="#offer">offer</a></li>
+    <li><a href="#loan-account">loanAccount</a></li>
+    <li><a href="#timeline">timeline[]</a></li>
+
+    <li class="section-head">Status Values</li>
+    <li><a href="#portal-statuses">Portal Statuses</a></li>
+    <li><a href="#status-mapping">Internal Mapping</a></li>
+    <li><a href="#timeline-labels">Timeline Labels</a></li>
+
+    <li class="section-head">Examples</li>
+    <li><a href="#ex-not-found">Not Found</a></li>
+    <li><a href="#ex-under-review">Under Review</a></li>
+    <li><a href="#ex-not-approved">Not Approved</a></li>
+    <li><a href="#ex-offer-made">Offer Made</a></li>
+    <li><a href="#ex-processing">Processing</a></li>
+    <li><a href="#ex-active">Active</a></li>
+    <li><a href="#ex-closed">Closed</a></li>
+    <li><a href="#ex-lapsed">Offer Lapsed</a></li>
+  </ul>
+</nav>
+
+<main>
+
+  <h1>CRMS Portal Status API
+    <small>National Agricultural Mechanization Program · Bank of Agriculture · Heifer Nigeria</small>
+  </h1>
+
+  <!-- ── OVERVIEW ─────────────────────────────────────── -->
+  <span class="anchor" id="overview"></span>
+  <h2>1. Introduction</h2>
+  <p>
+    This document describes the <strong>Portal Status API</strong> — a single read-only endpoint that the NAMP applicant portal
+    calls to display the current state of a submitted loan application. It is intended for use on the applicant's
+    status dashboard so that applicants can track their application from submission through to loan activation.
+  </p>
+  <p>
+    The endpoint is designed to be <strong>safe to poll</strong>: it never mutates state, it always returns
+    <span class="badge badge-200">200</span> (even when an application is not found), and it surfaces live repayment
+    data from the core banking system for active loans.
+  </p>
+  <div class="box box-green">
+    <strong>What the portal needs to do</strong>
+    After a successful application submission, store the <code>applicationReference</code> against the applicant record.
+    Use that reference to call this endpoint whenever the applicant visits their status page.
+    Render the response using the <a href="#portal-statuses">7 portal statuses</a> and the structured objects described below.
+  </div>
+
+  <!-- ── AUTH ─────────────────────────────────────────── -->
+  <span class="anchor" id="auth"></span>
+  <h2>2. Authentication</h2>
+  <p>
+    The same API key used for the submission webhook is used here. Send it in the <code>X-Api-Key</code> header on every request.
+  </p>
+  <table>
+    <thead><tr><th>Header</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>X-Api-Key</code></td><td>The shared secret key provided by the BOA CRMS team.</td></tr>
+    </tbody>
+  </table>
+  <div class="box box-red">
+    <strong>Missing or incorrect API key → 401 Unauthorized</strong>
+    A plain-text <code>"Invalid or missing API key."</code> body is returned.
+    This is a configuration issue — alert the NAMP technical team.
+  </div>
+
+  <!-- ── ENDPOINT ──────────────────────────────────────── -->
+  <span class="anchor" id="endpoint"></span>
+  <h2>3. Endpoint</h2>
+  <table>
+    <thead><tr><th>Property</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Method</td><td><span class="badge badge-get">GET</span></td></tr>
+      <tr><td>Path</td><td><code>/api/v1/namp/webhook/application/{applicationReference}</code></td></tr>
+      <tr><td>Path parameter</td><td><code>applicationReference</code> — the 32-character hex reference returned when the application was submitted.</td></tr>
+      <tr><td>Auth</td><td><code>X-Api-Key</code> header required.</td></tr>
+      <tr><td>Response</td><td>Always <span class="badge badge-200">200 OK</span> with a JSON body. Never returns 404.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── FLOW ─────────────────────────────────────────── -->
+  <span class="anchor" id="flow"></span>
+  <h2>4. Integration Flow</h2>
+
+  <div class="seq">
+NAMP Portal                                    CRMS API
+    │                                               │
+    │  Applicant visits status page                 │
+    │  NAMP loads stored applicationReference       │
+    │                                               │
+    │──── GET /api/v1/namp/webhook/application ─────▶│
+    │          /{applicationReference}              │
+    │     Header: X-Api-Key: {key}                  │
+    │                                               │
+    │                      ① Validate API key       │
+    │                      ② Lookup application     │
+    │                      ③ Map internal status    │
+    │                         → portal status       │
+    │                      ④ If OfferMade /         │
+    │                         Processing:           │
+    │                         fetch repayment       │
+    │                         schedule from CBS     │
+    │                      ⑤ If Active / Closed:    │
+    │                         fetch live loan       │
+    │                         account data from CBS │
+    │                                               │
+    │◀─── 200 OK ──────────────────────────────────│
+    │     NampPortalStatusResponse (JSON)           │
+    │                                               │
+    │  Render status page using:                    │
+    │   • status + statusMessage                    │
+    │   • offer (if OfferMade / Processing)         │
+    │   • loanAccount (if Active / Closed)          │
+    │   • timeline[]                                │
+  </div>
+
+  <div class="box box-amber">
+    <strong>Fineract data enrichment is best-effort</strong>
+    When CRMS fetches live data from the core banking system (repayment schedule or loan account details),
+    it wraps the call in a try/catch. If the CBS is temporarily unavailable, CRMS still returns
+    <span class="badge badge-200">200</span> with <code>fineractDataAvailable: false</code> on the
+    <code>offer</code> or <code>loanAccount</code> object. Display the static fields (amount, rate, account number)
+    and show schedule/balance fields as <em>"Calculating…"</em> or <em>"Temporarily unavailable"</em> respectively.
+  </div>
+
+  <!-- ── ROOT OBJECT ───────────────────────────────────── -->
+  <span class="anchor" id="root"></span>
+  <h2>5. Response Schema — Root Object</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:220px">Field</th>
+        <th style="width:90px">Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><code>applicationReference</code></td><td>string</td><td>Echoes back the reference that was queried. Always present.</td></tr>
+      <tr><td><code>found</code></td><td>bool</td><td>
+        <code>true</code> if the application exists in CRMS.<br>
+        <code>false</code> if not found — in this case only <code>statusMessage</code> is populated; all other fields are <code>null</code> or empty.
+      </td></tr>
+      <tr><td><code>status</code></td><td>string?</td><td>One of the 7 portal status values. <code>null</code> when <code>found = false</code>. See <a href="#portal-statuses">Section 8</a>.</td></tr>
+      <tr><td><code>statusMessage</code></td><td>string?</td><td>Human-readable sentence suitable for display directly to the applicant. Always present — even when <code>found = false</code>.</td></tr>
+      <tr><td><code>declineReason</code></td><td>string?</td><td>Populated when <code>status = "NotApproved"</code> and the loan officer recorded a reason. <code>null</code> in all other cases.</td></tr>
+      <tr><td><code>lastUpdated</code></td><td>string? (ISO 8601)</td><td>UTC timestamp of the most recent status change. <code>null</code> when <code>found = false</code>.</td></tr>
+      <tr><td><code>applicant</code></td><td>object?</td><td>Basic applicant identity. <code>null</code> when <code>found = false</code>. See <a href="#applicant">Section 6.1</a>.</td></tr>
+      <tr><td><code>applicationDetails</code></td><td>object?</td><td>Core loan request details. <code>null</code> when <code>found = false</code>. See <a href="#application-details">Section 6.2</a>.</td></tr>
+      <tr><td><code>offer</code></td><td>object?</td><td>
+        Loan offer details. Populated <strong>only</strong> when <code>status = "OfferMade"</code> or <code>"Processing"</code>.
+        <code>null</code> for all other statuses. See <a href="#offer">Section 6.3</a>.
+      </td></tr>
+      <tr><td><code>loanAccount</code></td><td>object?</td><td>
+        Live loan account data. Populated <strong>only</strong> when <code>status = "Active"</code> or <code>"Closed"</code>.
+        <code>null</code> for all other statuses. See <a href="#loan-account">Section 6.4</a>.
+      </td></tr>
+      <tr><td><code>timeline</code></td><td>array</td><td>Ordered list of status change events, oldest first. Empty array when <code>found = false</code>. See <a href="#timeline">Section 6.5</a>.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── APPLICANT ─────────────────────────────────────── -->
+  <span class="anchor" id="applicant"></span>
+  <h2>6.1 applicant Object</h2>
+  <table>
+    <thead><tr><th style="width:140px">Field</th><th style="width:80px">Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>fullName</code></td><td>string?</td><td>Applicant's full name as recorded in CRMS.</td></tr>
+      <tr><td><code>bvn</code></td><td>string?</td><td>Bank Verification Number on file.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── APPLICATION DETAILS ───────────────────────────── -->
+  <span class="anchor" id="application-details"></span>
+  <h2>6.2 applicationDetails Object</h2>
+  <table>
+    <thead><tr><th style="width:210px">Field</th><th style="width:80px">Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>requestedAmount</code></td><td>decimal?</td><td>Original loan amount requested, in NGN.</td></tr>
+      <tr><td><code>requestedTenorMonths</code></td><td>int?</td><td>Original tenor in whole months.</td></tr>
+      <tr><td><code>loanPurpose</code></td><td>string?</td><td>Loan purpose as submitted by the applicant.</td></tr>
+      <tr><td><code>submittedAt</code></td><td>string? (ISO 8601)</td><td>When the application was submitted to CRMS.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── OFFER ─────────────────────────────────────────── -->
+  <span class="anchor" id="offer"></span>
+  <h2>6.3 offer Object</h2>
+  <p>Present only when <code>status</code> is <span class="status-pill s-offer">OfferMade</span> or <span class="status-pill s-processing">Processing</span>. <code>null</code> otherwise.</p>
+  <p>
+    When <code>fineractDataAvailable = true</code>, the repayment schedule fields (<code>monthlyInstallment</code>,
+    <code>totalInterest</code>, <code>totalRepayable</code>) are populated with live figures computed from the
+    core banking system. When <code>false</code>, display these as <em>"Calculating…"</em> — the interest rate
+    and approved amounts are always present.
+  </p>
+  <table>
+    <thead><tr><th style="width:220px">Field</th><th style="width:80px">Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>approvedAmount</code></td><td>decimal?</td><td>Approved loan principal in NGN.</td></tr>
+      <tr><td><code>approvedTenorMonths</code></td><td>int?</td><td>Approved repayment tenor in months.</td></tr>
+      <tr><td><code>interestRatePerAnnum</code></td><td>decimal</td><td>Annual interest rate as a percentage, e.g. <code>9.0</code> = 9% p.a. Always present.</td></tr>
+      <tr><td><code>monthlyInstallment</code></td><td>decimal?</td><td>Computed monthly EMI in NGN. <code>null</code> if <code>fineractDataAvailable = false</code>.</td></tr>
+      <tr><td><code>totalInterest</code></td><td>decimal?</td><td>Total interest payable over the full tenor in NGN. <code>null</code> if <code>fineractDataAvailable = false</code>.</td></tr>
+      <tr><td><code>totalRepayable</code></td><td>decimal?</td><td>Total amount to be repaid (principal + all interest) in NGN. <code>null</code> if <code>fineractDataAvailable = false</code>.</td></tr>
+      <tr><td><code>fineractDataAvailable</code></td><td>bool</td><td><code>true</code> if a live repayment schedule was successfully fetched from the core banking system.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── LOAN ACCOUNT ──────────────────────────────────── -->
+  <span class="anchor" id="loan-account"></span>
+  <h2>6.4 loanAccount Object</h2>
+  <p>Present only when <code>status</code> is <span class="status-pill s-active">Active</span> or <span class="status-pill s-closed">Closed</span>. <code>null</code> otherwise.</p>
+  <p>
+    When <code>fineractDataAvailable = true</code>, all balance and repayment fields reflect the current live state
+    of the loan account. When <code>false</code>, only <code>fineractLoanId</code> and <code>loanAccountNumber</code>
+    may be present — show balance fields as <em>"Temporarily unavailable"</em>.
+  </p>
+  <table>
+    <thead><tr><th style="width:230px">Field</th><th style="width:90px">Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>fineractLoanId</code></td><td>long?</td><td>Internal CBS loan ID (for reference only — not displayed to applicants).</td></tr>
+      <tr><td><code>loanAccountNumber</code></td><td>string?</td><td>Loan account number as assigned by the core banking system. Display this to the applicant.</td></tr>
+      <tr><td><code>disbursedAmount</code></td><td>decimal?</td><td>Amount actually disbursed in NGN.</td></tr>
+      <tr><td><code>disbursedAt</code></td><td>string? (ISO 8601)</td><td>Date and time of disbursement.</td></tr>
+      <tr><td><code>outstandingBalance</code></td><td>decimal?</td><td>Current total outstanding balance in NGN.</td></tr>
+      <tr><td><code>nextInstallmentDueDate</code></td><td>string? (ISO 8601)</td><td>Due date of the next repayment installment. <code>null</code> for fully repaid / closed loans.</td></tr>
+      <tr><td><code>nextInstallmentAmount</code></td><td>decimal?</td><td>Amount due on the next installment date in NGN.</td></tr>
+      <tr><td><code>arrearsAmount</code></td><td>decimal?</td><td>Amount currently overdue in NGN. <code>null</code> when not in arrears.</td></tr>
+      <tr><td><code>isInArrears</code></td><td>bool?</td><td><code>true</code> if the account has any overdue charges. <code>null</code> if <code>fineractDataAvailable = false</code>.</td></tr>
+      <tr><td><code>fineractDataAvailable</code></td><td>bool</td><td><code>true</code> if live loan account data was successfully fetched from the core banking system.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── TIMELINE ───────────────────────────────────────── -->
+  <span class="anchor" id="timeline"></span>
+  <h2>6.5 timeline[] Entries</h2>
+  <p>
+    An ordered array of status change events from oldest to newest. Each entry represents a moment when the
+    application moved from one internal stage to another. This can be used to build a visual progress timeline
+    for the applicant. Empty array when <code>found = false</code>.
+  </p>
+  <table>
+    <thead><tr><th style="width:150px">Field</th><th style="width:100px">Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>stage</code></td><td>string</td><td>Human-readable stage label. See <a href="#timeline-labels">Section 10</a> for all possible values.</td></tr>
+      <tr><td><code>occurredAt</code></td><td>string (ISO 8601)</td><td>UTC timestamp when this stage was entered.</td></tr>
+      <tr><td><code>note</code></td><td>string?</td><td>Optional note recorded by the loan officer at this stage. <code>null</code> if no note was added.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── PORTAL STATUSES ───────────────────────────────── -->
+  <span class="anchor" id="portal-statuses"></span>
+  <h2>7. Portal Status Values</h2>
+  <p>The <code>status</code> field will be one of the following 7 string values. Use these to drive your UI logic.</p>
+
+  <table>
+    <thead><tr><th style="width:140px">Value</th><th style="width:140px">Display (suggested)</th><th>statusMessage (from CRMS)</th><th>Action for applicant</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>UnderReview</code></td>
+        <td><span class="status-pill s-review">Under Review</span></td>
+        <td><em>"Your application is currently under review. Our team will assess all information provided before making a decision."</em></td>
+        <td>No action required. Check back later.</td>
+      </tr>
+      <tr>
+        <td><code>NotApproved</code></td>
+        <td><span class="status-pill s-declined">Not Approved</span></td>
+        <td><em>"We regret to inform you that your application was not successful at this time. Please see the reason below or contact your nearest BOA branch for more information."</em></td>
+        <td>Display <code>declineReason</code> if present. Direct applicant to nearest BOA branch.</td>
+      </tr>
+      <tr>
+        <td><code>OfferMade</code></td>
+        <td><span class="status-pill s-offer">Offer Made</span></td>
+        <td><em>"Congratulations! Your loan application has been approved. Please review the offer details below and countersign your offer letter to proceed."</em></td>
+        <td>Show <code>offer</code> object. Prompt applicant to countersign their offer letter. Note: offer has a limited validity window.</td>
+      </tr>
+      <tr>
+        <td><code>Processing</code></td>
+        <td><span class="status-pill s-processing">Processing</span></td>
+        <td><em>"Your offer has been accepted and your loan is being processed. You will be contacted once the equipment is ready for deployment."</em></td>
+        <td>No action required. Show <code>offer</code> object for reference.</td>
+      </tr>
+      <tr>
+        <td><code>Active</code></td>
+        <td><span class="status-pill s-active">Active</span></td>
+        <td><em>"Your loan is active. Please see the account details below for your repayment schedule information."</em></td>
+        <td>Show <code>loanAccount</code> object with outstanding balance and next installment date.</td>
+      </tr>
+      <tr>
+        <td><code>Closed</code></td>
+        <td><span class="status-pill s-closed">Closed</span></td>
+        <td><em>"Your loan has been fully repaid. Thank you for your participation in the NAMP programme."</em></td>
+        <td>Show <code>loanAccount</code> for historical reference. No outstanding balance.</td>
+      </tr>
+      <tr>
+        <td><code>OfferLapsed</code></td>
+        <td><span class="status-pill s-lapsed">Offer Lapsed</span></td>
+        <td><em>"Your loan offer has lapsed as it was not accepted within the required timeframe. Please contact your nearest BOA branch if you wish to re-apply."</em></td>
+        <td>Direct applicant to nearest BOA branch.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── STATUS MAPPING ────────────────────────────────── -->
+  <span class="anchor" id="status-mapping"></span>
+  <h2>8. Internal → Portal Status Mapping</h2>
+  <p>
+    CRMS has a detailed internal workflow. This table shows how every internal stage maps to the 7 portal statuses,
+    so you know exactly what <code>status</code> value to expect at each point in the process.
+  </p>
+  <table>
+    <thead><tr><th style="width:160px">Portal Status</th><th>Internal CRMS Stages included</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="status-pill s-review">UnderReview</span></td>
+        <td>Application Received, Pending Assignment, Application in Progress, Application Submitted, Technical Appraisal, Financial Appraisal, Branch Credit Committee Review, Zonal Credit Committee Review, Regional Credit Committee Review, Head Office Credit Committee Review, Ratification</td>
+      </tr>
+      <tr>
+        <td><span class="status-pill s-declined">NotApproved</span></td>
+        <td>Technical Appraisal — Declined, Financial Appraisal — Declined, Branch Credit Committee — Declined, Zonal Credit Committee — Declined, Regional Credit Committee — Declined, Head Office Credit Committee — Declined, Ratification — Declined, Declined</td>
+      </tr>
+      <tr>
+        <td><span class="status-pill s-offer">OfferMade</span></td>
+        <td>Offer Letter Generated</td>
+      </tr>
+      <tr>
+        <td><span class="status-pill s-processing">Processing</span></td>
+        <td>Offer Accepted, Pre-Deployment Verification, Training, Equipment Deployment</td>
+      </tr>
+      <tr>
+        <td><span class="status-pill s-active">Active</span></td>
+        <td>Loan Activated</td>
+      </tr>
+      <tr>
+        <td><span class="status-pill s-closed">Closed</span></td>
+        <td>Loan Closed</td>
+      </tr>
+      <tr>
+        <td><span class="status-pill s-lapsed">OfferLapsed</span></td>
+        <td>Offer Lapsed</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── TIMELINE LABELS ────────────────────────────────── -->
+  <span class="anchor" id="timeline-labels"></span>
+  <h2>9. Timeline Stage Labels</h2>
+  <p>All possible values for the <code>stage</code> field within <code>timeline[]</code> entries:</p>
+  <table>
+    <thead><tr><th>stage value</th><th>What it means</th></tr></thead>
+    <tbody>
+      <tr><td>Application Received</td><td>NAMP submitted the application payload to CRMS successfully.</td></tr>
+      <tr><td>Pending Assignment</td><td>Application is staged and awaiting assignment to a loan officer.</td></tr>
+      <tr><td>Application in Progress</td><td>Loan officer has recalled the application and is preparing it.</td></tr>
+      <tr><td>Application Submitted</td><td>Loan officer has formally submitted the application into the appraisal workflow.</td></tr>
+      <tr><td>Technical Appraisal</td><td>Application is under technical appraisal review.</td></tr>
+      <tr><td>Technical Appraisal — Declined</td><td>Failed at technical appraisal stage.</td></tr>
+      <tr><td>Financial Appraisal</td><td>Application is under financial appraisal review.</td></tr>
+      <tr><td>Financial Appraisal — Declined</td><td>Failed at financial appraisal stage.</td></tr>
+      <tr><td>Branch Credit Committee Review</td><td>Under review by the Branch Credit Committee.</td></tr>
+      <tr><td>Branch Credit Committee — Declined</td><td>Declined by the Branch Credit Committee.</td></tr>
+      <tr><td>Zonal Credit Committee Review</td><td>Under review by the Zonal Credit Committee (high-value loans).</td></tr>
+      <tr><td>Zonal Credit Committee — Declined</td><td>Declined by the Zonal Credit Committee.</td></tr>
+      <tr><td>Regional Credit Committee Review</td><td>Under review by the Regional Credit Committee.</td></tr>
+      <tr><td>Regional Credit Committee — Declined</td><td>Declined by the Regional Credit Committee.</td></tr>
+      <tr><td>Head Office Credit Committee Review</td><td>Under review by the Head Office Credit Committee (largest loans).</td></tr>
+      <tr><td>Head Office Credit Committee — Declined</td><td>Declined by the Head Office Credit Committee.</td></tr>
+      <tr><td>Ratification</td><td>Awaiting Board / senior management ratification.</td></tr>
+      <tr><td>Ratification — Declined</td><td>Declined at ratification stage.</td></tr>
+      <tr><td>Offer Letter Generated</td><td>Offer letter produced and sent to applicant for countersignature.</td></tr>
+      <tr><td>Offer Accepted</td><td>Applicant has countersigned the offer letter.</td></tr>
+      <tr><td>Offer Lapsed</td><td>Offer expired before the applicant accepted it.</td></tr>
+      <tr><td>Pre-Deployment Verification</td><td>Pre-disbursement checks in progress.</td></tr>
+      <tr><td>Training</td><td>Applicant is attending NAMP training.</td></tr>
+      <tr><td>Equipment Deployment</td><td>Equipment is being delivered / deployed.</td></tr>
+      <tr><td>Loan Activated</td><td>Loan disbursed and account activated in the core banking system.</td></tr>
+      <tr><td>Loan Closed</td><td>Loan fully repaid and account closed.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════════════════════════════
+       EXAMPLES
+  ════════════════════════════════════ -->
+
+  <!-- ── NOT FOUND ─────────────────────────────────────── -->
+  <span class="anchor" id="ex-not-found"></span>
+  <h2>10. Example — Application Not Found</h2>
+  <p>
+    Returned when the <code>applicationReference</code> does not exist in CRMS.
+    The response is still <span class="badge badge-200">200 OK</span> — check <code>found</code>.
+  </p>
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"found"</span>:                <span class="j-bool">false</span>,
+  <span class="j-key">"status"</span>:              <span class="j-null">null</span>,
+  <span class="j-key">"statusMessage"</span>:       <span class="j-str">"No application was found with this reference. Please verify the reference number or contact support."</span>,
+  <span class="j-key">"declineReason"</span>:       <span class="j-null">null</span>,
+  <span class="j-key">"lastUpdated"</span>:         <span class="j-null">null</span>,
+  <span class="j-key">"applicant"</span>:           <span class="j-null">null</span>,
+  <span class="j-key">"applicationDetails"</span>:  <span class="j-null">null</span>,
+  <span class="j-key">"offer"</span>:              <span class="j-null">null</span>,
+  <span class="j-key">"loanAccount"</span>:         <span class="j-null">null</span>,
+  <span class="j-key">"timeline"</span>:           []
+}</code></pre>
+
+  <!-- ── UNDER REVIEW ───────────────────────────────────── -->
+  <span class="anchor" id="ex-under-review"></span>
+  <h2>11. Example — Under Review</h2>
+  <p>Application is in any stage of the internal appraisal or committee workflow.</p>
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
+  <span class="j-key">"status"</span>:     <span class="j-str">"UnderReview"</span>,
+  <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your application is currently under review. Our team will assess all information provided before making a decision."</span>,
+  <span class="j-key">"declineReason"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"lastUpdated"</span>:   <span class="j-str">"2026-06-04T08:15:00Z"</span>,
+  <span class="j-key">"applicant"</span>: {
+    <span class="j-key">"fullName"</span>: <span class="j-str">"Chukwuemeka Nwachukwu"</span>,
+    <span class="j-key">"bvn"</span>:      <span class="j-str">"33456789012"</span>
+  },
+  <span class="j-key">"applicationDetails"</span>: {
+    <span class="j-key">"requestedAmount"</span>:      <span class="j-num">7650000.00</span>,
+    <span class="j-key">"requestedTenorMonths"</span>: <span class="j-num">48</span>,
+    <span class="j-key">"loanPurpose"</span>:          <span class="j-str">"Acquisition of tractor hire service equipment for smallholder farmers"</span>,
+    <span class="j-key">"submittedAt"</span>:          <span class="j-str">"2026-06-03T09:15:00Z"</span>
+  },
+  <span class="j-key">"offer"</span>:      <span class="j-null">null</span>,
+  <span class="j-key">"loanAccount"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"timeline"</span>: [
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Received"</span>,   <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Pending Assignment"</span>,    <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-03T09:15:01Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Submitted"</span>, <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-04T08:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Technical Appraisal"</span>,  <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-04T08:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> }
+  ]
+}</code></pre>
+
+  <!-- ── NOT APPROVED ───────────────────────────────────── -->
+  <span class="anchor" id="ex-not-approved"></span>
+  <h2>12. Example — Not Approved</h2>
+  <p>Application was declined. Display <code>declineReason</code> when present.</p>
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
+  <span class="j-key">"status"</span>:     <span class="j-str">"NotApproved"</span>,
+  <span class="j-key">"statusMessage"</span>: <span class="j-str">"We regret to inform you that your application was not successful at this time. Please see the reason below or contact your nearest BOA branch for more information."</span>,
+  <span class="j-key">"declineReason"</span>: <span class="j-str">"Declined at financial appraisal: Debt-service coverage ratio below minimum threshold. Monthly income insufficient relative to requested loan amount."</span>,
+  <span class="j-key">"lastUpdated"</span>:   <span class="j-str">"2026-06-06T14:22:00Z"</span>,
+  <span class="j-key">"applicant"</span>: { <span class="j-key">"fullName"</span>: <span class="j-str">"Chukwuemeka Nwachukwu"</span>, <span class="j-key">"bvn"</span>: <span class="j-str">"33456789012"</span> },
+  <span class="j-key">"applicationDetails"</span>: {
+    <span class="j-key">"requestedAmount"</span>:      <span class="j-num">7650000.00</span>,
+    <span class="j-key">"requestedTenorMonths"</span>: <span class="j-num">48</span>,
+    <span class="j-key">"loanPurpose"</span>:          <span class="j-str">"Acquisition of tractor hire service equipment for smallholder farmers"</span>,
+    <span class="j-key">"submittedAt"</span>:          <span class="j-str">"2026-06-03T09:15:00Z"</span>
+  },
+  <span class="j-key">"offer"</span>:      <span class="j-null">null</span>,
+  <span class="j-key">"loanAccount"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"timeline"</span>: [
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Received"</span>,          <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Submitted"</span>,         <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-04T08:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Technical Appraisal"</span>,          <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-04T08:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Financial Appraisal"</span>,          <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-05T10:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Financial Appraisal — Declined"</span>, <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-06T14:22:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-str">"Debt-service coverage ratio below minimum threshold."</span> }
+  ]
+}</code></pre>
+
+  <!-- ── OFFER MADE ─────────────────────────────────────── -->
+  <span class="anchor" id="ex-offer-made"></span>
+  <h2>13. Example — Offer Made</h2>
+  <p>Application approved and offer issued. Render the <code>offer</code> object with repayment schedule details.</p>
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
+  <span class="j-key">"status"</span>:     <span class="j-str">"OfferMade"</span>,
+  <span class="j-key">"statusMessage"</span>: <span class="j-str">"Congratulations! Your loan application has been approved. Please review the offer details below and countersign your offer letter to proceed."</span>,
+  <span class="j-key">"declineReason"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"lastUpdated"</span>:   <span class="j-str">"2026-06-10T14:30:00Z"</span>,
+  <span class="j-key">"applicant"</span>: { <span class="j-key">"fullName"</span>: <span class="j-str">"Chukwuemeka Nwachukwu"</span>, <span class="j-key">"bvn"</span>: <span class="j-str">"33456789012"</span> },
+  <span class="j-key">"applicationDetails"</span>: {
+    <span class="j-key">"requestedAmount"</span>: <span class="j-num">7650000.00</span>, <span class="j-key">"requestedTenorMonths"</span>: <span class="j-num">48</span>,
+    <span class="j-key">"loanPurpose"</span>: <span class="j-str">"Acquisition of tractor hire service equipment for smallholder farmers"</span>,
+    <span class="j-key">"submittedAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>
+  },
+  <span class="j-key">"offer"</span>: {
+    <span class="j-key">"approvedAmount"</span>:       <span class="j-num">7650000.00</span>,
+    <span class="j-key">"approvedTenorMonths"</span>:  <span class="j-num">48</span>,
+    <span class="j-key">"interestRatePerAnnum"</span>: <span class="j-num">9.0</span>,
+    <span class="j-key">"monthlyInstallment"</span>:   <span class="j-num">190250.50</span>,
+    <span class="j-key">"totalInterest"</span>:        <span class="j-num">1482024.00</span>,
+    <span class="j-key">"totalRepayable"</span>:       <span class="j-num">9132024.00</span>,
+    <span class="j-key">"fineractDataAvailable"</span>: <span class="j-bool">true</span>
+  },
+  <span class="j-key">"loanAccount"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"timeline"</span>: [
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Received"</span>,       <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Submitted"</span>,      <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-04T08:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Technical Appraisal"</span>,       <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-04T08:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Financial Appraisal"</span>,       <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-05T10:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Branch Credit Committee Review"</span>, <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-07T09:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Offer Letter Generated"</span>,    <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-10T14:30:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-str">"Offer valid for 14 days. Please countersign and return."</span> }
+  ]
+}</code></pre>
+
+  <!-- ── PROCESSING ─────────────────────────────────────── -->
+  <span class="anchor" id="ex-processing"></span>
+  <h2>14. Example — Processing</h2>
+  <p>Offer accepted; pre-disbursement stages underway. <code>offer</code> still present for reference.</p>
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
+  <span class="j-key">"status"</span>:     <span class="j-str">"Processing"</span>,
+  <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your offer has been accepted and your loan is being processed. You will be contacted once the equipment is ready for deployment."</span>,
+  <span class="j-key">"declineReason"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"lastUpdated"</span>:   <span class="j-str">"2026-06-12T09:00:00Z"</span>,
+  <span class="j-key">"applicant"</span>: { <span class="j-key">"fullName"</span>: <span class="j-str">"Chukwuemeka Nwachukwu"</span>, <span class="j-key">"bvn"</span>: <span class="j-str">"33456789012"</span> },
+  <span class="j-key">"applicationDetails"</span>: {
+    <span class="j-key">"requestedAmount"</span>: <span class="j-num">7650000.00</span>, <span class="j-key">"requestedTenorMonths"</span>: <span class="j-num">48</span>,
+    <span class="j-key">"loanPurpose"</span>: <span class="j-str">"Acquisition of tractor hire service equipment for smallholder farmers"</span>,
+    <span class="j-key">"submittedAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>
+  },
+  <span class="j-key">"offer"</span>: {
+    <span class="j-key">"approvedAmount"</span>:       <span class="j-num">7650000.00</span>,
+    <span class="j-key">"approvedTenorMonths"</span>:  <span class="j-num">48</span>,
+    <span class="j-key">"interestRatePerAnnum"</span>: <span class="j-num">9.0</span>,
+    <span class="j-key">"monthlyInstallment"</span>:   <span class="j-num">190250.50</span>,
+    <span class="j-key">"totalInterest"</span>:        <span class="j-num">1482024.00</span>,
+    <span class="j-key">"totalRepayable"</span>:       <span class="j-num">9132024.00</span>,
+    <span class="j-key">"fineractDataAvailable"</span>: <span class="j-bool">true</span>
+  },
+  <span class="j-key">"loanAccount"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"timeline"</span>: [
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Received"</span>,  <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Offer Letter Generated"</span>, <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-10T14:30:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Offer Accepted"</span>,         <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-12T09:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> }
+  ]
+}</code></pre>
+
+  <!-- ── ACTIVE ─────────────────────────────────────────── -->
+  <span class="anchor" id="ex-active"></span>
+  <h2>15. Example — Active</h2>
+  <p>Loan disbursed. Render <code>loanAccount</code> with outstanding balance and next repayment date.</p>
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
+  <span class="j-key">"status"</span>:     <span class="j-str">"Active"</span>,
+  <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your loan is active. Please see the account details below for your repayment schedule information."</span>,
+  <span class="j-key">"declineReason"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"lastUpdated"</span>:   <span class="j-str">"2026-06-20T11:00:00Z"</span>,
+  <span class="j-key">"applicant"</span>: { <span class="j-key">"fullName"</span>: <span class="j-str">"Chukwuemeka Nwachukwu"</span>, <span class="j-key">"bvn"</span>: <span class="j-str">"33456789012"</span> },
+  <span class="j-key">"applicationDetails"</span>: {
+    <span class="j-key">"requestedAmount"</span>: <span class="j-num">7650000.00</span>, <span class="j-key">"requestedTenorMonths"</span>: <span class="j-num">48</span>,
+    <span class="j-key">"loanPurpose"</span>: <span class="j-str">"Acquisition of tractor hire service equipment for smallholder farmers"</span>,
+    <span class="j-key">"submittedAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>
+  },
+  <span class="j-key">"offer"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"loanAccount"</span>: {
+    <span class="j-key">"fineractLoanId"</span>:         <span class="j-num">10042</span>,
+    <span class="j-key">"loanAccountNumber"</span>:      <span class="j-str">"000100000042"</span>,
+    <span class="j-key">"disbursedAmount"</span>:         <span class="j-num">7650000.00</span>,
+    <span class="j-key">"disbursedAt"</span>:             <span class="j-str">"2026-06-20T11:00:00Z"</span>,
+    <span class="j-key">"outstandingBalance"</span>:      <span class="j-num">7460000.00</span>,
+    <span class="j-key">"nextInstallmentDueDate"</span>: <span class="j-str">"2026-07-20T00:00:00Z"</span>,
+    <span class="j-key">"nextInstallmentAmount"</span>:   <span class="j-num">190250.50</span>,
+    <span class="j-key">"arrearsAmount"</span>:           <span class="j-null">null</span>,
+    <span class="j-key">"isInArrears"</span>:            <span class="j-bool">false</span>,
+    <span class="j-key">"fineractDataAvailable"</span>:  <span class="j-bool">true</span>
+  },
+  <span class="j-key">"timeline"</span>: [
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Received"</span>,  <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Offer Letter Generated"</span>, <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-10T14:30:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Offer Accepted"</span>,         <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-12T09:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Equipment Deployment"</span>,   <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-18T14:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Loan Activated"</span>,         <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-20T11:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> }
+  ]
+}</code></pre>
+
+  <!-- ── CLOSED ─────────────────────────────────────────── -->
+  <span class="anchor" id="ex-closed"></span>
+  <h2>16. Example — Closed</h2>
+  <p>Loan fully repaid. <code>nextInstallmentDueDate</code> and <code>nextInstallmentAmount</code> will be <code>null</code>.</p>
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
+  <span class="j-key">"status"</span>:     <span class="j-str">"Closed"</span>,
+  <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your loan has been fully repaid. Thank you for your participation in the NAMP programme."</span>,
+  <span class="j-key">"declineReason"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"lastUpdated"</span>:   <span class="j-str">"2030-06-20T09:00:00Z"</span>,
+  <span class="j-key">"applicant"</span>: { <span class="j-key">"fullName"</span>: <span class="j-str">"Chukwuemeka Nwachukwu"</span>, <span class="j-key">"bvn"</span>: <span class="j-str">"33456789012"</span> },
+  <span class="j-key">"applicationDetails"</span>: {
+    <span class="j-key">"requestedAmount"</span>: <span class="j-num">7650000.00</span>, <span class="j-key">"requestedTenorMonths"</span>: <span class="j-num">48</span>,
+    <span class="j-key">"loanPurpose"</span>: <span class="j-str">"Acquisition of tractor hire service equipment for smallholder farmers"</span>,
+    <span class="j-key">"submittedAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>
+  },
+  <span class="j-key">"offer"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"loanAccount"</span>: {
+    <span class="j-key">"fineractLoanId"</span>:         <span class="j-num">10042</span>,
+    <span class="j-key">"loanAccountNumber"</span>:      <span class="j-str">"000100000042"</span>,
+    <span class="j-key">"disbursedAmount"</span>:         <span class="j-num">7650000.00</span>,
+    <span class="j-key">"disbursedAt"</span>:             <span class="j-str">"2026-06-20T11:00:00Z"</span>,
+    <span class="j-key">"outstandingBalance"</span>:      <span class="j-num">0.00</span>,
+    <span class="j-key">"nextInstallmentDueDate"</span>: <span class="j-null">null</span>,
+    <span class="j-key">"nextInstallmentAmount"</span>:   <span class="j-null">null</span>,
+    <span class="j-key">"arrearsAmount"</span>:           <span class="j-null">null</span>,
+    <span class="j-key">"isInArrears"</span>:            <span class="j-bool">false</span>,
+    <span class="j-key">"fineractDataAvailable"</span>:  <span class="j-bool">true</span>
+  },
+  <span class="j-key">"timeline"</span>: [
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Received"</span>, <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Loan Activated"</span>,       <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-20T11:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Loan Closed"</span>,          <span class="j-key">"occurredAt"</span>: <span class="j-str">"2030-06-20T09:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> }
+  ]
+}</code></pre>
+
+  <!-- ── OFFER LAPSED ───────────────────────────────────── -->
+  <span class="anchor" id="ex-lapsed"></span>
+  <h2>17. Example — Offer Lapsed</h2>
+  <p>The offer was not countersigned before it expired. Direct the applicant to a BOA branch.</p>
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
+  <span class="j-key">"status"</span>:     <span class="j-str">"OfferLapsed"</span>,
+  <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your loan offer has lapsed as it was not accepted within the required timeframe. Please contact your nearest BOA branch if you wish to re-apply."</span>,
+  <span class="j-key">"declineReason"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"lastUpdated"</span>:   <span class="j-str">"2026-06-25T00:00:00Z"</span>,
+  <span class="j-key">"applicant"</span>: { <span class="j-key">"fullName"</span>: <span class="j-str">"Chukwuemeka Nwachukwu"</span>, <span class="j-key">"bvn"</span>: <span class="j-str">"33456789012"</span> },
+  <span class="j-key">"applicationDetails"</span>: {
+    <span class="j-key">"requestedAmount"</span>: <span class="j-num">7650000.00</span>, <span class="j-key">"requestedTenorMonths"</span>: <span class="j-num">48</span>,
+    <span class="j-key">"loanPurpose"</span>: <span class="j-str">"Acquisition of tractor hire service equipment for smallholder farmers"</span>,
+    <span class="j-key">"submittedAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>
+  },
+  <span class="j-key">"offer"</span>:      <span class="j-null">null</span>,
+  <span class="j-key">"loanAccount"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"timeline"</span>: [
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Received"</span>,  <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Offer Letter Generated"</span>, <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-10T14:30:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-str">"Offer valid for 14 days."</span> },
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Offer Lapsed"</span>,           <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-25T00:00:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> }
+  ]
+}</code></pre>
+
+</main>
+</div>
+</body>
+</html>

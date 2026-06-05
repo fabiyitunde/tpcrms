@@ -36,6 +36,7 @@ public class CoreBankingAuthHandler : DelegatingHandler
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
+        request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0");
 
         return await base.SendAsync(request, cancellationToken);
     }
@@ -70,6 +71,7 @@ public class CoreBankingAuthHandler : DelegatingHandler
         _logger.LogInformation("CBS: Acquiring OAuth2 token from {Url}", tokenUrl);
 
         using var tokenClient = new HttpClient { Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds) };
+        tokenClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0");
 
         // Try form-urlencoded (standard OAuth2)
         var formData = new Dictionary<string, string>

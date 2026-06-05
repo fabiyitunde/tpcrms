@@ -13,6 +13,7 @@ public record LoanProductDto(
     string Currency,
     int MinTenorMonths,
     int MaxTenorMonths,
+    decimal BaseInterestRate,
     string Status,
     DateTime CreatedAt,
     int? FineractProductId,

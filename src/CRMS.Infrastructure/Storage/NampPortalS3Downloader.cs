@@ -8,13 +8,14 @@ using Microsoft.Extensions.Logging;
 namespace CRMS.Infrastructure.Storage;
 
 /// <summary>
-/// Downloads documents from the NAMP portal's S3 bucket using separate credentials.
-/// Config section: NampPortalS3 (BucketName, AccessKey, SecretKey, Region, ServiceUrl).
+/// Downloads documents from S3 using the host IAM role (Elastic Beanstalk instance profile).
+/// No explicit credentials or bucket name are needed in config — the bucket name comes from
+/// the per-document payload field at recall time.
+/// Config section: NampPortalS3 (Region, ServiceUrl — both optional).
 /// </summary>
 public class NampPortalS3Downloader : INampPortalS3Downloader, IDisposable
 {
     private readonly IAmazonS3 _s3Client;
-    private readonly string _bucketName;
     private readonly ILogger<NampPortalS3Downloader> _logger;
     private bool _disposed;
 
@@ -22,13 +23,8 @@ public class NampPortalS3Downloader : INampPortalS3Downloader, IDisposable
     {
         _logger = logger;
 
-        var section = configuration.GetSection("NampPortalS3");
-        _bucketName = section["BucketName"]
-            ?? throw new InvalidOperationException("NampPortalS3:BucketName is required");
-
-        var accessKey  = section["AccessKey"];
-        var secretKey  = section["SecretKey"];
-        var region     = section["Region"] ?? "us-east-1";
+        var section    = configuration.GetSection("NampPortalS3");
+        var region     = section["Region"] ?? "eu-west-1";
         var serviceUrl = section["ServiceUrl"];
 
         var config = new AmazonS3Config
@@ -38,26 +34,24 @@ public class NampPortalS3Downloader : INampPortalS3Downloader, IDisposable
 
         if (!string.IsNullOrEmpty(serviceUrl))
         {
-            config.ServiceURL  = serviceUrl;
+            config.ServiceURL     = serviceUrl;
             config.ForcePathStyle = true;
         }
 
-        _s3Client = !string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey)
-            ? new AmazonS3Client(accessKey, secretKey, config)
-            : new AmazonS3Client(config);
+        // Credentials come from the IAM instance profile — no keys required in config.
+        _s3Client = new AmazonS3Client(config);
 
         _logger.LogInformation(
-            "NAMP portal S3 downloader initialised. Bucket: {Bucket}, Region: {Region}",
-            _bucketName, region);
+            "NAMP portal S3 downloader initialised (IAM role credentials). Region: {Region}", region);
     }
 
-    public async Task<byte[]?> DownloadAsync(string s3Key, CancellationToken ct = default)
+    public async Task<byte[]?> DownloadAsync(string bucketName, string s3Key, CancellationToken ct = default)
     {
         try
         {
             var request = new GetObjectRequest
             {
-                BucketName = _bucketName,
+                BucketName = bucketName,
                 Key        = s3Key
             };
 
@@ -68,12 +62,12 @@ public class NampPortalS3Downloader : INampPortalS3Downloader, IDisposable
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            _logger.LogWarning("NAMP portal document not found in S3. Key: {S3Key}", s3Key);
+            _logger.LogWarning("NAMP portal document not found in S3. Bucket: {Bucket}, Key: {S3Key}", bucketName, s3Key);
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to download NAMP portal document. Key: {S3Key}", s3Key);
+            _logger.LogError(ex, "Failed to download NAMP portal document. Bucket: {Bucket}, Key: {S3Key}", bucketName, s3Key);
             return null;
         }
     }

@@ -19,9 +19,9 @@ namespace CRMS.API.Controllers;
 public class NampWebhookController : ControllerBase
 {
     private readonly INampStagingRepository _stagingRepo;
+    private readonly INampApplicationRepository _nampAppRepo;
     private readonly IUnitOfWork _unitOfWork;
     private readonly INampCallbackService _callbackService;
-    private readonly ICoreBankingService _coreBanking;
     private readonly IFineractDirectService _fineract;
     private readonly ILocationRepository _locationRepo;
     private readonly NampSettings _settings;
@@ -29,18 +29,18 @@ public class NampWebhookController : ControllerBase
 
     public NampWebhookController(
         INampStagingRepository stagingRepo,
+        INampApplicationRepository nampAppRepo,
         IUnitOfWork unitOfWork,
         INampCallbackService callbackService,
-        ICoreBankingService coreBanking,
         IFineractDirectService fineract,
         ILocationRepository locationRepo,
         IOptions<NampSettings> settings,
         ILogger<NampWebhookController> logger)
     {
         _stagingRepo = stagingRepo;
+        _nampAppRepo = nampAppRepo;
         _unitOfWork = unitOfWork;
         _callbackService = callbackService;
-        _coreBanking = coreBanking;
         _fineract = fineract;
         _locationRepo = locationRepo;
         _settings = settings.Value;
@@ -172,6 +172,298 @@ public class NampWebhookController : ControllerBase
     }
 
     /// <summary>
+    /// GET /api/v1/namp/webhook/application/{applicationReference}
+    /// Portal-facing status endpoint. Returns a friendly payload for any lookup — 404 is never returned.
+    /// Auth: X-Api-Key header (same key as POST endpoint).
+    /// </summary>
+    [HttpGet("application/{applicationReference}")]
+    public async Task<IActionResult> GetApplicationStatus(string applicationReference, CancellationToken ct)
+    {
+        if (!string.IsNullOrEmpty(_settings.ApiKey))
+        {
+            Request.Headers.TryGetValue("X-Api-Key", out var providedKey);
+            if (!CryptographicEquals(_settings.ApiKey, providedKey.ToString()))
+            {
+                _logger.LogWarning("NAMP portal status: invalid API key from {RemoteIp}", HttpContext.Connection.RemoteIpAddress);
+                return Unauthorized("Invalid or missing API key.");
+            }
+        }
+
+        var app = await _nampAppRepo.GetByApplicationReferenceWithHistoryAsync(applicationReference, ct);
+
+        if (app is null)
+        {
+            return Ok(new NampPortalStatusResponse
+            {
+                ApplicationReference = applicationReference,
+                Found = false,
+                StatusMessage = "No application was found with this reference. Please verify the reference number or contact support.",
+                Timeline = []
+            });
+        }
+
+        var portalStatus = MapToPortalStatus(app.Status);
+        var statusMessage = BuildStatusMessage(portalStatus, app.Status);
+        var declineReason = BuildDeclineReason(app);
+
+        var timeline = app.StatusHistory
+            .Select(h => new NampPortalTimelineEntry
+            {
+                Stage = MapStatusToStageLabel(h.Status),
+                OccurredAt = h.ChangedAt,
+                Note = h.Note
+            })
+            .ToList();
+
+        NampPortalOfferDetails? offer = null;
+        NampPortalLoanAccountDetails? loanAccount = null;
+
+        if (portalStatus is NampPortalStatus.OfferMade or NampPortalStatus.Processing)
+            offer = await BuildOfferDetailsAsync(app, ct);
+
+        if (portalStatus is NampPortalStatus.Active or NampPortalStatus.Closed)
+            loanAccount = await BuildLoanAccountDetailsAsync(app, ct);
+
+        return Ok(new NampPortalStatusResponse
+        {
+            ApplicationReference = app.ApplicationReference,
+            Found = true,
+            Status = portalStatus,
+            StatusMessage = statusMessage,
+            DeclineReason = declineReason,
+            LastUpdated = app.StatusHistory.Count > 0 ? app.StatusHistory[^1].ChangedAt : app.CreatedAt,
+            Applicant = new NampPortalApplicant
+            {
+                FullName = app.ApplicantName,
+                Bvn = app.Bvn
+            },
+            ApplicationDetails = new NampPortalApplicationDetails
+            {
+                RequestedAmount = app.LoanAmount,
+                RequestedTenorMonths = app.RequestedTenorMonths,
+                LoanPurpose = app.LoanPurpose,
+                SubmittedAt = app.SubmittedAt
+            },
+            Offer = offer,
+            LoanAccount = loanAccount,
+            Timeline = timeline
+        });
+    }
+
+    private async Task<NampPortalOfferDetails> BuildOfferDetailsAsync(NampApplication app, CancellationToken ct)
+    {
+        var interestRate = app.ApprovedInterestRate ?? app.FineractNominalInterestRate ?? 9m;
+        decimal? monthlyInstallment = null;
+        decimal? totalInterest = null;
+        decimal? totalRepayable = null;
+        var fineractDataAvailable = false;
+
+        if (app.FineractProductId.HasValue && app.LoanAmount.HasValue && app.RequestedTenorMonths.HasValue)
+        {
+            try
+            {
+                var scheduleRequest = new ScheduleCalculationRequest(
+                    ProductId: app.FineractProductId.Value,
+                    Principal: app.LoanAmount.Value,
+                    NumberOfRepayments: app.RequestedTenorMonths.Value,
+                    RepaymentEvery: 1,
+                    RepaymentFrequencyType: 2,           // Months
+                    InterestRatePerPeriod: interestRate / 12m,
+                    InterestRateFrequencyType: 2,        // Per month
+                    AmortizationType: 1,                 // Equal installments (EMI)
+                    InterestType: 0,                     // Declining balance
+                    InterestCalculationPeriodType: 1,    // Same as repayment period
+                    ExpectedDisbursementDate: DateTime.UtcNow.Date
+                );
+
+                var result = await _fineract.CalculateRepaymentScheduleAsync(scheduleRequest, ct);
+                if (result.IsSuccess)
+                {
+                    var schedule = result.Value;
+                    var firstInstallment = schedule.Installments.FirstOrDefault(i => i.PeriodNumber == 1);
+                    monthlyInstallment = firstInstallment?.TotalDue;
+                    totalInterest = schedule.TotalInterest;
+                    totalRepayable = schedule.TotalRepayment;
+                    fineractDataAvailable = true;
+                }
+                else
+                {
+                    _logger.LogWarning("NAMP portal status: Fineract schedule calc failed for {Ref} — {Error}",
+                        app.ApplicationReference, result.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "NAMP portal status: Fineract schedule calc threw for {Ref}", app.ApplicationReference);
+            }
+        }
+
+        return new NampPortalOfferDetails
+        {
+            ApprovedAmount = app.LoanAmount,
+            ApprovedTenorMonths = app.RequestedTenorMonths,
+            InterestRatePerAnnum = interestRate,
+            MonthlyInstallment = monthlyInstallment,
+            TotalInterest = totalInterest,
+            TotalRepayable = totalRepayable,
+            FineractDataAvailable = fineractDataAvailable
+        };
+    }
+
+    private async Task<NampPortalLoanAccountDetails> BuildLoanAccountDetailsAsync(NampApplication app, CancellationToken ct)
+    {
+        if (!app.FineractLoanId.HasValue)
+        {
+            return new NampPortalLoanAccountDetails { FineractDataAvailable = false };
+        }
+
+        try
+        {
+            var result = await _fineract.GetLoanDetailAsync(app.FineractLoanId.Value, ct);
+            if (result.IsSuccess)
+            {
+                var detail = result.Value;
+                var nextPeriod = detail.RepaymentSchedule.FirstOrDefault(p => !p.Complete);
+
+                return new NampPortalLoanAccountDetails
+                {
+                    FineractLoanId = app.FineractLoanId.Value,
+                    LoanAccountNumber = app.FineractLoanAccountNumber,
+                    DisbursedAmount = detail.Summary.PrincipalDisbursed,
+                    DisbursedAt = detail.DisbursementDate,
+                    OutstandingBalance = detail.Summary.TotalOutstanding,
+                    NextInstallmentDueDate = nextPeriod?.DueDate,
+                    NextInstallmentAmount = nextPeriod?.TotalDue,
+                    ArrearsAmount = detail.Summary.PenaltyChargesOutstanding + detail.Summary.InterestOutstanding + detail.Summary.PrincipalOutstanding > detail.Summary.TotalOutstanding
+                        ? 0m
+                        : null,
+                    IsInArrears = detail.Summary.PenaltyChargesCharged > 0,
+                    FineractDataAvailable = true
+                };
+            }
+
+            _logger.LogWarning("NAMP portal status: GetLoanDetailAsync failed for {Ref} — {Error}",
+                app.ApplicationReference, result.Error);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "NAMP portal status: GetLoanDetailAsync threw for {Ref}", app.ApplicationReference);
+        }
+
+        return new NampPortalLoanAccountDetails
+        {
+            FineractLoanId = app.FineractLoanId,
+            LoanAccountNumber = app.FineractLoanAccountNumber,
+            FineractDataAvailable = false
+        };
+    }
+
+    private static NampPortalStatus MapToPortalStatus(NampApplicationStatus status) => status switch
+    {
+        NampApplicationStatus.Draft
+            or NampApplicationStatus.Submitted
+            or NampApplicationStatus.TechnicalAppraisal
+            or NampApplicationStatus.FinancialAppraisal
+            or NampApplicationStatus.BranchCommitteeCirculation
+            or NampApplicationStatus.ZonalCommitteeCirculation
+            or NampApplicationStatus.RegionalCommitteeCirculation
+            or NampApplicationStatus.HOCommitteeCirculation
+            or NampApplicationStatus.Ratification
+            => NampPortalStatus.UnderReview,
+
+        NampApplicationStatus.TechnicalDeclined
+            or NampApplicationStatus.FinancialDeclined
+            or NampApplicationStatus.BranchCommitteeDeclined
+            or NampApplicationStatus.ZonalCommitteeDeclined
+            or NampApplicationStatus.RegionalCommitteeDeclined
+            or NampApplicationStatus.HOCommitteeDeclined
+            or NampApplicationStatus.RatificationDeclined
+            or NampApplicationStatus.Declined
+            => NampPortalStatus.NotApproved,
+
+        NampApplicationStatus.OfferGenerated => NampPortalStatus.OfferMade,
+
+        NampApplicationStatus.OfferAccepted
+            or NampApplicationStatus.PreDeploymentVerification
+            or NampApplicationStatus.Training
+            or NampApplicationStatus.Deployment
+            => NampPortalStatus.Processing,
+
+        NampApplicationStatus.Active   => NampPortalStatus.Active,
+        NampApplicationStatus.Closed   => NampPortalStatus.Closed,
+        NampApplicationStatus.OfferLapsed => NampPortalStatus.OfferLapsed,
+
+        _ => NampPortalStatus.UnderReview  // Received, RecallPending — still ingesting
+    };
+
+    private static string BuildStatusMessage(NampPortalStatus portalStatus, NampApplicationStatus internalStatus) => portalStatus switch
+    {
+        NampPortalStatus.UnderReview  => "Your application is currently under review. Our team will assess all information provided before making a decision.",
+        NampPortalStatus.NotApproved  => "We regret to inform you that your application was not successful at this time. Please see the reason below or contact your nearest BOA branch for more information.",
+        NampPortalStatus.OfferMade    => "Congratulations! Your loan application has been approved. Please review the offer details below and countersign your offer letter to proceed.",
+        NampPortalStatus.Processing   => "Your offer has been accepted and your loan is being processed. You will be contacted once the equipment is ready for deployment.",
+        NampPortalStatus.Active       => "Your loan is active. Please see the account details below for your repayment schedule information.",
+        NampPortalStatus.Closed       => "Your loan has been fully repaid. Thank you for your participation in the NAMP programme.",
+        NampPortalStatus.OfferLapsed  => "Your loan offer has lapsed as it was not accepted within the required timeframe. Please contact your nearest BOA branch if you wish to re-apply.",
+        _                             => string.Empty
+    };
+
+    private static string? BuildDeclineReason(NampApplication app) => app.Status switch
+    {
+        NampApplicationStatus.TechnicalDeclined
+            => string.IsNullOrWhiteSpace(app.TechnicalAppraisalNote) ? null
+               : $"Declined at technical appraisal: {app.TechnicalAppraisalNote}",
+
+        NampApplicationStatus.FinancialDeclined
+            => string.IsNullOrWhiteSpace(app.FinancialAppraisalNote) ? null
+               : $"Declined at financial appraisal: {app.FinancialAppraisalNote}",
+
+        NampApplicationStatus.BranchCommitteeDeclined
+            or NampApplicationStatus.ZonalCommitteeDeclined
+            or NampApplicationStatus.RegionalCommitteeDeclined
+            or NampApplicationStatus.HOCommitteeDeclined
+            => string.IsNullOrWhiteSpace(app.CommitteeDecisionNote) ? null
+               : $"Declined by credit committee: {app.CommitteeDecisionNote}",
+
+        NampApplicationStatus.RatificationDeclined
+            => string.IsNullOrWhiteSpace(app.RatificationDeclineNote) ? null
+               : $"Declined at ratification: {app.RatificationDeclineNote}",
+
+        _ => null
+    };
+
+    private static string MapStatusToStageLabel(NampApplicationStatus status) => status switch
+    {
+        NampApplicationStatus.Received                   => "Application Received",
+        NampApplicationStatus.RecallPending              => "Pending Assignment",
+        NampApplicationStatus.Draft                      => "Application in Progress",
+        NampApplicationStatus.Submitted                  => "Application Submitted",
+        NampApplicationStatus.TechnicalAppraisal         => "Technical Appraisal",
+        NampApplicationStatus.TechnicalDeclined          => "Technical Appraisal — Declined",
+        NampApplicationStatus.FinancialAppraisal         => "Financial Appraisal",
+        NampApplicationStatus.FinancialDeclined          => "Financial Appraisal — Declined",
+        NampApplicationStatus.BranchCommitteeCirculation => "Branch Credit Committee Review",
+        NampApplicationStatus.BranchCommitteeDeclined    => "Branch Credit Committee — Declined",
+        NampApplicationStatus.ZonalCommitteeCirculation  => "Zonal Credit Committee Review",
+        NampApplicationStatus.ZonalCommitteeDeclined     => "Zonal Credit Committee — Declined",
+        NampApplicationStatus.RegionalCommitteeCirculation=> "Regional Credit Committee Review",
+        NampApplicationStatus.RegionalCommitteeDeclined  => "Regional Credit Committee — Declined",
+        NampApplicationStatus.HOCommitteeCirculation     => "Head Office Credit Committee Review",
+        NampApplicationStatus.HOCommitteeDeclined        => "Head Office Credit Committee — Declined",
+        NampApplicationStatus.Ratification               => "Ratification",
+        NampApplicationStatus.RatificationDeclined       => "Ratification — Declined",
+        NampApplicationStatus.OfferGenerated             => "Offer Letter Generated",
+        NampApplicationStatus.OfferAccepted              => "Offer Accepted",
+        NampApplicationStatus.OfferLapsed                => "Offer Lapsed",
+        NampApplicationStatus.PreDeploymentVerification  => "Pre-Deployment Verification",
+        NampApplicationStatus.Training                   => "Training",
+        NampApplicationStatus.Deployment                 => "Equipment Deployment",
+        NampApplicationStatus.Active                     => "Loan Activated",
+        NampApplicationStatus.Closed                     => "Loan Closed",
+        _                                                => status.ToString()
+    };
+
+    /// <summary>
     /// Two-step Fineract branch lookup:
     ///   1. GET /core_banking/api/tp/savingsaccounts/byexternalId/{boaAccountNumber} → clientId
     ///   2. GET /clients/{clientId} → officeName
@@ -180,7 +472,7 @@ public class NampWebhookController : ControllerBase
     /// </summary>
     private async Task<Domain.Common.Result<Location>> ResolveBranchAsync(string boaAccountNumber, CancellationToken ct)
     {
-        var accountResult = await _coreBanking.GetNampBoaAccountAsync(boaAccountNumber, ct);
+        var accountResult = await _fineract.GetNampBoaAccountAsync(boaAccountNumber, ct);
         if (accountResult.IsFailure)
             return Domain.Common.Result.Failure<Location>(
                 $"Could not verify BOA account '{boaAccountNumber}': {accountResult.Error}");
@@ -431,4 +723,78 @@ public sealed class NampDocumentPayload
     public string? ContentType { get; set; }
     public long? FileSizeBytes { get; set; }
     public string? UploadedAt { get; set; }
+}
+
+// ── Portal Status Response DTOs ───────────────────────────────────────────────
+
+public enum NampPortalStatus
+{
+    UnderReview,
+    NotApproved,
+    OfferMade,
+    Processing,
+    Active,
+    Closed,
+    OfferLapsed,
+}
+
+public sealed class NampPortalStatusResponse
+{
+    public string ApplicationReference { get; set; } = string.Empty;
+    public bool Found { get; set; }
+    public NampPortalStatus? Status { get; set; }
+    public string? StatusMessage { get; set; }
+    public string? DeclineReason { get; set; }
+    public DateTime? LastUpdated { get; set; }
+    public NampPortalApplicant? Applicant { get; set; }
+    public NampPortalApplicationDetails? ApplicationDetails { get; set; }
+    public NampPortalOfferDetails? Offer { get; set; }
+    public NampPortalLoanAccountDetails? LoanAccount { get; set; }
+    public List<NampPortalTimelineEntry> Timeline { get; set; } = [];
+}
+
+public sealed class NampPortalApplicant
+{
+    public string? FullName { get; set; }
+    public string? Bvn { get; set; }
+}
+
+public sealed class NampPortalApplicationDetails
+{
+    public decimal? RequestedAmount { get; set; }
+    public int? RequestedTenorMonths { get; set; }
+    public string? LoanPurpose { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+}
+
+public sealed class NampPortalOfferDetails
+{
+    public decimal? ApprovedAmount { get; set; }
+    public int? ApprovedTenorMonths { get; set; }
+    public decimal InterestRatePerAnnum { get; set; }
+    public decimal? MonthlyInstallment { get; set; }
+    public decimal? TotalInterest { get; set; }
+    public decimal? TotalRepayable { get; set; }
+    public bool FineractDataAvailable { get; set; }
+}
+
+public sealed class NampPortalLoanAccountDetails
+{
+    public long? FineractLoanId { get; set; }
+    public string? LoanAccountNumber { get; set; }
+    public decimal? DisbursedAmount { get; set; }
+    public DateTime? DisbursedAt { get; set; }
+    public decimal? OutstandingBalance { get; set; }
+    public DateTime? NextInstallmentDueDate { get; set; }
+    public decimal? NextInstallmentAmount { get; set; }
+    public decimal? ArrearsAmount { get; set; }
+    public bool? IsInArrears { get; set; }
+    public bool FineractDataAvailable { get; set; }
+}
+
+public sealed class NampPortalTimelineEntry
+{
+    public string Stage { get; set; } = string.Empty;
+    public DateTime OccurredAt { get; set; }
+    public string? Note { get; set; }
 }

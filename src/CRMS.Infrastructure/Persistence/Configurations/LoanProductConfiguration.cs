@@ -39,6 +39,10 @@ public class LoanProductConfiguration : IEntityTypeConfiguration<LoanProduct>
         builder.Property(x => x.MaxTenorMonths)
             .IsRequired();
 
+        builder.Property(x => x.BaseInterestRate)
+            .HasPrecision(8, 4)
+            .IsRequired();
+
         builder.OwnsOne(x => x.MinAmount, money =>
         {
             money.Property(m => m.Amount)

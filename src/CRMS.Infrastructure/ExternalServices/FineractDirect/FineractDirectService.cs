@@ -539,7 +539,7 @@ public class FineractDirectService : IFineractDirectService
 
             // Step 4: Book the loan
             _logger.LogInformation("Fineract: Booking loan (POST /loans)");
-            var bookResponse = await _httpClient.PostAsJsonAsync("/loans", loanBody, ct);
+            var bookResponse = await _httpClient.PostAsJsonAsync("loans", loanBody, ct);
             if (!bookResponse.IsSuccessStatusCode)
             {
                 var errorBody = await bookResponse.Content.ReadAsStringAsync(ct);
@@ -568,7 +568,7 @@ public class FineractDirectService : IFineractDirectService
                 ["note"] = "Approved automatically by CRMS booking workflow"
             };
 
-            var approveResponse = await _httpClient.PostAsJsonAsync($"/loans/{loanId}?command=approve", approveBody, ct);
+            var approveResponse = await _httpClient.PostAsJsonAsync($"loans/{loanId}?command=approve", approveBody, ct);
             if (!approveResponse.IsSuccessStatusCode)
             {
                 var errorBody = await approveResponse.Content.ReadAsStringAsync(ct);
@@ -598,7 +598,7 @@ public class FineractDirectService : IFineractDirectService
                 ["note"] = $"Disbursed automatically by CRMS booking workflow ({command})"
             };
 
-            var disburseResponse = await _httpClient.PostAsJsonAsync($"/loans/{loanId}?command={command}", disburseBody, ct);
+            var disburseResponse = await _httpClient.PostAsJsonAsync($"loans/{loanId}?command={command}", disburseBody, ct);
             if (!disburseResponse.IsSuccessStatusCode)
             {
                 var errorBody = await disburseResponse.Content.ReadAsStringAsync(ct);
@@ -642,6 +642,39 @@ public class FineractDirectService : IFineractDirectService
         {
             _logger.LogError(ex, "Fineract automated booking error");
             return Result.Failure<FineractBookingResult>($"Fineract automated booking error: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
+    {
+        try
+        {
+            var url = $"tp/savingsaccounts/byexternalId/{Uri.EscapeDataString(boaAccountNumber)}";
+            _logger.LogInformation("Fineract NAMP: GET {Url}", url);
+
+            var response = await _httpClient.GetAsync(url, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Fineract NAMP savings account lookup failed ({Status}): {Body}", response.StatusCode, errorBody);
+                return Result.Failure<NampBoaAccountInfo>($"Account lookup returned {(int)response.StatusCode}: {errorBody}");
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<NampSavingsAccountResponse>(_jsonOptions, ct);
+            if (result == null)
+                return Result.Failure<NampBoaAccountInfo>("Empty response from Fineract.");
+
+            return Result.Success(new NampBoaAccountInfo(result.ClientId, result.Status?.Value ?? "Unknown"));
+        }
+        catch (TaskCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fineract NAMP savings account lookup error for {Account}", boaAccountNumber);
+            return Result.Failure<NampBoaAccountInfo>($"Fineract error: {ex.Message}");
         }
     }
 

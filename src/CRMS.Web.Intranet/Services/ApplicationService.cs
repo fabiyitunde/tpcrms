@@ -2850,7 +2850,7 @@ public partial class ApplicationService
         try
         {
             var fineract = _sp.GetRequiredService<IFineractDirectService>();
-            var result = await fineract.GetLoanProductsAsync(activeOnly: true);
+            var result = await fineract.GetLoanProductsAsync(activeOnly: false);
             if (!result.IsSuccess || result.Value == null)
                 return [];
             return result.Value.Select(p => new FineractProductInfo
@@ -2875,14 +2875,14 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths)
+    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.CreateLoanProductHandler>();
             var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.CreateLoanProductCommand(
                 code, name, description, CRMS.Domain.Enums.LoanProductType.Corporate,
-                minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths
+                minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create product");
         }
@@ -2893,13 +2893,13 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, int? fineractProductId = null)
+    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, int? fineractProductId = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.UpdateLoanProductHandler>();
             var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.UpdateLoanProductCommand(
-                id, name, description ?? string.Empty, minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, fineractProductId
+                id, name, description ?? string.Empty, minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate, fineractProductId
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update product");
         }

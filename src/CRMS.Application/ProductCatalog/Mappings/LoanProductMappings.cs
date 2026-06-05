@@ -19,6 +19,7 @@ public static class LoanProductMappings
             product.MinAmount.Currency,
             product.MinTenorMonths,
             product.MaxTenorMonths,
+            product.BaseInterestRate,
             product.Status.ToString(),
             product.CreatedAt,
             product.FineractProductId,
@@ -31,7 +32,6 @@ public static class LoanProductMappings
 
     public static LoanProductSummaryDto ToSummaryDto(this LoanProduct product)
     {
-        var baseRate = product.PricingTiers.FirstOrDefault()?.InterestRatePerAnnum ?? 0m;
         return new LoanProductSummaryDto(
             product.Id,
             product.Code,
@@ -43,7 +43,7 @@ public static class LoanProductMappings
             product.Status.ToString(),
             product.MinTenorMonths,
             product.MaxTenorMonths,
-            baseRate,
+            product.BaseInterestRate,
             product.FineractProductId
         );
     }

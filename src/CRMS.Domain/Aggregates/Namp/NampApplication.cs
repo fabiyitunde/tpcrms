@@ -117,10 +117,13 @@ public class NampApplication : AggregateRoot
     public string? DeploymentNote { get; private set; }
 
     // ── Fineract Integration ───────────────────────────────────────────────
-    public long? FineractClientId { get; private set; }         // Resolved at recall from BOA account lookup
-    public decimal? ApprovedInterestRate { get; private set; }  // Locked at ratification from Fineract product catalogue
-    public long? FineractLoanId { get; private set; }           // Set after deployment booking
-    public string? FineractLoanAccountNumber { get; private set; } // Set after deployment booking
+    public long? FineractClientId { get; private set; }              // Resolved at recall from BOA account lookup
+    public int? FineractProductId { get; private set; }              // Resolved at recall from active NAMP loan product
+    public string? FineractProductName { get; private set; }         // Resolved at recall
+    public decimal? FineractNominalInterestRate { get; private set; } // Annual interest rate from Fineract product catalogue at recall
+    public decimal? ApprovedInterestRate { get; private set; }       // Locked at ratification (may differ if committee overrides)
+    public long? FineractLoanId { get; private set; }                // Set after deployment booking
+    public string? FineractLoanAccountNumber { get; private set; }   // Set after deployment booking
 
     // ── Collections ───────────────────────────────────────────────────────
     private readonly List<NampDocument> _documents = [];
@@ -409,6 +412,13 @@ public class NampApplication : AggregateRoot
     // ── Fineract Integration Setters ──────────────────────────────────────
 
     public void SetFineractClientId(long clientId) => FineractClientId = clientId;
+
+    public void SetFineractProductDetails(int productId, string? productName, decimal nominalInterestRate)
+    {
+        FineractProductId = productId;
+        FineractProductName = productName;
+        FineractNominalInterestRate = nominalInterestRate;
+    }
 
     public void SetApprovedInterestRate(decimal rate) => ApprovedInterestRate = rate;
 

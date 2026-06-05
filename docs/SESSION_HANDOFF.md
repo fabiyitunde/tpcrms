@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-05-28 (Session 63)
+**Last Updated:** 2026-06-03 (Session 67)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\adeta\source\repos\tpcrms`
 
@@ -222,6 +222,17 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **NAMP Advisory — `NampAdvisory` entity (JSON-stored scores); `NampViabilityScoreConfig` (admin-configurable Viable/Marginal/NotViable → score + weight); 5-category weighted AI advisory; AI Advisory tab in Detail.razor; admin page `/admin/namp-viability`** | ✅ |
 | **NAMP Fineract loan booking at deployment — `BookApprovedLoanAsync` called in `ConfirmNampDeploymentHandler`; `FineractClientId` persisted at recall; `ApprovedInterestRate` locked at ratification; `FineractLoanId` + `FineractLoanAccountNumber` stored after booking; migration `AddNampFineractLoanBookingFields`** | ✅ |
 | **`FineractDirect.UseMock: false` in intranet production — real Fineract now active for repayment schedule, product catalogue, and loan booking** | ✅ |
+| **JWT Secret generated (64-byte cryptographically random Base64) — both intranet + API production appsettings** | ✅ |
+| **`GET /api/health/connectivity` diagnostic endpoint — probes S3 (upload→exists→delete), CoreBanking (account lookup), Fineract (loan products); auth via NAMP API key; returns per-service pass/fail** | ✅ |
+| **`User-Agent: Mozilla/5.0` on all CoreBanking + Fineract outbound requests — added in both auth handlers (token/key acquisition) + DelegatingHandler.SendAsync** | ✅ |
+| **CoreBanking section added to API production appsettings — was missing, causing API to fall back to mock for NAMP webhook branch resolution** | ✅ |
+| **`GetNampBoaAccountAsync` moved from `ICoreBankingService` → `IFineractDirectService`** — endpoint lives on Fineract middleware (tpapi), not tpgateway; `NampBoaAccountInfo` record + DTOs migrated; `NampWebhookController` + `RecallNampApplicationCommand` updated to inject `IFineractDirectService` | ✅ |
+| **NAMP Fineract product details resolved and stored at recall** — `FineractProductId` (int?), `FineractProductName` (string?), `FineractNominalInterestRate` (decimal?) added to `NampApplication`; resolved from Fineract catalogue at recall and persisted; ratification + deployment use stored values instead of re-fetching; backward-compatible fallback for older applications | ✅ |
+| **`LoanProduct.Activate()` pricing tier guard removed** — guard always blocked activation because `GetByIdAsync` doesn't include pricing tiers; NAMP products use Fineract pricing so the check was wrong regardless | ✅ |
+| **`ToggleProduct` error feedback added** — `Products.razor` now shows error banner when enable/disable fails instead of silently doing nothing | ✅ |
+| **`BaseInterestRate` added to `LoanProduct`** — field was in the UI and displayed but never persisted; threaded through domain → commands → handlers → DTO → EF config → migration → `ApplicationService` → `Products.razor`; `ToSummaryDto` now reads the stored field instead of deriving from first pricing tier | ✅ |
+| **Manually created migration Designer.cs files added** — migrations without `.Designer.cs` are invisible to `MigrateAsync()` because EF Core requires the `[Migration("...")]` attribute that lives in that file; created minimal Designer.cs for `AddNampFineractProductFields` and `AddBaseInterestRateToLoanProduct` | ✅ |
+| **NAMP Portal Status API** — `GET /api/v1/namp/webhook/application/{applicationReference}` added to `NampWebhookController`; same `X-Api-Key` auth; always returns 200 with friendly `found: false` payload when not found; portal-facing status mapping (7 values); decline reason from stage-specific notes; timeline from status history; Fineract enrichment conditional on status (`CalculateRepaymentScheduleAsync` for OfferMade/Processing, `GetLoanDetailAsync` for Active/Closed); all Fineract calls wrapped with graceful fallback (`fineractDataAvailable: false`); new `GetByApplicationReferenceWithHistoryAsync` repo method | ✅ |
 
 ### What Is Pending
 
@@ -230,7 +241,7 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | Wire customer exposure into AI Advisory (replace bureau-derived exposure) | P2 | `IFineractDirectService.GetCustomerExposureAsync` ready; needs wiring into `GenerateCreditAdvisoryHandler` to replace/supplement `corporateBureauReport.TotalOutstandingBalance` |
 | **Collateral approval — multi-actor role design** | P2 | Currently a single "Approve" button with no role separation. Design decision: requires at minimum Legal clearance (title/encumbrance check) + Credit/Risk Officer adequacy sign-off as two distinct steps. Valuation comes from external certified valuer. Existing state machine (`Proposed → UnderValuation → Valued → Approved → Perfected`) has the right shape but approval roles per step are undefined. Revisit when implementing collateral perfection stage. See `memory/project_collateral_approval.md`. |
 | G8: Domain events with no handlers (`LoanApplicationCreatedEvent`, `SubmittedEvent`, `ApprovedEvent`, `DisbursedEvent`) | P3 | Deferred to next sprint — no downstream automation on key lifecycle events |
-| **NAMP — Admin must set `FineractProductId` on the NAMP loan product** | P1 (NAMP critical) | Loan booking at deployment silently skips if `LoanProduct.FineractProductId` is null. Admin must go to `/admin/products`, import the NAMP product from Fineract dropdown, and save before any application reaches deployment. |
+| **NAMP — Admin must set `FineractProductId` on the NAMP loan product** | P1 (NAMP critical) | Loan booking at deployment silently skips if `LoanProduct.FineractProductId` is null. Admin must go to `/admin/products`, import the NAMP product from Fineract dropdown, and save before any application reaches recall. `FineractProductId`, `FineractProductName`, and `FineractNominalInterestRate` are now resolved and stored at recall time. |
 | **NAMP — Outbound callbacks** | P2 (NAMP) | `Received`, `Approved`, `Declined`, `Active` callbacks to NAMP portal not implemented. `INampCallbackService` + event handlers deferred. |
 | **NAMP — Active/Closed monitoring UI** | P3 (NAMP) | Stage 9 (Active) has no monitoring UI — no repayment tracking, no account balance view. Closed transition not implemented. |
 
@@ -361,7 +372,131 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-05-27/28 Sessions 62–63)
+## 5. Last Session Summary (2026-06-03 Session 67)
+
+### Completed — NAMP Portal Status API
+
+**Motivation:** The NAMP portal (PAYS) needed an API to relay loan application status and activity back to applicants. Rather than creating a new controller, the endpoint was added to the existing `NampWebhookController` to keep NAMP-facing API surface consolidated.
+
+#### Endpoint
+
+`GET /api/v1/namp/webhook/application/{applicationReference}`
+
+Same `X-Api-Key` auth as the existing POST endpoint. Lookup key is `ApplicationReference` — the PAYS-assigned reference the portal already holds.
+
+#### Response design decisions (agreed before implementation)
+
+1. No separate timeline section — history entries are inline in the response
+2. Decline reason field exposed, populated from the stage-specific note field (`TechnicalAppraisalNote`, `FinancialAppraisalNote`, `CommitteeDecisionNote`, `RatificationDeclineNote`)
+3. Friendly `found: false` payload instead of 404 — portal renders gracefully without error handling complexity
+4. Fineract live data for financial disclosure — `CalculateRepaymentScheduleAsync` at offer stage; `GetLoanDetailAsync` at active stage
+
+#### Portal status mapping (internal → 7 portal-facing values)
+
+| Internal statuses | Portal status |
+|---|---|
+| Draft, Submitted, TechnicalAppraisal, FinancialAppraisal, all Committee stages, Ratification | `UnderReview` |
+| TechnicalDeclined, FinancialDeclined, all CommitteeDeclined, RatificationDeclined, Declined | `NotApproved` |
+| OfferGenerated | `OfferMade` |
+| OfferAccepted, PreDeploymentVerification, Training, Deployment | `Processing` |
+| Active | `Active` |
+| Closed | `Closed` |
+| OfferLapsed | `OfferLapsed` |
+
+#### Fineract enrichment strategy
+
+| Portal status | Call | Fields populated |
+|---|---|---|
+| UnderReview, NotApproved, OfferLapsed | None | offer: null, loanAccount: null |
+| OfferMade, Processing | `CalculateRepaymentScheduleAsync` | monthlyInstallment, totalInterest, totalRepayable |
+| Active, Closed | `GetLoanDetailAsync` | full loanAccount block (balance, next installment, arrears) |
+
+All Fineract calls are try/caught. On failure the block is still returned but with numeric fields as null and `fineractDataAvailable: false`.
+
+#### Files changed
+
+| File | Change |
+|---|---|
+| `INampApplicationRepository.cs` | Added `GetByApplicationReferenceWithHistoryAsync` |
+| `NampApplicationRepository.cs` | Implemented — `Include(x => x.StatusHistory.OrderBy(...))` |
+| `NampWebhookController.cs` | Added `INampApplicationRepository` injection; GET endpoint; `BuildOfferDetailsAsync`, `BuildLoanAccountDetailsAsync`, `MapToPortalStatus`, `BuildStatusMessage`, `BuildDeclineReason`, `MapStatusToStageLabel` helpers; response DTO classes (`NampPortalStatusResponse`, `NampPortalOfferDetails`, `NampPortalLoanAccountDetails`, `NampPortalApplicant`, `NampPortalApplicationDetails`, `NampPortalTimelineEntry`, `NampPortalStatus` enum) |
+
+---
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → no UI changes this session
+- [x] `docs/ImplementationTracker.md` → v8.4
+
+---
+
+## Previous Session Summary (2026-05-29 Session 65)
+
+### Completed — NAMP Fineract Product Details Resolved at Recall
+
+**Motivation:** Every NAMP loan application must be tied to a Fineract loan product. The product details (ID, name, nominal interest rate) were previously only consulted at ratification and deployment by re-fetching the Fineract catalogue each time. This session locks them in at recall — the earliest sensible point — so they are available for the full lifecycle without additional Fineract calls.
+
+#### Domain (`NampApplication.cs`)
+
+Added 3 new fields: `FineractProductId` (int?), `FineractProductName` (string?), `FineractNominalInterestRate` (decimal?). Added setter `SetFineractProductDetails(int, string?, decimal)`.
+
+#### `RecallNampApplicationHandler`
+
+Fetches `GetLoanProductsAsync(activeOnly: false)` after resolving active NAMP product, finds matching Fineract product, calls `SetFineractProductDetails`. Non-fatal.
+
+#### `RatifyNampDecisionHandler` + `ConfirmNampDeploymentHandler`
+
+Now read `app.FineractProductId` / `app.FineractNominalInterestRate` directly. Backward-compatible fallback for applications recalled before this change.
+
+#### Migration + DTO
+
+`20260529100000_AddNampFineractProductFields`. `NampApplicationDto` + `MapToDto` updated.
+
+---
+
+## Previous Session Summary (2026-05-29 Session 64)
+
+### Completed — Production Hardening: JWT, Connectivity Probe, User-Agent, Endpoint Routing Fix
+
+#### Feature 1 — JWT Secret Rotation
+
+Generated a 64-byte cryptographically random Base64 secret (`[Convert]::ToBase64String(64 random bytes)`) and applied it to both:
+- `src/CRMS.Web.Intranet/appsettings.Production.json` → `JwtSettings.Secret`
+- `src/CRMS.API/appsettings.Production.json` → `JwtSettings.Secret`
+
+Replaces the placeholder `"CRMS-Super-Secret-Key-For-JWT..."` string.
+
+#### Feature 2 — Diagnostic Connectivity Endpoint
+
+**`src/CRMS.API/Controllers/HealthController.cs`** (new) — `GET /api/health/connectivity`, authenticated via `X-Api-Key` (same NAMP API key). Runs four non-destructive probes in sequence:
+- **Database**: `CanConnectAsync()` — zero-impact MySQL/RDS ping
+- **S3**: upload 1-byte file → `ExistsAsync` → `DeleteAsync` — confirms IAM role + bucket access
+- **CoreBanking**: `GetAccountInfoAsync("0000000029")` on tpgateway — confirms OAuth2 token + endpoint reachable
+- **Fineract**: `GetLoanProductsAsync()` — confirms auth + `/loanproducts` endpoint; returns product count
+
+Each probe records elapsed ms, classifies failures as network-level (timeout/refused/SSL) vs application-level (404/403 = reachable). Returns `{ overall, timestamp, probes[] }`. Verified in production: all 4 ✅.
+
+#### Feature 3 — User-Agent Header on Outbound Calls
+
+Required by tpgateway + tpapi admins. Added `User-Agent: Mozilla/5.0` in two files:
+
+**`CoreBankingAuthHandler.cs`:** Added in `SendAsync` (every API call) and on `tokenClient` (OAuth2 token acquisition).
+
+**`FineractDirectAuthHandler.cs`:** Added in `SendAsync` (every API call) and on `authClient` (authentication call).
+
+#### Feature 4 — CoreBanking Config Added to API Production
+
+`src/CRMS.API/appsettings.Production.json` was missing the `CoreBanking` section entirely — causing the API to silently fall back to `MockCoreBankingService`. Added the same credentials as the intranet (`tpgateway.bankofagriculture.com`, `UseMock: false`). Also `FineractDirect.TenantId` corrected to `"bankofagriculture"`.
+
+#### Feature 5 — `GetNampBoaAccountAsync` Moved to Fineract (Routing Bug Fix)
+
+**Root cause:** The endpoint `/core_banking/api/tp/savingsaccounts/byexternalId/{id}` is served by `tpapi.bankofagriculture.com` (Fineract middleware), not `tpgateway.bankofagriculture.com`. The method was in `ICoreBankingService`, causing all NAMP webhook branch resolutions to hit the wrong server.
+
+**Files changed:** `IFineractDirectService.cs` (added method + record), `ICoreBankingService.cs` (removed), `FineractDirectDtos.cs` (added DTOs), `CoreBankingDtos.cs` (removed), `FineractDirectService.cs` (added impl), `CoreBankingService.cs` (removed region), `MockFineractDirectService.cs` (added mock), `MockCoreBankingService.cs` (removed mock), `NampWebhookController.cs` (removed `ICoreBankingService`), `RecallNampApplicationCommand.cs` (changed to `IFineractDirectService`).
+
+---
+
+## Previous Session Summary (2026-05-27/28 Sessions 62–63)
 
 ### Completed — NAMP Fineract Loan Booking + Config Updates (2026-05-28 Session 63 cont.)
 
@@ -373,7 +508,7 @@ src/CRMS.Application/
 
 **DTO + MapToDto:** `NampApplicationDto` and `MapToDto` in `NampApplicationQueries.cs` updated to include the 4 new fields.
 
-**`RecallNampApplicationHandler`:** Injected `ICoreBankingService`. After app is created, calls `GetNampBoaAccountAsync(staging.BoaAccountNumber)` and stores `FineractClientId`. Non-fatal — recall proceeds even if CBS unavailable.
+**`RecallNampApplicationHandler`:** At recall, calls `GetNampBoaAccountAsync(staging.BoaAccountNumber)` via `IFineractDirectService` and stores `FineractClientId`. Non-fatal — recall proceeds even if Fineract unavailable.
 
 **`RatifyNampDecisionHandler`:** Calls `app.SetApprovedInterestRate(interestRate)` immediately after resolving the rate from the Fineract product catalogue, locking it to the value the offer letter was generated with.
 
@@ -3196,23 +3331,9 @@ Sessions 1-3 focused on SmartComply infrastructure and backend wiring. See previ
 
 ## 6. Suggested Next Task
 
-### Option A — NAMP: Fineract Loan Creation at Deployment (Critical Gap)
+### Option A — NAMP: Outbound Callbacks to NAMP Portal
 
-All NAMP workflow stages through Deployment are implemented in the UI. The critical missing piece is that the loan is **never actually created in Fineract**. Currently Fineract is only used at ratification to calculate the offer letter repayment schedule.
-
-**What needs to happen:**
-- At `ConfirmDeployment` (Stage 8) — call `IFineractDirectService` to: (1) `CreateLoan`, (2) `ApproveLoan`, (3) `DisburseLoan`
-- Store the CBS loan ID (`FineractLoanId`) on `NampApplication`
-- Without this, `Active` status has no core banking backing and the PAYS repayment cycle cannot start
-
-**Key files:**
-```
-src/CRMS.Domain/Aggregates/Namp/NampApplication.cs             ← add FineractLoanId field + ConfirmDeployment() update
-src/CRMS.Application/Namp/Commands/NampWorkflowCommands.cs     ← ConfirmDeploymentHandler calls IFineractDirectService
-src/CRMS.Infrastructure/DependencyInjection.cs                 ← no new registrations needed (IFineractDirectService already registered)
-src/CRMS.Infrastructure/Persistence/Migrations/               ← new migration for FineractLoanId column
-src/CRMS.Web.Intranet/Services/ApplicationService.cs           ← ConfirmNampDeploymentAsync already exists; handler update needed
-```
+Send `Received`, `Approved`, `Declined`, `Active` lifecycle events back to the NAMP portal when NAMP application status changes. The Fineract loan booking at deployment is already implemented; callbacks are the remaining NAMP integration gap.
 
 ---
 

@@ -51,7 +51,16 @@ public interface IFineractDirectService
     /// </summary>
     Task<Result<FineractBookingResult>> BookApprovedLoanAsync(
         FineractLoanBookingRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Looks up a BOA savings account by its external ID to retrieve the Fineract clientId.
+    /// Endpoint: GET /tp/savingsaccounts/byexternalId/{boaAccountNumber}
+    /// Used at NAMP webhook ingest and recall to resolve the Fineract client for the applicant.
+    /// </summary>
+    Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default);
 }
+
+public record NampBoaAccountInfo(long ClientId, string AccountStatus);
 
 public record FineractClientInfo(long Id, int OfficeId, string OfficeName, string DisplayName);
 

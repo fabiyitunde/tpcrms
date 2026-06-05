@@ -16,6 +16,11 @@
     </button>
 </div>
 
+@if (toggleError != null)
+{
+    <div class="alert alert-danger" style="margin-bottom: var(--space-4);">@toggleError</div>
+}
+
 <div class="products-grid">
     @foreach (var product in PagedProducts)
     {
@@ -571,6 +576,7 @@
                     editingProduct.MaxAmount,
                     editingProduct.MinTenorMonths,
                     editingProduct.MaxTenorMonths,
+                    editingProduct.BaseInterestRate,
                     editingProduct.FineractProductId);
             }
             else
@@ -582,7 +588,8 @@
                     editingProduct.MinAmount,
                     editingProduct.MaxAmount,
                     editingProduct.MinTenorMonths,
-                    editingProduct.MaxTenorMonths);
+                    editingProduct.MaxTenorMonths,
+                    editingProduct.BaseInterestRate);
             }
 
             if (result.Success)
@@ -601,11 +608,16 @@
         }
     }
 
+    private string? toggleError;
+
     private async Task ToggleProduct(ProductModel product)
     {
+        toggleError = null;
         var result = await AppService.ToggleLoanProductAsync(product.Id, product.IsActive);
         if (result.Success)
             await LoadProductsAsync();
+        else
+            toggleError = result.Error ?? "Failed to update product status.";
     }
 
     private static string FormatAmount(decimal amount)

@@ -16,6 +16,9 @@ public class LoanProduct : AggregateRoot
     public int MaxTenorMonths { get; private set; }
     public ProductStatus Status { get; private set; }
     
+    /// <summary>Base annual interest rate for this product (% p.a.).</summary>
+    public decimal BaseInterestRate { get; private set; }
+
     /// <summary>
     /// The corresponding loan product ID in Fineract core banking.
     /// Used for repayment schedule calculation via Fineract API.
@@ -43,7 +46,8 @@ public class LoanProduct : AggregateRoot
         Money minAmount,
         Money maxAmount,
         int minTenorMonths,
-        int maxTenorMonths)
+        int maxTenorMonths,
+        decimal baseInterestRate = 0m)
     {
         if (string.IsNullOrWhiteSpace(code))
             return Result.Failure<LoanProduct>("Product code is required");
@@ -70,6 +74,7 @@ public class LoanProduct : AggregateRoot
             MaxAmount = maxAmount,
             MinTenorMonths = minTenorMonths,
             MaxTenorMonths = maxTenorMonths,
+            BaseInterestRate = baseInterestRate,
             Status = ProductStatus.Draft
         };
 
@@ -78,7 +83,7 @@ public class LoanProduct : AggregateRoot
         return Result.Success(product);
     }
 
-    public Result Update(string name, string description, Money minAmount, Money maxAmount, int minTenorMonths, int maxTenorMonths, int? fineractProductId = null)
+    public Result Update(string name, string description, Money minAmount, Money maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, int? fineractProductId = null)
     {
         if (Status == ProductStatus.Discontinued)
             return Result.Failure("Cannot update a discontinued product");
@@ -101,6 +106,7 @@ public class LoanProduct : AggregateRoot
         MaxAmount = maxAmount;
         MinTenorMonths = minTenorMonths;
         MaxTenorMonths = maxTenorMonths;
+        BaseInterestRate = baseInterestRate;
         FineractProductId = fineractProductId;
 
         return Result.Success();
@@ -109,10 +115,7 @@ public class LoanProduct : AggregateRoot
     public Result Activate()
     {
         if (Status == ProductStatus.Discontinued)
-            return Result.Failure("Cannot activate a discontinued product");
-
-        if (!_pricingTiers.Any())
-            return Result.Failure("Product must have at least one pricing tier before activation");
+            return Result.Failure("Cannot activate a discontinued product.");
 
         Status = ProductStatus.Active;
         AddDomainEvent(new LoanProductActivatedEvent(Id, Code));

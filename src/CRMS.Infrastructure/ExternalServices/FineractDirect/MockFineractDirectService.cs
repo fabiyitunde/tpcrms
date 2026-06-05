@@ -369,6 +369,16 @@ public class MockFineractDirectService : IFineractDirectService
         ));
     }
 
+    public Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
+    {
+        // Simulate a known test account; any other account returns not found
+        if (boaAccountNumber == "0000000029" || boaAccountNumber.StartsWith("TEST"))
+            return Task.FromResult(Result.Success(new NampBoaAccountInfo(ClientId: 1001L, AccountStatus: "Active")));
+
+        return Task.FromResult(Result.Failure<NampBoaAccountInfo>(
+            $"NAMP BOA account '{boaAccountNumber}' not found in mock data."));
+    }
+
     public Task<Result<FineractBookingResult>> BookApprovedLoanAsync(
         FineractLoanBookingRequest request, CancellationToken ct = default)
     {

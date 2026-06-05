@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using CRMS.Application.Common;
 using CRMS.Application.Namp.DTOs;
@@ -29,7 +30,7 @@ public class RecallNampApplicationHandler
     private readonly INampApplicationRepository _appRepo;
     private readonly INampRoutingConfigRepository _routingRepo;
     private readonly ILoanProductRepository _productRepo;
-    private readonly ICoreBankingService _coreBankingService;
+    private readonly IFineractDirectService _fineractService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly INampPortalS3Downloader _nampPortalS3;
     private readonly IFileStorageService _fileStorage;
@@ -40,7 +41,7 @@ public class RecallNampApplicationHandler
         INampApplicationRepository appRepo,
         INampRoutingConfigRepository routingRepo,
         ILoanProductRepository productRepo,
-        ICoreBankingService coreBankingService,
+        IFineractDirectService fineractService,
         IUnitOfWork unitOfWork,
         INampPortalS3Downloader nampPortalS3,
         IFileStorageService fileStorage,
@@ -50,7 +51,7 @@ public class RecallNampApplicationHandler
         _appRepo             = appRepo;
         _routingRepo         = routingRepo;
         _productRepo         = productRepo;
-        _coreBankingService  = coreBankingService;
+        _fineractService     = fineractService;
         _unitOfWork          = unitOfWork;
         _nampPortalS3        = nampPortalS3;
         _fileStorage         = fileStorage;
@@ -75,6 +76,30 @@ public class RecallNampApplicationHandler
         if (nampProduct is null)
             return ApplicationResult<NampApplicationDto>.Failure(
                 "No active NAMP loan product is configured. Please contact the system administrator to set one up.");
+
+        // Resolve Fineract product details (interest rate etc.) at recall time so they are available
+        // throughout the lifecycle without re-fetching. Non-fatal — recall proceeds if Fineract is unavailable.
+        FineractLoanProductDetails? fineractProductDetails = null;
+        if (nampProduct.FineractProductId.HasValue && nampProduct.FineractProductId.Value > 0)
+        {
+            var productsResult = await _fineractService.GetLoanProductsAsync(activeOnly: false, ct);
+            if (productsResult.IsSuccess)
+            {
+                var fp = productsResult.Value.FirstOrDefault(p => p.Id == nampProduct.FineractProductId.Value);
+                if (fp is not null)
+                    fineractProductDetails = new FineractLoanProductDetails(fp.Id, fp.Name, fp.AnnualInterestRate);
+                else
+                    _logger.LogWarning("NAMP recall: Fineract product {Id} not found in catalogue — product details will not be stored.", nampProduct.FineractProductId.Value);
+            }
+            else
+            {
+                _logger.LogWarning("NAMP recall: could not fetch Fineract product catalogue: {Error}", productsResult.Error);
+            }
+        }
+        else
+        {
+            _logger.LogWarning("NAMP recall: NAMP loan product '{Name}' has no FineractProductId configured — Fineract product details will not be stored.", nampProduct.Name);
+        }
 
         // Resolve routing tier
         var routingConfig = await _routingRepo.ResolveAsync(staging.ApplicantCategory, staging.EquipmentValue, ct);
@@ -202,7 +227,7 @@ public class RecallNampApplicationHandler
             // rather than aborting the entire recall.
             foreach (var doc in payload.Documents ?? [])
             {
-                if (string.IsNullOrWhiteSpace(doc.S3Key) || string.IsNullOrWhiteSpace(doc.FileName))
+                if (string.IsNullOrWhiteSpace(doc.S3BucketName) || string.IsNullOrWhiteSpace(doc.S3Key) || string.IsNullOrWhiteSpace(doc.FileName))
                     continue;
 
                 var docCategory = doc.DocumentType switch
@@ -219,7 +244,7 @@ public class RecallNampApplicationHandler
                 string storagePath;
                 try
                 {
-                    var fileBytes = await _nampPortalS3.DownloadAsync(doc.S3Key, ct);
+                    var fileBytes = await _nampPortalS3.DownloadAsync(doc.S3BucketName, doc.S3Key, ct);
                     if (fileBytes is null)
                     {
                         _logger.LogWarning(
@@ -312,9 +337,13 @@ public class RecallNampApplicationHandler
             }
         }
 
+        // Store Fineract product details resolved above
+        if (fineractProductDetails is not null)
+            app.SetFineractProductDetails(fineractProductDetails.Id, fineractProductDetails.Name, fineractProductDetails.AnnualInterestRate);
+
         // Resolve and persist Fineract clientId from the BOA savings account.
         // Non-fatal — recall proceeds even if CBS is unavailable; deployment handler will log missing clientId.
-        var boaResult = await _coreBankingService.GetNampBoaAccountAsync(staging.BoaAccountNumber, ct);
+        var boaResult = await _fineractService.GetNampBoaAccountAsync(staging.BoaAccountNumber, ct);
         if (boaResult.IsSuccess)
             app.SetFineractClientId(boaResult.Value.ClientId);
         else
@@ -503,6 +532,8 @@ internal sealed class RecallFinancialStatement
     public string? AuditDate { get; set; }
     public string? AuditOpinion { get; set; }
 }
+
+internal sealed record FineractLoanProductDetails(int Id, string? Name, decimal AnnualInterestRate);
 
 internal sealed class RecallDocument
 {

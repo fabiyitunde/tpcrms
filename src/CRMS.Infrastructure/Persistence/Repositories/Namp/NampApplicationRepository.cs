@@ -30,6 +30,11 @@ public class NampApplicationRepository : INampApplicationRepository
     public async Task<NampApplication?> GetByApplicationReferenceAsync(string applicationReference, CancellationToken ct = default)
         => await _context.NampApplications.FirstOrDefaultAsync(x => x.ApplicationReference == applicationReference, ct);
 
+    public async Task<NampApplication?> GetByApplicationReferenceWithHistoryAsync(string applicationReference, CancellationToken ct = default)
+        => await _context.NampApplications
+            .Include(x => x.StatusHistory.OrderBy(h => h.ChangedAt))
+            .FirstOrDefaultAsync(x => x.ApplicationReference == applicationReference, ct);
+
     public async Task<IReadOnlyList<NampApplication>> GetByStatusAsync(NampApplicationStatus status, Guid? branchId = null, CancellationToken ct = default)
     {
         var query = _context.NampApplications.Where(x => x.Status == status);

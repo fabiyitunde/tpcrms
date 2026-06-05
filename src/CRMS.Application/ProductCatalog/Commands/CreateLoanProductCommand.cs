@@ -13,5 +13,6 @@ public record CreateLoanProductCommand(
     decimal MaxAmount,
     string Currency,
     int MinTenorMonths,
-    int MaxTenorMonths
+    int MaxTenorMonths,
+    decimal BaseInterestRate = 0m
 ) : IRequest<ApplicationResult<LoanProductDto>>;
