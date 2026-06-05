@@ -122,6 +122,7 @@
 
     <li class="section-head">Examples</li>
     <li><a href="#ex-not-found">Not Found</a></li>
+    <li><a href="#ex-received">Received (Pending)</a></li>
     <li><a href="#ex-under-review">Under Review</a></li>
     <li><a href="#ex-not-approved">Not Approved</a></li>
     <li><a href="#ex-offer-made">Offer Made</a></li>
@@ -153,8 +154,9 @@
   </p>
   <div class="box box-green">
     <strong>What the portal needs to do</strong>
-    After a successful application submission, store the <code>applicationReference</code> against the applicant record.
-    Use that reference to call this endpoint whenever the applicant visits their status page.
+    After a successful application submission, the CRMS API returns an <code>applicationNumber</code> (e.g. <code>NAMP-2026-A1B2C3D4</code>).
+    Store this CRMS application number against the applicant record and use it to call this endpoint whenever
+    the applicant visits their status page.
     Render the response using the <a href="#portal-statuses">7 portal statuses</a> and the structured objects described below.
   </div>
 
@@ -183,8 +185,8 @@
     <thead><tr><th>Property</th><th>Value</th></tr></thead>
     <tbody>
       <tr><td>Method</td><td><span class="badge badge-get">GET</span></td></tr>
-      <tr><td>Path</td><td><code>/api/v1/namp/webhook/application/{applicationReference}</code></td></tr>
-      <tr><td>Path parameter</td><td><code>applicationReference</code> — the 32-character hex reference returned when the application was submitted.</td></tr>
+      <tr><td>Path</td><td><code>/api/v1/namp/webhook/application/{crmsApplicationNumber}</code></td></tr>
+      <tr><td>Path parameter</td><td><code>crmsApplicationNumber</code> — the CRMS-assigned application number (e.g. <code>NAMP-2026-A1B2C3D4</code>) returned as <code>applicationNumber</code> in the webhook submission response.</td></tr>
       <tr><td>Auth</td><td><code>X-Api-Key</code> header required.</td></tr>
       <tr><td>Response</td><td>Always <span class="badge badge-200">200 OK</span> with a JSON body. Never returns 404.</td></tr>
     </tbody>
@@ -198,14 +200,18 @@
 NAMP Portal                                    CRMS API
     │                                               │
     │  Applicant visits status page                 │
-    │  NAMP loads stored applicationReference       │
+    │  NAMP loads stored crmsApplicationNumber      │
     │                                               │
     │──── GET /api/v1/namp/webhook/application ─────▶│
-    │          /{applicationReference}              │
+    │          /{crmsApplicationNumber}             │
     │     Header: X-Api-Key: {key}                  │
     │                                               │
     │                      ① Validate API key       │
-    │                      ② Lookup application     │
+    │                      ② Lookup recalled app    │
+    │                         by ApplicationNumber  │
+    │                      ② If not recalled yet:   │
+    │                         lookup staging record │
+    │                         → return Received     │
     │                      ③ Map internal status    │
     │                         → portal status       │
     │                      ④ If OfferMade /         │
@@ -248,10 +254,10 @@ NAMP Portal                                    CRMS API
       </tr>
     </thead>
     <tbody>
-      <tr><td><code>applicationReference</code></td><td>string</td><td>Echoes back the reference that was queried. Always present.</td></tr>
+      <tr><td><code>applicationReference</code></td><td>string</td><td>Echoes back the CRMS application number that was queried (e.g. <code>NAMP-2026-A1B2C3D4</code>). Always present.</td></tr>
       <tr><td><code>found</code></td><td>bool</td><td>
-        <code>true</code> if the application exists in CRMS.<br>
-        <code>false</code> if not found — in this case only <code>statusMessage</code> is populated; all other fields are <code>null</code> or empty.
+        <code>true</code> if the application exists in CRMS (either recalled or awaiting assignment).<br>
+        <code>false</code> only if the CRMS application number is completely unknown — in this case only <code>statusMessage</code> is populated; all other fields are <code>null</code> or empty.
       </td></tr>
       <tr><td><code>status</code></td><td>string?</td><td>One of the 7 portal status values. <code>null</code> when <code>found = false</code>. See <a href="#portal-statuses">Section 8</a>.</td></tr>
       <tr><td><code>statusMessage</code></td><td>string?</td><td>Human-readable sentence suitable for display directly to the applicant. Always present — even when <code>found = false</code>.</td></tr>
@@ -425,7 +431,10 @@ NAMP Portal                                    CRMS API
     <tbody>
       <tr>
         <td><span class="status-pill s-review">UnderReview</span></td>
-        <td>Application Received, Pending Assignment, Application in Progress, Application Submitted, Technical Appraisal, Financial Appraisal, Branch Credit Committee Review, Zonal Credit Committee Review, Regional Credit Committee Review, Head Office Credit Committee Review, Ratification</td>
+        <td>
+          <strong>Staging (not yet recalled):</strong> Application Received — minimal response, <code>bvn</code> and <code>requestedTenorMonths</code> are <code>null</code>.<br>
+          <strong>Recalled:</strong> Pending Assignment, Application in Progress, Application Submitted, Technical Appraisal, Financial Appraisal, Branch Credit Committee Review, Zonal Credit Committee Review, Regional Credit Committee Review, Head Office Credit Committee Review, Ratification
+        </td>
       </tr>
       <tr>
         <td><span class="status-pill s-declined">NotApproved</span></td>
@@ -498,11 +507,11 @@ NAMP Portal                                    CRMS API
   <span class="anchor" id="ex-not-found"></span>
   <h2>10. Example — Application Not Found</h2>
   <p>
-    Returned when the <code>applicationReference</code> does not exist in CRMS.
+    Returned when the <code>crmsApplicationNumber</code> does not exist in CRMS at all.
     The response is still <span class="badge badge-200">200 OK</span> — check <code>found</code>.
   </p>
 <pre><code>{
-  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"NAMP-2026-XXXXXXXX"</span>,
   <span class="j-key">"found"</span>:                <span class="j-bool">false</span>,
   <span class="j-key">"status"</span>:              <span class="j-null">null</span>,
   <span class="j-key">"statusMessage"</span>:       <span class="j-str">"No application was found with this reference. Please verify the reference number or contact support."</span>,
@@ -515,12 +524,45 @@ NAMP Portal                                    CRMS API
   <span class="j-key">"timeline"</span>:           []
 }</code></pre>
 
+  <!-- ── RECEIVED (STAGING) ────────────────────────────── -->
+  <span class="anchor" id="ex-received"></span>
+  <h2>11. Example — Application Received (Pending Assignment)</h2>
+  <p>
+    The application has been received and logged by CRMS but has not yet been recalled by a loan officer.
+    This is the response for any query made between the moment of submission and the moment a loan officer
+    picks up the application. Note that <code>bvn</code> and <code>requestedTenorMonths</code> are <code>null</code>
+    at this stage — these are populated only after the full recall process completes.
+  </p>
+<pre><code>{
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"NAMP-2026-A1B2C3D4"</span>,
+  <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
+  <span class="j-key">"status"</span>:     <span class="j-str">"UnderReview"</span>,
+  <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your application has been received and is awaiting assignment to a loan officer."</span>,
+  <span class="j-key">"declineReason"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"lastUpdated"</span>:   <span class="j-str">"2026-06-03T09:15:00Z"</span>,
+  <span class="j-key">"applicant"</span>: {
+    <span class="j-key">"fullName"</span>: <span class="j-str">"Chukwuemeka Nwachukwu"</span>,
+    <span class="j-key">"bvn"</span>:      <span class="j-null">null</span>
+  },
+  <span class="j-key">"applicationDetails"</span>: {
+    <span class="j-key">"requestedAmount"</span>:      <span class="j-num">7650000.00</span>,
+    <span class="j-key">"requestedTenorMonths"</span>: <span class="j-null">null</span>,
+    <span class="j-key">"loanPurpose"</span>:          <span class="j-str">"2× Mahindra 575 DI XP Plus Tractor with implements"</span>,
+    <span class="j-key">"submittedAt"</span>:          <span class="j-str">"2026-06-03T09:15:00Z"</span>
+  },
+  <span class="j-key">"offer"</span>:      <span class="j-null">null</span>,
+  <span class="j-key">"loanAccount"</span>: <span class="j-null">null</span>,
+  <span class="j-key">"timeline"</span>: [
+    { <span class="j-key">"stage"</span>: <span class="j-str">"Application Received"</span>, <span class="j-key">"occurredAt"</span>: <span class="j-str">"2026-06-03T09:15:00Z"</span>, <span class="j-key">"note"</span>: <span class="j-null">null</span> }
+  ]
+}</code></pre>
+
   <!-- ── UNDER REVIEW ───────────────────────────────────── -->
   <span class="anchor" id="ex-under-review"></span>
-  <h2>11. Example — Under Review</h2>
-  <p>Application is in any stage of the internal appraisal or committee workflow.</p>
+  <h2>12. Example — Under Review</h2>
+  <p>Application has been recalled by a loan officer and is progressing through the appraisal or committee workflow.</p>
 <pre><code>{
-  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"NAMP-2026-A1B2C3D4"</span>,
   <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
   <span class="j-key">"status"</span>:     <span class="j-str">"UnderReview"</span>,
   <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your application is currently under review. Our team will assess all information provided before making a decision."</span>,
@@ -548,10 +590,10 @@ NAMP Portal                                    CRMS API
 
   <!-- ── NOT APPROVED ───────────────────────────────────── -->
   <span class="anchor" id="ex-not-approved"></span>
-  <h2>12. Example — Not Approved</h2>
+  <h2>13. Example — Not Approved</h2>
   <p>Application was declined. Display <code>declineReason</code> when present.</p>
 <pre><code>{
-  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"NAMP-2026-A1B2C3D4"</span>,
   <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
   <span class="j-key">"status"</span>:     <span class="j-str">"NotApproved"</span>,
   <span class="j-key">"statusMessage"</span>: <span class="j-str">"We regret to inform you that your application was not successful at this time. Please see the reason below or contact your nearest BOA branch for more information."</span>,
@@ -577,10 +619,10 @@ NAMP Portal                                    CRMS API
 
   <!-- ── OFFER MADE ─────────────────────────────────────── -->
   <span class="anchor" id="ex-offer-made"></span>
-  <h2>13. Example — Offer Made</h2>
+  <h2>14. Example — Offer Made</h2>
   <p>Application approved and offer issued. Render the <code>offer</code> object with repayment schedule details.</p>
 <pre><code>{
-  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"NAMP-2026-A1B2C3D4"</span>,
   <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
   <span class="j-key">"status"</span>:     <span class="j-str">"OfferMade"</span>,
   <span class="j-key">"statusMessage"</span>: <span class="j-str">"Congratulations! Your loan application has been approved. Please review the offer details below and countersign your offer letter to proceed."</span>,
@@ -614,10 +656,10 @@ NAMP Portal                                    CRMS API
 
   <!-- ── PROCESSING ─────────────────────────────────────── -->
   <span class="anchor" id="ex-processing"></span>
-  <h2>14. Example — Processing</h2>
+  <h2>15. Example — Processing</h2>
   <p>Offer accepted; pre-disbursement stages underway. <code>offer</code> still present for reference.</p>
 <pre><code>{
-  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"NAMP-2026-A1B2C3D4"</span>,
   <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
   <span class="j-key">"status"</span>:     <span class="j-str">"Processing"</span>,
   <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your offer has been accepted and your loan is being processed. You will be contacted once the equipment is ready for deployment."</span>,
@@ -648,10 +690,10 @@ NAMP Portal                                    CRMS API
 
   <!-- ── ACTIVE ─────────────────────────────────────────── -->
   <span class="anchor" id="ex-active"></span>
-  <h2>15. Example — Active</h2>
+  <h2>16. Example — Active</h2>
   <p>Loan disbursed. Render <code>loanAccount</code> with outstanding balance and next repayment date.</p>
 <pre><code>{
-  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"NAMP-2026-A1B2C3D4"</span>,
   <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
   <span class="j-key">"status"</span>:     <span class="j-str">"Active"</span>,
   <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your loan is active. Please see the account details below for your repayment schedule information."</span>,
@@ -687,10 +729,10 @@ NAMP Portal                                    CRMS API
 
   <!-- ── CLOSED ─────────────────────────────────────────── -->
   <span class="anchor" id="ex-closed"></span>
-  <h2>16. Example — Closed</h2>
+  <h2>17. Example — Closed</h2>
   <p>Loan fully repaid. <code>nextInstallmentDueDate</code> and <code>nextInstallmentAmount</code> will be <code>null</code>.</p>
 <pre><code>{
-  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"NAMP-2026-A1B2C3D4"</span>,
   <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
   <span class="j-key">"status"</span>:     <span class="j-str">"Closed"</span>,
   <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your loan has been fully repaid. Thank you for your participation in the NAMP programme."</span>,
@@ -724,10 +766,10 @@ NAMP Portal                                    CRMS API
 
   <!-- ── OFFER LAPSED ───────────────────────────────────── -->
   <span class="anchor" id="ex-lapsed"></span>
-  <h2>17. Example — Offer Lapsed</h2>
+  <h2>18. Example — Offer Lapsed</h2>
   <p>The offer was not countersigned before it expired. Direct the applicant to a BOA branch.</p>
 <pre><code>{
-  <span class="j-key">"applicationReference"</span>: <span class="j-str">"b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"</span>,
+  <span class="j-key">"applicationReference"</span>: <span class="j-str">"NAMP-2026-A1B2C3D4"</span>,
   <span class="j-key">"found"</span>:      <span class="j-bool">true</span>,
   <span class="j-key">"status"</span>:     <span class="j-str">"OfferLapsed"</span>,
   <span class="j-key">"statusMessage"</span>: <span class="j-str">"Your loan offer has lapsed as it was not accepted within the required timeframe. Please contact your nearest BOA branch if you wish to re-apply."</span>,

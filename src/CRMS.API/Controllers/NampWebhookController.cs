@@ -172,12 +172,14 @@ public class NampWebhookController : ControllerBase
     }
 
     /// <summary>
-    /// GET /api/v1/namp/webhook/application/{applicationReference}
+    /// GET /api/v1/namp/webhook/application/{crmsApplicationNumber}
     /// Portal-facing status endpoint. Returns a friendly payload for any lookup — 404 is never returned.
+    /// For applications that have been received but not yet recalled by a loan officer, returns a
+    /// basic "Application Received" response sourced from the staging record.
     /// Auth: X-Api-Key header (same key as POST endpoint).
     /// </summary>
-    [HttpGet("application/{applicationReference}")]
-    public async Task<IActionResult> GetApplicationStatus(string applicationReference, CancellationToken ct)
+    [HttpGet("application/{crmsApplicationNumber}")]
+    public async Task<IActionResult> GetApplicationStatus(string crmsApplicationNumber, CancellationToken ct)
     {
         if (!string.IsNullOrEmpty(_settings.ApiKey))
         {
@@ -189,13 +191,52 @@ public class NampWebhookController : ControllerBase
             }
         }
 
-        var app = await _nampAppRepo.GetByApplicationReferenceWithHistoryAsync(applicationReference, ct);
+        // Primary lookup: recalled application (full lifecycle data available)
+        var app = await _nampAppRepo.GetByApplicationNumberWithHistoryAsync(crmsApplicationNumber, ct);
 
         if (app is null)
         {
+            // Fallback: application received but not yet recalled by a loan officer
+            var staged = await _stagingRepo.GetByCrmsApplicationNumberAsync(crmsApplicationNumber, ct);
+            if (staged is not null)
+            {
+                return Ok(new NampPortalStatusResponse
+                {
+                    ApplicationReference = staged.CrmsApplicationNumber,
+                    Found = true,
+                    Status = NampPortalStatus.UnderReview,
+                    StatusMessage = "Your application has been received and is awaiting assignment to a loan officer.",
+                    DeclineReason = null,
+                    LastUpdated = staged.ReceivedAt,
+                    Applicant = new NampPortalApplicant
+                    {
+                        FullName = staged.ApplicantName,
+                        Bvn = null
+                    },
+                    ApplicationDetails = new NampPortalApplicationDetails
+                    {
+                        RequestedAmount = staged.EquipmentValue,
+                        RequestedTenorMonths = null,
+                        LoanPurpose = staged.EquipmentDescription,
+                        SubmittedAt = staged.ReceivedAt
+                    },
+                    Offer = null,
+                    LoanAccount = null,
+                    Timeline =
+                    [
+                        new NampPortalTimelineEntry
+                        {
+                            Stage = "Application Received",
+                            OccurredAt = staged.ReceivedAt,
+                            Note = null
+                        }
+                    ]
+                });
+            }
+
             return Ok(new NampPortalStatusResponse
             {
-                ApplicationReference = applicationReference,
+                ApplicationReference = crmsApplicationNumber,
                 Found = false,
                 StatusMessage = "No application was found with this reference. Please verify the reference number or contact support.",
                 Timeline = []
@@ -226,7 +267,7 @@ public class NampWebhookController : ControllerBase
 
         return Ok(new NampPortalStatusResponse
         {
-            ApplicationReference = app.ApplicationReference,
+            ApplicationReference = app.ApplicationNumber,
             Found = true,
             Status = portalStatus,
             StatusMessage = statusMessage,

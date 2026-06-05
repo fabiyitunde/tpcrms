@@ -1444,6 +1444,16 @@ else
     @if (detailTab == "documents")
     {
         <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 class="card-title" style="margin: 0;">Documents</h3>
+                @if (CanUploadLoDoc)
+                {
+                    <button class="btn btn-secondary btn-sm" @onclick="OpenLoDocUpload">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span>
+                        Upload Document
+                    </button>
+                }
+            </div>
             <div class="card-body" style="padding: 0;">
                 @if (!app.Documents.Any())
                 {
@@ -2546,6 +2556,53 @@ else
     </div>
 }
 
+<!-- Upload Modal (Loan Officer — Documents tab) -->
+@if (showLoDocUploadModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseLoDocUpload">
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Upload Document</h3>
+                <button class="modal-close" @onclick="CloseLoDocUpload"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Category *</label>
+                    <select class="form-control" @bind="uploadDocCategory">
+                        <option value="General">General</option>
+                        <option value="SupportingDocument">Supporting Document</option>
+                        <option value="CreditReport">Credit Report / Bank Statement</option>
+                        <option value="FinancialModel">Financial Model / Audited Accounts</option>
+                        <option value="TechnicalReport">Technical Report</option>
+                        <option value="SitePhoto">Site Photo</option>
+                        <option value="SoilTestResult">Soil Test Result</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">File *</label>
+                    <InputFile OnChange="HandleLoDocFileSelected" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="form-control" style="padding: 0.4rem;" />
+                    <small class="form-text text-muted">PDF, DOC, XLS, JPG, PNG — max 10MB</small>
+                    @if (uploadSelectedFile != null)
+                    { <div style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary);">Selected: @uploadSelectedFile.Name (@FormatFileSize(uploadSelectedFile.Size))</div> }
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-control" @bind="uploadDocDescription" placeholder="Optional description..." />
+                </div>
+                @if (!string.IsNullOrEmpty(uploadDocError))
+                { <div class="alert alert-danger">@uploadDocError</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseLoDocUpload" disabled="@isUploadingDoc">Cancel</button>
+                <button class="btn btn-primary" @onclick="UploadLoDoc" disabled="@(uploadSelectedFile == null || isUploadingDoc)">
+                    @if (isUploadingDoc) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                    Upload
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 <!-- Deployment Modal -->
 @if (showDeploymentModal)
 {
@@ -2804,6 +2861,7 @@ else
     // Document upload / replace
     private bool showTechDocUploadModal;
     private bool showFinDocUploadModal;
+    private bool showLoDocUploadModal;
     private string uploadDocCategory = "TechnicalReport";
     private string? uploadDocDescription;
     private IBrowserFile? uploadSelectedFile;
@@ -2839,6 +2897,12 @@ else
     private UserInfo? User => AuthService.CurrentUser;
 
     // ── Role-gated action visibility ──────────────────────────────────────
+
+    private bool CanUploadLoDoc =>
+        !(app?.Status is "Closed" or "TechnicalDeclined" or "FinancialDeclined" or
+          "BranchCommitteeDeclined" or "ZonalCommitteeDeclined" or "RegionalCommitteeDeclined" or
+          "HOCommitteeDeclined" or "RatificationDeclined" or "Declined" or "OfferLapsed") &&
+        (User?.HasAnyRole("LoanOfficer", "SystemAdmin") ?? false);
 
     private bool ShowSubmitButton =>
         app?.Status == "Draft" &&
@@ -3193,7 +3257,7 @@ else
     {
         showConfirmModal = showNoteModal = showAppraisalModal = false;
         showCommitteeModal = showRatifyModal = showDeploymentModal = false;
-        showTechDocUploadModal = showFinDocUploadModal = false;
+        showTechDocUploadModal = showFinDocUploadModal = showLoDocUploadModal = false;
         showEditDocModal = showDeleteDocModal = showDocViewModal = false;
         modalError = null;
     }
@@ -3730,6 +3794,34 @@ else
     }
 
     private void CloseFinDocUpload() { showFinDocUploadModal = false; uploadDocError = null; }
+
+    private void OpenLoDocUpload()
+    {
+        uploadDocCategory = "General"; uploadDocDescription = null;
+        uploadSelectedFile = null; uploadFileBytes = null; uploadDocError = null;
+        showLoDocUploadModal = true;
+    }
+
+    private void CloseLoDocUpload() { showLoDocUploadModal = false; uploadDocError = null; }
+
+    private async Task HandleLoDocFileSelected(InputFileChangeEventArgs e) => await HandleFileSelected(e);
+
+    private async Task UploadLoDoc()
+    {
+        if (uploadSelectedFile == null || uploadFileBytes == null) return;
+        isUploadingDoc = true; uploadDocError = null;
+        try
+        {
+            using var ms = new MemoryStream(uploadFileBytes);
+            var result = await AppService.UploadNampDocumentAsync(
+                Id, User?.Id ?? Guid.Empty, "Other",
+                uploadSelectedFile.Name, uploadSelectedFile.ContentType, uploadSelectedFile.Size,
+                ms, uploadDocCategory, NullIfEmpty(uploadDocDescription));
+            if (result.Success) { CloseLoDocUpload(); await Load(); }
+            else uploadDocError = result.Error ?? "Upload failed";
+        }
+        finally { isUploadingDoc = false; }
+    }
 
     private async Task HandleTechDocFileSelected(InputFileChangeEventArgs e) => await HandleFileSelected(e);
     private async Task HandleFinDocFileSelected(InputFileChangeEventArgs e) => await HandleFileSelected(e);

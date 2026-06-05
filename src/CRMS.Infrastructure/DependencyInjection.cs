@@ -372,6 +372,10 @@ public static class DependencyInjection
             services.AddHttpClient<ILLMService, OpenAIService>();
             services.AddScoped<LLMTransactionCategorizationService>();
         }
+        else
+        {
+            services.AddScoped<ILLMService, NullLLMService>();
+        }
 
         // Application Layer Command/Query Handlers
         // LoanApplication

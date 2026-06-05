@@ -7,6 +7,7 @@ public interface INampStagingRepository
 {
     Task<NampStagingRecord?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<NampStagingRecord?> GetByApplicationReferenceAsync(string applicationReference, CancellationToken ct = default);
+    Task<NampStagingRecord?> GetByCrmsApplicationNumberAsync(string crmsApplicationNumber, CancellationToken ct = default);
     Task<IReadOnlyList<NampStagingRecord>> GetPendingRecallAsync(Guid? branchId = null, CancellationToken ct = default);
     Task<bool> ExistsByReferenceAsync(string applicationReference, CancellationToken ct = default);
     Task AddAsync(NampStagingRecord record, CancellationToken ct = default);

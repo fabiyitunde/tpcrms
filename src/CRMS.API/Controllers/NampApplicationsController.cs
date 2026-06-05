@@ -264,7 +264,7 @@ public class NampApplicationsController : ControllerBase
     {
         var userId = GetCurrentUserId();
         var result = await _uploadDocument.Handle(
-            new UploadNampDocumentCommand(id, userId, body.Stage, body.FileName, body.ContentType, body.FileSize, body.StoragePath, body.Description), ct);
+            new UploadNampDocumentCommand(id, userId, body.Stage, body.FileName, body.ContentType, body.FileSize, body.StoragePath, body.Category, body.Description), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
@@ -285,7 +285,7 @@ public record AppraisalRequest(bool IsApproved, string? Note);
 public record OutcomeRequest(bool IsApproved, string? Note);
 public record NoteRequest(string? Note);
 public record DeploymentRequest(bool GpsActivated, string? Note);
-public record NampUploadDocumentRequest(string Stage, string FileName, string ContentType, long FileSize, string StoragePath, string? Description);
+public record NampUploadDocumentRequest(string Stage, string FileName, string ContentType, long FileSize, string StoragePath, string Category = "General", string? Description = null);
 public record CirculateRequest(
     List<NampCommitteeMemberInput> Members,
     int RequiredVotes,

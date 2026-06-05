@@ -19,6 +19,9 @@ public class NampStagingRepository : INampStagingRepository
     public async Task<NampStagingRecord?> GetByApplicationReferenceAsync(string applicationReference, CancellationToken ct = default)
         => await _context.NampStagingRecords.FirstOrDefaultAsync(x => x.ApplicationReference == applicationReference, ct);
 
+    public async Task<NampStagingRecord?> GetByCrmsApplicationNumberAsync(string crmsApplicationNumber, CancellationToken ct = default)
+        => await _context.NampStagingRecords.FirstOrDefaultAsync(x => x.CrmsApplicationNumber == crmsApplicationNumber, ct);
+
     public async Task<IReadOnlyList<NampStagingRecord>> GetPendingRecallAsync(Guid? branchId = null, CancellationToken ct = default)
     {
         var query = _context.NampStagingRecords.Where(x => !x.IsRecalled);
