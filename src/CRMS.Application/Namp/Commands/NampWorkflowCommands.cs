@@ -765,7 +765,8 @@ public class ConfirmNampDeploymentHandler
                     InterestRatePerAnnum: interestRate,
                     ValueDate: DateTime.UtcNow,
                     RepaymentAccountNumber: app.BoaAccountNumber,
-                    DisburseToSavings: false   // NAMP equipment loans disburse to vendor, not applicant savings
+                    DisburseToSavings: false,                  // NAMP equipment loans disburse to the vendor, not the applicant's savings
+                    CreateRepaymentStandingInstruction: true   // ...but repayments are auto-debited from the applicant's BOA savings via a standing instruction
                 );
 
                 var bookingResult = await _fineractService.BookApprovedLoanAsync(bookingRequest, ct);

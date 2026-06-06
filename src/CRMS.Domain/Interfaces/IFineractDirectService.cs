@@ -60,7 +60,7 @@ public interface IFineractDirectService
     Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default);
 }
 
-public record NampBoaAccountInfo(long ClientId, string AccountStatus);
+public record NampBoaAccountInfo(long ClientId, string AccountStatus, long SavingsAccountId, string? SavingsAccountNo);
 
 public record FineractClientInfo(long Id, int OfficeId, string OfficeName, string DisplayName);
 
@@ -73,7 +73,12 @@ public record FineractLoanBookingRequest(
     decimal InterestRatePerAnnum,
     DateTime ValueDate,
     string RepaymentAccountNumber,
-    bool DisburseToSavings
+    bool DisburseToSavings,
+    // When true (default), Fineract auto-creates a savings -> loan repayment standing instruction
+    // at disbursement so the linked savings account (RepaymentAccountNumber) is auto-debited for
+    // loan dues. This is independent of DisburseToSavings: the loan can disburse to a vendor while
+    // repayments are still auto-collected from the applicant's savings.
+    bool CreateRepaymentStandingInstruction = true
 );
 
 public record FineractBookingResult(

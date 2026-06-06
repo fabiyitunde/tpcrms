@@ -373,7 +373,8 @@ public class MockFineractDirectService : IFineractDirectService
     {
         // Simulate a known test account; any other account returns not found
         if (boaAccountNumber == "0000000029" || boaAccountNumber.StartsWith("TEST"))
-            return Task.FromResult(Result.Success(new NampBoaAccountInfo(ClientId: 1001L, AccountStatus: "Active")));
+            return Task.FromResult(Result.Success(new NampBoaAccountInfo(
+                ClientId: 1001L, AccountStatus: "Active", SavingsAccountId: 2001L, SavingsAccountNo: boaAccountNumber)));
 
         return Task.FromResult(Result.Failure<NampBoaAccountInfo>(
             $"NAMP BOA account '{boaAccountNumber}' not found in mock data."));
@@ -391,6 +392,10 @@ public class MockFineractDirectService : IFineractDirectService
 
         _logger.LogInformation("MockFineract: Successfully booked loan application (LoanId={LoanId}, AccountNo={AccountNo})",
             loanId, loanAccountNumber);
+
+        if (request.CreateRepaymentStandingInstruction && !string.IsNullOrWhiteSpace(request.RepaymentAccountNumber))
+            _logger.LogInformation("MockFineract: Would create savings -> loan repayment standing instruction from account {Account}",
+                request.RepaymentAccountNumber);
 
         var result = new FineractBookingResult(
             LoanId: loanId,

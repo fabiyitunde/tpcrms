@@ -465,29 +465,48 @@ public class FineractDirectService : IFineractDirectService
                 return Result.Failure<FineractBookingResult>($"Fineract loan product with ID {request.ProductId} was not found.");
             }
 
-            // Step 2: Resolve linked savings account ID if repayment account is provided
+            // Step 2: Resolve the linked repayment savings account.
+            // RepaymentAccountNumber is the BOA account (a Fineract external id), so resolve it via the
+            // byexternalId lookup — that returns the savings account's internal id, which is what Fineract's
+            // linkAccountId expects (NOT the accountNo). The linked account is required both for disburse-to-savings
+            // and for the auto-debit repayment standing instruction.
             long? linkAccountId = null;
             if (!string.IsNullOrWhiteSpace(request.RepaymentAccountNumber))
             {
-                var accountsResult = await GetClientAccountsAsync(request.ClientId, ct);
-                if (accountsResult.IsSuccess)
+                var savingsResult = await GetNampBoaAccountAsync(request.RepaymentAccountNumber, ct);
+                if (savingsResult.IsSuccess)
                 {
-                    var savingsAccount = accountsResult.Value.SavingsAccounts
-                        .FirstOrDefault(sa => sa.AccountNo.Trim().Equals(request.RepaymentAccountNumber.Trim(), StringComparison.OrdinalIgnoreCase));
-
-                    if (savingsAccount != null)
+                    var savings = savingsResult.Value;
+                    if (savings.ClientId != request.ClientId)
                     {
-                        linkAccountId = savingsAccount.Id;
-                        _logger.LogInformation("Fineract: Resolved repayment savings account ID {SavingsId} for NUBAN {Nuban}",
-                            linkAccountId, request.RepaymentAccountNumber);
+                        _logger.LogWarning(
+                            "Fineract: Repayment account '{Account}' resolved to client {ResolvedClient} but booking is for client {RequestClient}; not linking.",
+                            request.RepaymentAccountNumber, savings.ClientId, request.ClientId);
+                    }
+                    else
+                    {
+                        linkAccountId = savings.SavingsAccountId;
+                        _logger.LogInformation(
+                            "Fineract: Resolved repayment savings account id {SavingsId} (accountNo {AccountNo}) for BOA externalId {ExternalId}",
+                            linkAccountId, savings.SavingsAccountNo, request.RepaymentAccountNumber);
                     }
                 }
-
-                if (linkAccountId == null && request.DisburseToSavings)
+                else
                 {
-                    return Result.Failure<FineractBookingResult>(
-                        $"Cannot disburse to savings: savings account matching NUBAN '{request.RepaymentAccountNumber}' was not found for client {request.ClientId}.");
+                    _logger.LogWarning("Fineract: Could not resolve repayment savings account for BOA externalId '{ExternalId}': {Error}",
+                        request.RepaymentAccountNumber, savingsResult.Error);
                 }
+            }
+
+            // A linked savings account is mandatory for disburse-to-savings and for the repayment standing
+            // instruction. If we cannot resolve it, fail the booking rather than disburse a loan that has no
+            // working repayment-collection mechanism (audit-critical).
+            if (linkAccountId == null && (request.DisburseToSavings || request.CreateRepaymentStandingInstruction))
+            {
+                var purpose = request.DisburseToSavings ? "disburse to savings" : "create the repayment standing instruction";
+                return Result.Failure<FineractBookingResult>(
+                    $"Cannot {purpose}: a linked savings account for BOA account '{request.RepaymentAccountNumber}' could not be resolved for client {request.ClientId}. " +
+                    "Confirm the applicant's BOA savings account exists in Fineract and belongs to this client before booking.");
             }
 
             // Step 3: Map product settings to Fineract loan application payload
@@ -535,6 +554,16 @@ public class FineractDirectService : IFineractDirectService
             if (linkAccountId.HasValue)
             {
                 loanBody["linkAccountId"] = linkAccountId.Value;
+
+                // Ask Fineract to auto-create a savings -> loan repayment standing instruction at disbursement.
+                // Fineract creates a DUES / AS_PER_DUES standing instruction (the scheduled EXECUTE_STANDING_INSTRUCTIONS
+                // job then auto-debits the linked savings account for each due) — the same behaviour as ticking the
+                // box in the Fineract UI. This fires for plain `disburse` (to vendor) too, not just disburseToSavings.
+                if (request.CreateRepaymentStandingInstruction)
+                {
+                    loanBody["createStandingInstructionAtDisbursement"] = true;
+                    _logger.LogInformation("Fineract: createStandingInstructionAtDisbursement=true with linked savings id {SavingsId}", linkAccountId.Value);
+                }
             }
 
             // Step 4: Book the loan
@@ -665,7 +694,7 @@ public class FineractDirectService : IFineractDirectService
             if (result == null)
                 return Result.Failure<NampBoaAccountInfo>("Empty response from Fineract.");
 
-            return Result.Success(new NampBoaAccountInfo(result.ClientId, result.Status?.Value ?? "Unknown"));
+            return Result.Success(new NampBoaAccountInfo(result.ClientId, result.Status?.Value ?? "Unknown", result.Id, result.AccountNo));
         }
         catch (TaskCanceledException) when (ct.IsCancellationRequested)
         {
