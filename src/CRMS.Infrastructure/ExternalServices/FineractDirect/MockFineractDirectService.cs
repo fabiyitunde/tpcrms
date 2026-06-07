@@ -229,9 +229,11 @@ public class MockFineractDirectService : IFineractDirectService
         _logger.LogInformation("MockFineract: GetClientById for clientId={ClientId}", clientId);
 
         // Mock: clientId 1643 → Enugu Branch (matching the mock BOA account 1234567890)
+        // Mock: clientId 1001 → Lagos Main Branch (matching NAMP test BOA account 0000000029 / TEST*)
         var mockClients = new Dictionary<long, FineractClientInfo>
         {
-            [1643] = new(Id: 1643, OfficeId: 5, OfficeName: "Enugu Branch", DisplayName: "Acme Industries Ltd"),
+            [1643] = new(Id: 1643, OfficeId: 5, OfficeName: "Enugu Branch",      DisplayName: "Acme Industries Ltd"),
+            [1001] = new(Id: 1001, OfficeId: 1, OfficeName: "Lagos Main Branch", DisplayName: "Adewale Okafor"),
         };
 
         if (mockClients.TryGetValue(clientId, out var info))
