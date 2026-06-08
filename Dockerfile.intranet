@@ -1,0 +1,44 @@
+# CRMS.Web.Intranet — Blazor Server app (.NET 9). Build context = repo root.
+
+# ---- Build stage ----
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# Copy project files first so `dotnet restore` is cached unless a .csproj changes.
+# Web.Intranet -> Infrastructure -> Application -> Domain (all siblings under /src so the
+# ..\Sibling\.. ProjectReferences resolve).
+COPY src/CRMS.Domain/CRMS.Domain.csproj CRMS.Domain/
+COPY src/CRMS.Application/CRMS.Application.csproj CRMS.Application/
+COPY src/CRMS.Infrastructure/CRMS.Infrastructure.csproj CRMS.Infrastructure/
+COPY src/CRMS.Web.Intranet/CRMS.Web.Intranet.csproj CRMS.Web.Intranet/
+
+RUN dotnet restore CRMS.Web.Intranet/CRMS.Web.Intranet.csproj
+
+# Copy the rest of the source and publish.
+COPY src/CRMS.Domain/ CRMS.Domain/
+COPY src/CRMS.Application/ CRMS.Application/
+COPY src/CRMS.Infrastructure/ CRMS.Infrastructure/
+COPY src/CRMS.Web.Intranet/ CRMS.Web.Intranet/
+
+RUN dotnet publish CRMS.Web.Intranet/CRMS.Web.Intranet.csproj -c Release -o /app/publish /p:UseAppHost=false
+
+# ---- Runtime stage ----
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+
+# curl       — used by the container HEALTHCHECK below.
+# libfontconfig1 — native dependency of QuestPDF/SkiaSharp; without it PDF generation
+#                  (loan packs, offer letters, disbursement memos) crashes at runtime.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Container listens on 8080; the host maps 8981 -> 8080 (see docker-compose.yml).
+EXPOSE 8080
+COPY --from=build /app/publish .
+
+# /login is the anonymous entry point (the app is otherwise [Authorize]-only).
+HEALTHCHECK --interval=10s --timeout=5s --retries=18 --start-period=240s \
+  CMD curl -s -o /dev/null http://localhost:8080/login || exit 1
+
+ENTRYPOINT ["dotnet", "CRMS.Web.Intranet.dll"]

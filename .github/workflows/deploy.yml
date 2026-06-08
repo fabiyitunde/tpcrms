@@ -1,0 +1,127 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:  # Allow manual deploys from the Actions tab
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          # SSH keepalive so the long build over the connection doesn't drop
+          cat >> ~/.ssh/config << 'EOF'
+          Host *
+            ServerAliveInterval=60
+            ServerAliveCountMax=30
+            TCPKeepAlive=yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Create .env file
+        env:
+          # Pass the secret as a shell env var so the value is written verbatim,
+          # even if it contains '$', backslashes, or other special characters.
+          DEFAULTDB_CONNECTION: ${{ secrets.DEFAULTDB_CONNECTION }}
+        run: |
+          # One shared connection string for BOTH apps (CRMS.API + CRMS.Web.Intranet).
+          cat > crms.env << EOF
+          ConnectionStrings__DefaultConnection=$DEFAULTDB_CONNECTION
+          EOF
+
+      - name: Deploy to EC2
+        timeout-minutes: 40
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          # Create deployment package (source only; the images are rebuilt on the box)
+          tar --warning=no-file-changed -czf deploy.tar.gz \
+            --exclude='.git' \
+            --exclude='*/bin' \
+            --exclude='*/obj' \
+            --exclude='.env' \
+            --exclude='crms.env' \
+            --exclude='deploy.tar.gz' \
+            . || true
+
+          # Copy the package and the env file to the EC2 instance
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no deploy.tar.gz $EC2_USER@$EC2_HOST:/tmp/
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no crms.env $EC2_USER@$EC2_HOST:/tmp/crms.env
+
+          # Build & run on the EC2 instance
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST << 'ENDSSH'
+            set -e
+
+            # Isolated project directory (does not touch other apps on this shared box)
+            sudo mkdir -p /opt/crms
+            sudo chown $USER:$USER /opt/crms
+            cd /opt/crms
+
+            # Extract new code
+            tar -xzf /tmp/deploy.tar.gz
+            rm /tmp/deploy.tar.gz
+
+            # Move the .env (shared connection string) into place
+            cp /tmp/crms.env .env
+            rm /tmp/crms.env
+
+            # Install Docker if not present
+            if ! command -v docker &> /dev/null; then
+              sudo yum update -y
+              sudo yum install -y docker
+              sudo systemctl start docker
+              sudo systemctl enable docker
+              sudo usermod -aG docker $USER
+            fi
+
+            # Install the Docker Compose plugin if not present
+            if ! docker compose version &> /dev/null; then
+              sudo mkdir -p /usr/local/lib/docker/cli-plugins
+              sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" -o /usr/local/lib/docker/cli-plugins/docker-compose
+              sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+            fi
+
+            # Light disk hygiene only — dangling images. (Do NOT run a full
+            # `system prune --volumes` here: this box may run other apps, and a shared
+            # named volume holds CRMS uploaded documents.)
+            sudo docker image prune -f || true
+
+            # Build & (re)start only this project. `down` (no -v) keeps the crms-storage
+            # volume, so uploaded documents survive the redeploy.
+            sudo docker compose down || true
+            echo "Starting Docker build (CRMS.API + CRMS.Web.Intranet)..."
+            sudo docker compose up -d --build 2>&1 | tee /tmp/crms-build.log
+
+            echo "Deployment complete!"
+            sudo docker ps
+          ENDSSH
+
+      - name: Health Check
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          echo "Waiting for the apps to start (migrations + seeding run on first boot)..."
+          sleep 45
+          echo "Checking CRMS.API on :8980 ..."
+          curl -f http://$EC2_HOST:8980/openapi/v1.json || echo "API may still be starting"
+          echo ""
+          echo "Checking CRMS.Web.Intranet on :8981 ..."
+          curl -f http://$EC2_HOST:8981/login || echo "Intranet may still be starting"
+          echo ""
+          echo "=========================================="
+          echo "Deployment URLs:"
+          echo "  CRMS.API:          http://$EC2_HOST:8980  (Scalar docs: /scalar/v1)"
+          echo "  CRMS.Web.Intranet: http://$EC2_HOST:8981  (redirects to /login)"
+          echo "=========================================="
