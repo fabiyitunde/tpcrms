@@ -8,4 +8,5 @@ public interface INampAdvisoryRepository
     Task<NampAdvisory?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task AddAsync(NampAdvisory advisory, CancellationToken ct = default);
     void Update(NampAdvisory advisory);
+    void Remove(NampAdvisory advisory);
 }

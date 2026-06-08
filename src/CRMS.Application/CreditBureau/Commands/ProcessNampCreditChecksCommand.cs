@@ -51,9 +51,9 @@ public class ProcessNampCreditChecksHandler
         if (app is null)
             return ApplicationResult<NampCreditCheckBatchResultDto>.Failure("NAMP application not found.");
 
-        if (app.Status != NampApplicationStatus.FinancialAppraisal)
+        if (app.Status != NampApplicationStatus.FinancialAppraisal && app.Status != NampApplicationStatus.Submitted)
             return ApplicationResult<NampCreditCheckBatchResultDto>.Failure(
-                $"NAMP application must be in FinancialAppraisal status for credit checks. Current: {app.Status}");
+                $"NAMP application must be in Submitted or FinancialAppraisal status for credit checks. Current: {app.Status}");
 
         // Build subject list: applicant + guarantors (each with a BVN)
         var subjects = new List<(string Name, string Bvn, Guid? GuarantorId)>();

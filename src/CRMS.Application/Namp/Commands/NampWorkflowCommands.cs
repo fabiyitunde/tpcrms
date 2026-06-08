@@ -1,4 +1,5 @@
 using CRMS.Application.Common;
+using CRMS.Application.CreditBureau.Interfaces;
 using CRMS.Application.Namp.DTOs;
 using CRMS.Application.Namp.Interfaces;
 using CRMS.Application.Namp.Queries;
@@ -20,11 +21,13 @@ public class SubmitNampApplicationHandler
     : IRequestHandler<SubmitNampApplicationCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly ICreditCheckOutbox _outbox;
     private readonly IUnitOfWork _uow;
 
-    public SubmitNampApplicationHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public SubmitNampApplicationHandler(INampApplicationRepository repo, ICreditCheckOutbox outbox, IUnitOfWork uow)
     {
         _repo = repo;
+        _outbox = outbox;
         _uow = uow;
     }
 
@@ -37,6 +40,10 @@ public class SubmitNampApplicationHandler
         var result = app.Submit(request.UserId);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
 
+        // Enqueue bureau checks atomically — background service picks this up within 30 seconds.
+        // Committed in the same SaveChanges as the status change so no outbox entry is lost.
+        await _outbox.EnqueueForNampAsync(app.Id, request.UserId, ct);
+
         app.SetAuditInfo(request.UserId.ToString());
         await _uow.SaveChangesAsync(ct);
 
@@ -44,7 +51,7 @@ public class SubmitNampApplicationHandler
     }
 }
 
-// ── Stage 2: Financial Appraisal ──────────────────────────────────────────
+// ── Stage 2: Financial Appraisal Decision ─────────────────────────────────
 
 public record SubmitNampFinancialAppraisalCommand(
     Guid NampApplicationId,

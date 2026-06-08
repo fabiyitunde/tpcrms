@@ -27,4 +27,7 @@ public class NampAdvisoryRepository : INampAdvisoryRepository
 
     public void Update(NampAdvisory advisory)
         => _context.NampAdvisories.Update(advisory);
+
+    public void Remove(NampAdvisory advisory)
+        => _context.NampAdvisories.Remove(advisory);
 }

@@ -57,6 +57,11 @@ public class GenerateNampAdvisoryHandler
             return ApplicationResult<NampAdvisoryDto>.Failure(
                 "No completed bureau reports found. Bureau checks must be run before generating an advisory.");
 
+        // Delete any existing advisory for this application (regeneration scenario)
+        var existing = await _advisoryRepo.GetByNampApplicationIdAsync(request.NampApplicationId, ct);
+        if (existing != null)
+            _advisoryRepo.Remove(existing);
+
         // Create advisory record
         var advisoryResult = NampAdvisory.Create(
             request.NampApplicationId,

@@ -1598,7 +1598,7 @@ else
                         <span class="material-symbols-outlined" style="font-size: 48px; margin-bottom: 12px; display: block; opacity: 0.4;">psychology</span>
                         <div style="font-size: 1rem; font-weight: 600; margin-bottom: 8px;">No Advisory Generated</div>
                         <div style="font-size: 0.875rem; max-width: 420px; margin: 0 auto 16px;">
-                            Generate an AI credit advisory combining bureau data, financials, collateral, guarantors, and the Technical Viability score from the Agricultural Engineer's report.
+                            Generate an AI credit advisory combining bureau data, financial appraisal ratios, collateral coverage, and guarantor profiles.
                         </div>
                         @if (CanGenerateAdvisory)
                         {
@@ -1801,7 +1801,7 @@ else
             </div>
         </div>
     }
-}
+
 
 <!-- ══════════════════════════════════════════════
      MODALS (unchanged)
@@ -2560,7 +2560,7 @@ else
 
 
     private bool ShowFinancialAppraisalButton =>
-        (app?.Status == "FinancialAppraisal" || app?.Status == "Submitted") &&
+        (app?.Status == "Submitted" || app?.Status == "FinancialAppraisal") &&
         (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
     private bool ShowFinancialAppraisalTab =>
@@ -2569,11 +2569,14 @@ else
         app?.FinancialAppraisalReport != null;
 
     private bool ShowAdvisoryTab =>
-        app?.Status == "Submitted" || app?.Status == "FinancialAppraisal" ||
+        app?.FinancialAppraisalReport != null ||
+        app?.Status == "FinancialAppraisal" ||
         IsAfter(app!, "FinancialAppraisal");
 
     private bool CanGenerateAdvisory =>
-        (app?.Status == "Submitted" || app?.Status == "FinancialAppraisal" || IsAfter(app!, "FinancialAppraisal")) &&
+        (app?.FinancialAppraisalReport != null || app?.Status == "FinancialAppraisal" || IsAfter(app!, "FinancialAppraisal")) &&
+        (app?.BureauReports.Any(r => r.Status == "Completed") ?? false) &&
+        app?.FinancialAppraisalReport != null &&
         (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
     private bool FinDecisionBlocked =>
@@ -2770,7 +2773,7 @@ else
 
     // ── Modal openers ─────────────────────────────────────────────────────
 
-    private void OpenSubmitModal() => OpenConfirmModal("submit", "Submit for Technical Appraisal", "Submit this application for Agricultural Engineer review?");
+    private void OpenSubmitModal() => OpenConfirmModal("submit", "Submit for Financial Appraisal", "Submit this application to the Credit Officer for financial appraisal? Credit bureau checks will be queued automatically.");
     private async Task HandleCastVote()
     {
         if (string.IsNullOrEmpty(selectedVote) || app?.CurrentCommitteeReviewId == null) return;

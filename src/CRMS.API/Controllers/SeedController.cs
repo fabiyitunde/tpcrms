@@ -139,6 +139,76 @@ public class SeedController : ControllerBase
     }
 
     /// <summary>
+    /// Force-applies the CleanupNampWorkflow schema migration via raw SQL.
+    /// Wipes test data, drops removed tables, drops removed columns, converts Status columns to VARCHAR(50).
+    /// Dev-only. Idempotent — safe to run multiple times.
+    /// </summary>
+    [HttpPost("namp-cleanup-migration")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ApplyNampCleanupMigration()
+    {
+        if (!_environment.IsDevelopment())
+            return BadRequest(new { error = "Only available in Development environment" });
+
+        try
+        {
+            var db = _context.Database;
+
+            // Wipe test data
+            await db.ExecuteSqlRawAsync("DELETE FROM NampApplications;");
+            await db.ExecuteSqlRawAsync("DELETE FROM NampWorkflowConfigs;");
+            await db.ExecuteSqlRawAsync("DELETE FROM NampRoutingConfigs;");
+            await db.ExecuteSqlRawAsync("DELETE FROM NampStagingRecords;");
+
+            // Drop removed tables
+            await db.ExecuteSqlRawAsync("DROP TABLE IF EXISTS NampTechnicalAppraisalReports;");
+            await db.ExecuteSqlRawAsync("DROP TABLE IF EXISTS NampViabilityScoreConfigs;");
+
+            // Drop removed columns (ignore errors if already dropped)
+            var dropCols = new[]
+            {
+                "ALTER TABLE NampApplications DROP COLUMN IF EXISTS TechnicalAppraisalByUserId;",
+                "ALTER TABLE NampApplications DROP COLUMN IF EXISTS TechnicalAppraisalAt;",
+                "ALTER TABLE NampApplications DROP COLUMN IF EXISTS TechnicalAppraisalNote;",
+                "ALTER TABLE NampApplications DROP COLUMN IF EXISTS TrainingCompletedByUserId;",
+                "ALTER TABLE NampApplications DROP COLUMN IF EXISTS TrainingCompletedAt;",
+            };
+            foreach (var sql in dropCols)
+            {
+                try { await db.ExecuteSqlRawAsync(sql); } catch { /* column may already be gone */ }
+            }
+
+            // Convert Status columns to VARCHAR(50) — only if currently int
+            var alterCols = new[]
+            {
+                "ALTER TABLE NampApplications MODIFY COLUMN Status VARCHAR(50) NOT NULL;",
+                "ALTER TABLE NampStatusHistory MODIFY COLUMN Status VARCHAR(50) NOT NULL;",
+                "ALTER TABLE NampWorkflowConfigs MODIFY COLUMN Status VARCHAR(50) NOT NULL;",
+            };
+            foreach (var sql in alterCols)
+            {
+                try { await db.ExecuteSqlRawAsync(sql); } catch { /* column may already be VARCHAR */ }
+            }
+
+            // Re-seed workflow and routing configs
+            await NampWorkflowSeeder.SeedAsync(_context, _logger);
+
+            // Mark migration as applied if not already in history
+            await db.ExecuteSqlRawAsync("""
+                INSERT IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion)
+                VALUES ('20260608100000_CleanupNampWorkflow', '9.0.0');
+                """);
+
+            return Ok(new { success = true, message = "NAMP cleanup migration applied and re-seeded.", timestamp = DateTime.UtcNow });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error applying NAMP cleanup migration");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Seeds NAMP workflow stage config and default routing config.
     /// Safe to run on an already-seeded database — idempotent.
     /// </summary>

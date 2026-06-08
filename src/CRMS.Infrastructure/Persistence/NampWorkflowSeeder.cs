@@ -103,18 +103,18 @@ public static class NampWorkflowSeeder
             Routing(NampApplicantCategory.YouthAgripreneur, NampCommitteeTier.Branch,      0m,           5_000_000m,   priority: 0),
             Routing(NampApplicantCategory.YouthAgripreneur, NampCommitteeTier.Zonal,       5_000_001m,   20_000_000m,  priority: 1),
             Routing(NampApplicantCategory.YouthAgripreneur, NampCommitteeTier.Regional,    20_000_001m,  50_000_000m,  priority: 2),
-            Routing(NampApplicantCategory.YouthAgripreneur, NampCommitteeTier.HeadOffice,  50_000_001m,  decimal.MaxValue / 2, priority: 3),
+            Routing(NampApplicantCategory.YouthAgripreneur, NampCommitteeTier.HeadOffice,  50_000_001m,  999_999_999_999_999m, priority: 3),
 
             // Women Agripreneur — same bands as Youth
             Routing(NampApplicantCategory.WomenAgripreneur, NampCommitteeTier.Branch,      0m,           5_000_000m,   priority: 0),
             Routing(NampApplicantCategory.WomenAgripreneur, NampCommitteeTier.Zonal,       5_000_001m,   20_000_000m,  priority: 1),
             Routing(NampApplicantCategory.WomenAgripreneur, NampCommitteeTier.Regional,    20_000_001m,  50_000_000m,  priority: 2),
-            Routing(NampApplicantCategory.WomenAgripreneur, NampCommitteeTier.HeadOffice,  50_000_001m,  decimal.MaxValue / 2, priority: 3),
+            Routing(NampApplicantCategory.WomenAgripreneur, NampCommitteeTier.HeadOffice,  50_000_001m,  999_999_999_999_999m, priority: 3),
 
             // Agro-Service Company — higher starting tier
             Routing(NampApplicantCategory.AgroServiceCompany, NampCommitteeTier.Zonal,      0m,           20_000_000m,  priority: 0),
             Routing(NampApplicantCategory.AgroServiceCompany, NampCommitteeTier.Regional,   20_000_001m,  100_000_000m, priority: 1),
-            Routing(NampApplicantCategory.AgroServiceCompany, NampCommitteeTier.HeadOffice, 100_000_001m, decimal.MaxValue / 2, priority: 2),
+            Routing(NampApplicantCategory.AgroServiceCompany, NampCommitteeTier.HeadOffice, 100_000_001m, 999_999_999_999_999m, priority: 2),
         };
 
         await context.NampRoutingConfigs.AddRangeAsync(configs);

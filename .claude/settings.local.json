@@ -23,7 +23,9 @@
       "Bash(netstat -ano)",
       "Bash(cmd /c \"wmic process where ProcessId=20736 get Name,ProcessId,CommandLine 2>nul\")",
       "Bash(cmd /c \"tasklist /FI \\\\\"PID eq 20736\\\\\"\")",
-      "Bash(xargs -r kill -9)"
+      "Bash(xargs -r kill -9)",
+      "Bash(powershell -Command \"Get-Process dotnet -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(curl -s http://localhost:5230/api/seed/status)"
     ]
   }
 }

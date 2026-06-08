@@ -32,6 +32,7 @@ public class NampApplicationsController : ControllerBase
     private readonly CompleteNampPreDeploymentVerificationHandler _completePdv;
     private readonly ConfirmNampDeploymentHandler _confirmDeployment;
     private readonly UploadNampDocumentHandler _uploadDocument;
+    private readonly CRMS.Application.CreditBureau.Commands.ProcessNampCreditChecksHandler _processCreditChecks;
     private readonly IConfiguration _config;
 
     public NampApplicationsController(
@@ -52,6 +53,7 @@ public class NampApplicationsController : ControllerBase
         CompleteNampPreDeploymentVerificationHandler completePdv,
         ConfirmNampDeploymentHandler confirmDeployment,
         UploadNampDocumentHandler uploadDocument,
+        CRMS.Application.CreditBureau.Commands.ProcessNampCreditChecksHandler processCreditChecks,
         IConfiguration config)
     {
         _getStagingQueue = getStagingQueue;
@@ -71,6 +73,7 @@ public class NampApplicationsController : ControllerBase
         _completePdv = completePdv;
         _confirmDeployment = confirmDeployment;
         _uploadDocument = uploadDocument;
+        _processCreditChecks = processCreditChecks;
         _config = config;
     }
 
@@ -127,7 +130,7 @@ public class NampApplicationsController : ControllerBase
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
-    // ── Stage 2: Financial Appraisal ──────────────────────────────────────
+    // ── Stage 2: Financial Appraisal Decision ─────────────────────────────
 
     [HttpPost("{id:guid}/financial-appraisal")]
     public async Task<IActionResult> SubmitFinancialAppraisal(Guid id, [FromBody] AppraisalRequest body, CancellationToken ct)
@@ -227,6 +230,17 @@ public class NampApplicationsController : ControllerBase
         var userId = GetCurrentUserId();
         var result = await _confirmDeployment.Handle(
             new ConfirmNampDeploymentCommand(id, userId, body.GpsActivated, body.Note), ct);
+        return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
+    }
+
+    // ── Credit Bureau Checks ──────────────────────────────────────────────
+
+    [HttpPost("{id:guid}/run-credit-checks")]
+    public async Task<IActionResult> RunCreditChecks(Guid id, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _processCreditChecks.Handle(
+            new CRMS.Application.CreditBureau.Commands.ProcessNampCreditChecksCommand(id, userId), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
