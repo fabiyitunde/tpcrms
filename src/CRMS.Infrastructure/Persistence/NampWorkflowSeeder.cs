@@ -17,7 +17,6 @@ public static class NampWorkflowSeeder
         await SeedWorkflowConfigAsync(context, logger);
         await SeedRoutingConfigAsync(context, logger);
         await SeedPreDeploymentChecklistAsync(context, logger);
-        await SeedViabilityScoreConfigAsync(context, logger);
     }
 
     // ── Stage config ──────────────────────────────────────────────────────
@@ -40,13 +39,9 @@ public static class NampWorkflowSeeder
 
             // ── Stage 1: Loan Officer ─────────────────────────────────────
             Stage(NampApplicationStatus.Draft, "Draft", "Recalled from staging; Loan Officer reviewing before submission.", Roles.LoanOfficer, slaHours: 48, sort: 10),
-            Stage(NampApplicationStatus.Submitted, "Submitted for Technical Appraisal", "Awaiting Agricultural Engineer review.", Roles.AgriculturalEngineer, slaHours: 72, sort: 20),
+            Stage(NampApplicationStatus.Submitted, "Submitted for Financial Appraisal", "Awaiting Credit Officer review.", Roles.CreditOfficer, slaHours: 72, sort: 20),
 
-            // ── Stage 2: Technical Appraisal ──────────────────────────────
-            Stage(NampApplicationStatus.TechnicalAppraisal, "Technical Appraisal", "Agricultural Engineer conducting farm and equipment review.", Roles.AgriculturalEngineer, slaHours: 72, sort: 30),
-            Stage(NampApplicationStatus.TechnicalDeclined, "Technical Appraisal Declined", "Application failed technical appraisal.", Roles.SystemAdmin, slaHours: 0, sort: 35, isTerminal: true),
-
-            // ── Stage 3: Financial Appraisal ──────────────────────────────
+            // ── Stage 2: Financial Appraisal ──────────────────────────────
             Stage(NampApplicationStatus.FinancialAppraisal, "Financial Appraisal", "Credit Officer reviewing financial viability.", Roles.CreditOfficer, slaHours: 72, sort: 40),
             Stage(NampApplicationStatus.FinancialDeclined, "Financial Appraisal Declined", "Application failed financial appraisal.", Roles.SystemAdmin, slaHours: 0, sort: 45, isTerminal: true),
 
@@ -64,16 +59,13 @@ public static class NampWorkflowSeeder
             Stage(NampApplicationStatus.Ratification, "Ratification", "Final Approver (Branch Manager / Zonal Manager / Regional Manager / MD-CEO) ratifying committee vote.", Roles.FinalApprover, slaHours: 48, sort: 90),
             Stage(NampApplicationStatus.RatificationDeclined, "Ratification Declined", "Final Approver declined to ratify the committee decision.", Roles.SystemAdmin, slaHours: 0, sort: 95, isTerminal: true),
             Stage(NampApplicationStatus.OfferGenerated, "Offer Letter Generated", "Offer letter sent to applicant; awaiting countersignature.", Roles.LoanOfficer, slaHours: 168, sort: 100),
-            Stage(NampApplicationStatus.OfferAccepted, "Offer Accepted", "Applicant countersigned offer letter; moving to pre-deployment.", Roles.ComplianceOfficer, slaHours: 48, sort: 105),
+            Stage(NampApplicationStatus.OfferAccepted, "Offer Accepted", "Applicant countersigned offer letter; moving to pre-deployment.", Roles.DeploymentOfficer, slaHours: 48, sort: 105),
             Stage(NampApplicationStatus.OfferLapsed, "Offer Lapsed", "Applicant did not countersign within SLA.", Roles.SystemAdmin, slaHours: 0, sort: 108, isTerminal: true),
 
-            // ── Stage 6: Pre-Deployment Verification ──────────────────────
-            Stage(NampApplicationStatus.PreDeploymentVerification, "Pre-Deployment Verification", "Compliance Officer verifying 4 gate conditions before equipment deployment.", Roles.ComplianceOfficer, slaHours: 48, sort: 110),
+            // ── Stage 5: Pre-Deployment Verification ──────────────────────
+            Stage(NampApplicationStatus.PreDeploymentVerification, "Pre-Deployment Verification", "Deployment Officer verifying 4 gate conditions before equipment deployment.", Roles.DeploymentOfficer, slaHours: 48, sort: 110),
 
-            // ── Stage 7: Training ─────────────────────────────────────────
-            Stage(NampApplicationStatus.Training, "Training", "Training Coordinator tracking Heifer Nigeria training delivery.", Roles.TrainingCoordinator, slaHours: 336, sort: 120),
-
-            // ── Stage 8: Deployment ───────────────────────────────────────
+            // ── Stage 6: Deployment ───────────────────────────────────────
             Stage(NampApplicationStatus.Deployment, "Deployment", "Deployment Officer tracking equipment delivery and GPS activation.", Roles.DeploymentOfficer, slaHours: 168, sort: 130),
 
             // ── Stage 9: Active ───────────────────────────────────────────
@@ -186,33 +178,6 @@ public static class NampWorkflowSeeder
         logger.LogInformation("Seeded {Count} NAMP pre-deployment checklist template items.", items.Length);
     }
 
-    // ── Viability Score Config ────────────────────────────────────────────
-
-    private static async Task SeedViabilityScoreConfigAsync(CRMSDbContext context, ILogger logger)
-    {
-        if (await context.NampViabilityScoreConfigs.AnyAsync())
-        {
-            logger.LogInformation("NAMP viability score config already seeded, skipping.");
-            return;
-        }
-
-        logger.LogInformation("Seeding NAMP viability score config...");
-
-        var configs = new[]
-        {
-            ViabilityConfig(NampViabilityRating.Viable,    score: 85m, weight: 20m,
-                "Farm/operation rated Viable by Agricultural Engineer — strong technical foundation for equipment deployment."),
-            ViabilityConfig(NampViabilityRating.Marginal,  score: 50m, weight: 20m,
-                "Farm/operation rated Marginal — acceptable with mitigations; monitor post-disbursement."),
-            ViabilityConfig(NampViabilityRating.NotViable, score: 20m, weight: 20m,
-                "Farm/operation rated Not Viable — significant technical concerns flagged by Agricultural Engineer."),
-        };
-
-        await context.NampViabilityScoreConfigs.AddRangeAsync(configs);
-        await context.SaveChangesAsync();
-        logger.LogInformation("Seeded {Count} NAMP viability score config rows.", configs.Length);
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private static NampWorkflowConfig Stage(
@@ -237,17 +202,6 @@ public static class NampWorkflowSeeder
         int priority)
     {
         var config = NampRoutingConfig.Create(category, tier, min, max, priority);
-        config.SetAuditInfo("seed", isNew: true);
-        return config;
-    }
-
-    private static NampViabilityScoreConfig ViabilityConfig(
-        NampViabilityRating rating,
-        decimal score,
-        decimal weight,
-        string? description = null)
-    {
-        var config = NampViabilityScoreConfig.Create(rating, score, weight, description);
         config.SetAuditInfo("seed", isNew: true);
         return config;
     }

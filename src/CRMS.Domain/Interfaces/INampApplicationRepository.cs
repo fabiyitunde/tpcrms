@@ -19,8 +19,6 @@ public interface INampApplicationRepository
     void Update(NampApplication application);
     Task AddNampDocumentAsync(NampDocument document, CancellationToken ct = default);
     Task<NampDocument?> GetNampDocumentByIdAsync(Guid documentId, CancellationToken ct = default);
-    Task<NampTechnicalAppraisalReport?> GetTechnicalAppraisalReportAsync(Guid nampApplicationId, CancellationToken ct = default);
-    Task AddTechnicalAppraisalReportAsync(NampTechnicalAppraisalReport report, CancellationToken ct = default);
     Task<NampFinancialAppraisalReport?> GetFinancialAppraisalReportAsync(Guid nampApplicationId, CancellationToken ct = default);
     Task AddFinancialAppraisalReportAsync(NampFinancialAppraisalReport report, CancellationToken ct = default);
     Task AddPreDeploymentChecklistItemsAsync(IEnumerable<NampPreDeploymentChecklistItem> items, CancellationToken ct = default);

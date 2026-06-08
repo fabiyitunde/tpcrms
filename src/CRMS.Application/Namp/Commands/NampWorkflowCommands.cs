@@ -1,5 +1,4 @@
 using CRMS.Application.Common;
-using CRMS.Application.CreditBureau.Interfaces;
 using CRMS.Application.Namp.DTOs;
 using CRMS.Application.Namp.Interfaces;
 using CRMS.Application.Namp.Queries;
@@ -45,65 +44,7 @@ public class SubmitNampApplicationHandler
     }
 }
 
-// ── Stage 2: Technical Appraisal ──────────────────────────────────────────
-
-public record SubmitNampTechnicalAppraisalCommand(
-    Guid NampApplicationId,
-    Guid UserId,
-    bool IsApproved,
-    string? Note
-) : IRequest<ApplicationResult<NampApplicationDto>>;
-
-public class SubmitNampTechnicalAppraisalHandler
-    : IRequestHandler<SubmitNampTechnicalAppraisalCommand, ApplicationResult<NampApplicationDto>>
-{
-    private readonly INampApplicationRepository _repo;
-    private readonly ICreditCheckOutbox _creditCheckOutbox;
-    private readonly IUnitOfWork _uow;
-
-    public SubmitNampTechnicalAppraisalHandler(
-        INampApplicationRepository repo,
-        ICreditCheckOutbox creditCheckOutbox,
-        IUnitOfWork uow)
-    {
-        _repo = repo;
-        _creditCheckOutbox = creditCheckOutbox;
-        _uow = uow;
-    }
-
-    public async Task<ApplicationResult<NampApplicationDto>> Handle(
-        SubmitNampTechnicalAppraisalCommand request, CancellationToken ct = default)
-    {
-        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
-        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
-
-        var report = await _repo.GetTechnicalAppraisalReportAsync(request.NampApplicationId, ct);
-        if (report is null)
-            return ApplicationResult<NampApplicationDto>.Failure("Technical appraisal report must be saved before submitting a decision.");
-
-        var hasRequiredDoc = app.Documents.Any(d =>
-            d.Stage == NampDocumentStage.TechnicalAppraisal &&
-            d.Category == NampDocumentCategory.TechnicalReport);
-        if (!hasRequiredDoc)
-            return ApplicationResult<NampApplicationDto>.Failure("At least one Technical Report document must be uploaded before submitting.");
-
-        var result = app.SubmitTechnicalAppraisal(request.UserId, request.IsApproved, request.Note);
-        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
-
-        app.SetAuditInfo(request.UserId.ToString());
-
-        if (request.IsApproved)
-        {
-            await _creditCheckOutbox.EnqueueForNampAsync(request.NampApplicationId, request.UserId, ct);
-        }
-
-        await _uow.SaveChangesAsync(ct);
-
-        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
-    }
-}
-
-// ── Stage 3: Financial Appraisal ──────────────────────────────────────────
+// ── Stage 2: Financial Appraisal ──────────────────────────────────────────
 
 public record SubmitNampFinancialAppraisalCommand(
     Guid NampApplicationId,
@@ -657,40 +598,7 @@ public class CompleteNampPreDeploymentVerificationHandler
     }
 }
 
-// ── Stage 7: Training ─────────────────────────────────────────────────────
-
-public record CompleteNampTrainingCommand(Guid NampApplicationId, Guid UserId)
-    : IRequest<ApplicationResult<NampApplicationDto>>;
-
-public class CompleteNampTrainingHandler
-    : IRequestHandler<CompleteNampTrainingCommand, ApplicationResult<NampApplicationDto>>
-{
-    private readonly INampApplicationRepository _repo;
-    private readonly IUnitOfWork _uow;
-
-    public CompleteNampTrainingHandler(INampApplicationRepository repo, IUnitOfWork uow)
-    {
-        _repo = repo;
-        _uow = uow;
-    }
-
-    public async Task<ApplicationResult<NampApplicationDto>> Handle(
-        CompleteNampTrainingCommand request, CancellationToken ct = default)
-    {
-        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
-        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
-
-        var result = app.CompleteTraining(request.UserId);
-        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
-
-        app.SetAuditInfo(request.UserId.ToString());
-        await _uow.SaveChangesAsync(ct);
-
-        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
-    }
-}
-
-// ── Stage 8: Deployment ───────────────────────────────────────────────────
+// ── Stage 6: Deployment ───────────────────────────────────────────────────
 
 public record ConfirmNampDeploymentCommand(
     Guid NampApplicationId,

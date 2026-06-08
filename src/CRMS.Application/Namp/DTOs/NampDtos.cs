@@ -101,10 +101,6 @@ public record NampApplicationDto(
     decimal? CartTotal,
     decimal? EquityAmount,
     decimal? LoanAmount,
-    // Technical Appraisal
-    Guid? TechnicalAppraisalByUserId,
-    DateTime? TechnicalAppraisalAt,
-    string? TechnicalAppraisalNote,
     // Financial Appraisal
     Guid? FinancialAppraisalByUserId,
     DateTime? FinancialAppraisalAt,
@@ -125,9 +121,6 @@ public record NampApplicationDto(
     Guid? PreDeploymentVerifiedByUserId,
     DateTime? PreDeploymentVerifiedAt,
     string? PreDeploymentNote,
-    // Training
-    Guid? TrainingCompletedByUserId,
-    DateTime? TrainingCompletedAt,
     // Deployment
     Guid? DeployedByUserId,
     DateTime? DeployedAt,
@@ -148,7 +141,6 @@ public record NampApplicationDto(
     List<NampGuarantorDto> Guarantors,
     List<NampCollateralDto> Collaterals,
     List<NampFinancialStatementDto> FinancialStatements,
-    NampTechnicalAppraisalReportDto? TechnicalAppraisalReport,
     NampFinancialAppraisalReportDto? FinancialAppraisalReport,
     List<NampBureauReportDto> BureauReports,
     List<NampPreDeploymentChecklistItemDto> PreDeploymentChecklist
@@ -307,35 +299,6 @@ public record NampCommitteeReviewDto(
     List<NampCommitteeMemberViewDto> Members
 );
 
-public record NampTechnicalAppraisalReportDto(
-    Guid Id,
-    Guid NampApplicationId,
-    Guid PreparedByUserId,
-    DateTime SavedAt,
-    // Individual applicant fields
-    string? FarmLocationDescription,
-    string? GpsCoordinates,
-    decimal? LandAreaAssessedHectares,
-    string? SoilConditionRating,
-    string? WaterSourceAvailability,
-    // AgroServiceCompany fields
-    string? OperationalCoverageArea,
-    int? ExistingFleetSize,
-    bool? HasMaintenanceFacility,
-    int? TechnicalStaffCount,
-    int? YearsInOperation,
-    string? CurrentServiceContracts,
-    string? StorageFacilityDescription,
-    // Shared fields
-    string ProposedEquipmentSuitability,
-    string? InfrastructureNotes,
-    string? RisksIdentified,
-    string? RecommendedMitigations,
-    string OverallViabilityRating,
-    string EngineerRecommendation,
-    string? SummaryNotes
-);
-
 public record NampFinancialAppraisalReportDto(
     Guid Id,
     Guid NampApplicationId,
@@ -348,7 +311,11 @@ public record NampFinancialAppraisalReportDto(
     string? EquityAssessmentNote,
     string? CreditBureauSummary,
     string CreditOfficerRecommendation,
-    string? SummaryNotes
+    string? SummaryNotes,
+    string RepaymentSource,
+    decimal? ProjectedMonthlyRentalRevenue,
+    decimal? UtilisationRateAssumption,
+    string? DemandEvidenceNote
 );
 
 public record NampPreDeploymentChecklistTemplateDto(
@@ -419,15 +386,3 @@ public record NampAdvisoryRiskScoreDto(
     List<string> PositiveIndicators
 );
 
-// ── NAMP Viability Score Config ────────────────────────────────────────────
-
-public record NampViabilityScoreConfigDto(
-    Guid Id,
-    string ViabilityRating,
-    decimal Score,
-    decimal CategoryWeight,
-    string? Description,
-    bool IsActive,
-    DateTime CreatedAt,
-    DateTime? ModifiedAt
-);

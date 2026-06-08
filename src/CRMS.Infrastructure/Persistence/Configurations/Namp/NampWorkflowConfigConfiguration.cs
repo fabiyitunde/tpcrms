@@ -14,7 +14,8 @@ public class NampWorkflowConfigConfiguration : IEntityTypeConfiguration<NampWork
 
         builder.Property(x => x.Status)
             .IsRequired()
-            .HasConversion<int>();
+            .HasConversion<string>()
+            .HasMaxLength(50);
 
         builder.Property(x => x.DisplayName)
             .IsRequired()

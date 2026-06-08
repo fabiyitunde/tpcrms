@@ -17,7 +17,7 @@ public class NampStatusHistoryConfiguration : IEntityTypeConfiguration<NampStatu
 
         builder.Property(x => x.Status)
             .IsRequired()
-            .HasConversion<int>();
+            .HasMaxLength(50);
 
         builder.Property(x => x.Note)
             .HasMaxLength(2000);

@@ -27,6 +27,12 @@ public class NampFinancialAppraisalReport : Entity
     public NampCreditRecommendation CreditOfficerRecommendation { get; private set; }
     public string? SummaryNotes { get; private set; }
 
+    // Repayment source (rental model fields)
+    public NampRepaymentSource RepaymentSource { get; private set; }
+    public decimal? ProjectedMonthlyRentalRevenue { get; private set; }
+    public decimal? UtilisationRateAssumption { get; private set; }
+    public string? DemandEvidenceNote { get; private set; }
+
     private NampFinancialAppraisalReport() { }
 
     public static Result<NampFinancialAppraisalReport> Create(
@@ -39,7 +45,11 @@ public class NampFinancialAppraisalReport : Entity
         string? equityAssessmentNote,
         string? creditBureauSummary,
         NampCreditRecommendation creditOfficerRecommendation,
-        string? summaryNotes)
+        string? summaryNotes,
+        NampRepaymentSource repaymentSource = NampRepaymentSource.PrimaryIncome,
+        decimal? projectedMonthlyRentalRevenue = null,
+        decimal? utilisationRateAssumption = null,
+        string? demandEvidenceNote = null)
     {
         return Result.Success(new NampFinancialAppraisalReport
         {
@@ -54,6 +64,10 @@ public class NampFinancialAppraisalReport : Entity
             CreditBureauSummary = creditBureauSummary,
             CreditOfficerRecommendation = creditOfficerRecommendation,
             SummaryNotes = summaryNotes,
+            RepaymentSource = repaymentSource,
+            ProjectedMonthlyRentalRevenue = projectedMonthlyRentalRevenue,
+            UtilisationRateAssumption = utilisationRateAssumption,
+            DemandEvidenceNote = demandEvidenceNote,
         });
     }
 
@@ -66,7 +80,11 @@ public class NampFinancialAppraisalReport : Entity
         string? equityAssessmentNote,
         string? creditBureauSummary,
         NampCreditRecommendation creditOfficerRecommendation,
-        string? summaryNotes)
+        string? summaryNotes,
+        NampRepaymentSource repaymentSource = NampRepaymentSource.PrimaryIncome,
+        decimal? projectedMonthlyRentalRevenue = null,
+        decimal? utilisationRateAssumption = null,
+        string? demandEvidenceNote = null)
     {
         PreparedByUserId = updatedByUserId;
         SavedAt = DateTime.UtcNow;
@@ -78,5 +96,9 @@ public class NampFinancialAppraisalReport : Entity
         CreditBureauSummary = creditBureauSummary;
         CreditOfficerRecommendation = creditOfficerRecommendation;
         SummaryNotes = summaryNotes;
+        RepaymentSource = repaymentSource;
+        ProjectedMonthlyRentalRevenue = projectedMonthlyRentalRevenue;
+        UtilisationRateAssumption = utilisationRateAssumption;
+        DemandEvidenceNote = demandEvidenceNote;
     }
 }

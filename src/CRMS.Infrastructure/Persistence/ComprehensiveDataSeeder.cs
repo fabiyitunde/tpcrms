@@ -106,7 +106,7 @@ public static class ComprehensiveDataSeeder
     // HO/senior staff have null LocationId and see all applications across branches.
     private static readonly HashSet<string> BranchLevelUserNames =
     [
-        "loanofficer", "loanofficer2", "branchapprover", "branchmanager", "agrengineer", "creditofficer"
+        "loanofficer", "loanofficer2", "branchapprover", "branchmanager", "creditofficer"
     ];
 
     // All user accounts the system needs — shared between fresh-seed and supplement paths.
@@ -126,13 +126,10 @@ public static class ComprehensiveDataSeeder
         ("committee3",     "Tunde",       "Bakare",        [Roles.CommitteeMember],                                               "tunde.bakare@crms.ng",       UserType.Staff),
         ("finalapprover",  "Yusuf",       "Mohammed",      [Roles.FinalApprover],                                                 "yusuf.mohammed@crms.ng",     UserType.Staff),
         // ── NAMP-specific users (managers also hold committee member roles) ──
-        ("agrengineer",    "Chukwudi",    "Okafor",        [Roles.AgriculturalEngineer],                                          "chukwudi.okafor@crms.ng",    UserType.Staff),
         ("branchmanager",  "Kemi",        "Adeleke",       [Roles.BranchManager, Roles.BranchCommitteeMember],                    "kemi.adeleke@crms.ng",       UserType.Staff),
         ("zonalmanager",   "Rotimi",      "Fasanya",       [Roles.ZonalManager, Roles.ZonalCommitteeMember],                      "rotimi.fasanya@crms.ng",     UserType.Staff),
         ("regionalmanager","Ngozi",       "Obi",           [Roles.RegionalManager, Roles.RegionalCommitteeMember],                "ngozi.obi@crms.ng",          UserType.Staff),
         ("mdceo",          "Babatunde",   "Adekunle",      [Roles.MdCeo, Roles.HOCommitteeMember],                                "babatunde.adekunle@crms.ng", UserType.Staff),
-        ("compliance",     "Ifeoma",      "Okeke",         [Roles.ComplianceOfficer],                                             "ifeoma.okeke@crms.ng",       UserType.Staff),
-        ("training",       "Segun",       "Adesanya",      [Roles.TrainingCoordinator],                                           "segun.adesanya@crms.ng",     UserType.Staff),
         ("deployment",     "Musa",        "Garba",         [Roles.DeploymentOfficer],                                             "musa.garba@crms.ng",         UserType.Staff),
         // ────────────────────────────────────────────────────────────────────
         ("operations",     "Folake",      "Balogun",       [Roles.Operations],                                                    "folake.balogun@crms.ng",     UserType.Staff),
@@ -321,14 +318,14 @@ public static class ComprehensiveDataSeeder
         // Indices into createdUsers (matches AllUserDefinitions order):
         // 0=admin, 1=loanofficer, 2=loanofficer2, 3=branchapprover, 4=creditofficer,
         // 5=horeviewer, 6=committee1, 7=committee2, 8=committee3, 9=finalapprover,
-        // 10=agrengineer, 11=branchmanager, 12=zonalmanager, 13=regionalmanager, 14=mdceo,
-        // 15=compliance, 16=training, 17=deployment, 18=operations, 19=gmfinance,
-        // 20=legalofficer, 21=headoflegal, 22=riskmanager, 23=auditor, 24=customer
+        // 10=branchmanager, 11=zonalmanager, 12=regionalmanager, 13=mdceo, 14=deployment,
+        // 15=operations, 16=gmfinance, 17=legalofficer, 18=headoflegal, 19=riskmanager,
+        // 20=auditor, 21=customer
         return (
             createdUsers[0],  createdUsers[1],  createdUsers[3],  createdUsers[4],
-            createdUsers[5],  createdUsers[20], createdUsers[21], createdUsers[6],
-            createdUsers[7],  createdUsers[8],  createdUsers[9],  createdUsers[18],
-            createdUsers[19], createdUsers[22], createdUsers[23]
+            createdUsers[5],  createdUsers[17], createdUsers[18], createdUsers[6],
+            createdUsers[7],  createdUsers[8],  createdUsers[9],  createdUsers[15],
+            createdUsers[16], createdUsers[19], createdUsers[20]
         );
     }
 

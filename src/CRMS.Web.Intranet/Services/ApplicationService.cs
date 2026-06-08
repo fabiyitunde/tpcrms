@@ -5116,23 +5116,6 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> SubmitNampTechnicalAppraisalAsync(Guid id, Guid userId, bool isApproved, string? note)
-    {
-        try
-        {
-            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.SubmitNampTechnicalAppraisalHandler>();
-            var result = await handler.Handle(new CRMS.Application.Namp.Commands.SubmitNampTechnicalAppraisalCommand(id, userId, isApproved, note), CancellationToken.None);
-            return result.IsSuccess
-                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
-                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Technical appraisal failed");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error submitting NAMP technical appraisal {Id}", id);
-            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to submit technical appraisal: {ex.Message}");
-        }
-    }
-
     public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> SubmitNampFinancialAppraisalAsync(Guid id, Guid userId, bool isApproved, string? note)
     {
         try
@@ -5382,23 +5365,6 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> CompleteNampTrainingAsync(Guid id, Guid userId)
-    {
-        try
-        {
-            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.CompleteNampTrainingHandler>();
-            var result = await handler.Handle(new CRMS.Application.Namp.Commands.CompleteNampTrainingCommand(id, userId), CancellationToken.None);
-            return result.IsSuccess
-                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
-                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to complete training");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error completing NAMP training {Id}", id);
-            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to complete training: {ex.Message}");
-        }
-    }
-
     public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> ConfirmNampDeploymentAsync(Guid id, Guid userId, bool gpsActivated, string? note)
     {
         try
@@ -5554,46 +5520,13 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampTechnicalAppraisalReportDto>> SaveNampTechnicalAppraisalReportAsync(
-        Guid nampApplicationId, Guid userId, string applicantCategory,
-        // Individual fields
-        string? farmLocationDescription, string? gpsCoordinates, decimal? landAreaAssessedHectares,
-        string? soilConditionRating, string? waterSourceAvailability,
-        // AgroServiceCompany fields
-        string? operationalCoverageArea, int? existingFleetSize, bool? hasMaintenanceFacility,
-        int? technicalStaffCount, int? yearsInOperation, string? currentServiceContracts, string? storageFacilityDescription,
-        // Shared fields
-        string proposedEquipmentSuitability, string? infrastructureNotes, string? risksIdentified,
-        string? recommendedMitigations, string overallViabilityRating, string engineerRecommendation, string? summaryNotes)
-    {
-        try
-        {
-            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.SaveNampTechnicalAppraisalReportHandler>();
-            var result = await handler.Handle(new CRMS.Application.Namp.Commands.SaveNampTechnicalAppraisalReportCommand(
-                nampApplicationId, userId, applicantCategory,
-                farmLocationDescription, gpsCoordinates, landAreaAssessedHectares,
-                soilConditionRating, waterSourceAvailability,
-                operationalCoverageArea, existingFleetSize, hasMaintenanceFacility,
-                technicalStaffCount, yearsInOperation, currentServiceContracts, storageFacilityDescription,
-                proposedEquipmentSuitability, infrastructureNotes, risksIdentified,
-                recommendedMitigations, overallViabilityRating, engineerRecommendation, summaryNotes),
-                CancellationToken.None);
-            return result.IsSuccess
-                ? ApiResponse<CRMS.Application.Namp.DTOs.NampTechnicalAppraisalReportDto>.Ok(result.Data!)
-                : ApiResponse<CRMS.Application.Namp.DTOs.NampTechnicalAppraisalReportDto>.Fail(result.Error ?? "Save failed");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error saving NAMP technical appraisal report for application {Id}", nampApplicationId);
-            return ApiResponse<CRMS.Application.Namp.DTOs.NampTechnicalAppraisalReportDto>.Fail(ex.Message);
-        }
-    }
-
     public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampFinancialAppraisalReportDto>> SaveNampFinancialAppraisalReportAsync(
         Guid nampApplicationId, Guid userId,
         decimal? monthlyDisposableIncome, decimal? debtServiceCoverageRatio, decimal? loanToValueRatio,
         string repaymentCapacityRating, string? equityAssessmentNote, string? creditBureauSummary,
-        string creditOfficerRecommendation, string? summaryNotes)
+        string creditOfficerRecommendation, string? summaryNotes,
+        string repaymentSource = "PrimaryIncome", decimal? projectedMonthlyRentalRevenue = null,
+        decimal? utilisationRateAssumption = null, string? demandEvidenceNote = null)
     {
         try
         {
@@ -5601,7 +5534,9 @@ public partial class ApplicationService
             var result = await handler.Handle(new CRMS.Application.Namp.Commands.SaveNampFinancialAppraisalReportCommand(
                 nampApplicationId, userId, monthlyDisposableIncome, debtServiceCoverageRatio, loanToValueRatio,
                 repaymentCapacityRating, equityAssessmentNote, creditBureauSummary,
-                creditOfficerRecommendation, summaryNotes),
+                creditOfficerRecommendation, summaryNotes,
+                repaymentSource, projectedMonthlyRentalRevenue,
+                utilisationRateAssumption, demandEvidenceNote),
                 CancellationToken.None);
             return result.IsSuccess
                 ? ApiResponse<CRMS.Application.Namp.DTOs.NampFinancialAppraisalReportDto>.Ok(result.Data!)
@@ -5652,44 +5587,4 @@ public partial class ApplicationService
         }
     }
 
-    // ── NAMP Viability Score Config ────────────────────────────────────────
-
-    public async Task<ApiResponse<List<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>>> GetNampViabilityScoreConfigsAsync()
-    {
-        try
-        {
-            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetNampViabilityScoreConfigsHandler>();
-            var result = await handler.Handle(
-                new CRMS.Application.Namp.Queries.GetNampViabilityScoreConfigsQuery(),
-                CancellationToken.None);
-            return result.IsSuccess
-                ? ApiResponse<List<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>>.Ok(result.Data!)
-                : ApiResponse<List<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>>.Fail(result.Error ?? "Failed");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error fetching NAMP viability score configs");
-            return ApiResponse<List<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>>.Fail(ex.Message);
-        }
-    }
-
-    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>> UpdateNampViabilityScoreConfigAsync(
-        Guid id, decimal score, decimal categoryWeight, string? description)
-    {
-        try
-        {
-            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.UpdateNampViabilityScoreConfigHandler>();
-            var result = await handler.Handle(
-                new CRMS.Application.Namp.Commands.UpdateNampViabilityScoreConfigCommand(id, score, categoryWeight, description),
-                CancellationToken.None);
-            return result.IsSuccess
-                ? ApiResponse<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>.Ok(result.Data!)
-                : ApiResponse<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>.Fail(result.Error ?? "Update failed");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating NAMP viability score config {Id}", id);
-            return ApiResponse<CRMS.Application.Namp.DTOs.NampViabilityScoreConfigDto>.Fail(ex.Message);
-        }
-    }
 }

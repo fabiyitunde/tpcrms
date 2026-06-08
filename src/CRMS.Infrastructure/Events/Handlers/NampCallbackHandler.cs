@@ -26,7 +26,6 @@ public class NampCallbackEventHandler : IDomainEventHandler<NampStatusChangedEve
         NampApplicationStatus.Active,
 
         // Decline paths
-        NampApplicationStatus.TechnicalDeclined,
         NampApplicationStatus.FinancialDeclined,
         NampApplicationStatus.BranchCommitteeDeclined,
         NampApplicationStatus.ZonalCommitteeDeclined,

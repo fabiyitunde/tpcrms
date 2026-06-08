@@ -175,52 +175,6 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
                     ? $"{data.FinancialAppraisal.LoanToValueRatio:P1}" : "—");
             });
 
-            // ── Technical Appraisal ──────────────────────────────────────────
-            if (data.TechnicalAppraisal != null)
-            {
-                var ta = data.TechnicalAppraisal;
-                col.Item().Element(c => SectionHeader(c, "Technical Appraisal"));
-                col.Item().PaddingBottom(8).Table(t =>
-                {
-                    t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
-                    // Individual applicant fields
-                    if (!string.IsNullOrWhiteSpace(ta.FarmLocationDescription))
-                        InfoCellWide(t, "Farm Location",     ta.FarmLocationDescription);
-                    if (!string.IsNullOrWhiteSpace(ta.GpsCoordinates))
-                        InfoCell(t, "GPS Coordinates",       ta.GpsCoordinates);
-                    if (ta.LandAreaAssessedHectares.HasValue)
-                        InfoCell(t, "Land Area (ha)",        ta.LandAreaAssessedHectares.Value.ToString("N2"));
-                    if (!string.IsNullOrWhiteSpace(ta.SoilConditionRating))
-                        InfoCell(t, "Soil Condition",        ta.SoilConditionRating);
-                    if (!string.IsNullOrWhiteSpace(ta.WaterSourceAvailability))
-                        InfoCell(t, "Water Source",          ta.WaterSourceAvailability);
-                    // AgroServiceCompany fields
-                    if (!string.IsNullOrWhiteSpace(ta.OperationalCoverageArea))
-                        InfoCellWide(t, "Operational Coverage Area", ta.OperationalCoverageArea);
-                    if (ta.ExistingFleetSize.HasValue)
-                        InfoCell(t, "Existing Fleet Size",   ta.ExistingFleetSize.Value.ToString());
-                    if (ta.HasMaintenanceFacility.HasValue)
-                        InfoCell(t, "Maintenance Facility",  ta.HasMaintenanceFacility.Value ? "Yes" : "No");
-                    if (ta.TechnicalStaffCount.HasValue)
-                        InfoCell(t, "Technical Staff",       ta.TechnicalStaffCount.Value.ToString());
-                    if (ta.YearsInOperation.HasValue)
-                        InfoCell(t, "Years in Operation",    ta.YearsInOperation.Value.ToString());
-                    if (!string.IsNullOrWhiteSpace(ta.CurrentServiceContracts))
-                        InfoCellWide(t, "Service Contracts", ta.CurrentServiceContracts);
-                    if (!string.IsNullOrWhiteSpace(ta.StorageFacilityDescription))
-                        InfoCellWide(t, "Storage Facility",  ta.StorageFacilityDescription);
-                    // Shared fields
-                    InfoCell(t, "Equipment Suitability",     ta.ProposedEquipmentSuitability);
-                    InfoCell(t, "Viability Rating",          ta.OverallViabilityRating);
-                    InfoCell(t, "Recommendation",            ta.EngineerRecommendation);
-                    if (!string.IsNullOrWhiteSpace(ta.RisksIdentified))
-                        InfoCellWide(t, "Risks Identified", ta.RisksIdentified);
-                    if (!string.IsNullOrWhiteSpace(ta.RecommendedMitigations))
-                        InfoCellWide(t, "Mitigations",      ta.RecommendedMitigations);
-                    if (!string.IsNullOrWhiteSpace(ta.SummaryNotes))
-                        InfoCellWide(t, "Summary Notes",    ta.SummaryNotes);
-                });
-            }
 
             // ── Financial Appraisal ──────────────────────────────────────────
             if (data.FinancialAppraisal != null)
@@ -535,8 +489,6 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
     {
         "Draft"                        => "Draft",
         "Submitted"                    => "Submitted",
-        "TechnicalAppraisal"           => "Technical Appraisal",
-        "TechnicalDeclined"            => "Technical Declined",
         "FinancialAppraisal"           => "Financial Appraisal",
         "FinancialDeclined"            => "Financial Declined",
         "BranchCommitteeCirculation"   => "Branch Committee",
@@ -550,7 +502,6 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
         "OfferAccepted"                => "Offer Accepted",
         "OfferLapsed"                  => "Offer Lapsed",
         "PreDeploymentVerification"    => "Pre-Deployment",
-        "Training"                     => "Training",
         "Deployment"                   => "Deployment",
         "Deployed"                     => "Deployed",
         _ => status

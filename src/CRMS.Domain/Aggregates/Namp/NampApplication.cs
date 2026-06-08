@@ -73,12 +73,7 @@ public class NampApplication : AggregateRoot
     public DateTime RecalledAt { get; private set; }
     public DateTime? SubmittedAt { get; private set; }
 
-    // ── Stage 2: Technical Appraisal ──────────────────────────────────────
-    public Guid? TechnicalAppraisalByUserId { get; private set; }
-    public DateTime? TechnicalAppraisalAt { get; private set; }
-    public string? TechnicalAppraisalNote { get; private set; }
-
-    // ── Stage 3: Financial Appraisal ──────────────────────────────────────
+    // ── Stage 2: Financial Appraisal ──────────────────────────────────────
     public Guid? FinancialAppraisalByUserId { get; private set; }
     public DateTime? FinancialAppraisalAt { get; private set; }
     public string? FinancialAppraisalNote { get; private set; }
@@ -106,11 +101,7 @@ public class NampApplication : AggregateRoot
     public DateTime? PreDeploymentVerifiedAt { get; private set; }
     public string? PreDeploymentNote { get; private set; }
 
-    // ── Stage 7: Training ─────────────────────────────────────────────────
-    public Guid? TrainingCompletedByUserId { get; private set; }
-    public DateTime? TrainingCompletedAt { get; private set; }
-
-    // ── Stage 8: Deployment ───────────────────────────────────────────────
+    // ── Stage 6: Deployment ───────────────────────────────────────────────
     public Guid? DeployedByUserId { get; private set; }
     public DateTime? DeployedAt { get; private set; }
     public bool GpsActivated { get; private set; }
@@ -201,33 +192,16 @@ public class NampApplication : AggregateRoot
 
         Status = NampApplicationStatus.Submitted;
         SubmittedAt = DateTime.UtcNow;
-        AddStatusHistory(Status, userId, "Submitted for technical appraisal.");
+        AddStatusHistory(Status, userId, "Submitted for financial appraisal.");
         return Result.Success();
     }
 
-    // ── Stage 2: Technical Appraisal ──────────────────────────────────────
-
-    public Result SubmitTechnicalAppraisal(Guid userId, bool isApproved, string? note)
-    {
-        if (Status != NampApplicationStatus.Submitted && Status != NampApplicationStatus.TechnicalAppraisal)
-            return Result.Failure("Application must be in Submitted or TechnicalAppraisal status.");
-
-        TechnicalAppraisalByUserId = userId;
-        TechnicalAppraisalAt = DateTime.UtcNow;
-        TechnicalAppraisalNote = note;
-
-        Status = isApproved ? NampApplicationStatus.FinancialAppraisal : NampApplicationStatus.TechnicalDeclined;
-        var outcome = isApproved ? "Technical appraisal approved." : "Technical appraisal declined.";
-        AddStatusHistory(Status, userId, $"{outcome}{(note != null ? $" Note: {note}" : "")}");
-        return Result.Success();
-    }
-
-    // ── Stage 3: Financial Appraisal ──────────────────────────────────────
+    // ── Stage 2: Financial Appraisal ──────────────────────────────────────
 
     public Result SubmitFinancialAppraisal(Guid userId, bool isApproved, string? note)
     {
-        if (Status != NampApplicationStatus.FinancialAppraisal)
-            return Result.Failure("Application must be in FinancialAppraisal status.");
+        if (Status != NampApplicationStatus.FinancialAppraisal && Status != NampApplicationStatus.Submitted)
+            return Result.Failure("Application must be in Submitted or FinancialAppraisal status.");
 
         FinancialAppraisalByUserId = userId;
         FinancialAppraisalAt = DateTime.UtcNow;
@@ -374,26 +348,12 @@ public class NampApplication : AggregateRoot
         PreDeploymentVerifiedByUserId = userId;
         PreDeploymentVerifiedAt = DateTime.UtcNow;
         PreDeploymentNote = note;
-        Status = NampApplicationStatus.Training;
+        Status = NampApplicationStatus.Deployment;
         AddStatusHistory(Status, userId, $"All pre-deployment checklist items verified.{(note != null ? $" Note: {note}" : "")}");
         return Result.Success();
     }
 
-    // ── Stage 7: Training ─────────────────────────────────────────────────
-
-    public Result CompleteTraining(Guid userId)
-    {
-        if (Status != NampApplicationStatus.Training)
-            return Result.Failure("Application must be in Training status.");
-
-        TrainingCompletedByUserId = userId;
-        TrainingCompletedAt = DateTime.UtcNow;
-        Status = NampApplicationStatus.Deployment;
-        AddStatusHistory(Status, userId, "Training completed. Ready for deployment.");
-        return Result.Success();
-    }
-
-    // ── Stage 8: Deployment ───────────────────────────────────────────────
+    // ── Stage 6: Deployment ───────────────────────────────────────────────
 
     public Result ConfirmDeployment(Guid userId, bool gpsActivated, string? note)
     {

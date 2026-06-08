@@ -19,7 +19,6 @@ public class GenerateNampAdvisoryHandler
 {
     private readonly INampApplicationRepository _nampRepo;
     private readonly INampAdvisoryRepository _advisoryRepo;
-    private readonly INampViabilityScoreConfigRepository _viabilityConfigRepo;
     private readonly IBureauReportRepository _bureauRepo;
     private readonly IAIAdvisoryService _aiService;
     private readonly IUnitOfWork _unitOfWork;
@@ -27,14 +26,12 @@ public class GenerateNampAdvisoryHandler
     public GenerateNampAdvisoryHandler(
         INampApplicationRepository nampRepo,
         INampAdvisoryRepository advisoryRepo,
-        INampViabilityScoreConfigRepository viabilityConfigRepo,
         IBureauReportRepository bureauRepo,
         IAIAdvisoryService aiService,
         IUnitOfWork unitOfWork)
     {
         _nampRepo = nampRepo;
         _advisoryRepo = advisoryRepo;
-        _viabilityConfigRepo = viabilityConfigRepo;
         _bureauRepo = bureauRepo;
         _aiService = aiService;
         _unitOfWork = unitOfWork;
@@ -48,13 +45,7 @@ public class GenerateNampAdvisoryHandler
         if (app is null)
             return ApplicationResult<NampAdvisoryDto>.Failure("NAMP application not found.");
 
-        var techReport = await _nampRepo.GetTechnicalAppraisalReportAsync(request.NampApplicationId, ct);
         var finReport = await _nampRepo.GetFinancialAppraisalReportAsync(request.NampApplicationId, ct);
-
-        // Technical appraisal must exist — we need the viability rating
-        if (techReport is null)
-            return ApplicationResult<NampAdvisoryDto>.Failure(
-                "Technical Appraisal report not found. The Agricultural Engineer must complete the report before generating an advisory.");
 
         // Load bureau reports
         var bureauReports = await _bureauRepo.GetByNampApplicationIdAsync(request.NampApplicationId, ct);
@@ -65,13 +56,6 @@ public class GenerateNampAdvisoryHandler
         if (completedBureauReports.Count == 0)
             return ApplicationResult<NampAdvisoryDto>.Failure(
                 "No completed bureau reports found. Bureau checks must be run before generating an advisory.");
-
-        // Look up viability score config for the engineer's rating
-        var viabilityConfig = await _viabilityConfigRepo.GetByRatingAsync(techReport.OverallViabilityRating, ct);
-        if (viabilityConfig is null)
-            return ApplicationResult<NampAdvisoryDto>.Failure(
-                $"No viability score configuration found for rating '{techReport.OverallViabilityRating}'. " +
-                "Please configure the NAMP Viability Score settings in Admin.");
 
         // Create advisory record
         var advisoryResult = NampAdvisory.Create(
@@ -84,14 +68,10 @@ public class GenerateNampAdvisoryHandler
 
         var advisory = advisoryResult.Value;
         advisory.StartProcessing();
-        advisory.SetTechnicalViability(
-            techReport.OverallViabilityRating.ToString(),
-            viabilityConfig.Score,
-            viabilityConfig.CategoryWeight);
 
         try
         {
-            var aiRequest = BuildAIRequest(app, techReport, finReport, completedBureauReports);
+            var aiRequest = BuildAIRequest(app, finReport, completedBureauReports);
             var aiResponse = await _aiService.GenerateAdvisoryAsync(aiRequest, ct);
 
             if (!aiResponse.Success)
@@ -102,25 +82,10 @@ public class GenerateNampAdvisoryHandler
                 return ApplicationResult<NampAdvisoryDto>.Failure(aiResponse.ErrorMessage ?? "Advisory generation failed");
             }
 
-            // Build the full list of scores: AI result (4 standard categories) + TechnicalViability
+            // Build the full list of scores from AI result (4 standard categories)
             var allScores = aiResponse.RiskScores.ToList();
-            var techViabilityScore = new RiskScoreOutput(
-                "TechnicalViability",
-                viabilityConfig.Score,
-                viabilityConfig.CategoryWeight,
-                NampAdvisory.DetermineRating(viabilityConfig.Score).ToString(),
-                $"Agricultural Engineer rated the application as {techReport.OverallViabilityRating}. " +
-                (string.IsNullOrWhiteSpace(techReport.SummaryNotes) ? "" : techReport.SummaryNotes),
-                string.IsNullOrWhiteSpace(techReport.RisksIdentified)
-                    ? []
-                    : [techReport.RisksIdentified],
-                techReport.EngineerRecommendation == NampTechnicalRecommendation.Pass
-                    ? [$"Engineer recommended Pass — {techReport.ProposedEquipmentSuitability}"]
-                    : []
-            );
-            allScores.Add(techViabilityScore);
 
-            // Compute overall score (weighted average across all 5 categories)
+            // Compute overall score (weighted average across AI categories)
             var totalWeight = allScores.Sum(s => s.Weight);
             var overallScore = totalWeight > 0
                 ? Math.Round(allScores.Sum(s => s.Score * s.Weight) / totalWeight, 2)
@@ -129,11 +94,6 @@ public class GenerateNampAdvisoryHandler
 
             // Aggregate red flags
             var allRedFlags = aiResponse.RedFlags.ToList();
-            if (!string.IsNullOrWhiteSpace(techReport.RisksIdentified) &&
-                techReport.OverallViabilityRating == NampViabilityRating.NotViable)
-            {
-                allRedFlags.Add($"Technical Viability: {techReport.RisksIdentified}");
-            }
             var hasCriticalRedFlags = allRedFlags.Count >= 3 ||
                 allScores.Any(s => NampAdvisory.DetermineRating(s.Score) == RiskRating.VeryHigh);
 
@@ -193,7 +153,6 @@ public class GenerateNampAdvisoryHandler
 
     private static AIAdvisoryRequest BuildAIRequest(
         NampApplication app,
-        NampTechnicalAppraisalReport techReport,
         NampFinancialAppraisalReport? finReport,
         List<BureauReport> bureauReports)
     {
@@ -272,14 +231,24 @@ public class GenerateNampAdvisoryHandler
                 ));
             }
         }
-        else if (app.EstimatedMonthlyIncome.HasValue)
+        else
         {
-            // Individual applicant — build a simplified financial snapshot
-            var annualIncome = app.EstimatedMonthlyIncome.Value * 12;
+            // Individual / hire-out applicant — build a simplified financial snapshot
+            // For rental/hire-out: use projected rental revenue as primary repayment source
+            var primaryMonthlyIncome =
+                (finReport?.RepaymentSource is NampRepaymentSource.RentalHireRevenue or NampRepaymentSource.Mixed
+                 && finReport.ProjectedMonthlyRentalRevenue.HasValue)
+                    ? finReport.ProjectedMonthlyRentalRevenue.Value
+                    : (app.EstimatedMonthlyIncome ?? 0);
+
+            if (primaryMonthlyIncome <= 0) primaryMonthlyIncome = app.EstimatedMonthlyIncome ?? 0;
+
+            var annualIncome = primaryMonthlyIncome * 12;
             var otherIncome = (app.OtherMonthlyIncome ?? 0) * 12;
             var annualExpenses = (app.MonthlyLivingExpenses ?? 0) * 12;
             var dscr = finReport?.DebtServiceCoverageRatio ?? 0;
 
+            if (annualIncome > 0 || (app.EstimatedNetWorth ?? 0) > 0)
             financialInputs.Add(new FinancialDataInput(
                 Guid.NewGuid(),
                 DateTime.UtcNow.Year,
@@ -334,8 +303,8 @@ public class GenerateNampAdvisoryHandler
             HasBureauReport: false
         )).ToList();
 
-        // Build additional context from technical appraisal
-        var additionalContext = BuildTechnicalAppraisalContext(app, techReport, finReport);
+        // Build additional context for AI prompt
+        var additionalContext = BuildApplicationContext(app, finReport);
 
         return new AIAdvisoryRequest(
             app.Id,
@@ -354,9 +323,8 @@ public class GenerateNampAdvisoryHandler
         );
     }
 
-    private static string BuildTechnicalAppraisalContext(
+    private static string BuildApplicationContext(
         NampApplication app,
-        NampTechnicalAppraisalReport techReport,
         NampFinancialAppraisalReport? finReport)
     {
         var sb = new System.Text.StringBuilder();
@@ -364,21 +332,22 @@ public class GenerateNampAdvisoryHandler
         sb.AppendLine($"Equipment: {app.EquipmentDescription} (Value: NGN {app.EquipmentValue:N0})");
         sb.AppendLine($"Equity: {app.EquityPercent:N1}% (NGN {app.EquityAmount:N0})");
 
-        sb.AppendLine();
-        sb.AppendLine("TECHNICAL APPRAISAL SUMMARY:");
-        sb.AppendLine($"  Overall Viability: {techReport.OverallViabilityRating}");
-        sb.AppendLine($"  Engineer Recommendation: {techReport.EngineerRecommendation}");
-        sb.AppendLine($"  Equipment Suitability: {techReport.ProposedEquipmentSuitability}");
-
-        if (!string.IsNullOrWhiteSpace(techReport.RisksIdentified))
-            sb.AppendLine($"  Risks Identified: {techReport.RisksIdentified}");
-        if (!string.IsNullOrWhiteSpace(techReport.RecommendedMitigations))
-            sb.AppendLine($"  Mitigations: {techReport.RecommendedMitigations}");
-        if (!string.IsNullOrWhiteSpace(techReport.SummaryNotes))
-            sb.AppendLine($"  Summary: {techReport.SummaryNotes}");
-
+        // Repayment source context (rental/hire-out model)
         if (finReport != null)
         {
+            sb.AppendLine();
+            sb.AppendLine("REPAYMENT SOURCE CONTEXT:");
+            sb.AppendLine($"  Repayment Source: {finReport.RepaymentSource}");
+            if (finReport.RepaymentSource is NampRepaymentSource.RentalHireRevenue or NampRepaymentSource.Mixed)
+            {
+                if (finReport.ProjectedMonthlyRentalRevenue.HasValue)
+                    sb.AppendLine($"  Projected Monthly Rental Revenue: NGN {finReport.ProjectedMonthlyRentalRevenue:N0}");
+                if (finReport.UtilisationRateAssumption.HasValue)
+                    sb.AppendLine($"  Utilisation Rate Assumption: {finReport.UtilisationRateAssumption:N1}%");
+                if (!string.IsNullOrWhiteSpace(finReport.DemandEvidenceNote))
+                    sb.AppendLine($"  Demand Evidence: {finReport.DemandEvidenceNote}");
+            }
+
             sb.AppendLine();
             sb.AppendLine("CREDIT OFFICER FINANCIAL APPRAISAL:");
             if (finReport.MonthlyDisposableIncome.HasValue)

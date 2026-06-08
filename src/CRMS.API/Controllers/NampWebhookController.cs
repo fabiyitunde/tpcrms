@@ -403,7 +403,6 @@ public class NampWebhookController : ControllerBase
     {
         NampApplicationStatus.Draft
             or NampApplicationStatus.Submitted
-            or NampApplicationStatus.TechnicalAppraisal
             or NampApplicationStatus.FinancialAppraisal
             or NampApplicationStatus.BranchCommitteeCirculation
             or NampApplicationStatus.ZonalCommitteeCirculation
@@ -412,8 +411,7 @@ public class NampWebhookController : ControllerBase
             or NampApplicationStatus.Ratification
             => NampPortalStatus.UnderReview,
 
-        NampApplicationStatus.TechnicalDeclined
-            or NampApplicationStatus.FinancialDeclined
+        NampApplicationStatus.FinancialDeclined
             or NampApplicationStatus.BranchCommitteeDeclined
             or NampApplicationStatus.ZonalCommitteeDeclined
             or NampApplicationStatus.RegionalCommitteeDeclined
@@ -426,7 +424,6 @@ public class NampWebhookController : ControllerBase
 
         NampApplicationStatus.OfferAccepted
             or NampApplicationStatus.PreDeploymentVerification
-            or NampApplicationStatus.Training
             or NampApplicationStatus.Deployment
             => NampPortalStatus.Processing,
 
@@ -451,10 +448,6 @@ public class NampWebhookController : ControllerBase
 
     private static string? BuildDeclineReason(NampApplication app) => app.Status switch
     {
-        NampApplicationStatus.TechnicalDeclined
-            => string.IsNullOrWhiteSpace(app.TechnicalAppraisalNote) ? null
-               : $"Declined at technical appraisal: {app.TechnicalAppraisalNote}",
-
         NampApplicationStatus.FinancialDeclined
             => string.IsNullOrWhiteSpace(app.FinancialAppraisalNote) ? null
                : $"Declined at financial appraisal: {app.FinancialAppraisalNote}",
@@ -473,36 +466,39 @@ public class NampWebhookController : ControllerBase
         _ => null
     };
 
-    private static string MapStatusToStageLabel(NampApplicationStatus status) => status switch
+    private static string MapStatusToStageLabel(string status)
     {
-        NampApplicationStatus.Received                   => "Application Received",
-        NampApplicationStatus.RecallPending              => "Pending Assignment",
-        NampApplicationStatus.Draft                      => "Application in Progress",
-        NampApplicationStatus.Submitted                  => "Application Submitted",
-        NampApplicationStatus.TechnicalAppraisal         => "Technical Appraisal",
-        NampApplicationStatus.TechnicalDeclined          => "Technical Appraisal — Declined",
-        NampApplicationStatus.FinancialAppraisal         => "Financial Appraisal",
-        NampApplicationStatus.FinancialDeclined          => "Financial Appraisal — Declined",
-        NampApplicationStatus.BranchCommitteeCirculation => "Branch Credit Committee Review",
-        NampApplicationStatus.BranchCommitteeDeclined    => "Branch Credit Committee — Declined",
-        NampApplicationStatus.ZonalCommitteeCirculation  => "Zonal Credit Committee Review",
-        NampApplicationStatus.ZonalCommitteeDeclined     => "Zonal Credit Committee — Declined",
-        NampApplicationStatus.RegionalCommitteeCirculation=> "Regional Credit Committee Review",
-        NampApplicationStatus.RegionalCommitteeDeclined  => "Regional Credit Committee — Declined",
-        NampApplicationStatus.HOCommitteeCirculation     => "Head Office Credit Committee Review",
-        NampApplicationStatus.HOCommitteeDeclined        => "Head Office Credit Committee — Declined",
-        NampApplicationStatus.Ratification               => "Ratification",
-        NampApplicationStatus.RatificationDeclined       => "Ratification — Declined",
-        NampApplicationStatus.OfferGenerated             => "Offer Letter Generated",
-        NampApplicationStatus.OfferAccepted              => "Offer Accepted",
-        NampApplicationStatus.OfferLapsed                => "Offer Lapsed",
-        NampApplicationStatus.PreDeploymentVerification  => "Pre-Deployment Verification",
-        NampApplicationStatus.Training                   => "Training",
-        NampApplicationStatus.Deployment                 => "Equipment Deployment",
-        NampApplicationStatus.Active                     => "Loan Activated",
-        NampApplicationStatus.Closed                     => "Loan Closed",
-        _                                                => status.ToString()
-    };
+        if (!Enum.TryParse<NampApplicationStatus>(status, ignoreCase: true, out var parsed))
+            return status;
+
+        return parsed switch
+        {
+            NampApplicationStatus.Received                    => "Application Received",
+            NampApplicationStatus.RecallPending               => "Pending Assignment",
+            NampApplicationStatus.Draft                       => "Application in Progress",
+            NampApplicationStatus.Submitted                   => "Application Submitted",
+            NampApplicationStatus.FinancialAppraisal          => "Financial Appraisal",
+            NampApplicationStatus.FinancialDeclined           => "Financial Appraisal — Declined",
+            NampApplicationStatus.BranchCommitteeCirculation  => "Branch Credit Committee Review",
+            NampApplicationStatus.BranchCommitteeDeclined     => "Branch Credit Committee — Declined",
+            NampApplicationStatus.ZonalCommitteeCirculation   => "Zonal Credit Committee Review",
+            NampApplicationStatus.ZonalCommitteeDeclined      => "Zonal Credit Committee — Declined",
+            NampApplicationStatus.RegionalCommitteeCirculation => "Regional Credit Committee Review",
+            NampApplicationStatus.RegionalCommitteeDeclined   => "Regional Credit Committee — Declined",
+            NampApplicationStatus.HOCommitteeCirculation      => "Head Office Credit Committee Review",
+            NampApplicationStatus.HOCommitteeDeclined         => "Head Office Credit Committee — Declined",
+            NampApplicationStatus.Ratification                => "Ratification",
+            NampApplicationStatus.RatificationDeclined        => "Ratification — Declined",
+            NampApplicationStatus.OfferGenerated              => "Offer Letter Generated",
+            NampApplicationStatus.OfferAccepted               => "Offer Accepted",
+            NampApplicationStatus.OfferLapsed                 => "Offer Lapsed",
+            NampApplicationStatus.PreDeploymentVerification   => "Pre-Deployment Verification",
+            NampApplicationStatus.Deployment                  => "Equipment Deployment",
+            NampApplicationStatus.Active                      => "Loan Activated",
+            NampApplicationStatus.Closed                      => "Loan Closed",
+            _                                                 => status
+        };
+    }
 
     /// <summary>
     /// Two-step Fineract branch lookup:

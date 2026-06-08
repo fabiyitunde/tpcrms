@@ -22,7 +22,8 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
 
         builder.Property(x => x.Status)
             .IsRequired()
-            .HasConversion<int>();
+            .HasConversion<string>()
+            .HasMaxLength(50);
 
         builder.Property(x => x.LoanProductId)
             .IsRequired();
@@ -89,9 +90,6 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
         builder.Property(x => x.CommitteeTier)
             .IsRequired()
             .HasConversion<int>();
-
-        builder.Property(x => x.TechnicalAppraisalNote)
-            .HasColumnType("text");
 
         builder.Property(x => x.FinancialAppraisalNote)
             .HasColumnType("text");

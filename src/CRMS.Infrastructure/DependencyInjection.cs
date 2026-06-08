@@ -190,7 +190,6 @@ public static class DependencyInjection
         services.AddScoped<INampWorkflowConfigRepository, NampWorkflowConfigRepository>();
         services.AddScoped<INampWorkflowInstanceRepository, NampWorkflowInstanceRepository>();
         services.AddScoped<INampAdvisoryRepository, NampAdvisoryRepository>();
-        services.AddScoped<INampViabilityScoreConfigRepository, NampViabilityScoreConfigRepository>();
 
         var nampSection = configuration.GetSection(NampSettings.SectionName);
         if (nampSection.Exists() && !nampSection.GetValue<bool>("UseMock"))
@@ -579,7 +578,6 @@ public static class DependencyInjection
         // NAMP — Application Handlers
         services.AddScoped<Application.Namp.Commands.RecallNampApplicationHandler>();
         services.AddScoped<Application.Namp.Commands.SubmitNampApplicationHandler>();
-        services.AddScoped<Application.Namp.Commands.SubmitNampTechnicalAppraisalHandler>();
         services.AddScoped<Application.Namp.Commands.SubmitNampFinancialAppraisalHandler>();
         services.AddScoped<Application.Namp.Commands.CirculateNampToCommitteeHandler>();
         services.AddScoped<Application.Namp.Commands.RecordNampCommitteeOutcomeHandler>();
@@ -593,7 +591,6 @@ public static class DependencyInjection
         services.AddScoped<Application.Namp.Commands.UpdateNampChecklistTemplateItemHandler>();
         services.AddScoped<Application.Namp.Commands.CompleteNampPreDeploymentVerificationHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampPreDeploymentChecklistTemplatesHandler>();
-        services.AddScoped<Application.Namp.Commands.CompleteNampTrainingHandler>();
         services.AddScoped<Application.Namp.Commands.ConfirmNampDeploymentHandler>();
         services.AddScoped<Application.Namp.Commands.UploadNampDocumentHandler>();
         services.AddScoped<Application.Namp.Commands.DeleteNampDocumentHandler>();
@@ -612,16 +609,12 @@ public static class DependencyInjection
         services.AddScoped<Application.Namp.Commands.CastNampCommitteeVoteHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampRoutingConfigsHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampWorkflowConfigsHandler>();
-        services.AddScoped<Application.Namp.Commands.SaveNampTechnicalAppraisalReportHandler>();
         services.AddScoped<Application.Namp.Commands.SaveNampFinancialAppraisalReportHandler>();
         services.AddScoped<Application.CreditBureau.Commands.ProcessNampCreditChecksHandler>();
 
         // NAMP — Advisory
         services.AddScoped<Application.Namp.Commands.GenerateNampAdvisoryHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampAdvisoryHandler>();
-        services.AddScoped<Application.Namp.Commands.UpdateNampViabilityScoreConfigHandler>();
-        services.AddScoped<Application.Namp.Commands.ToggleNampViabilityScoreConfigHandler>();
-        services.AddScoped<Application.Namp.Queries.GetNampViabilityScoreConfigsHandler>();
 
         // Approval Gate
         services.Configure<WorkflowApprovalGateSettings>(configuration.GetSection(WorkflowApprovalGateSettings.SectionName));

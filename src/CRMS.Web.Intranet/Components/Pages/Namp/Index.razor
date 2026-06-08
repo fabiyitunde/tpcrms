@@ -383,7 +383,6 @@
                         <option value="OfferGenerated">Offer Generated</option>
                         <option value="OfferAccepted">Offer Accepted</option>
                         <option value="PreDeploymentVerification">Pre-Deployment</option>
-                        <option value="Training">Training</option>
                         <option value="Deployment">Deployment</option>
                         <option value="Active">Active</option>
                     </select>
@@ -709,16 +708,10 @@
 
         if (user.HasAnyRole("LoanOfficer", "SystemAdmin"))
             statuses.UnionWith(["Draft", "OfferGenerated"]);
-        if (user.HasAnyRole("AgriculturalEngineer", "SystemAdmin"))
-            statuses.UnionWith(["Submitted", "TechnicalAppraisal"]);
         if (user.HasAnyRole("CreditOfficer", "SystemAdmin"))
-            statuses.UnionWith(["FinancialAppraisal", "BranchCommitteeCirculation"]);
-        if (user.HasAnyRole("ComplianceOfficer", "SystemAdmin"))
-            statuses.UnionWith(["OfferAccepted", "PreDeploymentVerification"]);
-        if (user.HasAnyRole("TrainingCoordinator", "SystemAdmin"))
-            statuses.Add("Training");
+            statuses.UnionWith(["Submitted", "FinancialAppraisal", "BranchCommitteeCirculation"]);
         if (user.HasAnyRole("DeploymentOfficer", "SystemAdmin"))
-            statuses.Add("Deployment");
+            statuses.UnionWith(["OfferAccepted", "PreDeploymentVerification", "Deployment"]);
 
         return [.. statuses];
     }
@@ -757,10 +750,10 @@
         {
             if (string.IsNullOrEmpty(filterStatus))
             {
-                var activeStatuses = new[] { "Draft", "Submitted", "TechnicalAppraisal", "FinancialAppraisal",
+                var activeStatuses = new[] { "Draft", "Submitted", "FinancialAppraisal",
                     "BranchCommitteeCirculation", "ZonalCommitteeCirculation", "RegionalCommitteeCirculation",
                     "HOCommitteeCirculation", "Ratification", "OfferGenerated", "OfferAccepted",
-                    "PreDeploymentVerification", "Training", "Deployment", "Active" };
+                    "PreDeploymentVerification", "Deployment", "Active" };
                 allApps = await AppService.GetNampApplicationsByStatusesAsync(activeStatuses);
             }
             else
@@ -803,12 +796,11 @@
     private static string GetStatusBadgeClass(string status) => status switch
     {
         "Draft"                                                      => "badge-gray",
-        "Submitted" or "TechnicalAppraisal"                          => "badge-warning",
-        "FinancialAppraisal"                                         => "badge-warning",
+        "Submitted" or "FinancialAppraisal"                          => "badge-warning",
         var s when s.Contains("CommitteeCirculation")                => "badge-info",
         "Ratification"                                               => "badge-primary",
         "OfferGenerated" or "OfferAccepted"                          => "badge-info",
-        "PreDeploymentVerification" or "Training" or "Deployment"    => "badge-primary",
+        "PreDeploymentVerification" or "Deployment"                  => "badge-primary",
         "Active"                                                     => "badge-success",
         var s when s.Contains("Declined") || s.Contains("Lapsed")   => "badge-danger",
         "Closed"                                                     => "badge-success",
@@ -842,7 +834,6 @@
         "ZonalCommitteeDeclined"       => "Zonal Declined",
         "RegionalCommitteeDeclined"    => "Regional Declined",
         "HOCommitteeDeclined"          => "HO Declined",
-        "TechnicalDeclined"            => "Technical Declined",
         "FinancialDeclined"            => "Financial Declined",
         "RatificationDeclined"         => "Ratification Declined",
         "PreDeploymentVerification"    => "Pre-Deployment",

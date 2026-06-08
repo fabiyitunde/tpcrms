@@ -40,10 +40,6 @@ else
             {
                 <button class="btn btn-primary" @onclick="OpenSubmitModal">Submit for Appraisal</button>
             }
-            @if (ShowTechnicalAppraisalButton)
-            {
-                <button class="btn btn-success" @onclick="OpenTechDecisionModal">Technical Appraisal Decision</button>
-            }
             @if (ShowFinancialAppraisalButton)
             {
                 <button class="btn btn-success" @onclick="OpenFinDecisionModal">Financial Appraisal Decision</button>
@@ -73,10 +69,6 @@ else
             @if (ShowCompletePreDeploymentButton)
             {
                 <button class="btn btn-success" @onclick="OpenCompletePreDeployModal">Complete Verification</button>
-            }
-            @if (ShowTrainingButton)
-            {
-                <button class="btn btn-success" @onclick="OpenTrainingModal">Complete Training</button>
             }
             @if (ShowDeploymentButton)
             {
@@ -166,13 +158,6 @@ else
                 Financials
                 @if (app.FinancialStatements.Count > 0)
                 { <span class="badge badge-secondary" style="margin-left: 4px;">@app.FinancialStatements.Count</span> }
-            </div>
-        }
-        @if (ShowTechnicalAppraisalTab)
-        {
-            <div class="tab @(detailTab == "technical-appraisal" ? "active" : "")" @onclick='() => detailTab = "technical-appraisal"'>
-                Technical Appraisal
-                @if (app.TechnicalAppraisalReport != null) { <span class="badge badge-success" style="margin-left: 4px;">✓</span> }
             </div>
         }
         @if (app.BureauReports.Count > 0 || ShowFinancialAppraisalTab)
@@ -310,18 +295,11 @@ else
                 }
 
                 <!-- Appraisal Notes (appear as completed) -->
-                @if (app.TechnicalAppraisalAt.HasValue || app.FinancialAppraisalAt.HasValue || app.CommitteeDecisionAt.HasValue || app.RatifiedAt.HasValue)
+                @if (app.FinancialAppraisalAt.HasValue || app.CommitteeDecisionAt.HasValue || app.RatifiedAt.HasValue)
                 {
                     <div class="card">
                         <div class="card-header"><h3 class="card-title">Appraisal & Decision Notes</h3></div>
                         <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
-                            @if (app.TechnicalAppraisalAt.HasValue)
-                            {
-                                <div>
-                                    <div style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Technical Appraisal — @app.TechnicalAppraisalAt.Value.ToLocalTime().ToString("dd MMM yyyy")</div>
-                                    <div style="font-size: 0.875rem; margin-top: 0.25rem;">@(app.TechnicalAppraisalNote ?? "No notes recorded.")</div>
-                                </div>
-                            }
                             @if (app.FinancialAppraisalAt.HasValue)
                             {
                                 <div style="border-top: 1px solid var(--border-color); padding-top: 1rem;">
@@ -645,229 +623,6 @@ else
         }
     }
 
-    <!-- ══════════════════════════════════════════════
-         TECHNICAL APPRAISAL TAB
-    ══════════════════════════════════════════════ -->
-    @if (detailTab == "technical-appraisal")
-    {
-        var techReport = app.TechnicalAppraisalReport;
-        var techDocs = app.Documents.Where(d => d.Stage == "TechnicalAppraisal").ToList();
-        var hasTechReportDoc = techDocs.Any(d => d.Category == "TechnicalReport");
-        var canEditTech = app.Status is "Submitted" or "TechnicalAppraisal" &&
-                          (User?.HasAnyRole("AgriculturalEngineer", "SystemAdmin") ?? false);
-
-        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-
-            <!-- Report Form -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Technical Appraisal Report</h3>
-                    @if (techReport != null && !canEditTech)
-                    { <span class="badge badge-success">Submitted @app.TechnicalAppraisalAt?.ToLocalTime().ToString("dd MMM yyyy")</span> }
-                </div>
-                <div class="card-body">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-
-                    @if (app.ApplicantCategory == "AgroServiceCompany")
-                    {
-                        <!-- AgroServiceCompany-specific fields -->
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Operational Coverage Area *</label>
-                            <textarea class="form-control" rows="2" @bind="techCoverageArea" disabled="@(!canEditTech)" placeholder="Describe the geographic area of operations..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Existing Fleet Size</label>
-                            <input type="number" class="form-control" @bind="techFleetSize" disabled="@(!canEditTech)" placeholder="Number of equipment units owned" />
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Has Maintenance Facility</label>
-                            <select class="form-control" @bind="techHasMaintenanceFacility" disabled="@(!canEditTech)">
-                                <option value="">-- Select --</option>
-                                <option value="true">Yes</option>
-                                <option value="false">No</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Technical Staff Count</label>
-                            <input type="number" class="form-control" @bind="techTechnicalStaff" disabled="@(!canEditTech)" placeholder="Number of qualified technical staff" />
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Years in Operation</label>
-                            <input type="number" class="form-control" @bind="techYearsInOperation" disabled="@(!canEditTech)" />
-                        </div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Current Service Contracts</label>
-                            <textarea class="form-control" rows="2" @bind="techCurrentContracts" disabled="@(!canEditTech)" placeholder="Summary of active service agreements..."></textarea>
-                        </div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Storage Facility Description</label>
-                            <textarea class="form-control" rows="2" @bind="techStorageFacility" disabled="@(!canEditTech)" placeholder="Describe available storage for equipment and inputs..."></textarea>
-                        </div>
-                    }
-                    else
-                    {
-                        <!-- Individual applicant (farmer) fields -->
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Farm / Site Location Description *</label>
-                            <textarea class="form-control" rows="2" @bind="techFarmLocation" disabled="@(!canEditTech)" placeholder="Describe the farm location..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">GPS Coordinates</label>
-                            <input type="text" class="form-control" @bind="techGpsCoords" disabled="@(!canEditTech)" placeholder="e.g. 6.5244° N, 3.3792° E" />
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Land Area Assessed (Hectares)</label>
-                            <input type="number" class="form-control" step="0.01" @bind="techLandArea" disabled="@(!canEditTech)" />
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Soil Condition Rating *</label>
-                            <select class="form-control" @bind="techSoilRating" disabled="@(!canEditTech)">
-                                <option value="">-- Select --</option>
-                                <option value="Excellent">Excellent</option>
-                                <option value="Good">Good</option>
-                                <option value="Fair">Fair</option>
-                                <option value="Poor">Poor</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Water Source Availability *</label>
-                            <textarea class="form-control" rows="2" @bind="techWaterSource" disabled="@(!canEditTech)" placeholder="Describe water availability..."></textarea>
-                        </div>
-                    }
-
-                        <!-- Shared fields -->
-                        <div class="form-group">
-                            <label class="form-label">Overall Viability Rating *</label>
-                            <select class="form-control" @bind="techViabilityRating" disabled="@(!canEditTech)">
-                                <option value="">-- Select --</option>
-                                <option value="Viable">Viable</option>
-                                <option value="Marginal">Marginal</option>
-                                <option value="NotViable">Not Viable</option>
-                            </select>
-                        </div>
-                        <div style="grid-column: 2 / -1;"></div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Proposed Equipment Suitability *</label>
-                            <textarea class="form-control" rows="2" @bind="techEquipSuitability" disabled="@(!canEditTech)" placeholder="Assess suitability of requested equipment..."></textarea>
-                        </div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Infrastructure Notes</label>
-                            <textarea class="form-control" rows="2" @bind="techInfraNotes" disabled="@(!canEditTech)" placeholder="Roads, power, storage facilities..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Risks Identified</label>
-                            <textarea class="form-control" rows="2" @bind="techRisks" disabled="@(!canEditTech)" placeholder="Environmental, operational, market risks..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Recommended Mitigations</label>
-                            <textarea class="form-control" rows="2" @bind="techMitigations" disabled="@(!canEditTech)" placeholder="Steps to address identified risks..."></textarea>
-                        </div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Summary Notes</label>
-                            <textarea class="form-control" rows="2" @bind="techSummaryNotes" disabled="@(!canEditTech)" placeholder="Overall observations and key findings..."></textarea>
-                        </div>
-                    </div>
-                    @if (!string.IsNullOrEmpty(techReportError))
-                    { <div class="alert alert-danger" style="margin-top: 0.75rem;">@techReportError</div> }
-                    @if (canEditTech)
-                    {
-                        <div style="margin-top: 1rem; display: flex; justify-content: flex-end;">
-                            <button class="btn btn-secondary" @onclick="SaveTechReport" disabled="@isSavingTechReport">
-                                @if (isSavingTechReport) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
-                                Save Report Draft
-                            </button>
-                        </div>
-                    }
-                </div>
-            </div>
-
-            <!-- Documents for this stage -->
-            <div class="card">
-                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <h3 class="card-title">Supporting Documents</h3>
-                    @if (canEditTech)
-                    {
-                        <button class="btn btn-secondary btn-sm" @onclick="OpenTechDocUpload">
-                            <span class="material-symbols-outlined" style="font-size: 16px;">upload</span> Upload
-                        </button>
-                    }
-                </div>
-                <div class="card-body" style="padding: 0;">
-                    @if (!techDocs.Any())
-                    {
-                        <div class="p-4 text-center text-muted">
-                            <span class="material-symbols-outlined" style="font-size: 36px; opacity: 0.3;">folder_open</span>
-                            <div style="margin-top: 0.5rem; font-size: 0.875rem;">No documents uploaded for this stage yet.</div>
-                            @if (canEditTech) { <div style="font-size: 0.8rem; color: var(--danger-600); margin-top: 0.25rem;">At least one Technical Report is required before approving.</div> }
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="table-wrapper">
-                            <table class="table">
-                                <thead>
-                                    <tr><th>Category</th><th>File Name</th><th>Description</th><th>Size</th><th>Uploaded</th><th></th></tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var doc in techDocs.OrderBy(d => d.Category).ThenByDescending(d => d.UploadedAt))
-                                    {
-                                        var capturedDoc = doc;
-                                        var techStage = "TechnicalAppraisal";
-                                        <tr>
-                                            <td><span class="badge @(doc.Category == "TechnicalReport" ? "badge-primary" : "badge-secondary")">@FormatDocCategory(doc.Category)</span></td>
-                                            <td>
-                                                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: var(--text-secondary);">attach_file</span>
-                                                @doc.FileName
-                                            </td>
-                                            <td style="font-size: var(--text-sm); color: var(--text-secondary);">@(doc.Description ?? "—")</td>
-                                            <td style="font-size: var(--text-sm); color: var(--text-secondary);">@FormatFileSize(doc.FileSize)</td>
-                                            <td style="font-size: var(--text-sm); color: var(--text-secondary); white-space: nowrap;">@doc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
-                                            <td style="white-space: nowrap;">
-                                                <button class="btn btn-ghost btn-sm" title="View" @onclick="() => OpenDocView(capturedDoc.Id, capturedDoc.FileName, capturedDoc.ContentType)">
-                                                    <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
-                                                </button>
-                                                @if (canEditTech)
-                                                {
-                                                    <button class="btn btn-ghost btn-sm" title="Edit" @onclick="() => OpenEditDoc(capturedDoc.Id, capturedDoc.Category, capturedDoc.Description, techStage, capturedDoc.FileName, capturedDoc.FileSize, capturedDoc.ContentType)">
-                                                        <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
-                                                    </button>
-                                                    <button class="btn btn-ghost btn-sm" title="Delete" style="color: var(--danger-600);" @onclick="() => OpenDeleteDoc(capturedDoc.Id)">
-                                                        <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
-                                                    </button>
-                                                }
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    }
-                </div>
-            </div>
-
-            <!-- Decision Record (read-only, shown after decision submitted) -->
-            @if (app.TechnicalAppraisalAt.HasValue)
-            {
-                <div class="card">
-                    <div class="card-header"><h3 class="card-title">Appraisal Decision</h3></div>
-                    <div class="card-body">
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            @if (app.Status == "TechnicalDeclined")
-                            {
-                                <span class="badge badge-danger" style="font-size: 0.95rem;">Declined</span>
-                            }
-                            else
-                            {
-                                <span class="badge badge-success" style="font-size: 0.95rem;">Approved</span>
-                            }
-                            <span style="font-size: 0.875rem; color: var(--text-secondary);">@app.TechnicalAppraisalAt.Value.ToLocalTime().ToString("dd MMM yyyy")</span>
-                        </div>
-                        @if (!string.IsNullOrEmpty(app.TechnicalAppraisalNote))
-                        { <div style="margin-top: 0.5rem; font-size: 0.875rem;">@app.TechnicalAppraisalNote</div> }
-                    </div>
-                </div>
-            }
-        </div>
     }
 
     <!-- ══════════════════════════════════════════════
@@ -878,7 +633,7 @@ else
         var finReport = app.FinancialAppraisalReport;
         var finDocs = app.Documents.Where(d => d.Stage == "FinancialAppraisal").ToList();
         var hasFinModelDoc = finDocs.Any(d => d.Category == "CreditReport");
-        var canEditFin = app.Status == "FinancialAppraisal" &&
+        var canEditFin = (app.Status == "FinancialAppraisal" || app.Status == "Submitted") &&
                          (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
         <div style="display: flex; flex-direction: column; gap: 1.5rem;">
@@ -892,6 +647,30 @@ else
                 </div>
                 <div class="card-body">
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Repayment Source *</label>
+                            <select class="form-control" @bind="finRepaymentSource" disabled="@(!canEditFin)">
+                                <option value="PrimaryIncome">Primary Income (salary / farm)</option>
+                                <option value="RentalHireRevenue">Rental / Hire Revenue</option>
+                                <option value="Mixed">Mixed (income + rental)</option>
+                                <option value="CompanyCashFlow">Company Cash Flow</option>
+                            </select>
+                        </div>
+                        @if (finRepaymentSource is "RentalHireRevenue" or "Mixed")
+                        {
+                            <div class="form-group">
+                                <label class="form-label">Projected Monthly Rental Revenue (₦)</label>
+                                <input type="number" class="form-control" step="0.01" @bind="finProjectedRentalRevenue" disabled="@(!canEditFin)" placeholder="e.g. 500000" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Utilisation Rate Assumption (%)</label>
+                                <input type="number" class="form-control" step="0.1" @bind="finUtilisationRate" disabled="@(!canEditFin)" placeholder="e.g. 65.0" />
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label class="form-label">Demand Evidence Note</label>
+                                <textarea class="form-control" rows="2" @bind="finDemandEvidence" disabled="@(!canEditFin)" placeholder="e.g. 3 signed hire agreements with Ogun cooperative..."></textarea>
+                            </div>
+                        }
                         <div class="form-group">
                             <label class="form-label">Monthly Disposable Income (₦)</label>
                             <input type="number" class="form-control" step="0.01" @bind="finMonthlyIncome" disabled="@(!canEditFin)" />
@@ -1623,12 +1402,12 @@ else
     ══════════════════════════════════════════════ -->
     @if (detailTab == "pre-deployment")
     {
-        // Compliance Officer controls gate checkboxes and saves the checklist
+        // Deployment Officer controls gate checkboxes and saves the checklist
         var canEditGates = app.Status == "PreDeploymentVerification" &&
-                           (User?.HasAnyRole("ComplianceOfficer", "SystemAdmin") ?? false);
+                           (User?.HasAnyRole("DeploymentOfficer", "SystemAdmin") ?? false);
         // Branch staff (Loan Officer) can upload evidence documents collected from the applicant
         var canUploadGateDocs = app.Status == "PreDeploymentVerification" &&
-                                (User?.HasAnyRole("LoanOfficer", "ComplianceOfficer", "SystemAdmin") ?? false);
+                                (User?.HasAnyRole("LoanOfficer", "DeploymentOfficer", "SystemAdmin") ?? false);
 
         <div style="display: flex; flex-direction: column; gap: 1.5rem;">
 
@@ -2219,67 +1998,6 @@ else
     </div>
 }
 
-<!-- Technical Appraisal Decision Modal -->
-@if (showTechDecisionModal)
-{
-    var techDocs = app!.Documents.Where(d => d.Stage == "TechnicalAppraisal").ToList();
-    var hasTechDoc = techDocs.Any(d => d.Category == "TechnicalReport");
-    var blocked = app.TechnicalAppraisalReport == null || !hasTechDoc;
-    <div class="modal-backdrop show" @onclick="CloseTechDecisionModal">
-        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
-            <div class="modal-header">
-                <h3 class="modal-title">Technical Appraisal Decision</h3>
-                <button class="modal-close" @onclick="CloseTechDecisionModal"><span class="material-symbols-outlined">close</span></button>
-            </div>
-            <div class="modal-body">
-                @if (blocked)
-                {
-                    <div class="alert alert-warning">
-                        <strong>Cannot submit decision yet:</strong>
-                        <ul style="margin: 0.5rem 0 0 1rem; padding: 0;">
-                            @if (app.TechnicalAppraisalReport == null) { <li>Save the technical appraisal report first.</li> }
-                            @if (!hasTechDoc) { <li>Upload at least one document categorised as <strong>Technical Report</strong>.</li> }
-                        </ul>
-                    </div>
-                }
-                else
-                {
-                    <div class="form-group">
-                        <label class="form-label">Decision *</label>
-                        <div style="display: flex; gap: 1rem;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                <input type="radio" name="tech-decision" @onchange="() => techDecisionApproved = true" checked="@techDecisionApproved" />
-                                <span class="badge badge-success">Approve</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                <input type="radio" name="tech-decision" @onchange="() => techDecisionApproved = false" checked="@(!techDecisionApproved)" />
-                                <span class="badge badge-danger">Decline</span>
-                            </label>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Decision Note @(techDecisionApproved ? "(optional)" : "*")</label>
-                        <textarea class="form-control" rows="3" @bind="techDecisionNote"
-                            placeholder="@(techDecisionApproved ? "Optional notes..." : "Required — state reason for declining")"></textarea>
-                    </div>
-                    @if (!string.IsNullOrEmpty(techDecisionError))
-                    { <div class="alert alert-danger">@techDecisionError</div> }
-                }
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="CloseTechDecisionModal">Cancel</button>
-                @if (!blocked)
-                {
-                    <button class="btn @(techDecisionApproved ? "btn-success" : "btn-danger")" @onclick="SubmitTechDecision" disabled="@isSubmittingTechDecision">
-                        @if (isSubmittingTechDecision) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
-                        @(techDecisionApproved ? "Approve — Pass to Financial Appraisal" : "Decline Application")
-                    </button>
-                }
-            </div>
-        </div>
-    </div>
-}
-
 <!-- Financial Appraisal Decision Modal -->
 @if (showFinDecisionModal)
 {
@@ -2463,50 +2181,6 @@ else
                 <button class="btn btn-danger" @onclick="ConfirmDeleteDoc" disabled="@isDeletingDoc">
                     @if (isDeletingDoc) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
                     Delete
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
-<!-- Upload Modal (Technical Appraisal) -->
-@if (showTechDocUploadModal)
-{
-    <div class="modal-backdrop show" @onclick="CloseTechDocUpload">
-        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
-            <div class="modal-header">
-                <h3 class="modal-title">Upload Document — Technical Appraisal</h3>
-                <button class="modal-close" @onclick="CloseTechDocUpload"><span class="material-symbols-outlined">close</span></button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label class="form-label">Category *</label>
-                    <select class="form-control" @bind="uploadDocCategory">
-                        <option value="TechnicalReport">Technical Report (Required)</option>
-                        <option value="SitePhoto">Site Photo</option>
-                        <option value="SoilTestResult">Soil Test Result</option>
-                        <option value="SupportingDocument">Supporting Document</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">File *</label>
-                    <InputFile OnChange="HandleTechDocFileSelected" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="form-control" style="padding: 0.4rem;" />
-                    <small class="form-text text-muted">PDF, DOC, XLS, JPG, PNG — max 10MB</small>
-                    @if (uploadSelectedFile != null)
-                    { <div style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary);">Selected: @uploadSelectedFile.Name (@FormatFileSize(uploadSelectedFile.Size))</div> }
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Description</label>
-                    <input type="text" class="form-control" @bind="uploadDocDescription" placeholder="Optional description..." />
-                </div>
-                @if (!string.IsNullOrEmpty(uploadDocError))
-                { <div class="alert alert-danger">@uploadDocError</div> }
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="CloseTechDocUpload" disabled="@isUploadingDoc">Cancel</button>
-                <button class="btn btn-primary" @onclick="UploadTechDoc" disabled="@(uploadSelectedFile == null || isUploadingDoc)">
-                    @if (isUploadingDoc) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
-                    Upload
                 </button>
             </div>
         </div>
@@ -2799,34 +2473,6 @@ else
     private int committeeMinApprovalVotes = 2;
     private int committeeDeadlineHours = 72;
 
-    // Technical Appraisal form — individual applicant fields
-    private string techFarmLocation = "";
-    private string? techGpsCoords;
-    private decimal? techLandArea;
-    private string techSoilRating = "";
-    private string techWaterSource = "";
-    // Technical Appraisal form — AgroServiceCompany fields
-    private string techCoverageArea = "";
-    private int? techFleetSize;
-    private bool? techHasMaintenanceFacility;
-    private int? techTechnicalStaff;
-    private int? techYearsInOperation;
-    private string? techCurrentContracts;
-    private string? techStorageFacility;
-    // Technical Appraisal form — shared fields
-    private string techEquipSuitability = "";
-    private string? techInfraNotes;
-    private string? techRisks;
-    private string? techMitigations;
-    private string techViabilityRating = "";
-    private string? techSummaryNotes;
-    private bool isSavingTechReport;
-    private string? techReportError;
-    private bool techDecisionApproved = true;
-    private string? techDecisionNote;
-    private bool isSubmittingTechDecision;
-    private string? techDecisionError;
-    private bool showTechDecisionModal;
     private bool showFinDecisionModal;
 
     // Pre-Deployment dynamic checklist
@@ -2851,6 +2497,10 @@ else
     private string? finBureauSummary;
     private string finCreditRecommendation = "";
     private string? finSummaryNotes;
+    private string finRepaymentSource = "PrimaryIncome";
+    private decimal? finProjectedRentalRevenue;
+    private decimal? finUtilisationRate;
+    private string? finDemandEvidence;
     private bool isSavingFinReport;
     private string? finReportError;
     private bool finDecisionApproved = true;
@@ -2908,35 +2558,23 @@ else
         app?.Status == "Draft" &&
         (User?.HasAnyRole("LoanOfficer", "SystemAdmin") ?? false);
 
-    private bool ShowTechnicalAppraisalButton =>
-        (app?.Status == "Submitted" || app?.Status == "TechnicalAppraisal") &&
-        (User?.HasAnyRole("AgriculturalEngineer", "SystemAdmin") ?? false);
 
     private bool ShowFinancialAppraisalButton =>
-        app?.Status == "FinancialAppraisal" &&
+        (app?.Status == "FinancialAppraisal" || app?.Status == "Submitted") &&
         (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
-    private bool ShowTechnicalAppraisalTab =>
-        app?.Status is "Submitted" or "TechnicalAppraisal" or "TechnicalDeclined" ||
-        IsAfter(app!, "TechnicalAppraisal") ||
-        app?.TechnicalAppraisalReport != null;
-
     private bool ShowFinancialAppraisalTab =>
-        app?.Status == "FinancialAppraisal" || app?.Status == "FinancialDeclined" ||
+        app?.Status == "Submitted" || app?.Status == "FinancialAppraisal" || app?.Status == "FinancialDeclined" ||
         IsAfter(app!, "FinancialAppraisal") ||
         app?.FinancialAppraisalReport != null;
 
     private bool ShowAdvisoryTab =>
-        app?.Status == "FinancialAppraisal" ||
+        app?.Status == "Submitted" || app?.Status == "FinancialAppraisal" ||
         IsAfter(app!, "FinancialAppraisal");
 
     private bool CanGenerateAdvisory =>
-        (app?.Status == "FinancialAppraisal" || IsAfter(app!, "FinancialAppraisal")) &&
+        (app?.Status == "Submitted" || app?.Status == "FinancialAppraisal" || IsAfter(app!, "FinancialAppraisal")) &&
         (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
-
-    private bool TechDecisionBlocked =>
-        app?.TechnicalAppraisalReport == null ||
-        !app.Documents.Any(d => d.Stage == "TechnicalAppraisal" && d.Category == "TechnicalReport");
 
     private bool FinDecisionBlocked =>
         app?.FinancialAppraisalReport == null ||
@@ -2984,7 +2622,7 @@ else
 
     private bool CanGenerateLoanPack =>
         app?.Status is not (null or "Draft") &&
-        (User?.HasAnyRole("LoanOfficer", "CreditOfficer", "AgriculturalEngineer", "BranchManager",
+        (User?.HasAnyRole("LoanOfficer", "CreditOfficer", "BranchManager",
             "ZonalManager", "RegionalManager", "MdCeo", "Operations", "SystemAdmin") ?? false);
 
     private NampDocumentDto? SignedOfferLetterDoc =>
@@ -2992,27 +2630,23 @@ else
 
     private bool CanUploadSignedOfferLetter =>
         app?.OfferLetterStoragePath != null &&
-        app.Status is "OfferGenerated" or "OfferAccepted" or "PreDeploymentVerification" or "Training" or "Deployment" or "Deployed" &&
+        app.Status is "OfferGenerated" or "OfferAccepted" or "PreDeploymentVerification" or "Deployment" or "Deployed" &&
         (User?.HasAnyRole("LoanOfficer", "Operations", "SystemAdmin") ?? false);
 
     private bool ShowBeginPreDeploymentButton =>
         app?.Status == "OfferAccepted" &&
-        (User?.HasAnyRole("ComplianceOfficer", "SystemAdmin") ?? false);
+        (User?.HasAnyRole("DeploymentOfficer", "SystemAdmin") ?? false);
 
     private bool ShowCompletePreDeploymentButton =>
         app?.Status == "PreDeploymentVerification" &&
         app?.PreDeploymentChecklist.Any() == true &&
         app?.PreDeploymentChecklist.Where(i => i.IsMandatory).All(i => i.IsConfirmed == true) == true &&
-        (User?.HasAnyRole("ComplianceOfficer", "SystemAdmin") ?? false);
+        (User?.HasAnyRole("DeploymentOfficer", "SystemAdmin") ?? false);
 
     private bool ShowPreDeploymentTab =>
-        app?.Status is "PreDeploymentVerification" or "Training" or "Deployment" or "Active" or "Closed" ||
+        app?.Status is "PreDeploymentVerification" or "Deployment" or "Active" or "Closed" ||
         app?.PreDeploymentVerifiedAt != null ||
         app?.PreDeploymentChecklist.Any() == true;
-
-    private bool ShowTrainingButton =>
-        app?.Status == "Training" &&
-        (User?.HasAnyRole("TrainingCoordinator", "SystemAdmin") ?? false);
 
     private bool ShowDeploymentButton =>
         app?.Status == "Deployment" &&
@@ -3102,31 +2736,6 @@ else
             checklistNotes[item.Id] = item.Notes;
         }
 
-        var tr = app.TechnicalAppraisalReport;
-        if (tr != null)
-        {
-            // Individual fields
-            techFarmLocation = tr.FarmLocationDescription ?? "";
-            techGpsCoords = tr.GpsCoordinates;
-            techLandArea = tr.LandAreaAssessedHectares;
-            techSoilRating = tr.SoilConditionRating ?? "";
-            techWaterSource = tr.WaterSourceAvailability ?? "";
-            // Company fields
-            techCoverageArea = tr.OperationalCoverageArea ?? "";
-            techFleetSize = tr.ExistingFleetSize;
-            techHasMaintenanceFacility = tr.HasMaintenanceFacility;
-            techTechnicalStaff = tr.TechnicalStaffCount;
-            techYearsInOperation = tr.YearsInOperation;
-            techCurrentContracts = tr.CurrentServiceContracts;
-            techStorageFacility = tr.StorageFacilityDescription;
-            // Shared fields
-            techEquipSuitability = tr.ProposedEquipmentSuitability;
-            techInfraNotes = tr.InfrastructureNotes;
-            techRisks = tr.RisksIdentified;
-            techMitigations = tr.RecommendedMitigations;
-            techViabilityRating = tr.OverallViabilityRating;
-            techSummaryNotes = tr.SummaryNotes;
-        }
         var fr = app.FinancialAppraisalReport;
         if (fr != null)
         {
@@ -3138,6 +2747,10 @@ else
             finBureauSummary = fr.CreditBureauSummary;
             finCreditRecommendation = fr.CreditOfficerRecommendation;
             finSummaryNotes = fr.SummaryNotes;
+            finRepaymentSource = fr.RepaymentSource;
+            finProjectedRentalRevenue = fr.ProjectedMonthlyRentalRevenue;
+            finUtilisationRate = fr.UtilisationRateAssumption;
+            finDemandEvidence = fr.DemandEvidenceNote;
         }
 
         // Auto-populate bureau summary if not already saved and reports are available
@@ -3181,7 +2794,6 @@ else
         isCastingVote = false;
     }
 
-    private void OpenTechnicalAppraisalModal() => OpenAppraisalModal("technical");
     private void OpenFinancialAppraisalModal() => OpenAppraisalModal("financial");
     private void OpenCommitteeOutcomeModal() => OpenAppraisalModal("committee");
     private void OpenDeclineRatifyModal() => OpenNoteModal("decline-ratify", "Decline Ratification", "Enter reason for declining ratification:");
@@ -3189,7 +2801,6 @@ else
     private void OpenOfferLapseModal() => OpenConfirmModal("offer-lapse", "Lapse Offer", "Mark this offer as lapsed (applicant did not countersign within SLA)?");
     private void OpenBeginPreDeployModal() => OpenConfirmModal("begin-predeploy", "Begin Pre-Deployment Verification", "Start the 4-gate pre-deployment verification process?");
     private void OpenCompletePreDeployModal() => OpenNoteModal("complete-predeploy", "Complete Pre-Deployment Verification", "Enter any notes for the pre-deployment verification:");
-    private void OpenTrainingModal() => OpenConfirmModal("training", "Complete Training", "Confirm Heifer Nigeria training has been completed for this applicant?");
 
     private void OpenConfirmModal(string action, string title, string message)
     {
@@ -3276,7 +2887,6 @@ else
                 "offer-accept" => await AppService.RecordNampOfferAcceptanceAsync(Id, uid),
                 "offer-lapse" => await AppService.LapseNampOfferAsync(Id, uid),
                 "begin-predeploy" => await AppService.BeginNampPreDeploymentVerificationAsync(Id, uid),
-                "training" => await AppService.CompleteNampTrainingAsync(Id, uid),
                 _ => ApiResponse<NampApplicationDto>.Fail("Unknown action")
             };
             if (result.Success) { CloseModals(); await Load(); }
@@ -3425,7 +3035,6 @@ else
         {
             var result = appraisalType switch
             {
-                "technical" => await AppService.SubmitNampTechnicalAppraisalAsync(Id, uid, appraisalApproved, NullIfEmpty(noteText)),
                 "financial" => await AppService.SubmitNampFinancialAppraisalAsync(Id, uid, appraisalApproved, NullIfEmpty(noteText)),
                 "committee" => await AppService.RecordNampCommitteeOutcomeAsync(Id, uid, appraisalApproved, NullIfEmpty(noteText)),
                 _ => ApiResponse<NampApplicationDto>.Fail("Unknown appraisal type")
@@ -3480,50 +3089,6 @@ else
     }
 
     // ── Tech/Fin Appraisal save & submit ──────────────────────────────────
-
-    // When viability is NotViable, recommendation must be Fail (domain rule)
-    private string DraftTechRecommendation => techViabilityRating == "NotViable" ? "Fail" : "Pass";
-
-    private async Task SaveTechReport()
-    {
-        var category = app?.ApplicantCategory ?? "";
-        var isCompany = category == "AgroServiceCompany";
-
-        if (isCompany)
-        {
-            if (string.IsNullOrWhiteSpace(techCoverageArea) || string.IsNullOrWhiteSpace(techEquipSuitability) ||
-                string.IsNullOrWhiteSpace(techViabilityRating))
-            { techReportError = "Operational coverage area, equipment suitability and viability rating are required."; return; }
-        }
-        else
-        {
-            if (string.IsNullOrWhiteSpace(techFarmLocation) || string.IsNullOrWhiteSpace(techSoilRating) ||
-                string.IsNullOrWhiteSpace(techWaterSource) || string.IsNullOrWhiteSpace(techEquipSuitability) ||
-                string.IsNullOrWhiteSpace(techViabilityRating))
-            { techReportError = "Farm location, soil rating, water source, equipment suitability and viability rating are required."; return; }
-        }
-
-        isSavingTechReport = true; techReportError = null;
-        try
-        {
-            var result = await AppService.SaveNampTechnicalAppraisalReportAsync(
-                Id, User?.Id ?? Guid.Empty, category,
-                NullIfEmpty(techFarmLocation), NullIfEmpty(techGpsCoords), techLandArea,
-                NullIfEmpty(techSoilRating), NullIfEmpty(techWaterSource),
-                NullIfEmpty(techCoverageArea), techFleetSize, techHasMaintenanceFacility,
-                techTechnicalStaff, techYearsInOperation, NullIfEmpty(techCurrentContracts), NullIfEmpty(techStorageFacility),
-                techEquipSuitability,
-                NullIfEmpty(techInfraNotes), NullIfEmpty(techRisks), NullIfEmpty(techMitigations),
-                techViabilityRating, DraftTechRecommendation,
-                NullIfEmpty(techSummaryNotes));
-            if (result.Success) { await Load(); }
-            else techReportError = result.Error ?? "Failed to save report";
-        }
-        finally { isSavingTechReport = false; }
-    }
-
-    private void OpenTechDecisionModal() { techDecisionApproved = true; techDecisionNote = null; techDecisionError = null; showTechDecisionModal = true; }
-    private void CloseTechDecisionModal() => showTechDecisionModal = false;
 
     // ── Pre-deployment gate checklist helpers ─────────────────────────────
 
@@ -3588,54 +3153,6 @@ else
     private void OpenFinDecisionModal() { finDecisionApproved = true; finDecisionNote = null; finDecisionError = null; showFinDecisionModal = true; }
     private void CloseFinDecisionModal() => showFinDecisionModal = false;
 
-    private async Task SubmitTechDecision()
-    {
-        if (!techDecisionApproved && string.IsNullOrWhiteSpace(techDecisionNote))
-        { techDecisionError = "A note is required when declining."; return; }
-
-        // Domain rule: NotViable viability forces a Decline decision
-        if (techViabilityRating == "NotViable" && techDecisionApproved)
-        { techDecisionError = "Cannot approve — viability is rated Not Viable. Change the rating or select Decline."; return; }
-
-        var category = app?.ApplicantCategory ?? "";
-        var isCompany = category == "AgroServiceCompany";
-
-        if (isCompany)
-        {
-            if (string.IsNullOrWhiteSpace(techCoverageArea) || string.IsNullOrWhiteSpace(techEquipSuitability) ||
-                string.IsNullOrWhiteSpace(techViabilityRating))
-            { techDecisionError = "Complete and save the report before submitting a decision."; return; }
-        }
-        else
-        {
-            if (string.IsNullOrWhiteSpace(techFarmLocation) || string.IsNullOrWhiteSpace(techSoilRating) ||
-                string.IsNullOrWhiteSpace(techWaterSource) || string.IsNullOrWhiteSpace(techEquipSuitability) ||
-                string.IsNullOrWhiteSpace(techViabilityRating))
-            { techDecisionError = "Complete and save the report before submitting a decision."; return; }
-        }
-
-        isSubmittingTechDecision = true; techDecisionError = null;
-        try
-        {
-            var saveResult = await AppService.SaveNampTechnicalAppraisalReportAsync(
-                Id, User?.Id ?? Guid.Empty, category,
-                NullIfEmpty(techFarmLocation), NullIfEmpty(techGpsCoords), techLandArea,
-                NullIfEmpty(techSoilRating), NullIfEmpty(techWaterSource),
-                NullIfEmpty(techCoverageArea), techFleetSize, techHasMaintenanceFacility,
-                techTechnicalStaff, techYearsInOperation, NullIfEmpty(techCurrentContracts), NullIfEmpty(techStorageFacility),
-                techEquipSuitability,
-                NullIfEmpty(techInfraNotes), NullIfEmpty(techRisks), NullIfEmpty(techMitigations),
-                techViabilityRating, techDecisionApproved ? "Pass" : "Fail",
-                NullIfEmpty(techSummaryNotes));
-            if (!saveResult.Success) { techDecisionError = saveResult.Error ?? "Failed to save report"; return; }
-
-            var result = await AppService.SubmitNampTechnicalAppraisalAsync(Id, User?.Id ?? Guid.Empty, techDecisionApproved, NullIfEmpty(techDecisionNote));
-            if (result.Success) { showTechDecisionModal = false; await Load(); }
-            else techDecisionError = result.Error ?? "Decision submission failed";
-        }
-        finally { isSubmittingTechDecision = false; }
-    }
-
     private async Task SaveFinReport()
     {
         if (string.IsNullOrWhiteSpace(finRepaymentRating) || string.IsNullOrWhiteSpace(finCreditRecommendation))
@@ -3648,7 +3165,8 @@ else
                 Id, User?.Id ?? Guid.Empty,
                 finMonthlyIncome, finDscr, finLtv,
                 finRepaymentRating, NullIfEmpty(finEquityNote), NullIfEmpty(finBureauSummary),
-                finCreditRecommendation, NullIfEmpty(finSummaryNotes));
+                finCreditRecommendation, NullIfEmpty(finSummaryNotes),
+                finRepaymentSource, finProjectedRentalRevenue, finUtilisationRate, NullIfEmpty(finDemandEvidence));
             if (result.Success) { await Load(); }
             else finReportError = result.Error ?? "Failed to save report";
         }
@@ -3777,15 +3295,6 @@ else
 
     // ── Document upload (new, from Upload button) ──────────────────────────
 
-    private void OpenTechDocUpload()
-    {
-        uploadDocCategory = "TechnicalReport"; uploadDocDescription = null;
-        uploadSelectedFile = null; uploadFileBytes = null; uploadDocError = null;
-        showTechDocUploadModal = true;
-    }
-
-    private void CloseTechDocUpload() { showTechDocUploadModal = false; uploadDocError = null; }
-
     private void OpenFinDocUpload()
     {
         uploadDocCategory = "CreditReport"; uploadDocDescription = null;
@@ -3823,7 +3332,6 @@ else
         finally { isUploadingDoc = false; }
     }
 
-    private async Task HandleTechDocFileSelected(InputFileChangeEventArgs e) => await HandleFileSelected(e);
     private async Task HandleFinDocFileSelected(InputFileChangeEventArgs e) => await HandleFileSelected(e);
 
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
@@ -3840,23 +3348,6 @@ else
             uploadDocError = null;
         }
         catch (Exception ex) { uploadDocError = $"Error reading file: {ex.Message}"; uploadSelectedFile = null; uploadFileBytes = null; }
-    }
-
-    private async Task UploadTechDoc()
-    {
-        if (uploadSelectedFile == null || uploadFileBytes == null) return;
-        isUploadingDoc = true; uploadDocError = null;
-        try
-        {
-            using var ms = new MemoryStream(uploadFileBytes);
-            var result = await AppService.UploadNampDocumentAsync(
-                Id, User?.Id ?? Guid.Empty, "TechnicalAppraisal",
-                uploadSelectedFile.Name, uploadSelectedFile.ContentType, uploadSelectedFile.Size,
-                ms, uploadDocCategory, NullIfEmpty(uploadDocDescription));
-            if (result.Success) { CloseTechDocUpload(); await Load(); }
-            else uploadDocError = result.Error ?? "Upload failed";
-        }
-        finally { isUploadingDoc = false; }
     }
 
     private async Task UploadFinDoc()
@@ -3881,21 +3372,19 @@ else
     private static List<StageInfo> StageProgression =>
     [
         new(1, "Draft / Recall", "Loan Officer", a => IsAfter(a, "Draft"), a => a.Status == "Draft"),
-        new(2, "Technical Appraisal", "Agricultural Engineer", a => IsAfter(a, "TechnicalAppraisal"), a => a.Status is "Submitted" or "TechnicalAppraisal"),
-        new(3, "Financial Appraisal", "Credit Officer", a => IsAfter(a, "FinancialAppraisal"), a => a.Status == "FinancialAppraisal"),
-        new(4, "Committee Review", "Committee Members", a => IsAfter(a, "Ratification"), a => a.Status is "BranchCommitteeCirculation" or "ZonalCommitteeCirculation" or "RegionalCommitteeCirculation" or "HOCommitteeCirculation"),
-        new(5, "Ratification", "Final Approver", a => IsAfter(a, "OfferGenerated"), a => a.Status == "Ratification"),
-        new(6, "Offer Letter", "Loan Officer", a => IsAfter(a, "OfferAccepted"), a => a.Status is "OfferGenerated" or "OfferAccepted"),
-        new(7, "Pre-Deployment", "Compliance Officer", a => IsAfter(a, "Training"), a => a.Status is "OfferAccepted" or "PreDeploymentVerification"),
-        new(8, "Training", "Training Coordinator", a => IsAfter(a, "Deployment"), a => a.Status == "Training"),
-        new(9, "Deployment", "Deployment Officer", a => a.Status == "Active", a => a.Status == "Deployment"),
+        new(2, "Financial Appraisal", "Credit Officer", a => IsAfter(a, "FinancialAppraisal"), a => a.Status is "Submitted" or "FinancialAppraisal"),
+        new(3, "Committee Review", "Committee Members", a => IsAfter(a, "Ratification"), a => a.Status is "BranchCommitteeCirculation" or "ZonalCommitteeCirculation" or "RegionalCommitteeCirculation" or "HOCommitteeCirculation"),
+        new(4, "Ratification", "Final Approver", a => IsAfter(a, "OfferGenerated"), a => a.Status == "Ratification"),
+        new(5, "Offer Letter", "Loan Officer", a => IsAfter(a, "OfferAccepted"), a => a.Status is "OfferGenerated" or "OfferAccepted"),
+        new(6, "Pre-Deployment", "Deployment Officer", a => IsAfter(a, "Deployment"), a => a.Status is "OfferAccepted" or "PreDeploymentVerification"),
+        new(7, "Deployment", "Deployment Officer", a => a.Status == "Active", a => a.Status == "Deployment"),
     ];
 
     private static readonly string[] StatusOrder = [
-        "Draft", "Submitted", "TechnicalAppraisal", "FinancialAppraisal",
+        "Draft", "Submitted", "FinancialAppraisal",
         "BranchCommitteeCirculation", "ZonalCommitteeCirculation", "RegionalCommitteeCirculation", "HOCommitteeCirculation",
         "Ratification", "OfferGenerated", "OfferAccepted", "PreDeploymentVerification",
-        "Training", "Deployment", "Active", "Closed"
+        "Deployment", "Active", "Closed"
     ];
 
     private static bool IsAfter(NampApplicationDto a, string marker)
@@ -3997,11 +3486,11 @@ else
     private static string GetStatusBadgeClass(string status) => status switch
     {
         "Draft" => "badge-gray",
-        "Submitted" or "TechnicalAppraisal" or "FinancialAppraisal" => "badge-warning",
+        "Submitted" or "FinancialAppraisal" => "badge-warning",
         var s when s.Contains("CommitteeCirculation") => "badge-info",
         "Ratification" => "badge-primary",
         "OfferGenerated" or "OfferAccepted" => "badge-info",
-        "PreDeploymentVerification" or "Training" or "Deployment" => "badge-primary",
+        "PreDeploymentVerification" or "Deployment" => "badge-primary",
         "Active" => "badge-success",
         var s when s.Contains("Declined") || s.Contains("Lapsed") => "badge-danger",
         "Closed" => "badge-success",
@@ -4038,7 +3527,6 @@ else
 
     private static string FormatDocStage(string stage) => stage switch
     {
-        "TechnicalAppraisal" => "Technical",
         "FinancialAppraisal" => "Financial",
         _ => stage
     };

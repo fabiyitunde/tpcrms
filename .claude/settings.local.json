@@ -15,7 +15,15 @@
       "Bash(powershell -Command \"Stop-Process -Id 44236 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; dotnet build src/CRMS.Web.Intranet/CRMS.Web.Intranet.csproj --no-restore -v q 2>&1 | tail -5\")",
       "Bash(powershell -Command \"Stop-Process -Id 45792 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2\")",
       "Bash(powershell -Command \"Get-Process -Name 'CRMS.Web.Intranet' -ErrorAction SilentlyContinue | Select-Object Id, ProcessName\" 2>&1)",
-      "Bash(powershell -Command \"Stop-Process -Name 'CRMS.Web.Intranet' -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Write-Host 'Stopped'\")"
+      "Bash(powershell -Command \"Stop-Process -Name 'CRMS.Web.Intranet' -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Write-Host 'Stopped'\")",
+      "Bash(taskkill /F /IM \"CRMS.API.exe\")",
+      "Bash(taskkill /F /IM \"CRMS.Web.Intranet.exe\")",
+      "Bash(taskkill /F /PID 20736)",
+      "Bash(cmd /c \"taskkill /F /PID 20736\")",
+      "Bash(netstat -ano)",
+      "Bash(cmd /c \"wmic process where ProcessId=20736 get Name,ProcessId,CommandLine 2>nul\")",
+      "Bash(cmd /c \"tasklist /FI \\\\\"PID eq 20736\\\\\"\")",
+      "Bash(xargs -r kill -9)"
     ]
   }
 }

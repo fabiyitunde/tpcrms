@@ -218,8 +218,7 @@ public class SeedController : ControllerBase
             ["NampStatusHistory"] = await _context.NampStatusHistory.CountAsync(),
             ["NampWorkflowConfigs"] = await _context.NampWorkflowConfigs.CountAsync(),
             ["NampWorkflowInstances"] = await _context.NampWorkflowInstances.CountAsync(),
-            ["NampAdvisories"] = await _context.NampAdvisories.CountAsync(),
-            ["NampViabilityScoreConfigs"] = await _context.NampViabilityScoreConfigs.CountAsync()
+            ["NampAdvisories"] = await _context.NampAdvisories.CountAsync()
         };
 
         var totalRows = counts.Values.Sum();

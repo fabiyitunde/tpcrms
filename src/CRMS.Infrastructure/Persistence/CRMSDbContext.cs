@@ -130,12 +130,10 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<NA.NampGuarantor> NampGuarantors => Set<NA.NampGuarantor>();
     public DbSet<NA.NampCollateral> NampCollaterals => Set<NA.NampCollateral>();
     public DbSet<NA.NampFinancialStatement> NampFinancialStatements => Set<NA.NampFinancialStatement>();
-    public DbSet<NA.NampTechnicalAppraisalReport> NampTechnicalAppraisalReports => Set<NA.NampTechnicalAppraisalReport>();
     public DbSet<NA.NampFinancialAppraisalReport> NampFinancialAppraisalReports => Set<NA.NampFinancialAppraisalReport>();
     public DbSet<NA.NampPreDeploymentChecklistTemplate> NampPreDeploymentChecklistTemplates => Set<NA.NampPreDeploymentChecklistTemplate>();
     public DbSet<NA.NampPreDeploymentChecklistItem> NampPreDeploymentChecklistItems => Set<NA.NampPreDeploymentChecklistItem>();
     public DbSet<NA.NampAdvisory> NampAdvisories => Set<NA.NampAdvisory>();
-    public DbSet<NA.NampViabilityScoreConfig> NampViabilityScoreConfigs => Set<NA.NampViabilityScoreConfig>();
 
     // Outbox
     public DbSet<CreditCheckOutboxEntry> CreditCheckOutbox => Set<CreditCheckOutboxEntry>();

@@ -8,49 +8,39 @@ public enum NampApplicationStatus
 
     // ── Stage 1: Loan Officer ──────────────────────────────────
     Draft,                  // Recalled from staging; being reviewed by Loan Officer
-    Submitted,              // Submitted for Technical Appraisal
+    Submitted,              // Submitted for Financial Appraisal
 
-    // ── Stage 2: Technical Appraisal ──────────────────────────
-    TechnicalAppraisal,     // Agricultural Engineer reviewing
-    TechnicalDeclined,      // Terminal: failed technical appraisal
-
-    // ── Stage 3: Financial Appraisal ──────────────────────────
+    // ── Stage 2: Financial Appraisal ──────────────────────────
     FinancialAppraisal,     // Credit Officer reviewing
     FinancialDeclined,      // Terminal: failed financial appraisal
 
-    // ── Stage 4a: Branch Credit Committee ─────────────────────
+    // ── Stage 3: Committee ────────────────────────────────────
     BranchCommitteeCirculation,
     BranchCommitteeDeclined,    // Terminal
 
-    // ── Stage 4b: Zonal Credit Committee ──────────────────────
     ZonalCommitteeCirculation,
     ZonalCommitteeDeclined,     // Terminal
 
-    // ── Stage 4c: Regional Credit Committee ───────────────────
     RegionalCommitteeCirculation,
     RegionalCommitteeDeclined,  // Terminal
 
-    // ── Stage 4d: HO Credit Committee ─────────────────────────
     HOCommitteeCirculation,
     HOCommitteeDeclined,        // Terminal
 
-    // ── Stage 5: Ratification & Offer ─────────────────────────
+    // ── Stage 4: Ratification & Offer ─────────────────────────
     Ratification,           // Final Approver (at relevant tier) ratifying committee vote
     RatificationDeclined,   // Terminal: Final Approver declined to ratify
     OfferGenerated,         // Offer letter generated; awaiting applicant countersignature
     OfferAccepted,          // Applicant countersigned; Loan Officer uploaded docs
     OfferLapsed,            // Terminal: applicant did not countersign within SLA
 
-    // ── Stage 6: Pre-Deployment Verification ──────────────────
-    PreDeploymentVerification,  // Compliance Officer checking 4 gate conditions
+    // ── Stage 5: Pre-Deployment Verification ──────────────────
+    PreDeploymentVerification,  // Deployment Officer checking 4 gate conditions
 
-    // ── Stage 7: Training ─────────────────────────────────────
-    Training,               // BOA Training Coordinator tracking; Heifer Nigeria delivering
+    // ── Stage 6: Deployment ───────────────────────────────────
+    Deployment,             // Deployment Officer tracking equipment delivery and GPS activation
 
-    // ── Stage 8: Deployment ───────────────────────────────────
-    Deployment,             // Heifer Nigeria / Vendor delivering; BOA Deployment Officer tracking
-
-    // ── Stage 9: Active ───────────────────────────────────────
+    // ── Stage 7: Active ───────────────────────────────────────
     Active,                 // GPS confirmed; PAYS repayment cycle running
 
     // ── Terminal ───────────────────────────────────────────────
@@ -87,10 +77,8 @@ public enum NampCallbackStatus
 public enum NampDocumentStage
 {
     Origination,
-    TechnicalAppraisal,
     FinancialAppraisal,
     PreDeploymentVerification,
-    Training,
     Deployment,
     Offer,
     Other,
@@ -99,9 +87,7 @@ public enum NampDocumentStage
 public enum NampDocumentCategory
 {
     General,              // Default / unclassified
-    TechnicalReport,      // Required at Technical Appraisal (at least 1)
     SitePhoto,
-    SoilTestResult,
     FinancialModel,       // Required at Financial Appraisal (at least 1)
     CreditReport,
     SupportingDocument,
@@ -110,27 +96,6 @@ public enum NampDocumentCategory
     LeaseAgreement,        // Gate 2: Signed lease/hire-purchase agreement
     GpsConsentForm,        // Gate 3: Signed GPS tracking consent form
     InsuranceCertificate,  // Gate 4: NAIC insurance certificate
-}
-
-public enum NampSoilConditionRating
-{
-    Excellent,
-    Good,
-    Fair,
-    Poor,
-}
-
-public enum NampViabilityRating
-{
-    Viable,
-    Marginal,
-    NotViable,
-}
-
-public enum NampTechnicalRecommendation
-{
-    Pass,
-    Fail,
 }
 
 public enum NampRepaymentCapacityRating
@@ -145,4 +110,12 @@ public enum NampCreditRecommendation
 {
     Pass,
     Fail,
+}
+
+public enum NampRepaymentSource
+{
+    PrimaryIncome,
+    RentalHireRevenue,
+    Mixed,
+    CompanyCashFlow,
 }

@@ -107,13 +107,6 @@ public class NampApplicationRepository : INampApplicationRepository
     public async Task<NampDocument?> GetNampDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
         => await _context.NampDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct);
 
-    public async Task<NampTechnicalAppraisalReport?> GetTechnicalAppraisalReportAsync(Guid nampApplicationId, CancellationToken ct = default)
-        => await _context.NampTechnicalAppraisalReports
-            .FirstOrDefaultAsync(r => r.NampApplicationId == nampApplicationId, ct);
-
-    public async Task AddTechnicalAppraisalReportAsync(NampTechnicalAppraisalReport report, CancellationToken ct = default)
-        => await _context.NampTechnicalAppraisalReports.AddAsync(report, ct);
-
     public async Task<NampFinancialAppraisalReport?> GetFinancialAppraisalReportAsync(Guid nampApplicationId, CancellationToken ct = default)
         => await _context.NampFinancialAppraisalReports
             .FirstOrDefaultAsync(r => r.NampApplicationId == nampApplicationId, ct);

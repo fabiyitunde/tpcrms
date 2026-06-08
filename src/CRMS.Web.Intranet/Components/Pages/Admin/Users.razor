@@ -45,7 +45,6 @@
                         <option value="Auditor">Auditor</option>
                     </optgroup>
                     <optgroup label="── NAMP ──">
-                        <option value="AgriculturalEngineer">Agricultural Engineer</option>
                         <option value="BranchManager">Branch Manager</option>
                         <option value="ZonalManager">Zonal Manager</option>
                         <option value="RegionalManager">Regional Manager</option>
@@ -54,8 +53,6 @@
                         <option value="ZonalCommitteeMember">Zonal Committee Member</option>
                         <option value="RegionalCommitteeMember">Regional Committee Member</option>
                         <option value="HOCommitteeMember">HO Committee Member</option>
-                        <option value="ComplianceOfficer">Compliance Officer</option>
-                        <option value="TrainingCoordinator">Training Coordinator</option>
                         <option value="DeploymentOfficer">Deployment Officer</option>
                     </optgroup>
                 </select>
@@ -332,7 +329,6 @@
 
     private static readonly (string Value, string Label)[] NampRoles =
     [
-        ("AgriculturalEngineer",    "Agricultural Engineer"),
         ("BranchManager",           "Branch Manager"),
         ("ZonalManager",            "Zonal Manager"),
         ("RegionalManager",         "Regional Manager"),
@@ -341,8 +337,6 @@
         ("ZonalCommitteeMember",    "Zonal Committee Member"),
         ("RegionalCommitteeMember", "Regional Committee Member"),
         ("HOCommitteeMember",       "HO Committee Member"),
-        ("ComplianceOfficer",       "Compliance Officer"),
-        ("TrainingCoordinator",     "Training Coordinator"),
         ("DeploymentOfficer",       "Deployment Officer"),
     ];
 
@@ -516,7 +510,6 @@
         "GMFinance"               => "GM Finance",
         "LegalOfficer"            => "Legal Officer",
         "HeadOfLegal"             => "Head of Legal",
-        "AgriculturalEngineer"    => "Agr. Engineer",
         "BranchManager"           => "Branch Mgr",
         "ZonalManager"            => "Zonal Mgr",
         "RegionalManager"         => "Regional Mgr",
@@ -525,8 +518,6 @@
         "ZonalCommitteeMember"    => "Zonal Cmte",
         "RegionalCommitteeMember" => "Regional Cmte",
         "HOCommitteeMember"       => "HO Cmte",
-        "ComplianceOfficer"       => "Compliance",
-        "TrainingCoordinator"     => "Training",
         "DeploymentOfficer"       => "Deployment",
         _                         => role
     };

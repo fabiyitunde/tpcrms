@@ -16,7 +16,11 @@ public record SaveNampFinancialAppraisalReportCommand(
     string? EquityAssessmentNote,
     string? CreditBureauSummary,
     string CreditOfficerRecommendation,
-    string? SummaryNotes
+    string? SummaryNotes,
+    string RepaymentSource,
+    decimal? ProjectedMonthlyRentalRevenue,
+    decimal? UtilisationRateAssumption,
+    string? DemandEvidenceNote
 ) : IRequest<ApplicationResult<NampFinancialAppraisalReportDto>>;
 
 public class SaveNampFinancialAppraisalReportHandler
@@ -38,6 +42,8 @@ public class SaveNampFinancialAppraisalReportHandler
             return ApplicationResult<NampFinancialAppraisalReportDto>.Failure($"Unknown repayment capacity rating: '{request.RepaymentCapacityRating}'.");
         if (!Enum.TryParse<NampCreditRecommendation>(request.CreditOfficerRecommendation, ignoreCase: true, out var creditRec))
             return ApplicationResult<NampFinancialAppraisalReportDto>.Failure($"Unknown credit recommendation: '{request.CreditOfficerRecommendation}'.");
+        if (!Enum.TryParse<NampRepaymentSource>(request.RepaymentSource, ignoreCase: true, out var repaymentSource))
+            return ApplicationResult<NampFinancialAppraisalReportDto>.Failure($"Unknown repayment source: '{request.RepaymentSource}'.");
 
         var existing = await _repo.GetFinancialAppraisalReportAsync(request.NampApplicationId, ct);
 
@@ -47,7 +53,9 @@ public class SaveNampFinancialAppraisalReportHandler
                 request.NampApplicationId, request.UserId,
                 request.MonthlyDisposableIncome, request.DebtServiceCoverageRatio, request.LoanToValueRatio,
                 capacity, request.EquityAssessmentNote, request.CreditBureauSummary,
-                creditRec, request.SummaryNotes);
+                creditRec, request.SummaryNotes,
+                repaymentSource, request.ProjectedMonthlyRentalRevenue,
+                request.UtilisationRateAssumption, request.DemandEvidenceNote);
 
             if (createResult.IsFailure)
                 return ApplicationResult<NampFinancialAppraisalReportDto>.Failure(createResult.Error);
@@ -62,7 +70,9 @@ public class SaveNampFinancialAppraisalReportHandler
                 request.UserId,
                 request.MonthlyDisposableIncome, request.DebtServiceCoverageRatio, request.LoanToValueRatio,
                 capacity, request.EquityAssessmentNote, request.CreditBureauSummary,
-                creditRec, request.SummaryNotes);
+                creditRec, request.SummaryNotes,
+                repaymentSource, request.ProjectedMonthlyRentalRevenue,
+                request.UtilisationRateAssumption, request.DemandEvidenceNote);
 
             await _uow.SaveChangesAsync(ct);
             return ApplicationResult<NampFinancialAppraisalReportDto>.Success(MapToDto(existing));
@@ -73,5 +83,7 @@ public class SaveNampFinancialAppraisalReportHandler
         r.Id, r.NampApplicationId, r.PreparedByUserId, r.SavedAt,
         r.MonthlyDisposableIncome, r.DebtServiceCoverageRatio, r.LoanToValueRatio,
         r.RepaymentCapacityRating.ToString(), r.EquityAssessmentNote,
-        r.CreditBureauSummary, r.CreditOfficerRecommendation.ToString(), r.SummaryNotes);
+        r.CreditBureauSummary, r.CreditOfficerRecommendation.ToString(), r.SummaryNotes,
+        r.RepaymentSource.ToString(), r.ProjectedMonthlyRentalRevenue,
+        r.UtilisationRateAssumption, r.DemandEvidenceNote);
 }

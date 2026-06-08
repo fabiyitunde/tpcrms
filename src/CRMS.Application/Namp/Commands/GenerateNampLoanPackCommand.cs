@@ -44,7 +44,6 @@ public class GenerateNampLoanPackHandler
         if (app is null)
             return ApplicationResult<byte[]>.Failure("NAMP application not found.");
 
-        var techReport = await _repo.GetTechnicalAppraisalReportAsync(request.NampApplicationId, ct);
         var finReport  = await _repo.GetFinancialAppraisalReportAsync(request.NampApplicationId, ct);
         var bureauReports = await _bureauRepo.GetByNampApplicationIdAsync(request.NampApplicationId, ct);
 
@@ -63,7 +62,7 @@ public class GenerateNampLoanPackHandler
         var statusHistory = app.StatusHistory
             .OrderBy(h => h.ChangedAt)
             .Select(h => new NampLoanPackStatusEntry(
-                h.Status.ToString(),
+                h.Status,
                 h.ChangedAt,
                 ResolveName(h.ChangedByUserId),
                 h.Note))
@@ -84,7 +83,7 @@ public class GenerateNampLoanPackHandler
         string? ratifiedByName = app.RatifiedByUserId.HasValue
             ? ResolveName(app.RatifiedByUserId.Value) : null;
 
-        var dto = GetNampApplicationByIdHandler.MapToDto(app, techReport, finReport, bureauReports);
+        var dto = GetNampApplicationByIdHandler.MapToDto(app, finReport, bureauReports);
 
         var data = new NampLoanPackData(
             ApplicationNumber:    app.ApplicationNumber,
@@ -135,7 +134,6 @@ public class GenerateNampLoanPackHandler
             CommitteeAbstainVotes:    committeeReview?.AbstainVotes ?? 0,
             CommitteeConditions:  committeeReview?.ApprovalConditions,
             CommitteeMembers:     committeeMembers,
-            TechnicalAppraisal:   dto.TechnicalAppraisalReport,
             FinancialAppraisal:   dto.FinancialAppraisalReport,
             Guarantors:           dto.Guarantors,
             Collaterals:          dto.Collaterals,

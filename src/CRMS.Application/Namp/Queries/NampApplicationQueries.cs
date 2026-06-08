@@ -31,16 +31,14 @@ public class GetNampApplicationByIdHandler
         if (app is null)
             return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
 
-        var techReport = await _repo.GetTechnicalAppraisalReportAsync(request.Id, ct);
         var finReport = await _repo.GetFinancialAppraisalReportAsync(request.Id, ct);
         var bureauReports = await _bureauRepo.GetByNampApplicationIdAsync(request.Id, ct);
 
-        return ApplicationResult<NampApplicationDto>.Success(MapToDto(app, techReport, finReport, bureauReports));
+        return ApplicationResult<NampApplicationDto>.Success(MapToDto(app, finReport, bureauReports));
     }
 
     internal static NampApplicationDto MapToDto(
         NampApplication app,
-        NampTechnicalAppraisalReport? techReport = null,
         NampFinancialAppraisalReport? finReport = null,
         IReadOnlyList<BureauReport>? bureauReports = null) => new(
         app.Id,
@@ -94,9 +92,6 @@ public class GetNampApplicationByIdHandler
         app.EquityAmount,
         app.LoanAmount,
         // Workflow stages
-        app.TechnicalAppraisalByUserId,
-        app.TechnicalAppraisalAt,
-        app.TechnicalAppraisalNote,
         app.FinancialAppraisalByUserId,
         app.FinancialAppraisalAt,
         app.FinancialAppraisalNote,
@@ -112,8 +107,6 @@ public class GetNampApplicationByIdHandler
         app.PreDeploymentVerifiedByUserId,
         app.PreDeploymentVerifiedAt,
         app.PreDeploymentNote,
-        app.TrainingCompletedByUserId,
-        app.TrainingCompletedAt,
         app.DeployedByUserId,
         app.DeployedAt,
         app.GpsActivated,
@@ -141,7 +134,7 @@ public class GetNampApplicationByIdHandler
         )).ToList(),
         app.StatusHistory.Select(h => new NampStatusHistoryDto(
             h.Id,
-            h.Status.ToString(),
+            h.Status,
             h.ChangedAt,
             h.ChangedByUserId,
             h.Note
@@ -168,7 +161,6 @@ public class GetNampApplicationByIdHandler
             f.TotalAssets, f.TotalLiabilities, f.TotalEquity,
             f.NetCashFromOperating, f.AuditorName, f.AuditorFirm, f.AuditOpinion
         )).ToList(),
-        techReport != null ? SaveNampTechnicalAppraisalReportHandler.MapToDto(techReport) : null,
         finReport != null ? SaveNampFinancialAppraisalReportHandler.MapToDto(finReport) : null,
         (bureauReports ?? []).Select(r => new NampBureauReportDto(
             r.Id,

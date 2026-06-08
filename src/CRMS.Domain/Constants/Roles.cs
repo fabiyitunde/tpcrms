@@ -21,7 +21,6 @@ public static class Roles
     public const string Customer = "Customer";
 
     // ── NAMP-specific roles ──────────────────────────────────────
-    public const string AgriculturalEngineer = "AgriculturalEngineer";       // Stage 2: Technical Appraisal
     public const string BranchManager = "BranchManager";                     // Ratifies Branch committee decision
     public const string ZonalManager = "ZonalManager";                       // Ratifies Zonal committee decision
     public const string RegionalManager = "RegionalManager";                 // Ratifies Regional committee decision
@@ -30,9 +29,7 @@ public static class Roles
     public const string ZonalCommitteeMember = "ZonalCommitteeMember";       // Votes in Zonal Credit Committee
     public const string RegionalCommitteeMember = "RegionalCommitteeMember"; // Votes in Regional Credit Committee
     public const string HOCommitteeMember = "HOCommitteeMember";             // Votes in HO Credit Committee
-    public const string ComplianceOfficer = "ComplianceOfficer";             // Stage 6: Pre-deployment verification
-    public const string TrainingCoordinator = "TrainingCoordinator";         // Stage 7: Training tracking
-    public const string DeploymentOfficer = "DeploymentOfficer";             // Stage 8: Deployment tracking
+    public const string DeploymentOfficer = "DeploymentOfficer";             // Pre-deployment verification and equipment deployment tracking
 
     public static readonly string[] AllRoles =
     [
@@ -51,7 +48,6 @@ public static class Roles
         Auditor,
         Customer,
         // NAMP
-        AgriculturalEngineer,
         BranchManager,
         ZonalManager,
         RegionalManager,
@@ -60,8 +56,6 @@ public static class Roles
         ZonalCommitteeMember,
         RegionalCommitteeMember,
         HOCommitteeMember,
-        ComplianceOfficer,
-        TrainingCoordinator,
         DeploymentOfficer,
     ];
 
@@ -82,7 +76,6 @@ public static class Roles
         { Auditor, "Read-only audit access" },
         { Customer, "Self-service retail loan applicant" },
         // NAMP
-        { AgriculturalEngineer, "NAMP: Conducts technical appraisal of farm and equipment plans" },
         { BranchManager, "NAMP: Ratifies Branch Credit Committee decision" },
         { ZonalManager, "NAMP: Ratifies Zonal Credit Committee decision" },
         { RegionalManager, "NAMP: Ratifies Regional Credit Committee decision" },
@@ -91,9 +84,7 @@ public static class Roles
         { ZonalCommitteeMember, "NAMP: Votes in Zonal Credit Committee" },
         { RegionalCommitteeMember, "NAMP: Votes in Regional Credit Committee" },
         { HOCommitteeMember, "NAMP: Votes in HO Credit Committee" },
-        { ComplianceOfficer, "NAMP: Pre-deployment verification and conditions gate" },
-        { TrainingCoordinator, "NAMP: Tracks training delivery and uploads training certificate" },
-        { DeploymentOfficer, "NAMP: Tracks equipment deployment and confirms GPS activation" },
+        { DeploymentOfficer, "NAMP: Pre-deployment verification and equipment deployment tracking" },
     };
 
     /// <summary>
@@ -118,7 +109,6 @@ public static class Roles
         { Auditor, VisibilityScope.Global },
         { Customer, VisibilityScope.Own },
         // NAMP
-        { AgriculturalEngineer, VisibilityScope.Branch },
         { BranchManager, VisibilityScope.Branch },
         { ZonalManager, VisibilityScope.Global },
         { RegionalManager, VisibilityScope.Global },
@@ -127,8 +117,6 @@ public static class Roles
         { ZonalCommitteeMember, VisibilityScope.Global },
         { RegionalCommitteeMember, VisibilityScope.Global },
         { HOCommitteeMember, VisibilityScope.Global },
-        { ComplianceOfficer, VisibilityScope.Global },
-        { TrainingCoordinator, VisibilityScope.Global },
         { DeploymentOfficer, VisibilityScope.Global },
     };
 
