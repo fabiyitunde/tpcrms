@@ -1,0 +1,30 @@
+# Keep the Docker build context small and reproducible — the Dockerfiles rebuild from source.
+**/bin/
+**/obj/
+**/.vs/
+.git/
+.github/
+.vscode/
+docs/
+tools/
+tests/
+**/*.user
+
+# All environment-specific appsettings are kept OUT of the image. The shared DB
+# connection string is injected at runtime via .env (ConnectionStrings__DefaultConnection),
+# never baked in. Only the committed base appsettings.json is shipped.
+**/appsettings.*.json
+
+# Let the SDK bundled in the build image pick the .NET version. The repo's global.json
+# pins a specific 9.0.3xx SDK band for local dev; excluding it here keeps the container
+# build immune to the floating `sdk:9.0` tag drifting past that band.
+global.json
+
+# Runtime-only artifacts
+.env
+*.env
+deploy.tar.gz
+*.md
+
+# Uploaded documents live in the `crms-storage` volume, never in the image.
+src/CRMS.Web.Intranet/storage/

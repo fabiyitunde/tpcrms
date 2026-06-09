@@ -41,6 +41,10 @@ appsettings.*.json
 *.pfx
 *.key
 secrets.json
+# Deploy env files carry the DB connection string — never commit them.
+.env
+*.env
+deploy.tar.gz
 
 # OS
 .DS_Store

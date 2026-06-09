@@ -1,0 +1,46 @@
+# CRMS.API — REST API (.NET 9). Build context = repo root.
+
+# ---- Build stage ----
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# Copy project files first so `dotnet restore` is cached unless a .csproj changes.
+# API -> Infrastructure -> Application -> Domain (all siblings under /src so the
+# ..\Sibling\.. ProjectReferences resolve).
+COPY src/CRMS.Domain/CRMS.Domain.csproj CRMS.Domain/
+COPY src/CRMS.Application/CRMS.Application.csproj CRMS.Application/
+COPY src/CRMS.Infrastructure/CRMS.Infrastructure.csproj CRMS.Infrastructure/
+COPY src/CRMS.API/CRMS.API.csproj CRMS.API/
+
+RUN dotnet restore CRMS.API/CRMS.API.csproj
+
+# Copy the rest of the source and publish.
+COPY src/CRMS.Domain/ CRMS.Domain/
+COPY src/CRMS.Application/ CRMS.Application/
+COPY src/CRMS.Infrastructure/ CRMS.Infrastructure/
+COPY src/CRMS.API/ CRMS.API/
+
+RUN dotnet publish CRMS.API/CRMS.API.csproj -c Release -o /app/publish /p:UseAppHost=false
+
+# ---- Runtime stage ----
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+
+# curl       — used by the container HEALTHCHECK below (compose gates the Intranet on this).
+# libfontconfig1 — native dependency of QuestPDF/SkiaSharp; without it PDF generation
+#                  (loan packs, offer letters, disbursement memos) crashes at runtime.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Container listens on 8080; the host maps 8980 -> 8080 (see docker-compose.yml).
+EXPOSE 8080
+COPY --from=build /app/publish .
+
+# Kestrel only starts listening AFTER startup migrations + seeding complete, so a
+# successful connection here is a reliable "API is fully ready" signal. No -f: any HTTP
+# response (even 404 on /) counts as ready; only a refused connection is treated as down.
+HEALTHCHECK --interval=10s --timeout=5s --retries=18 --start-period=240s \
+  CMD curl -s -o /dev/null http://localhost:8080/ || exit 1
+
+ENTRYPOINT ["dotnet", "CRMS.API.dll"]

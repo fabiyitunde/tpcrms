@@ -1,0 +1,49 @@
+services:
+  # ---- REST API (host 8980 -> container 8080) ----
+  crms-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: crms-api
+    restart: unless-stopped
+    ports:
+      - "8980:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+    # The shared DB connection string is supplied here, verbatim, as
+    #   ConnectionStrings__DefaultConnection=...
+    # The deploy workflow writes this file from the DEFAULTDB_CONNECTION GitHub secret.
+    env_file:
+      - .env
+    volumes:
+      # Uploaded documents persist across redeploys and are SHARED with the Intranet
+      # (both apps store/read files via FileStorage:LocalPath = ./storage = /app/storage).
+      - crms-storage:/app/storage
+
+  # ---- Blazor Server Intranet (host 8981 -> container 8080) ----
+  crms-intranet:
+    build:
+      context: .
+      dockerfile: Dockerfile.intranet
+    container_name: crms-intranet
+    restart: unless-stopped
+    ports:
+      - "8981:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+    env_file:
+      - .env
+    volumes:
+      - crms-storage:/app/storage
+    # Both apps run EF migrations + seeding on startup against the SAME database.
+    # Gate the Intranet on the API being healthy so the two migration runs are
+    # serialized (API migrates+seeds first; by the time the Intranet starts, its
+    # Migrate() is a no-op and seeding is idempotent) — avoids a fresh-DB race.
+    depends_on:
+      crms-api:
+        condition: service_healthy
+
+volumes:
+  crms-storage:
