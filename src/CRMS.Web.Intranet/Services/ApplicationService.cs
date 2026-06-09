@@ -5549,6 +5549,25 @@ public partial class ApplicationService
         }
     }
 
+    // ── NAMP Credit Bureau ─────────────────────────────────────────────────
+
+    public async Task<ApiResponse> RunNampCreditChecksAsync(Guid nampApplicationId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CreditBureau.Commands.ProcessNampCreditChecksHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.CreditBureau.Commands.ProcessNampCreditChecksCommand(nampApplicationId, userId, ForceRefresh: true),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Credit check failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error running NAMP credit checks for application {Id}", nampApplicationId);
+            return ApiResponse.Fail("Failed to run credit bureau checks");
+        }
+    }
+
     // ── NAMP Advisory ──────────────────────────────────────────────────────
 
     public async Task<ApiResponse> GenerateNampAdvisoryAsync(Guid nampApplicationId, Guid userId)

@@ -7,6 +7,7 @@
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject IConfiguration Config
 
 <PageTitle>@(app?.ApplicationNumber ?? "NAMP Application") - CRMS</PageTitle>
 
@@ -825,6 +826,34 @@ else
         var applicantReports = app.BureauReports.Where(r => r.SubjectType == "NampApplicant").ToList();
         var guarantorReports = app.BureauReports.Where(r => r.SubjectType != "NampApplicant").ToList();
 
+        <!-- Bureau tab header with optional Recheck button -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                @app.BureauReports.Count report(s) on file
+            </div>
+            @if (ShowBureauRecheckButton && (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false))
+            {
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    @if (!string.IsNullOrEmpty(bureauRecheckError))
+                    {
+                        <span style="font-size: 0.8rem; color: var(--danger-600);">@bureauRecheckError</span>
+                    }
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="RunBureauRecheck" disabled="@bureauRechecking">
+                        @if (bureauRechecking)
+                        {
+                            <span class="spinner-sm" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px;"></span>
+                            <span>Running…</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">refresh</span>
+                            <span>Recheck Bureau</span>
+                        }
+                    </button>
+                </div>
+            }
+        </div>
+
         @if (app.BureauReports.Count == 0)
         {
             <div class="card">
@@ -906,9 +935,10 @@ else
                                     { <span class="badge badge-warning">@r.Status</span> }
                                     @if (!string.IsNullOrEmpty(r.ErrorMessage))
                                     {
+                                        var readableErr = ExtractReadableError(r.ErrorMessage);
                                         <span style="font-size: var(--text-xs); color: var(--danger-600); margin-left: 0.5rem;" title="@r.ErrorMessage">
                                             <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">info</span>
-                                            @(r.ErrorMessage.Length > 60 ? r.ErrorMessage[..57] + "…" : r.ErrorMessage)
+                                            @(readableErr.Length > 80 ? readableErr[..77] + "…" : readableErr)
                                         </span>
                                     }
                                 </div>
@@ -987,9 +1017,10 @@ else
                                     { <span class="badge badge-warning">@r.Status</span> }
                                     @if (!string.IsNullOrEmpty(r.ErrorMessage))
                                     {
+                                        var readableErr = ExtractReadableError(r.ErrorMessage);
                                         <span style="font-size: var(--text-xs); color: var(--danger-600); margin-left: 0.5rem;" title="@r.ErrorMessage">
                                             <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">info</span>
-                                            @(r.ErrorMessage.Length > 60 ? r.ErrorMessage[..57] + "…" : r.ErrorMessage)
+                                            @(readableErr.Length > 80 ? readableErr[..77] + "…" : readableErr)
                                         </span>
                                     }
                                 </div>
@@ -1617,148 +1648,238 @@ else
                 }
                 else
                 {
-                    <!-- Advisory Header -->
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem;">
-                        <div>
-                            <h5 style="margin: 0 0 4px;">AI Credit Advisory</h5>
-                            <div style="font-size: 0.8rem; color: var(--text-secondary);">
-                                Generated @nampAdvisory.GeneratedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")
-                                · Model: @nampAdvisory.ModelVersion
+                    var circleCircumference = 2 * Math.PI * 32;
+                    var scoreFill = (double)nampAdvisory.OverallScore / 100.0;
+                    var circleDashOffset = circleCircumference * (1 - scoreFill);
+                    var scoreArcColor = nampAdvisory.OverallRating switch
+                    {
+                        "VeryLow" or "Low" => "#22c55e",
+                        "Medium" => "#f59e0b",
+                        _ => "#ef4444"
+                    };
+                    var recPillColor = nampAdvisory.Recommendation switch
+                    {
+                        "Approve" => "#16a34a",
+                        "ConditionalApprove" => "#d97706",
+                        "Decline" => "#dc2626",
+                        _ => "#64748b"
+                    };
+                    var recLabel = nampAdvisory.Recommendation switch
+                    {
+                        "ConditionalApprove" => "Conditional Approve",
+                        _ => nampAdvisory.Recommendation
+                    };
+
+                    <!-- ── Hero Header ── -->
+                    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 12px; padding: 1.5rem 1.75rem; margin-bottom: 1.5rem; color: white;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 1.5rem;">
+                                <!-- Circular score ring -->
+                                <div style="position: relative; width: 80px; height: 80px; flex-shrink: 0;">
+                                    <svg viewBox="0 0 80 80" style="width: 80px; height: 80px; transform: rotate(-90deg);">
+                                        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="7"/>
+                                        <circle cx="40" cy="40" r="32" fill="none" stroke="@scoreArcColor" stroke-width="7"
+                                                stroke-dasharray="@circleCircumference.ToString("N1")"
+                                                stroke-dashoffset="@circleDashOffset.ToString("N1")"
+                                                stroke-linecap="round"/>
+                                    </svg>
+                                    <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;">
+                                        <span style="font-size: 1.3rem; font-weight: 800;">@nampAdvisory.OverallScore.ToString("N0")</span>
+                                        <span style="font-size: 0.6rem; opacity: 0.5; margin-top: 1px;">/100</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.5; margin-bottom: 3px;">AI Credit Advisory</div>
+                                    <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: 8px;">@nampAdvisory.OverallRating Risk Profile</div>
+                                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                                        <span style="background: @recPillColor; color: white; padding: 3px 12px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;">@recLabel</span>
+                                        @if (nampAdvisory.HasCriticalRedFlags)
+                                        {
+                                            <span style="background: #ef4444; color: white; padding: 3px 12px; border-radius: 20px; font-size: 0.72rem; font-weight: 700;">⚠ Critical Red Flags</span>
+                                        }
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            @{
-                                var advisoryBadge = nampAdvisory.OverallRating switch
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.625rem;">
+                                @if (CanGenerateAdvisory)
                                 {
-                                    "VeryLow" or "Low" => "badge-success",
-                                    "Medium" => "badge-warning",
-                                    _ => "badge-danger"
-                                };
-                                var recBadge = nampAdvisory.Recommendation switch
-                                {
-                                    "Approve" or "ConditionalApprove" => "badge-success",
-                                    "Decline" => "badge-danger",
-                                    _ => "badge-warning"
-                                };
-                            }
-                            <span class="badge @advisoryBadge" style="font-size: 0.95rem; padding: 6px 12px;">
-                                Score: @nampAdvisory.OverallScore.ToString("N1") — @nampAdvisory.OverallRating Risk
-                            </span>
-                            <span class="badge @recBadge" style="font-size: 0.95rem; padding: 6px 12px;">
-                                @nampAdvisory.Recommendation
-                            </span>
-                            @if (CanGenerateAdvisory)
-                            {
-                                <button class="btn btn-outline-secondary btn-sm" @onclick="GenerateAdvisory">
-                                    <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">refresh</span>
-                                    Regenerate
-                                </button>
-                            }
+                                    <button @onclick="GenerateAdvisory" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 5px 12px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                                        <span class="material-symbols-outlined" style="font-size: 14px;">refresh</span>
+                                        Regenerate
+                                    </button>
+                                }
+                                <div style="font-size: 0.68rem; opacity: 0.4; text-align: right; line-height: 1.6;">
+                                    @nampAdvisory.GeneratedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")<br/>
+                                    @nampAdvisory.ModelVersion
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    @if (nampAdvisory.HasCriticalRedFlags)
+                    <!-- ── Recommended Terms (if present) ── -->
+                    @if (nampAdvisory.RecommendedAmount.HasValue)
                     {
-                        <div class="alert alert-danger" style="margin-bottom: 1rem;">
-                            <strong>⚠ Critical Red Flags Identified</strong>
-                            <ul style="margin: 6px 0 0; padding-left: 20px;">
-                                @foreach (var flag in nampAdvisory.RedFlags)
-                                { <li>@flag</li> }
-                            </ul>
-                        </div>
-                    }
-
-                    <!-- Score Grid -->
-                    @if (nampAdvisory.RiskScores.Any())
-                    {
-                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
-                            @foreach (var score in nampAdvisory.RiskScores)
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
+                            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; text-align: center;">
+                                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); margin-bottom: 4px;">Recommended Amount</div>
+                                <div style="font-size: 1.05rem; font-weight: 700;">NGN @nampAdvisory.RecommendedAmount.Value.ToString("N0")</div>
+                            </div>
+                            @if (nampAdvisory.RecommendedTenorMonths.HasValue)
                             {
-                                var scoreBadge = score.Score >= 65 ? "badge-success" : score.Score >= 40 ? "badge-warning" : "badge-danger";
-                                <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; text-align: center;">
-                                    <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;">
-                                        @FormatCategoryName(score.Category)
-                                    </div>
-                                    <div style="font-size: 1.5rem; font-weight: 700;">@score.Score.ToString("N0")</div>
-                                    <span class="badge @scoreBadge" style="font-size: 0.7rem;">@score.Rating</span>
+                                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; text-align: center;">
+                                    <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); margin-bottom: 4px;">Tenor</div>
+                                    <div style="font-size: 1.05rem; font-weight: 700;">@nampAdvisory.RecommendedTenorMonths months</div>
+                                </div>
+                            }
+                            @if (nampAdvisory.RecommendedInterestRate.HasValue)
+                            {
+                                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; text-align: center;">
+                                    <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); margin-bottom: 4px;">Interest Rate</div>
+                                    <div style="font-size: 1.05rem; font-weight: 700;">@nampAdvisory.RecommendedInterestRate.Value.ToString("N2")%</div>
                                 </div>
                             }
                         </div>
                     }
 
-                    <!-- Technical Viability Callout -->
-                    @if (!string.IsNullOrEmpty(nampAdvisory.TechnicalViabilityRating))
+                    <!-- ── Risk Score Cards ── -->
+                    @if (nampAdvisory.RiskScores.Any())
                     {
-                        var tvBadge = nampAdvisory.TechnicalViabilityRating == "Viable" ? "badge-success"
-                                    : nampAdvisory.TechnicalViabilityRating == "Marginal" ? "badge-warning" : "badge-danger";
-                        <div style="background: var(--bg-secondary); border-radius: 8px; padding: 0.875rem 1rem; margin-bottom: 1.25rem; border-left: 4px solid var(--border-color);">
-                            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">TECHNICAL VIABILITY</span>
-                            <span class="badge @tvBadge" style="margin-left: 8px;">@nampAdvisory.TechnicalViabilityRating</span>
-                            <span style="font-size: 0.875rem; margin-left: 12px; color: var(--text-secondary);">
-                                Score: @nampAdvisory.TechnicalViabilityScore?.ToString("N0") / 100
-                            </span>
+                        <div style="margin-bottom: 1.5rem;">
+                            <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-secondary); margin-bottom: 0.75rem;">Risk Category Breakdown</div>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0.75rem;">
+                                @foreach (var score in nampAdvisory.RiskScores)
+                                {
+                                    var cardColor  = score.Score >= 65 ? "#16a34a" : score.Score >= 40 ? "#d97706" : "#dc2626";
+                                    var cardBg     = score.Score >= 65 ? "#f0fdf4" : score.Score >= 40 ? "#fffbeb" : "#fef2f2";
+                                    var cardBorder = score.Score >= 65 ? "#bbf7d0" : score.Score >= 40 ? "#fde68a" : "#fecaca";
+                                    var cardText   = score.Score >= 65 ? "#14532d" : score.Score >= 40 ? "#78350f" : "#7f1d1d";
+                                    <div style="background: @cardBg; border: 1px solid @cardBorder; border-radius: 10px; padding: 1rem;">
+                                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                                            <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">@FormatCategoryName(score.Category)</span>
+                                            <span style="font-size: 1.15rem; font-weight: 800; color: @cardColor;">@score.Score.ToString("N0")</span>
+                                        </div>
+                                        <div style="height: 5px; background: rgba(0,0,0,0.07); border-radius: 3px; overflow: hidden; margin-bottom: 6px;">
+                                            <div style="height: 100%; width: @(Math.Min(100, score.Score))%; background: @cardColor; border-radius: 3px;"></div>
+                                        </div>
+                                        <div style="font-size: 0.7rem; font-weight: 700; color: @cardColor; margin-bottom: @(!string.IsNullOrEmpty(score.Rationale) ? "6px" : "0");">@score.Rating Risk</div>
+                                        @if (!string.IsNullOrEmpty(score.Rationale))
+                                        {
+                                            <div style="font-size: 0.72rem; color: @cardText; line-height: 1.45; opacity: 0.85;">@score.Rationale</div>
+                                        }
+                                    </div>
+                                }
+                            </div>
                         </div>
                     }
 
-                    <!-- Narrative Sections -->
+                    <!-- ── Critical Red Flags ── -->
+                    @if (nampAdvisory.HasCriticalRedFlags && nampAdvisory.RedFlags.Any())
+                    {
+                        <div style="background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+                            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 0.5rem;">
+                                <span class="material-symbols-outlined" style="font-size: 16px; color: #991b1b;">warning</span>
+                                <span style="font-size: 0.78rem; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.05em;">Critical Red Flags</span>
+                            </div>
+                            <ul style="margin: 0; padding-left: 18px; font-size: 0.85rem; color: #7f1d1d; line-height: 1.8;">
+                                @foreach (var flag in nampAdvisory.RedFlags) { <li>@flag</li> }
+                            </ul>
+                        </div>
+                    }
+
+                    <!-- ── Executive Summary ── -->
                     @if (!string.IsNullOrEmpty(nampAdvisory.ExecutiveSummary))
                     {
-                        <div style="margin-bottom: 1rem;">
-                            <div style="font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Executive Summary</div>
-                            <div style="font-size: 0.9rem; line-height: 1.6;">@nampAdvisory.ExecutiveSummary</div>
-                        </div>
-                    }
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                        @if (!string.IsNullOrEmpty(nampAdvisory.StrengthsAnalysis))
-                        {
-                            <div style="background: #f0fdf4; border-radius: 8px; padding: 0.875rem;">
-                                <div style="font-weight: 600; color: #15803d; font-size: 0.85rem; margin-bottom: 6px;">✓ Strengths</div>
-                                <div style="font-size: 0.875rem; line-height: 1.5;">@nampAdvisory.StrengthsAnalysis</div>
+                        <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; margin-bottom: 1.25rem;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem;">
+                                <span class="material-symbols-outlined" style="font-size: 17px; color: #6366f1;">summarize</span>
+                                <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6366f1;">Executive Summary</span>
                             </div>
-                        }
-                        @if (!string.IsNullOrEmpty(nampAdvisory.WeaknessesAnalysis))
-                        {
-                            <div style="background: #fef2f2; border-radius: 8px; padding: 0.875rem;">
-                                <div style="font-weight: 600; color: #b91c1c; font-size: 0.85rem; margin-bottom: 6px;">⚠ Weaknesses</div>
-                                <div style="font-size: 0.875rem; line-height: 1.5;">@nampAdvisory.WeaknessesAnalysis</div>
-                            </div>
-                        }
-                    </div>
-
-                    @if (!string.IsNullOrEmpty(nampAdvisory.MitigatingFactors))
-                    {
-                        <div style="margin-bottom: 0.875rem;">
-                            <div style="font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Mitigating Factors</div>
-                            <div style="font-size: 0.875rem; line-height: 1.5;">@nampAdvisory.MitigatingFactors</div>
+                            <div style="font-size: 0.9rem; line-height: 1.75; color: var(--text-primary);">@nampAdvisory.ExecutiveSummary</div>
                         </div>
                     }
 
-                    @if (!string.IsNullOrEmpty(nampAdvisory.KeyRisks))
+                    <!-- ── Strengths & Weaknesses ── -->
+                    @if (!string.IsNullOrEmpty(nampAdvisory.StrengthsAnalysis) || !string.IsNullOrEmpty(nampAdvisory.WeaknessesAnalysis))
                     {
-                        <div style="margin-bottom: 0.875rem;">
-                            <div style="font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Key Risks</div>
-                            <div style="font-size: 0.875rem; line-height: 1.5;">@nampAdvisory.KeyRisks</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                            @if (!string.IsNullOrEmpty(nampAdvisory.StrengthsAnalysis))
+                            {
+                                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 1.1rem;">
+                                    <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.625rem;">
+                                        <span class="material-symbols-outlined" style="font-size: 16px; color: #16a34a;">thumb_up</span>
+                                        <span style="font-size: 0.72rem; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.06em;">Strengths</span>
+                                    </div>
+                                    <div style="font-size: 0.875rem; line-height: 1.65; color: #166534;">@nampAdvisory.StrengthsAnalysis</div>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(nampAdvisory.WeaknessesAnalysis))
+                            {
+                                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 1.1rem;">
+                                    <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.625rem;">
+                                        <span class="material-symbols-outlined" style="font-size: 16px; color: #dc2626;">thumb_down</span>
+                                        <span style="font-size: 0.72rem; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.06em;">Weaknesses</span>
+                                    </div>
+                                    <div style="font-size: 0.875rem; line-height: 1.65; color: #991b1b;">@nampAdvisory.WeaknessesAnalysis</div>
+                                </div>
+                            }
                         </div>
                     }
 
-                    @if (nampAdvisory.Conditions.Any())
+                    <!-- ── Mitigating Factors & Key Risks ── -->
+                    @if (!string.IsNullOrEmpty(nampAdvisory.MitigatingFactors) || !string.IsNullOrEmpty(nampAdvisory.KeyRisks))
                     {
-                        <div style="margin-bottom: 0.875rem;">
-                            <div style="font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Recommended Conditions</div>
-                            <ul style="font-size: 0.875rem; margin: 0; padding-left: 20px; line-height: 1.7;">
-                                @foreach (var c in nampAdvisory.Conditions) { <li>@c</li> }
-                            </ul>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                            @if (!string.IsNullOrEmpty(nampAdvisory.MitigatingFactors))
+                            {
+                                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 1.1rem;">
+                                    <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.625rem;">
+                                        <span class="material-symbols-outlined" style="font-size: 16px; color: #2563eb;">shield</span>
+                                        <span style="font-size: 0.72rem; font-weight: 700; color: #1e40af; text-transform: uppercase; letter-spacing: 0.06em;">Mitigating Factors</span>
+                                    </div>
+                                    <div style="font-size: 0.875rem; line-height: 1.65; color: #1e3a8a;">@nampAdvisory.MitigatingFactors</div>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(nampAdvisory.KeyRisks))
+                            {
+                                <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 1.1rem;">
+                                    <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.625rem;">
+                                        <span class="material-symbols-outlined" style="font-size: 16px; color: #d97706;">report_problem</span>
+                                        <span style="font-size: 0.72rem; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.06em;">Key Risks</span>
+                                    </div>
+                                    <div style="font-size: 0.875rem; line-height: 1.65; color: #78350f;">@nampAdvisory.KeyRisks</div>
+                                </div>
+                            }
                         </div>
                     }
 
-                    @if (nampAdvisory.Covenants.Any())
+                    <!-- ── Conditions & Covenants ── -->
+                    @if (nampAdvisory.Conditions.Any() || nampAdvisory.Covenants.Any())
                     {
-                        <div>
-                            <div style="font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Recommended Covenants</div>
-                            <ul style="font-size: 0.875rem; margin: 0; padding-left: 20px; line-height: 1.7;">
-                                @foreach (var c in nampAdvisory.Covenants) { <li>@c</li> }
-                            </ul>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            @if (nampAdvisory.Conditions.Any())
+                            {
+                                <div style="border: 1px solid #e9d5ff; background: #faf5ff; border-radius: 10px; padding: 1.1rem;">
+                                    <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.75rem;">
+                                        <span class="material-symbols-outlined" style="font-size: 16px; color: #7c3aed;">checklist</span>
+                                        <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6d28d9;">Precedent Conditions</span>
+                                    </div>
+                                    <ol style="margin: 0; padding-left: 18px; font-size: 0.85rem; line-height: 1.85; color: #4c1d95;">
+                                        @foreach (var c in nampAdvisory.Conditions) { <li>@c</li> }
+                                    </ol>
+                                </div>
+                            }
+                            @if (nampAdvisory.Covenants.Any())
+                            {
+                                <div style="border: 1px solid #a5f3fc; background: #ecfeff; border-radius: 10px; padding: 1.1rem;">
+                                    <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.75rem;">
+                                        <span class="material-symbols-outlined" style="font-size: 16px; color: #0891b2;">gavel</span>
+                                        <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #0e7490;">Ongoing Covenants</span>
+                                    </div>
+                                    <ol style="margin: 0; padding-left: 18px; font-size: 0.85rem; line-height: 1.85; color: #164e63;">
+                                        @foreach (var c in nampAdvisory.Covenants) { <li>@c</li> }
+                                    </ol>
+                                </div>
+                            }
                         </div>
                     }
                 }
@@ -2424,6 +2545,11 @@ else
     private string detailTab = "overview";
     private NampCommitteeReviewDto? committeeReview;
 
+    // Bureau recheck
+    private bool bureauRechecking;
+    private string? bureauRecheckError;
+    private bool ShowBureauRecheckButton => Config.GetValue<bool>("Features:ShowBureauRecheckButton");
+
     // Advisory
     private NampAdvisoryDto? nampAdvisory;
     private bool advisoryLoading;
@@ -2673,6 +2799,26 @@ else
             }
         }
         finally { isLoading = false; }
+    }
+
+    private async Task RunBureauRecheck()
+    {
+        if (User == null) return;
+        bureauRechecking = true;
+        bureauRecheckError = null;
+        try
+        {
+            var result = await AppService.RunNampCreditChecksAsync(Id, User.Id);
+            if (result.Success)
+                await Load();
+            else
+                bureauRecheckError = result.Error ?? "Bureau recheck failed";
+        }
+        catch (Exception ex)
+        {
+            bureauRecheckError = ex.Message;
+        }
+        finally { bureauRechecking = false; }
     }
 
     private async Task SwitchToAdvisoryTab()
@@ -3584,4 +3730,28 @@ else
     }
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private static string ExtractReadableError(string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error)) return string.Empty;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(error);
+            var root = doc.RootElement;
+            foreach (var key in new[] { "message", "error", "description", "detail", "msg" })
+            {
+                if (root.TryGetProperty(key, out var val) && val.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    var s = val.GetString();
+                    if (!string.IsNullOrWhiteSpace(s)) return s;
+                }
+            }
+            // If it's JSON but no known key, return a generic message
+            return "An error occurred during the credit check. See tooltip for details.";
+        }
+        catch
+        {
+            return error;
+        }
+    }
 }

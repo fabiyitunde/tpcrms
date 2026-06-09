@@ -71,7 +71,16 @@ public class ProcessNampCreditChecksHandler
         }
 
         // Idempotency: load existing reports
-        var existingReports = await _bureauRepo.GetByNampApplicationIdAsync(request.NampApplicationId, ct);
+        var existingReports = (await _bureauRepo.GetByNampApplicationIdAsync(request.NampApplicationId, ct)).ToList();
+
+        // On force refresh, delete all existing reports so we get fresh data
+        if (request.ForceRefresh && existingReports.Count > 0)
+        {
+            foreach (var stale in existingReports)
+                _bureauRepo.Delete(stale);
+            await _uow.SaveChangesAsync(ct);
+            existingReports.Clear();
+        }
 
         var results = new List<IndividualCreditCheckResultDto>();
         int successful = 0, failed = 0;
@@ -79,7 +88,7 @@ public class ProcessNampCreditChecksHandler
         foreach (var (name, bvn, guarantorId) in subjects)
         {
             // Skip if already completed and not forcing refresh
-            if (!request.ForceRefresh && existingReports.Any(r =>
+            if (existingReports.Any(r =>
                 r.BVN == bvn &&
                 r.Status == BureauReportStatus.Completed &&
                 r.NampApplicationId == request.NampApplicationId))
