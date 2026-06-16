@@ -1,7 +1,10 @@
 using CRMS.Application.Common;
 using CRMS.Application.Identity.DTOs;
 using CRMS.Application.Identity.Interfaces;
+using CRMS.Application.Notification.Interfaces;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CRMS.Infrastructure.Identity;
@@ -15,6 +18,8 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IUnitOfWork _unitOfWork;
     private readonly JwtSettings _jwtSettings;
+    private readonly INotificationService _notificationService;
+    private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IUserRepository userRepository,
@@ -23,7 +28,9 @@ public class AuthService : IAuthService
         ITokenService tokenService,
         IPasswordHasher passwordHasher,
         IUnitOfWork unitOfWork,
-        IOptions<JwtSettings> jwtSettings)
+        IOptions<JwtSettings> jwtSettings,
+        INotificationService notificationService,
+        ILogger<AuthService> logger)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
@@ -32,6 +39,8 @@ public class AuthService : IAuthService
         _passwordHasher = passwordHasher;
         _unitOfWork = unitOfWork;
         _jwtSettings = jwtSettings.Value;
+        _notificationService = notificationService;
+        _logger = logger;
     }
 
     public async Task<ApplicationResult<LoginResponse>> LoginAsync(LoginRequest request, CancellationToken ct = default)
@@ -75,6 +84,7 @@ public class AuthService : IAuthService
             user.PhoneNumber,
             user.LocationId,
             user.Location?.Name,
+            user.Location?.Type.ToString(),
             user.LastLoginAt,
             roleNames,
             permissionCodes
@@ -120,6 +130,7 @@ public class AuthService : IAuthService
             user.PhoneNumber,
             user.LocationId,
             user.Location?.Name,
+            user.Location?.Type.ToString(),
             user.LastLoginAt,
             roleNames,
             permissionCodes
@@ -154,10 +165,166 @@ public class AuthService : IAuthService
         if (!_passwordHasher.VerifyPassword(request.CurrentPassword, user.PasswordHash))
             return ApplicationResult.Failure("Current password is incorrect");
 
+        var policy = ValidatePasswordPolicy(request.NewPassword);
+        if (!policy.IsSuccess) return policy;
+
         user.SetPasswordHash(_passwordHasher.HashPassword(request.NewPassword));
         user.RevokeRefreshToken();
         await _unitOfWork.SaveChangesAsync(ct);
 
+        // Confirmation email — enqueued (non-blocking); a notification failure must not fail the change.
+        try
+        {
+            await _notificationService.SendEmailAsync(
+                NotificationType.PasswordChanged,
+                user.Email,
+                user.FullName,
+                "PASSWORD_CHANGED",
+                new Dictionary<string, string>
+                {
+                    ["RecipientName"] = user.FullName,
+                    ["ChangedAt"] = DateTime.UtcNow.ToString("dd MMM yyyy HH:mm 'UTC'")
+                },
+                recipientUserId: user.Id,
+                priority: NotificationPriority.Normal,
+                ct: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enqueue password-changed email for {Email}", user.Email);
+        }
+
         return ApplicationResult.Success();
+    }
+
+    public async Task<ApplicationResult> RequestPasswordResetAsync(string email, string resetUrlBase, CancellationToken ct = default)
+    {
+        var user = await _userRepository.GetByEmailAsync(email, ct);
+
+        if (user is not null && user.Status == Domain.Entities.Identity.UserStatus.Active)
+        {
+            // Rate limit: if a reset token was issued for this account within the throttle window,
+            // don't issue/send another (prevents reset-email flooding). Token expiry is 1h, so a
+            // not-yet-near-expiry token means it was just issued.
+            var throttle = TimeSpan.FromSeconds(60);
+            if (user.PasswordResetTokenExpiresAt.HasValue &&
+                user.PasswordResetTokenExpiresAt.Value > DateTime.UtcNow.Add(TimeSpan.FromHours(1) - throttle))
+            {
+                _logger.LogInformation("Password reset for {Email} throttled — a link was sent recently.", user.Email);
+                return ApplicationResult.Success();
+            }
+
+            var rawToken = GenerateResetToken();
+            user.SetPasswordResetToken(HashToken(rawToken), DateTime.UtcNow.AddHours(1));
+            await _unitOfWork.SaveChangesAsync(ct);
+
+            var link = BuildResetLink(resetUrlBase, rawToken);
+            try
+            {
+                // Normal priority keeps the response non-blocking and uniform in timing (anti-enumeration).
+                await _notificationService.SendEmailAsync(
+                    NotificationType.PasswordReset,
+                    user.Email,
+                    user.FullName,
+                    "PASSWORD_RESET",
+                    new Dictionary<string, string>
+                    {
+                        ["RecipientName"] = user.FullName,
+                        ["ResetLink"] = link,
+                        ["ExpiryMinutes"] = "60"
+                    },
+                    recipientUserId: user.Id,
+                    priority: NotificationPriority.Normal,
+                    ct: ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to enqueue password-reset email for {Email}", user.Email);
+            }
+        }
+        else
+        {
+            _logger.LogInformation("Password reset requested for unknown/inactive email — no-op (anti-enumeration).");
+        }
+
+        // Always succeed — never reveal whether the account exists.
+        return ApplicationResult.Success();
+    }
+
+    public async Task<ApplicationResult> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token))
+            return ApplicationResult.Failure("This password reset link is invalid.");
+
+        var policy = ValidatePasswordPolicy(request.NewPassword);
+        if (!policy.IsSuccess) return policy;
+
+        // Look up by the token hash alone — the token is unique, so no email is needed in the link.
+        var candidateHash = HashToken(request.Token);
+        var user = await _userRepository.GetByPasswordResetTokenHashAsync(candidateHash, ct);
+
+        if (user is null || !user.IsPasswordResetTokenValid(candidateHash))
+            return ApplicationResult.Failure("This password reset link is invalid or has expired. Please request a new one.");
+
+        user.SetPasswordHash(_passwordHasher.HashPassword(request.NewPassword));
+        user.ClearPasswordResetToken();   // single-use
+        user.RevokeRefreshToken();         // invalidate existing sessions
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        try
+        {
+            await _notificationService.SendEmailAsync(
+                NotificationType.PasswordChanged,
+                user.Email,
+                user.FullName,
+                "PASSWORD_CHANGED",
+                new Dictionary<string, string>
+                {
+                    ["RecipientName"] = user.FullName,
+                    ["ChangedAt"] = DateTime.UtcNow.ToString("dd MMM yyyy HH:mm 'UTC'")
+                },
+                recipientUserId: user.Id,
+                priority: NotificationPriority.Normal,
+                ct: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enqueue password-changed email after reset for {Email}", user.Email);
+        }
+
+        return ApplicationResult.Success();
+    }
+
+    /// <summary>
+    /// Shared password strength policy: at least 8 characters with an uppercase letter,
+    /// a lowercase letter, and a digit. Applied on password change and reset.
+    /// </summary>
+    private static ApplicationResult ValidatePasswordPolicy(string? password)
+    {
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 8)
+            return ApplicationResult.Failure("Password must be at least 8 characters.");
+        if (!password.Any(char.IsUpper) || !password.Any(char.IsLower) || !password.Any(char.IsDigit))
+            return ApplicationResult.Failure(
+                "Password must include an uppercase letter, a lowercase letter, and a number.");
+        return ApplicationResult.Success();
+    }
+
+    private static string GenerateResetToken()
+    {
+        var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('='); // base64url
+    }
+
+    private static string HashToken(string rawToken)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(rawToken));
+        return Convert.ToHexString(hash); // 64-char hex
+    }
+
+    private static string BuildResetLink(string resetUrlBase, string rawToken)
+    {
+        // Token only — base64url is URL-safe and survives click-tracking re-encoding. No PII in the link.
+        var sep = resetUrlBase.Contains('?') ? "&" : "?";
+        return $"{resetUrlBase}{sep}token={Uri.EscapeDataString(rawToken)}";
     }
 }

@@ -112,6 +112,20 @@ public class LoanProduct : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>
+    /// Changes the product segment/channel (Retail / Corporate / Namp). Determines which
+    /// origination flow the product belongs to — e.g. NAMP ratification resolves its product
+    /// via Type == LoanProductType.Namp.
+    /// </summary>
+    public Result ChangeSegment(LoanProductType type)
+    {
+        if (Status == ProductStatus.Discontinued)
+            return Result.Failure("Cannot modify a discontinued product");
+
+        Type = type;
+        return Result.Success();
+    }
+
     public Result Activate()
     {
         if (Status == ProductStatus.Discontinued)

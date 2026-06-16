@@ -128,6 +128,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<NA.NampWorkflowConfig> NampWorkflowConfigs => Set<NA.NampWorkflowConfig>();
     public DbSet<NA.NampWorkflowInstance> NampWorkflowInstances => Set<NA.NampWorkflowInstance>();
     public DbSet<NA.NampGuarantor> NampGuarantors => Set<NA.NampGuarantor>();
+    public DbSet<NA.NampDirector> NampDirectors => Set<NA.NampDirector>();
     public DbSet<NA.NampCollateral> NampCollaterals => Set<NA.NampCollateral>();
     public DbSet<NA.NampFinancialStatement> NampFinancialStatements => Set<NA.NampFinancialStatement>();
     public DbSet<NA.NampFinancialAppraisalReport> NampFinancialAppraisalReports => Set<NA.NampFinancialAppraisalReport>();

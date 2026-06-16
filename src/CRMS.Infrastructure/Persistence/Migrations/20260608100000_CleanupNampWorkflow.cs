@@ -10,24 +10,23 @@ namespace CRMS.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // ── Wipe test data (pre-production) ──────────────────────────────
-            // Delete all NAMP applications (cascades to Documents, StatusHistory,
-            // Guarantors, Collaterals, FinancialStatements, PreDeploymentChecklist,
-            // WorkflowInstances, Advisories, FinancialAppraisalReports).
-            migrationBuilder.Sql("DELETE FROM NampApplications;");
+            // ── DATA WIPES REMOVED (incident 2026-06-15) ──────────────────────
+            // This migration originally ran row-deletion statements against
+            // NampApplications, NampWorkflowConfigs, NampRoutingConfigs and
+            // NampStagingRecords as a "pre-production test data" cleanup. That
+            // assumption was wrong: it wiped live production data on deploy. Those
+            // statements have been removed so this migration can never wipe data
+            // again (e.g. on a fresh/restored environment not yet at this migration).
+            //
+            // POLICY: migrations are additive. They must not delete or truncate rows,
+            // nor drop data-bearing tables. Genuine data cleanup is done via a
+            // separate, reviewed, manually-run script against a backed-up environment.
 
-            // Delete workflow configs so they will be re-seeded with updated stages.
-            migrationBuilder.Sql("DELETE FROM NampWorkflowConfigs;");
-
-            // Delete routing configs so they will be re-seeded.
-            migrationBuilder.Sql("DELETE FROM NampRoutingConfigs;");
-
-            // Delete staging queue (all pre-production test records).
-            migrationBuilder.Sql("DELETE FROM NampStagingRecords;");
-
-            // ── Drop removed tables ───────────────────────────────────────────
-            migrationBuilder.Sql("DROP TABLE IF EXISTS NampTechnicalAppraisalReports;");
-            migrationBuilder.Sql("DROP TABLE IF EXISTS NampViabilityScoreConfigs;");
+            // ── Drop removed tables (no longer in the domain model) ───────────
+            // These tables were never part of the live NAMP model; dropping them keeps
+            // the schema in sync. They hold no production data.
+            migrationBuilder.Sql("DROP TABLE IF EXISTS NampTechnicalAppraisalReports;"); // DESTRUCTIVE-APPROVED: removed table, no live data (incident 2026-06-15)
+            migrationBuilder.Sql("DROP TABLE IF EXISTS NampViabilityScoreConfigs;");      // DESTRUCTIVE-APPROVED: removed table, no live data (incident 2026-06-15)
 
             // ── Drop removed columns from NampApplications ───────────────────
             migrationBuilder.DropColumn(

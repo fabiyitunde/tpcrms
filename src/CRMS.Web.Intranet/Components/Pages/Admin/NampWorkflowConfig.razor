@@ -2,13 +2,14 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
 @using CRMS.Application.Namp.DTOs
 @inject ApplicationService AppService
+@inject AuthService AuthService
 
 <PageTitle>NAMP Workflow Stages - CRMS</PageTitle>
 
 <div class="page-header">
     <div>
         <h1 class="page-title">NAMP Workflow Stages</h1>
-        <p class="page-subtitle">Read-only view of the NAMP application workflow stage configuration</p>
+        <p class="page-subtitle">Tune the responsible role and SLA for each workflow stage. The stage order and routing are fixed by the system.</p>
     </div>
 </div>
 
@@ -39,6 +40,7 @@
                         <th>SLA</th>
                         <th>Terminal</th>
                         <th>Description</th>
+                        <th style="width: 60px;"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -68,6 +70,11 @@
                                 }
                             </td>
                             <td style="font-size: 0.85rem; color: var(--text-secondary); max-width: 320px;">@cfg.Description</td>
+                            <td>
+                                <button class="btn btn-ghost btn-sm" title="Edit role & SLA" @onclick="() => OpenEdit(cfg)">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+                                </button>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -76,14 +83,121 @@
     </div>
 </div>
 
+@if (editing is not null)
+{
+    <div class="modal-backdrop show" @onclick="CloseEdit">
+        <div class="modal" style="max-width: 460px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Edit Stage — @editing.DisplayName</h3>
+                <button class="modal-close" @onclick="CloseEdit">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Status Code</label>
+                    <input class="form-control" value="@editing.Status" disabled />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assigned Role</label>
+                    <select class="form-control" @bind="editRole">
+                        @foreach (var role in AssignableRoles)
+                        {
+                            <option value="@role">@FormatRole(role)</option>
+                        }
+                    </select>
+                    <small class="form-hint">The role responsible for acting on applications at this stage.</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">SLA (hours)</label>
+                    <input type="number" min="0" class="form-control" @bind="editSlaHours" />
+                    <small class="form-hint">
+                        @if (editSlaHours > 0)
+                        {
+                            <span>≈ @SlaDisplay(editSlaHours) — drives the overdue clock. Set 0 for no SLA (e.g. terminal stages).</span>
+                        }
+                        else
+                        {
+                            <span>No SLA tracked for this stage.</span>
+                        }
+                    </small>
+                </div>
+                @if (!string.IsNullOrEmpty(editError))
+                {
+                    <div class="alert alert-danger" style="font-size: var(--text-sm);">@editError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseEdit">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveEdit" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<NampWorkflowConfigDto> configs = [];
     private bool isLoading = true;
+
+    private NampWorkflowConfigDto? editing;
+    private string editRole = "";
+    private int editSlaHours;
+    private string? editError;
+    private bool isSaving;
+
+    // Roles that can own a NAMP workflow stage (matches the seeded assignments).
+    private static readonly string[] AssignableRoles =
+    [
+        "LoanOfficer", "CreditOfficer", "CommitteeMember",
+        "FinalApprover", "DeploymentOfficer", "SystemAdmin"
+    ];
 
     protected override async Task OnInitializedAsync()
     {
         try { configs = await AppService.GetNampWorkflowConfigsAsync(); }
         finally { isLoading = false; }
+    }
+
+    private void OpenEdit(NampWorkflowConfigDto cfg)
+    {
+        editing = cfg;
+        editRole = AssignableRoles.Contains(cfg.AssignedRole) ? cfg.AssignedRole : "SystemAdmin";
+        editSlaHours = cfg.SlaHours;
+        editError = null;
+    }
+
+    private void CloseEdit()
+    {
+        editing = null;
+        editError = null;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (editing is null) return;
+        if (editSlaHours < 0) { editError = "SLA hours cannot be negative."; return; }
+
+        isSaving = true;
+        editError = null;
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            var result = await AppService.UpdateNampWorkflowConfigAsync(editing.Id, editRole, editSlaHours, userId);
+            if (result.Success)
+            {
+                editing = null;
+                configs = await AppService.GetNampWorkflowConfigsAsync();
+            }
+            else
+            {
+                editError = result.Error ?? "Failed to save.";
+            }
+        }
+        finally { isSaving = false; }
     }
 
     private static string StageBadgeClass(NampWorkflowConfigDto cfg)

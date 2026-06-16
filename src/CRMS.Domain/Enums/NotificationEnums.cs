@@ -44,7 +44,8 @@ public enum NotificationType
     LoginAlert,
     PasswordChanged,
     PasswordReset,
-    
+    AccountCreated,
+
     // System
     SystemAlert,
     Reminder,

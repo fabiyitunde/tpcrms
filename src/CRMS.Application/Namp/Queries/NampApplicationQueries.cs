@@ -190,6 +190,39 @@ public class GetNampApplicationByIdHandler
             i.ConfirmedByUserId,
             i.ConfirmedAt,
             i.Notes
+        )).ToList(),
+        // CAC company profile
+        app.CacStatus,
+        app.CacEntityType,
+        app.CacRegistrationDate,
+        app.CacNatureOfBusiness,
+        app.CacShareCapital,
+        app.CacCompanyId,
+        app.CacAddress,
+        app.CacCity,
+        app.CacState,
+        app.CacFetchedAt,
+        app.Directors.Select(d => new NampDirectorDto(
+            d.Id,
+            d.CacDirectorId,
+            d.SourcedFromCac,
+            d.FullName,
+            d.Gender,
+            d.DateOfBirth,
+            d.Nationality,
+            d.Occupation,
+            d.Email,
+            d.PhoneNumber,
+            d.Address,
+            d.IsChairman,
+            d.DateOfAppointment,
+            d.AffiliateType,
+            d.TypeOfShares,
+            d.NumSharesAllotted,
+            d.ShareholdingPercent,
+            d.Bvn,
+            d.IdentityNumber,
+            d.BvnVerified
         )).ToList()
     );
 }

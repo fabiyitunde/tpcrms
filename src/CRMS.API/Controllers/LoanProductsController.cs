@@ -106,6 +106,7 @@ public class LoanProductsController : ControllerBase
             id,
             request.Name,
             request.Description,
+            request.Type,
             request.MinAmount,
             request.MaxAmount,
             request.Currency,
@@ -159,6 +160,7 @@ public record CreateLoanProductRequest(
 public record UpdateLoanProductRequest(
     string Name,
     string Description,
+    LoanProductType Type,
     decimal MinAmount,
     decimal MaxAmount,
     string Currency,

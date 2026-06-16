@@ -52,7 +52,7 @@ public class NampStagingRecord : AggregateRoot
         string? applicantPhone = null,
         string? applicantEmail = null)
     {
-        return new NampStagingRecord
+        var record = new NampStagingRecord
         {
             ApplicationReference = applicationReference,
             CrmsApplicationNumber = GenerateCrmsApplicationNumber(),
@@ -66,6 +66,11 @@ public class NampStagingRecord : AggregateRoot
             ApplicantEmail = applicantEmail,
             ReceivedAt = DateTime.UtcNow,
         };
+
+        // Only genuinely-new staged records raise this (the webhook's re-stage path calls
+        // UpdatePayload, not Create) — it drives the "new in your branch queue" notification.
+        record.AddDomainEvent(new NampStagingRecordReceivedEvent(record.Id));
+        return record;
     }
 
     public void ResolveBranch(Guid branchId, Guid? officeId, Guid? locationId)
@@ -111,3 +116,6 @@ public class NampStagingRecord : AggregateRoot
         RecalledByUserId = recalledByUserId;
     }
 }
+
+// Domain Events
+public record NampStagingRecordReceivedEvent(Guid StagingRecordId) : DomainEvent;

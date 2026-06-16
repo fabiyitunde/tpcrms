@@ -25,7 +25,9 @@
       "Bash(cmd /c \"tasklist /FI \\\\\"PID eq 20736\\\\\"\")",
       "Bash(xargs -r kill -9)",
       "Bash(powershell -Command \"Get-Process dotnet -ErrorAction SilentlyContinue | Stop-Process -Force\")",
-      "Bash(curl -s http://localhost:5230/api/seed/status)"
+      "Bash(curl -s http://localhost:5230/api/seed/status)",
+      "Bash(sed -n '/enum NotificationType/,/}/p' src/CRMS.Domain/Enums/NotificationEnums.cs)",
+      "Bash(sed -n '/class RegisterUserHandler/,/public async Task/p' src/CRMS.Application/Identity/Commands/RegisterUserCommand.cs)"
     ]
   }
 }

@@ -5,6 +5,7 @@ using CRMS.Application.Identity.Interfaces;
 using CRMS.Web.Intranet.Models;
 using AppLoginRequest = CRMS.Application.Identity.DTOs.LoginRequest;
 using AppChangePasswordRequest = CRMS.Application.Identity.DTOs.ChangePasswordRequest;
+using AppResetPasswordRequest = CRMS.Application.Identity.DTOs.ResetPasswordRequest;
 
 namespace CRMS.Web.Intranet.Services;
 
@@ -95,7 +96,8 @@ public class AuthService : AuthenticationStateProvider
                 Roles = appUser.Roles,
                 Permissions = appUser.Permissions,
                 LocationId = appUser.LocationId,
-                LocationName = appUser.LocationName
+                LocationName = appUser.LocationName,
+                LocationType = appUser.LocationType
             };
 
             await _localStorage.SetItemAsync(TokenKey, result.Data.AccessToken);
@@ -158,6 +160,39 @@ public class AuthService : AuthenticationStateProvider
         {
             _logger.LogError(ex, "Error changing password");
             return new LoginResponse { Success = false, Error = "Failed to change password. Please try again." };
+        }
+    }
+
+    public async Task<LoginResponse> RequestPasswordResetAsync(string email, string resetUrlBase)
+    {
+        try
+        {
+            var result = await _authService.RequestPasswordResetAsync(email, resetUrlBase);
+            // Always reported as success to avoid revealing whether the account exists.
+            return result.IsSuccess
+                ? new LoginResponse { Success = true }
+                : new LoginResponse { Success = true };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error requesting password reset");
+            return new LoginResponse { Success = false, Error = "Something went wrong. Please try again." };
+        }
+    }
+
+    public async Task<LoginResponse> ResetPasswordAsync(string token, string newPassword)
+    {
+        try
+        {
+            var result = await _authService.ResetPasswordAsync(new AppResetPasswordRequest(token, newPassword));
+            return result.IsSuccess
+                ? new LoginResponse { Success = true }
+                : new LoginResponse { Success = false, Error = result.Error ?? "Failed to reset password" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resetting password");
+            return new LoginResponse { Success = false, Error = "Failed to reset password. Please try again." };
         }
     }
 

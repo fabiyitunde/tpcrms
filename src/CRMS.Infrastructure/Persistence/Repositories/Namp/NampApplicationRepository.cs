@@ -25,7 +25,19 @@ public class NampApplicationRepository : INampApplicationRepository
             .Include(x => x.Collaterals)
             .Include(x => x.FinancialStatements)
             .Include(x => x.PreDeploymentChecklist.OrderBy(i => i.SortOrder))
+            .Include(x => x.Directors)
             .FirstOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<NampApplication?> GetByCommitteeReviewIdAsync(Guid committeeReviewId, CancellationToken ct = default)
+        => await _context.NampApplications
+            .Include(x => x.Documents)
+            .Include(x => x.StatusHistory.OrderByDescending(h => h.ChangedAt))
+            .Include(x => x.Guarantors)
+            .Include(x => x.Collaterals)
+            .Include(x => x.FinancialStatements)
+            .Include(x => x.PreDeploymentChecklist.OrderBy(i => i.SortOrder))
+            .Include(x => x.Directors)
+            .FirstOrDefaultAsync(x => x.CurrentCommitteeReviewId == committeeReviewId, ct);
 
     public async Task<NampApplication?> GetByApplicationReferenceAsync(string applicationReference, CancellationToken ct = default)
         => await _context.NampApplications.FirstOrDefaultAsync(x => x.ApplicationReference == applicationReference, ct);
@@ -106,6 +118,15 @@ public class NampApplicationRepository : INampApplicationRepository
 
     public async Task<NampDocument?> GetNampDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
         => await _context.NampDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct);
+
+    public async Task AddDirectorAsync(NampDirector director, CancellationToken ct = default)
+        => await _context.NampDirectors.AddAsync(director, ct);
+
+    public async Task<NampDirector?> GetDirectorByIdAsync(Guid directorId, CancellationToken ct = default)
+        => await _context.NampDirectors.FirstOrDefaultAsync(d => d.Id == directorId, ct);
+
+    public void RemoveDirector(NampDirector director)
+        => _context.NampDirectors.Remove(director);
 
     public async Task<NampFinancialAppraisalReport?> GetFinancialAppraisalReportAsync(Guid nampApplicationId, CancellationToken ct = default)
         => await _context.NampFinancialAppraisalReports

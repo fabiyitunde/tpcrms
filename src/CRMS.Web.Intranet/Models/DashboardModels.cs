@@ -16,6 +16,19 @@ public class DashboardSummary
     public List<RecentActivity> RecentActivities { get; set; } = [];
 }
 
+public class NampDashboardSummary
+{
+    public int TotalApplications { get; set; }
+    public int InPipeline { get; set; }
+    public int Approved { get; set; }
+    public int Declined { get; set; }
+    public int ActiveLoans { get; set; }
+    public decimal ActiveLoanValue { get; set; }
+    public int NewThisMonth { get; set; }
+    public int ApplicationsGrowthPercent { get; set; }
+    public List<ApplicationByStatus> ByStatus { get; set; } = [];
+}
+
 public class ApplicationByStatus
 {
     public string Status { get; set; } = string.Empty;

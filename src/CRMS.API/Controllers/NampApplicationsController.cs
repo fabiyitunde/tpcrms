@@ -23,7 +23,6 @@ public class NampApplicationsController : ControllerBase
     private readonly SubmitNampApplicationHandler _submit;
     private readonly SubmitNampFinancialAppraisalHandler _financialAppraisal;
     private readonly CirculateNampToCommitteeHandler _circulate;
-    private readonly RecordNampCommitteeOutcomeHandler _committeeOutcome;
     private readonly RatifyNampDecisionHandler _ratify;
     private readonly DeclineNampRatificationHandler _declineRatification;
     private readonly RecordNampOfferAcceptanceHandler _offerAcceptance;
@@ -44,7 +43,6 @@ public class NampApplicationsController : ControllerBase
         SubmitNampApplicationHandler submit,
         SubmitNampFinancialAppraisalHandler financialAppraisal,
         CirculateNampToCommitteeHandler circulate,
-        RecordNampCommitteeOutcomeHandler committeeOutcome,
         RatifyNampDecisionHandler ratify,
         DeclineNampRatificationHandler declineRatification,
         RecordNampOfferAcceptanceHandler offerAcceptance,
@@ -64,7 +62,6 @@ public class NampApplicationsController : ControllerBase
         _submit = submit;
         _financialAppraisal = financialAppraisal;
         _circulate = circulate;
-        _committeeOutcome = committeeOutcome;
         _ratify = ratify;
         _declineRatification = declineRatification;
         _offerAcceptance = offerAcceptance;
@@ -149,17 +146,6 @@ public class NampApplicationsController : ControllerBase
         var userId = GetCurrentUserId();
         var result = await _circulate.Handle(
             new CirculateNampToCommitteeCommand(id, userId, body.Members, body.RequiredVotes, body.MinimumApprovalVotes, body.DeadlineHours), ct);
-        return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
-    }
-
-    // ── Stage 4b: Record Committee Outcome ────────────────────────────────
-
-    [HttpPost("{id:guid}/committee-outcome")]
-    public async Task<IActionResult> RecordCommitteeOutcome(Guid id, [FromBody] OutcomeRequest body, CancellationToken ct)
-    {
-        var userId = GetCurrentUserId();
-        var result = await _committeeOutcome.Handle(
-            new RecordNampCommitteeOutcomeCommand(id, userId, body.IsApproved, body.Note), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
@@ -269,7 +255,6 @@ public class NampApplicationsController : ControllerBase
 
 public record RecallRequest(Guid StagingRecordId);
 public record AppraisalRequest(bool IsApproved, string? Note);
-public record OutcomeRequest(bool IsApproved, string? Note);
 public record NoteRequest(string? Note);
 public record DeploymentRequest(bool GpsActivated, string? Note);
 public record NampUploadDocumentRequest(string Stage, string FileName, string ContentType, long FileSize, string StoragePath, string Category = "General", string? Description = null);

@@ -7,14 +7,11 @@ namespace CRMS.Infrastructure.Documents;
 
 public class NampLoanPackPdfGenerator : INampLoanPackGenerator
 {
-    private const string DarkBlue  = "#1a365d";
-    private const string AccentBlue = "#2b6cb0";
-    private const string LightBlue = "#ebf4ff";
-    private const string MediumGray = "#e2e8f0";
-    private const string LightGray = "#f7fafc";
-    private const string GreenDark  = "#276749";
-    private const string GreenLight = "#f0fff4";
-    private const string OrangeDark = "#c05621";
+    // Bank of Agriculture brand palette — see BoaBrand.
+    private const string DarkBlue  = BoaBrand.Primary;
+    private const string AccentBlue = BoaBrand.Accent;
+    private const string MediumGray = BoaBrand.MediumGray;
+    private const string LightGray = BoaBrand.LightGray;
 
     public Task<byte[]> GenerateAsync(NampLoanPackData data, CancellationToken ct = default)
     {
@@ -47,10 +44,7 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
             {
                 row.RelativeItem().Column(lc =>
                 {
-                    lc.Item().Width(52).Height(52)
-                        .Background(Color.FromHex(DarkBlue))
-                        .AlignCenter().AlignMiddle()
-                        .Text("BANK").FontSize(10).Bold().FontColor(Colors.White);
+                    lc.Item().Element(c => BoaBrand.RenderLogo(c, 52));
                 });
 
                 row.RelativeItem(3).AlignCenter().Column(tc =>
@@ -127,7 +121,7 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
             {
                 t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
                 InfoCell(t, "Applicant Name",    data.ApplicantName);
-                InfoCell(t, "Category",          data.ApplicantCategory == "AgroServiceCompany" ? "Agro-Service Company" : "Farmer");
+                InfoCell(t, "Category",          FormatCategory(data.ApplicantCategory));
                 InfoCell(t, "BOA Account No.",   data.BoaAccountNumber);
                 InfoCell(t, "BOA Account Name",  data.BoaAccountName ?? "—");
                 InfoCell(t, "Phone",             data.ApplicantPhone ?? "—");
@@ -152,12 +146,58 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
                 }
                 else
                 {
-                    InfoCell(t, "Company Name", data.CompanyName ?? "—");
-                    InfoCell(t, "RC Number",    data.RcNumber ?? "—");
-                    InfoCell(t, "Industry",     data.IndustrySector ?? "—");
-                    InfoCell(t, "State",        data.StateOfResidence ?? "—");
+                    InfoCell(t, "Company Name",  data.CompanyName ?? "—");
+                    InfoCell(t, "RC Number",     data.RcNumber ?? "—");
+                    InfoCell(t, "Industry",      data.IndustrySector ?? "—");
+                    InfoCell(t, "State",         data.StateOfResidence ?? "—");
+                    if (data.CacFetchedAt.HasValue)
+                    {
+                        InfoCell(t, "CAC Status",    data.CacStatus ?? "—");
+                        InfoCell(t, "Entity Type",   data.CacEntityType ?? "—");
+                        InfoCell(t, "Registered On", data.CacRegistrationDate ?? "—");
+                        InfoCell(t, "Share Capital", data.CacShareCapital.HasValue ? $"NGN {data.CacShareCapital:N2}" : "—");
+                        if (!string.IsNullOrWhiteSpace(data.CacNatureOfBusiness))
+                            InfoCellWide(t, "Nature of Business", data.CacNatureOfBusiness);
+                        if (!string.IsNullOrWhiteSpace(data.CacAddress))
+                            InfoCellWide(t, "Registered Address", data.CacAddress);
+                    }
                 }
             });
+
+            // ── Directors & Shareholders (Agro-Service) ──────────────────────
+            if (data.Directors.Count > 0)
+            {
+                col.Item().Element(c => SectionHeader(c, $"Directors & Shareholders ({data.Directors.Count})"));
+                col.Item().PaddingBottom(8).Table(t =>
+                {
+                    t.ColumnsDefinition(cd =>
+                    {
+                        cd.RelativeColumn(2.6f);
+                        cd.RelativeColumn(1.6f);
+                        cd.RelativeColumn(1.2f);
+                        cd.RelativeColumn();
+                        cd.RelativeColumn(1.3f);
+                        cd.RelativeColumn();
+                    });
+
+                    TableHeaderCell(t, "Name");
+                    TableHeaderCell(t, "Role");
+                    TableHeaderCell(t, "Shares");
+                    TableHeaderCell(t, "Holding %");
+                    TableHeaderCell(t, "BVN");
+                    TableHeaderCell(t, "Source");
+
+                    foreach (var d in data.Directors)
+                    {
+                        TableBodyCell(t, d.FullName);
+                        TableBodyCell(t, d.IsChairman ? "Chairman" : (string.IsNullOrEmpty(d.AffiliateType) ? "Director" : d.AffiliateType));
+                        TableBodyCell(t, d.NumSharesAllotted?.ToString("N0") ?? "—");
+                        TableBodyCell(t, d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:N2}%" : "—");
+                        TableBodyCell(t, string.IsNullOrEmpty(d.Bvn) ? "—" : d.Bvn);
+                        TableBodyCell(t, d.SourcedFromCac ? "CAC" : "Manual");
+                    }
+                });
+            }
 
             // ── Equipment & Loan Terms ───────────────────────────────────────
             col.Item().Element(c => SectionHeader(c, "Equipment & Loan Terms"));
@@ -173,6 +213,7 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
                 InfoCell(t, "Tenor",             data.RequestedTenorMonths.HasValue ? $"{data.RequestedTenorMonths} months" : "—");
                 InfoCell(t, "LTV",               data.FinancialAppraisal?.LoanToValueRatio.HasValue == true
                     ? $"{data.FinancialAppraisal.LoanToValueRatio:P1}" : "—");
+                InfoCell(t, "Approved Rate",     data.ApprovedInterestRate.HasValue ? $"{data.ApprovedInterestRate:N2}% p.a." : "—");
             });
 
 
@@ -190,6 +231,13 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
                     InfoCell(t, "Repayment Capacity",        fa.RepaymentCapacityRating);
                     InfoCell(t, "Credit Recommendation",     fa.CreditOfficerRecommendation);
                     InfoCell(t, "Prepared On",               fa.SavedAt.ToLocalTime().ToString("dd MMM yyyy"));
+                    InfoCell(t, "Repayment Source",          FormatRepaymentSource(fa.RepaymentSource));
+                    if (fa.ProjectedMonthlyRentalRevenue.HasValue)
+                        InfoCell(t, "Projected Rental Rev.", $"NGN {fa.ProjectedMonthlyRentalRevenue:N2}");
+                    if (fa.UtilisationRateAssumption.HasValue)
+                        InfoCell(t, "Utilisation Assumption", $"{fa.UtilisationRateAssumption:N1}%");
+                    if (!string.IsNullOrWhiteSpace(fa.DemandEvidenceNote))
+                        InfoCellWide(t, "Demand Evidence", fa.DemandEvidenceNote);
                     if (!string.IsNullOrWhiteSpace(fa.EquityAssessmentNote))
                         InfoCellWide(t, "Equity Assessment", fa.EquityAssessmentNote);
                     if (!string.IsNullOrWhiteSpace(fa.CreditBureauSummary))
@@ -334,8 +382,14 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
                     t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
                     InfoCell(t, "Committee Tier",  data.CommitteeTier);
                     InfoCell(t, "Decision",        data.CommitteeDecision ?? "Pending");
-                    InfoCell(t, "Approval Votes",  data.CommitteeApprovalVotes.ToString());
+                    InfoCell(t, "Decision Date",   data.CommitteeDecisionAt?.ToLocalTime().ToString("dd MMM yyyy") ?? "—");
+                    InfoCell(t, "Approval Votes",  data.CommitteeRequiredVotes > 0
+                        ? $"{data.CommitteeApprovalVotes} (min {data.CommitteeMinimumApprovalVotes} of {data.CommitteeRequiredVotes})"
+                        : data.CommitteeApprovalVotes.ToString());
                     InfoCell(t, "Rejection Votes", data.CommitteeRejectionVotes.ToString());
+                    InfoCell(t, "Abstentions",     data.CommitteeAbstainVotes.ToString());
+                    if (!string.IsNullOrWhiteSpace(data.CommitteeDecisionNote))
+                        InfoCellWide(t, "Decision Note", data.CommitteeDecisionNote);
                     if (!string.IsNullOrWhiteSpace(data.CommitteeConditions))
                         InfoCellWide(t, "Approval Conditions", data.CommitteeConditions);
                 });
@@ -485,18 +539,42 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
         }
     }
 
+    private static string FormatCategory(string category) => category switch
+    {
+        "YouthAgripreneur"   => "Youth Agripreneur",
+        "WomenAgripreneur"   => "Women Agripreneur",
+        "AgroServiceCompany" => "Agro-Service Company",
+        _ => category
+    };
+
+    private static string FormatRepaymentSource(string source) => source switch
+    {
+        "PrimaryIncome"     => "Primary Income",
+        "RentalHireRevenue" => "Rental / Hire Revenue",
+        "Mixed"             => "Mixed",
+        "CompanyCashFlow"   => "Company Cash Flow",
+        _ => string.IsNullOrWhiteSpace(source) ? "—" : source
+    };
+
     private static string FormatStatus(string status) => status switch
     {
+        "Received"                     => "Received",
+        "RecallPending"                => "Recall Pending",
         "Draft"                        => "Draft",
         "Submitted"                    => "Submitted",
         "FinancialAppraisal"           => "Financial Appraisal",
         "FinancialDeclined"            => "Financial Declined",
         "BranchCommitteeCirculation"   => "Branch Committee",
+        "BranchCommitteeDeclined"      => "Branch Committee Declined",
         "ZonalCommitteeCirculation"    => "Zonal Committee",
+        "ZonalCommitteeDeclined"       => "Zonal Committee Declined",
         "RegionalCommitteeCirculation" => "Regional Committee",
+        "RegionalCommitteeDeclined"    => "Regional Committee Declined",
         "HOCommitteeCirculation"       => "HO Committee",
+        "HOCommitteeDeclined"          => "HO Committee Declined",
         "CommitteeDeclined"            => "Committee Declined",
         "Ratification"                 => "Ratification",
+        "RatificationDeclined"         => "Ratification Declined",
         "Ratified"                     => "Ratified",
         "OfferGenerated"               => "Offer Generated",
         "OfferAccepted"                => "Offer Accepted",
@@ -504,6 +582,9 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
         "PreDeploymentVerification"    => "Pre-Deployment",
         "Deployment"                   => "Deployment",
         "Deployed"                     => "Deployed",
+        "Active"                       => "Active",
+        "Closed"                       => "Closed",
+        "Declined"                     => "Declined",
         _ => status
     };
 }

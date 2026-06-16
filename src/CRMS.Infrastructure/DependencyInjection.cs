@@ -1,4 +1,5 @@
 using CRMS.Application.Identity.Interfaces;
+using CRMS.Application.Namp.Interfaces;
 using CRMS.Application.Notification.Interfaces;
 using CRMS.Application.Notification.Services;
 using CRMS.Domain.Aggregates.Committee;
@@ -312,7 +313,23 @@ public static class DependencyInjection
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<INotificationTemplateRepository, NotificationTemplateRepository>();
         services.AddScoped<INotificationService, NotificationOrchestrator>();
-        services.AddScoped<INotificationSender, MockEmailSender>();
+
+        // Email channel: Mock when Email:UseMock (or section absent), otherwise the configured
+        // provider — Email:Provider = "Ses" (default) or "Smtp".
+        var emailSection = configuration.GetSection("Email");
+        if (!emailSection.Exists() || emailSection.GetValue<bool>("UseMock"))
+        {
+            services.AddScoped<INotificationSender, MockEmailSender>();
+        }
+        else if ((emailSection["Provider"] ?? "Ses").Equals("Smtp", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddScoped<INotificationSender, ExternalServices.Notifications.SmtpEmailSender>();
+        }
+        else
+        {
+            services.AddScoped<INotificationSender, ExternalServices.Notifications.SesEmailSender>();
+        }
+
         services.AddScoped<INotificationSender, MockSmsSender>();
         services.AddScoped<INotificationSender, MockWhatsAppSender>();
         services.AddHostedService<NotificationProcessingService>();
@@ -575,12 +592,18 @@ public static class DependencyInjection
         // NAMP — Domain Event Handler (outbound PAYS callback on terminal status)
         services.AddScoped<IDomainEventHandler<NampStatusChangedEvent>, NampCallbackEventHandler>();
 
+        // NAMP — Domain Event Handler (actor email notifications) + recipient resolver
+        services.AddScoped<INampNotificationRecipientResolver, NampNotificationRecipientResolver>();
+        services.AddScoped<IDomainEventHandler<NampStatusChangedEvent>, NampStatusChangedNotificationHandler>();
+
+        // NAMP — Domain Event Handler (new-in-queue email when a record is staged from the webhook)
+        services.AddScoped<IDomainEventHandler<NampStagingRecordReceivedEvent>, NampStagingReceivedNotificationHandler>();
+
         // NAMP — Application Handlers
         services.AddScoped<Application.Namp.Commands.RecallNampApplicationHandler>();
         services.AddScoped<Application.Namp.Commands.SubmitNampApplicationHandler>();
         services.AddScoped<Application.Namp.Commands.SubmitNampFinancialAppraisalHandler>();
         services.AddScoped<Application.Namp.Commands.CirculateNampToCommitteeHandler>();
-        services.AddScoped<Application.Namp.Commands.RecordNampCommitteeOutcomeHandler>();
         services.AddScoped<Application.Namp.Commands.RatifyNampDecisionHandler>();
         services.AddScoped<Application.Namp.Commands.DeclineNampRatificationHandler>();
         services.AddScoped<Application.Namp.Commands.RecordNampOfferAcceptanceHandler>();
@@ -609,6 +632,11 @@ public static class DependencyInjection
         services.AddScoped<Application.Namp.Commands.CastNampCommitteeVoteHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampRoutingConfigsHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampWorkflowConfigsHandler>();
+        services.AddScoped<Application.Namp.Commands.UpdateNampWorkflowConfigHandler>();
+        services.AddScoped<Application.Namp.Commands.FetchNampCacDetailsHandler>();
+        services.AddScoped<Application.Namp.Commands.AddNampDirectorHandler>();
+        services.AddScoped<Application.Namp.Commands.UpdateNampDirectorHandler>();
+        services.AddScoped<Application.Namp.Commands.RemoveNampDirectorHandler>();
         services.AddScoped<Application.Namp.Commands.SaveNampFinancialAppraisalReportHandler>();
         services.AddScoped<Application.CreditBureau.Commands.ProcessNampCreditChecksHandler>();
 

@@ -18,6 +18,15 @@
     </button>
 </div>
 
+@if (!string.IsNullOrEmpty(resetMessage))
+{
+    <div class="alert @(resetIsError ? "alert-danger" : "alert-success")" style="margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-2);">
+        <span class="material-symbols-outlined" style="font-size: 18px;">@(resetIsError ? "error" : "mark_email_read")</span>
+        <span style="flex: 1;">@resetMessage</span>
+        <button class="btn btn-ghost btn-sm" @onclick="() => resetMessage = null">✕</button>
+    </div>
+}
+
 <div class="card mb-6">
     <div class="card-body" style="padding: var(--space-4);">
         <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: flex-end;">
@@ -226,13 +235,13 @@
                 <div class="form-group">
                     <label class="form-label">Location</label>
                     <select class="form-control" @bind="editingUser.LocationId">
-                        <option value="">No Location (Head Office Staff)</option>
+                        <option value="">— No location —</option>
                         @foreach (var loc in availableLocations)
                         {
                             <option value="@loc.Id">@loc.DisplayName (@loc.Type)</option>
                         }
                     </select>
-                    <small class="form-hint">Assign user to a branch for location-based visibility</small>
+                    <small class="form-hint">Assign a Branch to scope the user to that branch. For cross-branch (bank-wide) visibility, assign the Head Office location — not "No location".</small>
                 </div>
             </div>
             <div class="modal-footer">
@@ -383,7 +392,10 @@
                     Email = u.Email,
                     Roles = u.Roles,
                     IsActive = u.IsActive,
-                    LocationId = u.LocationId
+                    LocationId = u.LocationId,
+                    Branch = u.LocationId.HasValue
+                        ? availableLocations.FirstOrDefault(l => l.Id == u.LocationId)?.DisplayName
+                        : null
                 }).ToList();
             }
         }
@@ -453,7 +465,7 @@
             }
             else
             {
-                result = await AppService.CreateUserAsync(editingUser.Email, editingUser.FirstName, editingUser.LastName, null, editingUser.Roles);
+                result = await AppService.CreateUserAsync(editingUser.Email, editingUser.FirstName, editingUser.LastName, null, editingUser.LocationId, editingUser.Roles);
             }
 
             if (result.Success)
@@ -479,9 +491,19 @@
             await LoadUsers();
     }
 
+    private string? resetMessage;
+    private bool resetIsError;
+
     private async Task ResetPassword(UserModel user)
     {
-        await Task.CompletedTask; // Placeholder — password reset via email flow
+        resetMessage = null;
+        var resetUrlBase = $"{Navigation.BaseUri}reset-password";
+        var result = await AuthService.RequestPasswordResetAsync(user.Email, resetUrlBase);
+        resetIsError = !result.Success;
+        resetMessage = result.Success
+            ? $"A password reset link has been sent to {user.Email}."
+            : (result.Error ?? "Failed to send the reset link. Please try again.");
+        StateHasChanged();
     }
 
     private static string GetRoleBadgeClass(string role) => role switch

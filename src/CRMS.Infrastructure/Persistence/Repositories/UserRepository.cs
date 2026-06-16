@@ -30,6 +30,13 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
     }
 
+    public async Task<ApplicationUser?> GetByPasswordResetTokenHashAsync(string tokenHash, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(tokenHash)) return null;
+        return await _context.Users
+            .FirstOrDefaultAsync(u => u.PasswordResetTokenHash == tokenHash, ct);
+    }
+
     public async Task<ApplicationUser?> GetByUserNameAsync(string userName, CancellationToken ct = default)
     {
         var normalizedUserName = userName.ToUpperInvariant();

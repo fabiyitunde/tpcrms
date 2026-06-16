@@ -44,6 +44,14 @@ public record NampLoanPackData(
     string? CompanyName,
     string? RcNumber,
     string? IndustrySector,
+    // CAC company profile (Agro-Service)
+    string? CacStatus,
+    string? CacEntityType,
+    string? CacRegistrationDate,
+    string? CacNatureOfBusiness,
+    decimal? CacShareCapital,
+    string? CacAddress,
+    DateTime? CacFetchedAt,
     // Equipment & Finance
     string EquipmentDescription,
     decimal EquipmentValue,
@@ -52,17 +60,23 @@ public record NampLoanPackData(
     decimal? EquityAmount,
     decimal? LoanAmount,
     int? RequestedTenorMonths,
+    decimal? ApprovedInterestRate,
     // Committee
     string CommitteeTier,
     string? CommitteeDecision,
     int CommitteeApprovalVotes,
     int CommitteeRejectionVotes,
     int CommitteeAbstainVotes,
+    int CommitteeMinimumApprovalVotes,
+    int CommitteeRequiredVotes,
+    DateTime? CommitteeDecisionAt,
+    string? CommitteeDecisionNote,
     string? CommitteeConditions,
     List<NampLoanPackMemberVote> CommitteeMembers,
     // Appraisals
     NampFinancialAppraisalReportDto? FinancialAppraisal,
     // Collections
+    List<NampDirectorDto> Directors,
     List<NampGuarantorDto> Guarantors,
     List<NampCollateralDto> Collaterals,
     List<NampBureauReportDto> BureauReports,

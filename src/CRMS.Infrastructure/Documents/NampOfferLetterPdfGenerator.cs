@@ -7,11 +7,12 @@ namespace CRMS.Infrastructure.Documents;
 
 public class NampOfferLetterPdfGenerator : INampOfferLetterPdfGenerator
 {
-    private const string DarkBlue = "#1a365d";
-    private const string LightGray = "#f7fafc";
-    private const string MediumGray = "#e2e8f0";
-    private const string AccentBlue = "#2b6cb0";
-    private const string GreenDark = "#276749";
+    // Bank of Agriculture brand palette — see BoaBrand.
+    private const string DarkBlue = BoaBrand.Primary;
+    private const string LightGray = BoaBrand.LightGray;
+    private const string MediumGray = BoaBrand.MediumGray;
+    private const string AccentBlue = BoaBrand.Accent;
+    private const string GreenDark = BoaBrand.Accent;
 
     public Task<byte[]> GenerateAsync(NampOfferLetterData data, CancellationToken ct = default)
     {
@@ -43,10 +44,7 @@ public class NampOfferLetterPdfGenerator : INampOfferLetterPdfGenerator
             {
                 row.RelativeItem().Column(logoCol =>
                 {
-                    logoCol.Item().Width(60).Height(60)
-                        .Background(Color.FromHex(DarkBlue))
-                        .AlignCenter().AlignMiddle()
-                        .Text("BANK").FontSize(12).Bold().FontColor(Colors.White);
+                    logoCol.Item().Element(c => BoaBrand.RenderLogo(c, 60));
                 });
 
                 row.RelativeItem(3).AlignCenter().Column(titleCol =>

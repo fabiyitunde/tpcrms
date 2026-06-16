@@ -36,6 +36,8 @@ public class ApplicationUser : Entity
     public string? SecurityStamp { get; private set; }
     public string? RefreshToken { get; private set; }
     public DateTime? RefreshTokenExpiryTime { get; private set; }
+    public string? PasswordResetTokenHash { get; private set; }
+    public DateTime? PasswordResetTokenExpiresAt { get; private set; }
 
     private readonly List<ApplicationUserRole> _userRoles = [];
     public IReadOnlyCollection<ApplicationUserRole> UserRoles => _userRoles.AsReadOnly();
@@ -117,6 +119,26 @@ public class ApplicationUser : Entity
         RefreshToken = null;
         RefreshTokenExpiryTime = null;
     }
+
+    /// <summary>Stores a hash of a password-reset token with its expiry. The raw token is never persisted.</summary>
+    public void SetPasswordResetToken(string tokenHash, DateTime expiresAt)
+    {
+        PasswordResetTokenHash = tokenHash;
+        PasswordResetTokenExpiresAt = expiresAt;
+    }
+
+    public void ClearPasswordResetToken()
+    {
+        PasswordResetTokenHash = null;
+        PasswordResetTokenExpiresAt = null;
+    }
+
+    /// <summary>True when a reset token hash is set, unexpired, and matches the supplied candidate hash.</summary>
+    public bool IsPasswordResetTokenValid(string candidateHash) =>
+        !string.IsNullOrEmpty(PasswordResetTokenHash) &&
+        PasswordResetTokenExpiresAt.HasValue &&
+        PasswordResetTokenExpiresAt.Value > DateTime.UtcNow &&
+        string.Equals(PasswordResetTokenHash, candidateHash, StringComparison.Ordinal);
 
     public void RecordLogin()
     {

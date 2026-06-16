@@ -51,6 +51,26 @@ public record PendingActionsDto(
     int AwaitingDisbursement
 );
 
+// NAMP Dashboard Summary (separate aggregate from corporate LoanApplications)
+public record NampDashboardSummaryDto(
+    int TotalApplications,
+    int InPipeline,
+    int Approved,
+    int Declined,
+    int ActiveLoans,
+    decimal ActiveLoanValue,
+    int NewThisMonth,
+    int NewLastMonth,
+    decimal MonthOverMonthGrowth,
+    List<NampStatusCountDto> ByStatus
+);
+
+public record NampStatusCountDto(
+    string Status,
+    int Count,
+    decimal Percentage
+);
+
 // Loan Funnel Report
 public record LoanFunnelReportDto(
     DateTime FromDate,

@@ -766,7 +766,8 @@ public partial class ApplicationService
             
             // Get applications by status breakdown
             var applicationsByStatus = new List<ApplicationByStatus>();
-            var total = data.LoanFunnel.Submitted + data.LoanFunnel.InReview + data.LoanFunnel.Approved + data.LoanFunnel.Rejected + data.LoanFunnel.Disbursed;
+            // LoanFunnel.Submitted is already the total of all applications in the window.
+            var total = data.LoanFunnel.Submitted;
             if (total > 0)
             {
                 if (data.LoanFunnel.InReview > 0)
@@ -804,7 +805,9 @@ public partial class ApplicationService
             
             return new DashboardSummary
             {
-                TotalApplications = data.LoanFunnel.Submitted + data.LoanFunnel.InReview + data.LoanFunnel.Approved,
+                // LoanFunnel.Submitted is already the total count of applications in the window;
+                // adding InReview/Approved would double-count the same records.
+                TotalApplications = data.LoanFunnel.Submitted,
                 PendingApplications = data.PendingActions.PendingApplications,
                 ApprovedThisMonth = data.LoanFunnel.Approved,
                 RejectedThisMonth = data.LoanFunnel.Rejected,
@@ -825,6 +828,41 @@ public partial class ApplicationService
             return new DashboardSummary();
         }
     }
+
+    public async Task<NampDashboardSummary> GetNampDashboardSummaryAsync()
+    {
+        try
+        {
+            NampDashboardSummaryDto data = await _reporting.GetNampDashboardSummaryAsync();
+            return new NampDashboardSummary
+            {
+                TotalApplications = data.TotalApplications,
+                InPipeline = data.InPipeline,
+                Approved = data.Approved,
+                Declined = data.Declined,
+                ActiveLoans = data.ActiveLoans,
+                ActiveLoanValue = data.ActiveLoanValue,
+                NewThisMonth = data.NewThisMonth,
+                ApplicationsGrowthPercent = (int)data.MonthOverMonthGrowth,
+                ByStatus = data.ByStatus
+                    .Select(s => new ApplicationByStatus
+                    {
+                        Status = HumanizeStatus(s.Status),
+                        Count = s.Count,
+                        Percentage = s.Percentage
+                    })
+                    .ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching NAMP dashboard summary");
+            return new NampDashboardSummary();
+        }
+    }
+
+    private static string HumanizeStatus(string status)
+        => System.Text.RegularExpressions.Regex.Replace(status, "(?<=[a-z])(?=[A-Z])", " ");
 
     public async Task<List<PendingTask>> GetMyPendingTasksAsync(Guid userId)
     {
@@ -2594,7 +2632,7 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> CreateUserAsync(string email, string firstName, string lastName, string? phoneNumber, List<string> roles)
+    public async Task<ApiResponse> CreateUserAsync(string email, string firstName, string lastName, string? phoneNumber, Guid? locationId, List<string> roles)
     {
         try
         {
@@ -2602,7 +2640,7 @@ public partial class ApplicationService
             var userName = email.Split('@')[0];
             var result = await handler.Handle(new CRMS.Application.Identity.Commands.RegisterUserCommand(
                 email, userName, "Welcome@1234", firstName, lastName,
-                CRMS.Domain.Entities.Identity.UserType.Staff, phoneNumber, null, roles
+                CRMS.Domain.Entities.Identity.UserType.Staff, phoneNumber, locationId, roles
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create user");
         }
@@ -2834,7 +2872,8 @@ public partial class ApplicationService
                 MaxTenorMonths = p.MaxTenorMonths,
                 BaseInterestRate = p.BaseInterestRate,
                 IsActive = (p.Status == "Active"),
-                FineractProductId = p.FineractProductId
+                FineractProductId = p.FineractProductId,
+                Segment = p.Type
             }).ToList();
         }
         catch (Exception ex)
@@ -2875,13 +2914,15 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m)
+    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, string segment = "Corporate")
     {
         try
         {
+            var segmentType = Enum.TryParse<CRMS.Domain.Enums.LoanProductType>(segment, ignoreCase: true, out var st)
+                ? st : CRMS.Domain.Enums.LoanProductType.Corporate;
             var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.CreateLoanProductHandler>();
             var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.CreateLoanProductCommand(
-                code, name, description, CRMS.Domain.Enums.LoanProductType.Corporate,
+                code, name, description, segmentType,
                 minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create product");
@@ -2893,13 +2934,15 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, int? fineractProductId = null)
+    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, int? fineractProductId = null, string segment = "Corporate")
     {
         try
         {
+            var segmentType = Enum.TryParse<CRMS.Domain.Enums.LoanProductType>(segment, ignoreCase: true, out var st)
+                ? st : CRMS.Domain.Enums.LoanProductType.Corporate;
             var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.UpdateLoanProductHandler>();
             var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.UpdateLoanProductCommand(
-                id, name, description ?? string.Empty, minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate, fineractProductId
+                id, name, description ?? string.Empty, segmentType, minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate, fineractProductId
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update product");
         }
@@ -5155,23 +5198,6 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> RecordNampCommitteeOutcomeAsync(Guid id, Guid userId, bool isApproved, string? note)
-    {
-        try
-        {
-            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.RecordNampCommitteeOutcomeHandler>();
-            var result = await handler.Handle(new CRMS.Application.Namp.Commands.RecordNampCommitteeOutcomeCommand(id, userId, isApproved, note), CancellationToken.None);
-            return result.IsSuccess
-                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
-                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to record committee outcome");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error recording NAMP committee outcome {Id}", id);
-            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to record committee outcome: {ex.Message}");
-        }
-    }
-
     public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> RatifyNampDecisionAsync(Guid id, Guid userId, string? note = null)
     {
         try
@@ -5462,6 +5488,95 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error loading NAMP workflow configs");
             return [];
+        }
+    }
+
+    public async Task<ApiResponse> UpdateNampWorkflowConfigAsync(Guid id, string assignedRole, int slaHours, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.UpdateNampWorkflowConfigHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Commands.UpdateNampWorkflowConfigCommand(id, assignedRole, slaHours, userId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update workflow stage");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating NAMP workflow config {Id}", id);
+            return ApiResponse.Fail("Failed to update workflow stage");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> FetchNampCacDetailsAsync(Guid id, Guid userId, bool forceRefresh)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.FetchNampCacDetailsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.FetchNampCacDetailsCommand(id, userId, forceRefresh), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to fetch CAC details");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching CAC details for NAMP application {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to fetch CAC details: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> AddNampDirectorAsync(
+        Guid id, Guid userId, string fullName, string? bvn, decimal? shareholdingPercent, bool isChairman, string? email, string? phoneNumber)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.AddNampDirectorHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.AddNampDirectorCommand(
+                id, userId, fullName, bvn, shareholdingPercent, isChairman, email, phoneNumber), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to add director");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding director to NAMP application {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to add director: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> UpdateNampDirectorAsync(
+        Guid id, Guid directorId, Guid userId, string? bvn, decimal? shareholdingPercent)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.UpdateNampDirectorHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.UpdateNampDirectorCommand(
+                id, directorId, userId, bvn, shareholdingPercent), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to update director");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating director {DirectorId} on NAMP application {Id}", directorId, id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to update director: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> RemoveNampDirectorAsync(Guid id, Guid directorId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.RemoveNampDirectorHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.RemoveNampDirectorCommand(id, directorId, userId), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to remove director");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing director {DirectorId} from NAMP application {Id}", directorId, id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to remove director: {ex.Message}");
         }
     }
 

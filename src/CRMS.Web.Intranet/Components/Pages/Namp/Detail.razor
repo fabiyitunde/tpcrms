@@ -49,10 +49,6 @@ else
             {
                 <button class="btn btn-primary" @onclick="OpenCommitteeModal">Circulate to Committee</button>
             }
-            @if (ShowConfirmDecisionButton)
-            {
-                <button class="btn btn-warning" @onclick="OpenCommitteeOutcomeModal">Confirm Committee Decision</button>
-            }
             @if (ShowRatifyButton)
             {
                 <button class="btn btn-success" @onclick="OpenRatifyModal">Ratify Decision</button>
@@ -249,12 +245,165 @@ else
                 @if (app.ApplicantCategory == "AgroServiceCompany")
                 {
                     <div class="card">
-                        <div class="card-header"><h3 class="card-title">Company Details</h3></div>
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="card-title">Company Details</h3>
+                            @if (CanManageDirectors)
+                            {
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    @if (!string.IsNullOrEmpty(cacError))
+                                    {
+                                        <span style="font-size: 0.8rem; color: var(--danger-600);">@cacError</span>
+                                    }
+                                    <button class="btn btn-outline btn-sm" @onclick="FetchCac" disabled="@isFetchingCac">
+                                        @if (isFetchingCac)
+                                        {
+                                            <span class="spinner-sm" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px;"></span>
+                                            <span>Fetching…</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">cloud_download</span>
+                                            <span>@(app.CacFetchedAt.HasValue ? "Refresh from CAC" : "Fetch from CAC")</span>
+                                        }
+                                    </button>
+                                </div>
+                            }
+                        </div>
                         <div class="card-body">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                                 @InfoField("Company Name", app.CompanyName)
                                 @InfoField("RC Number", app.RcNumber)
+                                @if (app.CacFetchedAt.HasValue)
+                                {
+                                    @InfoField("CAC Status", app.CacStatus)
+                                    @InfoField("Entity Type", app.CacEntityType)
+                                    @InfoField("Registration Date", app.CacRegistrationDate)
+                                    @InfoField("Nature of Business", app.CacNatureOfBusiness)
+                                    @InfoField("Share Capital", FormatMoney(app.CacShareCapital))
+                                    @InfoField("Registered Address", app.CacAddress)
+                                }
                             </div>
+                            @if (app.CacFetchedAt.HasValue)
+                            {
+                                <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.5rem;">
+                                    CAC data fetched @app.CacFetchedAt.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Directors & Shareholders -->
+                    <div class="card">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="card-title">
+                                Directors &amp; Shareholders
+                                @if (app.Directors.Count > 0)
+                                {
+                                    <span class="badge badge-secondary" style="margin-left: 4px;">@app.Directors.Count</span>
+                                }
+                            </h3>
+                            @if (CanManageDirectors)
+                            {
+                                <button class="btn btn-outline btn-sm" @onclick="OpenAddDirectorModal">
+                                    <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">add</span>
+                                    Add Manually
+                                </button>
+                            }
+                        </div>
+                        <div class="card-body">
+                            @if (app.Directors.Count == 0)
+                            {
+                                <div style="text-align: center; padding: 1.5rem; color: var(--text-secondary); font-size: 0.875rem;">
+                                    No directors or shareholders on record.
+                                    @if (CanManageDirectors)
+                                    {
+                                        <span>Use "Fetch from CAC" or add them manually.</span>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Role</th>
+                                            <th>Shares</th>
+                                            <th>Shareholding</th>
+                                            <th>BVN</th>
+                                            <th>Source</th>
+                                            @if (CanManageDirectors)
+                                            {
+                                                <th style="width: 80px;"></th>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var d in app.Directors)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <div style="font-weight: 600;">@d.FullName</div>
+                                                    @if (!string.IsNullOrEmpty(d.Occupation))
+                                                    {
+                                                        <div style="font-size: 0.75rem; color: var(--gray-500);">@d.Occupation</div>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (d.IsChairman)
+                                                    {
+                                                        <span class="badge badge-info">Chairman</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@(string.IsNullOrEmpty(d.AffiliateType) ? "Director" : d.AffiliateType)</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @(d.NumSharesAllotted?.ToString("N0") ?? "—")
+                                                    @if (!string.IsNullOrEmpty(d.TypeOfShares))
+                                                    {
+                                                        <div style="font-size: 0.7rem; color: var(--gray-500);">@d.TypeOfShares</div>
+                                                    }
+                                                </td>
+                                                <td>@(d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:0.##}%" : "—")</td>
+                                                <td>
+                                                    @if (!string.IsNullOrEmpty(d.Bvn))
+                                                    {
+                                                        <span class="badge badge-success">Provided</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge badge-warning">Missing</span>
+                                                    }
+                                                </td>
+                                                <td><span style="font-size: 0.8rem; color: var(--gray-500);">@(d.SourcedFromCac ? "CAC" : "Manual")</span></td>
+                                                @if (CanManageDirectors)
+                                                {
+                                                    <td>
+                                                        <button class="btn btn-ghost btn-sm" title="Complete info" @onclick="() => OpenDirectorEdit(d)">
+                                                            <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+                                                        </button>
+                                                        @if (!d.SourcedFromCac)
+                                                        {
+                                                            <button class="btn btn-ghost btn-sm" title="Remove" style="color: var(--danger-600);" @onclick="() => RemoveDirector(d.Id)">
+                                                                <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                                            </button>
+                                                        }
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                                @if (app.Directors.Any(d => string.IsNullOrEmpty(d.Bvn)))
+                                {
+                                    <div class="alert alert-warning" style="margin-top: 0.75rem; font-size: var(--text-sm);">
+                                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">warning</span>
+                                        Some directors/shareholders are missing a BVN. Bureau checks run automatically on submission and cover every director — complete the missing BVNs before submitting.
+                                    </div>
+                                }
+                            }
                         </div>
                     </div>
                 }
@@ -824,7 +973,9 @@ else
     @if (detailTab == "credit-bureau")
     {
         var applicantReports = app.BureauReports.Where(r => r.SubjectType == "NampApplicant").ToList();
-        var guarantorReports = app.BureauReports.Where(r => r.SubjectType != "NampApplicant").ToList();
+        var companyReports = app.BureauReports.Where(r => r.SubjectType == "NampCompany").ToList();
+        var directorReports = app.BureauReports.Where(r => r.SubjectType == "NampDirector").ToList();
+        var guarantorReports = app.BureauReports.Where(r => r.SubjectType != "NampApplicant" && r.SubjectType != "NampCompany" && r.SubjectType != "NampDirector").ToList();
 
         <!-- Bureau tab header with optional Recheck button -->
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
@@ -876,6 +1027,152 @@ else
                     </h4>
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem;">
                         @foreach (var r in applicantReports)
+                        {
+                            <div class="namp-bureau-card">
+                                <div class="namp-bureau-card-header">
+                                    <div>
+                                        <div style="font-weight: 600;">@r.SubjectName</div>
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">BVN: @r.Bvn</div>
+                                    </div>
+                                    <div class="namp-bureau-score @GetBureauScoreClass(r.CreditScore)">
+                                        @(r.CreditScore?.ToString() ?? "N/A")
+                                    </div>
+                                </div>
+                                <div class="namp-bureau-card-body">
+                                    <div class="namp-bureau-stat">
+                                        <span class="namp-bureau-stat-label">Score Grade</span>
+                                        @if (r.ScoreGrade != null)
+                                        {
+                                            var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
+                                            <span class="badge @gc">@r.ScoreGrade</span>
+                                        }
+                                        else { <span class="namp-bureau-stat-value">—</span> }
+                                    </div>
+                                    <div class="namp-bureau-stat">
+                                        <span class="namp-bureau-stat-label">Delinquent Facilities</span>
+                                        @if (r.DelinquentFacilities > 0)
+                                        { <span class="badge badge-danger">@r.DelinquentFacilities</span> }
+                                        else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span> }
+                                    </div>
+                                    <div class="namp-bureau-stat">
+                                        <span class="namp-bureau-stat-label">Total Outstanding</span>
+                                        <span class="namp-bureau-stat-value">@(r.TotalOutstanding > 0 ? $"₦{FormatBureauAmount(r.TotalOutstanding ?? 0)}" : "—")</span>
+                                    </div>
+                                    <div class="namp-bureau-stat">
+                                        <span class="namp-bureau-stat-label">Total Overdue</span>
+                                        <span class="namp-bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">
+                                            @(r.TotalOverdue > 0 ? $"₦{FormatBureauAmount(r.TotalOverdue ?? 0)}" : (r.Status == "Completed" ? "None" : "—"))
+                                        </span>
+                                    </div>
+                                    <div class="namp-bureau-stat">
+                                        <span class="namp-bureau-stat-label">Fraud Recommendation</span>
+                                        @if (!string.IsNullOrEmpty(r.FraudRecommendation))
+                                        { <span class="badge badge-danger" title="@r.FraudRecommendation">@r.FraudRecommendation</span> }
+                                        else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "Clear" : "—")</span> }
+                                    </div>
+                                    <div class="namp-bureau-stat">
+                                        <span class="namp-bureau-stat-label">Check Date</span>
+                                        <span class="namp-bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                    </div>
+                                </div>
+                                <div class="namp-bureau-card-footer">
+                                    @if (r.Status == "Completed")
+                                    { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> }
+                                    else if (r.Status == "Failed")
+                                    { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
+                                    else if (r.Status == "NotFound")
+                                    { <span class="badge badge-gray"><span class="material-symbols-outlined" style="font-size: 13px;">search_off</span> Not Found</span> }
+                                    else
+                                    { <span class="badge badge-warning">@r.Status</span> }
+                                    @if (!string.IsNullOrEmpty(r.ErrorMessage))
+                                    {
+                                        var readableErr = ExtractReadableError(r.ErrorMessage);
+                                        <span style="font-size: var(--text-xs); color: var(--danger-600); margin-left: 0.5rem;" title="@r.ErrorMessage">
+                                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">info</span>
+                                            @(readableErr.Length > 80 ? readableErr[..77] + "…" : readableErr)
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* Company Reports (AgroService business credit) *@
+            @if (companyReports.Count > 0)
+            {
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 0.75rem 0; font-size: var(--text-sm); font-weight: 600; color: var(--gray-700);">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">domain</span>
+                        Company (Business Credit)
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem;">
+                        @foreach (var r in companyReports)
+                        {
+                            <div class="namp-bureau-card">
+                                <div class="namp-bureau-card-header">
+                                    <div>
+                                        <div style="font-weight: 600;">@r.SubjectName</div>
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">Business credit history (CRC)</div>
+                                    </div>
+                                </div>
+                                <div class="namp-bureau-card-body">
+                                    <div class="namp-bureau-stat">
+                                        <span class="namp-bureau-stat-label">Delinquent Facilities</span>
+                                        @if (r.DelinquentFacilities > 0)
+                                        { <span class="badge badge-danger">@r.DelinquentFacilities</span> }
+                                        else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span> }
+                                    </div>
+                                    <div class="namp-bureau-stat">
+                                        <span class="namp-bureau-stat-label">Total Outstanding</span>
+                                        <span class="namp-bureau-stat-value">@(r.TotalOutstanding > 0 ? $"₦{FormatBureauAmount(r.TotalOutstanding ?? 0)}" : "—")</span>
+                                    </div>
+                                    <div class="namp-bureau-stat">
+                                        <span class="namp-bureau-stat-label">Total Overdue</span>
+                                        <span class="namp-bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">
+                                            @(r.TotalOverdue > 0 ? $"₦{FormatBureauAmount(r.TotalOverdue ?? 0)}" : (r.Status == "Completed" ? "None" : "—"))
+                                        </span>
+                                    </div>
+                                    <div class="namp-bureau-stat">
+                                        <span class="namp-bureau-stat-label">Check Date</span>
+                                        <span class="namp-bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                    </div>
+                                </div>
+                                <div class="namp-bureau-card-footer">
+                                    @if (r.Status == "Completed")
+                                    { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> }
+                                    else if (r.Status == "Failed")
+                                    { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
+                                    else if (r.Status == "NotFound")
+                                    { <span class="badge badge-gray"><span class="material-symbols-outlined" style="font-size: 13px;">search_off</span> Not Found</span> }
+                                    else
+                                    { <span class="badge badge-warning">@r.Status</span> }
+                                    @if (!string.IsNullOrEmpty(r.ErrorMessage))
+                                    {
+                                        var readableErr = ExtractReadableError(r.ErrorMessage);
+                                        <span style="font-size: var(--text-xs); color: var(--danger-600); margin-left: 0.5rem;" title="@r.ErrorMessage">
+                                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">info</span>
+                                            @(readableErr.Length > 80 ? readableErr[..77] + "…" : readableErr)
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* Director Reports (individual bureau on company directors/shareholders) *@
+            @if (directorReports.Count > 0)
+            {
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 0.75rem 0; font-size: var(--text-sm); font-weight: 600; color: var(--gray-700);">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">groups</span>
+                        Directors &amp; Shareholders (@directorReports.Count)
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem;">
+                        @foreach (var r in directorReports)
                         {
                             <div class="namp-bureau-card">
                                 <div class="namp-bureau-card-header">
@@ -2473,6 +2770,62 @@ else
 }
 
 <style>
+    /* ── Info field chips (used across all NAMP tabs) ── */
+    .namp-field {
+        background: var(--gray-50);
+        border: 1px solid var(--gray-100);
+        border-radius: 8px;
+        padding: 0.55rem 0.75rem;
+        transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .namp-field:hover {
+        border-color: var(--primary-200, var(--gray-200));
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .namp-field-label {
+        font-size: 0.68rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--gray-500);
+        margin-bottom: 0.2rem;
+    }
+    .namp-field-value {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--gray-900);
+        line-height: 1.35;
+        word-break: break-word;
+    }
+
+    /* ── Summary sidebar rows ── */
+    .namp-srow {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 1rem;
+        font-size: 0.875rem;
+        padding-bottom: 0.55rem;
+        border-bottom: 1px dashed var(--gray-200);
+    }
+    .namp-srow:last-child { border-bottom: none; padding-bottom: 0; }
+    .namp-srow-label { color: var(--text-secondary); }
+    .namp-srow-value { font-weight: 700; color: var(--gray-900); text-align: right; }
+
+    /* ── Section sub-heading inside cards ── */
+    .namp-subhead {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--gray-500);
+        margin: 0 0 0.6rem 0;
+    }
+
     .namp-bureau-card {
         border: 1px solid var(--gray-200);
         border-radius: var(--radius-lg);
@@ -2536,6 +2889,96 @@ else
     }
 </style>
 
+@if (showAddDirectorModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseDirectorModals">
+        <div class="modal" style="max-width: 460px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Add Director / Shareholder</h3>
+                <button class="modal-close" @onclick="CloseDirectorModals">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Full Name *</label>
+                    <input class="form-control" @bind="newDirName" placeholder="Surname First Other" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">BVN</label>
+                    <input class="form-control" @bind="newDirBvn" placeholder="11-digit BVN" maxlength="11" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Shareholding % (0–100)</label>
+                    <input type="number" class="form-control" @bind="newDirShareholding" min="0" max="100" step="0.01" />
+                </div>
+                <div class="form-group">
+                    <label class="role-checkbox-item" style="display:flex; align-items:center; gap:0.4rem;">
+                        <input type="checkbox" @bind="newDirIsChairman" /> <span>Is Chairman</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input class="form-control" @bind="newDirEmail" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Phone</label>
+                    <input class="form-control" @bind="newDirPhone" />
+                </div>
+                @if (!string.IsNullOrEmpty(directorError))
+                {
+                    <div class="alert alert-danger" style="font-size: var(--text-sm);">@directorError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseDirectorModals">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveAddDirector" disabled="@(isSavingDirector || string.IsNullOrWhiteSpace(newDirName))">
+                    @if (isSavingDirector) { <span class="spinner"></span> }
+                    Add
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (editingDirector is not null)
+{
+    <div class="modal-backdrop show" @onclick="CloseDirectorModals">
+        <div class="modal" style="max-width: 420px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Complete Info — @editingDirector.FullName</h3>
+                <button class="modal-close" @onclick="CloseDirectorModals">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size: var(--text-sm); margin-bottom: 0.75rem;">
+                    Fill in the BVN and shareholding that were not available from CAC. These are preserved if CAC is refreshed.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">BVN</label>
+                    <input class="form-control" @bind="editDirBvn" placeholder="11-digit BVN" maxlength="11" />
+                    @if (!string.IsNullOrEmpty(editDirBvn) && editDirBvn.Length != 11)
+                    {
+                        <div class="form-error" style="font-size: var(--text-xs); color: var(--danger-600);">BVN must be exactly 11 digits</div>
+                    }
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Shareholding % (0–100)</label>
+                    <input type="number" class="form-control" @bind="editDirShareholding" min="0" max="100" step="0.01" />
+                </div>
+                @if (!string.IsNullOrEmpty(directorError))
+                {
+                    <div class="alert alert-danger" style="font-size: var(--text-sm);">@directorError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseDirectorModals">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveDirectorEdit" disabled="@isSavingDirector">
+                    @if (isSavingDirector) { <span class="spinner"></span> }
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid Id { get; set; }
 
@@ -2561,6 +3004,104 @@ else
     private string voteComment = "";
     private bool isCastingVote;
     private string? voteError;
+
+    // CAC fetch + directors
+    private bool isFetchingCac;
+    private string? cacError;
+    private bool showAddDirectorModal;
+    private NampDirectorDto? editingDirector;
+    private string? newDirName;
+    private string? newDirBvn;
+    private decimal? newDirShareholding;
+    private bool newDirIsChairman;
+    private string? newDirEmail;
+    private string? newDirPhone;
+    private string? editDirBvn;
+    private decimal? editDirShareholding;
+    private bool isSavingDirector;
+    private string? directorError;
+
+    private bool CanManageDirectors =>
+        app?.ApplicantCategory == "AgroServiceCompany" &&
+        app?.Status == "Draft" &&
+        (User?.HasAnyRole("LoanOfficer", "SystemAdmin") ?? false);
+
+    private async Task FetchCac()
+    {
+        if (app is null) return;
+        isFetchingCac = true;
+        cacError = null;
+        try
+        {
+            var uid = User?.Id ?? Guid.Empty;
+            var result = await AppService.FetchNampCacDetailsAsync(Id, uid, forceRefresh: app.CacFetchedAt.HasValue);
+            if (result.Success) await Load();
+            else cacError = result.Error ?? "CAC fetch failed";
+        }
+        finally { isFetchingCac = false; }
+    }
+
+    private void OpenAddDirectorModal()
+    {
+        newDirName = null; newDirBvn = null; newDirShareholding = null;
+        newDirIsChairman = false; newDirEmail = null; newDirPhone = null;
+        directorError = null;
+        showAddDirectorModal = true;
+    }
+
+    private void OpenDirectorEdit(NampDirectorDto d)
+    {
+        editingDirector = d;
+        editDirBvn = d.Bvn;
+        editDirShareholding = d.ShareholdingPercent;
+        directorError = null;
+    }
+
+    private void CloseDirectorModals()
+    {
+        showAddDirectorModal = false;
+        editingDirector = null;
+        directorError = null;
+    }
+
+    private async Task SaveAddDirector()
+    {
+        if (string.IsNullOrWhiteSpace(newDirName)) { directorError = "Full name is required."; return; }
+        isSavingDirector = true; directorError = null;
+        try
+        {
+            var uid = User?.Id ?? Guid.Empty;
+            var result = await AppService.AddNampDirectorAsync(
+                Id, uid, newDirName!.Trim(), NullIfEmpty(newDirBvn), newDirShareholding, newDirIsChairman,
+                NullIfEmpty(newDirEmail), NullIfEmpty(newDirPhone));
+            if (result.Success) { CloseDirectorModals(); await Load(); }
+            else directorError = result.Error ?? "Failed to add director";
+        }
+        finally { isSavingDirector = false; }
+    }
+
+    private async Task SaveDirectorEdit()
+    {
+        if (editingDirector is null) return;
+        if (!string.IsNullOrEmpty(editDirBvn) && editDirBvn.Length != 11) { directorError = "BVN must be exactly 11 digits."; return; }
+        isSavingDirector = true; directorError = null;
+        try
+        {
+            var uid = User?.Id ?? Guid.Empty;
+            var result = await AppService.UpdateNampDirectorAsync(Id, editingDirector.Id, uid, NullIfEmpty(editDirBvn), editDirShareholding);
+            if (result.Success) { CloseDirectorModals(); await Load(); }
+            else directorError = result.Error ?? "Failed to update director";
+        }
+        finally { isSavingDirector = false; }
+    }
+
+    private async Task RemoveDirector(Guid directorId)
+    {
+        var uid = User?.Id ?? Guid.Empty;
+        var result = await AppService.RemoveNampDirectorAsync(Id, directorId, uid);
+        if (result.Success) await Load();
+        else cacError = result.Error ?? "Failed to remove director";
+    }
 
     // Modal state
     private bool showConfirmModal;
@@ -2717,11 +3258,6 @@ else
         IsCommitteeStatus && app?.CurrentCommitteeReviewId == null &&
         (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
-    private bool ShowConfirmDecisionButton =>
-        IsCommitteeStatus && app?.CurrentCommitteeReviewId != null &&
-        app?.CommitteeDecisionAt == null &&
-        (committeeReview?.HasQuorum == true || committeeReview?.Status == "VotingComplete") &&
-        (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
     private bool IsCommitteeMemberForCurrentStatus => app?.Status switch
     {
@@ -2752,7 +3288,9 @@ else
     private bool CanGenerateLoanPack =>
         app?.Status is not (null or "Draft") &&
         (User?.HasAnyRole("LoanOfficer", "CreditOfficer", "BranchManager",
-            "ZonalManager", "RegionalManager", "MdCeo", "Operations", "SystemAdmin") ?? false);
+            "ZonalManager", "RegionalManager", "MdCeo", "Operations", "SystemAdmin",
+            "DeploymentOfficer", "BranchCommitteeMember", "ZonalCommitteeMember",
+            "RegionalCommitteeMember", "HOCommitteeMember") ?? false);
 
     private NampDocumentDto? SignedOfferLetterDoc =>
         app?.Documents.FirstOrDefault(d => d.Category == "SignedNampOfferLetter");
@@ -2944,7 +3482,6 @@ else
     }
 
     private void OpenFinancialAppraisalModal() => OpenAppraisalModal("financial");
-    private void OpenCommitteeOutcomeModal() => OpenAppraisalModal("committee");
     private void OpenDeclineRatifyModal() => OpenNoteModal("decline-ratify", "Decline Ratification", "Enter reason for declining ratification:");
     private void OpenOfferAcceptModal() => OpenConfirmModal("offer-accept", "Record Offer Acceptance", "Confirm the applicant has countersigned the offer letter?");
     private void OpenOfferLapseModal() => OpenConfirmModal("offer-lapse", "Lapse Offer", "Mark this offer as lapsed (applicant did not countersign within SLA)?");
@@ -3185,7 +3722,6 @@ else
             var result = appraisalType switch
             {
                 "financial" => await AppService.SubmitNampFinancialAppraisalAsync(Id, uid, appraisalApproved, NullIfEmpty(noteText)),
-                "committee" => await AppService.RecordNampCommitteeOutcomeAsync(Id, uid, appraisalApproved, NullIfEmpty(noteText)),
                 _ => ApiResponse<NampApplicationDto>.Fail("Unknown appraisal type")
             };
             if (result.Success) { CloseModals(); await Load(); }
@@ -3549,13 +4085,14 @@ else
     {
         if (string.IsNullOrWhiteSpace(value)) return;
         __builder.OpenElement(0, "div");
-        __builder.OpenElement(1, "div");
-        __builder.AddAttribute(2, "style", "font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.2rem;");
-        __builder.AddContent(3, label);
+        __builder.AddAttribute(1, "class", "namp-field");
+        __builder.OpenElement(2, "div");
+        __builder.AddAttribute(3, "class", "namp-field-label");
+        __builder.AddContent(4, label);
         __builder.CloseElement();
-        __builder.OpenElement(4, "div");
-        __builder.AddAttribute(5, "style", "font-size: 0.875rem; font-weight: 500;");
-        __builder.AddContent(6, value);
+        __builder.OpenElement(5, "div");
+        __builder.AddAttribute(6, "class", "namp-field-value");
+        __builder.AddContent(7, value);
         __builder.CloseElement();
         __builder.CloseElement();
     };
@@ -3563,13 +4100,13 @@ else
     private static RenderFragment SideInfoField(string label, string? value) => __builder =>
     {
         __builder.OpenElement(0, "div");
-        __builder.AddAttribute(1, "style", "display: flex; justify-content: space-between; align-items: baseline; font-size: 0.875rem;");
+        __builder.AddAttribute(1, "class", "namp-srow");
         __builder.OpenElement(2, "span");
-        __builder.AddAttribute(3, "style", "color: var(--text-secondary);");
+        __builder.AddAttribute(3, "class", "namp-srow-label");
         __builder.AddContent(4, label);
         __builder.CloseElement();
         __builder.OpenElement(5, "span");
-        __builder.AddAttribute(6, "style", "font-weight: 600;");
+        __builder.AddAttribute(6, "class", "namp-srow-value");
         __builder.AddContent(7, string.IsNullOrWhiteSpace(value) ? "—" : value);
         __builder.CloseElement();
         __builder.CloseElement();

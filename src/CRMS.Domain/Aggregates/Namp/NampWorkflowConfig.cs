@@ -39,4 +39,21 @@ public class NampWorkflowConfig : Entity
             IsTerminal = isTerminal,
         };
     }
+
+    /// <summary>
+    /// Admin tuning of the stage's responsible role and SLA. The status, sort order,
+    /// and terminal flag are structural and remain fixed.
+    /// </summary>
+    public Result Update(string assignedRole, int slaHours)
+    {
+        if (string.IsNullOrWhiteSpace(assignedRole))
+            return Result.Failure("Assigned role is required.");
+
+        if (slaHours < 0)
+            return Result.Failure("SLA hours cannot be negative.");
+
+        AssignedRole = assignedRole;
+        SlaHours = slaHours;
+        return Result.Success();
+    }
 }

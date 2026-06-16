@@ -12,7 +12,7 @@ public class NotificationProcessingService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<NotificationProcessingService> _logger;
-    private readonly TimeSpan _processingInterval = TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _processingInterval = TimeSpan.FromSeconds(10);
 
     public NotificationProcessingService(
         IServiceProvider serviceProvider,

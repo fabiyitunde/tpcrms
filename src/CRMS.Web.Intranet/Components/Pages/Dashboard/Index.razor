@@ -239,6 +239,101 @@
     </div>
 </div>
 
+@if (CanViewNamp)
+{
+    <div class="page-header mt-6">
+        <div>
+            <h2 class="page-title" style="font-size: var(--text-xl);">NAMP Loans</h2>
+            <p class="page-subtitle">National Agricultural Mechanisation Programme</p>
+        </div>
+        <a href="/namp" class="btn btn-ghost btn-sm">View All</a>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon primary">
+                <span class="material-symbols-outlined">agriculture</span>
+            </div>
+            <div class="stat-content">
+                <div class="stat-label">Total NAMP Applications</div>
+                <div class="stat-value">@namp.TotalApplications</div>
+                <div class="stat-change @(namp.ApplicationsGrowthPercent >= 0 ? "positive" : "negative")">
+                    @if (namp.ApplicationsGrowthPercent != 0)
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 16px;">@(namp.ApplicationsGrowthPercent >= 0 ? "trending_up" : "trending_down")</span>
+                        <text>@(namp.ApplicationsGrowthPercent >= 0 ? "+" : "")@(namp.ApplicationsGrowthPercent)% vs last month</text>
+                    }
+                    else
+                    {
+                        <span>@namp.NewThisMonth new this month</span>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon warning">
+                <span class="material-symbols-outlined">pending_actions</span>
+            </div>
+            <div class="stat-content">
+                <div class="stat-label">In Pipeline</div>
+                <div class="stat-value">@namp.InPipeline</div>
+                <div class="stat-change">
+                    @namp.Approved awaiting deployment
+                </div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon success">
+                <span class="material-symbols-outlined">check_circle</span>
+            </div>
+            <div class="stat-content">
+                <div class="stat-label">Active Loans</div>
+                <div class="stat-value">@namp.ActiveLoans</div>
+                <div class="stat-change">
+                    @namp.Declined declined
+                </div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon primary">
+                <span class="material-symbols-outlined">payments</span>
+            </div>
+            <div class="stat-content">
+                <div class="stat-label">Active Loan Value</div>
+                <div class="stat-value">@FormatCurrency(namp.ActiveLoanValue)</div>
+                <div class="stat-change">
+                    Deployed &amp; running
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (namp.ByStatus.Any())
+    {
+        <div class="grid grid-cols-2 gap-6 mt-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">NAMP by Status</h3>
+                </div>
+                <div class="card-body">
+                    @foreach (var status in namp.ByStatus)
+                    {
+                        <div style="margin-bottom: var(--space-4);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-1);">
+                                <span style="font-size: var(--text-sm); font-weight: 500;">@status.Status</span>
+                                <span style="font-size: var(--text-sm); color: var(--gray-500);">@status.Count (@status.Percentage.ToString("0")%)</span>
+                            </div>
+                            <div style="height: 8px; background: var(--gray-100); border-radius: var(--radius-full); overflow: hidden;">
+                                <div style="height: 100%; width: @(status.Percentage)%; background: var(--primary-500); border-radius: var(--radius-full);"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+}
+
 <style>
     .quick-action-btn {
         display: flex;
@@ -271,11 +366,13 @@
 
 @code {
     private DashboardSummary summary = new();
+    private NampDashboardSummary namp = new();
     private List<PendingTask> pendingTasks = [];
     private bool isLoading = true;
 
     private bool CanInitiateLoan => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "LoanOfficer") ?? false;
     private bool CanViewReports => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer") ?? false;
+    private bool CanViewNamp => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer", "LoanOfficer") ?? false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -288,14 +385,16 @@
         isLoading = true;
         
         var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
-        var summaryTask = AppService.GetDashboardSummaryAsync();
-        var tasksTask = AppService.GetMyPendingTasksAsync(userId);
-        
-        await Task.WhenAll(summaryTask, tasksTask);
-        
-        summary = await summaryTask;
-        pendingTasks = await tasksTask;
-        
+
+        // Sequential awaits: these calls share a scoped DbContext, so running them
+        // concurrently (Task.WhenAll) can yield silently empty results.
+        summary = await AppService.GetDashboardSummaryAsync();
+        pendingTasks = await AppService.GetMyPendingTasksAsync(userId);
+        if (CanViewNamp)
+        {
+            namp = await AppService.GetNampDashboardSummaryAsync();
+        }
+
         isLoading = false;
     }
 

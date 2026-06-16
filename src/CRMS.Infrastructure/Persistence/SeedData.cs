@@ -31,6 +31,12 @@ public static class SeedData
     {
         await SeedLocationsAsync(context, logger);
         await SeedRolesAsync(context, logger);
+        await SeedSecurityEmailTemplatesAsync(context, logger);
+        await SeedNampWorkflowEmailTemplatesAsync(context, logger);
+
+        // NAMP workflow stage config, routing bands, and pre-deployment checklist templates.
+        // System-generated and required in every environment — idempotent (skips if already seeded).
+        await NampWorkflowSeeder.SeedAsync(context, logger);
 
         // Loan products and committees are configured by the admin via the UI in production.
         // In development they are seeded with mock data for testing convenience.
@@ -80,6 +86,238 @@ public static class SeedData
         await context.SaveChangesAsync();
         logger.LogInformation("Roles seeded successfully");
     }
+
+    /// <summary>
+    /// Seeds/refreshes the identity/security email templates (account created, password changed,
+    /// password reset) in every environment. Upserts on each startup so design changes propagate.
+    /// </summary>
+    private static async Task SeedSecurityEmailTemplatesAsync(CRMSDbContext context, ILogger logger)
+    {
+        var actorId = (await context.Users.FirstOrDefaultAsync(u => u.Email == "admin@crms.ng"))?.Id
+            ?? Guid.Empty;
+
+        var accountInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 16px;\">An account has been created for you on the <strong>Bank of Agriculture Credit Risk Management System</strong>. Use the credentials below to sign in.</p>" +
+            CredBox("Sign in with", "{{LoginEmail}}", "Temporary password", "{{TempPassword}}") +
+            "<p style=\"margin:16px 0;\">For your security, please change your password immediately after your first sign-in.</p>" +
+            "<p style=\"margin:16px 0 0;color:#6b7280;font-size:13px;\">If you did not expect this email, please contact your administrator.</p>";
+
+        var changedInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 16px;\">This confirms that the password for your <strong>Bank of Agriculture CRMS</strong> account was changed on <strong>{{ChangedAt}}</strong>.</p>" +
+            "<p style=\"margin:16px 0 0;color:#6b7280;font-size:13px;\">If you did not make this change, contact your administrator immediately.</p>";
+
+        var resetInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 8px;\">We received a request to reset your <strong>Bank of Agriculture CRMS</strong> password. Click the button below to choose a new one. This link is valid for {{ExpiryMinutes}} minutes.</p>" +
+            Button("Reset Password", "{{ResetLink}}") +
+            "<p style=\"margin:8px 0;color:#6b7280;font-size:12px;\">If the button doesn't work, copy and paste this link into your browser:<br/>" +
+            "<a href=\"{{ResetLink}}\" style=\"color:#1f7a3d;word-break:break-all;\">{{ResetLink}}</a></p>" +
+            "<p style=\"margin:16px 0 0;color:#6b7280;font-size:13px;\">If you did not request this, you can safely ignore this email — your password will not change.</p>";
+
+        var defs = new (string Code, string Name, NotificationType Type, string Subject, string Body, string Html)[]
+        {
+            ("ACCOUNT_CREATED", "Account Created", NotificationType.AccountCreated,
+                "Your Bank of Agriculture CRMS account is ready",
+                "Dear {{RecipientName}},\n\nAn account has been created for you on the Bank of Agriculture CRMS.\n\n" +
+                "Sign in with: {{LoginEmail}}\nTemporary password: {{TempPassword}}\n\n" +
+                "Please change your password immediately after your first sign-in.\n\n" +
+                "If you did not expect this, contact your administrator.\n\nRegards,\nBank of Agriculture CRMS",
+                Shell(accountInner)),
+
+            ("PASSWORD_CHANGED", "Password Changed", NotificationType.PasswordChanged,
+                "Your CRMS password was changed",
+                "Dear {{RecipientName}},\n\nThis confirms that the password for your Bank of Agriculture CRMS account " +
+                "was changed on {{ChangedAt}}.\n\nIf you did not make this change, contact your administrator immediately.\n\n" +
+                "Regards,\nBank of Agriculture CRMS",
+                Shell(changedInner)),
+
+            ("PASSWORD_RESET", "Password Reset", NotificationType.PasswordReset,
+                "Reset your CRMS password",
+                "Dear {{RecipientName}},\n\nWe received a request to reset your Bank of Agriculture CRMS password.\n\n" +
+                "Use this link to set a new password (valid for {{ExpiryMinutes}} minutes):\n{{ResetLink}}\n\n" +
+                "If you did not request this, you can safely ignore this email — your password will not change.\n\n" +
+                "Regards,\nBank of Agriculture CRMS",
+                Shell(resetInner)),
+        };
+
+        var changes = 0;
+        foreach (var d in defs)
+        {
+            var existing = await context.NotificationTemplates
+                .FirstOrDefaultAsync(t => t.Code == d.Code && t.Channel == NotificationChannel.Email);
+
+            if (existing is null)
+            {
+                var result = Domain.Aggregates.Notification.NotificationTemplate.Create(
+                    d.Code, d.Name, $"Template for {d.Name}", d.Type, NotificationChannel.Email,
+                    d.Body, actorId, subject: d.Subject, bodyHtmlTemplate: d.Html);
+                if (result.IsSuccess)
+                {
+                    await context.NotificationTemplates.AddAsync(result.Value);
+                    changes++;
+                }
+            }
+            else if (existing.Subject != d.Subject || existing.BodyTemplate != d.Body || existing.BodyHtmlTemplate != d.Html)
+            {
+                existing.Update(d.Name, $"Template for {d.Name}", d.Body, actorId, subject: d.Subject, bodyHtmlTemplate: d.Html);
+                context.NotificationTemplates.Update(existing);
+                changes++;
+            }
+        }
+
+        if (changes > 0)
+        {
+            await context.SaveChangesAsync();
+            logger.LogInformation("Seeded/updated {Count} security email template(s)", changes);
+        }
+    }
+
+    /// <summary>
+    /// Seeds/refreshes the NAMP workflow notification email templates in every environment.
+    /// Upserts on each startup (same pattern as the security templates) so design changes propagate.
+    /// Three templates back the whole NAMP notification matrix:
+    ///   NAMP_ACTION_REQUIRED — generic "your stage is ready" mail to the next responsible role;
+    ///   NAMP_COMMITTEE_VOTE  — vote-required fan-out to each committee member;
+    ///   NAMP_DECLINED        — decline notice to the loan officer.
+    /// </summary>
+    private static async Task SeedNampWorkflowEmailTemplatesAsync(CRMSDbContext context, ILogger logger)
+    {
+        var actorId = (await context.Users.FirstOrDefaultAsync(u => u.Email == "admin@crms.ng"))?.Id
+            ?? Guid.Empty;
+
+        var queueInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 16px;\">A new NAMP application has arrived in your branch queue and is awaiting recall and review.</p>" +
+            CredBox("Application", "{{ApplicationNumber}}", "Applicant", "{{ApplicantName}}") +
+            Button("Open the NAMP queue", "{{ActionUrl}}") +
+            "<p style=\"margin:8px 0 0;color:#6b7280;font-size:12px;\">If the button doesn't work, sign in to the CRMS and open the NAMP queue.</p>";
+
+        var actionInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 16px;\">A NAMP application has reached the <strong>{{StageName}}</strong> stage and is awaiting your action.</p>" +
+            CredBox("Application", "{{ApplicationNumber}}", "Applicant", "{{ApplicantName}}") +
+            "<p style=\"margin:16px 0 0;\">Please action it within <strong>{{Sla}}</strong>.</p>" +
+            Button("Open application", "{{ActionUrl}}") +
+            "<p style=\"margin:8px 0 0;color:#6b7280;font-size:12px;\">If the button doesn't work, sign in to the CRMS and open the application from your queue.</p>";
+
+        var voteInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 16px;\">You are a member of the <strong>{{CommitteeType}}</strong> reviewing the NAMP application below. Your vote is required.</p>" +
+            CredBox("Application", "{{ApplicationNumber}}", "Applicant", "{{ApplicantName}}") +
+            "<p style=\"margin:16px 0 0;\">Voting deadline: <strong>{{Deadline}}</strong>.</p>" +
+            Button("Review &amp; vote", "{{ActionUrl}}");
+
+        var declinedInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 16px;\">The NAMP application below has been <strong>declined</strong> at the {{StageName}} stage.</p>" +
+            CredBox("Application", "{{ApplicationNumber}}", "Applicant", "{{ApplicantName}}") +
+            "<p style=\"margin:16px 0 8px;\"><strong>Reason</strong></p>" +
+            "<p style=\"margin:0 0 16px;padding:12px 16px;background:#fdf2f2;border:1px solid #f5d0d0;border-radius:8px;color:#7a1f1f;\">{{Reason}}</p>" +
+            "<p style=\"margin:16px 0 0;color:#6b7280;font-size:13px;\">No further action is required unless you intend to follow up with the applicant.</p>";
+
+        var defs = new (string Code, string Name, NotificationType Type, string Subject, string Body, string Html)[]
+        {
+            ("NAMP_NEW_IN_QUEUE", "NAMP New Application In Queue", NotificationType.WorkflowAssigned,
+                "New NAMP application {{ApplicationNumber}} in your branch queue",
+                "Dear {{RecipientName}},\n\nA new NAMP application has arrived in your branch queue and is awaiting recall and review.\n\n" +
+                "Application: {{ApplicationNumber}}\nApplicant: {{ApplicantName}}\n\n" +
+                "Open the NAMP queue here: {{ActionUrl}}\n\nRegards,\nBank of Agriculture CRMS",
+                Shell(queueInner)),
+
+            ("NAMP_ACTION_REQUIRED", "NAMP Action Required", NotificationType.WorkflowAssigned,
+                "NAMP {{ApplicationNumber}} — {{StageName}} awaiting your action",
+                "Dear {{RecipientName}},\n\nA NAMP application has reached the {{StageName}} stage and is awaiting your action.\n\n" +
+                "Application: {{ApplicationNumber}}\nApplicant: {{ApplicantName}}\n\n" +
+                "Please action it within {{Sla}}.\n\nOpen it here: {{ActionUrl}}\n\nRegards,\nBank of Agriculture CRMS",
+                Shell(actionInner)),
+
+            ("NAMP_COMMITTEE_VOTE", "NAMP Committee Vote Required", NotificationType.CommitteeVoteRequired,
+                "NAMP {{ApplicationNumber}} — your committee vote is required",
+                "Dear {{RecipientName}},\n\nYou are a member of the {{CommitteeType}} reviewing a NAMP application. Your vote is required.\n\n" +
+                "Application: {{ApplicationNumber}}\nApplicant: {{ApplicantName}}\nVoting deadline: {{Deadline}}\n\n" +
+                "Review and vote here: {{ActionUrl}}\n\nRegards,\nBank of Agriculture CRMS",
+                Shell(voteInner)),
+
+            ("NAMP_DECLINED", "NAMP Application Declined", NotificationType.ApplicationRejected,
+                "NAMP {{ApplicationNumber}} — declined at {{StageName}}",
+                "Dear {{RecipientName}},\n\nThe NAMP application below has been declined at the {{StageName}} stage.\n\n" +
+                "Application: {{ApplicationNumber}}\nApplicant: {{ApplicantName}}\n\nReason: {{Reason}}\n\n" +
+                "Regards,\nBank of Agriculture CRMS",
+                Shell(declinedInner)),
+        };
+
+        var changes = 0;
+        foreach (var d in defs)
+        {
+            var existing = await context.NotificationTemplates
+                .FirstOrDefaultAsync(t => t.Code == d.Code && t.Channel == NotificationChannel.Email);
+
+            if (existing is null)
+            {
+                var result = Domain.Aggregates.Notification.NotificationTemplate.Create(
+                    d.Code, d.Name, $"Template for {d.Name}", d.Type, NotificationChannel.Email,
+                    d.Body, actorId, subject: d.Subject, bodyHtmlTemplate: d.Html);
+                if (result.IsSuccess)
+                {
+                    await context.NotificationTemplates.AddAsync(result.Value);
+                    changes++;
+                }
+            }
+            else if (existing.Subject != d.Subject || existing.BodyTemplate != d.Body || existing.BodyHtmlTemplate != d.Html)
+            {
+                existing.Update(d.Name, $"Template for {d.Name}", d.Body, actorId, subject: d.Subject, bodyHtmlTemplate: d.Html);
+                context.NotificationTemplates.Update(existing);
+                changes++;
+            }
+        }
+
+        if (changes > 0)
+        {
+            await context.SaveChangesAsync();
+            logger.LogInformation("Seeded/updated {Count} NAMP workflow email template(s)", changes);
+        }
+    }
+
+    // ── Branded email building blocks (Bank of Agriculture green theme) ──────
+
+    private const string LogoUrl = "https://tpclientassets.s3.eu-central-1.amazonaws.com/bankofagriculture/logo.png";
+
+    private static string Shell(string inner) =>
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>" +
+        "<body style=\"margin:0;padding:0;background:#f4f6f4;\">" +
+        "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f4f6f4;padding:24px 0;font-family:Arial,Helvetica,sans-serif;\"><tr><td align=\"center\">" +
+        "<table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.08);\">" +
+        // Header
+        "<tr><td style=\"background:#14532d;padding:22px 32px;\">" +
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\"><tr>" +
+        "<td style=\"vertical-align:middle;\"><div style=\"background:#ffffff;border-radius:8px;padding:6px 8px;display:inline-block;\">" +
+        "<img src=\"" + LogoUrl + "\" alt=\"Bank of Agriculture\" height=\"40\" style=\"display:block;height:40px;width:auto;border:0;\"/></div></td>" +
+        "<td style=\"vertical-align:middle;padding-left:14px;\">" +
+        "<div style=\"color:#ffffff;font-size:17px;font-weight:bold;letter-spacing:0.5px;\">BANK OF AGRICULTURE</div>" +
+        "<div style=\"color:#a7d3b5;font-size:11px;letter-spacing:0.5px;\">Credit Risk Management System</div>" +
+        "</td></tr></table></td></tr>" +
+        // Body
+        "<tr><td style=\"padding:32px;color:#1f2937;font-size:14px;line-height:1.6;\">" + inner + "</td></tr>" +
+        // Footer
+        "<tr><td style=\"background:#f0f4f1;padding:18px 32px;color:#8a948c;font-size:11px;line-height:1.5;border-top:1px solid #e3e9e4;\">" +
+        "This is an automated message from the Bank of Agriculture CRMS — please do not reply. " +
+        "If you did not expect this email, contact your administrator.</td></tr>" +
+        "</table></td></tr></table></body></html>";
+
+    private static string Button(string text, string url) =>
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:24px 0;\"><tr>" +
+        "<td style=\"background:#1f7a3d;border-radius:6px;\">" +
+        "<a href=\"" + url + "\" style=\"display:inline-block;padding:13px 30px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;font-family:Arial,Helvetica,sans-serif;\">" + text + "</a>" +
+        "</td></tr></table>";
+
+    private static string CredBox(string label1, string value1, string label2, string value2) =>
+        "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f0f4f1;border:1px solid #e3e9e4;border-radius:8px;margin:8px 0;\"><tr>" +
+        "<td style=\"padding:16px 20px;font-size:14px;color:#1f2937;line-height:1.8;\">" +
+        "<span style=\"color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;\">" + label1 + "</span><br/><strong>" + value1 + "</strong><br/>" +
+        "<span style=\"color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;\">" + label2 + "</span><br/><strong>" + value2 + "</strong>" +
+        "</td></tr></table>";
 
     private static async Task SeedLoanProductsAsync(CRMSDbContext context, ILogger logger)
     {

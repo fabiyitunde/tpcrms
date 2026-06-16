@@ -195,11 +195,16 @@ public class CastNampCommitteeVoteHandler
     : IRequestHandler<CastNampCommitteeVoteCommand, ApplicationResult<NampCommitteeReviewDto>>
 {
     private readonly ICommitteeReviewRepository _committeeRepo;
+    private readonly INampApplicationRepository _nampRepo;
     private readonly IUnitOfWork _uow;
 
-    public CastNampCommitteeVoteHandler(ICommitteeReviewRepository committeeRepo, IUnitOfWork uow)
+    public CastNampCommitteeVoteHandler(
+        ICommitteeReviewRepository committeeRepo,
+        INampApplicationRepository nampRepo,
+        IUnitOfWork uow)
     {
         _committeeRepo = committeeRepo;
+        _nampRepo = nampRepo;
         _uow = uow;
     }
 
@@ -215,6 +220,17 @@ public class CastNampCommitteeVoteHandler
         var result = review.CastVote(request.UserId, vote, request.Comment);
         if (result.IsFailure) return ApplicationResult<NampCommitteeReviewDto>.Failure(result.Error);
 
+        // Auto-resolve outcome once every member has voted
+        if (review.Status == CommitteeReviewStatus.VotingComplete)
+        {
+            var app = await _nampRepo.GetByCommitteeReviewIdAsync(review.Id, ct);
+            if (app is not null)
+            {
+                app.RecordCommitteeOutcome(request.UserId, review.HasMajorityApproval, note: null);
+                app.SetAuditInfo(request.UserId.ToString());
+            }
+        }
+
         _committeeRepo.Update(review);
         await _uow.SaveChangesAsync(ct);
 
@@ -229,43 +245,6 @@ public class CastNampCommitteeVoteHandler
             )).ToList()
         );
         return ApplicationResult<NampCommitteeReviewDto>.Success(dto);
-    }
-}
-
-// ── Stage 4c: Confirm Committee Outcome (CO after quorum) ─────────────────
-
-public record RecordNampCommitteeOutcomeCommand(
-    Guid NampApplicationId,
-    Guid UserId,
-    bool IsApproved,
-    string? Note
-) : IRequest<ApplicationResult<NampApplicationDto>>;
-
-public class RecordNampCommitteeOutcomeHandler
-    : IRequestHandler<RecordNampCommitteeOutcomeCommand, ApplicationResult<NampApplicationDto>>
-{
-    private readonly INampApplicationRepository _repo;
-    private readonly IUnitOfWork _uow;
-
-    public RecordNampCommitteeOutcomeHandler(INampApplicationRepository repo, IUnitOfWork uow)
-    {
-        _repo = repo;
-        _uow = uow;
-    }
-
-    public async Task<ApplicationResult<NampApplicationDto>> Handle(
-        RecordNampCommitteeOutcomeCommand request, CancellationToken ct = default)
-    {
-        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
-        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
-
-        var result = app.RecordCommitteeOutcome(request.UserId, request.IsApproved, request.Note);
-        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
-
-        app.SetAuditInfo(request.UserId.ToString());
-        await _uow.SaveChangesAsync(ct);
-
-        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
     }
 }
 

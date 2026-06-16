@@ -1,34 +1,28 @@
 @page "/not-found"
-@layout MainLayout
-@inject NavigationManager Navigation
+@layout EmptyLayout
 
 <PageTitle>Page Not Found - CRMS</PageTitle>
 
 <div class="card" style="max-width: 600px; margin: var(--space-8) auto;">
     <div class="empty-state">
         <div class="empty-state-icon" style="background: var(--danger-50);">
-            <span class="material-symbols-outlined" style="color: var(--danger-500);">error</span>
+            <span class="material-symbols-outlined" style="color: var(--danger-500);">link_off</span>
         </div>
-        <div class="empty-state-title">Page Not Found</div>
+        <div class="empty-state-title">Page not found</div>
         <div class="empty-state-text">
-            Sorry, the page you are looking for doesn't exist or has been moved.
+            The page you're looking for doesn't exist or has been moved.
+            If you followed a link from an email, it may be incomplete or expired —
+            password reset links are valid for 60 minutes and can only be used once.
         </div>
-        <div style="display: flex; gap: var(--space-3); justify-content: center; margin-top: var(--space-4);">
-            <button class="btn btn-secondary" @onclick="GoBack">
-                <span class="material-symbols-outlined" style="font-size: 18px;">arrow_back</span>
-                Go Back
-            </button>
-            <a href="/" class="btn btn-primary">
-                <span class="material-symbols-outlined" style="font-size: 18px;">home</span>
-                Go to Dashboard
+        <div style="display: flex; gap: var(--space-3); justify-content: center; margin-top: var(--space-4); flex-wrap: wrap;">
+            <a href="/forgot-password" class="btn btn-primary">
+                <span class="material-symbols-outlined" style="font-size: 18px;">mail</span>
+                Request a new reset link
+            </a>
+            <a href="/login" class="btn btn-secondary">
+                <span class="material-symbols-outlined" style="font-size: 18px;">login</span>
+                Go to sign in
             </a>
         </div>
     </div>
 </div>
-
-@code {
-    private void GoBack()
-    {
-        Navigation.NavigateTo("/");
-    }
-}

@@ -613,7 +613,7 @@ public class SmartComplyProvider : ISmartComplyProvider
         {
             _logger.LogInformation("Verifying CAC (basic) for RC {RcNumber}", rcNumber);
 
-            var request = new CacVerificationRequest { RcNumber = rcNumber };
+            var request = new CacVerificationRequest { RcNumber = NormalizeRegistrationNumber(rcNumber) };
             var response = await _httpClient.PostAsJsonAsync(SmartComplyEndpoints.KycNigeria.CAC, request, ct);
 
             if (!response.IsSuccessStatusCode)
@@ -685,7 +685,7 @@ public class SmartComplyProvider : ISmartComplyProvider
 
             var request = new CacAdvancedVerificationRequest
             {
-                RegistrationNumber = rcNumber,
+                RegistrationNumber = NormalizeRegistrationNumber(rcNumber),
                 CompanyName = companyName,
                 CompanyType = companyType
             };
@@ -714,6 +714,24 @@ public class SmartComplyProvider : ISmartComplyProvider
             _logger.LogError(ex, "Error during CAC (advanced) verification");
             return Result.Failure<SmartComplyCacResult>($"Error: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// SmartComply's CAC endpoints expect the bare registration number — the entity-type prefix
+    /// (RC / BN / IT) is conveyed separately via company_type. Strip a leading prefix (and any
+    /// separator) if a caller included one, e.g. "RC654321" or "RC-654321" -> "654321".
+    /// </summary>
+    private static string NormalizeRegistrationNumber(string rcNumber)
+    {
+        if (string.IsNullOrWhiteSpace(rcNumber)) return rcNumber;
+
+        var trimmed = rcNumber.Trim();
+        foreach (var prefix in new[] { "RC", "BN", "IT" })
+        {
+            if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return trimmed[prefix.Length..].TrimStart(' ', '-', '/', '.', ':');
+        }
+        return trimmed;
     }
 
     private static SmartComplyCacResult MapCacAdvancedToResult(CacAdvancedData d)

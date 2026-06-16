@@ -37,6 +37,19 @@ public class NampApplication : AggregateRoot
     public string? CompanyName { get; private set; }
     public string? RcNumber { get; private set; }
 
+    // ── CAC Company Profile (Agro-Service; fetched from SmartComply at recall/draft) ──
+    public string? CacStatus { get; private set; }
+    public string? CacEntityType { get; private set; }
+    public string? CacRegistrationDate { get; private set; }
+    public string? CacNatureOfBusiness { get; private set; }
+    public decimal? CacShareCapital { get; private set; }
+    public long? CacCompanyId { get; private set; }
+    public string? CacAddress { get; private set; }
+    public string? CacCity { get; private set; }
+    public string? CacState { get; private set; }
+    public DateTime? CacFetchedAt { get; private set; }
+    public string? CacRawJson { get; private set; }
+
     // ── Individual Credit Profile (null for MechanisationCompany) ──────────
     public string? Occupation { get; private set; }
     public string? EmployerName { get; private set; }
@@ -123,6 +136,7 @@ public class NampApplication : AggregateRoot
     private readonly List<NampCollateral> _collaterals = [];
     private readonly List<NampFinancialStatement> _financialStatements = [];
     private readonly List<NampPreDeploymentChecklistItem> _preDeploymentChecklist = [];
+    private readonly List<NampDirector> _directors = [];
 
     public IReadOnlyList<NampDocument> Documents => _documents.AsReadOnly();
     public IReadOnlyList<NampStatusHistory> StatusHistory => _statusHistory.AsReadOnly();
@@ -130,6 +144,7 @@ public class NampApplication : AggregateRoot
     public IReadOnlyList<NampCollateral> Collaterals => _collaterals.AsReadOnly();
     public IReadOnlyList<NampFinancialStatement> FinancialStatements => _financialStatements.AsReadOnly();
     public IReadOnlyList<NampPreDeploymentChecklistItem> PreDeploymentChecklist => _preDeploymentChecklist.AsReadOnly();
+    public IReadOnlyList<NampDirector> Directors => _directors.AsReadOnly();
 
     private NampApplication() { }
 
@@ -189,6 +204,23 @@ public class NampApplication : AggregateRoot
     {
         if (Status != NampApplicationStatus.Draft)
             return Result.Failure("Application must be in Draft to submit.");
+
+        // AgroService companies are credit-checked at the company AND director/shareholder level on
+        // submission. Every director must have a BVN, otherwise that person cannot be bureau-checked.
+        if (ApplicantCategory == NampApplicantCategory.AgroServiceCompany)
+        {
+            if (_directors.Count == 0)
+                return Result.Failure(
+                    "Add the company's directors/shareholders (Fetch from CAC or add manually) before submitting — each must be credit-checked.");
+
+            var missingBvn = _directors
+                .Where(d => string.IsNullOrWhiteSpace(d.Bvn))
+                .Select(d => d.FullName)
+                .ToList();
+            if (missingBvn.Count > 0)
+                return Result.Failure(
+                    $"These directors/shareholders are missing a BVN and cannot be credit-checked: {string.Join(", ", missingBvn)}. Complete their BVNs before submitting.");
+        }
 
         Status = NampApplicationStatus.Submitted;
         SubmittedAt = DateTime.UtcNow;
@@ -345,6 +377,15 @@ public class NampApplication : AggregateRoot
         if (blockers.Count > 0)
             return Result.Failure($"The following mandatory checklist items are not confirmed: {string.Join(", ", blockers)}.");
 
+        var uploadBlockers = _preDeploymentChecklist
+            .Where(i => i.RequiresDocumentUpload
+                && i.DocumentCategory.HasValue
+                && !_documents.Any(d => d.Category == i.DocumentCategory.Value))
+            .Select(i => i.Title)
+            .ToList();
+        if (uploadBlockers.Count > 0)
+            return Result.Failure($"The following checklist items require a document upload: {string.Join(", ", uploadBlockers)}.");
+
         PreDeploymentVerifiedByUserId = userId;
         PreDeploymentVerifiedAt = DateTime.UtcNow;
         PreDeploymentNote = note;
@@ -442,6 +483,45 @@ public class NampApplication : AggregateRoot
     public void AddGuarantor(NampGuarantor guarantor) => _guarantors.Add(guarantor);
     public void AddCollateral(NampCollateral collateral) => _collaterals.Add(collateral);
     public void AddFinancialStatement(NampFinancialStatement statement) => _financialStatements.Add(statement);
+
+    // ── CAC Company Details & Directors (Agro-Service) ─────────────────────
+
+    /// <summary>Stores the company-level profile returned by the SmartComply CAC lookup.</summary>
+    public void SetCacCompanyProfile(
+        string? status,
+        string? entityType,
+        string? registrationDate,
+        string? natureOfBusiness,
+        decimal? shareCapital,
+        long? companyId,
+        string? address,
+        string? city,
+        string? state,
+        string? rawJson)
+    {
+        CacStatus = status;
+        CacEntityType = entityType;
+        CacRegistrationDate = registrationDate;
+        CacNatureOfBusiness = natureOfBusiness;
+        CacShareCapital = shareCapital;
+        CacCompanyId = companyId;
+        CacAddress = address;
+        CacCity = city;
+        CacState = state;
+        CacRawJson = rawJson;
+        CacFetchedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Finds an existing CAC-sourced director matching the given CAC id (or full name).
+    /// Returns null when none match — the caller then creates a new record via the repository.
+    /// Manually-added directors (SourcedFromCac == false) are never matched here.
+    /// </summary>
+    public NampDirector? FindCacDirector(long? cacDirectorId, string fullName) =>
+        _directors.FirstOrDefault(d =>
+            d.SourcedFromCac &&
+            ((cacDirectorId.HasValue && d.CacDirectorId == cacDirectorId) ||
+             (!cacDirectorId.HasValue && string.Equals(d.FullName, fullName, StringComparison.OrdinalIgnoreCase))));
 
     // ── Documents ─────────────────────────────────────────────────────────
 

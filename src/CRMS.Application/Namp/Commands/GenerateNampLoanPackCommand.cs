@@ -83,6 +83,22 @@ public class GenerateNampLoanPackHandler
         string? ratifiedByName = app.RatifiedByUserId.HasValue
             ? ResolveName(app.RatifiedByUserId.Value) : null;
 
+        // Resolve the committee decision. NAMP records the outcome on the application (auto-transition
+        // on the last vote), so committeeReview.FinalDecision is usually null — derive from the recorded
+        // outcome and the majority-approval tally instead of relying on FinalDecision.
+        string? committeeDecision = null;
+        if (committeeReview is not null)
+        {
+            if (app.CommitteeDecisionAt.HasValue)
+                committeeDecision = committeeReview.HasMajorityApproval ? "Approved" : "Declined";
+            else if (committeeReview.FinalDecision.HasValue)
+                committeeDecision = committeeReview.FinalDecision.Value.ToString();
+            else if (committeeReview.Status == Domain.Enums.CommitteeReviewStatus.VotingComplete)
+                committeeDecision = committeeReview.HasMajorityApproval
+                    ? "Approved (awaiting confirmation)" : "Declined (awaiting confirmation)";
+            // otherwise null → "Pending" (voting still in progress)
+        }
+
         var dto = GetNampApplicationByIdHandler.MapToDto(app, finReport, bureauReports);
 
         var data = new NampLoanPackData(
@@ -120,6 +136,13 @@ public class GenerateNampLoanPackHandler
             CompanyName:          app.CompanyName,
             RcNumber:             app.RcNumber,
             IndustrySector:       app.IndustrySector,
+            CacStatus:            app.CacStatus,
+            CacEntityType:        app.CacEntityType,
+            CacRegistrationDate:  app.CacRegistrationDate,
+            CacNatureOfBusiness:  app.CacNatureOfBusiness,
+            CacShareCapital:      app.CacShareCapital,
+            CacAddress:           app.CacAddress,
+            CacFetchedAt:         app.CacFetchedAt,
             EquipmentDescription: app.EquipmentDescription,
             EquipmentValue:       app.EquipmentValue,
             LoanPurpose:          app.LoanPurpose,
@@ -127,14 +150,20 @@ public class GenerateNampLoanPackHandler
             EquityAmount:         app.EquityAmount,
             LoanAmount:           app.LoanAmount,
             RequestedTenorMonths: app.RequestedTenorMonths,
+            ApprovedInterestRate: app.ApprovedInterestRate,
             CommitteeTier:        app.CommitteeTier.ToString(),
-            CommitteeDecision:    committeeReview?.FinalDecision?.ToString(),
-            CommitteeApprovalVotes:   committeeReview?.ApprovalVotes ?? 0,
-            CommitteeRejectionVotes:  committeeReview?.RejectionVotes ?? 0,
-            CommitteeAbstainVotes:    committeeReview?.AbstainVotes ?? 0,
+            CommitteeDecision:    committeeDecision,
+            CommitteeApprovalVotes:       committeeReview?.ApprovalVotes ?? 0,
+            CommitteeRejectionVotes:      committeeReview?.RejectionVotes ?? 0,
+            CommitteeAbstainVotes:        committeeReview?.AbstainVotes ?? 0,
+            CommitteeMinimumApprovalVotes: committeeReview?.MinimumApprovalVotes ?? 0,
+            CommitteeRequiredVotes:       committeeReview?.RequiredVotes ?? 0,
+            CommitteeDecisionAt:  app.CommitteeDecisionAt,
+            CommitteeDecisionNote: app.CommitteeDecisionNote,
             CommitteeConditions:  committeeReview?.ApprovalConditions,
             CommitteeMembers:     committeeMembers,
             FinancialAppraisal:   dto.FinancialAppraisalReport,
+            Directors:            dto.Directors,
             Guarantors:           dto.Guarantors,
             Collaterals:          dto.Collaterals,
             BureauReports:        dto.BureauReports,

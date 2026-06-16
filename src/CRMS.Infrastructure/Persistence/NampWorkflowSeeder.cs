@@ -69,7 +69,7 @@ public static class NampWorkflowSeeder
             Stage(NampApplicationStatus.Deployment, "Deployment", "Deployment Officer tracking equipment delivery and GPS activation.", Roles.DeploymentOfficer, slaHours: 168, sort: 130),
 
             // ── Stage 9: Active ───────────────────────────────────────────
-            Stage(NampApplicationStatus.Active, "Active", "GPS confirmed; PAYS repayment cycle running.", Roles.SystemAdmin, slaHours: 0, sort: 140),
+            Stage(NampApplicationStatus.Active, "Active", "GPS confirmed; PAYS repayment cycle running.", Roles.LoanOfficer, slaHours: 0, sort: 140),
 
             // ── Terminal ──────────────────────────────────────────────────
             Stage(NampApplicationStatus.Closed, "Closed", "Full PAYS repayment completed.", Roles.SystemAdmin, slaHours: 0, sort: 150, isTerminal: true),

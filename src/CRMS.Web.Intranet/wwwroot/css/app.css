@@ -185,13 +185,11 @@ a:hover {
 .sidebar-logo-icon {
     width: 36px;
     height: 36px;
-    background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
-    border-radius: var(--radius-lg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: var(--text-lg);
+    object-fit: contain;
+    border-radius: var(--radius-md);
+    background: white;
+    padding: 2px;
+    flex-shrink: 0;
 }
 
 .sidebar-nav {
@@ -1007,13 +1005,8 @@ a:hover {
 .login-brand-icon {
     width: 48px;
     height: 48px;
-    background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
-    border-radius: var(--radius-lg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: var(--text-xl);
+    object-fit: contain;
+    background: transparent;
 }
 
 .login-brand-text {

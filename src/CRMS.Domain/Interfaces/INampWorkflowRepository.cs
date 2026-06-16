@@ -6,9 +6,11 @@ namespace CRMS.Domain.Interfaces;
 public interface INampWorkflowConfigRepository
 {
     Task<NampWorkflowConfig?> GetByStatusAsync(NampApplicationStatus status, CancellationToken ct = default);
+    Task<NampWorkflowConfig?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<NampWorkflowConfig>> GetAllAsync(CancellationToken ct = default);
     Task AddAsync(NampWorkflowConfig config, CancellationToken ct = default);
     Task AddRangeAsync(IEnumerable<NampWorkflowConfig> configs, CancellationToken ct = default);
+    void Update(NampWorkflowConfig config);
     Task<bool> AnyAsync(CancellationToken ct = default);
 }
 

@@ -65,7 +65,7 @@ public class UpdateUserHandler : IRequestHandler<UpdateUserCommand, ApplicationR
         return ApplicationResult<UserDto>.Success(new UserDto(
             user.Id, user.Email, user.UserName, user.FirstName, user.LastName, user.FullName,
             user.Type.ToString(), user.Status.ToString(), user.PhoneNumber, user.LocationId,
-            user.Location?.Name, user.LastLoginAt, roles.Select(r => r.Name).ToList(), permissions.Select(p => p.Code).ToList()
+            user.Location?.Name, user.Location?.Type.ToString(), user.LastLoginAt, roles.Select(r => r.Name).ToList(), permissions.Select(p => p.Code).ToList()
         ));
     }
 }

@@ -30,6 +30,9 @@ public class UserInfo
     public List<string> Permissions { get; set; } = [];
     public Guid? LocationId { get; set; }
     public string? LocationName { get; set; }
+    public string? LocationType { get; set; }
+    /// <summary>True when the user is domiciled at the Head Office — grants cross-branch (global) visibility.</summary>
+    public bool IsHeadOffice => string.Equals(LocationType, "HeadOffice", StringComparison.OrdinalIgnoreCase);
     // Backward compatibility
     public string? BranchId { get => LocationId?.ToString(); set => LocationId = Guid.TryParse(value, out var id) ? id : null; }
     public string? BranchName { get => LocationName; set => LocationName = value; }

@@ -43,6 +43,7 @@ public class GetUserByIdHandler : IRequestHandler<GetUserByIdQuery, ApplicationR
             user.PhoneNumber,
             user.LocationId,
             user.Location?.Name,
+            user.Location?.Type.ToString(),
             user.LastLoginAt,
             roles.Select(r => r.Name).ToList(),
             permissions.Select(p => p.Code).ToList()

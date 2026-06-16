@@ -102,9 +102,23 @@ using (var scope = app.Services.CreateScope())
     
     try
     {
-        logger.LogInformation("Applying database migrations...");
-        dbContext.Database.Migrate();
-        logger.LogInformation("Database migrations applied successfully.");
+        // AutoMigrate is a toggle (Database:AutoMigrate, also settable via the
+        // Database__AutoMigrate env var). When false, pending migrations are NOT
+        // applied automatically — apply them through a controlled, backed-up step.
+        var autoMigrate = builder.Configuration.GetValue("Database:AutoMigrate", true);
+        if (autoMigrate)
+        {
+            logger.LogInformation("Applying database migrations...");
+            dbContext.Database.Migrate();
+            logger.LogInformation("Database migrations applied successfully.");
+        }
+        else
+        {
+            var pending = dbContext.Database.GetPendingMigrations().ToList();
+            logger.LogWarning(
+                "Database:AutoMigrate is disabled — skipping {Count} pending migration(s): {Migrations}. Apply them manually.",
+                pending.Count, pending.Count == 0 ? "(none)" : string.Join(", ", pending));
+        }
 
         // Seed initial data (roles, products, templates, test users)
         logger.LogInformation("Seeding initial data...");

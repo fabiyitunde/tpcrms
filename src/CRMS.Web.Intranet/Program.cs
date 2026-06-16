@@ -4,6 +4,7 @@ using CRMS.Infrastructure.Persistence;
 using CRMS.Web.Intranet.Components;
 using CRMS.Web.Intranet.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -55,9 +56,23 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        startupLogger.LogInformation("Applying database migrations...");
-        await db.Database.MigrateAsync();
-        startupLogger.LogInformation("Migrations applied successfully.");
+        // AutoMigrate is a toggle (Database:AutoMigrate, also settable via the
+        // Database__AutoMigrate env var). When false, pending migrations are NOT
+        // applied automatically — apply them through a controlled, backed-up step.
+        var autoMigrate = builder.Configuration.GetValue("Database:AutoMigrate", true);
+        if (autoMigrate)
+        {
+            startupLogger.LogInformation("Applying database migrations...");
+            await db.Database.MigrateAsync();
+            startupLogger.LogInformation("Migrations applied successfully.");
+        }
+        else
+        {
+            var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+            startupLogger.LogWarning(
+                "Database:AutoMigrate is disabled — skipping {Count} pending migration(s): {Migrations}. Apply them manually.",
+                pending.Count, pending.Count == 0 ? "(none)" : string.Join(", ", pending));
+        }
 
         var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("SeedData");
         var passwordHasher = scope.ServiceProvider.GetRequiredService<CRMS.Application.Identity.Interfaces.IPasswordHasher>();
@@ -81,6 +96,15 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
+
+// Must come before UseHttpsRedirection so that the scheme/host seen by the app
+// reflects the public-facing URL forwarded by the AWS ALB (X-Forwarded-Proto/Host).
+// Without this, Navigation.BaseUri resolves to the internal http:// address and
+// the password-reset link in emails points to the wrong host.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost
+});
 
 app.UseStatusCodePagesWithReExecute("/not-found");
 app.UseHttpsRedirection();

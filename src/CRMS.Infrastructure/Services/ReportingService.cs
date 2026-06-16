@@ -42,6 +42,91 @@ public class ReportingService : IReportingService
         return result;
     }
 
+    // ── NAMP status groupings (NampApplications is a separate aggregate from LoanApplications) ──
+    private static readonly NampApplicationStatus[] NampInPipelineStatuses =
+    {
+        NampApplicationStatus.Received,
+        NampApplicationStatus.RecallPending,
+        NampApplicationStatus.Draft,
+        NampApplicationStatus.Submitted,
+        NampApplicationStatus.FinancialAppraisal,
+        NampApplicationStatus.BranchCommitteeCirculation,
+        NampApplicationStatus.ZonalCommitteeCirculation,
+        NampApplicationStatus.RegionalCommitteeCirculation,
+        NampApplicationStatus.HOCommitteeCirculation,
+        NampApplicationStatus.Ratification,
+    };
+
+    private static readonly NampApplicationStatus[] NampApprovedStatuses =
+    {
+        NampApplicationStatus.OfferGenerated,
+        NampApplicationStatus.OfferAccepted,
+        NampApplicationStatus.PreDeploymentVerification,
+        NampApplicationStatus.Deployment,
+    };
+
+    private static readonly NampApplicationStatus[] NampDeclinedStatuses =
+    {
+        NampApplicationStatus.FinancialDeclined,
+        NampApplicationStatus.BranchCommitteeDeclined,
+        NampApplicationStatus.ZonalCommitteeDeclined,
+        NampApplicationStatus.RegionalCommitteeDeclined,
+        NampApplicationStatus.HOCommitteeDeclined,
+        NampApplicationStatus.RatificationDeclined,
+        NampApplicationStatus.OfferLapsed,
+        NampApplicationStatus.Declined,
+    };
+
+    private static readonly NampApplicationStatus[] NampActiveStatuses =
+    {
+        NampApplicationStatus.Active,
+    };
+
+    public async Task<NampDashboardSummaryDto> GetNampDashboardSummaryAsync(CancellationToken ct = default)
+    {
+        const string cacheKey = "namp_dashboard_summary";
+
+        if (_cache.TryGetValue(cacheKey, out NampDashboardSummaryDto? cached) && cached != null)
+            return cached;
+
+        var now = DateTime.UtcNow;
+        var startOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var startOfLastMonth = startOfMonth.AddMonths(-1);
+
+        var apps = await _context.NampApplications
+            .Select(x => new { x.Status, x.LoanAmount, x.EquipmentValue, x.CreatedAt })
+            .ToListAsync(ct);
+
+        var total = apps.Count;
+        var inPipeline = apps.Count(x => NampInPipelineStatuses.Contains(x.Status));
+        var approved = apps.Count(x => NampApprovedStatuses.Contains(x.Status));
+        var declined = apps.Count(x => NampDeclinedStatuses.Contains(x.Status));
+        var activeLoans = apps.Count(x => NampActiveStatuses.Contains(x.Status));
+        var activeLoanValue = apps.Where(x => NampActiveStatuses.Contains(x.Status))
+                                   .Sum(x => x.LoanAmount ?? x.EquipmentValue);
+
+        var newThisMonth = apps.Count(x => x.CreatedAt >= startOfMonth);
+        var newLastMonth = apps.Count(x => x.CreatedAt >= startOfLastMonth && x.CreatedAt < startOfMonth);
+        var growth = newLastMonth > 0 ? (decimal)(newThisMonth - newLastMonth) / newLastMonth * 100 : 0;
+
+        var byStatus = apps
+            .GroupBy(x => x.Status)
+            .OrderByDescending(g => g.Count())
+            .Select(g => new NampStatusCountDto(
+                g.Key.ToString(),
+                g.Count(),
+                total > 0 ? Math.Round((decimal)g.Count() / total * 100, 0) : 0))
+            .ToList();
+
+        var result = new NampDashboardSummaryDto(
+            total, inPipeline, approved, declined, activeLoans, activeLoanValue,
+            newThisMonth, newLastMonth, Math.Round(growth, 2), byStatus);
+
+        _cache.Set(cacheKey, result, DashboardCacheDuration);
+
+        return result;
+    }
+
     public async Task<LoanFunnelDto> GetLoanFunnelAsync(DateTime? fromDate, DateTime? toDate, CancellationToken ct = default)
     {
         var query = _context.LoanApplications.AsQueryable();

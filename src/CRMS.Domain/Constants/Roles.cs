@@ -121,6 +121,20 @@ public static class Roles
     };
 
     /// <summary>
+    /// The role responsible for ratifying a committee decision at each NAMP tier:
+    /// Branch Manager ratifies the Branch committee, Zonal Manager the Zonal committee, etc.
+    /// Falls back to the generic FinalApprover if the tier is unrecognised.
+    /// </summary>
+    public static string RatifierRoleForTier(NampCommitteeTier tier) => tier switch
+    {
+        NampCommitteeTier.Branch     => BranchManager,
+        NampCommitteeTier.Zonal      => ZonalManager,
+        NampCommitteeTier.Regional   => RegionalManager,
+        NampCommitteeTier.HeadOffice => MdCeo,
+        _                            => FinalApprover,
+    };
+
+    /// <summary>
     /// Gets the visibility scope for a role. Defaults to Branch if role not found.
     /// </summary>
     public static VisibilityScope GetVisibilityScope(string role)

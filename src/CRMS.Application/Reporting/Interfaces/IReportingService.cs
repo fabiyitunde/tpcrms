@@ -6,6 +6,7 @@ public interface IReportingService
 {
     // Dashboard
     Task<DashboardSummaryDto> GetDashboardSummaryAsync(CancellationToken ct = default);
+    Task<NampDashboardSummaryDto> GetNampDashboardSummaryAsync(CancellationToken ct = default);
     
     // Loan Funnel
     Task<LoanFunnelDto> GetLoanFunnelAsync(DateTime? fromDate, DateTime? toDate, CancellationToken ct = default);

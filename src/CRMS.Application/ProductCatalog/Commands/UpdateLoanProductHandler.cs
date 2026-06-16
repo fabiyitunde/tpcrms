@@ -40,6 +40,10 @@ public class UpdateLoanProductHandler : IRequestHandler<UpdateLoanProductCommand
         if (result.IsFailure)
             return ApplicationResult<LoanProductDto>.Failure(result.Error);
 
+        var segmentResult = product.ChangeSegment(request.Type);
+        if (segmentResult.IsFailure)
+            return ApplicationResult<LoanProductDto>.Failure(segmentResult.Error);
+
         await _repository.UpdateAsync(product, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 

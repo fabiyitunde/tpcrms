@@ -14,6 +14,9 @@ public class NampWorkflowConfigRepository : INampWorkflowConfigRepository
     public async Task<NampWorkflowConfig?> GetByStatusAsync(NampApplicationStatus status, CancellationToken ct = default)
         => await _context.NampWorkflowConfigs.FirstOrDefaultAsync(x => x.Status == status, ct);
 
+    public async Task<NampWorkflowConfig?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => await _context.NampWorkflowConfigs.FirstOrDefaultAsync(x => x.Id == id, ct);
+
     public async Task<IReadOnlyList<NampWorkflowConfig>> GetAllAsync(CancellationToken ct = default)
         => await _context.NampWorkflowConfigs.OrderBy(x => x.SortOrder).ToListAsync(ct);
 
@@ -22,6 +25,9 @@ public class NampWorkflowConfigRepository : INampWorkflowConfigRepository
 
     public async Task AddRangeAsync(IEnumerable<NampWorkflowConfig> configs, CancellationToken ct = default)
         => await _context.NampWorkflowConfigs.AddRangeAsync(configs, ct);
+
+    public void Update(NampWorkflowConfig config)
+        => _context.NampWorkflowConfigs.Update(config);
 
     public async Task<bool> AnyAsync(CancellationToken ct = default)
         => await _context.NampWorkflowConfigs.AnyAsync(ct);

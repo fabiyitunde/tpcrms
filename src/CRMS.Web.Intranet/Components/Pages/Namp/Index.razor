@@ -630,7 +630,8 @@
         pageError = null;
         try
         {
-            var stagingBranchId = IsLoanOfficer && !IsAdmin ? User?.LocationId : (Guid?)null;
+            // Head-office-domiciled actors see all branches; branch actors are scoped to their branch.
+            var stagingBranchId = IsLoanOfficer && !IsAdmin && !(User?.IsHeadOffice ?? false) ? User?.LocationId : (Guid?)null;
             await LoadStagingQueue(stagingBranchId);
             await LoadMyQueue();
             if (activeTab == "all") await LoadAdminAll();
@@ -663,11 +664,14 @@
 
         var results = new List<NampApplicationSummaryDto>();
 
-        // Branch-filtered statuses: only apps in the user's branch
+        // Head-office-domiciled actors see every branch; branch actors are scoped to their own branch.
+        var queueBranchId = user.IsHeadOffice ? (Guid?)null : user.LocationId;
+
+        // Branch-filtered statuses: only apps in the user's branch (or all branches for HO actors)
         var branchStatuses = GetBranchScopedStatuses(user);
         if (branchStatuses.Length > 0)
         {
-            var branchApps = await AppService.GetNampApplicationsByStatusesAsync(branchStatuses, user.LocationId);
+            var branchApps = await AppService.GetNampApplicationsByStatusesAsync(branchStatuses, queueBranchId);
             results.AddRange(branchApps);
         }
 
@@ -690,8 +694,8 @@
         var ratificationTier = GetRatificationTier(user);
         if (ratificationTier != null)
         {
-            // Branch managers see only their branch's ratification apps; others see all
-            var ratBranchId = user.HasRole("BranchManager") ? user.LocationId : (Guid?)null;
+            // Branch managers see only their branch's ratification apps; HO-domiciled managers and higher tiers see all
+            var ratBranchId = user.HasRole("BranchManager") && !user.IsHeadOffice ? user.LocationId : (Guid?)null;
             var ratApps = await AppService.GetNampApplicationsByStatusAndTierAsync("Ratification", ratificationTier, ratBranchId);
             results.AddRange(ratApps);
         }

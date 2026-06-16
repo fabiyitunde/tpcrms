@@ -7,7 +7,26 @@ on:
   workflow_dispatch:  # Allow manual deploys from the Actions tab
 
 jobs:
+  migration-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # need history to diff changed migrations
+
+      - name: Check for destructive migrations
+        run: |
+          chmod +x scripts/check-destructive-migrations.sh
+          BASE="${{ github.event.before }}"
+          # github.event.before is all-zeros for the first push / some dispatches.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="HEAD~1"
+          fi
+          scripts/check-destructive-migrations.sh "$BASE" "${{ github.sha }}"
+
   deploy:
+    needs: migration-safety  # deploy is blocked unless the safety check passes
     runs-on: ubuntu-latest
 
     steps:

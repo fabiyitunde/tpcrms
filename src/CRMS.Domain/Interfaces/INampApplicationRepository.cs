@@ -7,6 +7,7 @@ public interface INampApplicationRepository
 {
     Task<NampApplication?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<NampApplication?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct = default);
+    Task<NampApplication?> GetByCommitteeReviewIdAsync(Guid committeeReviewId, CancellationToken ct = default);
     Task<NampApplication?> GetByApplicationReferenceAsync(string applicationReference, CancellationToken ct = default);
     Task<NampApplication?> GetByApplicationReferenceWithHistoryAsync(string applicationReference, CancellationToken ct = default);
     Task<NampApplication?> GetByApplicationNumberWithHistoryAsync(string applicationNumber, CancellationToken ct = default);
@@ -19,6 +20,9 @@ public interface INampApplicationRepository
     void Update(NampApplication application);
     Task AddNampDocumentAsync(NampDocument document, CancellationToken ct = default);
     Task<NampDocument?> GetNampDocumentByIdAsync(Guid documentId, CancellationToken ct = default);
+    Task AddDirectorAsync(NampDirector director, CancellationToken ct = default);
+    Task<NampDirector?> GetDirectorByIdAsync(Guid directorId, CancellationToken ct = default);
+    void RemoveDirector(NampDirector director);
     Task<NampFinancialAppraisalReport?> GetFinancialAppraisalReportAsync(Guid nampApplicationId, CancellationToken ct = default);
     Task AddFinancialAppraisalReportAsync(NampFinancialAppraisalReport report, CancellationToken ct = default);
     Task AddPreDeploymentChecklistItemsAsync(IEnumerable<NampPreDeploymentChecklistItem> items, CancellationToken ct = default);

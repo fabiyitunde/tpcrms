@@ -601,6 +601,9 @@ public class LoanProduct
     public bool IsActive { get; set; }
 
     public int? FineractProductId { get; set; }
+
+    /// <summary>Loan segment/channel: Retail, Corporate, or Namp.</summary>
+    public string Segment { get; set; } = "Corporate";
 }
 
 public class FinancialStatementInfo

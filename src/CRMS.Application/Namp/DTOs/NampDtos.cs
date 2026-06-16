@@ -143,7 +143,42 @@ public record NampApplicationDto(
     List<NampFinancialStatementDto> FinancialStatements,
     NampFinancialAppraisalReportDto? FinancialAppraisalReport,
     List<NampBureauReportDto> BureauReports,
-    List<NampPreDeploymentChecklistItemDto> PreDeploymentChecklist
+    List<NampPreDeploymentChecklistItemDto> PreDeploymentChecklist,
+    // CAC company profile (Agro-Service)
+    string? CacStatus,
+    string? CacEntityType,
+    string? CacRegistrationDate,
+    string? CacNatureOfBusiness,
+    decimal? CacShareCapital,
+    long? CacCompanyId,
+    string? CacAddress,
+    string? CacCity,
+    string? CacState,
+    DateTime? CacFetchedAt,
+    List<NampDirectorDto> Directors
+);
+
+public record NampDirectorDto(
+    Guid Id,
+    long? CacDirectorId,
+    bool SourcedFromCac,
+    string FullName,
+    string? Gender,
+    string? DateOfBirth,
+    string? Nationality,
+    string? Occupation,
+    string? Email,
+    string? PhoneNumber,
+    string? Address,
+    bool IsChairman,
+    string? DateOfAppointment,
+    string? AffiliateType,
+    string? TypeOfShares,
+    long? NumSharesAllotted,
+    decimal? ShareholdingPercent,
+    string? Bvn,
+    string? IdentityNumber,
+    bool BvnVerified
 );
 
 public record NampBureauReportDto(

@@ -61,6 +61,9 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
         builder.Property(x => x.RefreshToken)
             .HasMaxLength(500);
 
+        builder.Property(x => x.PasswordResetTokenHash)
+            .HasMaxLength(128);
+
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.CreatedBy).IsRequired().HasMaxLength(100);
 

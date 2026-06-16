@@ -3388,6 +3388,46 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
 
+                    b.Property<string>("CacAddress")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("CacCity")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<long?>("CacCompanyId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CacEntityType")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("CacFetchedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CacNatureOfBusiness")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("CacRawJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CacRegistrationDate")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<decimal?>("CacShareCapital")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CacState")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("CacStatus")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
                     b.Property<decimal?>("CartTotal")
                         .HasColumnType("decimal(18,2)");
 
@@ -3485,14 +3525,13 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.Property<decimal?>("FineractNominalInterestRate")
-                        .HasColumnType("decimal(10,4)");
+                        .HasColumnType("decimal(65,30)");
 
                     b.Property<int?>("FineractProductId")
                         .HasColumnType("int");
 
                     b.Property<string>("FineractProductName")
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
+                        .HasColumnType("longtext");
 
                     b.Property<bool>("GpsActivated")
                         .HasColumnType("tinyint(1)");
@@ -3602,26 +3641,13 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
 
                     b.Property<DateTime?>("SubmittedAt")
                         .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("TechnicalAppraisalAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<Guid?>("TechnicalAppraisalByUserId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("TechnicalAppraisalNote")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("TrainingCompletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<Guid?>("TrainingCompletedByUserId")
-                        .HasColumnType("char(36)");
 
                     b.Property<int?>("YearsOfExperience")
                         .HasColumnType("int");
@@ -3736,6 +3762,132 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("NampCollaterals", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDirector", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("AffiliateType")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Bvn")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<bool>("BvnVerified")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<long?>("CacDirectorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("DateOfAppointment")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("DateOfBirth")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("Gender")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("IdentityNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<bool>("IsChairman")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Nationality")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<long?>("NumSharesAllotted")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Occupation")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("OtherName")
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("RoleStatus")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal?>("ShareholdingPercent")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<bool>("SourcedFromCac")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("State")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Surname")
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("TypeOfShares")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId");
+
+                    b.ToTable("NampDirectors", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDocument", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3828,6 +3980,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("DebtServiceCoverageRatio")
                         .HasColumnType("decimal(10,4)");
 
+                    b.Property<string>("DemandEvidenceNote")
+                        .HasColumnType("text");
+
                     b.Property<string>("EquityAssessmentNote")
                         .HasColumnType("text");
 
@@ -3850,14 +4005,25 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("PreparedByUserId")
                         .HasColumnType("char(36)");
 
+                    b.Property<decimal?>("ProjectedMonthlyRentalRevenue")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int>("RepaymentCapacityRating")
                         .HasColumnType("int");
+
+                    b.Property<int>("RepaymentSource")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<DateTime>("SavedAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("SummaryNotes")
                         .HasColumnType("text");
+
+                    b.Property<decimal?>("UtilisationRateAssumption")
+                        .HasColumnType("decimal(5,2)");
 
                     b.HasKey("Id");
 
@@ -4580,8 +4746,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("varchar(2000)");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
 
                     b.HasKey("Id");
 
@@ -4590,150 +4758,6 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("NampApplicationId", "ChangedAt");
 
                     b.ToTable("NampStatusHistory", (string)null);
-                });
-
-            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampTechnicalAppraisalReport", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("CurrentServiceContracts")
-                        .HasColumnType("text");
-
-                    b.Property<int>("EngineerRecommendation")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ExistingFleetSize")
-                        .HasColumnType("int");
-
-                    b.Property<string>("FarmLocationDescription")
-                        .HasColumnType("text");
-
-                    b.Property<string>("GpsCoordinates")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<bool?>("HasMaintenanceFacility")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("InfrastructureNotes")
-                        .HasColumnType("text");
-
-                    b.Property<decimal?>("LandAreaAssessedHectares")
-                        .HasColumnType("decimal(10,4)");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ModifiedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<Guid>("NampApplicationId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("OperationalCoverageArea")
-                        .HasColumnType("text");
-
-                    b.Property<int>("OverallViabilityRating")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("PreparedByUserId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("ProposedEquipmentSuitability")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("RecommendedMitigations")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RisksIdentified")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("SavedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int?>("SoilConditionRating")
-                        .HasColumnType("int");
-
-                    b.Property<string>("StorageFacilityDescription")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SummaryNotes")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("TechnicalStaffCount")
-                        .HasColumnType("int");
-
-                    b.Property<string>("WaterSourceAvailability")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("YearsInOperation")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NampApplicationId")
-                        .IsUnique();
-
-                    b.ToTable("NampTechnicalAppraisalReports", (string)null);
-                });
-
-            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampViabilityScoreConfig", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<decimal>("CategoryWeight")
-                        .HasColumnType("decimal(8,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ModifiedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<decimal>("Score")
-                        .HasColumnType("decimal(6,2)");
-
-                    b.Property<int>("ViabilityRating")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("ViabilityRating")
-                        .IsUnique();
-
-                    b.ToTable("NampViabilityScoreConfigs", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampWorkflowConfig", b =>
@@ -4781,8 +4805,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
 
                     b.HasKey("Id");
 
@@ -6143,6 +6169,13 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
+                    b.Property<DateTime?>("PasswordResetTokenExpiresAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("PasswordResetTokenHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
@@ -7024,6 +7057,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDirector", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
+                        .WithMany("Directors")
+                        .HasForeignKey("NampApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDocument", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
@@ -7504,6 +7546,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampApplication", b =>
                 {
                     b.Navigation("Collaterals");
+
+                    b.Navigation("Directors");
 
                     b.Navigation("Documents");
 

@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-06-03 (Session 67)
+**Last Updated:** 2026-06-15 (Session 68)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\adeta\source\repos\tpcrms`
 
@@ -372,7 +372,44 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-06-03 Session 67)
+## 5. Last Session Summary (2026-06-15 Session 68)
+
+This was a diagnostic / hardening session (no new UI feature). **Most code changes are still UNCOMMITTED in the working tree** — review and commit before publishing.
+
+### A. Admin dashboard review + NAMP section
+- **Finding:** the dashboard (`ReportingService`) reads **only** corporate `LoanApplications`; NAMP is a separate aggregate (`NampApplications`) and was invisible everywhere. Corporate "Total Applications" also **double-counted** (`LoanFunnel.Submitted` is already the full total; the card added InReview+Approved on top).
+- **Done (separate-NAMP-section approach):**
+  - `ReportingService.GetNampDashboardSummaryAsync` + `NampDashboardSummaryDto`/`NampStatusCountDto` (new) — buckets NAMP statuses into pipeline/approved/declined/active + active loan value + MoM growth + status breakdown (5-min cache).
+  - `DashboardModels.cs` → `NampDashboardSummary`; `ApplicationService.GetNampDashboardSummaryAsync` mapping; Dashboard `Index.razor` → new role-gated "NAMP Loans" section (4 stat cards + status breakdown), and switched the dashboard's `Task.WhenAll` to sequential awaits (shared DbContext).
+  - Fixed the corporate double-count in `ApplicationService.GetDashboardSummaryAsync`.
+- **Still open:** corporate status-coverage gaps (~12 statuses uncounted), Recent Activity shows raw GUIDs/excludes NAMP, no retail loan-type breakdown yet. See [[dashboard-reporting-coverage]].
+
+### B. Production data-wipe incident + migration guardrails
+- **Root cause of empty `NampStagingRecords` on prod:** migration `20260608100000_CleanupNampWorkflow` ran `DELETE FROM` against NampApplications/WorkflowConfigs/RoutingConfigs/StagingRecords as a "pre-production test data" cleanup — it wiped **live** data on deploy. Configs don't auto-reseed in prod (`NampWorkflowSeeder` only runs from dev-gated `SeedController`). Not recoverable from the migration (Down doesn't restore) — needs a pre-2026-06-08 DB snapshot.
+- **Guardrails added (A1/B3/C6):** stripped the `DELETE FROM` lines from the migration; added toggleable `Database:AutoMigrate` flag gating startup `Migrate()` in both apps; added `scripts/check-destructive-migrations.sh` + a `migration-safety` job in `.github/workflows/deploy.yml`. See [[no-destructive-migrations]].
+- ⚠️ **CI guard only protects the TEST env** — see deploy split below.
+
+### C. Forgot/reset password "still redirects to login" in prod
+- **Diagnosis: stale build, NOT a code bug.** The fix (anonymous `/reset-password`, `QueryHelpers` token read, `NotFound`→`EmptyLayout`, forwarded headers, `WebsiteUrl`) is committed at `fd674c3` (2026-06-15) on `namp-crms`, but production was last published before it. Remedy = **re-publish from the AWS Toolkit in Visual Studio**. See [[email-notifications-forgot-password-aws-ses]].
+
+### D. Deploy topology clarified (important)
+- **Production** = manual **AWS Toolkit (Visual Studio) publish** from the local `namp-crms` working copy. **Test** = GitHub Actions `deploy.yml` on push to `master` → EC2 docker-compose over **plain http** (`:8980` API, `:8981` Intranet). `master` is stale (`2854a4a "first deploy"`, 2026-06-08); `namp-crms` is 4 ahead, **not merged**. See [[deploy-topology]].
+- Consequence: the C6 CI guard never runs for prod publishes; only A1+B3 protect prod. A build-time guard (MSBuild + PowerShell port) is the recommended follow-up (not yet done).
+
+### E. "Password fields on insecure (http://) page" console warning
+- Browser warning, not a bug — the test EC2 env serves login/reset over plain http (no TLS). Prod is fine (ALB→https). Fix options: TLS reverse proxy (Caddy/nginx) or ALB+ACM for the test box, or SSH-tunnel to `localhost`. Not yet implemented.
+
+### F. Housekeeping
+- Stopped the running Intranet dev process (PID 17076) to release DLL locks; **full solution rebuild succeeded (0 warnings, 0 errors)**. The earlier `CS0246` in `CRMS.Web.Portal` was a transient parallel-Rebuild artifact, not a real error (builds clean in isolation). `CRMS.Web.Portal` is a freshly-scaffolded default Blazor template (start of the applicant portal).
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → not updated (diagnostic session; dashboard NAMP section worth adding next pass)
+- [ ] `docs/ImplementationTracker.md` → not updated (no tracked feature milestone)
+
+---
+
+## Previous Session Summary (2026-06-03 Session 67)
 
 ### Completed — NAMP Portal Status API
 

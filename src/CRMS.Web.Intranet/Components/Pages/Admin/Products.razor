@@ -160,6 +160,15 @@
                             <option value="TradeFinance">Trade Finance</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Loan Segment</label>
+                        <select class="form-control" @bind="editingProduct.Segment">
+                            <option value="Retail">Retail</option>
+                            <option value="Corporate">Corporate</option>
+                            <option value="Namp">NAMP</option>
+                        </select>
+                        <small class="form-hint">Determines the origination flow. Select NAMP for agricultural mechanisation products.</small>
+                    </div>
                     <div class="form-group" style="grid-column: span 2;">
                         <label class="form-label">Description</label>
                         <textarea class="form-control" rows="2" @bind="editingProduct.Description"></textarea>
@@ -461,7 +470,8 @@
                     MaxTenorMonths = p.MaxTenorMonths,
                     BaseInterestRate = p.BaseInterestRate,
                     IsActive = p.IsActive,
-                    FineractProductId = p.FineractProductId
+                    FineractProductId = p.FineractProductId,
+                    Segment = string.IsNullOrEmpty(p.Segment) ? "Corporate" : p.Segment
                 }).ToList();
             }
             else if (AuthService.CurrentUser?.Username == "admin")
@@ -504,6 +514,7 @@
             MaxTenorMonths = product.MaxTenorMonths,
             BaseInterestRate = product.BaseInterestRate,
             ProductType = product.ProductType,
+            Segment = product.Segment,
             Description = product.Description,
             FineractProductId = product.FineractProductId
         };
@@ -577,7 +588,8 @@
                     editingProduct.MinTenorMonths,
                     editingProduct.MaxTenorMonths,
                     editingProduct.BaseInterestRate,
-                    editingProduct.FineractProductId);
+                    editingProduct.FineractProductId,
+                    editingProduct.Segment);
             }
             else
             {
@@ -589,7 +601,8 @@
                     editingProduct.MaxAmount,
                     editingProduct.MinTenorMonths,
                     editingProduct.MaxTenorMonths,
-                    editingProduct.BaseInterestRate);
+                    editingProduct.BaseInterestRate,
+                    editingProduct.Segment);
             }
 
             if (result.Success)
@@ -754,6 +767,7 @@
         public int MaxTenorMonths { get; set; }
         public decimal BaseInterestRate { get; set; }
         public string ProductType { get; set; } = string.Empty;
+        public string Segment { get; set; } = "Corporate";
         public string? Description { get; set; }
         public bool IsActive { get; set; }
         public int ApplicationCount { get; set; }

@@ -69,6 +69,18 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
         builder.Property(x => x.CompanyName).HasMaxLength(300);
         builder.Property(x => x.RcNumber).HasMaxLength(50);
 
+        // CAC company profile (Agro-Service)
+        builder.Property(x => x.CacStatus).HasMaxLength(100);
+        builder.Property(x => x.CacEntityType).HasMaxLength(100);
+        builder.Property(x => x.CacRegistrationDate).HasMaxLength(50);
+        builder.Property(x => x.CacNatureOfBusiness).HasMaxLength(500);
+        builder.Property(x => x.CacShareCapital).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.CacCompanyId);
+        builder.Property(x => x.CacAddress).HasMaxLength(500);
+        builder.Property(x => x.CacCity).HasMaxLength(100);
+        builder.Property(x => x.CacState).HasMaxLength(100);
+        builder.Property(x => x.CacRawJson).HasColumnType("longtext");
+
         // Individual credit profile
         builder.Property(x => x.Occupation).HasMaxLength(200);
         builder.Property(x => x.EmployerName).HasMaxLength(300);
@@ -149,6 +161,11 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
         builder.HasMany(x => x.PreDeploymentChecklist)
             .WithOne()
             .HasForeignKey(i => i.NampApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.Directors)
+            .WithOne()
+            .HasForeignKey(d => d.NampApplicationId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Indexes
