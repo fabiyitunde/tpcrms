@@ -115,8 +115,17 @@
         }
     }
 
+    // Pages that anonymous users must be able to reach. MainLayout briefly renders for every
+    // route during AuthorizeRouteView's async "authorizing" phase, so without this guard the
+    // unauthenticated redirect below bounces these public pages straight to /login.
+    private static readonly string[] AnonymousRoutes = { "login", "forgot-password", "reset-password" };
+
     protected override async Task OnInitializedAsync()
     {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/').ToLowerInvariant();
+        if (Array.IndexOf(AnonymousRoutes, path) >= 0)
+            return;
+
         var state = await AuthService.GetAuthenticationStateAsync();
         if (!(state.User.Identity?.IsAuthenticated ?? false))
         {
