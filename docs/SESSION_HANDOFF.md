@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-06-15 (Session 68)
+**Last Updated:** 2026-06-17 (Session 69)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\adeta\source\repos\tpcrms`
 
@@ -372,9 +372,45 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-06-15 Session 68)
+## 5. Last Session Summary (2026-06-16/17 Session 69)
+
+Mixed feature + deep-diagnostic session. **ALL changes are UNCOMMITTED in the working tree on `namp-crms`** — review and commit before publishing. Both apps were left running locally for testing: Intranet `http://localhost:5292`, API `http://localhost:5230`.
+
+### A. 🔴 ROOT CAUSE FOUND: reset/forgot password "redirects to login" — it was a CODE bug, not infra
+- **Session 68 said this was a "stale build" — that was WRONG.** The real cause: `Routes.razor` `AuthorizeRouteView DefaultLayout="MainLayout"`; auth state is resolved **async from localStorage**, so during the "authorizing" phase **`MainLayout` renders transiently for every route** — including `@layout EmptyLayout` pages. `MainLayout.OnInitializedAsync` did `if (!authenticated) NavigateTo("/login")`, bouncing every logged-out page load. `/login` only survived because the redirect is a self-no-op; `/forgot-password` + `/reset-password` visibly bounced. This is the "works for some users, not others" (= whether that browser holds a session token).
+- **Why it evaded diagnosis:** `prerender:false` → `curl` only fetches the blank shell and returns `200`, so HTTP probes (Dev *and* Production-mode) all looked healthy. Reproduced only by **driving the live circuit with Playwright (system Chrome)** and polling the DOM every 50ms (caught the `MainLayout` sidebar flash on `/reset-password`).
+- **Fix:** (1) guarded `MainLayout.OnInitializedAsync` to `return` early for `{login, forgot-password, reset-password}`; (2) reverted a stray `@rendermode prerender:true` line that had been added to `ResetPassword.razor`. Verified with Playwright: all three routes stay put, reset form renders.
+- **Full write-up:** `docs/BUGFIX_ResetPassword_LoginRedirect.md`. Memory: [[blazor-prerender-false-curl-diagnosis]]. Files: `MainLayout.razor`, `ResetPassword.razor`. Also `Routes.razor`/`NotFound.razor` → genuine 404s now render a friendly "request a new link" page on `EmptyLayout` (previously fell through to `MainLayout` → login).
+
+### B. NAMP actor notifications (email) + "new in queue" doorbell
+- Config-driven backbone: new `NampStatusChangedNotificationHandler` (3rd handler on `NampStatusChangedEvent`) routes by status → action-required / committee vote fan-out / decline. `INampNotificationRecipientResolver` scopes recipients to the application's branch (fallback all-in-role). 3 branded templates seeded in `SeedData` (`NAMP_ACTION_REQUIRED`, `NAMP_COMMITTEE_VOTE`, `NAMP_DECLINED`). All `Normal` priority (background send; events dispatch post-commit in a fresh DI scope).
+- **Staging doorbell:** `NampStagingRecord.Create` now raises `NampStagingRecordReceivedEvent`; `NampStagingReceivedNotificationHandler` emails branch Loan Officers (`NAMP_NEW_IN_QUEUE`, 4th template) when a webhook stages a new application.
+- **Tier-aware ratification:** `Roles.RatifierRoleForTier(tier)` (Branch→BranchManager, Zonal→ZonalManager, Regional→RegionalManager, HeadOffice→MdCeo); the Ratification notification uses it instead of the generic `FinalApprover`. Seeder `Active` stage retargeted `SystemAdmin → LoanOfficer`. (NAMP queues are status/tier-based, already tier-correct.)
+- Tests: `NampNotificationTests.cs` (8 cases, CI-safe). Memory: [[namp-actor-notifications]]. Deferred: applicant-facing emails/SMS.
+
+### C. 🔴 NampWorkflowSeeder now runs at startup (fixes empty prod workflow stages → recall blocked)
+- **Finding:** `NampWorkflowConfigs` / `NampRoutingConfigs` / pre-deploy checklist templates were seeded ONLY by the **dev-only** `POST /api/seed/namp` endpoint (the admin page's "Run the NAMP seeder" link is a GET to a POST+dev-gated endpoint — can never work in prod). So prod had them empty → `RecallNampApplicationHandler` fails with "No active routing config found" → **no NAMP application can be started.**
+- **Fix:** one line — `await NampWorkflowSeeder.SeedAsync(...)` added to `SeedData.SeedAsync` (runs all envs, idempotent, insert-only). Seeder verified aligned to the current 24-status enum (tech-appraisal removed, training collapsed, pre-deploy+deployment under `DeploymentOfficer`). Memory: [[namp-workflow-seeder-must-run-at-startup]].
+
+### Carryover from Session 68 (still relevant)
+- Dashboard NAMP section + corporate double-count fix; migration guardrails (`Database:AutoMigrate`, CI scanner — TEST only). See the demoted Session 68 summary below.
+
+### Deploy reminder
+PROD = manual **AWS Toolkit (VS) publish from `namp-crms`**. None of the above is deployed yet. After publishing, prod self-heals the workflow config (C) on first startup; the reset-password fix (A) takes effect immediately.
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [x] `docs/BUGFIX_ResetPassword_LoginRedirect.md` → new (detailed post-mortem)
+- [ ] `docs/UIGaps.md` → not updated (no UI-surface change worth tracking this pass)
+- [ ] `docs/ImplementationTracker.md` → not updated (notifications/seeder are backend; add a milestone row next pass)
+
+---
+
+## Previous Session Summary (2026-06-15 Session 68)
 
 This was a diagnostic / hardening session (no new UI feature). **Most code changes are still UNCOMMITTED in the working tree** — review and commit before publishing.
+
+> ⚠️ **Correction (Session 69):** item **C** below ("forgot/reset redirects to login = stale build") was a **misdiagnosis**. The real cause was a code bug in `MainLayout` — see Session 69 item A and `docs/BUGFIX_ResetPassword_LoginRedirect.md`.
 
 ### A. Admin dashboard review + NAMP section
 - **Finding:** the dashboard (`ReportingService`) reads **only** corporate `LoanApplications`; NAMP is a separate aggregate (`NampApplications`) and was invisible everywhere. Corporate "Total Applications" also **double-counted** (`LoanFunnel.Submitted` is already the full total; the card added InReview+Approved on top).
