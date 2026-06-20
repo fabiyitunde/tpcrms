@@ -212,6 +212,35 @@ public class EmailWiringTests
                 $"Template '{code}' should be seeded by SeedData");
     }
 
+    // ── Account deactivation blocks login ─────────────────────────────────────
+
+    [Fact]
+    public async Task DeactivatedUser_CannotLogIn()
+    {
+        using var h = new Harness();
+        await CreateUserAsync(h, "deact@boa.ng", "OldPass123!");
+
+        // Active account logs in fine.
+        var ok = await h.Auth.LoginAsync(new LoginRequest("deact@boa.ng", "OldPass123!"));
+        Assert.True(ok.IsSuccess, ok.Error);
+
+        // Admin deactivates the account (same path as Users.razor → ToggleUserStatus → Deactivate()).
+        var user = await h.UserRepo.GetByEmailAsync("deact@boa.ng");
+        user!.Deactivate();
+        await h.UserRepo.UpdateAsync(user);
+        await h.Context.SaveChangesAsync();
+
+        // Correct password is now refused with an "inactive" message.
+        var blocked = await h.Auth.LoginAsync(new LoginRequest("deact@boa.ng", "OldPass123!"));
+        Assert.False(blocked.IsSuccess);
+        Assert.Contains("inactive", blocked.Error!, StringComparison.OrdinalIgnoreCase);
+
+        // Deactivation also revoked the refresh token (no silent re-auth via refresh).
+        var after = await h.UserRepo.GetByEmailAsync("deact@boa.ng");
+        Assert.Null(after!.RefreshToken);
+        _output.WriteLine("Deactivated user login correctly blocked ✓");
+    }
+
     private static async Task<Guid> CreateUserAsync(Harness h, string email, string password)
     {
         var result = await h.RegisterHandler.Handle(new RegisterUserCommand(

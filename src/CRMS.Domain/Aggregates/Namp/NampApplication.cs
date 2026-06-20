@@ -423,6 +423,8 @@ public class NampApplication : AggregateRoot
 
     public void SetApprovedInterestRate(decimal rate) => ApprovedInterestRate = rate;
 
+    public void SetResolvedTenor(int tenorMonths) => RequestedTenorMonths = tenorMonths;
+
     public void SetFineractLoanResult(long loanId, string loanAccountNumber)
     {
         FineractLoanId = loanId;

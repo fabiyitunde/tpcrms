@@ -52,6 +52,9 @@ public class NampApplicationRepository : INampApplicationRepository
             .Include(x => x.StatusHistory.OrderBy(h => h.ChangedAt))
             .FirstOrDefaultAsync(x => x.ApplicationNumber == applicationNumber, ct);
 
+    public async Task<IReadOnlyList<NampApplication>> GetAllAsync(CancellationToken ct = default)
+        => await _context.NampApplications.OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+
     public async Task<IReadOnlyList<NampApplication>> GetByStatusAsync(NampApplicationStatus status, Guid? branchId = null, CancellationToken ct = default)
     {
         var query = _context.NampApplications.Where(x => x.Status == status);

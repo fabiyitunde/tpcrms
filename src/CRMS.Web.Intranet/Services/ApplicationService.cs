@@ -502,6 +502,54 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse<byte[]>> DownloadCoreBankingAccountAsync(string accountNumber)
+    {
+        try
+        {
+            var cbs = _sp.GetRequiredService<CRMS.Domain.Interfaces.ICoreBankingService>();
+            var result = await cbs.GetAccountRawJsonAsync(accountNumber.Trim());
+            if (result.IsFailure)
+                return ApiResponse<byte[]>.Fail(result.Error ?? "Core banking fetch failed");
+            return ApiResponse<byte[]>.Ok(System.Text.Encoding.UTF8.GetBytes(result.Value));
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse<byte[]>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<byte[]>> DownloadCacRawResponseAsync(string rcNumber, string companyName, string companyType = "RC")
+    {
+        try
+        {
+            var smartComply = _sp.GetRequiredService<CRMS.Domain.Interfaces.ISmartComplyProvider>();
+            var result = await smartComply.GetCacAdvancedRawJsonAsync(rcNumber.Trim(), companyName, companyType);
+            if (result.IsFailure)
+                return ApiResponse<byte[]>.Fail(result.Error ?? "CAC fetch failed");
+            return ApiResponse<byte[]>.Ok(System.Text.Encoding.UTF8.GetBytes(result.Value));
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse<byte[]>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<byte[]>> DownloadBusinessCreditRawAsync(string bureau, string rcNumber)
+    {
+        try
+        {
+            var smartComply = _sp.GetRequiredService<CRMS.Domain.Interfaces.ISmartComplyProvider>();
+            var result = await smartComply.GetBusinessCreditRawJsonAsync(bureau, rcNumber.Trim());
+            if (result.IsFailure)
+                return ApiResponse<byte[]>.Fail(result.Error ?? "Business credit fetch failed");
+            return ApiResponse<byte[]>.Ok(System.Text.Encoding.UTF8.GetBytes(result.Value));
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse<byte[]>.Fail(ex.Message);
+        }
+    }
+
     public async Task<ApiResponse<CRMS.Web.Intranet.Models.CacLookupResult>> FetchCacDirectorsAsync(string rcNumber, string companyName, string companyType = "RC")
     {
         try
@@ -5007,6 +5055,21 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<List<CRMS.Application.Namp.DTOs.NampApplicationSummaryDto>> GetAllNampApplicationsAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetAllNampApplicationsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Queries.GetAllNampApplicationsQuery(), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading all NAMP applications");
+            return [];
+        }
+    }
+
     public async Task<List<CRMS.Application.Namp.DTOs.NampApplicationSummaryDto>> GetNampApplicationsByStatusAsync(string status, Guid? branchId = null)
     {
         try
@@ -5661,6 +5724,22 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error saving NAMP financial appraisal report for application {Id}", nampApplicationId);
             return ApiResponse<CRMS.Application.Namp.DTOs.NampFinancialAppraisalReportDto>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<string>> RetryNampDocumentImportAsync(Guid nampApplicationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.RetryNampDocumentImportHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.RetryNampDocumentImportCommand(nampApplicationId), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<string>.Ok(result.Data!)
+                : ApiResponse<string>.Fail(result.Error ?? "Retry failed");
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse<string>.Fail(ex.Message);
         }
     }
 

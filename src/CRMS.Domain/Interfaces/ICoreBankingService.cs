@@ -27,6 +27,9 @@ public interface ICoreBankingService
     Task<Result<RepaymentSchedule>> GetRepaymentScheduleAsync(string loanId, CancellationToken ct = default);
     Task<Result<LoanStatus>> GetLoanStatusAsync(string loanId, CancellationToken ct = default);
 
+    // Diagnostics
+    Task<Result<string>> GetAccountRawJsonAsync(string accountNumber, CancellationToken ct = default);
+
     // Exposure Operations
     // TODO: Pending CBS API specification from core banking provider.
     // This should return the customer's total active credit exposure held AT THIS BANK

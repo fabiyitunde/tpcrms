@@ -1,0 +1,303 @@
+@page "/admin/diagnostics"
+@using CRMS.Web.Intranet.Services
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject IJSRuntime JS
+
+<PageTitle>Diagnostics - CRMS</PageTitle>
+
+@if (!(User?.HasRole("SystemAdmin") ?? false))
+{
+    <div class="alert alert-danger">Access denied. SystemAdmin role required.</div>
+    return;
+}
+
+<div style="max-width: 720px; margin: var(--space-6) auto;">
+    <h2 style="margin-bottom: var(--space-6);">Diagnostics</h2>
+
+    <div class="tabs" style="margin-bottom: var(--space-6);">
+        <button class="tab @(diagTab == "cac" ? "active" : "")" @onclick='() => diagTab = "cac"'>SmartComply CAC</button>
+        <button class="tab @(diagTab == "biz" ? "active" : "")" @onclick='() => diagTab = "biz"'>Business Credit</button>
+        <button class="tab @(diagTab == "cbs" ? "active" : "")" @onclick='() => diagTab = "cbs"'>Core Banking</button>
+    </div>
+
+    @if (diagTab == "cac")
+    {
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title" style="margin: 0;">SmartComply CAC Raw Response</h3>
+                <div style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--space-1);">
+                    Downloads the unprocessed JSON from the CAC Advanced endpoint — use this to inspect fields not yet mapped in the DTO.
+                </div>
+            </div>
+            <div class="card-body" style="display: flex; flex-direction: column; gap: var(--space-4);">
+                <div class="form-group">
+                    <label class="form-label">RC Number</label>
+                    <input class="form-control" @bind="cacRcNumber" placeholder="e.g. 1234567" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Company Name</label>
+                    <input class="form-control" @bind="cacCompanyName" placeholder="e.g. ACME NIGERIA LIMITED" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Company Type</label>
+                    <select class="form-control" @bind="cacCompanyType">
+                        <option value="RC">RC — Private/Public Limited Company</option>
+                        <option value="BN">BN — Business Name</option>
+                        <option value="IT">IT — Incorporated Trustee</option>
+                    </select>
+                </div>
+                @if (cacError != null)
+                {
+                    <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">@cacError</div>
+                }
+                <div>
+                    <button class="btn btn-primary" @onclick="DownloadCacResponse" disabled="@cacBusy">
+                        @if (cacBusy)
+                        {
+                            <span class="spinner-sm" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+                            <span>Fetching…</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px;">download</span>
+                            <span>Download Raw JSON</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (diagTab == "biz")
+    {
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title" style="margin: 0;">Business Credit Reports (SmartComply)</h3>
+                <div style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--space-1);">
+                    Downloads the raw JSON from SmartComply's business credit endpoints. All three take the same RC number — use to compare bureau coverage or debug missing data.
+                </div>
+            </div>
+            <div class="card-body" style="display: flex; flex-direction: column; gap: var(--space-4);">
+                <div class="form-group">
+                    <label class="form-label">RC Number</label>
+                    <input class="form-control" @bind="bizRcNumber" placeholder="e.g. 1275857 or RC1275857" style="max-width: 320px;" />
+                </div>
+                @if (bizError != null)
+                {
+                    <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">@bizError</div>
+                }
+                <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+                    <div style="display: flex; flex-direction: column; gap: var(--space-1);">
+                        <div style="font-size: var(--text-xs); color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">CRC Bureau</div>
+                        <button class="btn btn-primary" @onclick='() => DownloadBizCredit("crc")' disabled="@bizBusy_crc">
+                            @if (bizBusy_crc)
+                            {
+                                <span class="spinner-sm" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+                                <span>Fetching…</span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px;">download</span>
+                                <span>Download CRC</span>
+                            }
+                        </button>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: var(--space-1);">
+                        <div style="font-size: var(--text-xs); color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">First Central Bureau</div>
+                        <button class="btn btn-primary" @onclick='() => DownloadBizCredit("first_central")' disabled="@bizBusy_first_central">
+                            @if (bizBusy_first_central)
+                            {
+                                <span class="spinner-sm" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+                                <span>Fetching…</span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px;">download</span>
+                                <span>Download First Central</span>
+                            }
+                        </button>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: var(--space-1);">
+                        <div style="font-size: var(--text-xs); color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Premium Bureau</div>
+                        <button class="btn btn-primary" @onclick='() => DownloadBizCredit("premium")' disabled="@bizBusy_premium">
+                            @if (bizBusy_premium)
+                            {
+                                <span class="spinner-sm" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+                                <span>Fetching…</span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px;">download</span>
+                                <span>Download Premium</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (diagTab == "cbs")
+    {
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title" style="margin: 0;">Core Banking Account Raw Response</h3>
+                <div style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--space-1);">
+                    Downloads the unprocessed JSON from the CBS fulldetailsbynuban endpoint — use this to inspect fields returned by the core banking gateway.
+                </div>
+            </div>
+            <div class="card-body" style="display: flex; flex-direction: column; gap: var(--space-4);">
+                <div class="form-group">
+                    <label class="form-label">Account Number (NUBAN)</label>
+                    <input class="form-control" @bind="cbsAccountNumber" placeholder="e.g. 0000000029" />
+                </div>
+                @if (cbsError != null)
+                {
+                    <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">@cbsError</div>
+                }
+                <div>
+                    <button class="btn btn-primary" @onclick="DownloadCbsResponse" disabled="@cbsBusy">
+                        @if (cbsBusy)
+                        {
+                            <span class="spinner-sm" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+                            <span>Fetching…</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px;">download</span>
+                            <span>Download Raw JSON</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private UserInfo? User => AuthService.CurrentUser;
+
+    private string diagTab = "cac";
+
+    private string cacRcNumber = "";
+    private string cacCompanyName = "";
+    private string cacCompanyType = "RC";
+    private bool cacBusy;
+    private string? cacError;
+
+    private string bizRcNumber = "";
+    private bool bizBusy_crc;
+    private bool bizBusy_first_central;
+    private bool bizBusy_premium;
+    private string? bizError;
+
+    private string cbsAccountNumber = "";
+    private bool cbsBusy;
+    private string? cbsError;
+
+    private async Task DownloadBizCredit(string bureau)
+    {
+        if (string.IsNullOrWhiteSpace(bizRcNumber))
+        {
+            bizError = "RC Number is required.";
+            return;
+        }
+
+        bizError = null;
+        switch (bureau)
+        {
+            case "crc": bizBusy_crc = true; break;
+            case "first_central": bizBusy_first_central = true; break;
+            case "premium": bizBusy_premium = true; break;
+        }
+        try
+        {
+            var result = await AppService.DownloadBusinessCreditRawAsync(bureau, bizRcNumber.Trim());
+            if (!result.Success || result.Data == null)
+            {
+                bizError = result.Error ?? "Failed to fetch response.";
+                return;
+            }
+            var fileName = $"biz_credit_{bureau}_{bizRcNumber.Trim()}_{DateTime.Now:yyyyMMddHHmmss}.json";
+            await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/json", result.Data);
+        }
+        catch (Exception ex)
+        {
+            bizError = ex.Message;
+        }
+        finally
+        {
+            switch (bureau)
+            {
+                case "crc": bizBusy_crc = false; break;
+                case "first_central": bizBusy_first_central = false; break;
+                case "premium": bizBusy_premium = false; break;
+            }
+        }
+    }
+
+    private async Task DownloadCbsResponse()
+    {
+        if (string.IsNullOrWhiteSpace(cbsAccountNumber))
+        {
+            cbsError = "Account number is required.";
+            return;
+        }
+
+        cbsBusy = true;
+        cbsError = null;
+        try
+        {
+            var result = await AppService.DownloadCoreBankingAccountAsync(cbsAccountNumber.Trim());
+            if (!result.Success || result.Data == null)
+            {
+                cbsError = result.Error ?? "Failed to fetch account response.";
+                return;
+            }
+
+            var fileName = $"cbs_account_{cbsAccountNumber.Trim()}_{DateTime.Now:yyyyMMddHHmmss}.json";
+            await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/json", result.Data);
+        }
+        catch (Exception ex)
+        {
+            cbsError = ex.Message;
+        }
+        finally
+        {
+            cbsBusy = false;
+        }
+    }
+
+    private async Task DownloadCacResponse()
+    {
+        if (string.IsNullOrWhiteSpace(cacRcNumber) || string.IsNullOrWhiteSpace(cacCompanyName))
+        {
+            cacError = "RC Number and Company Name are required.";
+            return;
+        }
+
+        cacBusy = true;
+        cacError = null;
+        try
+        {
+            var result = await AppService.DownloadCacRawResponseAsync(cacRcNumber.Trim(), cacCompanyName.Trim(), cacCompanyType);
+            if (!result.Success || result.Data == null)
+            {
+                cacError = result.Error ?? "Failed to fetch CAC response.";
+                return;
+            }
+
+            var fileName = $"smartcomply_cac_{cacRcNumber.Trim()}_{DateTime.Now:yyyyMMddHHmmss}.json";
+            await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/json", result.Data);
+        }
+        catch (Exception ex)
+        {
+            cacError = ex.Message;
+        }
+        finally
+        {
+            cacBusy = false;
+        }
+    }
+}

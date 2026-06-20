@@ -227,6 +227,40 @@ public class GetNampApplicationByIdHandler
     );
 }
 
+public record GetAllNampApplicationsQuery()
+    : IRequest<ApplicationResult<List<NampApplicationSummaryDto>>>;
+
+public class GetAllNampApplicationsHandler
+    : IRequestHandler<GetAllNampApplicationsQuery, ApplicationResult<List<NampApplicationSummaryDto>>>
+{
+    private readonly INampApplicationRepository _repo;
+
+    public GetAllNampApplicationsHandler(INampApplicationRepository repo) => _repo = repo;
+
+    public async Task<ApplicationResult<List<NampApplicationSummaryDto>>> Handle(
+        GetAllNampApplicationsQuery request, CancellationToken ct = default)
+    {
+        var apps = await _repo.GetAllAsync(ct);
+        var dtos = apps.Select(a => new NampApplicationSummaryDto(
+            a.Id,
+            a.ApplicationNumber,
+            a.ApplicationReference,
+            a.Status.ToString(),
+            a.ApplicantName,
+            a.BoaAccountNumber,
+            a.ApplicantCategory.ToString(),
+            a.EquipmentValue,
+            a.CommitteeTier.ToString(),
+            a.BranchId,
+            a.CreatedAt,
+            a.SubmittedAt,
+            a.CurrentCommitteeReviewId
+        )).ToList();
+
+        return ApplicationResult<List<NampApplicationSummaryDto>>.Success(dtos);
+    }
+}
+
 public record GetNampApplicationsByStatusQuery(string Status, Guid? BranchId = null)
     : IRequest<ApplicationResult<List<NampApplicationSummaryDto>>>;
 

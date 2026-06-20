@@ -59,6 +59,12 @@ public class AuthService : IAuthService
             return ApplicationResult<LoginResponse>.Failure("Invalid email or password");
         }
 
+        // Block deactivated / non-active accounts. Deactivate() sets Status=Inactive but does not
+        // set the lockout fields, so the IsLockedOut check above does not catch them. Checked after
+        // password verification so a wrong password still returns the generic "invalid" message.
+        if (user.Status != Domain.Entities.Identity.UserStatus.Active)
+            return ApplicationResult<LoginResponse>.Failure("Your account is inactive. Please contact your administrator.");
+
         var roles = await _roleRepository.GetUserRolesAsync(user.Id, ct);
         var permissions = await _permissionRepository.GetUserPermissionsAsync(user.Id, ct);
 
@@ -105,6 +111,10 @@ public class AuthService : IAuthService
 
         if (user == null || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
             return ApplicationResult<LoginResponse>.Failure("Invalid or expired refresh token");
+
+        // A user deactivated while holding a valid refresh token must not be able to mint new access tokens.
+        if (user.Status != Domain.Entities.Identity.UserStatus.Active)
+            return ApplicationResult<LoginResponse>.Failure("Your account is inactive. Please contact your administrator.");
 
         var roles = await _roleRepository.GetUserRolesAsync(user.Id, ct);
         var permissions = await _permissionRepository.GetUserPermissionsAsync(user.Id, ct);

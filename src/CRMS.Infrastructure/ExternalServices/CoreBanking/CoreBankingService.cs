@@ -311,6 +311,26 @@ public class CoreBankingService : ICoreBankingService
     public Task<Result<CustomerExposure>> GetCustomerExposureAsync(string accountNumber, CancellationToken ct = default)
         => Task.FromResult(Result.Failure<CustomerExposure>("Customer exposure endpoint not yet available — pending CBS API specification from provider."));
 
+    public async Task<Result<string>> GetAccountRawJsonAsync(string accountNumber, CancellationToken ct = default)
+    {
+        try
+        {
+            var url = $"/core/account/fulldetailsbynuban/{accountNumber}";
+            _logger.LogInformation("CBS diagnostics: GET {Url}", url);
+            var response = await _httpClient.GetAsync(url, ct);
+            var rawJson = await response.Content.ReadAsStringAsync(ct);
+            return response.IsSuccessStatusCode
+                ? Result.Success(rawJson)
+                : Result.Failure<string>($"Core banking returned {(int)response.StatusCode}: {rawJson}");
+        }
+        catch (TaskCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CBS diagnostics error for {AccountNumber}", accountNumber);
+            return Result.Failure<string>($"Core banking error: {ex.Message}");
+        }
+    }
+
     #endregion
 
     #region Helpers

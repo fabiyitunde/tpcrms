@@ -280,21 +280,24 @@ public class GenerateNampAdvisoryHandler
             ));
         }
 
-        // Collateral
-        CollateralDataInput? collateralInput = null;
+        // Collateral — equipment is always the primary security (hire-purchase); supplementary collaterals add to total
         var collaterals = app.Collaterals.ToList();
-        if (collaterals.Any())
-        {
-            collateralInput = new CollateralDataInput(
-                collaterals.Count,
-                collaterals.Sum(c => c.MarketValue ?? 0),
-                collaterals.Sum(c => c.ForcedSaleValue ?? 0),
-                requestedAmount > 0 && collaterals.Sum(c => c.MarketValue ?? 0) > 0
-                    ? (requestedAmount / collaterals.Sum(c => c.MarketValue ?? 0)) * 100 : 0,
-                collaterals.Select(c => c.CollateralType).Distinct().ToList(),
-                HasPerfectedLiens: collaterals.Any(c => !string.IsNullOrWhiteSpace(c.LienReference))
-            );
-        }
+        var suppMarketValue = collaterals.Sum(c => c.MarketValue ?? 0);
+        var suppFsvValue = collaterals.Sum(c => c.ForcedSaleValue ?? 0);
+        var totalMarketValue = app.EquipmentValue + suppMarketValue;
+        var totalFsvValue = app.EquipmentValue + suppFsvValue;
+        var collateralTypes = new List<string> { "Equipment (Primary)" };
+        collateralTypes.AddRange(collaterals.Select(c => c.CollateralType).Distinct());
+
+        var collateralInput = new CollateralDataInput(
+            TotalCollateralCount: 1 + collaterals.Count,
+            TotalMarketValue: totalMarketValue,
+            TotalForcedSaleValue: totalFsvValue,
+            AverageLTV: requestedAmount > 0 && totalMarketValue > 0
+                ? (requestedAmount / totalMarketValue) * 100 : 0,
+            CollateralTypes: collateralTypes,
+            HasPerfectedLiens: true  // Equipment is bank-financed; hire-purchase lien holds
+        );
 
         // Guarantors
         var guarantorInputs = app.Guarantors.Select(g => new GuarantorDataInput(
@@ -336,6 +339,26 @@ public class GenerateNampAdvisoryHandler
         sb.AppendLine($"NAMP Application — {app.ApplicantCategory}");
         sb.AppendLine($"Equipment: {app.EquipmentDescription} (Value: NGN {app.EquipmentValue:N0})");
         sb.AppendLine($"Equity: {app.EquityPercent:N1}% (NGN {app.EquityAmount:N0})");
+
+        // Collateral overview — equipment is always the primary security
+        var loanAmt = app.LoanAmount ?? app.EquipmentValue;
+        var suppCollaterals = app.Collaterals.ToList();
+        var suppTotal = suppCollaterals.Sum(c => c.MarketValue ?? 0);
+        var totalCollateral = app.EquipmentValue + suppTotal;
+        sb.AppendLine();
+        sb.AppendLine("COLLATERAL OVERVIEW:");
+        sb.AppendLine($"  Primary Collateral: {app.EquipmentDescription} (Equipment, NGN {app.EquipmentValue:N0}) — hire-purchase lien; bank-financed asset serves as primary security.");
+        if (suppCollaterals.Any())
+        {
+            sb.AppendLine($"  Supplementary Collaterals: {suppCollaterals.Count} item(s), total market value NGN {suppTotal:N0}");
+            sb.AppendLine($"    Types: {string.Join(", ", suppCollaterals.Select(c => c.CollateralType).Distinct())}");
+        }
+        else
+        {
+            sb.AppendLine("  Supplementary Collaterals: None");
+        }
+        if (loanAmt > 0)
+            sb.AppendLine($"  Total Collateral Coverage: NGN {totalCollateral:N0} ({(totalCollateral / loanAmt * 100):N1}% of loan amount)");
 
         // Repayment source context (rental/hire-out model)
         if (finReport != null)

@@ -147,10 +147,10 @@
                                     <button class="btn btn-ghost btn-sm" @onclick="() => EditUser(user)" title="Edit">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
                                     </button>
-                                    <button class="btn btn-ghost btn-sm" @onclick="() => ToggleUserStatus(user)" title="@(user.IsActive ? "Deactivate" : "Activate")">
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => RequestToggleUserStatus(user)" title="@(user.IsActive ? "Deactivate" : "Activate")">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">@(user.IsActive ? "block" : "check_circle")</span>
                                     </button>
-                                    <button class="btn btn-ghost btn-sm" @onclick="() => ResetPassword(user)" title="Reset Password">
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => RequestResetPassword(user)" title="Reset Password">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">lock_reset</span>
                                     </button>
                                 </div>
@@ -256,6 +256,36 @@
                         <span class="spinner"></span>
                     }
                     @(isEditing ? "Update" : "Create") User
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showConfirmModal)
+{
+    <div class="modal-backdrop show" @onclick="CancelConfirm">
+        <div class="modal" style="max-width: 440px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <span class="material-symbols-outlined" style="font-size: 20px; vertical-align: middle; margin-right: var(--space-2); color: @confirmIconColor;">@confirmIcon</span>
+                    @confirmTitle
+                </h3>
+                <button class="modal-close" @onclick="CancelConfirm">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="margin: 0; color: var(--gray-700); line-height: 1.6;">@confirmMessage</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CancelConfirm" disabled="@isConfirming">Cancel</button>
+                <button class="btn @confirmButtonClass" @onclick="ConfirmAction" disabled="@isConfirming">
+                    @if (isConfirming)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    @confirmButtonText
                 </button>
             </div>
         </div>
@@ -482,6 +512,66 @@
         {
             isSaving = false;
         }
+    }
+
+    // ── Confirmation modal (deactivate / reset password) ──────────────────
+    private bool showConfirmModal;
+    private bool isConfirming;
+    private string confirmTitle = "";
+    private string confirmMessage = "";
+    private string confirmButtonText = "Confirm";
+    private string confirmButtonClass = "btn-primary";
+    private string confirmIcon = "help";
+    private string confirmIconColor = "var(--gray-500)";
+    private Func<Task>? pendingAction;
+
+    private void RequestToggleUserStatus(UserModel user)
+    {
+        var deactivating = user.IsActive;
+        confirmTitle = deactivating ? "Deactivate this user?" : "Activate this user?";
+        confirmMessage = deactivating
+            ? $"{user.FirstName} {user.LastName} ({user.Email}) will be blocked from signing in until the account is reactivated. Any active session ends shortly after."
+            : $"{user.FirstName} {user.LastName} ({user.Email}) will be able to sign in again.";
+        confirmButtonText = deactivating ? "Deactivate" : "Activate";
+        confirmButtonClass = deactivating ? "btn-danger" : "btn-primary";
+        confirmIcon = deactivating ? "block" : "check_circle";
+        confirmIconColor = deactivating ? "var(--danger-500)" : "var(--success-500)";
+        pendingAction = () => ToggleUserStatus(user);
+        showConfirmModal = true;
+    }
+
+    private void RequestResetPassword(UserModel user)
+    {
+        confirmTitle = "Send a password reset link?";
+        confirmMessage = $"A password reset link will be emailed to {user.Email}. Their current password keeps working until they set a new one.";
+        confirmButtonText = "Send reset link";
+        confirmButtonClass = "btn-primary";
+        confirmIcon = "lock_reset";
+        confirmIconColor = "var(--primary-500)";
+        pendingAction = () => ResetPassword(user);
+        showConfirmModal = true;
+    }
+
+    private async Task ConfirmAction()
+    {
+        if (pendingAction is null) return;
+        isConfirming = true;
+        try
+        {
+            await pendingAction();
+        }
+        finally
+        {
+            isConfirming = false;
+            showConfirmModal = false;
+            pendingAction = null;
+        }
+    }
+
+    private void CancelConfirm()
+    {
+        showConfirmModal = false;
+        pendingAction = null;
     }
 
     private async Task ToggleUserStatus(UserModel user)

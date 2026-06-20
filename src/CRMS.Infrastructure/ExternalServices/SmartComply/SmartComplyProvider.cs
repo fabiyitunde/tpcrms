@@ -37,7 +37,12 @@ public class SmartComplyProvider : ISmartComplyProvider
                 new FlexibleIntConverter(),
                 new FlexibleDateTimeConverter(),
                 new FlexibleNullableDateTimeConverter(),
-                new FlexibleStringConverter()
+                new FlexibleStringConverter(),
+                new FlexibleCacCountryReferenceConverter(),
+                new FlexibleCacAffiliateTypeReferenceConverter(),
+                // Blanket safety net for every other value type (bool, long, double, Guid, …) and
+                // their nullable forms — parses leniently and never throws. Keep last.
+                new TolerantPrimitiveConverterFactory()
             }
         };
     }
@@ -257,6 +262,39 @@ public class SmartComplyProvider : ISmartComplyProvider
     public async Task<Result<SmartComplyBusinessCreditReport>> GetPremiumBusinessAsync(string rcNumber, CancellationToken ct = default)
     {
         return await GetBusinessCreditReportAsync(SmartComplyEndpoints.Business.Premium, rcNumber, "PremiumBusiness", ct);
+    }
+
+    public async Task<Result<string>> GetBusinessCreditRawJsonAsync(string bureau, string rcNumber, CancellationToken ct = default)
+    {
+        var endpoint = bureau.ToLowerInvariant() switch
+        {
+            "crc" => SmartComplyEndpoints.Business.CRCHistory,
+            "first_central" => SmartComplyEndpoints.Business.FirstCentral,
+            "premium" => SmartComplyEndpoints.Business.Premium,
+            _ => null
+        };
+        if (endpoint is null)
+            return Result.Failure<string>($"Unknown bureau '{bureau}'. Valid values: crc, first_central, premium.");
+
+        var normalizedRc = rcNumber.StartsWith("RC", StringComparison.OrdinalIgnoreCase)
+            ? rcNumber
+            : "RC" + rcNumber;
+
+        try
+        {
+            _logger.LogInformation("Diagnostics: business credit raw JSON for {Bureau}, RC {Rc}", bureau, normalizedRc);
+            var response = await _httpClient.PostAsJsonAsync(endpoint, new { registration_number = normalizedRc }, ct);
+            var raw = await response.Content.ReadAsStringAsync(ct);
+            return response.IsSuccessStatusCode
+                ? Result.Success(raw)
+                : Result.Failure<string>($"SmartComply returned {(int)response.StatusCode}: {raw}");
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Diagnostics: error fetching business credit raw JSON for {Bureau}", bureau);
+            return Result.Failure<string>($"Error: {ex.Message}");
+        }
     }
 
     private async Task<Result<SmartComplyBusinessCreditReport>> GetBusinessCreditReportAsync(
@@ -693,6 +731,13 @@ public class SmartComplyProvider : ISmartComplyProvider
 
             var rawJson = await response.Content.ReadAsStringAsync(ct);
 
+            if (_settings.DumpCacResponseToFile)
+            {
+                var path = Path.Combine(Path.GetTempPath(), $"smartcomply_cac_{rcNumber}_{DateTime.UtcNow:yyyyMMddHHmmss}.json");
+                await File.WriteAllTextAsync(path, rawJson, ct);
+                _logger.LogInformation("CAC raw response dumped to {Path}", path);
+            }
+
             if (!response.IsSuccessStatusCode)
                 return Result.Failure<SmartComplyCacResult>(FormatApiError(response.StatusCode, rawJson));
 
@@ -716,6 +761,31 @@ public class SmartComplyProvider : ISmartComplyProvider
         }
     }
 
+    public async Task<Result<string>> GetCacAdvancedRawJsonAsync(string rcNumber, string companyName, string companyType = "RC", CancellationToken ct = default)
+    {
+        try
+        {
+            var request = new CacAdvancedVerificationRequest
+            {
+                RegistrationNumber = NormalizeRegistrationNumber(rcNumber),
+                CompanyName = companyName,
+                CompanyType = companyType
+            };
+            var response = await _httpClient.PostAsJsonAsync(SmartComplyEndpoints.KycNigeria.CACAdvanced, request, ct);
+            var rawJson = await response.Content.ReadAsStringAsync(ct);
+
+            return response.IsSuccessStatusCode
+                ? Result.Success(rawJson)
+                : Result.Failure<string>(FormatApiError(response.StatusCode, rawJson));
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching raw CAC response for RC {RcNumber}", rcNumber);
+            return Result.Failure<string>($"Error: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// SmartComply's CAC endpoints expect the bare registration number — the entity-type prefix
     /// (RC / BN / IT) is conveyed separately via company_type. Strip a leading prefix (and any
@@ -734,24 +804,43 @@ public class SmartComplyProvider : ISmartComplyProvider
         return trimmed;
     }
 
-    private static SmartComplyCacResult MapCacAdvancedToResult(CacAdvancedData d)
+    internal static SmartComplyCacResult MapCacAdvancedToResult(CacAdvancedData d)
     {
-        // The CAC Advanced `directors` array contains all affiliate types (DIRECTOR, SHAREHOLDER,
-        // PSC, PRESENTER, WITNESS, etc.) and duplicates the same person across multiple rows.
-        // Filter to active directors only — the only set we need for KYC on a loan application.
-        var directors = (d.Directors ?? [])
-            .Where(r =>
-                string.Equals(r.AffiliateTypeFk?.Name, "DIRECTOR", StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(r.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase))
+        // The CAC Advanced `directors` array lists each person once per affiliate type (DIRECTOR,
+        // SHAREHOLDER, PSC, …). In practice the affiliate type is often blank or unreliable, so:
+        //   1. keep ACTIVE rows;
+        //   2. prefer rows that clearly say DIRECTOR (collapses the duplicate rows when the data is
+        //      complete) — but fall back to ALL active rows when no director marker is present, so
+        //      sparse responses still return the people;
+        //   3. dedupe by person so a complete response doesn't list the same person multiple times.
+        var active = (d.Directors ?? [])
+            .Where(r => string.Equals(r.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // Resolve affiliate type from either field name (responses vary)
+        static string? AffiliateTypeName(CacAdvancedDirectorData r) =>
+            r.AffiliateTypeFk?.Name ?? r.AffiliateType?.Name;
+
+        static bool IsDirectorOrShareholder(string? role) =>
+            !string.IsNullOrWhiteSpace(role) && (
+                role.Contains("DIRECTOR", StringComparison.OrdinalIgnoreCase) ||
+                role.Contains("SHAREHOLDER", StringComparison.OrdinalIgnoreCase));
+
+        var relevant = active.Where(r => IsDirectorOrShareholder(AffiliateTypeName(r))).ToList();
+
+        // Fall back to all active rows for sparse payloads where no role label is set
+        var directors = (relevant.Count > 0 ? relevant : active)
+            .GroupBy(DirectorPersonKey)
+            .Select(g => g.First())
             .Select(MapCacAdvancedDirector)
             .ToList();
 
         return new SmartComplyCacResult(
             CompanyName: d.CompanyName,
             RcNumber: d.RcNumber,
-            CompanyType: d.EntityType,
-            RegistrationDate: d.RegistrationDate,
-            Address: d.CompanyAddress,
+            CompanyType: !string.IsNullOrWhiteSpace(d.EntityType) ? d.EntityType : d.CompanyTypeRaw,
+            RegistrationDate: d.RegistrationDate ?? d.RegistrationDateLegacy,
+            Address: FirstNonBlank(d.CompanyAddress, d.Address, d.ResidenceAddress, d.ResidentialAddress),
             City: d.City,
             State: d.State,
             Email: d.EmailAddress,
@@ -761,6 +850,15 @@ public class SmartComplyProvider : ISmartComplyProvider
             CompanyId: d.CompanyId,
             Directors: directors
         );
+    }
+
+    // Stable per-person key for deduping the affiliate-row list. The row `id` is per-affiliate, not
+    // per-person, so dedupe on the name; fall back to the row id only when the name is entirely blank.
+    private static string DirectorPersonKey(CacAdvancedDirectorData r)
+    {
+        var name = string.Join(" ", new[] { r.Firstname, r.OtherName, r.Surname }
+            .Where(s => !string.IsNullOrWhiteSpace(s))).Trim().ToUpperInvariant();
+        return string.IsNullOrWhiteSpace(name) ? $"id:{r.Id}" : name;
     }
 
     private static SmartComplyCacDirector MapCacAdvancedDirector(CacAdvancedDirectorData dir)
@@ -789,11 +887,11 @@ public class SmartComplyProvider : ISmartComplyProvider
             IsChairman: dir.IsChairman,
             IsCorporate: dir.IsCorporate,
             DateOfAppointment: dir.DateOfAppointment,
-            AffiliateType: dir.AffiliateTypeFk?.Name,
+            AffiliateType: dir.AffiliateTypeFk?.Name ?? dir.AffiliateType?.Name,
             TypeOfShares: string.IsNullOrWhiteSpace(dir.TypeOfShares) ? null : dir.TypeOfShares,
             NumSharesAlloted: dir.NumSharesAlloted,
             IdentityNumber: string.IsNullOrWhiteSpace(dir.IdentityNumber) ? null : dir.IdentityNumber,
-            Country: dir.CountryFk?.Name
+            Country: dir.CountryFk?.Name ?? dir.AffiliateCountry?.Name
         );
     }
 
@@ -930,6 +1028,13 @@ public class SmartComplyProvider : ISmartComplyProvider
             history,
             data.DateCreated
         );
+    }
+
+    private static string? FirstNonBlank(params string?[] values)
+    {
+        foreach (var v in values)
+            if (!string.IsNullOrWhiteSpace(v)) return v;
+        return null;
     }
 
     private static string MaskBvn(string bvn)

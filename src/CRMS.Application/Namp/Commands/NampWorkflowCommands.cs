@@ -292,40 +292,43 @@ public class RatifyNampDecisionHandler
 
         if (app.LoanAmount is null or <= 0)
             return ApplicationResult<NampApplicationDto>.Failure("Loan amount must be set before ratification.");
-        if (app.RequestedTenorMonths is null or <= 0)
-            return ApplicationResult<NampApplicationDto>.Failure("Loan tenor must be set before ratification.");
 
-        // ── Resolve product and interest rate ─────────────────────────────────
-        // Use the Fineract product details already resolved and stored at recall time.
-        // Fall back to a live catalogue fetch only if the application pre-dates this feature (fields null).
+        // ── Resolve product, interest rate and tenor from Fineract ────────────
+        // Fineract is the source of truth for both values. Always fetch the live
+        // product so we use current figures rather than values cached at recall.
         var fineractProductId = app.FineractProductId ?? 0;
-        decimal interestRate = app.FineractNominalInterestRate ?? 9m; // fallback: 9% or stored nominal rate
-
         if (fineractProductId <= 0)
         {
-            // Pre-recall data missing — attempt a live fetch so ratification is not blocked
             var product = await _productRepo.GetByIdAsync(app.LoanProductId, ct);
             fineractProductId = product?.FineractProductId ?? 0;
-            if (fineractProductId > 0)
-            {
-                var productsResult = await _fineractService.GetLoanProductsAsync(activeOnly: false, ct);
-                if (productsResult.IsSuccess)
-                {
-                    var fp = productsResult.Value.FirstOrDefault(p => p.Id == fineractProductId);
-                    if (fp is not null)
-                        interestRate = fp.AnnualInterestRate;
-                }
-            }
         }
 
-        // Lock the interest rate onto the application so deployment can use it without re-fetching
-        app.SetApprovedInterestRate(interestRate);
+        if (fineractProductId <= 0)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                "No Fineract product linked to this application. Cannot resolve interest rate or tenor.");
 
-        // ── Calculate repayment schedule (Fineract first, in-house fallback) ──
+        var productsResult = await _fineractService.GetLoanProductsAsync(activeOnly: false, ct);
+        if (!productsResult.IsSuccess)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                $"Could not fetch Fineract product catalogue: {productsResult.Error}");
+
+        var fineractProduct = productsResult.Value.FirstOrDefault(p => p.Id == fineractProductId);
+        if (fineractProduct is null)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                $"Fineract product {fineractProductId} not found in catalogue.");
+
+        var interestRate = fineractProduct.AnnualInterestRate;
+        var tenorMonths  = fineractProduct.DefaultNumberOfRepayments;
+
+        // Lock both onto the application so downstream steps (offer letter, deployment) read from the app
+        app.SetApprovedInterestRate(interestRate);
+        app.SetResolvedTenor(tenorMonths);
+
+        // ── Calculate repayment schedule ───────────────────────────────────────
         var scheduleRequest = new ScheduleCalculationRequest(
             ProductId: fineractProductId,
             Principal: app.LoanAmount.Value,
-            NumberOfRepayments: app.RequestedTenorMonths.Value,
+            NumberOfRepayments: tenorMonths,
             RepaymentEvery: 1,
             RepaymentFrequencyType: 2,           // Months
             InterestRatePerPeriod: interestRate,
@@ -360,7 +363,7 @@ public class RatifyNampDecisionHandler
             LoanAmount: app.LoanAmount,
             EquityAmount: app.EquityAmount,
             EquityPercent: app.EquityPercent,
-            TenorMonths: app.RequestedTenorMonths,
+            TenorMonths: tenorMonths,
             InterestRatePerAnnum: interestRate,
             LoanPurpose: app.LoanPurpose,
             CommitteeConditions: app.CommitteeDecisionNote,
@@ -648,8 +651,15 @@ public class ConfirmNampDeploymentHandler
             }
             else
             {
-                var interestRate = app.ApprovedInterestRate ?? 9m; // fallback matches ratification default
-                var tenorMonths = app.RequestedTenorMonths ?? 12;
+                if (app.ApprovedInterestRate is null)
+                    return ApplicationResult<NampApplicationDto>.Failure(
+                        "Approved interest rate is not set — ratification must complete before deployment.");
+                if (app.RequestedTenorMonths is null or <= 0)
+                    return ApplicationResult<NampApplicationDto>.Failure(
+                        "Loan tenor is not set — ratification must complete before deployment.");
+
+                var interestRate = app.ApprovedInterestRate.Value;
+                var tenorMonths  = app.RequestedTenorMonths.Value;
 
                 var bookingRequest = new FineractLoanBookingRequest(
                     ClientId: app.FineractClientId.Value,

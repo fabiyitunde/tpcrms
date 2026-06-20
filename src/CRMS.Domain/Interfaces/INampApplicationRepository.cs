@@ -11,6 +11,7 @@ public interface INampApplicationRepository
     Task<NampApplication?> GetByApplicationReferenceAsync(string applicationReference, CancellationToken ct = default);
     Task<NampApplication?> GetByApplicationReferenceWithHistoryAsync(string applicationReference, CancellationToken ct = default);
     Task<NampApplication?> GetByApplicationNumberWithHistoryAsync(string applicationNumber, CancellationToken ct = default);
+    Task<IReadOnlyList<NampApplication>> GetAllAsync(CancellationToken ct = default);
     Task<IReadOnlyList<NampApplication>> GetByStatusAsync(NampApplicationStatus status, Guid? branchId = null, CancellationToken ct = default);
     Task<IReadOnlyList<NampApplication>> GetByStatusAndTierAsync(NampApplicationStatus status, NampCommitteeTier tier, Guid? branchId = null, CancellationToken ct = default);
     Task<IReadOnlyList<NampApplication>> GetByBranchAsync(Guid branchId, CancellationToken ct = default);

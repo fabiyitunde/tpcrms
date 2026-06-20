@@ -8,4 +8,5 @@ public class SmartComplySettings
     public string ApiKey { get; set; } = string.Empty;
     public int TimeoutSeconds { get; set; } = 60;
     public bool UseMock { get; set; } = true;
+    public bool DumpCacResponseToFile { get; set; } = false;
 }

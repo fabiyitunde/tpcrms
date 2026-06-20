@@ -307,6 +307,9 @@ public class MockCoreBankingService : ICoreBankingService
         return Task.FromResult(Result.Success(exposure));
     }
 
+    public Task<Result<string>> GetAccountRawJsonAsync(string accountNumber, CancellationToken ct = default)
+        => Task.FromResult(Result.Success("{\"mock\":true,\"accountNumber\":\"" + accountNumber + "\"}"));
+
     #region Helpers
 
     private static string? BuildAddress(string? line1, string? city, string? state)

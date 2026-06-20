@@ -24,7 +24,9 @@ public interface ISmartComplyProvider
     Task<Result<SmartComplyBusinessCreditReport>> GetCRCBusinessHistoryAsync(string rcNumber, CancellationToken ct = default);
     Task<Result<SmartComplyBusinessCreditReport>> GetFirstCentralBusinessAsync(string rcNumber, CancellationToken ct = default);
     Task<Result<SmartComplyBusinessCreditReport>> GetPremiumBusinessAsync(string rcNumber, CancellationToken ct = default);
-    
+    // "bureau" must be one of: "crc", "first_central", "premium"
+    Task<Result<string>> GetBusinessCreditRawJsonAsync(string bureau, string rcNumber, CancellationToken ct = default);
+
     #endregion
     
     #region Loan Fraud Check
@@ -42,6 +44,7 @@ public interface ISmartComplyProvider
     Task<Result<SmartComplyTinResult>> VerifyTinAsync(string tin, CancellationToken ct = default);
     Task<Result<SmartComplyCacResult>> VerifyCacAsync(string rcNumber, CancellationToken ct = default);
     Task<Result<SmartComplyCacResult>> VerifyCacAdvancedAsync(string rcNumber, string companyName, string companyType = "RC", CancellationToken ct = default);
+    Task<Result<string>> GetCacAdvancedRawJsonAsync(string rcNumber, string companyName, string companyType = "RC", CancellationToken ct = default);
     
     #endregion
 }

@@ -555,6 +555,16 @@ public class MockSmartComplyProvider : ISmartComplyProvider
         return GetMockCacResultAsync(rcNumber);
     }
 
+    public Task<Result<string>> GetCacAdvancedRawJsonAsync(string rcNumber, string companyName, string companyType = "RC", CancellationToken ct = default)
+    {
+        return Task.FromResult(Result.Success("{\"mock\":true,\"message\":\"Mock CAC response — enable real SmartComply to get live data\"}"));
+    }
+
+    public Task<Result<string>> GetBusinessCreditRawJsonAsync(string bureau, string rcNumber, CancellationToken ct = default)
+    {
+        return Task.FromResult(Result.Success($"{{\"mock\":true,\"bureau\":\"{bureau}\",\"rc\":\"{rcNumber}\",\"message\":\"Mock business credit response — enable real SmartComply to get live data\"}}"));
+    }
+
     private Task<Result<SmartComplyCacResult>> GetMockCacResultAsync(string rcNumber)
     {
         _logger.LogInformation("[MOCK] Verifying CAC for RC {RcNumber}", rcNumber);

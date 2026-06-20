@@ -188,6 +188,7 @@ public class ApplicationUser : Entity
     public Result Deactivate()
     {
         Status = UserStatus.Inactive;
+        RevokeRefreshToken(); // kill existing sessions — they can't refresh once the access token expires
         return Result.Success();
     }
 

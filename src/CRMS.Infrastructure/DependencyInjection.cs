@@ -17,6 +17,7 @@ using CRMS.Application.Advisory.Interfaces;
 using CRMS.Domain.Aggregates.Namp;
 using CRMS.Infrastructure.Events;
 using CRMS.Infrastructure.Events.Handlers;
+using CRMS.Infrastructure.ExternalServices;
 using CRMS.Infrastructure.ExternalServices.Namp;
 using CRMS.Infrastructure.ExternalServices.AI;
 using CRMS.Infrastructure.ExternalServices.AIServices;
@@ -90,6 +91,11 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IAuthService, AuthService>();
 
+        // Reusable handler that logs every third-party HTTP call — method, URL, request + response
+        // bodies, status, timing — at Information (secrets redacted, headers never logged).
+        // Toggle with ThirdPartyApi:LogPayloads (default on).
+        services.AddTransient<ThirdPartyApiLoggingHandler>();
+
         // Core Banking — real CBS API or mock based on config
         var cbsSection = configuration.GetSection(CoreBankingSettings.SectionName);
         if (cbsSection.Exists() && !cbsSection.GetValue<bool>("UseMock"))
@@ -101,6 +107,7 @@ public static class DependencyInjection
                     client.BaseAddress = new Uri(cbsSection.GetValue<string>("BaseUrl") ?? "");
                     client.Timeout = TimeSpan.FromSeconds(cbsSection.GetValue<int>("TimeoutSeconds", 30));
                 })
+                .AddHttpMessageHandler<ThirdPartyApiLoggingHandler>()
                 .AddHttpMessageHandler<CoreBankingAuthHandler>()
                 .AddPolicyHandler(GetCoreBankingRetryPolicy());
         }
@@ -128,6 +135,7 @@ public static class DependencyInjection
                         errors == System.Net.Security.SslPolicyErrors.None ||
                         errors == System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch
                 })
+                .AddHttpMessageHandler<ThirdPartyApiLoggingHandler>()
                 .AddHttpMessageHandler<FineractDirectAuthHandler>()
                 .AddPolicyHandler(GetCoreBankingRetryPolicy());
         }
@@ -149,7 +157,8 @@ public static class DependencyInjection
         if (creditRegistrySection.Exists() && !creditRegistrySection.GetValue<bool>("UseMock"))
         {
             services.Configure<CreditRegistrySettings>(creditRegistrySection);
-            services.AddHttpClient<ICreditBureauProvider, CreditRegistryProvider>();
+            services.AddHttpClient<ICreditBureauProvider, CreditRegistryProvider>()
+                .AddHttpMessageHandler<ThirdPartyApiLoggingHandler>();
         }
         else
         {
@@ -162,6 +171,7 @@ public static class DependencyInjection
         {
             services.Configure<SmartComplySettings>(smartComplySection);
             services.AddHttpClient<ISmartComplyProvider, SmartComplyProvider>()
+                .AddHttpMessageHandler<ThirdPartyApiLoggingHandler>()
                 .AddPolicyHandler(GetSmartComplyRetryPolicy())
                 .AddPolicyHandler(GetSmartComplyCircuitBreakerPolicy());
         }
@@ -200,6 +210,7 @@ public static class DependencyInjection
             {
                 client.Timeout = TimeSpan.FromSeconds(nampSection.GetValue<int>("TimeoutSeconds", 30));
             })
+            .AddHttpMessageHandler<ThirdPartyApiLoggingHandler>()
             .AddPolicyHandler(GetNampCallbackRetryPolicy());
         }
         else
@@ -618,12 +629,14 @@ public static class DependencyInjection
         services.AddScoped<Application.Namp.Commands.UploadNampDocumentHandler>();
         services.AddScoped<Application.Namp.Commands.DeleteNampDocumentHandler>();
         services.AddScoped<Application.Namp.Commands.UpdateNampDocumentHandler>();
+        services.AddScoped<Application.Namp.Commands.RetryNampDocumentImportHandler>();
         services.AddScoped<Application.Namp.Commands.CreateNampRoutingConfigHandler>();
         services.AddScoped<Application.Namp.Commands.UpdateNampRoutingConfigHandler>();
         services.AddScoped<Application.Namp.Commands.ToggleNampRoutingConfigHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampStagingQueueHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampStagingRecordByIdHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampApplicationByIdHandler>();
+        services.AddScoped<Application.Namp.Queries.GetAllNampApplicationsHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampApplicationsByStatusHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampApplicationsByStatusAndTierHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampApplicationsByCommitteeMembershipHandler>();

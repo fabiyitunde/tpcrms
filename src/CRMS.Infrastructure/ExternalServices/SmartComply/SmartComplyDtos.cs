@@ -1014,17 +1014,25 @@ public class CacAdvancedData
     [JsonPropertyName("entity_type")]
     public string? EntityType { get; set; }
 
+    // Some responses put the type here (e.g. "RC") with entity_type blank, and vice-versa.
+    [JsonPropertyName("company_type")]
+    public string? CompanyTypeRaw { get; set; }
+
     [JsonPropertyName("company_status")]
     public string? CompanyStatus { get; set; }
 
-    [JsonPropertyName("address")]
+    [JsonPropertyName("company_address")]
     public string? CompanyAddress { get; set; }
 
     [JsonPropertyName("email_address")]
     public string? EmailAddress { get; set; }
 
-    [JsonPropertyName("date_of_registration")]
+    [JsonPropertyName("registrationDate")]
     public string? RegistrationDate { get; set; }
+
+    // Some CAC responses use snake_case for the same value — accept both so we never drop it.
+    [JsonPropertyName("date_of_registration")]
+    public string? RegistrationDateLegacy { get; set; }
 
     [JsonPropertyName("city")]
     public string? City { get; set; }
@@ -1034,6 +1042,16 @@ public class CacAdvancedData
 
     [JsonPropertyName("lga")]
     public string? Lga { get; set; }
+
+    // Some responses put the address here instead of company_address
+    [JsonPropertyName("address")]
+    public string? Address { get; set; }
+
+    [JsonPropertyName("residence_address")]
+    public string? ResidenceAddress { get; set; }
+
+    [JsonPropertyName("residentialAddress")]
+    public string? ResidentialAddress { get; set; }
 
     [JsonPropertyName("branchAddress")]
     public string? BranchAddress { get; set; }
@@ -1146,17 +1164,29 @@ public class CacAdvancedDirectorData
     [JsonPropertyName("formType")]
     public string? FormType { get; set; }
 
+    // Some responses use countryFk, others use affiliateCountry for the same data
     [JsonPropertyName("countryFk")]
     public CacCountryReference? CountryFk { get; set; }
 
-    [JsonPropertyName("affiliateType")]
+    [JsonPropertyName("affiliateCountry")]
+    public CacCountryReference? AffiliateCountry { get; set; }
+
+    // Some responses use affiliateTypeFk, others use affiliateType for the same data
+    [JsonPropertyName("affiliateTypeFk")]
     public CacAffiliateTypeReference? AffiliateTypeFk { get; set; }
 
+    [JsonPropertyName("affiliateType")]
+    public CacAffiliateTypeReference? AffiliateType { get; set; }
+
+    // SmartComply returns these nested objects inconsistently (sometimes the object, sometimes a
+    // bare foreign-key id). They are not consumed downstream, so accept ANY JSON shape via
+    // JsonElement to avoid deserialization crashes. (Strongly-typed CacPscInformation /
+    // CacResidentialAddress retained below for reference / future use.)
     [JsonPropertyName("affiliatesPscInformation")]
-    public CacPscInformation? AffiliatesPscInformation { get; set; }
+    public System.Text.Json.JsonElement? AffiliatesPscInformation { get; set; }
 
     [JsonPropertyName("affiliatesResidentialAddress")]
-    public CacResidentialAddress? AffiliatesResidentialAddress { get; set; }
+    public System.Text.Json.JsonElement? AffiliatesResidentialAddress { get; set; }
 }
 
 public class CacCountryReference

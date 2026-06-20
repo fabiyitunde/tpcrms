@@ -44,9 +44,6 @@ internal static class NampPayloadValidator
         if (payload.EquityAmount < 0)
             errors.Add("EquityAmount must be zero or greater.");
 
-        if (payload.RequestedTenorMonths is null or <= 0)
-            errors.Add("RequestedTenorMonths is required and must be greater than zero (needed for offer letter and repayment schedule).");
-
         if (string.IsNullOrWhiteSpace(payload.LoanPurpose))
             errors.Add("LoanPurpose is required (used during financial appraisal).");
     }

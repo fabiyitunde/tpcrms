@@ -138,12 +138,9 @@ else
                 Guarantors <span class="badge badge-secondary" style="margin-left: 4px;">@app.Guarantors.Count</span>
             </div>
         }
-        @if (app.Collaterals.Count > 0)
-        {
-            <div class="tab @(detailTab == "collateral" ? "active" : "")" @onclick='() => detailTab = "collateral"'>
-                Collateral <span class="badge badge-secondary" style="margin-left: 4px;">@app.Collaterals.Count</span>
-            </div>
-        }
+        <div class="tab @(detailTab == "collateral" ? "active" : "")" @onclick='() => detailTab = "collateral"'>
+            Collateral <span class="badge badge-secondary" style="margin-left: 4px;">@(app.Collaterals.Count + 1)</span>
+        </div>
         <div class="tab @(detailTab == "documents" ? "active" : "")" @onclick='() => detailTab = "documents"'>
             Documents
             @if (app.Documents.Count > 0)
@@ -244,6 +241,158 @@ else
                 <!-- Company Details (Agro-Service only) -->
                 @if (app.ApplicantCategory == "AgroServiceCompany")
                 {
+                    <!-- Core Banking Record -->
+                    <div class="card">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="card-title">Core Banking Record</h3>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                @if (!string.IsNullOrEmpty(cbsError))
+                                {
+                                    <span style="font-size: 0.8rem; color: var(--danger-600);">@cbsError</span>
+                                }
+                                <button class="btn btn-outline btn-sm" @onclick="FetchCbsRecord" disabled="@isFetchingCbs">
+                                    @if (isFetchingCbs)
+                                    {
+                                        <span class="spinner-sm" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px;"></span>
+                                        <span>Fetching…</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">refresh</span>
+                                        <span>Refresh</span>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            @if (isFetchingCbs && cbsRecord == null)
+                            {
+                                <div style="text-align: center; padding: 1.5rem; color: var(--text-secondary); font-size: 0.875rem;">
+                                    <span class="spinner-sm" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+                                    Loading core banking record…
+                                </div>
+                            }
+                            else if (cbsRecord == null)
+                            {
+                                <div style="text-align: center; padding: 1.5rem; color: var(--text-secondary); font-size: 0.875rem;">
+                                    @(string.IsNullOrEmpty(cbsError) ? "No core banking record loaded." : "Failed to load. Use Refresh to retry.")
+                                </div>
+                            }
+                            else
+                            {
+                                <!-- Company Account Summary -->
+                                <div style="margin-bottom: 1.25rem;">
+                                    <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem;">Company Account</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                        @{
+                                            var cbsNameMatchesAccountName = string.Equals(cbsRecord.CompanyName?.Trim(), app.BoaAccountName?.Trim(), StringComparison.OrdinalIgnoreCase);
+                                            var cbsNameMatchesCompanyName = string.Equals(cbsRecord.CompanyName?.Trim(), app.CompanyName?.Trim(), StringComparison.OrdinalIgnoreCase);
+                                        }
+                                        <div>
+                                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.2rem;">Account Name (CBS)</div>
+                                            <div style="font-size: 0.875rem; font-weight: 500;">
+                                                @(cbsRecord.CompanyName ?? "—")
+                                                @if (!cbsNameMatchesAccountName && !string.IsNullOrEmpty(app.BoaAccountName))
+                                                {
+                                                    <span class="badge badge-warning" style="margin-left: 4px; font-size: 0.7rem;" title="Portal submitted: @app.BoaAccountName">Differs from portal</span>
+                                                }
+                                                @if (!cbsNameMatchesCompanyName && !string.IsNullOrEmpty(app.CompanyName))
+                                                {
+                                                    <span class="badge badge-warning" style="margin-left: 4px; font-size: 0.7rem;" title="Company name on application: @app.CompanyName">≠ Company name</span>
+                                                }
+                                            </div>
+                                        </div>
+                                        @InfoField("Phone", cbsRecord.Phone)
+                                        @InfoField("Email", cbsRecord.Email)
+                                        @InfoField("Address", cbsRecord.Address)
+                                    </div>
+                                </div>
+
+                                <!-- CBS Directors -->
+                                @if (cbsRecord.CbsDirectors.Count > 0)
+                                {
+                                    <div style="margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color);">
+                                        <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                                            Directors on CBS Record (@cbsRecord.CbsDirectors.Count)
+                                        </div>
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th>BVN</th>
+                                                    <th>Email</th>
+                                                    <th>Phone</th>
+                                                    <th>On Application</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var d in cbsRecord.CbsDirectors)
+                                                {
+                                                    var matchByBvn = !string.IsNullOrEmpty(d.BVN) && app.Directors.Any(pd => pd.Bvn == d.BVN);
+                                                    var matchByName = app.Directors.Any(pd => string.Equals(pd.FullName.Trim(), d.FullName.Trim(), StringComparison.OrdinalIgnoreCase));
+                                                    var isOnApplication = matchByBvn || matchByName;
+                                                    <tr>
+                                                        <td style="font-weight: 500;">@d.FullName</td>
+                                                        <td style="font-size: 0.8rem; font-family: monospace;">
+                                                            @if (!string.IsNullOrEmpty(d.BVN))
+                                                            { @d.BVN }
+                                                            else
+                                                            { <span class="badge badge-warning">Missing</span> }
+                                                        </td>
+                                                        <td style="font-size: 0.8rem;">@(d.Email ?? "—")</td>
+                                                        <td style="font-size: 0.8rem;">@(d.PhoneNumber ?? "—")</td>
+                                                        <td>
+                                                            @if (isOnApplication)
+                                                            { <span class="badge badge-success">Yes</span> }
+                                                            else
+                                                            { <span class="badge badge-danger">Not found</span> }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+
+                                <!-- CBS Signatories -->
+                                @if (cbsRecord.Signatories.Count > 0)
+                                {
+                                    <div style="margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color);">
+                                        <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                                            Account Signatories on CBS Record (@cbsRecord.Signatories.Count)
+                                        </div>
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th>BVN</th>
+                                                    <th>Mandate</th>
+                                                    <th>Designation</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var s in cbsRecord.Signatories)
+                                                {
+                                                    <tr>
+                                                        <td style="font-weight: 500;">@s.FullName</td>
+                                                        <td style="font-size: 0.8rem; font-family: monospace;">
+                                                            @if (!string.IsNullOrEmpty(s.BVN))
+                                                            { @s.BVN }
+                                                            else
+                                                            { <span class="badge badge-warning">Missing</span> }
+                                                        </td>
+                                                        <td>@(s.MandateType ?? "—")</td>
+                                                        <td style="font-size: 0.8rem;">@(s.Designation ?? "—")</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+
                     <div class="card">
                         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <h3 class="card-title">Company Details</h3>
@@ -406,6 +555,7 @@ else
                             }
                         </div>
                     </div>
+
                 }
 
                 <!-- Individual Credit Profile (Youth / Women) -->
@@ -665,13 +815,42 @@ else
     ══════════════════════════════════════════════ -->
     @if (detailTab == "collateral")
     {
-        @if (app.Collaterals.Count == 0)
-        {
-            <div class="card"><div class="p-6 text-center text-muted">No collateral recorded.</div></div>
-        }
-        else
-        {
-            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+            <!-- ── Primary Collateral: Equipment ───────────────────────── -->
+            <div class="card" style="border-top: 3px solid #388e3c;">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title" style="margin: 0;">@app.EquipmentDescription</h3>
+                        <div style="margin-top: 0.25rem; display: flex; gap: 0.5rem;">
+                            <span class="badge badge-success">Primary Collateral</span>
+                            <span class="badge badge-info">Equipment</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                        @InfoField("Market Value", FormatMoney(app.EquipmentValue))
+                        @InfoField("Ownership Basis", "Hire-Purchase / Bank-Financed")
+                        @InfoField("Coverage Ratio", app.LoanAmount.HasValue && app.LoanAmount > 0
+                            ? $"{(app.EquipmentValue / app.LoanAmount.Value * 100):N1}% of loan"
+                            : "—")
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Supplementary Collaterals ────────────────────────────── -->
+            @if (app.Collaterals.Count == 0)
+            {
+                <div style="font-size: var(--text-sm); color: var(--text-secondary); padding: var(--space-2) 0;">
+                    No supplementary collateral recorded.
+                </div>
+            }
+            else
+            {
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">
+                    Supplementary Collateral
+                </div>
                 @foreach (var c in app.Collaterals)
                 {
                     <div class="card">
@@ -706,8 +885,8 @@ else
                         </div>
                     </div>
                 }
-            </div>
-        }
+            }
+        </div>
     }
 
     <!-- ══════════════════════════════════════════════
@@ -1553,14 +1732,42 @@ else
         <div class="card">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 class="card-title" style="margin: 0;">Documents</h3>
-                @if (CanUploadLoDoc)
-                {
-                    <button class="btn btn-secondary btn-sm" @onclick="OpenLoDocUpload">
-                        <span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span>
-                        Upload Document
-                    </button>
-                }
+                <div style="display: flex; gap: var(--space-2); align-items: center;">
+                    @if (!(app.Status is "Closed" or "TechnicalDeclined" or "FinancialDeclined" or
+                           "BranchCommitteeDeclined" or "ZonalCommitteeDeclined" or "RegionalCommitteeDeclined" or
+                           "HOCommitteeDeclined" or "RatificationDeclined" or "Declined" or "OfferLapsed") &&
+                         (User?.HasAnyRole("LoanOfficer", "SystemAdmin") ?? false))
+                    {
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="RetryPortalDocuments" disabled="@docRetrying" title="Re-import any origination documents that failed to download during recall">
+                            @if (docRetrying)
+                            {
+                                <span class="spinner-sm" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px;"></span>
+                                <span>Retrying…</span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size: 16px;">cloud_download</span>
+                                <span>Retry Portal Docs</span>
+                            }
+                        </button>
+                    }
+                    @if (CanUploadLoDoc)
+                    {
+                        <button class="btn btn-secondary btn-sm" @onclick="OpenLoDocUpload">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span>
+                            Upload Document
+                        </button>
+                    }
+                </div>
             </div>
+            @if (docRetryMessage != null)
+            {
+                <div class="alert alert-success" style="margin: var(--space-3) var(--space-4); padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">@docRetryMessage</div>
+            }
+            @if (docRetryError != null)
+            {
+                <div class="alert alert-danger" style="margin: var(--space-3) var(--space-4); padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">@docRetryError</div>
+            }
             <div class="card-body" style="padding: 0;">
                 @if (!app.Documents.Any())
                 {
@@ -2991,6 +3198,11 @@ else
     // Bureau recheck
     private bool bureauRechecking;
     private string? bureauRecheckError;
+
+    // Portal document retry
+    private bool docRetrying;
+    private string? docRetryMessage;
+    private string? docRetryError;
     private bool ShowBureauRecheckButton => Config.GetValue<bool>("Features:ShowBureauRecheckButton");
 
     // Advisory
@@ -3020,6 +3232,11 @@ else
     private decimal? editDirShareholding;
     private bool isSavingDirector;
     private string? directorError;
+
+    // Core Banking record (CBS)
+    private CRMS.Web.Intranet.Models.CustomerInfo? cbsRecord;
+    private bool isFetchingCbs;
+    private string? cbsError;
 
     private bool CanManageDirectors =>
         app?.ApplicantCategory == "AgroServiceCompany" &&
@@ -3321,7 +3538,28 @@ else
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+        if (app?.ApplicantCategory == "AgroServiceCompany" && !string.IsNullOrEmpty(app.BoaAccountNumber))
+            await FetchCbsRecord();
+    }
+
+    private async Task FetchCbsRecord()
+    {
+        if (app is null || string.IsNullOrEmpty(app.BoaAccountNumber)) return;
+        isFetchingCbs = true;
+        cbsError = null;
+        try
+        {
+            var result = await AppService.FetchCorporateDataAsync(app.BoaAccountNumber);
+            if (result.Success)
+                cbsRecord = result.Data;
+            else
+                cbsError = result.Error ?? "Core banking fetch failed";
+        }
+        finally { isFetchingCbs = false; }
+    }
 
     private async Task Load()
     {
@@ -3357,6 +3595,29 @@ else
             bureauRecheckError = ex.Message;
         }
         finally { bureauRechecking = false; }
+    }
+
+    private async Task RetryPortalDocuments()
+    {
+        docRetrying = true;
+        docRetryMessage = null;
+        docRetryError = null;
+        try
+        {
+            var result = await AppService.RetryNampDocumentImportAsync(Id);
+            if (result.Success)
+            {
+                docRetryMessage = result.Data;
+                await Load();
+            }
+            else
+                docRetryError = result.Error ?? "Retry failed";
+        }
+        catch (Exception ex)
+        {
+            docRetryError = ex.Message;
+        }
+        finally { docRetrying = false; }
     }
 
     private async Task SwitchToAdvisoryTab()

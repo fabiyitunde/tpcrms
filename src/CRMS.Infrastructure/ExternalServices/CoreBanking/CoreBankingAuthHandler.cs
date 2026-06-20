@@ -36,7 +36,7 @@ public class CoreBankingAuthHandler : DelegatingHandler
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
-        request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0");
+        request.Headers.TryAddWithoutValidation("User-Agent", "CRMS");
 
         return await base.SendAsync(request, cancellationToken);
     }
@@ -71,7 +71,7 @@ public class CoreBankingAuthHandler : DelegatingHandler
         _logger.LogInformation("CBS: Acquiring OAuth2 token from {Url}", tokenUrl);
 
         using var tokenClient = new HttpClient { Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds) };
-        tokenClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0");
+        tokenClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "CRMS");
 
         // Try form-urlencoded (standard OAuth2)
         var formData = new Dictionary<string, string>
@@ -121,14 +121,13 @@ public class CoreBankingAuthHandler : DelegatingHandler
 
         try
         {
-            var tokenResponse = await response.Content.ReadFromJsonAsync<CbsOAuth2TokenResponse>(
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, ct);
+            var raw = await response.Content.ReadAsStringAsync(ct);
+            var tokenResponse = JsonSerializer.Deserialize<CbsOAuth2TokenResponse>(raw,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             var token = tokenResponse?.ResolvedToken;
             if (string.IsNullOrEmpty(token))
             {
-                // Last resort: parse raw JSON looking for any token field
-                var raw = await response.Content.ReadAsStringAsync(ct);
                 _logger.LogWarning("CBS: Could not extract token from response: {Raw}", raw);
                 return null;
             }

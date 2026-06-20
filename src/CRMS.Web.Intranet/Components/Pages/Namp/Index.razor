@@ -371,6 +371,8 @@
                 <div style="width: 220px;">
                     <label class="form-label">Status</label>
                     <select class="form-control" @bind="filterStatus" @bind:after="LoadAdminAll">
+                        <option value="all">All (including terminal)</option>
+                        <option value="">── Active Pipeline ──</option>
                         <option value="">All Active</option>
                         <option value="Draft">Draft</option>
                         <option value="Submitted">Submitted</option>
@@ -385,6 +387,14 @@
                         <option value="PreDeploymentVerification">Pre-Deployment</option>
                         <option value="Deployment">Deployment</option>
                         <option value="Active">Active</option>
+                        <option value="" disabled>── Declined / Terminal ──</option>
+                        <option value="FinancialDeclined">Financial Declined</option>
+                        <option value="BranchCommitteeDeclined">Branch Declined</option>
+                        <option value="ZonalCommitteeDeclined">Zonal Declined</option>
+                        <option value="RegionalCommitteeDeclined">Regional Declined</option>
+                        <option value="HOCommitteeDeclined">HO Declined</option>
+                        <option value="RatificationDeclined">Ratification Declined</option>
+                        <option value="OfferLapsed">Offer Lapsed</option>
                     </select>
                 </div>
             </div>
@@ -752,7 +762,11 @@
         allAppsPage = 1;
         try
         {
-            if (string.IsNullOrEmpty(filterStatus))
+            if (filterStatus == "all")
+            {
+                allApps = await AppService.GetAllNampApplicationsAsync();
+            }
+            else if (string.IsNullOrEmpty(filterStatus))
             {
                 var activeStatuses = new[] { "Draft", "Submitted", "FinancialAppraisal",
                     "BranchCommitteeCirculation", "ZonalCommitteeCirculation", "RegionalCommitteeCirculation",
