@@ -84,6 +84,7 @@ public class CoreBankingAuthHandler : DelegatingHandler
         HttpResponseMessage? response = null;
         try
         {
+            _logger.LogInformation("CBS Token Request Form Payload: {Payload}", formData);
             response = await tokenClient.PostAsync(tokenUrl, new FormUrlEncodedContent(formData), ct);
         }
         catch (Exception ex)
@@ -103,6 +104,7 @@ public class CoreBankingAuthHandler : DelegatingHandler
                     grant_type = "client_credentials"
                 });
                 var content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
+                _logger.LogInformation("CBS Token Request Json Payload: {Payload}", jsonPayload);
                 response = await tokenClient.PostAsync(tokenUrl, content, ct);
             }
             catch (Exception ex)
