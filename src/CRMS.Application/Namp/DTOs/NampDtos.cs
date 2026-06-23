@@ -117,6 +117,12 @@ public record NampApplicationDto(
     DateTime? OfferGeneratedAt,
     DateTime? OfferAcceptedAt,
     DateTime? OfferLapsedAt,
+    // Legal Clearance
+    Guid? LegalClearedByUserId,
+    DateTime? LegalClearedAt,
+    string? LegalClearanceNote,
+    string? LegalDeclineNote,
+    string? LegalReturnNote,
     // Pre-Deployment Verification
     Guid? PreDeploymentVerifiedByUserId,
     DateTime? PreDeploymentVerifiedAt,

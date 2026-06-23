@@ -23,13 +23,11 @@ public static class NampWorkflowSeeder
 
     private static async Task SeedWorkflowConfigAsync(CRMSDbContext context, ILogger logger)
     {
-        if (await context.NampWorkflowConfigs.AnyAsync())
-        {
-            logger.LogInformation("NAMP workflow config already seeded, skipping.");
-            return;
-        }
+        logger.LogInformation("Seeding NAMP workflow stage config (add-missing-rows)...");
 
-        logger.LogInformation("Seeding NAMP workflow stage config...");
+        var existing = await context.NampWorkflowConfigs
+            .Select(c => c.Status)
+            .ToListAsync();
 
         var stages = new[]
         {
@@ -59,10 +57,15 @@ public static class NampWorkflowSeeder
             Stage(NampApplicationStatus.Ratification, "Ratification", "Final Approver (Branch Manager / Zonal Manager / Regional Manager / MD-CEO) ratifying committee vote.", Roles.FinalApprover, slaHours: 48, sort: 90),
             Stage(NampApplicationStatus.RatificationDeclined, "Ratification Declined", "Final Approver declined to ratify the committee decision.", Roles.SystemAdmin, slaHours: 0, sort: 95, isTerminal: true),
             Stage(NampApplicationStatus.OfferGenerated, "Offer Letter Generated", "Offer letter sent to applicant; awaiting countersignature.", Roles.LoanOfficer, slaHours: 168, sort: 100),
-            Stage(NampApplicationStatus.OfferAccepted, "Offer Accepted", "Applicant countersigned offer letter; moving to pre-deployment.", Roles.DeploymentOfficer, slaHours: 48, sort: 105),
-            Stage(NampApplicationStatus.OfferLapsed, "Offer Lapsed", "Applicant did not countersign within SLA.", Roles.SystemAdmin, slaHours: 0, sort: 108, isTerminal: true),
+            Stage(NampApplicationStatus.OfferAccepted, "Offer Accepted", "Applicant countersigned offer letter; auto-routed to legal clearance.", Roles.LegalOfficer, slaHours: 0, sort: 105),
+            Stage(NampApplicationStatus.OfferLapsed, "Offer Lapsed", "Applicant did not countersign within SLA.", Roles.SystemAdmin, slaHours: 0, sort: 106, isTerminal: true),
 
-            // ── Stage 5: Pre-Deployment Verification ──────────────────────
+            // ── Stage 5c: Legal Clearance ──────────────────────────────────
+            Stage(NampApplicationStatus.LegalClearance, "Legal Clearance", "Legal Officer reviewing application before pre-deployment.", Roles.LegalOfficer, slaHours: 72, sort: 107),
+            Stage(NampApplicationStatus.LegalReturned, "Legal Returned", "Legal Officer returned application to Loan Officer for remediation.", Roles.LoanOfficer, slaHours: 48, sort: 108),
+            Stage(NampApplicationStatus.LegalDeclined, "Legal Declined", "Legal Officer declined the application.", Roles.SystemAdmin, slaHours: 0, sort: 109, isTerminal: true),
+
+            // ── Stage 6: Pre-Deployment Verification ──────────────────────
             Stage(NampApplicationStatus.PreDeploymentVerification, "Pre-Deployment Verification", "Deployment Officer verifying 4 gate conditions before equipment deployment.", Roles.DeploymentOfficer, slaHours: 48, sort: 110),
 
             // ── Stage 6: Deployment ───────────────────────────────────────
@@ -76,9 +79,17 @@ public static class NampWorkflowSeeder
             Stage(NampApplicationStatus.Declined, "Declined", "Application declined (outbound NAMP callback sent).", Roles.SystemAdmin, slaHours: 0, sort: 160, isTerminal: true),
         };
 
-        await context.NampWorkflowConfigs.AddRangeAsync(stages);
+        var missing = stages.Where(s => !existing.Contains(s.Status)).ToArray();
+        if (missing.Length == 0)
+        {
+            logger.LogInformation("NAMP workflow config up to date — no missing rows.");
+            return;
+        }
+
+        await context.NampWorkflowConfigs.AddRangeAsync(missing);
         await context.SaveChangesAsync();
-        logger.LogInformation("Seeded {Count} NAMP workflow stage config rows.", stages.Length);
+        logger.LogInformation("Added {Count} missing NAMP workflow stage config row(s): {Statuses}",
+            missing.Length, string.Join(", ", missing.Select(s => s.Status)));
     }
 
     // ── Routing config (default bands) ────────────────────────────────────

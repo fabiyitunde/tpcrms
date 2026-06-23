@@ -384,6 +384,8 @@
                         <option value="Ratification">Ratification</option>
                         <option value="OfferGenerated">Offer Generated</option>
                         <option value="OfferAccepted">Offer Accepted</option>
+                        <option value="LegalClearance">Legal Clearance</option>
+                        <option value="LegalReturned">Legal Returned</option>
                         <option value="PreDeploymentVerification">Pre-Deployment</option>
                         <option value="Deployment">Deployment</option>
                         <option value="Active">Active</option>
@@ -395,6 +397,7 @@
                         <option value="HOCommitteeDeclined">HO Declined</option>
                         <option value="RatificationDeclined">Ratification Declined</option>
                         <option value="OfferLapsed">Offer Lapsed</option>
+                        <option value="LegalDeclined">Legal Declined</option>
                     </select>
                 </div>
             </div>
@@ -530,7 +533,7 @@
     private List<NampApplicationSummaryDto> myQueue = [];
     private List<NampApplicationSummaryDto> myApps = [];
     private List<NampApplicationSummaryDto> allApps = [];
-    private string filterStatus = "";
+    private string filterStatus = "all";
 
     // Search state (per tab)
     private string stagingSearch = "";
@@ -721,11 +724,13 @@
         var statuses = new HashSet<string>();
 
         if (user.HasAnyRole("LoanOfficer", "SystemAdmin"))
-            statuses.UnionWith(["Draft", "OfferGenerated"]);
+            statuses.UnionWith(["Draft", "OfferGenerated", "LegalReturned"]);
         if (user.HasAnyRole("CreditOfficer", "SystemAdmin"))
             statuses.UnionWith(["Submitted", "FinancialAppraisal", "BranchCommitteeCirculation"]);
+        if (user.HasAnyRole("LegalOfficer", "SystemAdmin"))
+            statuses.UnionWith(["LegalClearance"]);
         if (user.HasAnyRole("DeploymentOfficer", "SystemAdmin"))
-            statuses.UnionWith(["OfferAccepted", "PreDeploymentVerification", "Deployment"]);
+            statuses.UnionWith(["PreDeploymentVerification", "Deployment"]);
 
         return [.. statuses];
     }
@@ -771,6 +776,7 @@
                 var activeStatuses = new[] { "Draft", "Submitted", "FinancialAppraisal",
                     "BranchCommitteeCirculation", "ZonalCommitteeCirculation", "RegionalCommitteeCirculation",
                     "HOCommitteeCirculation", "Ratification", "OfferGenerated", "OfferAccepted",
+                    "LegalClearance", "LegalReturned",
                     "PreDeploymentVerification", "Deployment", "Active" };
                 allApps = await AppService.GetNampApplicationsByStatusesAsync(activeStatuses);
             }
@@ -818,6 +824,8 @@
         var s when s.Contains("CommitteeCirculation")                => "badge-info",
         "Ratification"                                               => "badge-primary",
         "OfferGenerated" or "OfferAccepted"                          => "badge-info",
+        "LegalClearance"                                             => "badge-warning",
+        "LegalReturned"                                              => "badge-danger",
         "PreDeploymentVerification" or "Deployment"                  => "badge-primary",
         "Active"                                                     => "badge-success",
         var s when s.Contains("Declined") || s.Contains("Lapsed")   => "badge-danger",
@@ -854,6 +862,9 @@
         "HOCommitteeDeclined"          => "HO Declined",
         "FinancialDeclined"            => "Financial Declined",
         "RatificationDeclined"         => "Ratification Declined",
+        "LegalClearance"               => "Legal Clearance",
+        "LegalReturned"                => "Legal Returned",
+        "LegalDeclined"                => "Legal Declined",
         "PreDeploymentVerification"    => "Pre-Deployment",
         "OfferGenerated"               => "Offer Sent",
         "OfferAccepted"                => "Offer Accepted",

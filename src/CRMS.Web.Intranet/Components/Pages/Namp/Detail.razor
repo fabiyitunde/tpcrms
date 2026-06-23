@@ -59,9 +59,15 @@ else
                 <button class="btn btn-success" @onclick="OpenOfferAcceptModal">Record Acceptance</button>
                 <button class="btn btn-danger" @onclick="OpenOfferLapseModal">Lapse Offer</button>
             }
-            @if (ShowBeginPreDeploymentButton)
+            @if (ShowGrantLegalClearanceButton)
             {
-                <button class="btn btn-primary" @onclick="OpenBeginPreDeployModal">Begin Pre-Deployment</button>
+                <button class="btn btn-success" @onclick="OpenGrantLegalModal">Grant Clearance</button>
+                <button class="btn btn-warning" @onclick="OpenReturnFromLegalModal">Return to LO</button>
+                <button class="btn btn-danger" @onclick="OpenDeclineLegalModal">Decline</button>
+            }
+            @if (ShowResubmitToLegalButton)
+            {
+                <button class="btn btn-primary" @onclick="ResubmitToLegal">Resubmit to Legal</button>
             }
             @if (ShowCompletePreDeploymentButton)
             {
@@ -190,6 +196,16 @@ else
             <div class="tab @(detailTab == "offer-letter" ? "active" : "")" @onclick='() => detailTab = "offer-letter"'>
                 <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">mail</span>
                 Offer Letter
+            </div>
+        }
+        @if (ShowLegalClearanceTab)
+        {
+            <div class="tab @(detailTab == "legal-clearance" ? "active" : "")" @onclick='() => detailTab = "legal-clearance"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">gavel</span>
+                Legal Clearance
+                @if (app.LegalClearedAt.HasValue) { <span class="badge badge-success" style="margin-left: 4px;">✓</span> }
+                else if (app.Status == "LegalClearance") { <span class="badge badge-warning" style="margin-left: 4px;">Pending</span> }
+                else if (app.Status == "LegalReturned") { <span class="badge badge-danger" style="margin-left: 4px;">Returned</span> }
             </div>
         }
         @if (ShowPreDeploymentTab)
@@ -1930,6 +1946,138 @@ else
                 }
             </div>
         </div>
+
+        @if (app.Status == "OfferGenerated" && CanUploadLoDoc)
+        {
+            <div class="card" style="margin-top: var(--space-4);">
+                <div class="card-header">
+                    <div style="display: flex; align-items: center; gap: var(--space-2);">
+                        <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary-600);">folder_open</span>
+                        <div>
+                            <h3 class="card-title" style="margin: 0;">Supporting Documents</h3>
+                            <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">Pre-deployment documents uploaded by Loan Officer</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-3);">
+                        Upload any additional requirement documents now (equity deposit receipt, lease agreement, GPS consent, etc.) so they are ready for Legal Clearance and Pre-Deployment Verification.
+                    </div>
+                    <button class="btn btn-outline" @onclick="OpenLoDocUpload">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span>
+                        Upload Document
+                    </button>
+                    @if (app.Documents.Any(d => d.Stage == "Other"))
+                    {
+                        <div style="margin-top: var(--space-4);">
+                            <div style="font-size: var(--text-sm); font-weight: 600; color: var(--gray-700); margin-bottom: var(--space-2);">Uploaded Documents</div>
+                            @foreach (var doc in app.Documents.Where(d => d.Stage == "Other").OrderByDescending(d => d.UploadedAt))
+                            {
+                                <div style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 1px solid var(--gray-100);">
+                                    <span class="material-symbols-outlined" style="font-size: 18px; color: var(--gray-400);">description</span>
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@doc.FileName</div>
+                                        @if (!string.IsNullOrEmpty(doc.Description))
+                                        {
+                                            <div style="font-size: var(--text-xs); color: var(--gray-500);">@doc.Description</div>
+                                        }
+                                    </div>
+                                    <a href="@doc.StoragePath" target="_blank" class="btn btn-xs btn-outline">View</a>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    <!-- ══════════════════════════════════════════════
+         LEGAL CLEARANCE TAB
+    ══════════════════════════════════════════════ -->
+    @if (detailTab == "legal-clearance")
+    {
+        <div class="card">
+            <div class="card-header">
+                <div style="display: flex; align-items: center; gap: var(--space-2);">
+                    <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary-600);">gavel</span>
+                    <div>
+                        <h3 class="card-title" style="margin: 0;">Legal Clearance</h3>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">Legal Officer review before pre-deployment</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+
+                @if (app.LegalClearedAt.HasValue)
+                {
+                    <div style="padding: var(--space-3) var(--space-4); background: var(--success-50); border: 1px solid var(--success-200); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
+                        <div style="font-weight: 600; color: var(--success-700); margin-bottom: 4px;">Clearance Granted</div>
+                        <div style="font-size: var(--text-sm); color: var(--success-800);">
+                            Cleared on @app.LegalClearedAt.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                            @if (!string.IsNullOrWhiteSpace(app.LegalClearanceNote)) { <span> — @app.LegalClearanceNote</span> }
+                        </div>
+                    </div>
+                }
+
+                @if (app.Status == "LegalReturned")
+                {
+                    <div style="padding: var(--space-3) var(--space-4); background: var(--warning-50); border: 1px solid var(--warning-200); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
+                        <div style="font-weight: 600; color: var(--warning-700); margin-bottom: 4px;">Returned by Legal Officer</div>
+                        <div style="font-size: var(--text-sm); color: var(--warning-800);">@app.LegalReturnNote</div>
+                    </div>
+                }
+
+                @if (app.Status == "LegalDeclined")
+                {
+                    <div style="padding: var(--space-3) var(--space-4); background: var(--danger-50); border: 1px solid var(--danger-200); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
+                        <div style="font-weight: 600; color: var(--danger-700); margin-bottom: 4px;">Declined by Legal Officer</div>
+                        <div style="font-size: var(--text-sm); color: var(--danger-800);">@app.LegalDeclineNote</div>
+                    </div>
+                }
+
+                <!-- Documents upload during legal clearance / returned stages -->
+                @if (app.Status is "LegalClearance" or "LegalReturned")
+                {
+                    <div style="margin-top: var(--space-4);">
+                        <div style="font-size: var(--text-sm); font-weight: 600; color: var(--gray-700); margin-bottom: var(--space-2);">Upload Supporting Documents</div>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
+                            You may upload pre-deployment documents (equity deposit receipt, lease agreement, GPS consent, etc.) now so they are ready when verification begins.
+                        </div>
+                        <button class="btn btn-outline" @onclick="OpenLegalDocUpload">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span>
+                            Upload Document
+                        </button>
+                    </div>
+
+                    @if (app.Documents.Any(d => d.Stage == "LegalClearance"))
+                    {
+                        <div style="margin-top: var(--space-4);">
+                            <div style="font-size: var(--text-sm); font-weight: 600; color: var(--gray-700); margin-bottom: var(--space-2);">Documents Uploaded at This Stage</div>
+                            @foreach (var doc in app.Documents.Where(d => d.Stage == "LegalClearance"))
+                            {
+                                <div style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 1px solid var(--gray-100);">
+                                    <span class="material-symbols-outlined" style="font-size: 18px; color: var(--gray-400);">description</span>
+                                    <span style="flex: 1; font-size: var(--text-sm);">@doc.FileName</span>
+                                    <a href="@doc.StoragePath" target="_blank" class="btn btn-xs btn-outline">View</a>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+
+                @if (app.Status is "LegalReturned" && ShowResubmitToLegalButton)
+                {
+                    <div style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--gray-200);">
+                        <div style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-3);">
+                            Address the reason for return above, then resubmit to Legal Officer.
+                        </div>
+                        <button class="btn btn-primary" @onclick="ResubmitToLegal">Resubmit to Legal</button>
+                    </div>
+                }
+
+            </div>
+        </div>
     }
 
     <!-- ══════════════════════════════════════════════
@@ -2976,6 +3124,121 @@ else
     </div>
 }
 
+<!-- Legal Clearance Document Upload Modal -->
+@if (showLegalDocUploadModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseLegalDocUpload">
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Upload Document</h3>
+                <button class="modal-close" @onclick="CloseLegalDocUpload"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body">
+                <label style="font-size: var(--text-sm); font-weight: 500; display: block; margin-bottom: var(--space-1);">Document Category</label>
+                <select class="form-control" @bind="uploadDocCategory" style="margin-bottom: var(--space-3);">
+                    <option value="General">General</option>
+                    <option value="EquityDepositReceipt">Equity Deposit Receipt</option>
+                    <option value="LeaseAgreement">Lease / Hire-Purchase Agreement</option>
+                    <option value="GpsConsentForm">GPS Tracking Consent Form</option>
+                    <option value="SignedNampOfferLetter">Signed Offer Letter</option>
+                    <option value="SupportingDocument">Supporting Document</option>
+                </select>
+                <label style="font-size: var(--text-sm); font-weight: 500; display: block; margin-bottom: var(--space-1);">Description (optional)</label>
+                <input class="form-control" type="text" @bind="uploadDocDescription" placeholder="Brief description…" style="margin-bottom: var(--space-3);" />
+                <InputFile OnChange="HandleLegalDocFileSelected" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="font-size: var(--text-sm);" />
+                @if (!string.IsNullOrEmpty(uploadDocError)) { <div style="color: var(--danger-600); font-size: var(--text-sm); margin-top: var(--space-2);">@uploadDocError</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseLegalDocUpload" disabled="@isUploadingDoc">Cancel</button>
+                <button class="btn btn-primary" @onclick="UploadLegalDoc" disabled="@(uploadSelectedFile == null || isUploadingDoc)">
+                    @if (isUploadingDoc) { <span class="spinner" style="width: 16px; height: 16px;"></span> } Upload
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Grant Legal Clearance Modal -->
+@if (showGrantLegalModal)
+{
+    <div class="modal-backdrop show" @onclick='() => showGrantLegalModal = false'>
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Grant Legal Clearance</h3>
+                <button class="modal-close" @onclick='() => showGrantLegalModal = false'><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-3);">
+                    Grant legal clearance for this application. This will move it to Pre-Deployment Verification and seed the checklist.
+                </p>
+                <label style="font-size: var(--text-sm); font-weight: 500;">Note (optional)</label>
+                <textarea class="form-control" rows="3" @bind="grantLegalNote" placeholder="Any legal clearance notes…" style="margin-top: var(--space-1);"></textarea>
+                @if (!string.IsNullOrEmpty(legalActionError)) { <div style="color: var(--danger-600); font-size: var(--text-sm); margin-top: var(--space-2);">@legalActionError</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick='() => showGrantLegalModal = false' disabled="@isProcessingLegal">Cancel</button>
+                <button class="btn btn-success" @onclick="GrantLegalClearance" disabled="@isProcessingLegal">
+                    @if (isProcessingLegal) { <span class="spinner" style="width: 16px; height: 16px;"></span> } Grant Clearance
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Return from Legal Modal -->
+@if (showReturnFromLegalModal)
+{
+    <div class="modal-backdrop show" @onclick='() => showReturnFromLegalModal = false'>
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Return to Loan Officer</h3>
+                <button class="modal-close" @onclick='() => showReturnFromLegalModal = false'><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-3);">
+                    Return this application to the Loan Officer for remediation. The LO will be notified with your reason.
+                </p>
+                <label style="font-size: var(--text-sm); font-weight: 500;">Reason for Return <span style="color: var(--danger-600);">*</span></label>
+                <textarea class="form-control" rows="3" @bind="returnLegalNote" placeholder="Describe what the Loan Officer needs to address…" style="margin-top: var(--space-1);"></textarea>
+                @if (!string.IsNullOrEmpty(legalActionError)) { <div style="color: var(--danger-600); font-size: var(--text-sm); margin-top: var(--space-2);">@legalActionError</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick='() => showReturnFromLegalModal = false' disabled="@isProcessingLegal">Cancel</button>
+                <button class="btn btn-warning" @onclick="ReturnFromLegal" disabled="@(isProcessingLegal || string.IsNullOrWhiteSpace(returnLegalNote))">
+                    @if (isProcessingLegal) { <span class="spinner" style="width: 16px; height: 16px;"></span> } Return to LO
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Decline Legal Modal -->
+@if (showDeclineLegalModal)
+{
+    <div class="modal-backdrop show" @onclick='() => showDeclineLegalModal = false'>
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Decline Application</h3>
+                <button class="modal-close" @onclick='() => showDeclineLegalModal = false'><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body">
+                <div style="padding: var(--space-2) var(--space-3); background: var(--danger-50); border: 1px solid var(--danger-200); border-radius: var(--radius-md); margin-bottom: var(--space-3); font-size: var(--text-sm); color: var(--danger-800);">
+                    This is a terminal action. The application cannot be recovered after a legal decline.
+                </div>
+                <label style="font-size: var(--text-sm); font-weight: 500;">Reason for Decline <span style="color: var(--danger-600);">*</span></label>
+                <textarea class="form-control" rows="3" @bind="declineLegalNote" placeholder="Provide the legal reason for declining…" style="margin-top: var(--space-1);"></textarea>
+                @if (!string.IsNullOrEmpty(legalActionError)) { <div style="color: var(--danger-600); font-size: var(--text-sm); margin-top: var(--space-2);">@legalActionError</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick='() => showDeclineLegalModal = false' disabled="@isProcessingLegal">Cancel</button>
+                <button class="btn btn-danger" @onclick="DeclineLegal" disabled="@(isProcessingLegal || string.IsNullOrWhiteSpace(declineLegalNote))">
+                    @if (isProcessingLegal) { <span class="spinner" style="width: 16px; height: 16px;"></span> } Decline Application
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 <style>
     /* ── Info field chips (used across all NAMP tabs) ── */
     .namp-field {
@@ -3338,6 +3601,16 @@ else
     private string ratifyNote = "";
     private bool deployGpsActivated = true;
 
+    // Legal Clearance modals
+    private bool showGrantLegalModal;
+    private string grantLegalNote = "";
+    private bool showReturnFromLegalModal;
+    private string returnLegalNote = "";
+    private bool showDeclineLegalModal;
+    private string declineLegalNote = "";
+    private bool isProcessingLegal;
+    private string? legalActionError;
+
     // Loan Pack
     private bool isGeneratingLoanPack;
 
@@ -3396,6 +3669,7 @@ else
     private bool showTechDocUploadModal;
     private bool showFinDocUploadModal;
     private bool showLoDocUploadModal;
+    private bool showLegalDocUploadModal;
     private string uploadDocCategory = "TechnicalReport";
     private string? uploadDocDescription;
     private IBrowserFile? uploadSelectedFile;
@@ -3514,8 +3788,20 @@ else
 
     private bool CanUploadSignedOfferLetter =>
         app?.OfferLetterStoragePath != null &&
-        app.Status is "OfferGenerated" or "OfferAccepted" or "PreDeploymentVerification" or "Deployment" or "Deployed" &&
+        app.Status is "OfferGenerated" or "OfferAccepted" or "LegalClearance" or "LegalReturned" or "PreDeploymentVerification" or "Deployment" or "Deployed" &&
         (User?.HasAnyRole("LoanOfficer", "Operations", "SystemAdmin") ?? false);
+
+    private bool ShowGrantLegalClearanceButton =>
+        app?.Status == "LegalClearance" &&
+        (User?.HasAnyRole("LegalOfficer", "SystemAdmin") ?? false);
+
+    private bool ShowResubmitToLegalButton =>
+        app?.Status == "LegalReturned" &&
+        (User?.HasAnyRole("LoanOfficer", "SystemAdmin") ?? false);
+
+    private bool ShowLegalClearanceTab =>
+        app?.Status is "LegalClearance" or "LegalReturned" or "LegalDeclined" ||
+        app?.LegalClearedAt != null;
 
     private bool ShowBeginPreDeploymentButton =>
         app?.Status == "OfferAccepted" &&
@@ -3748,6 +4034,62 @@ else
     private void OpenOfferLapseModal() => OpenConfirmModal("offer-lapse", "Lapse Offer", "Mark this offer as lapsed (applicant did not countersign within SLA)?");
     private void OpenBeginPreDeployModal() => OpenConfirmModal("begin-predeploy", "Begin Pre-Deployment Verification", "Start the 4-gate pre-deployment verification process?");
     private void OpenCompletePreDeployModal() => OpenNoteModal("complete-predeploy", "Complete Pre-Deployment Verification", "Enter any notes for the pre-deployment verification:");
+
+    private void OpenGrantLegalModal() { grantLegalNote = ""; legalActionError = null; showGrantLegalModal = true; }
+    private void OpenReturnFromLegalModal() { returnLegalNote = ""; legalActionError = null; showReturnFromLegalModal = true; }
+    private void OpenDeclineLegalModal() { declineLegalNote = ""; legalActionError = null; showDeclineLegalModal = true; }
+
+    private async Task GrantLegalClearance()
+    {
+        if (app is null || User is null) return;
+        isProcessingLegal = true; legalActionError = null;
+        try
+        {
+            var result = await AppService.GrantNampLegalClearanceAsync(app.Id, User.Id, NullIfEmpty(grantLegalNote));
+            if (result.Success) { showGrantLegalModal = false; await Load(); }
+            else legalActionError = result.Error;
+        }
+        finally { isProcessingLegal = false; }
+    }
+
+    private async Task ReturnFromLegal()
+    {
+        if (app is null || User is null || string.IsNullOrWhiteSpace(returnLegalNote)) return;
+        isProcessingLegal = true; legalActionError = null;
+        try
+        {
+            var result = await AppService.ReturnFromNampLegalAsync(app.Id, User.Id, returnLegalNote);
+            if (result.Success) { showReturnFromLegalModal = false; await Load(); }
+            else legalActionError = result.Error;
+        }
+        finally { isProcessingLegal = false; }
+    }
+
+    private async Task ResubmitToLegal()
+    {
+        if (app is null || User is null) return;
+        isProcessingLegal = true; legalActionError = null;
+        try
+        {
+            var result = await AppService.ResubmitToNampLegalAsync(app.Id, User.Id);
+            if (result.Success) { await Load(); }
+            else legalActionError = result.Error;
+        }
+        finally { isProcessingLegal = false; }
+    }
+
+    private async Task DeclineLegal()
+    {
+        if (app is null || User is null || string.IsNullOrWhiteSpace(declineLegalNote)) return;
+        isProcessingLegal = true; legalActionError = null;
+        try
+        {
+            var result = await AppService.DeclineNampLegalAsync(app.Id, User.Id, declineLegalNote);
+            if (result.Success) { showDeclineLegalModal = false; await Load(); }
+            else legalActionError = result.Error;
+        }
+        finally { isProcessingLegal = false; }
+    }
 
     private void OpenConfirmModal(string action, string title, string message)
     {
@@ -4273,6 +4615,34 @@ else
                 uploadSelectedFile.Name, uploadSelectedFile.ContentType, uploadSelectedFile.Size,
                 ms, uploadDocCategory, NullIfEmpty(uploadDocDescription));
             if (result.Success) { CloseLoDocUpload(); await Load(); }
+            else uploadDocError = result.Error ?? "Upload failed";
+        }
+        finally { isUploadingDoc = false; }
+    }
+
+    private void OpenLegalDocUpload()
+    {
+        uploadDocCategory = "General"; uploadDocDescription = null;
+        uploadSelectedFile = null; uploadFileBytes = null; uploadDocError = null;
+        showLegalDocUploadModal = true;
+    }
+
+    private void CloseLegalDocUpload() { showLegalDocUploadModal = false; uploadDocError = null; }
+
+    private async Task HandleLegalDocFileSelected(InputFileChangeEventArgs e) => await HandleFileSelected(e);
+
+    private async Task UploadLegalDoc()
+    {
+        if (uploadSelectedFile == null || uploadFileBytes == null) return;
+        isUploadingDoc = true; uploadDocError = null;
+        try
+        {
+            using var ms = new MemoryStream(uploadFileBytes);
+            var result = await AppService.UploadNampDocumentAsync(
+                Id, User?.Id ?? Guid.Empty, "LegalClearance",
+                uploadSelectedFile.Name, uploadSelectedFile.ContentType, uploadSelectedFile.Size,
+                ms, uploadDocCategory, NullIfEmpty(uploadDocDescription));
+            if (result.Success) { CloseLegalDocUpload(); await Load(); }
             else uploadDocError = result.Error ?? "Upload failed";
         }
         finally { isUploadingDoc = false; }

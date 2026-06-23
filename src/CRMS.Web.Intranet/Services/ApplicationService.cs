@@ -5365,6 +5365,74 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> GrantNampLegalClearanceAsync(Guid id, Guid userId, string? note)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.GrantNampLegalClearanceHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.GrantNampLegalClearanceCommand(id, userId, note), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to grant legal clearance");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error granting NAMP legal clearance {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to grant legal clearance: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> ReturnFromNampLegalAsync(Guid id, Guid userId, string note)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.ReturnFromNampLegalHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.ReturnFromNampLegalCommand(id, userId, note), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to return from legal");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error returning NAMP application from legal {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to return from legal: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> ResubmitToNampLegalAsync(Guid id, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.ResubmitToNampLegalHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.ResubmitToNampLegalCommand(id, userId), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to resubmit to legal");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resubmitting NAMP application to legal {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to resubmit to legal: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> DeclineNampLegalAsync(Guid id, Guid userId, string note)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.DeclineNampLegalHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.DeclineNampLegalCommand(id, userId, note), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to decline legal");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error declining NAMP application at legal {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to decline legal: {ex.Message}");
+        }
+    }
+
     public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> ConfirmNampChecklistItemAsync(
         Guid nampApplicationId, Guid checklistItemId, Guid userId, bool? isConfirmed, string? notes)
     {

@@ -109,6 +109,13 @@ public class NampApplication : AggregateRoot
     public Guid? OfferAcceptedByUserId { get; private set; }
     public DateTime? OfferLapsedAt { get; private set; }
 
+    // ── Stage 5c: Legal Clearance ─────────────────────────────────────────
+    public Guid? LegalClearedByUserId { get; private set; }
+    public DateTime? LegalClearedAt { get; private set; }
+    public string? LegalClearanceNote { get; private set; }
+    public string? LegalDeclineNote { get; private set; }
+    public string? LegalReturnNote { get; private set; }
+
     // ── Stage 6: Pre-Deployment Verification ──────────────────────────────
     public Guid? PreDeploymentVerifiedByUserId { get; private set; }
     public DateTime? PreDeploymentVerifiedAt { get; private set; }
@@ -321,6 +328,63 @@ public class NampApplication : AggregateRoot
         return Result.Success();
     }
 
+    // ── Stage 5c: Legal Clearance ─────────────────────────────────────────
+
+    public Result BeginLegalClearance(Guid userId)
+    {
+        if (Status != NampApplicationStatus.OfferAccepted)
+            return Result.Failure("Application must be in OfferAccepted status.");
+
+        Status = NampApplicationStatus.LegalClearance;
+        AddStatusHistory(Status, userId, "Routed to Legal Officer for clearance.");
+        return Result.Success();
+    }
+
+    public Result GrantLegalClearance(Guid userId, string? note)
+    {
+        if (Status != NampApplicationStatus.LegalClearance)
+            return Result.Failure("Application must be in LegalClearance status.");
+
+        LegalClearedByUserId = userId;
+        LegalClearedAt = DateTime.UtcNow;
+        LegalClearanceNote = note;
+        Status = NampApplicationStatus.PreDeploymentVerification;
+        AddStatusHistory(Status, userId, $"Legal clearance granted. Pre-deployment verification started.{(note != null ? $" Note: {note}" : "")}");
+        return Result.Success();
+    }
+
+    public Result ReturnFromLegal(Guid userId, string note)
+    {
+        if (Status != NampApplicationStatus.LegalClearance)
+            return Result.Failure("Application must be in LegalClearance status.");
+
+        LegalReturnNote = note;
+        Status = NampApplicationStatus.LegalReturned;
+        AddStatusHistory(Status, userId, $"Returned by Legal Officer. Reason: {note}");
+        return Result.Success();
+    }
+
+    public Result ResubmitToLegal(Guid userId)
+    {
+        if (Status != NampApplicationStatus.LegalReturned)
+            return Result.Failure("Application must be in LegalReturned status.");
+
+        Status = NampApplicationStatus.LegalClearance;
+        AddStatusHistory(Status, userId, "Resubmitted to Legal Officer after remediation.");
+        return Result.Success();
+    }
+
+    public Result DeclineLegal(Guid userId, string note)
+    {
+        if (Status != NampApplicationStatus.LegalClearance)
+            return Result.Failure("Application must be in LegalClearance status.");
+
+        LegalDeclineNote = note;
+        Status = NampApplicationStatus.LegalDeclined;
+        AddStatusHistory(Status, userId, $"Declined by Legal Officer. Reason: {note}");
+        return Result.Success();
+    }
+
     public Result LapseOffer(Guid userId)
     {
         if (Status != NampApplicationStatus.OfferGenerated)
@@ -336,8 +400,9 @@ public class NampApplication : AggregateRoot
 
     public Result BeginPreDeploymentVerification(Guid userId)
     {
-        if (Status != NampApplicationStatus.OfferAccepted)
-            return Result.Failure("Application must be in OfferAccepted status.");
+        // LegalClearance is the normal prior state; OfferAccepted accepted for in-flight apps at deploy time.
+        if (Status != NampApplicationStatus.LegalClearance && Status != NampApplicationStatus.OfferAccepted)
+            return Result.Failure("Application must be in LegalClearance status.");
 
         Status = NampApplicationStatus.PreDeploymentVerification;
         AddStatusHistory(Status, userId, "Pre-deployment verification started.");

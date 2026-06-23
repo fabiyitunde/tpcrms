@@ -3540,6 +3540,24 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
+                    b.Property<DateTime?>("LegalClearedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("LegalClearedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("LegalClearanceNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("LegalDeclineNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("LegalReturnNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
                     b.Property<decimal?>("LoanAmount")
                         .HasColumnType("decimal(18,2)");
 

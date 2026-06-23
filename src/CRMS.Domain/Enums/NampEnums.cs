@@ -31,10 +31,15 @@ public enum NampApplicationStatus
     Ratification,           // Final Approver (at relevant tier) ratifying committee vote
     RatificationDeclined,   // Terminal: Final Approver declined to ratify
     OfferGenerated,         // Offer letter generated; awaiting applicant countersignature
-    OfferAccepted,          // Applicant countersigned; Loan Officer uploaded docs
+    OfferAccepted,          // Applicant countersigned; immediately auto-routed to LegalClearance
     OfferLapsed,            // Terminal: applicant did not countersign within SLA
 
-    // ── Stage 5: Pre-Deployment Verification ──────────────────
+    // ── Stage 5: Legal Clearance ───────────────────────────────
+    LegalClearance,         // Legal Officer reviewing before pre-deployment
+    LegalReturned,          // Legal returned to LO for remediation; LO resubmits
+    LegalDeclined,          // Terminal: Legal Officer hard-declined
+
+    // ── Stage 6: Pre-Deployment Verification ──────────────────
     PreDeploymentVerification,  // Deployment Officer checking 4 gate conditions
 
     // ── Stage 6: Deployment ───────────────────────────────────
@@ -81,6 +86,7 @@ public enum NampDocumentStage
     PreDeploymentVerification,
     Deployment,
     Offer,
+    LegalClearance,
     Other,
 }
 

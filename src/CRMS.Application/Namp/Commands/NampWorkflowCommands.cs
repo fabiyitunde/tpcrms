@@ -463,6 +463,155 @@ public class RecordNampOfferAcceptanceHandler
         var result = app.RecordOfferAcceptance(request.UserId);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
 
+        // Auto-route to LegalClearance in the same transaction
+        var legalResult = app.BeginLegalClearance(request.UserId);
+        if (legalResult.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(legalResult.Error);
+
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
+// ── Stage 5c: Legal Clearance ─────────────────────────────────────────────
+
+public record GrantNampLegalClearanceCommand(Guid NampApplicationId, Guid UserId, string? Note)
+    : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class GrantNampLegalClearanceHandler
+    : IRequestHandler<GrantNampLegalClearanceCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly INampPreDeploymentChecklistTemplateRepository _templateRepo;
+    private readonly IUnitOfWork _uow;
+
+    public GrantNampLegalClearanceHandler(
+        INampApplicationRepository repo,
+        INampPreDeploymentChecklistTemplateRepository templateRepo,
+        IUnitOfWork uow)
+    {
+        _repo = repo;
+        _templateRepo = templateRepo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        GrantNampLegalClearanceCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var result = app.GrantLegalClearance(request.UserId, request.Note);
+        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
+        // Seed pre-deployment checklist items (skip if already seeded)
+        if (!app.PreDeploymentChecklist.Any())
+        {
+            var templates = await _templateRepo.GetAllAsync(ct);
+            var items = templates
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.SortOrder)
+                .Select(t => NampPreDeploymentChecklistItem.FromTemplate(app.Id, t))
+                .ToList();
+
+            if (items.Count > 0)
+                await _repo.AddPreDeploymentChecklistItemsAsync(items, ct);
+        }
+
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
+public record ReturnFromNampLegalCommand(Guid NampApplicationId, Guid UserId, string Note)
+    : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class ReturnFromNampLegalHandler
+    : IRequestHandler<ReturnFromNampLegalCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly IUnitOfWork _uow;
+
+    public ReturnFromNampLegalHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        ReturnFromNampLegalCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var result = app.ReturnFromLegal(request.UserId, request.Note);
+        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
+public record ResubmitToNampLegalCommand(Guid NampApplicationId, Guid UserId)
+    : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class ResubmitToNampLegalHandler
+    : IRequestHandler<ResubmitToNampLegalCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly IUnitOfWork _uow;
+
+    public ResubmitToNampLegalHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        ResubmitToNampLegalCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var result = app.ResubmitToLegal(request.UserId);
+        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
+public record DeclineNampLegalCommand(Guid NampApplicationId, Guid UserId, string Note)
+    : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class DeclineNampLegalHandler
+    : IRequestHandler<DeclineNampLegalCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly IUnitOfWork _uow;
+
+    public DeclineNampLegalHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        DeclineNampLegalCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var result = app.DeclineLegal(request.UserId, request.Note);
+        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
         app.SetAuditInfo(request.UserId.ToString());
         await _uow.SaveChangesAsync(ct);
 

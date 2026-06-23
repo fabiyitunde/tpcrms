@@ -120,6 +120,11 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
         builder.Property(x => x.DeploymentNote)
             .HasColumnType("text");
 
+        // Legal clearance
+        builder.Property(x => x.LegalClearanceNote).HasMaxLength(1000);
+        builder.Property(x => x.LegalDeclineNote).HasMaxLength(1000);
+        builder.Property(x => x.LegalReturnNote).HasMaxLength(1000);
+
         // Fineract integration
         builder.Property(x => x.FineractClientId);
         builder.Property(x => x.ApprovedInterestRate).HasColumnType("decimal(10,4)");

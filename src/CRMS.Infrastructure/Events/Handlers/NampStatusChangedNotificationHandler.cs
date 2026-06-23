@@ -38,6 +38,7 @@ public class NampStatusChangedNotificationHandler : IDomainEventHandler<NampStat
         NampApplicationStatus.HOCommitteeDeclined,
         NampApplicationStatus.RatificationDeclined,
         NampApplicationStatus.OfferLapsed,
+        NampApplicationStatus.LegalDeclined,
     };
 
     // Stage-entry points where the next responsible role needs to act.
@@ -46,6 +47,8 @@ public class NampStatusChangedNotificationHandler : IDomainEventHandler<NampStat
         NampApplicationStatus.Submitted,
         NampApplicationStatus.Ratification,
         NampApplicationStatus.OfferGenerated,
+        NampApplicationStatus.LegalClearance,
+        NampApplicationStatus.LegalReturned,
         NampApplicationStatus.PreDeploymentVerification,
         NampApplicationStatus.Deployment,
         NampApplicationStatus.Active,
