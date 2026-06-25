@@ -217,6 +217,14 @@ else
                 else if (app.Status == "PreDeploymentVerification") { <span class="badge badge-warning" style="margin-left: 4px;">In Progress</span> }
             </div>
         }
+        @if (ShowLoanAccountTab)
+        {
+            <div class="tab @(detailTab == "loan-account" ? "active" : "")" @onclick='() => LoadLoanAccountTab()'>
+                <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">account_balance</span>
+                Loan Account
+                @if (app.Status == "Closed") { <span class="badge badge-secondary" style="margin-left: 4px;">Closed</span> }
+            </div>
+        }
         <div class="tab @(detailTab == "workflow" ? "active" : "")" @onclick='() => detailTab = "workflow"'>
             Workflow <span class="badge badge-secondary" style="margin-left: 4px;">@app.StatusHistory.Count</span>
         </div>
@@ -1947,6 +1955,172 @@ else
             </div>
         </div>
 
+        @* ── Lease Agreement ── *@
+        @if (app.OfferLetterStoragePath != null)
+        {
+            var signedLeaseDocs = app.Documents.Where(d => d.Category == "LeaseAgreement").ToList();
+            var signedLeaseDoc = signedLeaseDocs.OrderByDescending(d => d.UploadedAt).FirstOrDefault();
+            <div class="card" style="margin-top: var(--space-4);">
+                <div class="card-header">
+                    <div style="display: flex; align-items: center; gap: var(--space-2);">
+                        <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary-600);">handshake</span>
+                        <div>
+                            <h3 class="card-title" style="margin: 0;">Hire-Purchase / Lease Agreement</h3>
+                            <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">System-generated at ratification — collect signed copy from applicant</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    @* System copy *@
+                    @if (!string.IsNullOrEmpty(app.LeaseAgreementStoragePath))
+                    {
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--gray-100);">
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                <span class="material-symbols-outlined" style="color: var(--danger-400); font-size: 20px;">picture_as_pdf</span>
+                                <div>
+                                    <div style="font-size: var(--text-sm); font-weight: 500;">System-Generated Copy</div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">Generated at ratification</div>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" @onclick="DownloadLeaseAgreement" disabled="@isDownloadingLease">
+                                @if (isDownloadingLease)
+                                {
+                                    <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                }
+                                Download
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--gray-100); color: var(--gray-400); font-size: var(--text-sm); font-style: italic;">
+                            Lease agreement was not generated for this application. Re-ratify to regenerate documents.
+                        </div>
+                    }
+                    @* Signed copy *@
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4);">
+                        <div style="display: flex; align-items: center; gap: var(--space-3);">
+                            <span class="material-symbols-outlined" style="color: @(signedLeaseDoc != null ? "var(--success-500)" : "var(--gray-300)"); font-size: 20px;">@(signedLeaseDoc != null ? "task" : "pending_actions")</span>
+                            <div>
+                                <div style="font-size: var(--text-sm); font-weight: 500;">Signed Copy</div>
+                                @if (signedLeaseDoc != null)
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">@signedLeaseDoc.FileName — uploaded @signedLeaseDoc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                }
+                                else
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--gray-400); font-style: italic;">Print, get applicant signature, then upload</div>
+                                }
+                            </div>
+                        </div>
+                        @if (CanUploadSignedOfferLetter)
+                        {
+                            <div style="display: flex; gap: var(--space-2);">
+                                @if (signedLeaseDoc != null)
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => DownloadSignedOfferLetter(signedLeaseDoc.Id)">
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                        Download
+                                    </button>
+                                }
+                                <button class="btn btn-primary btn-sm" @onclick='() => OpenDocUploadModal("LeaseAgreement")'>
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+                                    @(signedLeaseDoc != null ? "Replace" : "Upload Signed Copy")
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ── GPS Consent Form ── *@
+        @if (app.OfferLetterStoragePath != null)
+        {
+            var signedGpsDocs = app.Documents.Where(d => d.Category == "GpsConsentForm").ToList();
+            var signedGpsDoc = signedGpsDocs.OrderByDescending(d => d.UploadedAt).FirstOrDefault();
+            <div class="card" style="margin-top: var(--space-4);">
+                <div class="card-header">
+                    <div style="display: flex; align-items: center; gap: var(--space-2);">
+                        <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary-600);">location_on</span>
+                        <div>
+                            <h3 class="card-title" style="margin: 0;">GPS Tracking Consent Form</h3>
+                            <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">System-generated at ratification — collect signed copy from applicant</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    @* System copy *@
+                    @if (!string.IsNullOrEmpty(app.GpsConsentFormStoragePath))
+                    {
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--gray-100);">
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                <span class="material-symbols-outlined" style="color: var(--danger-400); font-size: 20px;">picture_as_pdf</span>
+                                <div>
+                                    <div style="font-size: var(--text-sm); font-weight: 500;">System-Generated Copy</div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">Generated at ratification</div>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" @onclick="DownloadGpsConsentForm" disabled="@isDownloadingGps">
+                                @if (isDownloadingGps)
+                                {
+                                    <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                }
+                                Download
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--gray-100); color: var(--gray-400); font-size: var(--text-sm); font-style: italic;">
+                            GPS consent form was not generated for this application. Re-ratify to regenerate documents.
+                        </div>
+                    }
+                    @* Signed copy *@
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4);">
+                        <div style="display: flex; align-items: center; gap: var(--space-3);">
+                            <span class="material-symbols-outlined" style="color: @(signedGpsDoc != null ? "var(--success-500)" : "var(--gray-300)"); font-size: 20px;">@(signedGpsDoc != null ? "task" : "pending_actions")</span>
+                            <div>
+                                <div style="font-size: var(--text-sm); font-weight: 500;">Signed Copy</div>
+                                @if (signedGpsDoc != null)
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">@signedGpsDoc.FileName — uploaded @signedGpsDoc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                }
+                                else
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--gray-400); font-style: italic;">Print, get applicant signature, then upload</div>
+                                }
+                            </div>
+                        </div>
+                        @if (CanUploadSignedOfferLetter)
+                        {
+                            <div style="display: flex; gap: var(--space-2);">
+                                @if (signedGpsDoc != null)
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => DownloadSignedOfferLetter(signedGpsDoc.Id)">
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                        Download
+                                    </button>
+                                }
+                                <button class="btn btn-primary btn-sm" @onclick='() => OpenDocUploadModal("GpsConsentForm")'>
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+                                    @(signedGpsDoc != null ? "Replace" : "Upload Signed Copy")
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
         @if (app.Status == "OfferGenerated" && CanUploadLoDoc)
         {
             <div class="card" style="margin-top: var(--space-4);">
@@ -2118,8 +2292,10 @@ else
             {
                 @foreach (var item in app.PreDeploymentChecklist.OrderBy(i => i.SortOrder))
                 {
+                    // Match by category across all stages so documents uploaded by the LO
+                    // at OfferAccepted/LegalClearance (stage "Other") are visible here too.
                     var itemDocs = !string.IsNullOrEmpty(item.DocumentCategory)
-                        ? app.Documents.Where(d => d.Stage == "PreDeploymentVerification" && d.Category == item.DocumentCategory).ToList()
+                        ? app.Documents.Where(d => d.Category == item.DocumentCategory).ToList()
                         : new List<CRMS.Application.Namp.DTOs.NampDocumentDto>();
 
                     <div class="card">
@@ -2537,6 +2713,144 @@ else
                 }
             </div>
         </div>
+    }
+
+    <!-- ══════════════════════════════════════════════
+         LOAN ACCOUNT TAB
+    ══════════════════════════════════════════════ -->
+    @if (detailTab == "loan-account")
+    {
+        @if (isLoadingLoanAccount)
+        {
+            <div class="p-6 text-center"><div class="spinner" style="margin: 0 auto;"></div></div>
+        }
+        else if (!string.IsNullOrEmpty(loanAccountError))
+        {
+            <div class="alert alert-danger">@loanAccountError</div>
+        }
+        else if (loanAccount != null)
+        {
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+                <!-- Header card -->
+                <div class="card">
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem;">
+                            <div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Loan Account No.</div>
+                                <div style="font-weight: 700; font-size: 0.9rem; font-family: monospace;">@loanAccount.AccountNo</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">CBA Loan Status</div>
+                                <div style="font-weight: 600; font-size: 0.875rem;">@loanAccount.Status</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Disbursement Date</div>
+                                <div style="font-weight: 500; font-size: 0.875rem;">@(loanAccount.DisbursementDate?.ToString("dd MMM yyyy") ?? "—")</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Maturity Date</div>
+                                <div style="font-weight: 500; font-size: 0.875rem;">@(loanAccount.MaturityDate?.ToString("dd MMM yyyy") ?? "—")</div>
+                            </div>
+                        </div>
+
+                        @if (app.Status == "Active" && FineractLoanIsClosed)
+                        {
+                            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem;">
+                                <span class="material-symbols-outlined" style="color: var(--success-600); font-size: 20px;">check_circle</span>
+                                <span style="font-size: 0.875rem; color: var(--success-700);">Fineract reports this loan as closed. Mark the CRMS application as Closed to complete the lifecycle.</span>
+                                <button class="btn btn-success btn-sm" @onclick="MarkAsClosed" disabled="@isMarkingClosed">
+                                    @if (isMarkingClosed) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                                    Mark as Closed
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Summary card -->
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">Loan Summary</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                @LoanSummaryRow("Principal Disbursed", loanAccount.PrincipalDisbursed)
+                                @LoanSummaryRow("Principal Paid", loanAccount.PrincipalPaid)
+                                @LoanSummaryRow("Principal Outstanding", loanAccount.PrincipalOutstanding, highlight: loanAccount.PrincipalOutstanding > 0)
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                @LoanSummaryRow("Interest Charged", loanAccount.InterestCharged)
+                                @LoanSummaryRow("Interest Paid", loanAccount.InterestPaid)
+                                @LoanSummaryRow("Interest Outstanding", loanAccount.InterestOutstanding, highlight: loanAccount.InterestOutstanding > 0)
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                @LoanSummaryRow("Total Expected", loanAccount.TotalExpectedRepayment)
+                                @LoanSummaryRow("Total Repaid", loanAccount.TotalRepayment)
+                                @LoanSummaryRow("Total Outstanding", loanAccount.TotalOutstanding, highlight: loanAccount.TotalOutstanding > 0)
+                                @if (loanAccount.PenaltyChargesOutstanding > 0)
+                                {
+                                    @LoanSummaryRow("Penalty Outstanding", loanAccount.PenaltyChargesOutstanding, highlight: true, danger: true)
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Repayment schedule -->
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">Repayment Schedule</h3></div>
+                    <div class="card-body" style="padding: 0;">
+                        <div class="table-wrapper">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Due Date</th>
+                                        <th style="text-align: right;">Principal Due</th>
+                                        <th style="text-align: right;">Interest Due</th>
+                                        <th style="text-align: right;">Total Due</th>
+                                        <th style="text-align: right;">Total Paid</th>
+                                        <th style="text-align: right;">Outstanding</th>
+                                        <th style="text-align: center;">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var period in loanAccount.Schedule)
+                                    {
+                                        var rowStyle = period.IsOverdue
+                                            ? "background: var(--warning-50);"
+                                            : period.Complete ? "opacity: 0.7;" : "";
+                                        <tr style="@rowStyle">
+                                            <td>@period.Period</td>
+                                            <td>@period.DueDate.ToString("dd MMM yyyy")</td>
+                                            <td style="text-align: right; font-family: monospace;">₦@period.PrincipalDue.ToString("N0")</td>
+                                            <td style="text-align: right; font-family: monospace;">₦@period.InterestDue.ToString("N0")</td>
+                                            <td style="text-align: right; font-family: monospace; font-weight: 600;">₦@period.TotalDue.ToString("N0")</td>
+                                            <td style="text-align: right; font-family: monospace; color: var(--success-700);">₦@period.TotalPaid.ToString("N0")</td>
+                                            <td style="text-align: right; font-family: monospace; @(period.TotalOutstanding > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">₦@period.TotalOutstanding.ToString("N0")</td>
+                                            <td style="text-align: center;">
+                                                @if (period.Complete)
+                                                {
+                                                    <span class="badge badge-success">Paid</span>
+                                                }
+                                                else if (period.IsOverdue)
+                                                {
+                                                    <span class="badge badge-warning">Overdue</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge badge-secondary">Pending</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     }
 
     <!-- ══════════════════════════════════════════════
@@ -3617,6 +3931,8 @@ else
     // Offer letter download
     private bool isDownloadingOfferLetter;
     private string? offerLetterDownloadError;
+    private bool isDownloadingLease;
+    private bool isDownloadingGps;
 
     // Signed offer letter upload
     private bool showUploadSignedOfferModal;
@@ -3817,6 +4133,52 @@ else
         app?.Status is "PreDeploymentVerification" or "Deployment" or "Active" or "Closed" ||
         app?.PreDeploymentVerifiedAt != null ||
         app?.PreDeploymentChecklist.Any() == true;
+
+    private bool ShowLoanAccountTab => app?.FineractLoanId.HasValue == true;
+
+    // ── Loan Account state ────────────────────────────────────────────────
+
+    private NampLoanAccountDto? loanAccount;
+    private bool isLoadingLoanAccount;
+    private string? loanAccountError;
+    private bool isMarkingClosed;
+    private bool loanAccountLoaded;
+
+    private bool FineractLoanIsClosed =>
+        loanAccount?.Status is "closedObligationsMet" or "closed" or "LOAN_STATUS_CLOSED_OBLIGATIONS_MET";
+
+    private async Task LoadLoanAccountTab()
+    {
+        detailTab = "loan-account";
+        if (loanAccountLoaded) return;
+        isLoadingLoanAccount = true;
+        loanAccountError = null;
+        StateHasChanged();
+
+        var response = await AppService.GetNampLoanAccountAsync(app!.Id);
+        if (response.Success)
+        {
+            loanAccount = response.Data;
+            loanAccountLoaded = true;
+        }
+        else
+        {
+            loanAccountError = response.Error ?? "Could not load loan account from Fineract.";
+        }
+        isLoadingLoanAccount = false;
+    }
+
+    private async Task MarkAsClosed()
+    {
+        if (User is null) return;
+        isMarkingClosed = true;
+        var response = await AppService.MarkNampClosedAsync(app!.Id, User.Id);
+        if (response.Success)
+            app = response.Data;
+        else
+            actionError = response.Error ?? "Failed to mark as closed.";
+        isMarkingClosed = false;
+    }
 
     private bool ShowDeploymentButton =>
         app?.Status == "Deployment" &&
@@ -4233,6 +4595,36 @@ else
         return segment.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? segment : segment + ".pdf";
     }
 
+    private async Task DownloadLeaseAgreement()
+    {
+        isDownloadingLease = true;
+        try
+        {
+            var path = app?.LeaseAgreementStoragePath;
+            if (string.IsNullOrEmpty(path)) return;
+            var bytes = await AppService.DownloadGeneratedFileAsync(path);
+            if (bytes == null) return;
+            var fileName = GetOfferLetterFileName(path);
+            await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", bytes);
+        }
+        finally { isDownloadingLease = false; }
+    }
+
+    private async Task DownloadGpsConsentForm()
+    {
+        isDownloadingGps = true;
+        try
+        {
+            var path = app?.GpsConsentFormStoragePath;
+            if (string.IsNullOrEmpty(path)) return;
+            var bytes = await AppService.DownloadGeneratedFileAsync(path);
+            if (bytes == null) return;
+            var fileName = GetOfferLetterFileName(path);
+            await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", bytes);
+        }
+        finally { isDownloadingGps = false; }
+    }
+
     private void OpenUploadSignedOfferModal()
     {
         signedOfferFile = null;
@@ -4592,6 +4984,13 @@ else
 
     private void CloseFinDocUpload() { showFinDocUploadModal = false; uploadDocError = null; }
 
+    private void OpenDocUploadModal(string category)
+    {
+        uploadDocCategory = category; uploadDocDescription = null;
+        uploadSelectedFile = null; uploadFileBytes = null; uploadDocError = null;
+        showLoDocUploadModal = true;
+    }
+
     private void OpenLoDocUpload()
     {
         uploadDocCategory = "General"; uploadDocDescription = null;
@@ -4692,14 +5091,15 @@ else
         new(3, "Committee Review", "Committee Members", a => IsAfter(a, "Ratification"), a => a.Status is "BranchCommitteeCirculation" or "ZonalCommitteeCirculation" or "RegionalCommitteeCirculation" or "HOCommitteeCirculation"),
         new(4, "Ratification", "Final Approver", a => IsAfter(a, "OfferGenerated"), a => a.Status == "Ratification"),
         new(5, "Offer Letter", "Loan Officer", a => IsAfter(a, "OfferAccepted"), a => a.Status is "OfferGenerated" or "OfferAccepted"),
-        new(6, "Pre-Deployment", "Deployment Officer", a => IsAfter(a, "Deployment"), a => a.Status is "OfferAccepted" or "PreDeploymentVerification"),
-        new(7, "Deployment", "Deployment Officer", a => a.Status == "Active", a => a.Status == "Deployment"),
+        new(6, "Legal Clearance", "Legal Officer", a => IsAfter(a, "LegalClearance"), a => a.Status is "LegalClearance" or "LegalReturned"),
+        new(7, "Pre-Deployment", "Deployment Officer", a => IsAfter(a, "Deployment"), a => a.Status == "PreDeploymentVerification"),
+        new(8, "Deployment", "Deployment Officer", a => a.Status == "Active", a => a.Status == "Deployment"),
     ];
 
     private static readonly string[] StatusOrder = [
         "Draft", "Submitted", "FinancialAppraisal",
         "BranchCommitteeCirculation", "ZonalCommitteeCirculation", "RegionalCommitteeCirculation", "HOCommitteeCirculation",
-        "Ratification", "OfferGenerated", "OfferAccepted", "PreDeploymentVerification",
+        "Ratification", "OfferGenerated", "OfferAccepted", "LegalClearance", "PreDeploymentVerification",
         "Deployment", "Active", "Closed"
     ];
 
@@ -4724,6 +5124,23 @@ else
         __builder.OpenElement(5, "div");
         __builder.AddAttribute(6, "class", "namp-field-value");
         __builder.AddContent(7, value);
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
+
+    private static RenderFragment LoanSummaryRow(string label, decimal value, bool highlight = false, bool danger = false) => __builder =>
+    {
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "namp-srow");
+        __builder.OpenElement(2, "span");
+        __builder.AddAttribute(3, "class", "namp-srow-label");
+        __builder.AddContent(4, label);
+        __builder.CloseElement();
+        __builder.OpenElement(5, "span");
+        __builder.AddAttribute(6, "class", "namp-srow-value");
+        var color = danger ? "color: var(--danger-600); font-weight: 700;" : highlight ? "font-weight: 600;" : "";
+        if (!string.IsNullOrEmpty(color)) __builder.AddAttribute(7, "style", color);
+        __builder.AddContent(8, $"₦{value:N0}");
         __builder.CloseElement();
         __builder.CloseElement();
     };

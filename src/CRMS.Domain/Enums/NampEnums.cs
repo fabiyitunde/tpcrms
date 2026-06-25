@@ -118,6 +118,13 @@ public enum NampCreditRecommendation
     Fail,
 }
 
+public enum NampDocumentType
+{
+    OfferLetter = 0,
+    LeaseAgreement = 1,
+    GpsConsentForm = 2,
+}
+
 public enum NampRepaymentSource
 {
     PrimaryIncome,

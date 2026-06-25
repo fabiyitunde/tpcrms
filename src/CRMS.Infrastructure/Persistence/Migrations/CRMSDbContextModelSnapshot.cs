@@ -3611,6 +3611,14 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
+                    b.Property<string>("LeaseAgreementStoragePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("GpsConsentFormStoragePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
                     b.Property<Guid?>("OfficeId")
                         .HasColumnType("char(36)");
 
@@ -3904,6 +3912,62 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("NampApplicationId");
 
                     b.ToTable("NampDirectors", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDocumentTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("BodyContent")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string?>("ConditionsContent")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("LastModifiedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string?>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentType")
+                        .IsUnique();
+
+                    b.ToTable("NampDocumentTemplates", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDocument", b =>

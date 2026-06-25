@@ -212,7 +212,7 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
                 InfoCell(t, "Loan Amount",       data.LoanAmount.HasValue ? $"NGN {data.LoanAmount:N2}" : "—");
                 InfoCell(t, "Tenor",             data.RequestedTenorMonths.HasValue ? $"{data.RequestedTenorMonths} months" : "—");
                 InfoCell(t, "LTV",               data.FinancialAppraisal?.LoanToValueRatio.HasValue == true
-                    ? $"{data.FinancialAppraisal.LoanToValueRatio:P1}" : "—");
+                    ? $"{data.FinancialAppraisal.LoanToValueRatio:N1}%" : "—");
                 InfoCell(t, "Approved Rate",     data.ApprovedInterestRate.HasValue ? $"{data.ApprovedInterestRate:N2}% p.a." : "—");
             });
 
@@ -227,7 +227,7 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
                     t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
                     InfoCell(t, "Monthly Disposable Income", fa.MonthlyDisposableIncome.HasValue ? $"NGN {fa.MonthlyDisposableIncome:N2}" : "—");
                     InfoCell(t, "DSCR",                      fa.DebtServiceCoverageRatio?.ToString("N2") ?? "—");
-                    InfoCell(t, "LTV Ratio",                 fa.LoanToValueRatio.HasValue ? $"{fa.LoanToValueRatio:P1}" : "—");
+                    InfoCell(t, "LTV Ratio",                 fa.LoanToValueRatio.HasValue ? $"{fa.LoanToValueRatio:N1}%" : "—");
                     InfoCell(t, "Repayment Capacity",        fa.RepaymentCapacityRating);
                     InfoCell(t, "Credit Recommendation",     fa.CreditOfficerRecommendation);
                     InfoCell(t, "Prepared On",               fa.SavedAt.ToLocalTime().ToString("dd MMM yyyy"));

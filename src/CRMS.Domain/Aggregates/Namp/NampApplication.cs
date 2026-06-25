@@ -104,6 +104,8 @@ public class NampApplication : AggregateRoot
 
     // ── Stage 5b: Offer ───────────────────────────────────────────────────
     public string? OfferLetterStoragePath { get; private set; }
+    public string? LeaseAgreementStoragePath { get; private set; }
+    public string? GpsConsentFormStoragePath { get; private set; }
     public DateTime? OfferGeneratedAt { get; private set; }
     public DateTime? OfferAcceptedAt { get; private set; }
     public Guid? OfferAcceptedByUserId { get; private set; }
@@ -284,7 +286,12 @@ public class NampApplication : AggregateRoot
 
     // ── Stage 5: Ratification ─────────────────────────────────────────────
 
-    public Result Ratify(Guid userId, string? offerLetterPath = null, string? note = null)
+    public Result Ratify(
+        Guid userId,
+        string? offerLetterPath = null,
+        string? note = null,
+        string? leaseAgreementPath = null,
+        string? gpsConsentFormPath = null)
     {
         if (Status != NampApplicationStatus.Ratification)
             return Result.Failure("Application must be in Ratification status.");
@@ -292,11 +299,13 @@ public class NampApplication : AggregateRoot
         RatifiedByUserId = userId;
         RatifiedAt = DateTime.UtcNow;
         OfferLetterStoragePath = offerLetterPath;
+        LeaseAgreementStoragePath = leaseAgreementPath;
+        GpsConsentFormStoragePath = gpsConsentFormPath;
         OfferGeneratedAt = DateTime.UtcNow;
         Status = NampApplicationStatus.OfferGenerated;
         var historyNote = string.IsNullOrWhiteSpace(note)
-            ? "Decision ratified. Offer letter generated."
-            : $"Decision ratified. Offer letter generated. Note: {note}";
+            ? "Decision ratified. Offer documents generated."
+            : $"Decision ratified. Offer documents generated. Note: {note}";
         AddStatusHistory(Status, userId, historyNote);
         return Result.Success();
     }
@@ -472,6 +481,18 @@ public class NampApplication : AggregateRoot
         DeploymentNote = note;
         Status = NampApplicationStatus.Active;
         AddStatusHistory(Status, userId, $"Equipment deployed. GPS activated: {gpsActivated}.{(note != null ? $" Note: {note}" : "")}");
+        return Result.Success();
+    }
+
+    // ── Stage 7: Active / Closed ──────────────────────────────────────────
+
+    public Result Close(Guid userId)
+    {
+        if (Status != NampApplicationStatus.Active)
+            return Result.Failure("Application must be Active to close.");
+
+        Status = NampApplicationStatus.Closed;
+        AddStatusHistory(Status, userId, "Loan fully repaid — marked as Closed.");
         return Result.Success();
     }
 

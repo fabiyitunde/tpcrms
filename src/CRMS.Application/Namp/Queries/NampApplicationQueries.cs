@@ -101,6 +101,8 @@ public class GetNampApplicationByIdHandler
         app.RatifiedByUserId,
         app.RatifiedAt,
         app.OfferLetterStoragePath,
+        app.LeaseAgreementStoragePath,
+        app.GpsConsentFormStoragePath,
         app.OfferGeneratedAt,
         app.OfferAcceptedAt,
         app.OfferLapsedAt,
@@ -456,6 +458,79 @@ public class GetNampCommitteeReviewHandler
         );
 
         return ApplicationResult<NampCommitteeReviewDto>.Success(dto);
+    }
+}
+
+// ── Loan Account (live from Fineract) ────────────────────────────────────
+
+public record GetNampLoanAccountQuery(Guid NampApplicationId)
+    : IRequest<ApplicationResult<NampLoanAccountDto>>;
+
+public class GetNampLoanAccountHandler
+    : IRequestHandler<GetNampLoanAccountQuery, ApplicationResult<NampLoanAccountDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly IFineractDirectService _fineract;
+
+    public GetNampLoanAccountHandler(INampApplicationRepository repo, IFineractDirectService fineract)
+    {
+        _repo = repo;
+        _fineract = fineract;
+    }
+
+    public async Task<ApplicationResult<NampLoanAccountDto>> Handle(
+        GetNampLoanAccountQuery request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdAsync(request.NampApplicationId, ct);
+        if (app is null)
+            return ApplicationResult<NampLoanAccountDto>.Failure("NAMP application not found.");
+
+        if (app.FineractLoanId is null)
+            return ApplicationResult<NampLoanAccountDto>.Failure("No Fineract loan linked to this application.");
+
+        var result = await _fineract.GetLoanDetailAsync(app.FineractLoanId.Value, ct);
+        if (!result.IsSuccess)
+            return ApplicationResult<NampLoanAccountDto>.Failure($"Could not load loan account from Fineract: {result.Error}");
+
+        var loan = result.Value;
+        var now = DateTime.UtcNow;
+
+        var dto = new NampLoanAccountDto(
+            LoanId: loan.Id,
+            AccountNo: loan.AccountNo,
+            ProductName: loan.ProductName,
+            Status: loan.Status,
+            DisbursementDate: loan.DisbursementDate,
+            MaturityDate: loan.MaturityDate,
+            TotalExpectedRepayment: loan.Summary.TotalExpectedRepayment,
+            TotalRepayment: loan.Summary.TotalRepayment,
+            TotalOutstanding: loan.Summary.TotalOutstanding,
+            PrincipalDisbursed: loan.Summary.PrincipalDisbursed,
+            PrincipalPaid: loan.Summary.PrincipalPaid,
+            PrincipalOutstanding: loan.Summary.PrincipalOutstanding,
+            InterestCharged: loan.Summary.InterestCharged,
+            InterestPaid: loan.Summary.InterestPaid,
+            InterestOutstanding: loan.Summary.InterestOutstanding,
+            PenaltyChargesOutstanding: loan.Summary.PenaltyChargesOutstanding,
+            Schedule: loan.RepaymentSchedule
+                .Where(p => p.Period > 0)   // period 0 is the disbursement row, not a repayment
+                .Select(p => new NampLoanSchedulePeriodDto(
+                    Period: p.Period,
+                    DueDate: p.DueDate,
+                    PrincipalDue: p.PrincipalDue,
+                    PrincipalPaid: p.PrincipalPaid,
+                    InterestDue: p.InterestDue,
+                    InterestPaid: p.InterestPaid,
+                    TotalDue: p.TotalDue,
+                    TotalPaid: p.TotalPaid,
+                    TotalOutstanding: p.TotalOutstanding,
+                    Complete: p.Complete,
+                    IsOverdue: !p.Complete && p.DueDate < now
+                ))
+                .ToList()
+        );
+
+        return ApplicationResult<NampLoanAccountDto>.Success(dto);
     }
 }
 

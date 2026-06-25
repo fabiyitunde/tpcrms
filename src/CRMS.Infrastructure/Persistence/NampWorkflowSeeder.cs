@@ -17,6 +17,7 @@ public static class NampWorkflowSeeder
         await SeedWorkflowConfigAsync(context, logger);
         await SeedRoutingConfigAsync(context, logger);
         await SeedPreDeploymentChecklistAsync(context, logger);
+        await SeedDocumentTemplatesAsync(context, logger);
     }
 
     // ── Stage config ──────────────────────────────────────────────────────
@@ -229,5 +230,194 @@ public static class NampWorkflowSeeder
         var item = result.Value;
         item.SetAuditInfo("seed", isNew: true);
         return item;
+    }
+
+    // ── Document templates ────────────────────────────────────────────────────
+
+    private static async Task SeedDocumentTemplatesAsync(CRMSDbContext context, ILogger logger)
+    {
+        logger.LogInformation("Seeding NAMP document templates...");
+
+        var defaults = new[]
+        {
+            (
+                Type: NampDocumentType.OfferLetter,
+                Title: "OFFER LETTER",
+                Body: """
+Dear {{ApplicantName}},
+
+We are pleased to inform you that your application under the National Agricultural Mechanisation Programme (NAMP) has been approved by the Credit Committee of the Bank of Agriculture Limited.
+
+The terms and conditions of the approved credit facility, including the proposed repayment schedule, are set out below for your review and acceptance.
+
+Please note that this offer is subject to the conditions stated herein and is valid for thirty (30) days from the date of this letter.
+""",
+                Conditions: """
+GENERAL CONDITIONS
+
+1. The equipment shall be used solely for agricultural purposes as stated in your application and in accordance with the objectives of the National Agricultural Mechanisation Programme.
+
+2. You shall maintain adequate insurance cover on the equipment throughout the tenor of this facility. Proof of insurance shall be submitted to the Bank prior to equipment deployment.
+
+3. The Bank reserves the right to conduct periodic inspections of the equipment and your farming operations at any time during the tenor of this facility.
+
+4. A GPS tracking device shall be installed and activated on the equipment prior to deployment. You hereby consent to the monitoring of the equipment's location throughout the facility tenor.
+
+5. Repayment obligations commence in accordance with the schedule set out above. Default in repayment attracts penalty charges as specified in the Bank's approved schedule of charges.
+
+6. This offer is valid for thirty (30) days from the date of issue. Failure to accept within this period renders this offer null and void.
+
+7. The standard terms and conditions of the Bank applicable to agricultural credit facilities apply to this facility and are incorporated herein by reference.
+
+ACCEPTANCE
+
+I/We hereby accept the terms and conditions of this offer as stated above, including the repayment schedule set out herein. I/We confirm that the information provided in support of this application is true and accurate to the best of my/our knowledge and belief.
+"""
+            ),
+            (
+                Type: NampDocumentType.LeaseAgreement,
+                Title: "HIRE PURCHASE / LEASE AGREEMENT",
+                Body: """
+HIRE PURCHASE / LEASE AGREEMENT
+
+This Hire Purchase Agreement ("Agreement") is entered into as of {{Date}} between the Bank of Agriculture Limited ("Lessor" or "the Bank") and {{ApplicantName}}, BOA Account Number {{BoaAccountNumber}} ("Lessee" or "Borrower").
+
+RECITALS
+
+The Bank has agreed to finance the acquisition of the equipment described herein under the National Agricultural Mechanisation Programme (NAMP) on a hire-purchase basis, subject to the terms and conditions set out in this Agreement.
+
+ARTICLE 1 — EQUIPMENT
+
+The equipment subject to this Agreement is as follows:
+
+Description: {{EquipmentDescription}}
+Total Equipment Value: NGN {{EquipmentValue}}
+Borrower's Equity Contribution: NGN {{EquityAmount}}
+Financed Amount (Loan): NGN {{LoanAmount}}
+
+ARTICLE 2 — FACILITY TERMS
+
+2.1 Loan Amount: The Bank shall finance the sum of NGN {{LoanAmount}} (the "Loan Amount") representing the balance of the equipment cost after deduction of the Borrower's equity contribution.
+
+2.2 Tenor: The loan shall be repayable over a period of {{TenorMonths}} months from the date of disbursement.
+
+2.3 Interest Rate: Interest shall accrue on the outstanding loan balance at the rate of {{InterestRate}}% per annum (reducing balance).
+
+2.4 Repayment: The Borrower shall repay the loan in equal monthly installments of NGN {{MonthlyInstallment}}, due on the same day of each month commencing one (1) month from the date of equipment deployment.
+
+ARTICLE 3 — OWNERSHIP AND POSSESSION
+
+3.1 The equipment shall remain the property of the Bank until all amounts due under this Agreement have been fully paid.
+
+3.2 The Borrower shall have possession and use of the equipment during the term of this Agreement, subject to the conditions herein.
+
+3.3 Upon full repayment of all amounts due, ownership of the equipment shall transfer to the Borrower.
+
+ARTICLE 4 — OBLIGATIONS OF THE BORROWER
+
+4.1 The Borrower shall use the equipment solely for agricultural purposes and in accordance with the objectives of the NAMP.
+
+4.2 The Borrower shall maintain the equipment in good working condition and shall bear all costs of maintenance, repair, and insurance.
+
+4.3 The Borrower shall not sell, transfer, assign, encumber, or otherwise dispose of the equipment without the prior written consent of the Bank.
+
+4.4 The Borrower shall permit the Bank and its authorised representatives to inspect the equipment at any reasonable time.
+
+4.5 The Borrower shall maintain valid insurance on the equipment throughout the term of this Agreement and shall provide evidence of such insurance to the Bank on request.
+
+ARTICLE 5 — GPS TRACKING
+
+5.1 A GPS tracking device shall be installed on the equipment by the Bank or its designated agent prior to deployment.
+
+5.2 The Borrower hereby consents to the continuous monitoring of the equipment's location throughout the term of this Agreement.
+
+5.3 The Borrower shall not tamper with, disable, or remove the GPS tracking device. Any breach of this clause shall constitute an event of default.
+
+ARTICLE 6 — DEFAULT
+
+6.1 An event of default shall occur if the Borrower fails to make any repayment when due, breaches any term of this Agreement, or if the equipment is damaged, destroyed, or disposed of without the Bank's consent.
+
+6.2 Upon the occurrence of an event of default, the Bank may, without prejudice to any other remedies, demand immediate repayment of all outstanding amounts and/or repossess the equipment.
+
+ARTICLE 7 — GOVERNING LAW
+
+This Agreement shall be governed by and construed in accordance with the laws of the Federal Republic of Nigeria. Any disputes arising under this Agreement shall be subject to the jurisdiction of the courts of the Federal Republic of Nigeria.
+
+ARTICLE 8 — ENTIRE AGREEMENT
+
+This Agreement constitutes the entire agreement between the parties with respect to the subject matter hereof and supersedes all prior negotiations, representations, and agreements.
+""",
+                Conditions: (string?)null
+            ),
+            (
+                Type: NampDocumentType.GpsConsentForm,
+                Title: "GPS TRACKING CONSENT FORM",
+                Body: """
+GPS TRACKING CONSENT FORM
+
+Reference: {{ApplicationNumber}}
+Date: {{Date}}
+
+BORROWER DETAILS
+
+Name: {{ApplicantName}}
+BOA Account Number: {{BoaAccountNumber}}
+Equipment: {{EquipmentDescription}}
+
+CONSENT DECLARATION
+
+I, {{ApplicantName}}, being the beneficiary of the equipment financed under the National Agricultural Mechanisation Programme (NAMP) administered by the Bank of Agriculture Limited, hereby freely and voluntarily give my informed consent to the following:
+
+1. GPS DEVICE INSTALLATION
+
+I consent to the installation of a Global Positioning System (GPS) tracking device on the above-described equipment by the Bank of Agriculture Limited or its authorised agent. I understand that this device will be installed prior to the deployment of the equipment to me.
+
+2. LOCATION MONITORING
+
+I consent to the continuous monitoring of the location of the equipment via the installed GPS tracking device throughout the tenor of my facility agreement with the Bank of Agriculture Limited.
+
+3. DATA USE
+
+I understand and agree that the location data collected by the GPS device will be used solely for the purposes of:
+(a) Monitoring the deployment and utilisation of the equipment;
+(b) Ensuring the equipment is used for its intended agricultural purpose;
+(c) Assisting in the recovery of the equipment in the event of default or misuse;
+(d) Supporting the Bank's portfolio monitoring obligations under the NAMP.
+
+4. OBLIGATIONS
+
+I agree that I shall:
+(a) Not tamper with, disable, remove, or attempt to defeat the GPS tracking device in any manner;
+(b) Notify the Bank immediately in the event of theft, loss, or damage to the equipment;
+(c) Allow authorised Bank personnel or their agents to inspect the GPS device on the equipment at any reasonable time.
+
+5. CONSEQUENCES OF BREACH
+
+I understand that tampering with or disabling the GPS tracking device constitutes a material breach of my facility agreement with the Bank of Agriculture Limited and may result in immediate demand for repayment of the outstanding facility balance and/or repossession of the equipment.
+
+6. VOLUNTARY CONSENT
+
+I confirm that this consent is given freely, voluntarily, and without duress. I have read and understood the above declaration and agree to be bound by its terms.
+""",
+                Conditions: (string?)null
+            ),
+        };
+
+        var systemUserId = Guid.Empty;
+
+        foreach (var (type, title, body, conditions) in defaults)
+        {
+            var exists = await context.NampDocumentTemplates
+                .AnyAsync(t => t.DocumentType == type);
+
+            if (exists) continue;
+
+            var template = NampDocumentTemplate.Create(type, title, body, systemUserId, conditions);
+            template.SetAuditInfo("seed", isNew: true);
+            await context.NampDocumentTemplates.AddAsync(template);
+            logger.LogInformation("Seeded NAMP document template: {Type}", type);
+        }
+
+        await context.SaveChangesAsync();
     }
 }

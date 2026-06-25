@@ -1,0 +1,470 @@
+@page "/admin/namp-document-templates"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@using CRMS.Application.Namp.Commands
+@using CRMS.Domain.Enums
+
+<PageTitle>NAMP Document Templates - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">NAMP Document Templates</h1>
+        <p class="page-subtitle">Edit the content of system-generated NAMP documents (Offer Letter, Lease Agreement, GPS Consent Form)</p>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="card">
+        <div class="card-body" style="text-align: center; padding: var(--space-8);">
+            <div class="spinner"></div>
+            <p style="margin-top: var(--space-4); color: var(--gray-500);">Loading templates...</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == Tab.OfferLetter ? "tab-btn-active" : "")" @onclick="() => SetTab(Tab.OfferLetter)">
+            Offer Letter
+        </button>
+        <button class="tab-btn @(activeTab == Tab.LeaseAgreement ? "tab-btn-active" : "")" @onclick="() => SetTab(Tab.LeaseAgreement)">
+            Lease Agreement
+        </button>
+        <button class="tab-btn @(activeTab == Tab.GpsConsentForm ? "tab-btn-active" : "")" @onclick="() => SetTab(Tab.GpsConsentForm)">
+            GPS Consent Form
+        </button>
+    </div>
+
+    <div class="template-layout">
+        <div class="template-editor-col">
+            @if (activeTab == Tab.OfferLetter)
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">Offer Letter — Introductory Text</h3>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                            Rendered before the facility details table. Use double blank lines to separate paragraphs.
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Document Title</label>
+                            <input type="text" class="form-control" @bind="offerTitle" placeholder="LETTER OF OFFER" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Introductory Body *</label>
+                            <textarea class="form-control template-textarea" rows="10"
+                                      @bind="offerBody"
+                                      placeholder="Dear {{ApplicantName}},&#10;&#10;We are pleased to inform you..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">Offer Letter — General Conditions & Acceptance</h3>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                            Rendered after the repayment schedule table. Use ALL CAPS lines for section headings.
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Conditions Content</label>
+                            <textarea class="form-control template-textarea" rows="14"
+                                      @bind="offerConditions"
+                                      placeholder="GENERAL CONDITIONS&#10;&#10;1. This offer..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                @SaveRow(Tab.OfferLetter)
+            }
+            else if (activeTab == Tab.LeaseAgreement)
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">Lease Agreement — Body Content</h3>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                            Use double blank lines to separate paragraphs. ALL CAPS short lines become section headings.
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Document Title</label>
+                            <input type="text" class="form-control" @bind="leaseTitle" placeholder="HIRE-PURCHASE AGREEMENT" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Agreement Body *</label>
+                            <textarea class="form-control template-textarea" rows="24"
+                                      @bind="leaseBody"
+                                      placeholder="ARTICLE 1 — DEFINITIONS&#10;&#10;..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                @SaveRow(Tab.LeaseAgreement)
+            }
+            else
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">GPS Consent Form — Body Content</h3>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                            Use double blank lines to separate paragraphs. ALL CAPS short lines become section headings.
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Document Title</label>
+                            <input type="text" class="form-control" @bind="gpsTitle" placeholder="GPS TRACKING CONSENT FORM" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Consent Form Body *</label>
+                            <textarea class="form-control template-textarea" rows="24"
+                                      @bind="gpsBody"
+                                      placeholder="GPS TRACKING CONSENT&#10;&#10;..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                @SaveRow(Tab.GpsConsentForm)
+            }
+        </div>
+
+        <div class="template-tokens-col">
+            <div class="card" style="position: sticky; top: var(--space-4);">
+                <div class="card-header">
+                    <h3 class="card-title">Available Tokens</h3>
+                </div>
+                <div class="card-body" style="padding: var(--space-3);">
+                    <p style="font-size: var(--text-xs); color: var(--gray-500); margin-bottom: var(--space-3);">
+                        Use <code>&#123;&#123;TokenName&#125;&#125;</code> in your template. These are replaced with real values at PDF generation.
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+                        @foreach (var token in tokens)
+                        {
+                            <div class="token-row">
+                                <code class="token-chip">&#123;&#123;@token.Name&#125;&#125;</code>
+                                <span class="token-desc">@token.Description</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @if (activeVersion > 0 || lastModified.HasValue)
+            {
+                <div class="card mt-4">
+                    <div class="card-body" style="font-size: var(--text-sm); color: var(--gray-600);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-1);">
+                            <span>Version</span>
+                            <strong>v@activeVersion</strong>
+                        </div>
+                        @if (lastModified.HasValue)
+                        {
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Last saved</span>
+                                <strong>@lastModified.Value.ToString("dd MMM yyyy HH:mm")</strong>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(toastMessage))
+{
+    <div class="toast-container">
+        <div class="toast @(toastIsError ? "toast-error" : "toast-success")">
+            <span class="material-symbols-outlined" style="font-size: 18px;">@(toastIsError ? "error" : "check_circle")</span>
+            @toastMessage
+        </div>
+    </div>
+}
+
+<style>
+    .tab-bar {
+        display: flex;
+        gap: 0;
+        border-bottom: 2px solid var(--gray-200);
+        margin-bottom: var(--space-5);
+    }
+    .tab-btn {
+        padding: var(--space-3) var(--space-5);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        cursor: pointer;
+        font-size: var(--text-sm);
+        font-weight: 500;
+        color: var(--gray-500);
+        transition: color .15s, border-color .15s;
+    }
+    .tab-btn:hover { color: var(--gray-900); }
+    .tab-btn-active {
+        color: var(--primary-600);
+        border-bottom-color: var(--primary-600);
+    }
+    .template-layout {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: var(--space-5);
+        align-items: start;
+    }
+    .template-textarea {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: var(--text-sm);
+        line-height: 1.6;
+        resize: vertical;
+    }
+    .token-row {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-2);
+    }
+    .token-chip {
+        background: var(--primary-100);
+        color: var(--primary-700);
+        padding: 2px var(--space-2);
+        border-radius: var(--radius-sm);
+        font-size: var(--text-xs);
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .token-desc {
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+    }
+    .toast-container {
+        position: fixed;
+        bottom: var(--space-6);
+        right: var(--space-6);
+        z-index: 9999;
+    }
+    .toast {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-3) var(--space-4);
+        border-radius: var(--radius-md);
+        font-size: var(--text-sm);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .toast-success { background: var(--success-50); color: var(--success-700); border: 1px solid var(--success-200); }
+    .toast-error { background: var(--danger-50); color: var(--danger-700); border: 1px solid var(--danger-200); }
+    @@media (max-width: 900px) {
+        .template-layout { grid-template-columns: 1fr; }
+    }
+</style>
+
+@code {
+    private enum Tab { OfferLetter, LeaseAgreement, GpsConsentForm }
+
+    private bool isLoading = true;
+    private bool isSaving;
+    private Tab activeTab = Tab.OfferLetter;
+    private int activeVersion;
+    private DateTime? lastModified;
+    private string? toastMessage;
+    private bool toastIsError;
+    private System.Threading.CancellationTokenSource? _toastCts;
+
+    // Offer Letter
+    private string offerTitle = string.Empty;
+    private string offerBody = string.Empty;
+    private string? offerConditions;
+
+    // Lease Agreement
+    private string leaseTitle = string.Empty;
+    private string leaseBody = string.Empty;
+
+    // GPS Consent Form
+    private string gpsTitle = string.Empty;
+    private string gpsBody = string.Empty;
+
+    private static readonly (string Name, string Description)[] tokens =
+    [
+        ("ApplicationNumber", "Loan application reference"),
+        ("Date",              "Document generation date"),
+        ("ApplicantName",     "Full name of the applicant"),
+        ("BoaAccountNumber",  "BOA account number"),
+        ("EquipmentDescription", "Description of the equipment"),
+        ("EquipmentValue",    "Equipment value (formatted)"),
+        ("LoanAmount",        "Approved loan amount"),
+        ("EquityAmount",      "Equity contribution amount"),
+        ("TenorMonths",       "Repayment tenor in months"),
+        ("InterestRate",      "Annual interest rate (%)"),
+        ("MonthlyInstallment","Monthly repayment amount"),
+        ("BranchName",        "Disbursing branch name"),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAllAsync();
+    }
+
+    private async Task LoadAllAsync()
+    {
+        isLoading = true;
+        var response = await AppService.GetAllNampDocumentTemplatesAsync();
+        if (response.Success && response.Data != null)
+        {
+            foreach (var t in response.Data)
+            {
+                switch (t.DocumentType)
+                {
+                    case NampDocumentType.OfferLetter:
+                        offerTitle      = t.Title;
+                        offerBody       = t.BodyContent;
+                        offerConditions = t.ConditionsContent;
+                        break;
+                    case NampDocumentType.LeaseAgreement:
+                        leaseTitle = t.Title;
+                        leaseBody  = t.BodyContent;
+                        break;
+                    case NampDocumentType.GpsConsentForm:
+                        gpsTitle = t.Title;
+                        gpsBody  = t.BodyContent;
+                        break;
+                }
+            }
+        }
+        isLoading = false;
+        RefreshVersionInfo();
+    }
+
+    private async Task LoadTabAsync(Tab tab)
+    {
+        var type = TabToDocumentType(tab);
+        var response = await AppService.GetNampDocumentTemplateAsync(type);
+        if (response.Success && response.Data != null)
+        {
+            var t = response.Data;
+            switch (tab)
+            {
+                case Tab.OfferLetter:
+                    offerTitle = t.Title; offerBody = t.BodyContent; offerConditions = t.ConditionsContent;
+                    activeVersion = t.Version; lastModified = t.LastModifiedAt;
+                    break;
+                case Tab.LeaseAgreement:
+                    leaseTitle = t.Title; leaseBody = t.BodyContent;
+                    activeVersion = t.Version; lastModified = t.LastModifiedAt;
+                    break;
+                case Tab.GpsConsentForm:
+                    gpsTitle = t.Title; gpsBody = t.BodyContent;
+                    activeVersion = t.Version; lastModified = t.LastModifiedAt;
+                    break;
+            }
+        }
+    }
+
+    private void SetTab(Tab tab)
+    {
+        activeTab = tab;
+        RefreshVersionInfo();
+    }
+
+    private void RefreshVersionInfo()
+    {
+        // Version/date display is populated when each template is individually fetched after save.
+        // On initial load we don't have per-tab version; they'll appear after first save.
+    }
+
+    private RenderFragment SaveRow(Tab tab) => __builder =>
+    {
+        <div class="card">
+            <div class="card-body" style="display: flex; justify-content: flex-end; align-items: center; gap: var(--space-3); padding: var(--space-4);">
+                @if (!string.IsNullOrEmpty(saveError))
+                {
+                    <span style="color: var(--danger-600); font-size: var(--text-sm); margin-right: auto;">@saveError</span>
+                }
+                <button class="btn btn-primary" @onclick="() => SaveAsync(tab)" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    Save Template
+                </button>
+            </div>
+        </div>;
+    };
+
+    private string? saveError;
+
+    private async Task SaveAsync(Tab tab)
+    {
+        saveError = null;
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        var type = TabToDocumentType(tab);
+
+        string title, body;
+        string? conditions = null;
+
+        switch (tab)
+        {
+            case Tab.OfferLetter:
+                title      = offerTitle;
+                body       = offerBody;
+                conditions = offerConditions;
+                break;
+            case Tab.LeaseAgreement:
+                title = leaseTitle;
+                body  = leaseBody;
+                break;
+            default:
+                title = gpsTitle;
+                body  = gpsBody;
+                break;
+        }
+
+        if (string.IsNullOrWhiteSpace(title))  { saveError = "Title is required."; return; }
+        if (string.IsNullOrWhiteSpace(body))   { saveError = "Body content is required."; return; }
+
+        isSaving = true;
+        try
+        {
+            var result = await AppService.UpsertNampDocumentTemplateAsync(type, title, body, userId, conditions);
+            if (result.Success)
+            {
+                // Reload to get updated version/date
+                await LoadTabAsync(tab);
+                ShowToast("Template saved successfully.");
+            }
+            else
+            {
+                ShowToast(result.Error ?? "Failed to save template.", isError: true);
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static NampDocumentType TabToDocumentType(Tab tab) => tab switch
+    {
+        Tab.OfferLetter    => NampDocumentType.OfferLetter,
+        Tab.LeaseAgreement => NampDocumentType.LeaseAgreement,
+        Tab.GpsConsentForm => NampDocumentType.GpsConsentForm,
+        _ => NampDocumentType.OfferLetter,
+    };
+
+    private void ShowToast(string message, bool isError = false)
+    {
+        _toastCts?.Cancel();
+        _toastCts = new System.Threading.CancellationTokenSource();
+        toastMessage = message;
+        toastIsError = isError;
+
+        var token = _toastCts.Token;
+        _ = Task.Delay(4000, token).ContinueWith(_ =>
+        {
+            if (!token.IsCancellationRequested)
+            {
+                toastMessage = null;
+                InvokeAsync(StateHasChanged);
+            }
+        }, TaskScheduler.Default);
+    }
+}

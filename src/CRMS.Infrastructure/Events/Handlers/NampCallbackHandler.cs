@@ -9,9 +9,10 @@ namespace CRMS.Infrastructure.Events.Handlers;
 
 /// <summary>
 /// Sends outbound PAYS callbacks when a NampApplication reaches a notable status.
-/// - OfferGenerated → Approved (ratification complete, offer letter ready)
-/// - Active         → Active   (GPS confirmed, equipment deployed)
-/// - Any decline/lapse path → Declined (with reason note)
+/// - OfferGenerated  → Approved (ratification complete, offer letter ready)
+/// - Active          → Active   (GPS confirmed, equipment deployed)
+/// - Any decline/lapse path → Declined (FinancialDeclined, *CommitteeDeclined,
+///   RatificationDeclined, OfferLapsed, LegalDeclined, Declined)
 /// Runs as a second handler for NampStatusChangedEvent alongside NampStatusChangedWorkflowHandler.
 /// Non-fatal: callback failures are logged but do not roll back the transaction.
 /// </summary>
@@ -33,6 +34,7 @@ public class NampCallbackEventHandler : IDomainEventHandler<NampStatusChangedEve
         NampApplicationStatus.HOCommitteeDeclined,
         NampApplicationStatus.RatificationDeclined,
         NampApplicationStatus.OfferLapsed,
+        NampApplicationStatus.LegalDeclined,
         NampApplicationStatus.Declined,
     ];
 

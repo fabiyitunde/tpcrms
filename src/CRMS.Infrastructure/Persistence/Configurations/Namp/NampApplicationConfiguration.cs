@@ -115,6 +115,12 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
         builder.Property(x => x.OfferLetterStoragePath)
             .HasMaxLength(500);
 
+        builder.Property(x => x.LeaseAgreementStoragePath)
+            .HasMaxLength(500);
+
+        builder.Property(x => x.GpsConsentFormStoragePath)
+            .HasMaxLength(500);
+
         builder.Property(x => x.PreDeploymentNote).HasColumnType("text");
 
         builder.Property(x => x.DeploymentNote)

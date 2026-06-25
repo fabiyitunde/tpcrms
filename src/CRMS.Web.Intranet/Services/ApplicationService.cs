@@ -5539,6 +5539,40 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> MarkNampClosedAsync(Guid id, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.MarkNampClosedHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.MarkNampClosedCommand(id, userId), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Failed to mark application as closed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error marking NAMP application {Id} as closed", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to mark as closed: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampLoanAccountDto>> GetNampLoanAccountAsync(Guid id)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetNampLoanAccountHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Queries.GetNampLoanAccountQuery(id), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampLoanAccountDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampLoanAccountDto>.Fail(result.Error ?? "Failed to load loan account");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading NAMP loan account for {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampLoanAccountDto>.Fail($"Failed to load loan account: {ex.Message}");
+        }
+    }
+
     // ── NAMP Admin ────────────────────────────────────────────────────────
 
     public async Task<List<CRMS.Application.Namp.DTOs.NampRoutingConfigDto>> GetNampRoutingConfigsAsync()
@@ -5865,6 +5899,68 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error fetching NAMP advisory for application {Id}", nampApplicationId);
             return ApiResponse<CRMS.Application.Namp.DTOs.NampAdvisoryDto>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.Commands.NampDocumentTemplateDto?>> GetNampDocumentTemplateAsync(
+        CRMS.Domain.Enums.NampDocumentType documentType)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.GetNampDocumentTemplateHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Commands.GetNampDocumentTemplateQuery(documentType),
+                CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.Commands.NampDocumentTemplateDto?>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.Namp.Commands.NampDocumentTemplateDto?>.Fail(result.Error ?? "Not found");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching NAMP document template for type {Type}", documentType);
+            return ApiResponse<CRMS.Application.Namp.Commands.NampDocumentTemplateDto?>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<List<CRMS.Application.Namp.Commands.NampDocumentTemplateDto>>> GetAllNampDocumentTemplatesAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.GetAllNampDocumentTemplatesHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Commands.GetAllNampDocumentTemplatesQuery(),
+                CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<List<CRMS.Application.Namp.Commands.NampDocumentTemplateDto>>.Ok(result.Data!)
+                : ApiResponse<List<CRMS.Application.Namp.Commands.NampDocumentTemplateDto>>.Fail(result.Error ?? "Failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching all NAMP document templates");
+            return ApiResponse<List<CRMS.Application.Namp.Commands.NampDocumentTemplateDto>>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse> UpsertNampDocumentTemplateAsync(
+        CRMS.Domain.Enums.NampDocumentType documentType,
+        string title,
+        string bodyContent,
+        Guid userId,
+        string? conditionsContent = null)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.UpsertNampDocumentTemplateHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Commands.UpsertNampDocumentTemplateCommand(
+                    documentType, title, bodyContent, userId, conditionsContent),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to save template");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error upserting NAMP document template for type {Type}", documentType);
+            return ApiResponse.Fail(ex.Message);
         }
     }
 

@@ -44,6 +44,7 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
     private readonly int _fineractTestTenorMonths;
     private readonly decimal _fineractTestInterestRatePerAnnum;
     private readonly string _fineractTestRepaymentAccount;
+    private readonly long _fineractTestLoanId;
     private IFineractDirectService? _fineractService;
 
     public CoreBankingServiceLiveIntegrationTests(ITestOutputHelper output)
@@ -90,6 +91,7 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
         int.TryParse(fineractSection["TestTenorMonths"], out _fineractTestTenorMonths);
         decimal.TryParse(fineractSection["TestInterestRatePerAnnum"], out _fineractTestInterestRatePerAnnum);
         _fineractTestRepaymentAccount = fineractSection["TestRepaymentAccountNumber"] ?? "";
+        long.TryParse(fineractSection["TestLoanId"], out _fineractTestLoanId);
     }
 
     public Task InitializeAsync()
@@ -497,6 +499,90 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
         var testProduct = result.Value.FirstOrDefault(p => p.Id == _fineractTestProductId);
         Assert.NotNull(testProduct);
         _output.WriteLine($"\nTest product found: [{testProduct!.Id}] {testProduct.Name} — {testProduct.AnnualInterestRate:N2}% p.a.");
+    }
+
+    /// <summary>
+    /// Fetches full loan detail (repayment schedule + summary) for an existing Fineract loan.
+    /// Read-only — does not modify any data.
+    ///
+    /// Required in appsettings.test.json (or environment variables):
+    ///   FineractDirect:BaseUrl     — e.g. https://tpapi.bankofagriculture.com/core_banking/api/v1
+    ///   FineractDirect:Username    — Fineract username
+    ///   FineractDirect:Password    — Fineract password
+    ///   FineractDirect:TenantId    — e.g. bankofagriculture
+    ///   FineractDirect:TestLoanId  — ID of an existing loan (long), e.g. 42
+    /// </summary>
+    [SkippableFact]
+    public async Task GetLoanDetailAsync_WithValidLoanId_ReturnsDetailWithSchedule()
+    {
+        Skip.If(string.IsNullOrEmpty(_fineractSettings.BaseUrl), "FineractDirect:BaseUrl not configured");
+        Skip.If(string.IsNullOrEmpty(_fineractSettings.Username), "FineractDirect:Username not configured");
+        Skip.If(_fineractTestLoanId <= 0, "FineractDirect:TestLoanId not configured");
+
+        _output.WriteLine($"=== Get Loan Detail (LoanId: {_fineractTestLoanId}) ===");
+
+        var result = await _fineractService!.GetLoanDetailAsync(_fineractTestLoanId);
+
+        _output.WriteLine($"Result: IsSuccess={result.IsSuccess}, Error={result.Error}");
+
+        Assert.True(result.IsSuccess, $"GetLoanDetailAsync failed: {result.Error}");
+        Assert.NotNull(result.Value);
+
+        var loan = result.Value;
+
+        _output.WriteLine($"\n--- Loan Header ---");
+        _output.WriteLine($"  Account No:        {loan.AccountNo}");
+        _output.WriteLine($"  Product:           {loan.ProductName}");
+        _output.WriteLine($"  Status:            {loan.Status} (code={loan.StatusCode})");
+        _output.WriteLine($"  Principal:         ₦{loan.Principal:N2}");
+        _output.WriteLine($"  Approved Principal:₦{loan.ApprovedPrincipal:N2}");
+        _output.WriteLine($"  Interest Rate:     {loan.InterestRate:N2}% p.a.");
+        _output.WriteLine($"  Repayments:        {loan.NumberOfRepayments}");
+        _output.WriteLine($"  Disbursement Date: {loan.DisbursementDate:yyyy-MM-dd}");
+        _output.WriteLine($"  Maturity Date:     {loan.MaturityDate:yyyy-MM-dd}");
+
+        _output.WriteLine($"\n--- Summary ---");
+        _output.WriteLine($"  Total Expected:    ₦{loan.Summary.TotalExpectedRepayment:N2}");
+        _output.WriteLine($"  Total Repaid:      ₦{loan.Summary.TotalRepayment:N2}");
+        _output.WriteLine($"  Total Outstanding: ₦{loan.Summary.TotalOutstanding:N2}");
+        _output.WriteLine($"  Principal Paid:    ₦{loan.Summary.PrincipalPaid:N2}");
+        _output.WriteLine($"  Principal Outstd:  ₦{loan.Summary.PrincipalOutstanding:N2}");
+        _output.WriteLine($"  Interest Charged:  ₦{loan.Summary.InterestCharged:N2}");
+        _output.WriteLine($"  Interest Paid:     ₦{loan.Summary.InterestPaid:N2}");
+        _output.WriteLine($"  Interest Outstd:   ₦{loan.Summary.InterestOutstanding:N2}");
+        if (loan.Summary.PenaltyChargesOutstanding > 0)
+            _output.WriteLine($"  ⚠ Penalty Outstd: ₦{loan.Summary.PenaltyChargesOutstanding:N2}");
+
+        _output.WriteLine($"\n--- Repayment Schedule ({loan.RepaymentSchedule.Count} rows) ---");
+        foreach (var p in loan.RepaymentSchedule)
+        {
+            if (p.Period == 0) continue; // disbursement row, not a repayment
+            var flag = p.Complete ? "✓" : p.DueDate < DateTime.UtcNow ? "⚠" : " ";
+            _output.WriteLine(
+                $"  [{flag}] #{p.Period:D2} {p.DueDate:yyyy-MM-dd}  " +
+                $"Due=₦{p.TotalDue:N0}  Paid=₦{p.TotalPaid:N0}  Outstd=₦{p.TotalOutstanding:N0}");
+        }
+
+        // Structural assertions
+        Assert.False(string.IsNullOrWhiteSpace(loan.AccountNo), "AccountNo should not be empty");
+        Assert.False(string.IsNullOrWhiteSpace(loan.ProductName), "ProductName should not be empty");
+        Assert.False(string.IsNullOrWhiteSpace(loan.Status), "Status should not be empty");
+        Assert.True(loan.Principal > 0, "Principal should be positive");
+        Assert.True(loan.NumberOfRepayments > 0, "NumberOfRepayments should be positive");
+
+        // Summary sanity checks
+        Assert.True(loan.Summary.PrincipalDisbursed >= 0);
+        Assert.True(loan.Summary.TotalOutstanding >= 0);
+        Assert.True(loan.Summary.TotalOutstanding <= loan.Summary.TotalExpectedRepayment,
+            "Outstanding cannot exceed total expected repayment");
+
+        // Schedule
+        Assert.NotEmpty(loan.RepaymentSchedule);
+        var repaymentRows = loan.RepaymentSchedule.Where(p => p.Period > 0).ToList();
+        Assert.NotEmpty(repaymentRows);
+        Assert.All(repaymentRows, p => Assert.True(p.TotalDue >= 0));
+        Assert.All(repaymentRows, p => Assert.True(p.TotalPaid >= 0));
+        Assert.All(repaymentRows, p => Assert.True(p.TotalOutstanding >= 0));
     }
 
     #endregion

@@ -114,6 +114,8 @@ public record NampApplicationDto(
     DateTime? RatifiedAt,
     // Offer
     string? OfferLetterStoragePath,
+    string? LeaseAgreementStoragePath,
+    string? GpsConsentFormStoragePath,
     DateTime? OfferGeneratedAt,
     DateTime? OfferAcceptedAt,
     DateTime? OfferLapsedAt,
@@ -384,6 +386,42 @@ public record NampPreDeploymentChecklistItemDto(
     Guid? ConfirmedByUserId,
     DateTime? ConfirmedAt,
     string? Notes
+);
+
+// ── NAMP Loan Account (live from Fineract) ─────────────────────────────────
+
+public record NampLoanAccountDto(
+    long LoanId,
+    string AccountNo,
+    string ProductName,
+    string Status,
+    DateTime? DisbursementDate,
+    DateTime? MaturityDate,
+    decimal TotalExpectedRepayment,
+    decimal TotalRepayment,
+    decimal TotalOutstanding,
+    decimal PrincipalDisbursed,
+    decimal PrincipalPaid,
+    decimal PrincipalOutstanding,
+    decimal InterestCharged,
+    decimal InterestPaid,
+    decimal InterestOutstanding,
+    decimal PenaltyChargesOutstanding,
+    IReadOnlyList<NampLoanSchedulePeriodDto> Schedule
+);
+
+public record NampLoanSchedulePeriodDto(
+    int Period,
+    DateTime DueDate,
+    decimal PrincipalDue,
+    decimal PrincipalPaid,
+    decimal InterestDue,
+    decimal InterestPaid,
+    decimal TotalDue,
+    decimal TotalPaid,
+    decimal TotalOutstanding,
+    bool Complete,
+    bool IsOverdue
 );
 
 // ── NAMP Advisory ──────────────────────────────────────────────────────────

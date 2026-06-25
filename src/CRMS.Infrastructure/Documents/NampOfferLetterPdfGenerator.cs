@@ -86,15 +86,27 @@ public class NampOfferLetterPdfGenerator : INampOfferLetterPdfGenerator
                     c.Item().Text($"BOA Account No: {data.BoaAccountNumber}").FontSize(10);
             });
 
-            // Opening paragraph
+            // Opening paragraph — use template content when provided, fall back to default
             col.Item().PaddingBottom(12).Column(c =>
             {
-                c.Item().Text($"Dear {data.ApplicantName},").FontSize(10);
-                c.Item().PaddingTop(8).Text(
-                    "We are pleased to inform you that your application under the National Agricultural " +
-                    "Mechanisation Programme (NAMP) has been approved by the Credit Committee. " +
-                    "The terms of the approved facility, including the proposed repayment schedule, " +
-                    "are set out below for your review and acceptance.").FontSize(10);
+                if (!string.IsNullOrWhiteSpace(data.RenderedIntro))
+                {
+                    foreach (var para in data.RenderedIntro.Split(
+                        new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (!string.IsNullOrWhiteSpace(para))
+                            c.Item().PaddingBottom(6).Text(para.Trim()).FontSize(10);
+                    }
+                }
+                else
+                {
+                    c.Item().Text($"Dear {data.ApplicantName},").FontSize(10);
+                    c.Item().PaddingTop(8).Text(
+                        "We are pleased to inform you that your application under the National Agricultural " +
+                        "Mechanisation Programme (NAMP) has been approved by the Credit Committee. " +
+                        "The terms of the approved facility, including the proposed repayment schedule, " +
+                        "are set out below for your review and acceptance.").FontSize(10);
+                }
             });
 
             // Facility details
@@ -238,35 +250,53 @@ public class NampOfferLetterPdfGenerator : INampOfferLetterPdfGenerator
                 });
             }
 
-            // General conditions
+            // General conditions + acceptance — use template when provided, fall back to defaults
             col.Item().PaddingBottom(12).Column(c =>
             {
-                c.Item().Text("GENERAL CONDITIONS").Bold().FontSize(11).FontColor(Color.FromHex(DarkBlue));
-                c.Item().PaddingTop(5);
-
-                var conditions = new[]
+                if (!string.IsNullOrWhiteSpace(data.RenderedConditions))
                 {
-                    "The equipment shall be used solely for agricultural purposes as stated in the application.",
-                    "The borrower shall maintain adequate insurance on the equipment throughout the facility tenor.",
-                    "The Bank reserves the right to conduct periodic inspection of the equipment.",
-                    "GPS tracking device shall be installed and activated prior to equipment deployment.",
-                    "Repayment obligations commence as per the schedule above. Default attracts penalty charges per the Bank's approved schedule of charges.",
-                    "This offer is valid for 30 days from the date of issue. Failure to accept within this period renders the offer null and void.",
-                    "Standard terms and conditions of the Bank applicable to agricultural credit facilities apply."
-                };
-
-                for (var i = 0; i < conditions.Length; i++)
-                    c.Item().PaddingBottom(3).Text($"{i + 1}. {conditions[i]}").FontSize(10);
+                    foreach (var para in data.RenderedConditions.Split(
+                        new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var trimmed = para.Trim();
+                        if (string.IsNullOrWhiteSpace(trimmed)) continue;
+                        if (trimmed == trimmed.ToUpperInvariant() && trimmed.Length < 80 && !trimmed.Contains('.'))
+                            c.Item().PaddingTop(8).PaddingBottom(3)
+                                .Text(trimmed).Bold().FontSize(11).FontColor(Color.FromHex(DarkBlue));
+                        else
+                            c.Item().PaddingBottom(4).Text(trimmed).FontSize(10);
+                    }
+                }
+                else
+                {
+                    c.Item().Text("GENERAL CONDITIONS").Bold().FontSize(11).FontColor(Color.FromHex(DarkBlue));
+                    c.Item().PaddingTop(5);
+                    var conditions = new[]
+                    {
+                        "The equipment shall be used solely for agricultural purposes as stated in the application.",
+                        "The borrower shall maintain adequate insurance on the equipment throughout the facility tenor.",
+                        "The Bank reserves the right to conduct periodic inspection of the equipment.",
+                        "GPS tracking device shall be installed and activated prior to equipment deployment.",
+                        "Repayment obligations commence as per the schedule above. Default attracts penalty charges per the Bank's approved schedule of charges.",
+                        "This offer is valid for 30 days from the date of issue. Failure to accept within this period renders the offer null and void.",
+                        "Standard terms and conditions of the Bank applicable to agricultural credit facilities apply."
+                    };
+                    for (var i = 0; i < conditions.Length; i++)
+                        c.Item().PaddingBottom(3).Text($"{i + 1}. {conditions[i]}").FontSize(10);
+                }
             });
 
-            // Acceptance
+            // Acceptance signature block
             col.Item().PaddingTop(5).Column(c =>
             {
-                c.Item().Text("ACCEPTANCE").Bold().FontSize(11).FontColor(Color.FromHex(DarkBlue));
-                c.Item().PaddingTop(5).Text(
-                    "I/We hereby accept the terms and conditions of this offer as stated above, including " +
-                    "the repayment schedule set out herein. I/We confirm that the information provided in " +
-                    "support of this application is true and accurate.").FontSize(10);
+                if (string.IsNullOrWhiteSpace(data.RenderedConditions))
+                {
+                    c.Item().Text("ACCEPTANCE").Bold().FontSize(11).FontColor(Color.FromHex(DarkBlue));
+                    c.Item().PaddingTop(5).Text(
+                        "I/We hereby accept the terms and conditions of this offer as stated above, including " +
+                        "the repayment schedule set out herein. I/We confirm that the information provided in " +
+                        "support of this application is true and accurate.").FontSize(10);
+                }
 
                 c.Item().PaddingTop(20).Row(row =>
                 {

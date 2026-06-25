@@ -135,6 +135,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<NA.NampPreDeploymentChecklistTemplate> NampPreDeploymentChecklistTemplates => Set<NA.NampPreDeploymentChecklistTemplate>();
     public DbSet<NA.NampPreDeploymentChecklistItem> NampPreDeploymentChecklistItems => Set<NA.NampPreDeploymentChecklistItem>();
     public DbSet<NA.NampAdvisory> NampAdvisories => Set<NA.NampAdvisory>();
+    public DbSet<NA.NampDocumentTemplate> NampDocumentTemplates => Set<NA.NampDocumentTemplate>();
 
     // Outbox
     public DbSet<CreditCheckOutboxEntry> CreditCheckOutbox => Set<CreditCheckOutboxEntry>();

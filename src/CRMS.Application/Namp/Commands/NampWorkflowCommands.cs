@@ -265,6 +265,9 @@ public class RatifyNampDecisionHandler
     private readonly ILoanProductRepository _productRepo;
     private readonly IFineractDirectService _fineractService;
     private readonly INampOfferLetterPdfGenerator _pdfGenerator;
+    private readonly INampLeaseAgreementPdfGenerator _leasePdfGenerator;
+    private readonly INampGpsConsentFormPdfGenerator _gpsPdfGenerator;
+    private readonly INampDocumentTemplateRepository _templateRepo;
     private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _uow;
 
@@ -273,6 +276,9 @@ public class RatifyNampDecisionHandler
         ILoanProductRepository productRepo,
         IFineractDirectService fineractService,
         INampOfferLetterPdfGenerator pdfGenerator,
+        INampLeaseAgreementPdfGenerator leasePdfGenerator,
+        INampGpsConsentFormPdfGenerator gpsPdfGenerator,
+        INampDocumentTemplateRepository templateRepo,
         IFileStorageService fileStorage,
         IUnitOfWork uow)
     {
@@ -280,6 +286,9 @@ public class RatifyNampDecisionHandler
         _productRepo = productRepo;
         _fineractService = fineractService;
         _pdfGenerator = pdfGenerator;
+        _leasePdfGenerator = leasePdfGenerator;
+        _gpsPdfGenerator = gpsPdfGenerator;
+        _templateRepo = templateRepo;
         _fileStorage = fileStorage;
         _uow = uow;
     }
@@ -350,6 +359,27 @@ public class RatifyNampDecisionHandler
             ? Math.Round(schedule.Installments.Average(i => i.TotalDue), 2)
             : 0;
 
+        // ── Fetch document templates (gracefully fall back if not seeded yet) ──
+        var tokenVars = new Dictionary<string, string>
+        {
+            ["ApplicationNumber"] = app.ApplicationNumber,
+            ["Date"]              = DateTime.UtcNow.ToString("dd-MMM-yyyy"),
+            ["ApplicantName"]     = app.ApplicantName,
+            ["BoaAccountNumber"]  = app.BoaAccountNumber,
+            ["EquipmentDescription"] = app.EquipmentDescription,
+            ["EquipmentValue"]    = $"{app.EquipmentValue:N2}",
+            ["LoanAmount"]        = app.LoanAmount.HasValue ? $"{app.LoanAmount:N2}" : "—",
+            ["EquityAmount"]      = app.EquityAmount.HasValue ? $"{app.EquityAmount:N2}" : "—",
+            ["TenorMonths"]       = tenorMonths.ToString(),
+            ["InterestRate"]      = $"{interestRate:N2}",
+            ["MonthlyInstallment"] = $"{monthlyInstallment:N2}",
+            ["BranchName"]        = request.BranchName,
+        };
+
+        var offerTemplate = await _templateRepo.GetByTypeAsync(NampDocumentType.OfferLetter, ct);
+        var leaseTemplate = await _templateRepo.GetByTypeAsync(NampDocumentType.LeaseAgreement, ct);
+        var gpsTemplate   = await _templateRepo.GetByTypeAsync(NampDocumentType.GpsConsentForm, ct);
+
         // ── Build and generate offer letter PDF ────────────────────────────────
         var offerData = new NampOfferLetterData(
             ApplicationNumber: app.ApplicationNumber,
@@ -381,7 +411,9 @@ public class RatifyNampDecisionHandler
             TotalInterest: schedule.TotalInterest,
             TotalRepayment: schedule.TotalRepayment,
             MonthlyInstallment: monthlyInstallment,
-            ScheduleSource: scheduleSource
+            ScheduleSource: scheduleSource,
+            RenderedIntro: offerTemplate?.RenderBody(tokenVars),
+            RenderedConditions: offerTemplate?.RenderConditions(tokenVars)
         );
 
         var pdfBytes = await _pdfGenerator.GenerateAsync(offerData, ct);
@@ -393,7 +425,69 @@ public class RatifyNampDecisionHandler
             "application/pdf",
             ct);
 
-        var result = app.Ratify(request.UserId, storagePath, request.Note);
+        // ── Generate lease agreement PDF ──────────────────────────────────────
+        string? leaseStoragePath = null;
+        if (leaseTemplate is not null)
+        {
+            var leaseData = new NampAgreementDocumentData(
+                ApplicationNumber: app.ApplicationNumber,
+                DocumentTitle: leaseTemplate.Title,
+                GeneratedDate: DateTime.UtcNow,
+                ApplicantName: app.ApplicantName,
+                BoaAccountNumber: app.BoaAccountNumber,
+                EquipmentDescription: app.EquipmentDescription,
+                EquipmentValue: app.EquipmentValue,
+                LoanAmount: app.LoanAmount,
+                EquityAmount: app.EquityAmount,
+                TenorMonths: tenorMonths,
+                InterestRatePerAnnum: interestRate,
+                MonthlyInstallment: monthlyInstallment,
+                BankName: request.BankName,
+                BranchName: request.BranchName,
+                RenderedBody: leaseTemplate.RenderBody(tokenVars)
+            );
+            var leaseBytes = await _leasePdfGenerator.GenerateAsync(leaseData, ct);
+            var leaseFileName = $"NAMP_LeaseAgreement_{app.ApplicationNumber}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
+            leaseStoragePath = await _fileStorage.UploadAsync(
+                "namp-offerletters",
+                $"{app.ApplicationNumber}/{leaseFileName}",
+                leaseBytes,
+                "application/pdf",
+                ct);
+        }
+
+        // ── Generate GPS consent form PDF ─────────────────────────────────────
+        string? gpsStoragePath = null;
+        if (gpsTemplate is not null)
+        {
+            var gpsData = new NampAgreementDocumentData(
+                ApplicationNumber: app.ApplicationNumber,
+                DocumentTitle: gpsTemplate.Title,
+                GeneratedDate: DateTime.UtcNow,
+                ApplicantName: app.ApplicantName,
+                BoaAccountNumber: app.BoaAccountNumber,
+                EquipmentDescription: app.EquipmentDescription,
+                EquipmentValue: app.EquipmentValue,
+                LoanAmount: app.LoanAmount,
+                EquityAmount: app.EquityAmount,
+                TenorMonths: tenorMonths,
+                InterestRatePerAnnum: interestRate,
+                MonthlyInstallment: monthlyInstallment,
+                BankName: request.BankName,
+                BranchName: request.BranchName,
+                RenderedBody: gpsTemplate.RenderBody(tokenVars)
+            );
+            var gpsBytes = await _gpsPdfGenerator.GenerateAsync(gpsData, ct);
+            var gpsFileName = $"NAMP_GpsConsentForm_{app.ApplicationNumber}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
+            gpsStoragePath = await _fileStorage.UploadAsync(
+                "namp-offerletters",
+                $"{app.ApplicationNumber}/{gpsFileName}",
+                gpsBytes,
+                "application/pdf",
+                ct);
+        }
+
+        var result = app.Ratify(request.UserId, storagePath, request.Note, leaseStoragePath, gpsStoragePath);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
 
         app.SetAuditInfo(request.UserId.ToString());
@@ -840,6 +934,39 @@ public class ConfirmNampDeploymentHandler
         }
 
         var result = app.ConfirmDeployment(request.UserId, request.GpsActivated, request.Note);
+        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
+// ── Stage 7: Mark as Closed ───────────────────────────────────────────────
+
+public record MarkNampClosedCommand(Guid NampApplicationId, Guid UserId)
+    : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class MarkNampClosedHandler
+    : IRequestHandler<MarkNampClosedCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly IUnitOfWork _uow;
+
+    public MarkNampClosedHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        MarkNampClosedCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var result = app.Close(request.UserId);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
 
         app.SetAuditInfo(request.UserId.ToString());

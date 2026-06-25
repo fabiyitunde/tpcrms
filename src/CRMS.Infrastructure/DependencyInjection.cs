@@ -292,8 +292,14 @@ public static class DependencyInjection
         services.AddScoped<Application.OfferLetter.Interfaces.IAmortisationSchedulePdfGenerator, Documents.AmortisationSchedulePdfGenerator>();
         services.AddScoped<Application.OfferLetter.Interfaces.IKfsPdfGenerator, Documents.KfsPdfGenerator>();
         services.AddScoped<Application.Namp.Interfaces.INampOfferLetterPdfGenerator, Documents.NampOfferLetterPdfGenerator>();
+        services.AddScoped<Application.Namp.Interfaces.INampLeaseAgreementPdfGenerator, Documents.NampLeaseAgreementPdfGenerator>();
+        services.AddScoped<Application.Namp.Interfaces.INampGpsConsentFormPdfGenerator, Documents.NampGpsConsentFormPdfGenerator>();
         services.AddScoped<Application.Namp.Interfaces.INampLoanPackGenerator, Documents.NampLoanPackPdfGenerator>();
         services.AddScoped<Application.Namp.Commands.GenerateNampLoanPackHandler>();
+        services.AddScoped<INampDocumentTemplateRepository, CRMS.Infrastructure.Persistence.Repositories.NampDocumentTemplateRepository>();
+        services.AddScoped<Application.Namp.Commands.GetNampDocumentTemplateHandler>();
+        services.AddScoped<Application.Namp.Commands.GetAllNampDocumentTemplatesHandler>();
+        services.AddScoped<Application.Namp.Commands.UpsertNampDocumentTemplateHandler>();
 
         // File Storage (configurable: Local or S3)
         var storageProvider = configuration.GetValue<string>("FileStorage:Provider") ?? "Local";
@@ -626,6 +632,8 @@ public static class DependencyInjection
         services.AddScoped<Application.Namp.Commands.CompleteNampPreDeploymentVerificationHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampPreDeploymentChecklistTemplatesHandler>();
         services.AddScoped<Application.Namp.Commands.ConfirmNampDeploymentHandler>();
+        services.AddScoped<Application.Namp.Commands.MarkNampClosedHandler>();
+        services.AddScoped<Application.Namp.Queries.GetNampLoanAccountHandler>();
         services.AddScoped<Application.Namp.Commands.UploadNampDocumentHandler>();
         services.AddScoped<Application.Namp.Commands.DeleteNampDocumentHandler>();
         services.AddScoped<Application.Namp.Commands.UpdateNampDocumentHandler>();

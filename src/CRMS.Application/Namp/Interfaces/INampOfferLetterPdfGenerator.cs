@@ -31,5 +31,8 @@ public record NampOfferLetterData(
     decimal TotalInterest,
     decimal TotalRepayment,
     decimal MonthlyInstallment,
-    string ScheduleSource
+    string ScheduleSource,
+    // Template-rendered content (placeholders already substituted; null = use hardcoded defaults)
+    string? RenderedIntro = null,
+    string? RenderedConditions = null
 );
