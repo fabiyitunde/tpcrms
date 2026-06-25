@@ -5853,7 +5853,7 @@ public partial class ApplicationService
         {
             var handler = _sp.GetRequiredService<CRMS.Application.CreditBureau.Commands.ProcessNampCreditChecksHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.CreditBureau.Commands.ProcessNampCreditChecksCommand(nampApplicationId, userId, ForceRefresh: true),
+                new CRMS.Application.CreditBureau.Commands.ProcessNampCreditChecksCommand(nampApplicationId, userId, ForceRefresh: false),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Credit check failed");
         }
