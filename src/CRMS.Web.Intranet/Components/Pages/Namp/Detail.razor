@@ -1237,46 +1237,66 @@ else
                                         <div style="font-weight: 600;">@r.SubjectName</div>
                                         <div style="font-size: var(--text-xs); color: var(--gray-500);">BVN: @r.Bvn</div>
                                     </div>
-                                    <div class="namp-bureau-score @GetBureauScoreClass(r.CreditScore)">
-                                        @(r.CreditScore?.ToString() ?? "N/A")
-                                    </div>
+                                    @if (r.Status == "NotFound")
+                                    {
+                                        <div style="width:56px;height:56px;border-radius:50%;background:var(--gray-100);border:2px dashed var(--gray-300);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                            <span class="material-symbols-outlined" style="font-size:20px;color:var(--gray-400);">person_search</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="namp-bureau-score @GetBureauScoreClass(r.CreditScore)">
+                                            @(r.CreditScore?.ToString() ?? "N/A")
+                                        </div>
+                                    }
                                 </div>
                                 <div class="namp-bureau-card-body">
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Score Grade</span>
-                                        @if (r.ScoreGrade != null)
-                                        {
-                                            var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
-                                            <span class="badge @gc">@r.ScoreGrade</span>
-                                        }
-                                        else { <span class="namp-bureau-stat-value">—</span> }
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Delinquent Facilities</span>
-                                        @if (r.DelinquentFacilities > 0)
-                                        { <span class="badge badge-danger">@r.DelinquentFacilities</span> }
-                                        else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span> }
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Total Outstanding</span>
-                                        <span class="namp-bureau-stat-value">@(r.TotalOutstanding > 0 ? $"₦{FormatBureauAmount(r.TotalOutstanding ?? 0)}" : "—")</span>
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Total Overdue</span>
-                                        <span class="namp-bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">
-                                            @(r.TotalOverdue > 0 ? $"₦{FormatBureauAmount(r.TotalOverdue ?? 0)}" : (r.Status == "Completed" ? "None" : "—"))
-                                        </span>
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Fraud Recommendation</span>
-                                        @if (!string.IsNullOrEmpty(r.FraudRecommendation))
-                                        { <span class="badge badge-danger" title="@r.FraudRecommendation">@r.FraudRecommendation</span> }
-                                        else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "Clear" : "—")</span> }
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Check Date</span>
-                                        <span class="namp-bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
-                                    </div>
+                                    @if (r.Status == "NotFound")
+                                    {
+                                        <div style="grid-column:1/-1;text-align:center;padding:0.75rem 0.25rem;">
+                                            <span class="material-symbols-outlined" style="font-size:36px;color:var(--gray-300);display:block;margin-bottom:0.5rem;">manage_search</span>
+                                            <div style="font-weight:600;font-size:0.8rem;color:var(--gray-600);margin-bottom:0.25rem;">No Credit File Registered</div>
+                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal credit history found in CRC. Assessment must rely on financial statements, collateral, and guarantors.</div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Score Grade</span>
+                                            @if (r.ScoreGrade != null)
+                                            {
+                                                var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
+                                                <span class="badge @gc">@r.ScoreGrade</span>
+                                            }
+                                            else { <span class="namp-bureau-stat-value">—</span> }
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Delinquent Facilities</span>
+                                            @if (r.DelinquentFacilities > 0)
+                                            { <span class="badge badge-danger">@r.DelinquentFacilities</span> }
+                                            else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span> }
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Total Outstanding</span>
+                                            <span class="namp-bureau-stat-value">@(r.TotalOutstanding > 0 ? $"₦{FormatBureauAmount(r.TotalOutstanding ?? 0)}" : "—")</span>
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Total Overdue</span>
+                                            <span class="namp-bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">
+                                                @(r.TotalOverdue > 0 ? $"₦{FormatBureauAmount(r.TotalOverdue ?? 0)}" : (r.Status == "Completed" ? "None" : "—"))
+                                            </span>
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Fraud Recommendation</span>
+                                            @if (!string.IsNullOrEmpty(r.FraudRecommendation))
+                                            { <span class="badge badge-danger" title="@r.FraudRecommendation">@r.FraudRecommendation</span> }
+                                            else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "Clear" : "—")</span> }
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Check Date</span>
+                                            <span class="namp-bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                        </div>
+                                    }
                                 </div>
                                 <div class="namp-bureau-card-footer">
                                     @if (r.Status == "Completed")
@@ -1284,7 +1304,7 @@ else
                                     else if (r.Status == "Failed")
                                     { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
-                                    { <span class="badge badge-gray"><span class="material-symbols-outlined" style="font-size: 13px;">search_off</span> Not Found</span> }
+                                    { <span class="badge" style="background:var(--warning-100,#fef3c7);color:var(--warning-700,#b45309);border:1px solid var(--warning-200,#fde68a);"><span class="material-symbols-outlined" style="font-size:13px;">info</span> No Credit File</span> }
                                     else
                                     { <span class="badge badge-warning">@r.Status</span> }
                                     @if (!string.IsNullOrEmpty(r.ErrorMessage))
@@ -1321,26 +1341,37 @@ else
                                     </div>
                                 </div>
                                 <div class="namp-bureau-card-body">
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Delinquent Facilities</span>
-                                        @if (r.DelinquentFacilities > 0)
-                                        { <span class="badge badge-danger">@r.DelinquentFacilities</span> }
-                                        else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span> }
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Total Outstanding</span>
-                                        <span class="namp-bureau-stat-value">@(r.TotalOutstanding > 0 ? $"₦{FormatBureauAmount(r.TotalOutstanding ?? 0)}" : "—")</span>
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Total Overdue</span>
-                                        <span class="namp-bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">
-                                            @(r.TotalOverdue > 0 ? $"₦{FormatBureauAmount(r.TotalOverdue ?? 0)}" : (r.Status == "Completed" ? "None" : "—"))
-                                        </span>
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Check Date</span>
-                                        <span class="namp-bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
-                                    </div>
+                                    @if (r.Status == "NotFound")
+                                    {
+                                        <div style="grid-column:1/-1;text-align:center;padding:0.75rem 0.25rem;">
+                                            <span class="material-symbols-outlined" style="font-size:36px;color:var(--gray-300);display:block;margin-bottom:0.5rem;">manage_search</span>
+                                            <div style="font-weight:600;font-size:0.8rem;color:var(--gray-600);margin-bottom:0.25rem;">No Credit File Registered</div>
+                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal business credit history found in CRC. Assessment must rely on financial statements and collateral.</div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Delinquent Facilities</span>
+                                            @if (r.DelinquentFacilities > 0)
+                                            { <span class="badge badge-danger">@r.DelinquentFacilities</span> }
+                                            else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span> }
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Total Outstanding</span>
+                                            <span class="namp-bureau-stat-value">@(r.TotalOutstanding > 0 ? $"₦{FormatBureauAmount(r.TotalOutstanding ?? 0)}" : "—")</span>
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Total Overdue</span>
+                                            <span class="namp-bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">
+                                                @(r.TotalOverdue > 0 ? $"₦{FormatBureauAmount(r.TotalOverdue ?? 0)}" : (r.Status == "Completed" ? "None" : "—"))
+                                            </span>
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Check Date</span>
+                                            <span class="namp-bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                        </div>
+                                    }
                                 </div>
                                 <div class="namp-bureau-card-footer">
                                     @if (r.Status == "Completed")
@@ -1348,7 +1379,7 @@ else
                                     else if (r.Status == "Failed")
                                     { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
-                                    { <span class="badge badge-gray"><span class="material-symbols-outlined" style="font-size: 13px;">search_off</span> Not Found</span> }
+                                    { <span class="badge" style="background:var(--warning-100,#fef3c7);color:var(--warning-700,#b45309);border:1px solid var(--warning-200,#fde68a);"><span class="material-symbols-outlined" style="font-size:13px;">info</span> No Credit File</span> }
                                     else
                                     { <span class="badge badge-warning">@r.Status</span> }
                                     @if (!string.IsNullOrEmpty(r.ErrorMessage))
@@ -1383,46 +1414,66 @@ else
                                         <div style="font-weight: 600;">@r.SubjectName</div>
                                         <div style="font-size: var(--text-xs); color: var(--gray-500);">BVN: @r.Bvn</div>
                                     </div>
-                                    <div class="namp-bureau-score @GetBureauScoreClass(r.CreditScore)">
-                                        @(r.CreditScore?.ToString() ?? "N/A")
-                                    </div>
+                                    @if (r.Status == "NotFound")
+                                    {
+                                        <div style="width:56px;height:56px;border-radius:50%;background:var(--gray-100);border:2px dashed var(--gray-300);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                            <span class="material-symbols-outlined" style="font-size:20px;color:var(--gray-400);">person_search</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="namp-bureau-score @GetBureauScoreClass(r.CreditScore)">
+                                            @(r.CreditScore?.ToString() ?? "N/A")
+                                        </div>
+                                    }
                                 </div>
                                 <div class="namp-bureau-card-body">
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Score Grade</span>
-                                        @if (r.ScoreGrade != null)
-                                        {
-                                            var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
-                                            <span class="badge @gc">@r.ScoreGrade</span>
-                                        }
-                                        else { <span class="namp-bureau-stat-value">—</span> }
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Delinquent Facilities</span>
-                                        @if (r.DelinquentFacilities > 0)
-                                        { <span class="badge badge-danger">@r.DelinquentFacilities</span> }
-                                        else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span> }
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Total Outstanding</span>
-                                        <span class="namp-bureau-stat-value">@(r.TotalOutstanding > 0 ? $"₦{FormatBureauAmount(r.TotalOutstanding ?? 0)}" : "—")</span>
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Total Overdue</span>
-                                        <span class="namp-bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">
-                                            @(r.TotalOverdue > 0 ? $"₦{FormatBureauAmount(r.TotalOverdue ?? 0)}" : (r.Status == "Completed" ? "None" : "—"))
-                                        </span>
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Fraud Recommendation</span>
-                                        @if (!string.IsNullOrEmpty(r.FraudRecommendation))
-                                        { <span class="badge badge-danger" title="@r.FraudRecommendation">@r.FraudRecommendation</span> }
-                                        else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "Clear" : "—")</span> }
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Check Date</span>
-                                        <span class="namp-bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
-                                    </div>
+                                    @if (r.Status == "NotFound")
+                                    {
+                                        <div style="grid-column:1/-1;text-align:center;padding:0.75rem 0.25rem;">
+                                            <span class="material-symbols-outlined" style="font-size:36px;color:var(--gray-300);display:block;margin-bottom:0.5rem;">manage_search</span>
+                                            <div style="font-weight:600;font-size:0.8rem;color:var(--gray-600);margin-bottom:0.25rem;">No Credit File Registered</div>
+                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal credit history found in CRC. Assessment must rely on financial statements, collateral, and guarantors.</div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Score Grade</span>
+                                            @if (r.ScoreGrade != null)
+                                            {
+                                                var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
+                                                <span class="badge @gc">@r.ScoreGrade</span>
+                                            }
+                                            else { <span class="namp-bureau-stat-value">—</span> }
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Delinquent Facilities</span>
+                                            @if (r.DelinquentFacilities > 0)
+                                            { <span class="badge badge-danger">@r.DelinquentFacilities</span> }
+                                            else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span> }
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Total Outstanding</span>
+                                            <span class="namp-bureau-stat-value">@(r.TotalOutstanding > 0 ? $"₦{FormatBureauAmount(r.TotalOutstanding ?? 0)}" : "—")</span>
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Total Overdue</span>
+                                            <span class="namp-bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">
+                                                @(r.TotalOverdue > 0 ? $"₦{FormatBureauAmount(r.TotalOverdue ?? 0)}" : (r.Status == "Completed" ? "None" : "—"))
+                                            </span>
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Fraud Recommendation</span>
+                                            @if (!string.IsNullOrEmpty(r.FraudRecommendation))
+                                            { <span class="badge badge-danger" title="@r.FraudRecommendation">@r.FraudRecommendation</span> }
+                                            else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "Clear" : "—")</span> }
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Check Date</span>
+                                            <span class="namp-bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                        </div>
+                                    }
                                 </div>
                                 <div class="namp-bureau-card-footer">
                                     @if (r.Status == "Completed")
@@ -1430,7 +1481,7 @@ else
                                     else if (r.Status == "Failed")
                                     { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
-                                    { <span class="badge badge-gray"><span class="material-symbols-outlined" style="font-size: 13px;">search_off</span> Not Found</span> }
+                                    { <span class="badge" style="background:var(--warning-100,#fef3c7);color:var(--warning-700,#b45309);border:1px solid var(--warning-200,#fde68a);"><span class="material-symbols-outlined" style="font-size:13px;">info</span> No Credit File</span> }
                                     else
                                     { <span class="badge badge-warning">@r.Status</span> }
                                     @if (!string.IsNullOrEmpty(r.ErrorMessage))
@@ -1465,46 +1516,66 @@ else
                                         <div style="font-weight: 600;">@r.SubjectName</div>
                                         <div style="font-size: var(--text-xs); color: var(--gray-500);">BVN: @r.Bvn</div>
                                     </div>
-                                    <div class="namp-bureau-score @GetBureauScoreClass(r.CreditScore)">
-                                        @(r.CreditScore?.ToString() ?? "N/A")
-                                    </div>
+                                    @if (r.Status == "NotFound")
+                                    {
+                                        <div style="width:56px;height:56px;border-radius:50%;background:var(--gray-100);border:2px dashed var(--gray-300);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                            <span class="material-symbols-outlined" style="font-size:20px;color:var(--gray-400);">person_search</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="namp-bureau-score @GetBureauScoreClass(r.CreditScore)">
+                                            @(r.CreditScore?.ToString() ?? "N/A")
+                                        </div>
+                                    }
                                 </div>
                                 <div class="namp-bureau-card-body">
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Score Grade</span>
-                                        @if (r.ScoreGrade != null)
-                                        {
-                                            var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
-                                            <span class="badge @gc">@r.ScoreGrade</span>
-                                        }
-                                        else { <span class="namp-bureau-stat-value">—</span> }
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Delinquent Facilities</span>
-                                        @if (r.DelinquentFacilities > 0)
-                                        { <span class="badge badge-danger">@r.DelinquentFacilities</span> }
-                                        else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span> }
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Total Outstanding</span>
-                                        <span class="namp-bureau-stat-value">@(r.TotalOutstanding > 0 ? $"₦{FormatBureauAmount(r.TotalOutstanding ?? 0)}" : "—")</span>
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Total Overdue</span>
-                                        <span class="namp-bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">
-                                            @(r.TotalOverdue > 0 ? $"₦{FormatBureauAmount(r.TotalOverdue ?? 0)}" : (r.Status == "Completed" ? "None" : "—"))
-                                        </span>
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Fraud Recommendation</span>
-                                        @if (!string.IsNullOrEmpty(r.FraudRecommendation))
-                                        { <span class="badge badge-danger" title="@r.FraudRecommendation">@r.FraudRecommendation</span> }
-                                        else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "Clear" : "—")</span> }
-                                    </div>
-                                    <div class="namp-bureau-stat">
-                                        <span class="namp-bureau-stat-label">Check Date</span>
-                                        <span class="namp-bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
-                                    </div>
+                                    @if (r.Status == "NotFound")
+                                    {
+                                        <div style="grid-column:1/-1;text-align:center;padding:0.75rem 0.25rem;">
+                                            <span class="material-symbols-outlined" style="font-size:36px;color:var(--gray-300);display:block;margin-bottom:0.5rem;">manage_search</span>
+                                            <div style="font-weight:600;font-size:0.8rem;color:var(--gray-600);margin-bottom:0.25rem;">No Credit File Registered</div>
+                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal credit history found in CRC. Assessment must rely on financial statements, collateral, and guarantors.</div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Score Grade</span>
+                                            @if (r.ScoreGrade != null)
+                                            {
+                                                var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
+                                                <span class="badge @gc">@r.ScoreGrade</span>
+                                            }
+                                            else { <span class="namp-bureau-stat-value">—</span> }
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Delinquent Facilities</span>
+                                            @if (r.DelinquentFacilities > 0)
+                                            { <span class="badge badge-danger">@r.DelinquentFacilities</span> }
+                                            else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span> }
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Total Outstanding</span>
+                                            <span class="namp-bureau-stat-value">@(r.TotalOutstanding > 0 ? $"₦{FormatBureauAmount(r.TotalOutstanding ?? 0)}" : "—")</span>
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Total Overdue</span>
+                                            <span class="namp-bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">
+                                                @(r.TotalOverdue > 0 ? $"₦{FormatBureauAmount(r.TotalOverdue ?? 0)}" : (r.Status == "Completed" ? "None" : "—"))
+                                            </span>
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Fraud Recommendation</span>
+                                            @if (!string.IsNullOrEmpty(r.FraudRecommendation))
+                                            { <span class="badge badge-danger" title="@r.FraudRecommendation">@r.FraudRecommendation</span> }
+                                            else { <span class="namp-bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "Clear" : "—")</span> }
+                                        </div>
+                                        <div class="namp-bureau-stat">
+                                            <span class="namp-bureau-stat-label">Check Date</span>
+                                            <span class="namp-bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                        </div>
+                                    }
                                 </div>
                                 <div class="namp-bureau-card-footer">
                                     @if (r.Status == "Completed")
@@ -1512,7 +1583,7 @@ else
                                     else if (r.Status == "Failed")
                                     { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
-                                    { <span class="badge badge-gray"><span class="material-symbols-outlined" style="font-size: 13px;">search_off</span> Not Found</span> }
+                                    { <span class="badge" style="background:var(--warning-100,#fef3c7);color:var(--warning-700,#b45309);border:1px solid var(--warning-200,#fde68a);"><span class="material-symbols-outlined" style="font-size:13px;">info</span> No Credit File</span> }
                                     else
                                     { <span class="badge badge-warning">@r.Status</span> }
                                     @if (!string.IsNullOrEmpty(r.ErrorMessage))
