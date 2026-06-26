@@ -1,6 +1,6 @@
 # CRMS — Session Handoff Document
 
-**Last Updated:** 2026-06-17 (Session 69)
+**Last Updated:** 2026-06-26 (Session 71)
 **Project:** Credit Risk Management System (CRMS)
 **Working Directory:** `C:\Users\adeta\source\repos\tpcrms`
 
@@ -218,6 +218,11 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **NAMP AgroServiceCompany tech appraisal fields — extended `NampTechnicalAppraisalReport` with site visit, soil test, company-specific fields** | ✅ |
 | **NAMP Pre-Deployment checklist — `NampPreDeploymentChecklistTemplate` + `NampPreDeploymentChecklistItem`; admin config page `/admin/namp-predeploy-checklist`; gate blocks BeginPreDeployment until all items checked** | ✅ |
 | **NAMP Offer Letter PDF — `NampOfferLetterPdfGenerator` (QuestPDF + Fineract amortisation table); Offer Letter tab (system-generated + countersigned upload); OfferAccepted/OfferLapsed workflow buttons** | ✅ |
+| **NAMP Legal Clearance stage — `LegalClearance` / `LegalReturned` / `LegalDeclined` statuses; `GrantLegalClearance` / `ReturnFromLegal` / `ResubmitToLegal` / `DeclineLegal` domain methods; full UI tab + buttons; seeder per-row guard; notifications wired** | ✅ |
+| **UserRepository `.Include(u => u.Location)` fix — all three user-fetch methods now load Location; fixes `IsHeadOffice` always-false bug that caused empty queues for all HO-mapped users** | ✅ |
+| **NAMP Index.razor default filter = "all" — All Applications tab shows all including terminal by default** | ✅ |
+| **Supporting Documents card on NAMP Offer Letter tab — LO can upload additional docs at OfferGenerated status (temporary freeform; to be replaced by structured pre-deployment doc slots)** | ✅ |
+| **Dashboard: NAMP stats section moved above Applications-by-Status / Quick Actions 2-col grid** | ✅ |
 | **NAMP Loan Pack PDF — `NampLoanPackPdfGenerator` (on-demand 12-section PDF; no storage); download button visible to relevant roles from any post-Draft status** | ✅ |
 | **NAMP Advisory — `NampAdvisory` entity (JSON-stored scores); `NampViabilityScoreConfig` (admin-configurable Viable/Marginal/NotViable → score + weight); 5-category weighted AI advisory; AI Advisory tab in Detail.razor; admin page `/admin/namp-viability`** | ✅ |
 | **NAMP Fineract loan booking at deployment — `BookApprovedLoanAsync` called in `ConfirmNampDeploymentHandler`; `FineractClientId` persisted at recall; `ApprovedInterestRate` locked at ratification; `FineractLoanId` + `FineractLoanAccountNumber` stored after booking; migration `AddNampFineractLoanBookingFields`** | ✅ |
@@ -233,6 +238,11 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **`BaseInterestRate` added to `LoanProduct`** — field was in the UI and displayed but never persisted; threaded through domain → commands → handlers → DTO → EF config → migration → `ApplicationService` → `Products.razor`; `ToSummaryDto` now reads the stored field instead of deriving from first pricing tier | ✅ |
 | **Manually created migration Designer.cs files added** — migrations without `.Designer.cs` are invisible to `MigrateAsync()` because EF Core requires the `[Migration("...")]` attribute that lives in that file; created minimal Designer.cs for `AddNampFineractProductFields` and `AddBaseInterestRateToLoanProduct` | ✅ |
 | **NAMP Portal Status API** — `GET /api/v1/namp/webhook/application/{applicationReference}` added to `NampWebhookController`; same `X-Api-Key` auth; always returns 200 with friendly `found: false` payload when not found; portal-facing status mapping (7 values); decline reason from stage-specific notes; timeline from status history; Fineract enrichment conditional on status (`CalculateRepaymentScheduleAsync` for OfferMade/Processing, `GetLoanDetailAsync` for Active/Closed); all Fineract calls wrapped with graceful fallback (`fineractDataAvailable: false`); new `GetByApplicationReferenceWithHistoryAsync` repo method | ✅ |
+| **NAMP Loan Account tab** — live Fineract loan detail + repayment schedule on Detail.razor; "CBA Loan Status" label (no Fineract branding); lazy-loaded on first tab click; "Mark as Closed" inline prompt when CBS reports `closedObligationsMet`; `MarkNampClosedCommand` + `MarkNampClosedHandler` + `GetNampLoanAccountQuery` + `GetNampLoanAccountHandler` | ✅ |
+| **NAMP outbound callbacks — LegalDeclined gap closed** — `LegalDeclined` added to `NampCallbackHandler` trigger set; all terminal decline paths now fire callbacks | ✅ |
+| **Bureau recheck: retry-only mode** — "Recheck Bureau" button uses `ForceRefresh:false`; retries only `Failed`/`NotFound` subjects, preserves `Completed` reports; button already enabled in prod (`ShowBureauRecheckButton:true`) | ✅ |
+| **Bureau `NotFound` card distinct display** — dashed grey circle with `person_search` icon (replaces score circle); "No Credit File Registered" centred message with `manage_search` icon; amber "No Credit File" badge (replaces grey "Not Found"); body stats hidden for `NotFound` subjects; company card has same treatment for body + badge | ✅ |
+| **Live integration test for `GetLoanDetailAsync`** — `SkippableFact` in `CoreBankingServiceLiveIntegrationTests.cs`; skips if `FineractDirect:TestLoanId` not configured; logs full header/summary/schedule; structural assertions on all key fields | ✅ |
 
 ### What Is Pending
 
@@ -242,8 +252,6 @@ The Blazor UI calls `ApplicationService.cs` which resolves Application layer han
 | **Collateral approval — multi-actor role design** | P2 | Currently a single "Approve" button with no role separation. Design decision: requires at minimum Legal clearance (title/encumbrance check) + Credit/Risk Officer adequacy sign-off as two distinct steps. Valuation comes from external certified valuer. Existing state machine (`Proposed → UnderValuation → Valued → Approved → Perfected`) has the right shape but approval roles per step are undefined. Revisit when implementing collateral perfection stage. See `memory/project_collateral_approval.md`. |
 | G8: Domain events with no handlers (`LoanApplicationCreatedEvent`, `SubmittedEvent`, `ApprovedEvent`, `DisbursedEvent`) | P3 | Deferred to next sprint — no downstream automation on key lifecycle events |
 | **NAMP — Admin must set `FineractProductId` on the NAMP loan product** | P1 (NAMP critical) | Loan booking at deployment silently skips if `LoanProduct.FineractProductId` is null. Admin must go to `/admin/products`, import the NAMP product from Fineract dropdown, and save before any application reaches recall. `FineractProductId`, `FineractProductName`, and `FineractNominalInterestRate` are now resolved and stored at recall time. |
-| **NAMP — Outbound callbacks** | P2 (NAMP) | `Received`, `Approved`, `Declined`, `Active` callbacks to NAMP portal not implemented. `INampCallbackService` + event handlers deferred. |
-| **NAMP — Active/Closed monitoring UI** | P3 (NAMP) | Stage 9 (Active) has no monitoring UI — no repayment tracking, no account balance view. Closed transition not implemented. |
 
 ---
 
@@ -372,37 +380,95 @@ src/CRMS.Application/
 
 ---
 
-## 5. Last Session Summary (2026-06-16/17 Session 69)
+## 5. Last Session Summary (2026-06-26 Session 71)
 
-Mixed feature + deep-diagnostic session. **ALL changes are UNCOMMITTED in the working tree on `namp-crms`** — review and commit before publishing. Both apps were left running locally for testing: Intranet `http://localhost:5292`, API `http://localhost:5230`.
+NAMP polish + monitoring session. All changes committed on `namp-crms` (commits `ebd9d15`, `e721928`, `15037b0`). App running locally at `http://localhost:5292`.
 
-### A. 🔴 ROOT CAUSE FOUND: reset/forgot password "redirects to login" — it was a CODE bug, not infra
-- **Session 68 said this was a "stale build" — that was WRONG.** The real cause: `Routes.razor` `AuthorizeRouteView DefaultLayout="MainLayout"`; auth state is resolved **async from localStorage**, so during the "authorizing" phase **`MainLayout` renders transiently for every route** — including `@layout EmptyLayout` pages. `MainLayout.OnInitializedAsync` did `if (!authenticated) NavigateTo("/login")`, bouncing every logged-out page load. `/login` only survived because the redirect is a self-no-op; `/forgot-password` + `/reset-password` visibly bounced. This is the "works for some users, not others" (= whether that browser holds a session token).
-- **Why it evaded diagnosis:** `prerender:false` → `curl` only fetches the blank shell and returns `200`, so HTTP probes (Dev *and* Production-mode) all looked healthy. Reproduced only by **driving the live circuit with Playwright (system Chrome)** and polling the DOM every 50ms (caught the `MainLayout` sidebar flash on `/reset-password`).
-- **Fix:** (1) guarded `MainLayout.OnInitializedAsync` to `return` early for `{login, forgot-password, reset-password}`; (2) reverted a stray `@rendermode prerender:true` line that had been added to `ResetPassword.razor`. Verified with Playwright: all three routes stay put, reset form renders.
-- **Full write-up:** `docs/BUGFIX_ResetPassword_LoginRedirect.md`. Memory: [[blazor-prerender-false-curl-diagnosis]]. Files: `MainLayout.razor`, `ResetPassword.razor`. Also `Routes.razor`/`NotFound.razor` → genuine 404s now render a friendly "request a new link" page on `EmptyLayout` (previously fell through to `MainLayout` → login).
+### A. NAMP Loan Account Tab — COMPLETE
 
-### B. NAMP actor notifications (email) + "new in queue" doorbell
-- Config-driven backbone: new `NampStatusChangedNotificationHandler` (3rd handler on `NampStatusChangedEvent`) routes by status → action-required / committee vote fan-out / decline. `INampNotificationRecipientResolver` scopes recipients to the application's branch (fallback all-in-role). 3 branded templates seeded in `SeedData` (`NAMP_ACTION_REQUIRED`, `NAMP_COMMITTEE_VOTE`, `NAMP_DECLINED`). All `Normal` priority (background send; events dispatch post-commit in a fresh DI scope).
-- **Staging doorbell:** `NampStagingRecord.Create` now raises `NampStagingRecordReceivedEvent`; `NampStagingReceivedNotificationHandler` emails branch Loan Officers (`NAMP_NEW_IN_QUEUE`, 4th template) when a webhook stages a new application.
-- **Tier-aware ratification:** `Roles.RatifierRoleForTier(tier)` (Branch→BranchManager, Zonal→ZonalManager, Regional→RegionalManager, HeadOffice→MdCeo); the Ratification notification uses it instead of the generic `FinalApprover`. Seeder `Active` stage retargeted `SystemAdmin → LoanOfficer`. (NAMP queues are status/tier-based, already tier-correct.)
-- Tests: `NampNotificationTests.cs` (8 cases, CI-safe). Memory: [[namp-actor-notifications]]. Deferred: applicant-facing emails/SMS.
+Live Fineract loan monitoring tab on the NAMP Detail page, visible when `app.FineractLoanId != null`.
 
-### C. 🔴 NampWorkflowSeeder now runs at startup (fixes empty prod workflow stages → recall blocked)
-- **Finding:** `NampWorkflowConfigs` / `NampRoutingConfigs` / pre-deploy checklist templates were seeded ONLY by the **dev-only** `POST /api/seed/namp` endpoint (the admin page's "Run the NAMP seeder" link is a GET to a POST+dev-gated endpoint — can never work in prod). So prod had them empty → `RecallNampApplicationHandler` fails with "No active routing config found" → **no NAMP application can be started.**
-- **Fix:** one line — `await NampWorkflowSeeder.SeedAsync(...)` added to `SeedData.SeedAsync` (runs all envs, idempotent, insert-only). Seeder verified aligned to the current 24-status enum (tech-appraisal removed, training collapsed, pre-deploy+deployment under `DeploymentOfficer`). Memory: [[namp-workflow-seeder-must-run-at-startup]].
+- **New DTOs:** `NampLoanAccountDto` + `NampLoanSchedulePeriodDto` in `NampDtos.cs`
+- **New query:** `GetNampLoanAccountQuery` + `GetNampLoanAccountHandler` — calls `IFineractDirectService.GetLoanDetailAsync()`, filters period 0 (disbursement row), flags `IsOverdue = !complete && dueDate < now`
+- **New command:** `MarkNampClosedCommand` + `MarkNampClosedHandler` — transitions `Active → Closed` when CBS confirms obligations met
+- **DI:** both handlers registered in `DependencyInjection.cs`
+- **ApplicationService:** `GetNampLoanAccountAsync` + `MarkNampClosedAsync` added
+- **UI (Detail.razor):** "Loan Account" tab (lazy-load on first click); header card (AccountNo, CBA Loan Status, dates); Summary card (3-column grid with principal/interest/outstanding rows); Schedule table (per-period paid/outstanding/complete with overdue amber highlight); "Mark as Closed" inline prompt when `FineractLoanIsClosed` but status is still `Active`
+- **Branding:** "CBA Loan Status" label used everywhere — no mention of Fineract to end users
 
-### Carryover from Session 68 (still relevant)
-- Dashboard NAMP section + corporate double-count fix; migration guardrails (`Database:AutoMigrate`, CI scanner — TEST only). See the demoted Session 68 summary below.
+### B. Outbound Callbacks — LegalDeclined Gap Closed
 
-### Deploy reminder
-PROD = manual **AWS Toolkit (VS) publish from `namp-crms`**. None of the above is deployed yet. After publishing, prod self-heals the workflow config (C) on first startup; the reset-password fix (A) takes effect immediately.
+`NampApplicationStatus.LegalDeclined` was missing from `NampCallbackHandler.CallbackStatuses`. Added 2026-06-25. All terminal decline paths now fire outbound callbacks to the PAYS portal.
+
+### C. Live Integration Test for GetLoanDetailAsync
+
+`GetLoanDetailAsync_WithValidLoanId_ReturnsDetailWithSchedule` added to `tests/CRMS.Infrastructure.Tests/CoreBankingServiceLiveIntegrationTests.cs`.
+
+- Uses `SkippableFact` — skips if `FineractDirect:TestLoanId` not configured in `appsettings.test.json`
+- Logs full loan header, summary block, and per-period schedule to test output
+- Asserts: `IsSuccess`, non-empty account/product/status, `Principal > 0`, `NumberOfRepayments > 0`, `TotalOutstanding <= TotalExpectedRepayment`, non-empty schedule
+
+### D. Bureau Recheck: Retry-Only Mode
+
+`RunNampCreditChecksAsync` in `ApplicationService` changed from `ForceRefresh:true` → `ForceRefresh:false`. The "Recheck Bureau" button now retries only `Failed`/`NotFound` subjects, preserving `Completed` reports. Button is already enabled in production (`ShowBureauRecheckButton:true` in `appsettings.Production.json`), visible to `CreditOfficer` and `SystemAdmin`.
+
+### E. Bureau NotFound Cards — Distinct Display
+
+`NotFound` bureau cards (for individuals and companies with no CRC credit file) now render distinctly from `Failed` checks:
+
+- **Score circle** (individuals): dashed grey circle with `person_search` icon instead of score number or "N/A"
+- **Card body**: all stats replaced with centred `manage_search` icon + "No Credit File Registered" heading + one-line note directing officers to rely on other assessment factors. Company card body has same treatment with a business-specific note.
+- **Footer badge**: amber "No Credit File" badge (info icon) replaces grey "Not Found" — visually distinct from red "Failed" and green "Completed"
 
 ### Docs Updated This Session
 - [x] `docs/SESSION_HANDOFF.md` → updated (this file)
-- [x] `docs/BUGFIX_ResetPassword_LoginRedirect.md` → new (detailed post-mortem)
-- [ ] `docs/UIGaps.md` → not updated (no UI-surface change worth tracking this pass)
-- [ ] `docs/ImplementationTracker.md` → not updated (notifications/seeder are backend; add a milestone row next pass)
+- [ ] `docs/UIGaps.md` → not updated (no new gaps discovered)
+- [ ] `docs/ImplementationTracker.md` → not updated (polish session; no new milestone)
+
+---
+
+## Previous Session Summary (2026-06-23/24 Session 70)
+
+Feature + bugfix + design session. All changes committed on `namp-crms`.
+
+### A. NAMP Legal Clearance Stage — COMPLETE
+- Full LegalOfficer clearance gate inserted between `OfferAccepted` and `PreDeploymentVerification`.
+- **Statuses added:** `LegalClearance`, `LegalReturned`, `LegalDeclined` (additive enum entries).
+- **Domain methods:** `GrantLegalClearance()` → PreDeploymentVerification + seeds checklist; `ReturnFromLegal(note)` → LegalReturned; `ResubmitToLegal()` (LO, → LegalClearance); `DeclineLegal(note)` → terminal.
+- **Fields:** `LegalClearanceNote`, `LegalDeclineNote`, `LegalReturnNote` (VARCHAR 1000). `HasMaxLength(1000)` added in `NampApplicationConfiguration.cs` to fix EF snapshot drift warning on startup.
+- **Seeder:** `NampWorkflowSeeder` changed from all-or-nothing `AnyAsync` guard to per-row insert — prod picks up new status rows automatically on next deploy.
+- **UI:** Legal Clearance tab + Grant/Return/Decline buttons (LegalOfficer at LegalClearance); Resubmit button for LO at LegalReturned. Permission flags computed in Detail.razor and passed as `[Parameter]` (per [[child-tab-permission-flags-must-come-from-detail-razor]]).
+- **Notifications:** `LegalClearance` + `LegalReturned` in action-required set; `LegalDeclined` in decline set.
+- **Queue:** LegalOfficer sees LegalClearance bank-wide; LO sees LegalReturned in branch queue.
+- Files: `NampApplicationStatus.cs`, `NampApplication.cs`, migration `AddNampLegalClearanceFields`, `NampWorkflowSeeder.cs`, `NampApplicationConfiguration.cs`, `Detail.razor`, `Index.razor`, notification config.
+
+### B. 🔴 UserRepository Location Fix — CRITICAL
+- **Root cause of all NAMP queue visibility failures:** `GetByEmailAsync`, `GetByIdAsync`, `GetByUserNameAsync` in `UserRepository.cs` never included `.Include(u => u.Location)` → `user.Location` was null after login → `LocationType` null → `IsHeadOffice = false` for everyone → all branch-scoped queries filtered by HO GUID (matched zero apps) for users mapped to Head Office.
+- **Three failure modes confirmed:** (1) LO at HO couldn't see staging queue; (2) Credit Officer potentially couldn't see submitted apps; (3) branch-user queue also affected.
+- **Fix:** `.Include(u => u.Location)` added to all three user-fetch methods in `UserRepository.cs`.
+- **⚠️ After deploy:** all users must log out and log back in to get a corrected session token. The stored session reflects the pre-fix null LocationType.
+- Committee member visibility was NOT affected (membership queries don't use branch scoping).
+- File: `src/CRMS.Infrastructure/Persistence/Repositories/UserRepository.cs`.
+
+### C. NAMP Queue + UI Fixes
+- **Index.razor default filter:** `filterStatus` now defaults to `"all"` → All Applications tab shows all statuses including terminal by default (was active-pipeline-only).
+- **Supporting Documents card on Offer Letter tab:** Added at `OfferGenerated` status (`CanUploadLoDoc`). Uses existing `OpenLoDocUpload()` handler with `Stage="Other"`. Temporary freeform bucket — will be replaced with structured named slots when pre-deployment document generation is built.
+- **Dashboard layout:** NAMP stats section moved from bottom to immediately after corporate stats (before Applications by Status / Quick Actions grid). File: `Dashboard/Index.razor`.
+- **EF snapshot drift fix:** `HasMaxLength(1000)` added in `NampApplicationConfiguration.cs` for legal note fields — eliminates "pending model changes" warning on startup.
+
+### D. Pre-Deployment Document Generation — Design Agreed (NOT YET CODED)
+- **Problem:** pre-deployment checklist documents (lease agreement, GPS consent, equity deposit, NAIC insurance) were unowned — Compliance Officer can't source customer documents.
+- **Design agreed:** System generates lease agreement + GPS consent form (like offer letter, QuestPDF + admin-editable templates). LO collects signed copies from applicant and uploads against named slots. NAIC insurance is BOA-arranged (bank owns equipment under PAYS) — uploaded by Compliance Officer at Stage 6. Equity deposit slip uploaded by LO.
+- **Two open questions before coding:** (1) template editing UI — same admin UI as offer letter, or hardcoded initially? (2) generation trigger — at ratification (all three PDFs together) or on-demand by LO?
+- See `memory/project_namp_predeployment_documents.md` for full design spec.
+
+### Deploy reminder
+PROD = manual **AWS Toolkit (VS) publish from `namp-crms`**. Nothing from this session is deployed yet. After deploying: all users must re-login to get corrected LocationType in session (fix B).
+
+### Docs Updated This Session
+- [x] `docs/SESSION_HANDOFF.md` → updated (this file)
+- [ ] `docs/UIGaps.md` → not updated
+- [ ] `docs/ImplementationTracker.md` → not updated
 
 ---
 
