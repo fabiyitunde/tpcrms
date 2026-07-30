@@ -29,6 +29,11 @@ public class DisbursementChecklistTemplateConfiguration : IEntityTypeConfigurati
             .HasMaxLength(20)
             .IsRequired();
 
+        builder.Property(x => x.LinkedDocumentCategory)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .IsRequired(false);
+
         builder.Property(x => x.CreatedBy)
             .HasMaxLength(200);
 

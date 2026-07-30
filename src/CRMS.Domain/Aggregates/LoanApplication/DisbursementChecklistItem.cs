@@ -24,6 +24,7 @@ public class DisbursementChecklistItem : Entity
     public bool RequiresDocumentUpload { get; private set; }
     public bool RequiresLegalRatification { get; private set; }
     public bool CanBeWaived { get; private set; }
+    public DocumentCategory? LinkedDocumentCategory { get; private set; }
     public int SortOrder { get; private set; }
 
     // Current status
@@ -75,7 +76,8 @@ public class DisbursementChecklistItem : Entity
         bool requiresDocumentUpload,
         bool requiresLegalRatification,
         bool canBeWaived,
-        int sortOrder)
+        int sortOrder,
+        DocumentCategory? linkedDocumentCategory = null)
     {
         return new DisbursementChecklistItem
         {
@@ -89,9 +91,37 @@ public class DisbursementChecklistItem : Entity
             RequiresDocumentUpload = requiresDocumentUpload,
             RequiresLegalRatification = requiresLegalRatification,
             CanBeWaived = canBeWaived,
+            LinkedDocumentCategory = linkedDocumentCategory,
             SortOrder = sortOrder,
             Status = ChecklistItemStatus.Pending
         };
+    }
+
+    /// <summary>
+    /// Auto-satisfies this item when a linked document is uploaded. Bypasses manual
+    /// RequiresDocumentUpload check because the document was already stored by the upload flow.
+    /// </summary>
+    public Result AutoSatisfyFromDocument(Guid documentId, Guid uploadedByUserId)
+    {
+        if (Status is ChecklistItemStatus.Satisfied or ChecklistItemStatus.Waived)
+            return Result.Success(); // Already resolved — idempotent
+
+        if (RequiresLegalRatification)
+        {
+            // Route through legal path instead of direct satisfy
+            Status = ChecklistItemStatus.PendingLegalReview;
+            EvidenceDocumentId = documentId;
+            SatisfiedByUserId = uploadedByUserId;
+            return Result.Success();
+        }
+
+        Status = ChecklistItemStatus.Satisfied;
+        SatisfiedByUserId = uploadedByUserId;
+        SatisfiedAt = DateTime.UtcNow;
+        EvidenceDocumentId = documentId;
+        SatisfactionNotes = "Auto-satisfied by document upload";
+
+        return Result.Success();
     }
 
     // -------------------------------------------------------------------------

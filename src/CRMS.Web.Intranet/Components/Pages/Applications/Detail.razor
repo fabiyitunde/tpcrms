@@ -56,7 +56,7 @@ else
                     {
                         <span class="material-symbols-outlined" style="font-size: 18px;">send</span>
                     }
-                    Submit for Review
+                    Submit for Credit Review
                 </button>
             }
             @if (CanGeneratePack)
@@ -73,7 +73,7 @@ else
                     Loan Pack
                 </button>
             }
-            @if (CanGenerateOfferLetter)
+            @if (CanShowGenerateOfferLetterButton)
             {
                 <button class="btn btn-primary" @onclick="GenerateOfferLetter" disabled="@isGeneratingOfferLetter">
                     @if (isGeneratingOfferLetter)
@@ -101,6 +101,48 @@ else
                     Re-run Credit Checks
                 </button>
             }
+            @if (ShowCompleteLegalReviewButton)
+            {
+                <button class="btn btn-secondary" @onclick="ShowCompleteLegalReviewModalFn">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">gavel</span>
+                    Legal Review Complete
+                </button>
+            }
+            @if (ShowRatifyButton)
+            {
+                <button class="btn btn-success" @onclick="ShowRatifyModalFn">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">verified</span>
+                    Ratify
+                </button>
+            }
+            @if (ShowDeclineRatificationButton)
+            {
+                <button class="btn btn-danger" @onclick="ShowDeclineRatificationModalFn">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">block</span>
+                    Decline
+                </button>
+            }
+            @if (ShowCompleteSecurityPerfectionButton)
+            {
+                <button class="btn btn-success" @onclick="ShowCompleteSecurityPerfectionModalFn">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">verified</span>
+                    Security Perfection Complete
+                </button>
+            }
+            @if (ShowAdvanceToSecurityPerfectionButton)
+            {
+                <button class="btn btn-primary" @onclick="ExecuteAdvanceToSecurityPerfection" disabled="@isAdvancingToSecurityPerfection">
+                    @if (isAdvancingToSecurityPerfection)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">arrow_forward</span>
+                    }
+                    Proceed to Security Perfection
+                </button>
+            }
             @if (ShowApproveButton)
             {
                 <button class="btn btn-success" @onclick="HandleApproveClick" disabled="@isCheckingGate">
@@ -110,9 +152,9 @@ else
                     }
                     else
                     {
-                        <span class="material-symbols-outlined" style="font-size: 18px;">check</span>
+                        <span class="material-symbols-outlined" style="font-size: 18px;">@(application?.Status == AppStatus.CreditReview ? "send" : "check")</span>
                     }
-                    Approve
+                    @(application?.Status == AppStatus.CreditReview ? "Send to Committee" : "Approve")
                 </button>
             }
             @if (ShowReturnButton)
@@ -231,9 +273,11 @@ else
         <div class="tab @(activeTab == "collateral" ? "active" : "")" @onclick='() => activeTab = "collateral"'>Collateral</div>
         <div class="tab @(activeTab == "guarantors" ? "active" : "")" @onclick='() => activeTab = "guarantors"'>Guarantors</div>
         <div class="tab @(activeTab == "advisory" ? "active" : "")" @onclick='() => activeTab = "advisory"'>AI Advisory</div>
-        <div class="tab @(activeTab == "workflow" ? "active" : "")" @onclick='() => activeTab = "workflow"'>Workflow</div>
+        @if (ShowCreditAppraisalTab)
+        {
+            <div class="tab @(activeTab == "credit-appraisal" ? "active" : "")" @onclick='() => activeTab = "credit-appraisal"'>Credit Appraisal</div>
+        }
         <div class="tab @(activeTab == "committee" ? "active" : "")" @onclick='() => activeTab = "committee"'>Committee</div>
-        <div class="tab @(activeTab == "comments" ? "active" : "")" @onclick='() => activeTab = "comments"'>Comments</div>
         @if (CanGenerateOfferLetter)
         {
             <div class="tab @(activeTab == "offerletters" ? "active" : "")" @onclick='() => activeTab = "offerletters"'>
@@ -244,15 +288,39 @@ else
                 }
             </div>
         }
+        @if (application?.Status is AppStatus.SecurityPerfection or AppStatus.SecurityApproval or
+            AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed
+            or AppStatus.Disbursement)
+        {
+            <div class="tab @(activeTab == "security-perfection" ? "active" : "")" @onclick='() => activeTab = "security-perfection"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">gavel</span>
+                Security Perfection
+                @if (securityPerfectionDocs.Any())
+                {
+                    <span class="badge badge-primary" style="margin-left: var(--space-2); font-size: var(--text-xs);">@securityPerfectionDocs.Count</span>
+                }
+            </div>
+        }
         @if (application?.Status is AppStatus.OfferGenerated or AppStatus.OfferAccepted or
             AppStatus.SecurityPerfection or AppStatus.SecurityApproval or
-            AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed)
+            AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed
+            or AppStatus.Disbursement)
         {
             <div class="tab @(activeTab == "checklist" ? "active" : "")" @onclick='() => activeTab = "checklist"'>
                 <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">checklist</span>
                 Disbursement Checklist
             </div>
         }
+        @if (application?.Status is AppStatus.Disbursed or AppStatus.Closed)
+        {
+            <div class="tab @(activeTab == "loan-account" ? "active" : "")"
+                 @onclick='async () => { activeTab = "loan-account"; await LoadLoanAccountTab(); }'>
+                <span class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px;">account_balance</span>
+                Loan Account
+            </div>
+        }
+        <div class="tab @(activeTab == "comments" ? "active" : "")" @onclick='() => activeTab = "comments"'>Comments</div>
+        <div class="tab @(activeTab == "workflow" ? "active" : "")" @onclick='() => activeTab = "workflow"'>Workflow</div>
     </div>
 
     @if (inlineActionError != null)
@@ -372,8 +440,14 @@ else
         case "advisory":
             <AdvisoryTab Advisory="application.Advisory" OnGenerateAdvisory="GenerateAdvisory" IsGenerating="isGeneratingAdvisory" CanGenerate="CanGenerateAdvisory" />
             break;
-        case "workflow":
-            <WorkflowTab History="application.WorkflowHistory" CurrentStatus="application.Status" />
+        case "credit-appraisal":
+            <CreditAppraisalTab
+                Appraisal="application.CreditAppraisal"
+                CanEdit="CanEditCreditAppraisal"
+                IsSaving="isSavingCreditAppraisal"
+                OnSave="HandleSaveCreditAppraisal"
+                AutoLtv="AutoLtvForAppraisal"
+                AutoLeverage="AutoLeverageForAppraisal" />
             break;
         case "committee":
             <CommitteeTab Committee="application.Committee"
@@ -392,8 +466,156 @@ else
                              OnReplaceMember="ReplaceCommitteeMember"
                              OnConfirmDecision="ConfirmCommitteeDecision" />
             break;
+        case "loan-account":
+            <div style="display: flex; justify-content: flex-end; margin-bottom: var(--space-3);">
+                <button class="btn btn-outline btn-sm" @onclick='() => LoadLoanAccountTab(force: true)' disabled="@isLoadingLoanAccount">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">refresh</span>
+                    Refresh
+                </button>
+            </div>
+            @if (isLoadingLoanAccount)
+            {
+                <div class="p-6 text-center"><div class="spinner" style="margin: 0 auto;"></div></div>
+            }
+            else if (!string.IsNullOrEmpty(loanAccountError))
+            {
+                <div class="alert alert-danger">@loanAccountError</div>
+            }
+            else if (loanAccount != null)
+            {
+                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <!-- Header card -->
+                    <div class="card">
+                        <div class="card-body">
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem;">
+                                <div>
+                                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Loan Account No.</div>
+                                    <div style="font-weight: 700; font-size: 0.9rem; font-family: monospace;">@loanAccount.AccountNo</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">CBA Loan Status</div>
+                                    <div style="font-weight: 600; font-size: 0.875rem;">@loanAccount.Status</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Disbursement Date</div>
+                                    <div style="font-weight: 500; font-size: 0.875rem;">@(loanAccount.DisbursementDate?.ToString("dd MMM yyyy") ?? "—")</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Maturity Date</div>
+                                    <div style="font-weight: 500; font-size: 0.875rem;">@(loanAccount.MaturityDate?.ToString("dd MMM yyyy") ?? "—")</div>
+                                </div>
+                            </div>
+                            @if (application.Status == AppStatus.Disbursed && FineractLoanIsClosed)
+                            {
+                                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem;">
+                                    <span class="material-symbols-outlined" style="color: var(--success-600); font-size: 20px;">check_circle</span>
+                                    <span style="font-size: 0.875rem; color: var(--success-700);">The CBA reports this loan as closed. Mark the CRMS application as Closed to complete the lifecycle.</span>
+                                    <button class="btn btn-success btn-sm" @onclick="MarkCorporateAsClosed" disabled="@isMarkingClosed">
+                                        @if (isMarkingClosed) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                                        Mark as Closed
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Summary card -->
+                    <div class="card">
+                        <div class="card-header"><h3 class="card-title">Loan Summary</h3></div>
+                        <div class="card-body">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                    @CorporateLoanSummaryRow("Principal Disbursed", loanAccount.PrincipalDisbursed)
+                                    @CorporateLoanSummaryRow("Principal Paid", loanAccount.PrincipalPaid)
+                                    @CorporateLoanSummaryRow("Principal Outstanding", loanAccount.PrincipalOutstanding, highlight: loanAccount.PrincipalOutstanding > 0)
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                    @CorporateLoanSummaryRow("Interest Charged", loanAccount.InterestCharged)
+                                    @CorporateLoanSummaryRow("Interest Paid", loanAccount.InterestPaid)
+                                    @CorporateLoanSummaryRow("Interest Outstanding", loanAccount.InterestOutstanding, highlight: loanAccount.InterestOutstanding > 0)
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                    @CorporateLoanSummaryRow("Total Expected", loanAccount.TotalExpectedRepayment)
+                                    @CorporateLoanSummaryRow("Total Repaid", loanAccount.TotalRepayment)
+                                    @CorporateLoanSummaryRow("Total Outstanding", loanAccount.TotalOutstanding, highlight: loanAccount.TotalOutstanding > 0)
+                                    @if (loanAccount.PenaltyChargesOutstanding > 0)
+                                    {
+                                        @CorporateLoanSummaryRow("Penalty Outstanding", loanAccount.PenaltyChargesOutstanding, highlight: true, danger: true)
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Repayment schedule -->
+                    <div class="card">
+                        <div class="card-header"><h3 class="card-title">Repayment Schedule</h3></div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="table-wrapper">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Due Date</th>
+                                            <th style="text-align: right;">Principal Due</th>
+                                            <th style="text-align: right;">Interest Due</th>
+                                            <th style="text-align: right;">Total Due</th>
+                                            <th style="text-align: right;">Total Paid</th>
+                                            <th style="text-align: right;">Outstanding</th>
+                                            <th style="text-align: center;">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var period in loanAccount.Schedule)
+                                        {
+                                            var rowStyle = period.IsOverdue
+                                                ? "background: var(--warning-50);"
+                                                : period.Complete ? "opacity: 0.7;" : "";
+                                            <tr style="@rowStyle">
+                                                <td>@period.Period</td>
+                                                <td>@period.DueDate.ToString("dd MMM yyyy")</td>
+                                                <td style="text-align: right; font-family: monospace;">₦@period.PrincipalDue.ToString("N0")</td>
+                                                <td style="text-align: right; font-family: monospace;">₦@period.InterestDue.ToString("N0")</td>
+                                                <td style="text-align: right; font-family: monospace; font-weight: 600;">₦@period.TotalDue.ToString("N0")</td>
+                                                <td style="text-align: right; font-family: monospace; color: var(--success-700);">₦@period.TotalPaid.ToString("N0")</td>
+                                                <td style="text-align: right; font-family: monospace; @(period.TotalOutstanding > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">₦@period.TotalOutstanding.ToString("N0")</td>
+                                                <td style="text-align: center;">
+                                                    @if (period.Complete)
+                                                    {
+                                                        <span class="badge badge-success">Paid</span>
+                                                    }
+                                                    else if (period.IsOverdue)
+                                                    {
+                                                        <span class="badge badge-warning">Overdue</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge badge-secondary">Pending</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            break;
         case "comments":
             <CommentsTab Comments="application.Comments" OnAddComment="AddComment" IsSubmitting="isAddingComment" SubmitError="commentError" />
+            break;
+        case "workflow":
+            <WorkflowTab History="application.WorkflowHistory" CurrentStatus="application.Status" />
+            break;
+        case "security-perfection":
+            <SecurityPerfectionTab
+                ApplicationId="application.Id"
+                Documents="securityPerfectionDocs"
+                Collaterals="application.Collaterals"
+                CanUpload="@CanUploadSecurityDocs"
+                OnDocumentChanged="LoadSecurityPerfectionDocs" />
             break;
         case "checklist":
             <OfferAcceptanceTab ApplicationId="application.Id"
@@ -401,7 +623,9 @@ else
                    DisbursementMemoStoragePath="application.DisbursementMemoStoragePath"
                    Documents="application.Documents"
                    CanUploadSignedMemo="CanUploadSignedMemo"
-                   OnSignedMemoUploaded="LoadApplication" />
+                   OnSignedMemoUploaded="LoadApplication"
+                   CanRegenerateMemo="CanRegenerateMemo"
+                   OnMemoRegenerated="LoadApplication" />
             break;
         case "offerletters":
             <div class="card">
@@ -461,7 +685,7 @@ else
                                         <td style="font-size: var(--text-sm);">@letter.GeneratedByUserName</td>
                                         <td style="font-size: var(--text-sm); color: var(--gray-500);">@letter.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
                                         <td>
-                                            <button class="btn btn-ghost btn-sm" title="Download"
+                                            <button class="btn btn-ghost btn-sm" title="Download Offer Letter"
                                                 @onclick="() => DownloadOfferLetter(letter.Id)"
                                                 disabled="@(isDownloadingOfferLetter && downloadingOfferLetterId == letter.Id)">
                                                 @if (isDownloadingOfferLetter && downloadingOfferLetterId == letter.Id)
@@ -505,8 +729,147 @@ else
                     }
                 </div>
             </div>
+
+            @* Signed Copies card — visible once at least one offer letter exists *@
+            @if (offerLetters.Any())
+            {
+                <div class="card" style="margin-top: var(--space-4);">
+                    <div class="card-header">
+                        <div style="display: flex; align-items: center; gap: var(--space-2);">
+                            <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary-600);">draw</span>
+                            <div>
+                                <h3 class="card-title" style="margin: 0;">Signed Copies</h3>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">Customer-signed and countersigned originals returned to the bank</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+
+                        @* Row 1: Signed Offer Letter *@
+                        @{ var signedOL = SignedOfferLetterDoc; }
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--gray-100);">
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                <span class="material-symbols-outlined" style="color: @(signedOL != null ? "var(--success-500)" : "var(--gray-300)"); font-size: 20px;">
+                                    @(signedOL != null ? "task" : "pending_actions")
+                                </span>
+                                <div>
+                                    <div style="font-size: var(--text-sm); font-weight: 500;">Signed Offer Letter</div>
+                                    @if (signedOL != null)
+                                    {
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">@signedOL.Name — uploaded @signedOL.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                    }
+                                    else
+                                    {
+                                        <div style="font-size: var(--text-xs); color: var(--gray-400); font-style: italic;">Not yet uploaded — print, obtain customer signature, then upload</div>
+                                    }
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: var(--space-2); align-items: center;">
+                                @if (signedOL != null)
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => DownloadSignedDoc(signedOL.Id, signedOL.Name)">
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                        Download
+                                    </button>
+                                }
+                                @if (CanUploadSignedOfferDocs)
+                                {
+                                    <button class="btn btn-primary btn-sm" @onclick='() => OpenSignedDocUploadModal("offerLetter")'>
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+                                        @(signedOL != null ? "Replace" : "Upload")
+                                    </button>
+                                }
+                            </div>
+                        </div>
+
+                        @* Row 2: Signed KFS Acknowledgement *@
+                        @{ var signedKfs = SignedKfsDoc; }
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4);">
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                <span class="material-symbols-outlined" style="color: @(signedKfs != null ? "var(--success-500)" : "var(--gray-300)"); font-size: 20px;">
+                                    @(signedKfs != null ? "task" : "pending_actions")
+                                </span>
+                                <div>
+                                    <div style="font-size: var(--text-sm); font-weight: 500;">Signed KFS Acknowledgement</div>
+                                    @if (signedKfs != null)
+                                    {
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">@signedKfs.Name — uploaded @signedKfs.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                    }
+                                    else
+                                    {
+                                        <div style="font-size: var(--text-xs); color: var(--gray-400); font-style: italic;">Not yet uploaded — CBN regulations require the signed KFS before offer acceptance</div>
+                                    }
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: var(--space-2); align-items: center;">
+                                @if (signedKfs != null)
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => DownloadSignedDoc(signedKfs.Id, signedKfs.Name)">
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                        Download
+                                    </button>
+                                }
+                                @if (CanUploadSignedOfferDocs)
+                                {
+                                    <button class="btn btn-primary btn-sm" @onclick='() => OpenSignedDocUploadModal("kfs")'>
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+                                        @(signedKfs != null ? "Replace" : "Upload")
+                                    </button>
+                                }
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            }
             break;
     }
+}
+
+@if (showSignedDocUploadModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseSignedDocUploadModal"></div>
+    <div class="modal" style="max-width: 480px; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">@(_signedDocUploadType == "offerLetter" ? "Upload Signed Offer Letter" : "Upload Signed KFS Acknowledgement")</h3>
+            <button class="btn btn-ghost btn-sm" @onclick="CloseSignedDocUploadModal">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-4);">
+                @if (_signedDocUploadType == "offerLetter")
+                {
+                    <span>Upload the offer letter signed by both the customer (authorised signatory) and the bank officer.</span>
+                }
+                else
+                {
+                    <span>Upload the Key Facts Statement signed by the customer confirming they have read and understood all loan costs and terms, as required by CBN Consumer Protection Regulations 2022.</span>
+                }
+            </p>
+            <div class="form-group">
+                <label class="form-label">Document (PDF, JPG, PNG) <span style="color: var(--danger-600);">*</span></label>
+                <InputFile OnChange="HandleSignedDocFileSelected" accept=".pdf,.jpg,.jpeg,.png" class="form-control" style="padding: var(--space-2);" />
+                @if (_signedDocFile != null)
+                {
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">
+                        Selected: @_signedDocFile.Name (@FormatFileSize(_signedDocFile.Size))
+                    </div>
+                }
+            </div>
+            @if (!string.IsNullOrEmpty(_signedDocUploadError))
+            {
+                <div style="color: var(--danger-600); font-size: var(--text-sm); margin-top: var(--space-3);">@_signedDocUploadError</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="CloseSignedDocUploadModal" disabled="@_isUploadingSignedDoc">Cancel</button>
+            <button class="btn btn-primary" @onclick="UploadSignedDoc" disabled="@_isUploadingSignedDoc">
+                @if (_isUploadingSignedDoc) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                Upload
+            </button>
+        </div>
+    </div>
 }
 
 <ApprovalGateModal IsVisible="showApprovalGateModal"
@@ -525,6 +888,32 @@ else
                 </button>
             </div>
             <div class="modal-body">
+                @* Loan summary — shown for all action modal contexts *@
+                <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4);">
+                    <div style="font-weight: 700; font-size: var(--text-base); color: var(--gray-900); margin-bottom: var(--space-1);">@application?.Customer.CompanyName</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-2);">
+                        <span><strong style="color: var(--gray-700);">Ref:</strong> @application?.ApplicationNumber</span>
+                        <span><strong style="color: var(--gray-700);">Product:</strong> @application?.Loan.ProductName</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(application?.Loan.Purpose))
+                    {
+                        <div style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-2);"><strong style="color: var(--gray-700);">Purpose:</strong> @application.Loan.Purpose</div>
+                    }
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--gray-200);">
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Amount</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@FormatCurrency(application?.Loan.ApprovedAmount ?? application?.Loan.RequestedAmount ?? 0)</div>
+                        </div>
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Tenor</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@(application?.Loan.TenorMonths) months</div>
+                        </div>
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Rate</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@((application?.Loan.InterestRate ?? 0m).ToString("0.##"))% p.a.</div>
+                        </div>
+                    </div>
+                </div>
                 <div class="form-group">
                     <label class="form-label">Comments @(currentAction == ActionType.Approve ? "(Optional)" : "(Required)")</label>
                     <textarea class="form-control" rows="4" @bind="actionComments" placeholder="Enter your comments..."></textarea>
@@ -1277,7 +1666,7 @@ else
     <div class="modal-backdrop show" @onclick="CloseSubmitReviewModal">
         <div class="modal" style="max-width: 500px;" @onclick:stopPropagation>
             <div class="modal-header">
-                <h3 class="modal-title">Submit for Review</h3>
+                <h3 class="modal-title">Submit for Credit Review</h3>
                 <button class="modal-close" @onclick="CloseSubmitReviewModal">
                     <span class="material-symbols-outlined">close</span>
                 </button>
@@ -1302,7 +1691,7 @@ else
                 {
                     <div class="alert alert-info mb-4">
                         <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">info</span>
-                        This application will be submitted to Branch Review for approval.
+                        This application will be submitted to Credit &amp; Legal Review.
                     </div>
                 }
                 @if (!string.IsNullOrEmpty(submitError))
@@ -1326,7 +1715,7 @@ else
                     {
                         <span class="spinner"></span>
                     }
-                    Submit for Review
+                    Submit for Credit Review
                 </button>
             </div>
         </div>
@@ -1343,6 +1732,20 @@ else
         OnClose="CloseSetupCommitteeModal" />
 }
 
+@if (showSendToCommitteeModal && application != null)
+{
+    <SendToCommitteeModal
+        LoanApplicationId="application.Id"
+        ApplicationNumber="@(application.ApplicationNumber ?? "")"
+        LoanAmount="application.Loan.ApprovedAmount ?? application.Loan.RequestedAmount"
+        CustomerName="@(application.Customer.CompanyName)"
+        ProductName="@(application.Loan.ProductName ?? "")"
+        TenorMonths="application.Loan.TenorMonths"
+        InterestRate="application.Loan.InterestRate"
+        OnConfirmed="OnSendToCommitteeConfirmed"
+        OnClose="CloseSendToCommitteeModal" />
+}
+
 @if (showRecordAcceptanceModal)
 {
     <div class="modal-backdrop show" @onclick="CloseRecordAcceptanceModal">
@@ -1354,6 +1757,21 @@ else
                 </button>
             </div>
             <div class="modal-body">
+                @{ var _missingOL = SignedOfferLetterDoc == null; var _missingKfs = SignedKfsDoc == null; }
+                @if (_missingOL || _missingKfs)
+                {
+                    <div style="padding: var(--space-3) var(--space-4); background: var(--danger-50); border: 1px solid var(--danger-200); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
+                        <div style="display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-2);">
+                            <span class="material-symbols-outlined" style="color: var(--danger-600); font-size: 18px;">block</span>
+                            <span style="font-size: var(--text-sm); font-weight: 600; color: var(--danger-700);">Signed copies required before acceptance can be recorded</span>
+                        </div>
+                        <ul style="margin: 0; padding-left: var(--space-5); font-size: var(--text-sm); color: var(--danger-700);">
+                            @if (_missingOL) { <li>Signed Offer Letter not uploaded</li> }
+                            @if (_missingKfs) { <li>Signed KFS Acknowledgement not uploaded</li> }
+                        </ul>
+                        <div style="font-size: var(--text-xs); color: var(--danger-600); margin-top: var(--space-2);">Upload both documents from the <strong>Offer Letters</strong> tab, then return here.</div>
+                    </div>
+                }
                 <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-4);">
                     Record that the customer has reviewed and signed the offer letter and all accompanying acceptance documents. Ensure all signed copies have been received and filed before proceeding.
                 </p>
@@ -1390,7 +1808,7 @@ else
             <div class="modal-footer">
                 <button class="btn btn-secondary" @onclick="CloseRecordAcceptanceModal" disabled="@isRecordingAcceptance">Cancel</button>
                 <button class="btn btn-success" @onclick="ConfirmRecordAcceptance"
-                    disabled="@(isRecordingAcceptance || acceptanceDate == default || string.IsNullOrEmpty(acceptanceMethod) || !kfsAcknowledged)">
+                    disabled="@(isRecordingAcceptance || acceptanceDate == default || string.IsNullOrEmpty(acceptanceMethod) || !kfsAcknowledged || SignedOfferLetterDoc == null || SignedKfsDoc == null)">
                     @if (isRecordingAcceptance) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
                     Confirm Acceptance
                 </button>
@@ -1410,20 +1828,43 @@ else
                 </button>
             </div>
             <div class="modal-body">
+                <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4);">
+                    <div style="font-weight: 700; font-size: var(--text-base); color: var(--gray-900); margin-bottom: var(--space-1);">@application?.Customer.CompanyName</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-2);">
+                        <span><strong style="color: var(--gray-700);">Ref:</strong> @application?.ApplicationNumber</span>
+                        <span><strong style="color: var(--gray-700);">Product:</strong> @application?.Loan.ProductName</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--gray-200);">
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Approved Amount</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@FormatCurrency(application?.Loan.ApprovedAmount ?? application?.Loan.RequestedAmount ?? 0)</div>
+                        </div>
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Tenor</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@(application?.Loan.ApprovedTenorMonths ?? application?.Loan.TenorMonths) months</div>
+                        </div>
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Rate</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@((application?.Loan.ApprovedInterestRate ?? application?.Loan.InterestRate ?? 0m).ToString("0.##"))% p.a.</div>
+                        </div>
+                    </div>
+                </div>
                 <div style="padding: var(--space-3) var(--space-4); background: var(--success-50); border: 1px solid var(--success-200); border-radius: var(--radius-md); margin-bottom: var(--space-4); display: flex; gap: var(--space-3); align-items: center;">
                     <span class="material-symbols-outlined" style="color: var(--success-600); font-size: 20px;">check_circle</span>
                     <div style="font-size: var(--text-sm); color: var(--success-800);">
                         All Conditions Precedent have been verified and cleared on the Disbursement Checklist tab.
                     </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Core Banking Loan ID <span style="color: var(--danger-600);">*</span></label>
-                    <input type="text" class="form-control" @bind="disburseCoreBankingLoanId" placeholder="e.g. LN2026-00123456" />
-                    <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">Loan account number as booked in the core banking system.</div>
+                <div style="padding: var(--space-3) var(--space-4); background: var(--primary-50); border: 1px solid var(--primary-200); border-radius: var(--radius-md); margin-bottom: var(--space-4); display: flex; gap: var(--space-3); align-items: flex-start;">
+                    <span class="material-symbols-outlined" style="color: var(--primary-600); font-size: 20px; flex-shrink: 0;">info</span>
+                    <div style="font-size: var(--text-sm); color: var(--primary-800);">
+                        Confirming disbursement will automatically book and disburse the loan in the core banking system.
+                        The loan account number will be recorded on the application.
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Disbursement Notes</label>
-                    <textarea class="form-control" rows="2" @bind="disburseNotes" placeholder="e.g. Funds transferred to account 0012345678..."></textarea>
+                    <label class="form-label">Disbursement Notes <span style="font-weight: 400; color: var(--gray-500);">(optional)</span></label>
+                    <textarea class="form-control" rows="2" @bind="disburseNotes" placeholder="Any notes for the disbursement record..."></textarea>
                 </div>
                 @if (!string.IsNullOrEmpty(disburseError))
                 {
@@ -1441,6 +1882,259 @@ else
     </div>
 }
 
+@if (showCompleteLegalReviewModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseCompleteLegalReviewModal">
+        <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Complete Legal Review</h3>
+                <button class="btn btn-ghost btn-sm" @onclick="CloseCompleteLegalReviewModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-4);">
+                    Confirm that your legal review of the application structure, documentation, and collateral enforceability is complete.
+                    The Credit Officer will be unblocked to send this application to committee once you confirm.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Legal Review Note <span style="color: var(--danger-600);">*</span></label>
+                    <textarea class="form-control" rows="4" @bind="legalReviewNote" placeholder="Summarise the outcome of your legal review..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(legalReviewError))
+                {
+                    <div style="color: var(--danger-600); font-size: var(--text-sm);">@legalReviewError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseCompleteLegalReviewModal" disabled="@isCompletingLegalReview">Cancel</button>
+                <button class="btn btn-primary" @onclick="ConfirmCompleteLegalReview" disabled="@isCompletingLegalReview">
+                    @if (isCompletingLegalReview) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                    Confirm Legal Review Complete
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeclineRatificationModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseDeclineRatificationModal">
+        <div class="modal" style="max-width: 520px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Decline Ratification</h3>
+                <button class="btn btn-ghost btn-sm" @onclick="CloseDeclineRatificationModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @* Loan application summary *@
+                <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4);">
+                    <div style="font-weight: 700; font-size: var(--text-base); color: var(--gray-900); margin-bottom: var(--space-1);">@application?.Customer.CompanyName</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-2);">
+                        <span><strong style="color: var(--gray-700);">Ref:</strong> @application?.ApplicationNumber</span>
+                        <span><strong style="color: var(--gray-700);">Product:</strong> @application?.Loan.ProductName</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(application?.Loan.Purpose))
+                    {
+                        <div style="font-size: var(--text-sm); color: var(--gray-600);"><strong style="color: var(--gray-700);">Purpose:</strong> @application.Loan.Purpose</div>
+                    }
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-2); margin-top: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--gray-200);">
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Comm. Approved</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@FormatCurrency(application?.Committee?.ApprovedAmount ?? application?.Loan.RequestedAmount ?? 0)</div>
+                        </div>
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Tenor</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@(application?.Committee?.ApprovedTenorMonths ?? application?.Loan.TenorMonths) months</div>
+                        </div>
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Rate</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@((application?.Committee?.ApprovedInterestRate ?? application?.Loan.InterestRate ?? 0m).ToString("0.##"))% p.a.</div>
+                        </div>
+                    </div>
+                </div>
+                <p style="font-size: var(--text-sm); color: var(--danger-600); margin-bottom: var(--space-3);">
+                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">warning</span>
+                    Declining permanently rejects the committee's recommendation. This action cannot be undone.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Reason for Decline *</label>
+                    <textarea class="form-control" rows="3" @bind="declineRatificationReason" placeholder="State the reason for declining ratification..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(declineRatificationError))
+                {
+                    <div style="color: var(--danger-600); font-size: var(--text-sm);">@declineRatificationError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseDeclineRatificationModal" disabled="@isDecliningRatification">Cancel</button>
+                <button class="btn btn-danger" @onclick="ConfirmDeclineRatification" disabled="@(isDecliningRatification || string.IsNullOrWhiteSpace(declineRatificationReason))">
+                    @if (isDecliningRatification) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                    Confirm Decline
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showRatifyModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseRatifyModal">
+        <div class="modal" style="max-width: 560px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Ratify Committee Decision</h3>
+                <button class="btn btn-ghost btn-sm" @onclick="CloseRatifyModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @* Loan application summary *@
+                <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4);">
+                    <div style="font-weight: 700; font-size: var(--text-base); color: var(--gray-900); margin-bottom: var(--space-1);">@application?.Customer.CompanyName</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-2);">
+                        <span><strong style="color: var(--gray-700);">Ref:</strong> @application?.ApplicationNumber</span>
+                        <span><strong style="color: var(--gray-700);">Product:</strong> @application?.Loan.ProductName</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(application?.Loan.Purpose))
+                    {
+                        <div style="font-size: var(--text-sm); color: var(--gray-600);"><strong style="color: var(--gray-700);">Purpose:</strong> @application.Loan.Purpose</div>
+                    }
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-2); margin-top: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--gray-200);">
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Requested</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@FormatCurrency(application?.Loan.RequestedAmount ?? 0)</div>
+                        </div>
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Tenor</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@(application?.Loan.TenorMonths) months</div>
+                        </div>
+                        <div>
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Rate</div>
+                            <div style="font-weight: 600; color: var(--gray-700);">@((application?.Loan.InterestRate ?? 0m).ToString("0.##"))% p.a.</div>
+                        </div>
+                    </div>
+                </div>
+                @* Committee-decided terms — read-only *@
+                <div style="background: var(--success-50); border: 1px solid var(--success-200); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4);">
+                    <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3);">
+                        <span class="material-symbols-outlined" style="color: var(--success-600); font-size: 20px;">check_circle</span>
+                        <strong style="color: var(--success-800);">Committee Approved</strong>
+                        @if (application?.Committee?.DecisionDate.HasValue == true)
+                        {
+                            <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: auto;">@application.Committee.DecisionDate.Value.ToString("MMM dd, yyyy")</span>
+                        }
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-3); font-size: var(--text-sm); margin-bottom: var(--space-3);">
+                        <div>
+                            <div style="color: var(--gray-500); font-size: var(--text-xs); text-transform: uppercase; margin-bottom: 2px;">Amount</div>
+                            <div style="font-weight: 700; color: var(--primary-700);">@FormatCurrency(application?.Committee?.ApprovedAmount ?? application?.Loan.RequestedAmount ?? 0)</div>
+                        </div>
+                        <div>
+                            <div style="color: var(--gray-500); font-size: var(--text-xs); text-transform: uppercase; margin-bottom: 2px;">Tenor</div>
+                            <div style="font-weight: 700;">@(application?.Committee?.ApprovedTenorMonths ?? application?.Loan.TenorMonths) months</div>
+                        </div>
+                        <div>
+                            <div style="color: var(--gray-500); font-size: var(--text-xs); text-transform: uppercase; margin-bottom: 2px;">Rate</div>
+                            <div style="font-weight: 700;">@((application?.Committee?.ApprovedInterestRate ?? application?.Loan.InterestRate ?? 0m).ToString("0.##"))% p.a.</div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(application?.Committee?.ApprovalConditions))
+                    {
+                        <div style="font-size: var(--text-sm); color: var(--gray-700); border-top: 1px solid var(--success-200); padding-top: var(--space-2);">
+                            <span style="font-weight: 500;">Conditions: </span>@application.Committee.ApprovalConditions
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(application?.Committee?.DecisionComments))
+                    {
+                        <div style="font-size: var(--text-sm); color: var(--gray-600); border-top: 1px solid var(--success-200); padding-top: var(--space-2); margin-top: var(--space-2); font-style: italic;">
+                            "@application.Committee.DecisionComments"
+                        </div>
+                    }
+                </div>
+                <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-3);">
+                    Ratifying confirms the committee's decision and terms as final. The offer letter will be generated immediately after.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Ratification Note <span style="color: var(--gray-400); font-weight: normal;">(optional)</span></label>
+                    <textarea class="form-control" rows="2" @bind="ratifyNote" placeholder="e.g. Approved in line with the bank's credit policy..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(ratifyError))
+                {
+                    <div style="color: var(--danger-600); font-size: var(--text-sm);">@ratifyError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseRatifyModal" disabled="@isRatifying">Cancel</button>
+                <button class="btn btn-success" @onclick="ConfirmRatify" disabled="@isRatifying">
+                    @if (isRatifying) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                    Ratify & Issue Offer Letter
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showCompleteSecurityPerfectionModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseCompleteSecurityPerfectionModal">
+        <div class="modal" style="max-width: 560px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Complete Security Perfection</h3>
+                <button class="btn btn-ghost btn-sm" @onclick="CloseCompleteSecurityPerfectionModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @{
+                    var clearedCount = application?.Collaterals.Count(c => c.IsLegalCleared) ?? 0;
+                    var totalCollaterals = application?.Collaterals.Count ?? 0;
+                    var docCount = securityPerfectionDocs.Count;
+                }
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-4);">
+                    <div style="background: @(clearedCount == totalCollaterals && totalCollaterals > 0 ? "var(--success-50)" : "var(--warning-50)"); border: 1px solid @(clearedCount == totalCollaterals && totalCollaterals > 0 ? "var(--success-200)" : "var(--warning-200)"); border-radius: var(--radius-md); padding: var(--space-3); text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: @(clearedCount == totalCollaterals && totalCollaterals > 0 ? "var(--success-700)" : "var(--warning-700)");">@clearedCount / @totalCollaterals</div>
+                        <div style="font-size: var(--text-xs); color: var(--gray-600);">Collaterals Legally Cleared</div>
+                    </div>
+                    <div style="background: @(docCount > 0 ? "var(--success-50)" : "var(--gray-50)"); border: 1px solid @(docCount > 0 ? "var(--success-200)" : "var(--gray-200)"); border-radius: var(--radius-md); padding: var(--space-3); text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: @(docCount > 0 ? "var(--success-700)" : "var(--gray-500)");">@docCount</div>
+                        <div style="font-size: var(--text-xs); color: var(--gray-600);">Security Documents Uploaded</div>
+                    </div>
+                </div>
+                @if (clearedCount < totalCollaterals && totalCollaterals > 0)
+                {
+                    <div style="padding: var(--space-3); background: var(--warning-50); border: 1px solid var(--warning-200); border-radius: var(--radius-md); margin-bottom: var(--space-4); font-size: var(--text-sm); color: var(--warning-800);">
+                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">warning</span>
+                        @(totalCollaterals - clearedCount) collateral(s) have not been marked as legally cleared on the Collateral tab.
+                        You may still proceed if perfection is in progress, but ensure clearances are completed before disbursement.
+                    </div>
+                }
+                <p style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-3);">
+                    By confirming, you attest that all required security instruments have been executed, registered, or lodged
+                    as appropriate, and the facility is ready for disbursement.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Perfection Summary <span style="color: var(--danger-600);">*</span></label>
+                    <textarea class="form-control" rows="4" @bind="completeSecurityPerfectionNote"
+                        placeholder="Summarise what was done — e.g. CAC charge registered (ref: CHG/2026/001234), mortgage deed filed at Lagos Land Registry, lien placed on fixed deposit account 0012345678..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(completeSecurityPerfectionError))
+                {
+                    <div style="color: var(--danger-600); font-size: var(--text-sm);">@completeSecurityPerfectionError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseCompleteSecurityPerfectionModal" disabled="@isCompletingSecurityPerfection">Cancel</button>
+                <button class="btn btn-success" @onclick="ConfirmCompleteSecurityPerfection"
+                    disabled="@(isCompletingSecurityPerfection || string.IsNullOrWhiteSpace(completeSecurityPerfectionNote))">
+                    @if (isCompletingSecurityPerfection) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                    Confirm Security Perfection Complete
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid Id { get; set; }
 
@@ -1448,6 +2142,64 @@ else
     private string activeTab = "overview";
     private bool isLoading = true;
     private bool isGeneratingPack;
+
+    // ── Loan Account tab ──────────────────────────────────────────────────
+    private CRMS.Application.Namp.DTOs.NampLoanAccountDto? loanAccount;
+    private bool isLoadingLoanAccount;
+    private string? loanAccountError;
+    private bool isMarkingClosed;
+    private bool loanAccountLoaded;
+
+    private bool FineractLoanIsClosed =>
+        loanAccount?.Status is "closedObligationsMet" or "closed" or "LOAN_STATUS_CLOSED_OBLIGATIONS_MET";
+
+    private async Task LoadLoanAccountTab(bool force = false)
+    {
+        if (loanAccountLoaded && !force) return;
+        isLoadingLoanAccount = true;
+        loanAccountError = null;
+        StateHasChanged();
+
+        var response = await AppService.GetCorporateLoanAccountAsync(Id);
+        if (response.Success)
+        {
+            loanAccount = response.Data;
+            loanAccountLoaded = true;
+        }
+        else
+        {
+            loanAccountError = response.Error ?? "Could not load loan account from the Core Banking System.";
+            loanAccountLoaded = false;
+        }
+        isLoadingLoanAccount = false;
+    }
+
+    private async Task MarkCorporateAsClosed()
+    {
+        if (!EnsureAuthenticated(out var currentUserId)) return;
+        isMarkingClosed = true;
+        var response = await AppService.MarkCorporateClosedAsync(Id, currentUserId);
+        if (response.Success)
+            await LoadApplication();
+        else
+            actionError = response.Error ?? "Failed to mark as closed.";
+        isMarkingClosed = false;
+    }
+
+    private static RenderFragment CorporateLoanSummaryRow(string label, decimal value, bool highlight = false, bool danger = false) => __builder =>
+    {
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "style", "display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);");
+        __builder.OpenElement(2, "span");
+        __builder.AddAttribute(3, "style", "font-size: 0.8rem; color: var(--text-secondary);");
+        __builder.AddContent(4, label);
+        __builder.CloseElement();
+        __builder.OpenElement(5, "span");
+        __builder.AddAttribute(6, "style", "font-size: 0.85rem; font-family: monospace;" + (danger ? " color: var(--danger-600); font-weight: 700;" : highlight ? " font-weight: 600;" : ""));
+        __builder.AddContent(7, $"₦{value:N0}");
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
 
     private bool showActionModal;
     private ActionType currentAction;
@@ -1461,6 +2213,7 @@ else
     private ApprovalGateResultModel? approvalGateResult;
     private List<ApprovalOverrideInfo> approvalOverrides = [];
     private bool showSetupCommitteeModal;
+    private bool showSendToCommitteeModal;
     private List<UserSummary> committeeUsers = [];
 
     // Data entry modals
@@ -1534,11 +2287,17 @@ else
             // Fetch offer letters (relevant from Approved onwards through the full disbursement chain)
             if (application.Status is AppStatus.Approved or AppStatus.OfferGenerated or AppStatus.OfferAccepted or
                 AppStatus.SecurityPerfection or AppStatus.SecurityApproval or
-                AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed)
+                AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed
+                or AppStatus.Ratification or AppStatus.Disbursement)
                 offerLetters = await AppService.GetOfferLettersByApplicationAsync(Id);
             // Fetch committee member users when in committee stage
             if (application.Status == AppStatus.CommitteeCirculation)
                 committeeUsers = await AppService.GetCommitteeMemberUsersAsync();
+            // Fetch security perfection documents from SecurityPerfection stage onwards
+            if (application.Status is AppStatus.SecurityPerfection or AppStatus.SecurityApproval or
+                AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed
+                or AppStatus.Disbursement)
+                securityPerfectionDocs = await AppService.GetSecurityPerfectionDocumentsAsync(Id);
         }
         
         isLoading = false;
@@ -1549,34 +2308,77 @@ else
 
     private bool CanGeneratePack =>
         application?.Status is not (null or AppStatus.Draft or AppStatus.Rejected or AppStatus.CommitteeRejected or AppStatus.Cancelled or AppStatus.Closed) &&
-        (AuthService.CurrentUser?.HasAnyRole("LoanOfficer", "CreditOfficer", "HOReviewer", "BranchApprover", "FinalApprover", "Operations", "SystemAdmin") ?? false ||
+        (AuthService.CurrentUser?.HasAnyRole("LoanOfficer", "CreditOfficer", "LegalOfficer", "HOReviewer", "BranchApprover", "FinalApprover", "Operations", "CommitteeMember", "SystemAdmin") ?? false ||
          application?.Committee?.Members.Any(m => m.UserId == (AuthService.CurrentUser?.Id ?? Guid.Empty)) == true);
+    // Controls the tab — stays visible for the full post-offer lifecycle so documents remain accessible
+    // Ratification is excluded: the offer letter is generated as part of the Ratify action itself;
+    // the tab appears once the app reaches OfferGenerated (post-ratification).
     private bool CanGenerateOfferLetter => application?.Status is
         AppStatus.Approved or AppStatus.OfferGenerated or AppStatus.OfferAccepted or
         AppStatus.SecurityPerfection or AppStatus.SecurityApproval or
-        AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed;
+        AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursed
+        or AppStatus.Disbursement;
+
+    // Controls the header generate button — only meaningful before the customer has signed
+    private bool CanShowGenerateOfferLetterButton => application?.Status is
+        AppStatus.Approved or AppStatus.OfferGenerated;
 
     // Application is editable only in Draft status
     private bool IsApplicationEditable => application?.Status == AppStatus.Draft;
 
-    // Advisory is a Credit Officer tool — only available at CreditAnalysis stage, and only after all bureau checks have completed
     private bool CanGenerateAdvisory =>
-        application?.Status == AppStatus.CreditAnalysis &&
+        application?.Status is AppStatus.CreditAnalysis or AppStatus.CreditReview &&
         (AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false) &&
         (application.BureauReports.Any() && application.BureauReports.All(r => r.Status == "Completed"));
 
-    // Bank statement verification (authenticity check): BranchApprover at BranchReview
+    private bool ShowCreditAppraisalTab =>
+        application != null &&
+        (application.Status is AppStatus.CreditReview or AppStatus.CommitteeCirculation or AppStatus.FinalApproval
+            or AppStatus.Ratification or AppStatus.Approved or AppStatus.OfferGenerated or AppStatus.OfferAccepted
+            or AppStatus.SecurityPerfection or AppStatus.SecurityApproval or AppStatus.DisbursementPending
+            or AppStatus.DisbursementHQApproval or AppStatus.Disbursement or AppStatus.Disbursed
+            || application.CreditAppraisal?.SavedAt.HasValue == true);
+
+    private bool CanEditCreditAppraisal =>
+        application?.Status == AppStatus.CreditReview &&
+        (AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false);
+
+    private decimal? AutoLtvForAppraisal
+    {
+        get
+        {
+            if (application == null) return null;
+            var totalMarketValue = application.Collaterals.Sum(c => c.MarketValue);
+            if (totalMarketValue <= 0) return null;
+            return Math.Round(application.Loan.RequestedAmount / totalMarketValue * 100m, 2);
+        }
+    }
+
+    private decimal? AutoLeverageForAppraisal
+    {
+        get
+        {
+            if (application == null) return null;
+            var latest = application.FinancialStatements.OrderByDescending(f => f.Year).FirstOrDefault();
+            if (latest == null || latest.TotalEquity == 0) return null;
+            return Math.Round(latest.TotalDebt / latest.TotalEquity, 2);
+        }
+    }
+
+    // Bank statement verification (authenticity check): BranchApprover at BranchReview; CreditOfficer at CreditReview
     private bool CanVerifyStatements => application?.Status switch
     {
-        AppStatus.BranchReview => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        AppStatus.HOReview     => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
+        AppStatus.BranchReview  => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        AppStatus.HOReview      => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
+        AppStatus.CreditReview  => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
         _ => AuthService.CurrentUser?.HasRole("SystemAdmin") ?? false
     };
 
-    // Cashflow analysis: CreditOfficer at CreditAnalysis (operates on verified statements)
+    // Cashflow analysis: CreditOfficer at CreditAnalysis or CreditReview
     private bool CanAnalyzeStatements => application?.Status switch
     {
         AppStatus.CreditAnalysis => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        AppStatus.CreditReview   => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
         _ => AuthService.CurrentUser?.HasRole("SystemAdmin") ?? false
     };
 
@@ -1586,14 +2388,16 @@ else
         AppStatus.BranchReview   => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
         AppStatus.CreditAnalysis => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
         AppStatus.HOReview       => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
+        AppStatus.CreditReview   => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
         _ => AuthService.CurrentUser?.HasRole("SystemAdmin") ?? false
     };
 
-    // Financial statement ratification: BranchApprover verifies at BranchReview; HOReviewer re-checks at HOReview
+    // Financial statement ratification: BranchApprover at BranchReview; HOReviewer at HOReview; CreditOfficer at CreditReview
     private bool CanVerifyFinancials => application?.Status switch
     {
         AppStatus.BranchReview   => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
         AppStatus.HOReview       => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
+        AppStatus.CreditReview   => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
         _ => AuthService.CurrentUser?.HasRole("SystemAdmin") ?? false
     };
 
@@ -1605,7 +2409,7 @@ else
     {
         get
         {
-            if (application?.Status != AppStatus.CreditAnalysis) return false;
+            if (application?.Status is not (AppStatus.CreditAnalysis or AppStatus.CreditReview)) return false;
             if (!(AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false)) return false;
 
             var reports = application!.BureauReports;
@@ -1668,30 +2472,35 @@ else
         AppStatus.LegalApproval              => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
         AppStatus.FinalApproval              => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
         AppStatus.OfferAccepted              => AuthService.CurrentUser?.HasRole("Operations") ?? false,
-        AppStatus.SecurityPerfection         => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
+        AppStatus.SecurityPerfection         => false, // uses dedicated Complete Security Perfection button
         AppStatus.SecurityApproval           => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
         AppStatus.DisbursementPending        => AuthService.CurrentUser?.HasRole("Operations") ?? false,
+        AppStatus.CreditReview               => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
         _ => false
     };
 
     private bool ShowReturnButton => application?.Status switch
     {
-        AppStatus.BranchReview       => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        AppStatus.CreditAnalysis     => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
-        AppStatus.HOReview           => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
-        AppStatus.LegalReview        => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
-        AppStatus.LegalApproval      => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
-        AppStatus.SecurityPerfection => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
-        AppStatus.SecurityApproval   => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
+        AppStatus.BranchReview        => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        AppStatus.CreditAnalysis      => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
+        AppStatus.HOReview            => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
+        AppStatus.LegalReview         => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
+        AppStatus.LegalApproval       => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
+        AppStatus.SecurityPerfection  => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
+        AppStatus.SecurityApproval    => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
         AppStatus.DisbursementPending => AuthService.CurrentUser?.HasRole("Operations") ?? false,
+        AppStatus.CreditReview        => AuthService.CurrentUser?.HasRole("CreditOfficer") == true ||
+                                         (AuthService.CurrentUser?.HasRole("LegalOfficer") == true && !application!.LegalReviewCompletedAt.HasValue),
+        AppStatus.Disbursement        => AuthService.CurrentUser?.HasRole("Operations") ?? false,
         _ => false
     };
 
     private bool ShowRejectButton => application?.Status switch
     {
-        AppStatus.BranchReview => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
-        AppStatus.HOReview => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
+        AppStatus.BranchReview  => AuthService.CurrentUser?.HasRole("BranchApprover") ?? false,
+        AppStatus.HOReview      => AuthService.CurrentUser?.HasRole("HOReviewer") ?? false,
         AppStatus.FinalApproval => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
+        AppStatus.CreditReview  => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
         _ => false
     };
 
@@ -1709,7 +2518,7 @@ else
         var stage = application.Status;
 
         // Only check gate for stages that have a gate
-        if (stage is not (AppStatus.BranchReview or AppStatus.HOReview or AppStatus.CreditAnalysis or AppStatus.FinalApproval))
+        if (stage is not (AppStatus.BranchReview or AppStatus.HOReview or AppStatus.CreditAnalysis or AppStatus.FinalApproval or AppStatus.CreditReview))
         {
             ShowActionModal(ActionType.Approve);
             return;
@@ -1721,8 +2530,11 @@ else
 
         if (approvalGateResult == null || !approvalGateResult.HasIssues)
         {
-            // Gate clear — proceed normally
-            ShowActionModal(ActionType.Approve);
+            // Gate clear — proceed
+            if (stage == AppStatus.CreditReview)
+                ShowSendToCommitteeModal();
+            else
+                ShowActionModal(ActionType.Approve);
             return;
         }
 
@@ -1747,8 +2559,11 @@ else
             await AppService.SaveApprovalOverrideAsync(Id, application.Status, actorId, actorName, overrideNote);
         }
 
-        // Now open the standard approval modal
-        ShowActionModal(ActionType.Approve);
+        // Open the appropriate approval modal
+        if (application?.Status == AppStatus.CreditReview)
+            ShowSendToCommitteeModal();
+        else
+            ShowActionModal(ActionType.Approve);
     }
 
     private void CloseActionModal()
@@ -1760,7 +2575,7 @@ else
 
     private string GetActionTitle() => currentAction switch
     {
-        ActionType.Approve => "Approve Application",
+        ActionType.Approve => application?.Status == AppStatus.CreditReview ? "Send to Committee" : "Approve Application",
         ActionType.Return => "Return for Correction",
         ActionType.Reject => "Reject Application",
         _ => "Action"
@@ -1776,7 +2591,7 @@ else
 
     private string GetActionButtonText() => currentAction switch
     {
-        ActionType.Approve => "Confirm Approval",
+        ActionType.Approve => application?.Status == AppStatus.CreditReview ? "Confirm & Send to Committee" : "Confirm Approval",
         ActionType.Return => "Return Application",
         ActionType.Reject => "Confirm Rejection",
         _ => "Submit"
@@ -1860,24 +2675,190 @@ else
     private bool isDownloadingOfferLetter;
     private Guid? downloadingOfferLetterId;
 
+    // ── Security Perfection ───────────────────────────────────────────────────────
+    private List<SecurityPerfectionDocumentInfo> securityPerfectionDocs = [];
+    private bool showCompleteSecurityPerfectionModal;
+    private string completeSecurityPerfectionNote = string.Empty;
+    private string? completeSecurityPerfectionError;
+    private bool isCompletingSecurityPerfection;
+
+    private bool CanUploadSecurityDocs =>
+        application?.Status == AppStatus.SecurityPerfection &&
+        (AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false);
+
+    private bool ShowCompleteSecurityPerfectionButton =>
+        application?.Status == AppStatus.SecurityPerfection &&
+        (AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false);
+
+    private void ShowCompleteSecurityPerfectionModalFn()
+    {
+        completeSecurityPerfectionNote = string.Empty;
+        completeSecurityPerfectionError = null;
+        showCompleteSecurityPerfectionModal = true;
+    }
+
+    private void CloseCompleteSecurityPerfectionModal()
+    {
+        showCompleteSecurityPerfectionModal = false;
+        completeSecurityPerfectionError = null;
+    }
+
+    private async Task LoadSecurityPerfectionDocs()
+    {
+        securityPerfectionDocs = await AppService.GetSecurityPerfectionDocumentsAsync(Id);
+        StateHasChanged();
+    }
+
+    private async Task ConfirmCompleteSecurityPerfection()
+    {
+        if (!EnsureAuthenticated(out var userId)) return;
+        if (string.IsNullOrWhiteSpace(completeSecurityPerfectionNote)) return;
+        isCompletingSecurityPerfection = true;
+        completeSecurityPerfectionError = null;
+        try
+        {
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "LegalOfficer";
+            var result = await AppService.ApproveApplicationAsync(
+                Id, completeSecurityPerfectionNote.Trim(), userId, userRole);
+            if (result.Success)
+            {
+                CloseCompleteSecurityPerfectionModal();
+                await LoadApplication();
+            }
+            else
+            {
+                completeSecurityPerfectionError = result.Error ?? "Failed to complete security perfection.";
+            }
+        }
+        finally { isCompletingSecurityPerfection = false; }
+    }
+
     // Offer letter workflow
     private bool ShowIssueOfferLetterButton =>
         application?.Status == AppStatus.Approved &&
-        (AuthService.CurrentUser?.HasAnyRole("Operations", "LoanOfficer", "SystemAdmin") ?? false);
+        (AuthService.CurrentUser?.HasAnyRole("Operations", "LoanOfficer", "FinalApprover", "SystemAdmin") ?? false);
 
     private bool ShowRecordAcceptanceButton =>
         application?.Status == AppStatus.OfferGenerated &&
-        (AuthService.CurrentUser?.HasAnyRole("Operations") ?? false);
+        (AuthService.CurrentUser?.HasAnyRole("Operations", "LoanOfficer") ?? false);
 
     private bool ShowDisburseButton =>
-        application?.Status == AppStatus.DisbursementHQApproval &&
-        (AuthService.CurrentUser?.HasAnyRole("GMFinance", "SystemAdmin") ?? false);
+        (application?.Status == AppStatus.DisbursementHQApproval || application?.Status == AppStatus.Disbursement) &&
+        (AuthService.CurrentUser?.HasAnyRole("GMFinance", "Operations", "DeploymentOfficer", "SystemAdmin") ?? false);
+
+    private bool ShowCompleteLegalReviewButton =>
+        application?.Status == AppStatus.CreditReview &&
+        (AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false) &&
+        !application.LegalReviewCompletedAt.HasValue;
+
+    private bool ShowRatifyButton =>
+        application?.Status == AppStatus.Ratification &&
+        (AuthService.CurrentUser?.HasRole("FinalApprover") ?? false);
+
+    private bool ShowDeclineRatificationButton =>
+        application?.Status == AppStatus.Ratification &&
+        (AuthService.CurrentUser?.HasRole("FinalApprover") ?? false);
+
+    private bool ShowAdvanceToSecurityPerfectionButton => false; // auto-advanced at end of ConfirmRecordAcceptance
 
     private bool CanUploadSignedMemo =>
-        (AuthService.CurrentUser?.HasAnyRole("Operations", "SystemAdmin") ?? false) &&
+        (AuthService.CurrentUser?.HasAnyRole("Operations", "DeploymentOfficer", "SystemAdmin") ?? false) &&
         (application?.Status == AppStatus.DisbursementPending ||
          application?.Status == AppStatus.DisbursementHQApproval ||
-         application?.Status == AppStatus.Disbursed);
+         application?.Status == AppStatus.Disbursement);
+
+    private bool CanRegenerateMemo =>
+        (AuthService.CurrentUser?.HasAnyRole("Operations", "LoanOfficer", "SystemAdmin") ?? false) &&
+        application?.Status is AppStatus.OfferAccepted or AppStatus.SecurityPerfection or AppStatus.SecurityApproval
+            or AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursement;
+
+    private bool CanUploadSignedOfferDocs =>
+        (AuthService.CurrentUser?.HasAnyRole("LoanOfficer", "SystemAdmin") ?? false) &&
+        application?.Status is AppStatus.OfferGenerated or AppStatus.OfferAccepted;
+
+    private DocumentInfo? SignedOfferLetterDoc =>
+        application?.Documents.FirstOrDefault(d => d.Category == "SignedOfferLetter");
+
+    private DocumentInfo? SignedKfsDoc =>
+        application?.Documents.FirstOrDefault(d => d.Category == "SignedKfsAcknowledgement");
+
+    // Signed offer doc upload state
+    private bool showSignedDocUploadModal;
+    private string _signedDocUploadType = string.Empty; // "offerLetter" or "kfs"
+    private IBrowserFile? _signedDocFile;
+    private bool _isUploadingSignedDoc;
+    private string? _signedDocUploadError;
+
+    private void OpenSignedDocUploadModal(string docType)
+    {
+        _signedDocUploadType = docType;
+        _signedDocFile = null;
+        _signedDocUploadError = null;
+        showSignedDocUploadModal = true;
+    }
+
+    private void CloseSignedDocUploadModal()
+    {
+        showSignedDocUploadModal = false;
+        _signedDocFile = null;
+        _signedDocUploadError = null;
+    }
+
+    private void HandleSignedDocFileSelected(InputFileChangeEventArgs e)
+    {
+        _signedDocFile = e.File;
+        _signedDocUploadError = null;
+    }
+
+    private async Task UploadSignedDoc()
+    {
+        if (_signedDocFile == null) { _signedDocUploadError = "Please select a file to upload."; return; }
+        if (!EnsureAuthenticated(out var userId)) return;
+
+        _isUploadingSignedDoc = true;
+        _signedDocUploadError = null;
+        try
+        {
+            const long maxFileSize = 20 * 1024 * 1024;
+            using var stream = _signedDocFile.OpenReadStream(maxFileSize);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+
+            var category = _signedDocUploadType == "offerLetter" ? "SignedOfferLetter" : "SignedKfsAcknowledgement";
+            var description = _signedDocUploadType == "offerLetter" ? "Signed Offer Letter" : "Signed KFS Acknowledgement";
+
+            var result = await AppService.UploadDocumentAsync(new UploadDocumentRequest
+            {
+                ApplicationId = Id,
+                Category = category,
+                FileName = _signedDocFile.Name,
+                FileContent = new MemoryStream(ms.ToArray()),
+                FileSize = _signedDocFile.Size,
+                ContentType = string.IsNullOrEmpty(_signedDocFile.ContentType) ? "application/pdf" : _signedDocFile.ContentType,
+                Description = description
+            }, userId);
+
+            if (!result.Success)
+            {
+                _signedDocUploadError = result.Error ?? "Upload failed.";
+                return;
+            }
+
+            CloseSignedDocUploadModal();
+            await LoadApplication();
+        }
+        finally
+        {
+            _isUploadingSignedDoc = false;
+        }
+    }
+
+    private async Task DownloadSignedDoc(Guid documentId, string fileName)
+    {
+        var bytes = await AppService.DownloadDocumentAsync(Id, documentId);
+        if (bytes != null)
+            await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", bytes);
+    }
 
     private bool isIssuingOfferLetter;
 
@@ -1913,7 +2894,9 @@ else
             }
 
             // Transition status to OfferGenerated
-            var result = await AppService.IssueOfferLetterAsync(Id, userId, userRole, null);
+            var result = application?.Status == AppStatus.Ratification
+                ? await AppService.IssueRatifiedOfferLetterAsync(Id, userId, userRole)
+                : await AppService.IssueOfferLetterAsync(Id, userId, userRole, null);
             // Always reload so UI reflects true DB state (avoids stale Approved status after partial failure)
             await LoadApplication();
             if (!result.Success)
@@ -1956,14 +2939,17 @@ else
     private async Task ConfirmRecordAcceptance()
     {
         if (!EnsureAuthenticated(out var userId)) return;
+        if (SignedOfferLetterDoc == null || SignedKfsDoc == null)
+        {
+            acceptanceError = "Both the signed Offer Letter and signed KFS Acknowledgement must be uploaded before acceptance can be recorded.";
+            return;
+        }
         isRecordingAcceptance = true;
         acceptanceError = null;
         try
         {
             var userRole = AuthService.CurrentUser?.PrimaryRole ?? "Operations";
             var userName = AuthService.CurrentUser?.FullName ?? "Operations Officer";
-            var comments = $"Customer acceptance recorded. Method: {acceptanceMethod}. Date signed: {acceptanceDate:dd MMM yyyy}." +
-                (string.IsNullOrWhiteSpace(acceptanceNotes) ? "" : $" Notes: {acceptanceNotes}");
 
             if (!Enum.TryParse<CRMS.Domain.Enums.OfferAcceptanceMethod>(acceptanceMethod, out var parsedMethod))
             {
@@ -1971,9 +2957,23 @@ else
                 return;
             }
 
-            var result = await AppService.RecordOfferAcceptanceAsync(
-                Id, userId, userRole, userName, comments,
-                acceptanceDate, parsedMethod, kfsAcknowledged);
+            ApiResponse result;
+            if (AuthService.CurrentUser?.HasRole("LoanOfficer") == true)
+            {
+                result = await AppService.RecordCorporateOfferAcceptanceAsync(
+                    Id, userId, userRole, acceptanceDate, parsedMethod, kfsAcknowledged);
+                if (result.Success)
+                    result = await AppService.AdvanceToSecurityPerfectionAsync(Id, userId, userRole);
+            }
+            else
+            {
+                // Old flow: Operations records acceptance; auto-advances to SecurityPerfection
+                var comments = $"Customer acceptance recorded. Method: {acceptanceMethod}. Date signed: {acceptanceDate:dd MMM yyyy}." +
+                    (string.IsNullOrWhiteSpace(acceptanceNotes) ? "" : $" Notes: {acceptanceNotes}");
+                result = await AppService.RecordOfferAcceptanceAsync(
+                    Id, userId, userRole, userName, comments,
+                    acceptanceDate, parsedMethod, kfsAcknowledged);
+            }
 
             if (result.Success)
             {
@@ -1991,7 +2991,6 @@ else
     // Disburse modal
     private bool showDisburseModal;
     private string disburseNotes = string.Empty;
-    private string disburseCoreBankingLoanId = string.Empty;
     private string? disburseError;
     private bool isDisbursing;
 
@@ -1999,7 +2998,6 @@ else
     {
         disburseNotes = string.Empty;
         disburseError = null;
-        disburseCoreBankingLoanId = string.Empty;
         showDisburseModal = true;
     }
 
@@ -2016,15 +3014,9 @@ else
         disburseError = null;
         try
         {
-            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "Operations";
-            if (string.IsNullOrWhiteSpace(disburseCoreBankingLoanId))
-            {
-                disburseError = "Core Banking Loan ID is required.";
-                isDisbursing = false;
-                return;
-            }
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "DeploymentOfficer";
             var result = await AppService.DisburseApplicationAsync(Id, userId, userRole,
-                disburseCoreBankingLoanId.Trim(),
+                string.Empty,
                 string.IsNullOrWhiteSpace(disburseNotes) ? null : disburseNotes);
             if (result.Success)
             {
@@ -2037,6 +3029,158 @@ else
             }
         }
         finally { isDisbursing = false; }
+    }
+
+    // ── Complete Legal Review modal ──────────────────────────────────────────────
+    private bool showCompleteLegalReviewModal;
+    private string legalReviewNote = string.Empty;
+    private string? legalReviewError;
+    private bool isCompletingLegalReview;
+
+    private void ShowCompleteLegalReviewModalFn()
+    {
+        legalReviewNote = string.Empty;
+        legalReviewError = null;
+        showCompleteLegalReviewModal = true;
+    }
+
+    private void CloseCompleteLegalReviewModal()
+    {
+        showCompleteLegalReviewModal = false;
+        legalReviewError = null;
+    }
+
+    private async Task ConfirmCompleteLegalReview()
+    {
+        if (!EnsureAuthenticated(out var userId)) return;
+        if (string.IsNullOrWhiteSpace(legalReviewNote))
+        {
+            legalReviewError = "Please enter a note summarising the legal review outcome.";
+            return;
+        }
+        isCompletingLegalReview = true;
+        legalReviewError = null;
+        try
+        {
+            var result = await AppService.CompleteLegalReviewAsync(Id, userId, legalReviewNote.Trim());
+            if (result.Success)
+            {
+                CloseCompleteLegalReviewModal();
+                await LoadApplication();
+            }
+            else
+            {
+                legalReviewError = result.Error ?? "Failed to complete legal review.";
+            }
+        }
+        finally { isCompletingLegalReview = false; }
+    }
+
+    // ── Ratify modal ─────────────────────────────────────────────────────────────
+    private bool showRatifyModal;
+    private string ratifyNote = string.Empty;
+    private string? ratifyError;
+    private bool isRatifying;
+
+    private void ShowRatifyModalFn()
+    {
+        ratifyNote = string.Empty;
+        ratifyError = null;
+        showRatifyModal = true;
+    }
+
+    private void CloseRatifyModal()
+    {
+        showRatifyModal = false;
+        ratifyError = null;
+    }
+
+    private async Task ConfirmRatify()
+    {
+        if (!EnsureAuthenticated(out var userId)) return;
+        isRatifying = true;
+        ratifyError = null;
+        try
+        {
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "FinalApprover";
+            var userName = AuthService.CurrentUser?.FullName ?? "";
+            var result = await AppService.RatifyCorporateLoanAsync(
+                Id, userId, userRole, userName,
+                string.IsNullOrWhiteSpace(ratifyNote) ? null : ratifyNote.Trim());
+            if (result.Success)
+            {
+                CloseRatifyModal();
+                await LoadApplication();
+            }
+            else
+            {
+                ratifyError = result.Error ?? "Failed to ratify application.";
+            }
+        }
+        finally { isRatifying = false; }
+    }
+
+    // ── Decline Ratification modal ────────────────────────────────────────────────
+    private bool showDeclineRatificationModal;
+    private string declineRatificationReason = string.Empty;
+    private string? declineRatificationError;
+    private bool isDecliningRatification;
+
+    private void ShowDeclineRatificationModalFn()
+    {
+        declineRatificationReason = string.Empty;
+        declineRatificationError = null;
+        showDeclineRatificationModal = true;
+    }
+
+    private void CloseDeclineRatificationModal()
+    {
+        showDeclineRatificationModal = false;
+        declineRatificationError = null;
+    }
+
+    private async Task ConfirmDeclineRatification()
+    {
+        if (!EnsureAuthenticated(out var userId)) return;
+        if (string.IsNullOrWhiteSpace(declineRatificationReason)) return;
+        isDecliningRatification = true;
+        declineRatificationError = null;
+        try
+        {
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "FinalApprover";
+            var result = await AppService.DeclineRatificationAsync(
+                Id, userId, userRole, declineRatificationReason.Trim());
+            if (result.Success)
+            {
+                CloseDeclineRatificationModal();
+                await LoadApplication();
+            }
+            else
+            {
+                declineRatificationError = result.Error ?? "Failed to decline ratification.";
+            }
+        }
+        finally { isDecliningRatification = false; }
+    }
+
+    // ── Advance to Security Perfection ────────────────────────────────────────────
+    private bool isAdvancingToSecurityPerfection;
+
+    private async Task ExecuteAdvanceToSecurityPerfection()
+    {
+        if (!EnsureAuthenticated(out var userId)) return;
+        isAdvancingToSecurityPerfection = true;
+        inlineActionError = null;
+        try
+        {
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "LoanOfficer";
+            var result = await AppService.AdvanceToSecurityPerfectionAsync(Id, userId, userRole);
+            if (result.Success)
+                await LoadApplication();
+            else
+                inlineActionError = result.Error ?? "Failed to advance to Security Perfection.";
+        }
+        finally { isAdvancingToSecurityPerfection = false; }
     }
 
     private async Task GenerateOfferLetter()
@@ -2148,6 +3292,7 @@ else
     }
 
     private bool isGeneratingAdvisory;
+    private bool isSavingCreditAppraisal;
 
     private async Task GenerateAdvisory()
     {
@@ -2169,12 +3314,35 @@ else
         }
     }
 
+    private async Task HandleSaveCreditAppraisal(SaveCreditAppraisalArgs args)
+    {
+        if (!EnsureAuthenticated(out var userId)) return;
+        isSavingCreditAppraisal = true;
+        inlineActionError = null;
+        StateHasChanged();
+        try
+        {
+            var result = await AppService.SaveCreditAppraisalAsync(Id, args, userId);
+            if (result.Success)
+                await LoadApplication();
+            else
+                inlineActionError = result.Error ?? "Failed to save credit appraisal.";
+        }
+        finally
+        {
+            isSavingCreditAppraisal = false;
+        }
+    }
+
     private async Task CastVote((string vote, string? comments) args)
     {
         if (application?.Committee != null)
         {
             if (!EnsureAuthenticated(out var userId)) return;
-            await AppService.CastVoteAsync(application.Committee.ReviewId, args.vote, args.comments, userId);
+            inlineActionError = null;
+            var result = await AppService.CastVoteAsync(application.Committee.ReviewId, args.vote, args.comments, userId);
+            if (!result.Success)
+                inlineActionError = result.Error ?? "Failed to submit vote.";
             await LoadApplication();
             await InvokeAsync(StateHasChanged);
         }
@@ -2193,7 +3361,10 @@ else
     private async Task StartCommitteeVoting()
     {
         if (application?.Committee == null) return;
-        await AppService.StartVotingAsync(application.Committee.ReviewId);
+        inlineActionError = null;
+        var result = await AppService.StartVotingAsync(application.Committee.ReviewId);
+        if (!result.Success)
+            inlineActionError = result.Error ?? "Failed to start voting.";
         await LoadApplication();
         await InvokeAsync(StateHasChanged);
     }
@@ -2203,9 +3374,12 @@ else
         if (application?.Committee == null) return;
         if (!EnsureAuthenticated(out var userId)) return;
 
-        await AppService.ConfirmCommitteeDecisionAsync(
+        inlineActionError = null;
+        var result = await AppService.ConfirmCommitteeDecisionAsync(
             application.Committee.ReviewId, args.Decision, args.Rationale,
             args.Amount, args.TenorMonths, args.InterestRate, args.Conditions, userId);
+        if (!result.Success)
+            inlineActionError = result.Error ?? "Failed to confirm committee decision.";
         await LoadApplication();
         await InvokeAsync(StateHasChanged);
     }
@@ -2334,7 +3508,7 @@ else
     private bool isApprovingCollateral;
 
     private bool CanManageValuation =>
-        (AuthService.CurrentUser?.HasAnyRole("CreditOfficer", "CreditManager", "HOReviewer", "SystemAdmin") ?? false) &&
+        (AuthService.CurrentUser?.HasAnyRole("CreditOfficer", "CreditManager", "SystemAdmin") ?? false) &&
         application?.Status is not (null or AppStatus.Draft or AppStatus.Approved or AppStatus.CommitteeApproved or AppStatus.Rejected or AppStatus.Disbursed);
 
     private bool CanClearCollateralLegal =>
@@ -3121,6 +4295,14 @@ else
         await LoadApplication();
     }
 
+    private void ShowSendToCommitteeModal() => showSendToCommitteeModal = true;
+    private void CloseSendToCommitteeModal() => showSendToCommitteeModal = false;
+    private async Task OnSendToCommitteeConfirmed()
+    {
+        showSendToCommitteeModal = false;
+        await LoadApplication();
+    }
+
     private List<string> ValidateForSubmission()
     {
         var errors = new List<string>();
@@ -3244,18 +4426,23 @@ else
 
     private static string FormatStatus(string status) => status switch
     {
-        AppStatus.BranchReview => "Branch Review",
-        AppStatus.HOReview => "HO Review",
+        AppStatus.BranchReview         => "Branch Review",
+        AppStatus.HOReview             => "HO Review",
         AppStatus.CommitteeCirculation => "Committee Review",
-        AppStatus.CreditAnalysis => "Credit Analysis",
+        AppStatus.CreditAnalysis       => "Credit Analysis",
+        AppStatus.CreditReview         => "Credit & Legal Review",
+        AppStatus.Ratification         => "Ratification",
+        AppStatus.RatificationDeclined => "Ratification Declined",
+        AppStatus.Disbursement         => "Disbursement",
         _ => status
     };
 
     private static string GetStatusBadgeClass(string status) => status switch
     {
-        AppStatus.Draft => "badge-gray",
+        AppStatus.Draft        => "badge-gray",
         AppStatus.Approved or AppStatus.Disbursed => "badge-success",
-        AppStatus.Rejected => "badge-danger",
+        AppStatus.Rejected or AppStatus.RatificationDeclined => "badge-danger",
+        AppStatus.CreditReview or AppStatus.Ratification or AppStatus.Disbursement => "badge-primary",
         _ => "badge-primary"
     };
 
@@ -3323,18 +4510,22 @@ else
         {
             OverallScore = 72.5m,
             RiskRating = "Medium",
+            Recommendation = "ConditionalApprove",
             ScoreBreakdown =
             [
-                new() { Category = "Financial Health", Score = 78, MaxScore = 100, Weight = 30 },
-                new() { Category = "Credit History", Score = 70, MaxScore = 100, Weight = 25 },
-                new() { Category = "Collateral Coverage", Score = 85, MaxScore = 100, Weight = 20 },
-                new() { Category = "Industry Risk", Score = 65, MaxScore = 100, Weight = 15 },
-                new() { Category = "Management Quality", Score = 68, MaxScore = 100, Weight = 10 }
+                new() { Category = "FinancialHealth", Score = 78, MaxScore = 100, Weight = 30, Rating = "Low", Rationale = "Revenue growth steady; debt ratios within acceptable range." },
+                new() { Category = "CreditHistory", Score = 70, MaxScore = 100, Weight = 25, Rating = "Medium", Rationale = "Minor past delinquency on one director account." },
+                new() { Category = "CollateralCoverage", Score = 85, MaxScore = 100, Weight = 20, Rating = "Low", Rationale = "Property collateral adequately covers requested amount." },
+                new() { Category = "Industry Risk", Score = 65, MaxScore = 100, Weight = 15, Rating = "Medium", Rationale = "Sector facing moderate headwinds." },
+                new() { Category = "ManagementQuality", Score = 68, MaxScore = 100, Weight = 10, Rating = "Medium", Rationale = "Experienced board; succession plan unclear." }
             ],
-            Recommendations = ["Consider reducing loan amount to ₦200M for better debt coverage", "Request additional collateral or guarantee"],
             RedFlags = ["One director has minor delinquency history", "Industry sector facing headwinds"],
-            Strengths = ["Strong cash flow from operations", "Established customer with good banking history", "Adequate collateral coverage"],
-            GeneratedAt = DateTime.Now.AddDays(-2)
+            ExecutiveSummary = "Acme Corporation presents a medium-risk credit profile with adequate collateral and steady revenue. Conditional approval recommended subject to additional collateral or a reduction in loan quantum.",
+            StrengthsAnalysis = "Strong cash flow from operations. Established customer with good banking history. Adequate collateral coverage.",
+            WeaknessesAnalysis = "One director carries minor delinquency history. Sector headwinds may compress margins in the near term.",
+            Conditions = ["Reduce facility to ₦200M or provide additional collateral", "Board resolution naming new signatories required"],
+            GeneratedAt = DateTime.Now.AddDays(-2),
+            ModelVersion = "v2.1.0"
         },
         WorkflowHistory =
         [

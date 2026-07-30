@@ -87,6 +87,20 @@ public class LoanApplicationRepository : ILoanApplicationRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<LA.LoanApplication>> GetAllFilteredAsync(
+        IReadOnlyList<Guid>? visibleBranchIds,
+        CancellationToken ct = default)
+    {
+        var query = _context.LoanApplications.AsNoTracking();
+
+        if (visibleBranchIds != null)
+            query = query.Where(x => x.BranchId.HasValue && visibleBranchIds.Contains(x.BranchId.Value));
+
+        return await query
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<LA.LoanApplication>> GetByInitiatorAsync(Guid userId, CancellationToken ct = default)
     {
         return await _context.LoanApplications

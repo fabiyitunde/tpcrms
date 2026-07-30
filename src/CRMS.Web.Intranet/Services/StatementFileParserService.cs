@@ -368,6 +368,64 @@ public class StatementFileParserService
         return result.ToArray();
     }
 
+    // ────────────────────────────────────────────────── Template generator ──
+
+    public static byte[] GetTemplateBytes()
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.AddWorksheet("Bank Statement");
+
+        var headerBg = XLColor.FromHtml("#1B5E20");
+        var headerFg = XLColor.White;
+
+        // ── Row 1: column headers ──
+        string[] headers = ["Date", "Narration", "Reference", "Debit", "Credit", "Balance"];
+        for (int c = 1; c <= headers.Length; c++)
+        {
+            var cell = ws.Cell(1, c);
+            cell.Value = headers[c - 1];
+            cell.Style.Font.Bold = true;
+            cell.Style.Font.FontColor = headerFg;
+            cell.Style.Fill.BackgroundColor = headerBg;
+            cell.Style.Alignment.Horizontal = c <= 3
+                ? XLAlignmentHorizontalValues.Left
+                : XLAlignmentHorizontalValues.Right;
+            cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            cell.Style.Border.OutsideBorderColor = XLColor.FromHtml("#145214");
+        }
+
+        // ── Data rows 2–201 (200 blank rows) ──
+        var dataRange = ws.Range(2, 1, 201, 6);
+        dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
+        dataRange.Style.Border.InsideBorderColor = XLColor.FromHtml("#CCCCCC");
+        dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        dataRange.Style.Border.OutsideBorderColor = XLColor.FromHtml("#AAAAAA");
+
+        // Date column: DD/MM/YYYY so Excel stores dates correctly
+        ws.Range(2, 1, 201, 1).Style.NumberFormat.Format = "DD/MM/YYYY";
+
+        // Amount columns: number format
+        for (int c = 4; c <= 6; c++)
+        {
+            ws.Range(2, c, 201, c).Style.NumberFormat.Format = "#,##0.00";
+            ws.Range(2, c, 201, c).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        }
+
+        // ── Column widths ──
+        ws.Column(1).Width = 16;   // Date
+        ws.Column(2).Width = 45;   // Narration
+        ws.Column(3).Width = 24;   // Reference
+        ws.Column(4).Width = 17;   // Debit
+        ws.Column(5).Width = 17;   // Credit
+        ws.Column(6).Width = 19;   // Balance
+
+        ws.SheetView.FreezeRows(1);
+
+        using var stream = new MemoryStream();
+        wb.SaveAs(stream);
+        return stream.ToArray();
+    }
+
     private static bool TryParseDate(string? val, out DateTime date)
     {
         date = default;

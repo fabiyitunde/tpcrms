@@ -1,4 +1,18 @@
 
+@{
+    var decisionRecorded = !string.IsNullOrEmpty(Committee?.Decision);
+    var reviewInProgress = Committee?.Status == "InProgress";
+    var reviewVotingComplete = Committee?.Status == "VotingComplete";
+    var currentMember = (Committee != null && CurrentUserId.HasValue)
+        ? Committee.Members.FirstOrDefault(m => m.UserId == CurrentUserId.Value)
+        : null;
+    var isCommitteeMember = currentMember != null;
+    var hasAlreadyVoted = currentMember?.Vote != null;
+    var showConfirmPanel = CanConfirmDecision && Committee != null &&
+        (Committee.Status == "VotingComplete" ||
+         (Committee.Status == "InProgress" && Committee.IsOverdue && Committee.HasQuorum));
+}
+
 @if (Committee == null)
 {
     <div class="card">
@@ -20,179 +34,176 @@
 }
 else
 {
-    @if (Committee.Status == "Pending" && CanManageCommittee)
-    {
-        <div style="margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4); background: var(--warning-50); border: 1px solid var(--warning-200); border-radius: var(--radius-md); display: flex; gap: var(--space-3); align-items: center;">
-            <span class="material-symbols-outlined" style="color: var(--warning-600); font-size: 20px; flex-shrink: 0;">how_to_vote</span>
-            <div style="flex: 1;">
-                <div style="font-weight: 600; color: var(--warning-800); font-size: var(--text-sm);">Voting has not been started</div>
-                <div style="color: var(--warning-700); font-size: var(--text-sm); margin-top: 2px;">
-                    Committee members are waiting. Click <strong>Start Voting</strong> in the committee header when you are ready to open the ballot.
-                </div>
-            </div>
-        </div>
-    }
+    <div style="display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; align-items: start;">
 
-    <div class="grid grid-cols-3 gap-6">
-        <div class="card" style="grid-column: span 2;">
+        @* Left: members table *@
+        <div class="card">
             <div class="card-header">
-                <h3 class="card-title">@Committee.CommitteeType</h3>
-                <div style="display: flex; align-items: center; gap: var(--space-3);">
-                    <span class="badge @GetStatusBadgeClass(Committee.Status)">@Committee.Status</span>
+                <div>
+                    <h3 class="card-title">@FormatType(Committee.CommitteeType)</h3>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">
+                        Circulated @Committee.CirculatedAt.ToString("MMM dd, yyyy")
+                        @if (Committee.DeadlineAt.HasValue)
+                        {
+                            <span> · Deadline @Committee.DeadlineAt.Value.ToString("MMM dd, yyyy")</span>
+                        }
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: var(--space-2);">
                     @if (Committee.Status == "Pending" && CanManageCommittee)
                     {
-                        <button class="btn btn-primary btn-sm" @onclick="HandleStartVoting" disabled="@isStartingVoting">
-                            @if (isStartingVoting)
-                            {
-                                <span class="spinner" style="width: 14px; height: 14px;"></span>
-                            }
-                            else
-                            {
-                                <span class="material-symbols-outlined" style="font-size: 16px;">how_to_vote</span>
-                            }
+                        <button class="btn btn-primary btn-sm" @onclick="() => OnStartVoting.InvokeAsync()">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">play_arrow</span>
                             Start Voting
                         </button>
                     }
+                    <span class="badge @GetStatusBadgeClass(Committee.Status)">
+                        @(decisionRecorded ? "Decided" : (reviewVotingComplete ? "All Voted" : (reviewInProgress ? "Voting" : Committee.Status)))
+                    </span>
                 </div>
             </div>
-            <div class="card-body" style="padding: 0;">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Member</th>
-                            <th>Role</th>
-                            <th>Vote</th>
-                            <th>Voted At</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var member in Committee.Members)
-                        {
-                            <tr>
-                                <td>
-                                    <div style="display: flex; align-items: center; gap: var(--space-3);">
-                                        <div class="user-avatar" style="width: 32px; height: 32px; font-size: var(--text-xs);">
-                                            @GetInitials(member.Name)
-                                        </div>
-                                        <div>
-                                            <span style="font-weight: 500;">@member.Name</span>
-                                            @if (member.IsChairperson)
-                                            {
-                                                <span style="font-size: var(--text-xs); color: var(--primary-600); margin-left: var(--space-2);">Chair</span>
-                                            }
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>@member.Role</td>
-                                <td>
-                                    @if (!string.IsNullOrEmpty(member.Vote))
-                                    {
-                                        <span class="badge @GetVoteBadgeClass(member.Vote)">
-                                            <span class="material-symbols-outlined" style="font-size: 14px;">@GetVoteIcon(member.Vote)</span>
-                                            @member.Vote
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge badge-gray">Pending</span>
-                                    }
-                                </td>
-                                <td>
-                                    @if (member.VotedAt.HasValue)
-                                    {
-                                        <span style="font-size: var(--text-sm);">@member.VotedAt.Value.ToString("MMM dd, HH:mm")</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">-</span>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
 
-            @if (!string.IsNullOrEmpty(Committee.Decision))
+            @if (Committee.Members.Count == 0)
             {
-                <div class="card-footer" style="padding: var(--space-4);">
-                    @* Decision header *@
-                    <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3);">
-                        <span class="badge @GetVoteBadgeClass(Committee.Decision)" style="font-size: var(--text-sm); padding: var(--space-1) var(--space-3);">
-                            <span class="material-symbols-outlined" style="font-size: 15px; vertical-align: middle;">@(Committee.Decision == "Approved" ? "check_circle" : "cancel")</span>
-                            Final Decision: @Committee.Decision
-                        </span>
-                        @if (Committee.DecisionDate.HasValue)
-                        {
-                            <span style="font-size: var(--text-sm); color: var(--gray-500);">@Committee.DecisionDate.Value.ToString("MMM dd, yyyy 'at' HH:mm")</span>
-                        }
-                    </div>
-
-                    @* Vote breakdown *@
-                    <div style="display: flex; gap: var(--space-4); margin-bottom: var(--space-3); padding: var(--space-2) var(--space-3); background: var(--gray-50); border-radius: var(--radius-md); font-size: var(--text-sm);">
-                        <span style="color: var(--success-700); font-weight: 600;">✓ @Committee.ApprovalVotes Approve</span>
-                        <span style="color: var(--danger-700); font-weight: 600;">✗ @Committee.RejectionVotes Reject</span>
-                        <span style="color: var(--gray-500);">— @Committee.AbstainVotes Abstain</span>
-                    </div>
-
-                    @* Rationale *@
-                    @if (!string.IsNullOrEmpty(Committee.DecisionComments))
-                    {
-                        <div style="margin-bottom: var(--space-3);">
-                            <div style="font-size: var(--text-xs); font-weight: 600; color: var(--gray-500); text-transform: uppercase; margin-bottom: var(--space-1);">Minutes / Rationale</div>
-                            <p style="font-size: var(--text-sm); color: var(--gray-700); margin: 0; font-style: italic;">"@Committee.DecisionComments"</p>
-                        </div>
-                    }
-
-                    @* Approved terms — only when Approved and terms are set *@
-                    @if (Committee.Decision == "Approved" && Committee.ApprovedAmount.HasValue)
-                    {
-                        <div style="border-top: 1px solid var(--gray-200); padding-top: var(--space-3);">
-                            <div style="font-size: var(--text-xs); font-weight: 600; color: var(--gray-500); text-transform: uppercase; margin-bottom: var(--space-2);">Approved Loan Terms</div>
-                            <div class="grid grid-cols-3 gap-3" style="font-size: var(--text-sm);">
-                                <div>
-                                    <div style="color: var(--gray-500); font-size: var(--text-xs);">Amount</div>
-                                    <div style="font-weight: 600; color: var(--primary-700);">₦@FormatAmount(Committee.ApprovedAmount.Value)</div>
-                                </div>
-                                <div>
-                                    <div style="color: var(--gray-500); font-size: var(--text-xs);">Tenor</div>
-                                    <div style="font-weight: 600;">@Committee.ApprovedTenorMonths months</div>
-                                </div>
-                                <div>
-                                    <div style="color: var(--gray-500); font-size: var(--text-xs);">Interest Rate</div>
-                                    <div style="font-weight: 600;">@Committee.ApprovedInterestRate?.ToString("0.##")% p.a.</div>
-                                </div>
-                            </div>
-                            @if (!string.IsNullOrEmpty(Committee.ApprovalConditions))
+                <div class="empty-state" style="padding: var(--space-8);">
+                    <div class="empty-state-icon"><span class="material-symbols-outlined">groups</span></div>
+                    <div class="empty-state-title">No committee members</div>
+                </div>
+            }
+            else
+            {
+                <div class="card-body" style="padding: 0;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Member</th>
+                                <th>Role</th>
+                                <th>Vote</th>
+                                <th>Voted At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var member in Committee.Members)
                             {
-                                <div style="margin-top: var(--space-2); font-size: var(--text-sm); color: var(--gray-600);">
-                                    <span style="font-weight: 500;">Conditions: </span>@Committee.ApprovalConditions
-                                </div>
+                                <tr>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                            <div class="user-avatar" style="width: 32px; height: 32px; font-size: var(--text-xs);">
+                                                @GetInitials(member.Name)
+                                            </div>
+                                            <div>
+                                                <span style="font-weight: 500;">@member.Name</span>
+                                                @if (member.IsChairperson)
+                                                {
+                                                    <span style="font-size: var(--text-xs); color: var(--primary-600); margin-left: var(--space-2);">Chair</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style="font-size: var(--text-sm); color: var(--gray-600);">@member.Role</td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(member.Vote))
+                                        {
+                                            <span class="badge @GetVoteBadgeClass(member.Vote)">
+                                                <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">@GetVoteIcon(member.Vote)</span>
+                                                @member.Vote
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-gray">Pending</span>
+                                        }
+                                    </td>
+                                    <td style="font-size: var(--text-sm); color: var(--gray-500);">
+                                        @(member.VotedAt.HasValue ? member.VotedAt.Value.ToString("MMM dd, HH:mm") : "—")
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @* Live tally — visible during voting and after all votes are in *@
+                @if ((reviewInProgress || reviewVotingComplete) && (Committee.ApprovalVotes + Committee.RejectionVotes + Committee.AbstainVotes > 0))
+                {
+                    <div class="card-footer" style="padding: var(--space-3) var(--space-4);">
+                        <div style="display: flex; gap: var(--space-6); font-size: var(--text-sm);">
+                            <span style="color: var(--success-700); font-weight: 600;">✓ @Committee.ApprovalVotes Approve</span>
+                            <span style="color: var(--danger-700); font-weight: 600;">✗ @Committee.RejectionVotes Reject</span>
+                            <span style="color: var(--gray-500);">— @Committee.AbstainVotes Abstain</span>
+                            @if (Committee.PendingVotes > 0)
+                            {
+                                <span style="color: var(--warning-600);">⧗ @Committee.PendingVotes Pending</span>
                             }
                         </div>
-                    }
-                </div>
+                        <div style="font-size: var(--text-xs); color: var(--gray-400); margin-top: 4px;">
+                            Quorum: @Committee.RequiredVotes votes required · Minimum @Committee.MinimumApprovalVotes to approve
+                        </div>
+                    </div>
+                }
+
+                @* Decision footer — shown after decision is confirmed *@
+                @if (decisionRecorded)
+                {
+                    <div class="card-footer" style="padding: var(--space-4);">
+                        <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3);">
+                            <span class="badge @GetVoteBadgeClass(Committee.Decision!)" style="font-size: var(--text-sm); padding: var(--space-1) var(--space-3);">
+                                <span class="material-symbols-outlined" style="font-size: 15px; vertical-align: middle;">@(Committee.Decision == "Approved" ? "check_circle" : "cancel")</span>
+                                Final Decision: @Committee.Decision
+                            </span>
+                            @if (Committee.DecisionDate.HasValue)
+                            {
+                                <span style="font-size: var(--text-sm); color: var(--gray-500);">@Committee.DecisionDate.Value.ToString("MMM dd, yyyy 'at' HH:mm")</span>
+                            }
+                        </div>
+                        <div style="display: flex; gap: var(--space-4); margin-bottom: var(--space-3); padding: var(--space-2) var(--space-3); background: var(--gray-50); border-radius: var(--radius-md); font-size: var(--text-sm);">
+                            <span style="color: var(--success-700); font-weight: 600;">✓ @Committee.ApprovalVotes Approve</span>
+                            <span style="color: var(--danger-700); font-weight: 600;">✗ @Committee.RejectionVotes Reject</span>
+                            <span style="color: var(--gray-500);">— @Committee.AbstainVotes Abstain</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(Committee.DecisionComments))
+                        {
+                            <div style="margin-bottom: var(--space-3);">
+                                <div style="font-size: var(--text-xs); font-weight: 600; color: var(--gray-500); text-transform: uppercase; margin-bottom: var(--space-1);">Minutes / Rationale</div>
+                                <p style="font-size: var(--text-sm); color: var(--gray-700); margin: 0; font-style: italic;">"@Committee.DecisionComments"</p>
+                            </div>
+                        }
+                        @if (Committee.Decision == "Approved" && Committee.ApprovedAmount.HasValue)
+                        {
+                            <div style="border-top: 1px solid var(--gray-200); padding-top: var(--space-3);">
+                                <div style="font-size: var(--text-xs); font-weight: 600; color: var(--gray-500); text-transform: uppercase; margin-bottom: var(--space-2);">Approved Loan Terms</div>
+                                <div class="grid grid-cols-3 gap-3" style="font-size: var(--text-sm);">
+                                    <div>
+                                        <div style="color: var(--gray-500); font-size: var(--text-xs);">Amount</div>
+                                        <div style="font-weight: 600; color: var(--primary-700);">₦@FormatAmount(Committee.ApprovedAmount.Value)</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--gray-500); font-size: var(--text-xs);">Tenor</div>
+                                        <div style="font-weight: 600;">@Committee.ApprovedTenorMonths months</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--gray-500); font-size: var(--text-xs);">Interest Rate</div>
+                                        <div style="font-weight: 600;">@Committee.ApprovedInterestRate?.ToString("0.##")% p.a.</div>
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(Committee.ApprovalConditions))
+                                {
+                                    <div style="margin-top: var(--space-2); font-size: var(--text-sm); color: var(--gray-600);">
+                                        <span style="font-weight: 500;">Conditions: </span>@Committee.ApprovalConditions
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
             }
         </div>
 
-        @{
-            var currentMember = CurrentUserId.HasValue
-                ? Committee.Members.FirstOrDefault(m => m.UserId == CurrentUserId.Value)
-                : null;
-            var isCommitteeMember = currentMember != null;
-            var hasAlreadyVoted = currentMember?.Vote != null;
-            var showConfirmPanel = CanConfirmDecision &&
-                (Committee.Status == "VotingComplete" ||
-                 (Committee.Status == "InProgress" && Committee.IsOverdue && Committee.HasQuorum));
-        }
-
-        @* Right panel: Approved Terms (visible after decision is confirmed) *@
+        @* Right panel *@
         <div style="display: flex; flex-direction: column; gap: var(--space-4);">
-            @* Approved Terms summary card — right panel, only once decision is confirmed *@
-            @* Full details are shown in the card-footer below the members table *@
 
-            @* Replace Member panel — admin only, pre-voting *@
-            @if (CanReplaceCommitteeMember && Committee.Status == "Pending")
+            @* Replace Member — admin/risk manager, during active voting *@
+            @if (CanReplaceCommitteeMember && !decisionRecorded)
             {
                 <div class="card" style="border: 1px solid var(--warning-300);">
                     <div class="card-header" style="background: var(--warning-50);">
@@ -242,14 +253,8 @@ else
                             <div style="display: flex; gap: var(--space-2);">
                                 <button class="btn btn-warning btn-sm" @onclick="HandleReplaceMember"
                                         disabled="@(replaceOldMemberId == Guid.Empty || replaceNewMemberId == Guid.Empty || string.IsNullOrWhiteSpace(replaceReason) || isReplacing)">
-                                    @if (isReplacing)
-                                    {
-                                        <span class="spinner" style="width: 14px; height: 14px;"></span>
-                                    }
-                                    else
-                                    {
-                                        <span class="material-symbols-outlined" style="font-size: 16px;">swap_horiz</span>
-                                    }
+                                    @if (isReplacing) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                                    else { <span class="material-symbols-outlined" style="font-size: 16px;">swap_horiz</span> }
                                     Confirm Replacement
                                 </button>
                                 <button class="btn btn-secondary btn-sm" @onclick="() => { showReplacePanel = false; replaceError = null; }">Cancel</button>
@@ -259,43 +264,14 @@ else
                 </div>
             }
 
-            @* Cast Your Vote panel *@
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Cast Your Vote</h3>
-                </div>
-                <div class="card-body">
-                    @if (Committee.Status == "Pending")
-                    {
-                        <div class="text-center text-muted p-4">
-                            <span class="material-symbols-outlined" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">pending</span>
-                            Voting has not started yet
-                        </div>
-                    }
-                    else if (Committee.Status == "VotingComplete" || Committee.Status == "Decided" || Committee.Status == "Closed")
-                    {
-                        <div class="text-center text-muted p-4">
-                            <span class="material-symbols-outlined" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">how_to_vote</span>
-                            Voting is complete
-                        </div>
-                    }
-                    else if (!isCommitteeMember)
-                    {
-                        <div class="text-center text-muted p-4">
-                            <span class="material-symbols-outlined" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">lock</span>
-                            Only assigned committee members can vote
-                        </div>
-                    }
-                    else if (hasAlreadyVoted)
-                    {
-                        <div class="text-center p-4">
-                            <span class="material-symbols-outlined text-success" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">how_to_vote</span>
-                            <p style="font-weight: 500;">You have already voted</p>
-                            <span class="badge @GetVoteBadgeClass(currentMember!.Vote!) mt-2">@currentMember.Vote</span>
-                        </div>
-                    }
-                    else
-                    {
+            @* Cast Your Vote — committee members only *@
+            @if (isCommitteeMember && reviewInProgress && !hasAlreadyVoted && !decisionRecorded)
+            {
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Cast Your Vote</h3>
+                    </div>
+                    <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Your Decision</label>
                             <select class="form-control" @bind="selectedVote">
@@ -309,14 +285,70 @@ else
                             <label class="form-label">Comments (Optional)</label>
                             <textarea class="form-control" rows="3" @bind="voteComments" placeholder="Add your comments..."></textarea>
                         </div>
-                        <button class="btn btn-primary" style="width: 100%;" @onclick="CastVote" disabled="@(string.IsNullOrEmpty(selectedVote))">
+                        <button class="btn btn-primary" style="width: 100%;" @onclick="CastVote"
+                                disabled="@(string.IsNullOrEmpty(selectedVote))">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">how_to_vote</span>
                             Submit Vote
                         </button>
-                    }
+                    </div>
                 </div>
-            </div>
+            }
+            else if (isCommitteeMember && hasAlreadyVoted)
+            {
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">Your Vote</h3></div>
+                    <div class="card-body text-center" style="padding: var(--space-5);">
+                        <span class="material-symbols-outlined" style="font-size: 36px; display: block; margin-bottom: var(--space-2); color: var(--success-500);">how_to_vote</span>
+                        <p style="font-weight: 500; margin-bottom: var(--space-2);">You have voted</p>
+                        <span class="badge @GetVoteBadgeClass(currentMember!.Vote!)" style="font-size: var(--text-sm);">@currentMember!.Vote</span>
+                        @if (!string.IsNullOrEmpty(currentMember.Comments))
+                        {
+                            <p style="font-size: var(--text-sm); color: var(--gray-500); margin-top: var(--space-3); font-style: italic;">"@currentMember.Comments"</p>
+                        }
+                    </div>
+                </div>
+            }
+            else if (!isCommitteeMember && !decisionRecorded)
+            {
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">Decision Status</h3></div>
+                    <div class="card-body text-center" style="padding: var(--space-6);">
+                        <span class="material-symbols-outlined" style="font-size: 36px; display: block; margin-bottom: var(--space-2); opacity: 0.4;">pending</span>
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">
+                            @(reviewVotingComplete ? "All votes cast. Awaiting confirmation." : "Voting in progress...")
+                        </div>
+                    </div>
+                </div>
+            }
 
-            @* Credit officer confirmation panel — appears when all votes are in or overdue with quorum *@
+            @* Decision outcome card *@
+            @if (decisionRecorded)
+            {
+                var isApproved = Committee.Decision == "Approved";
+                <div class="card" style="border: 1px solid @(isApproved ? "var(--success-200)" : "var(--danger-200)");">
+                    <div class="card-header" style="background: @(isApproved ? "var(--success-50)" : "var(--danger-50)");">
+                        <h3 class="card-title" style="color: @(isApproved ? "var(--success-800)" : "var(--danger-800)");">Committee Decision</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3);">
+                            <span class="material-symbols-outlined" style="font-size: 28px; color: @(isApproved ? "var(--success-600)" : "var(--danger-600)");">
+                                @(isApproved ? "check_circle" : "cancel")
+                            </span>
+                            <div>
+                                <div style="font-weight: 700; font-size: var(--text-lg); color: @(isApproved ? "var(--success-800)" : "var(--danger-800)");">
+                                    @(isApproved ? "Approved" : "Declined")
+                                </div>
+                                @if (Committee.DecisionDate.HasValue)
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">@Committee.DecisionDate.Value.ToString("MMM dd, yyyy 'at' HH:mm")</div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @* Confirm decision panel — Credit Officer after all votes in *@
             @if (showConfirmPanel)
             {
                 <div class="card" style="border: 2px solid var(--primary-300);">
@@ -345,8 +377,6 @@ else
                                 </div>
                             }
                         </div>
-
-                        @* Auto-computed decision banner *@
                         <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); padding: var(--space-3); background: @(Committee.HasMajorityApproval ? "var(--success-50)" : "var(--danger-50)"); border: 1px solid @(Committee.HasMajorityApproval ? "var(--success-200)" : "var(--danger-200)"); border-radius: var(--radius-md);">
                             <span class="material-symbols-outlined" style="font-size: 22px; color: @(Committee.HasMajorityApproval ? "var(--success-600)" : "var(--danger-600)");">@(Committee.HasMajorityApproval ? "check_circle" : "cancel")</span>
                             <div>
@@ -358,12 +388,10 @@ else
                                 </div>
                             </div>
                         </div>
-
                         <div class="form-group">
                             <label class="form-label">Rationale / Minutes Summary *</label>
                             <textarea class="form-control" rows="3" @bind="confirmRationale" placeholder="Summarise the committee's deliberation and basis for the decision..."></textarea>
                         </div>
-
                         <div style="border-top: 1px solid var(--gray-200); margin: var(--space-4) 0; padding-top: var(--space-4);">
                             <div style="font-size: var(--text-sm); font-weight: 600; color: var(--gray-700); margin-bottom: var(--space-3);">Loan Terms</div>
                             <div class="grid grid-cols-2 gap-3">
@@ -388,23 +416,15 @@ else
                                 <textarea class="form-control" rows="2" @bind="confirmConditions" placeholder="e.g. Subject to perfection of collateral, insurance coverage..."></textarea>
                             </div>
                         </div>
-
                         @if (!string.IsNullOrEmpty(confirmError))
                         {
                             <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">@confirmError</div>
                         }
-
                         <button class="btn btn-primary" style="width: 100%;"
                                 @onclick="HandleConfirmDecision"
                                 disabled="@(string.IsNullOrEmpty(confirmRationale) || isConfirming)">
-                            @if (isConfirming)
-                            {
-                                <span class="spinner" style="width: 14px; height: 14px;"></span>
-                            }
-                            else
-                            {
-                                <span class="material-symbols-outlined" style="font-size: 16px;">gavel</span>
-                            }
+                            @if (isConfirming) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                            else { <span class="material-symbols-outlined" style="font-size: 16px;">gavel</span> }
                             Confirm & Advance
                         </button>
                     </div>
@@ -413,14 +433,6 @@ else
         </div>
     </div>
 }
-
-<style>
-    .votes-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-        gap: var(--space-6);
-    }
-</style>
 
 @code {
     [Parameter] public CommitteeInfo? Committee { get; set; }
@@ -442,9 +454,6 @@ else
     private string selectedVote = string.Empty;
     private string voteComments = string.Empty;
 
-    private bool isStartingVoting;
-
-    // Replace member (admin)
     private bool showReplacePanel;
     private Guid replaceOldMemberId;
     private Guid replaceNewMemberId;
@@ -452,7 +461,6 @@ else
     private bool isReplacing;
     private string? replaceError;
 
-    // Confirm decision
     private string confirmRationale = string.Empty;
     private decimal confirmAmount;
     private int confirmTenorMonths;
@@ -486,28 +494,17 @@ else
     private async Task HandleReplaceMember()
     {
         if (replaceOldMemberId == Guid.Empty || replaceNewMemberId == Guid.Empty || string.IsNullOrWhiteSpace(replaceReason)) return;
-
         var user = AvailableMemberUsers.FirstOrDefault(u => u.Id == replaceNewMemberId);
         if (user == null) return;
-
         isReplacing = true;
         replaceError = null;
-
         var newName = $"{user.FirstName} {user.LastName}".Trim();
         await OnReplaceMember.InvokeAsync((replaceOldMemberId, replaceNewMemberId, newName, replaceReason));
-
         isReplacing = false;
         showReplacePanel = false;
         replaceOldMemberId = Guid.Empty;
         replaceNewMemberId = Guid.Empty;
         replaceReason = string.Empty;
-    }
-
-    private async Task HandleStartVoting()
-    {
-        isStartingVoting = true;
-        await OnStartVoting.InvokeAsync();
-        isStartingVoting = false;
     }
 
     private async Task HandleConfirmDecision()
@@ -533,10 +530,21 @@ else
         return $"{amount:N0}";
     }
 
+    private static string FormatType(string type) => type switch
+    {
+        "BranchCredit" => "Branch Credit Committee",
+        "RegionalCredit" => "Regional Credit Committee",
+        "HeadOfficeCredit" => "Head Office Credit Committee",
+        "ManagementCredit" => "Management Credit Committee",
+        "BoardCredit" => "Board Credit Committee",
+        _ => type
+    };
+
     private static string GetStatusBadgeClass(string status) => status switch
     {
-        "Completed" => "badge-success",
-        "Pending" or "Voting" => "badge-warning",
+        "InProgress" => "badge-warning",
+        "VotingComplete" => "badge-info",
+        "Decided" or "Completed" or "Closed" => "badge-success",
         _ => "badge-gray"
     };
 
@@ -559,8 +567,7 @@ else
     private static string GetInitials(string name)
     {
         var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 2)
-            return $"{parts[0][0]}{parts[^1][0]}";
+        if (parts.Length >= 2) return $"{parts[0][0]}{parts[^1][0]}";
         return name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
     }
 }

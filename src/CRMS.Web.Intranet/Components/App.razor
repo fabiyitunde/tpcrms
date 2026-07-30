@@ -35,6 +35,19 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
+        function createBlobUrl(byteArray, contentType) {
+            const blob = new Blob([new Uint8Array(byteArray)], { type: contentType });
+            return URL.createObjectURL(blob);
+        }
+        function openFileInNewTab(byteArray, contentType) {
+            const blob = new Blob([new Uint8Array(byteArray)], { type: contentType });
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+            setTimeout(() => URL.revokeObjectURL(url), 30000);
+        }
+        function revokeBlobUrl(url) {
+            URL.revokeObjectURL(url);
+        }
         function scrollToElement(id) {
             const el = document.getElementById(id);
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

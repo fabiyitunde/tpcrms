@@ -64,11 +64,11 @@ public class CheckApprovalGateHandler : IRequestHandler<CheckApprovalGateQuery, 
         var rejected = new List<GateItem>();
         var pending = new List<GateItem>();
 
-        bool checkDocuments = request.Stage is "BranchReview" or "HOReview" or "FinalApproval";
-        bool checkBankStatements = request.Stage is "BranchReview" or "HOReview" or "CreditAnalysis" or "FinalApproval";
-        bool checkFinancials = request.Stage is "BranchReview" or "HOReview" or "FinalApproval";
-        bool checkCollateral = request.Stage is "CreditAnalysis" or "FinalApproval";
-        bool checkGuarantors = request.Stage is "CreditAnalysis" or "FinalApproval";
+        bool checkDocuments = request.Stage is "BranchReview" or "HOReview" or "FinalApproval" or "CreditReview";
+        bool checkBankStatements = request.Stage is "BranchReview" or "HOReview" or "CreditAnalysis" or "FinalApproval" or "CreditReview";
+        bool checkFinancials = request.Stage is "BranchReview" or "HOReview" or "FinalApproval" or "CreditReview";
+        bool checkCollateral = request.Stage is "CreditAnalysis" or "FinalApproval" or "CreditReview";
+        bool checkGuarantors = request.Stage is "CreditAnalysis" or "FinalApproval" or "CreditReview";
         bool checkLegalClearance = request.Stage is "LegalReview";
 
         if (checkDocuments)
@@ -92,9 +92,9 @@ public class CheckApprovalGateHandler : IRequestHandler<CheckApprovalGateQuery, 
             foreach (var s in statements)
             {
                 var label = $"{s.BankName} ({s.AccountNumber}) {s.PeriodStart:MMM yyyy}–{s.PeriodEnd:MMM yyyy}";
-                if (request.Stage == "CreditAnalysis")
+                if (request.Stage is "CreditAnalysis" or "CreditReview")
                 {
-                    // At credit analysis, the credit officer must have run cashflow analysis on every statement.
+                    // At credit review/analysis, cashflow analysis must be completed on every statement.
                     if (s.AnalysisStatus != AnalysisStatus.Completed)
                         pending.Add(new GateItem(s.Id, "BankStatement", label, "Pending", "Cashflow analysis not yet completed"));
                 }
@@ -129,7 +129,7 @@ public class CheckApprovalGateHandler : IRequestHandler<CheckApprovalGateQuery, 
                 var label = string.IsNullOrEmpty(c.Description) ? c.Type.ToString() : c.Description;
                 if (c.Status == CollateralStatus.Rejected)
                     rejected.Add(new GateItem(c.Id, "Collateral", label, "Rejected", c.RejectionReason));
-                else if (request.Stage == "CreditAnalysis")
+                else if (request.Stage is "CreditAnalysis" or "CreditReview")
                 {
                     // Credit Officer's job is to enter valuation — Valued is done at this stage
                     if (c.Status is CollateralStatus.Proposed or CollateralStatus.UnderValuation)

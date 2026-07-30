@@ -55,5 +55,6 @@ public record ChecklistTemplateItemDto(
     bool RequiresLegalRatification,
     bool CanBeWaived,
     int SortOrder,
-    bool IsActive
+    bool IsActive,
+    string? LinkedDocumentCategory = null
 );

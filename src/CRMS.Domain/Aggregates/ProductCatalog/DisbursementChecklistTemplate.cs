@@ -31,6 +31,12 @@ public class DisbursementChecklistTemplate : Entity
     /// <summary>Whether a waiver can be proposed for this item.</summary>
     public bool CanBeWaived { get; private set; }
 
+    /// <summary>
+    /// When set, uploading a document of this category against the application
+    /// automatically satisfies this checklist item (no manual action needed).
+    /// </summary>
+    public DocumentCategory? LinkedDocumentCategory { get; private set; }
+
     public int SortOrder { get; private set; }
     public bool IsActive { get; private set; }
 
@@ -46,7 +52,8 @@ public class DisbursementChecklistTemplate : Entity
         bool requiresDocumentUpload,
         bool requiresLegalRatification,
         bool canBeWaived,
-        int sortOrder)
+        int sortOrder,
+        DocumentCategory? linkedDocumentCategory = null)
     {
         if (string.IsNullOrWhiteSpace(itemName))
             return Result.Failure<DisbursementChecklistTemplate>("Item name is required");
@@ -68,6 +75,7 @@ public class DisbursementChecklistTemplate : Entity
             RequiresDocumentUpload = requiresDocumentUpload,
             RequiresLegalRatification = requiresLegalRatification,
             CanBeWaived = canBeWaived,
+            LinkedDocumentCategory = linkedDocumentCategory,
             SortOrder = sortOrder,
             IsActive = true
         });
@@ -82,7 +90,8 @@ public class DisbursementChecklistTemplate : Entity
         bool requiresDocumentUpload,
         bool requiresLegalRatification,
         bool canBeWaived,
-        int sortOrder)
+        int sortOrder,
+        DocumentCategory? linkedDocumentCategory = null)
     {
         if (string.IsNullOrWhiteSpace(itemName))
             return Result.Failure("Item name is required");
@@ -101,6 +110,7 @@ public class DisbursementChecklistTemplate : Entity
         RequiresDocumentUpload = requiresDocumentUpload;
         RequiresLegalRatification = requiresLegalRatification;
         CanBeWaived = canBeWaived;
+        LinkedDocumentCategory = linkedDocumentCategory;
         SortOrder = sortOrder;
 
         return Result.Success();

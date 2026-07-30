@@ -26,6 +26,11 @@ public static class AppStatus
     public const string DisbursementHQApproval = "DisbursementHQApproval";
     public const string Rejected = "Rejected";
     public const string Disbursed = "Disbursed";
+    // Streamlined corporate flow (new 8-stage)
+    public const string CreditReview = "CreditReview";
+    public const string Ratification = "Ratification";
+    public const string RatificationDeclined = "RatificationDeclined";
+    public const string Disbursement = "Disbursement";
     public const string Closed = "Closed";
     public const string Cancelled = "Cancelled";
 }

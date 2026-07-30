@@ -40,6 +40,11 @@ public class DisbursementChecklistItemConfiguration : IEntityTypeConfiguration<D
 
         builder.HasIndex(x => new { x.LoanApplicationId, x.Status });
 
+        builder.Property(x => x.LinkedDocumentCategory)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .IsRequired(false);
+
         builder.Property(x => x.SatisfactionNotes)
             .HasMaxLength(2000);
 

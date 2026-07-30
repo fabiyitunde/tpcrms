@@ -2457,6 +2457,84 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("ApprovalOverrideRecords", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.LoanApplication.SecurityPerfectionDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<Guid?>("CollateralId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("CollateralDescription")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("StoragePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId");
+
+                    b.ToTable("SecurityPerfectionDocuments", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.LoanApplication.DisbursementChecklistItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2523,6 +2601,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("LegalReturnReason")
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("LinkedDocumentCategory")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
 
                     b.Property<Guid>("LoanApplicationId")
                         .HasColumnType("char(36)");
@@ -2636,12 +2718,57 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
+                    b.Property<long?>("FineractLoanId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasColumnType("longtext");
+
+                    b.Property<string>("CreditAppraisalCapacityRating")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<decimal?>("CreditAppraisalCurrentRatio")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal?>("CreditAppraisalDscr")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal?>("CreditAppraisalLeverage")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal?>("CreditAppraisalLtv")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<string>("CreditAppraisalMemoFileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("CreditAppraisalMemoPath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("CreditAppraisalNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("CreditAppraisalRecommendation")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTimeOffset?>("CreditAppraisalSavedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("CreditAppraisalSavedByUserId")
+                        .HasColumnType("char(36)");
 
                     b.Property<DateTime?>("CreditCheckCompletedAt")
                         .HasColumnType("datetime(6)");
@@ -2651,6 +2778,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("CreditChecksCompleted")
                         .HasColumnType("int");
+
+                    b.Property<string>("CreditReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
 
                     b.Property<string>("CustomerId")
                         .IsRequired()
@@ -2701,6 +2832,13 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("tinyint(1)")
                         .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset?>("LegalReviewCompletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("LegalReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
 
                     b.Property<Guid>("LoanProductId")
                         .HasColumnType("char(36)");
@@ -3536,19 +3674,27 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<bool>("GpsActivated")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<string>("GpsConsentFormStoragePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
                     b.Property<string>("IndustrySector")
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
+
+                    b.Property<string>("LeaseAgreementStoragePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("LegalClearanceNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
 
                     b.Property<DateTime?>("LegalClearedAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<Guid?>("LegalClearedByUserId")
                         .HasColumnType("char(36)");
-
-                    b.Property<string>("LegalClearanceNote")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
 
                     b.Property<string>("LegalDeclineNote")
                         .HasMaxLength(1000)
@@ -3608,14 +3754,6 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("OfferLetterStoragePath")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<string>("LeaseAgreementStoragePath")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<string>("GpsConsentFormStoragePath")
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
@@ -3914,62 +4052,6 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("NampDirectors", (string)null);
                 });
 
-            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDocumentTemplate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("BodyContent")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<string?>("ConditionsContent")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("DocumentType")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<DateTime?>("LastModifiedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<Guid>("LastModifiedByUserId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<string?>("UpdatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DocumentType")
-                        .IsUnique();
-
-                    b.ToTable("NampDocumentTemplates", (string)null);
-                });
-
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDocument", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4037,6 +4119,60 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("NampApplicationId", "Stage");
 
                     b.ToTable("NampDocuments", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampDocumentTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("BodyContent")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ConditionsContent")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("LastModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("LastModifiedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentType")
+                        .IsUnique();
+
+                    b.ToTable("NampDocumentTemplates", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampFinancialAppraisalReport", b =>
@@ -5359,6 +5495,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
+
+                    b.Property<string>("LinkedDocumentCategory")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
 
                     b.Property<Guid>("LoanProductId")
                         .HasColumnType("char(36)");
@@ -7024,6 +7164,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasOne("CRMS.Domain.Aggregates.LoanApplication.LoanApplication", null)
                         .WithMany("ChecklistItems")
                         .HasForeignKey("LoanApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.LoanApplication.SecurityPerfectionDocument", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.LoanApplication.LoanApplication", null)
+                        .WithMany()
+                        .HasForeignKey("ApplicationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

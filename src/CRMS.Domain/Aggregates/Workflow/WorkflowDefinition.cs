@@ -129,10 +129,9 @@ public class WorkflowDefinition : AggregateRoot
 
     public bool CanTransition(LoanApplicationStatus from, LoanApplicationStatus to, WorkflowAction action, string userRole)
     {
-        var transition = GetTransition(from, to, action);
-        if (transition == null) return false;
-        
-        return transition.RequiredRole == userRole || userRole == "SystemAdmin";
+        if (userRole == "SystemAdmin")
+            return _transitions.Any(t => t.FromStatus == from && t.ToStatus == to && t.Action == action);
+        return _transitions.Any(t => t.FromStatus == from && t.ToStatus == to && t.Action == action && t.RequiredRole == userRole);
     }
 
     public void Deactivate() => IsActive = false;

@@ -51,6 +51,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<LA.LoanApplicationStatusHistory> LoanApplicationStatusHistory => Set<LA.LoanApplicationStatusHistory>();
     public DbSet<LA.DisbursementChecklistItem> DisbursementChecklistItems => Set<LA.DisbursementChecklistItem>();
     public DbSet<LA.ApprovalOverrideRecord> ApprovalOverrideRecords => Set<LA.ApprovalOverrideRecord>();
+    public DbSet<LA.SecurityPerfectionDocument> SecurityPerfectionDocuments => Set<LA.SecurityPerfectionDocument>();
 
     // StatementAnalysis
     public DbSet<SA.BankStatement> BankStatements => Set<SA.BankStatement>();

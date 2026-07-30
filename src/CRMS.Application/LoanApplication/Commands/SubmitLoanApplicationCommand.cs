@@ -1,9 +1,11 @@
 using CRMS.Application.Common;
 using CRMS.Application.CreditBureau.Interfaces;
+using CRMS.Application.StatementAnalysis.Commands;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.Services;
 using CRMS.Domain.ValueObjects;
+using Microsoft.Extensions.Logging;
 
 namespace CRMS.Application.LoanApplication.Commands;
 
@@ -16,19 +18,28 @@ public class SubmitLoanApplicationHandler : IRequestHandler<SubmitLoanApplicatio
     private readonly IFinancialStatementRepository _financialStatementRepository;
     private readonly WorkflowService _workflowService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly AnalyzeStatementHandler _analyzeStatementHandler;
+    private readonly ICreditCheckOutbox _outbox;
+    private readonly ILogger<SubmitLoanApplicationHandler> _logger;
 
     public SubmitLoanApplicationHandler(
         ILoanApplicationRepository repository,
         IBankStatementRepository statementRepository,
         IFinancialStatementRepository financialStatementRepository,
         WorkflowService workflowService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        AnalyzeStatementHandler analyzeStatementHandler,
+        ICreditCheckOutbox outbox,
+        ILogger<SubmitLoanApplicationHandler> logger)
     {
         _repository = repository;
         _statementRepository = statementRepository;
         _financialStatementRepository = financialStatementRepository;
         _workflowService = workflowService;
         _unitOfWork = unitOfWork;
+        _analyzeStatementHandler = analyzeStatementHandler;
+        _outbox = outbox;
+        _logger = logger;
     }
 
     public async Task<ApplicationResult> Handle(SubmitLoanApplicationCommand request, CancellationToken ct = default)
@@ -45,16 +56,11 @@ public class SubmitLoanApplicationHandler : IRequestHandler<SubmitLoanApplicatio
         if (!hasStatements)
             return ApplicationResult.Failure("At least one bank statement is required");
 
-        var result = application.Submit(request.UserId);
+        var result = application.SubmitForCreditReview(request.UserId);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 
-        var branchReviewResult = application.SubmitForBranchReview(request.UserId);
-        if (branchReviewResult.IsFailure)
-            return ApplicationResult.Failure(branchReviewResult.Error);
-
         // Auto-submit all Draft financial statements so they enter PendingReview
-        // and the BranchApprover can verify or reject them year by year.
         var financialStatements = await _financialStatementRepository.GetByLoanApplicationIdAsync(request.ApplicationId, ct);
         foreach (var fs in financialStatements.Where(f => f.Status == Domain.Enums.FinancialStatementStatus.Draft))
         {
@@ -67,7 +73,7 @@ public class SubmitLoanApplicationHandler : IRequestHandler<SubmitLoanApplicatio
         var workflowResult = await _workflowService.InitializeWorkflowAsync(
             application.Id,
             application.Type,
-            LoanApplicationStatus.BranchReview,
+            LoanApplicationStatus.CreditReview,
             request.UserId,
             ct);
 
@@ -75,9 +81,48 @@ public class SubmitLoanApplicationHandler : IRequestHandler<SubmitLoanApplicatio
             return ApplicationResult.Failure(workflowResult.Error);
 
         _repository.Update(application);
+
+        // Enqueue credit bureau checks atomically with the submission — same transaction,
+        // so if the save fails neither the status change nor the outbox entry is persisted.
+        await _outbox.EnqueueAsync(application.Id, request.UserId, ct);
+
         await _unitOfWork.SaveChangesAsync(ct);
 
+        // Auto-analyze all Pending bank statements after submission is committed.
+        // Non-fatal: failures are logged but do not roll back the already-committed submission.
+        await AutoAnalyzeStatementsAsync(request.ApplicationId, ct);
+
         return ApplicationResult.Success();
+    }
+
+    private async Task AutoAnalyzeStatementsAsync(Guid applicationId, CancellationToken ct)
+    {
+        try
+        {
+            var statements = await _statementRepository.GetByLoanApplicationIdAsync(applicationId, ct);
+            var pending = statements.Where(s => s.AnalysisStatus == AnalysisStatus.Pending).ToList();
+            if (pending.Count == 0) return;
+
+            _logger.LogInformation("Auto-analyzing {Count} bank statement(s) for application {ApplicationId}", pending.Count, applicationId);
+
+            foreach (var stmt in pending)
+            {
+                try
+                {
+                    var analysisResult = await _analyzeStatementHandler.Handle(new AnalyzeStatementCommand(stmt.Id), ct);
+                    if (!analysisResult.IsSuccess)
+                        _logger.LogWarning("Auto-analysis skipped for statement {StatementId}: {Reason}", stmt.Id, analysisResult.Error);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Auto-analysis failed for statement {StatementId}", stmt.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Auto-analysis fetch failed for application {ApplicationId}", applicationId);
+        }
     }
 }
 

@@ -6,11 +6,14 @@ using QuestPDF.Infrastructure;
 
 namespace CRMS.Infrastructure.Documents;
 
-/// <summary>
-/// Generates loan pack PDFs using QuestPDF.
-/// </summary>
 public class LoanPackPdfGenerator : ILoanPackGenerator
 {
+    private const string Primary    = BoaBrand.Primary;    // #14532d dark green
+    private const string Accent     = BoaBrand.Accent;     // #1f7a3d mid green
+    private const string Subtle     = BoaBrand.Subtle;     // #a7d3b5 soft green
+    private const string PanelGreen = BoaBrand.PanelGreen; // #f0f4f1
+    private const string MedGray    = BoaBrand.MediumGray; // #e2e8f0
+
     public Task<byte[]> GenerateAsync(LoanPackData data, CancellationToken ct = default)
     {
         QuestPDF.Settings.License = LicenseType.Community;
@@ -20,8 +23,9 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.Margin(40);
-                page.DefaultTextStyle(x => x.FontSize(10));
+                page.MarginHorizontal(42);
+                page.MarginVertical(34);
+                page.DefaultTextStyle(x => x.FontSize(9.5f).FontFamily("Arial"));
 
                 page.Header().Element(c => ComposeHeader(c, data));
                 page.Content().Element(c => ComposeContent(c, data));
@@ -29,620 +33,597 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
             });
         });
 
-        var bytes = document.GeneratePdf();
-        return Task.FromResult(bytes);
+        return Task.FromResult(document.GeneratePdf());
     }
 
-    private void ComposeHeader(IContainer container, LoanPackData data)
+    // ── Header ───────────────────────────────────────────────────────────────
+
+    private static void ComposeHeader(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Row(row =>
+            col.Item().Height(5).Background(Color.FromHex(Primary));
+            col.Item().PaddingTop(10).Row(row =>
             {
-                row.RelativeItem().Column(inner =>
+                row.ConstantItem(65).AlignMiddle().Element(c => BoaBrand.RenderLogo(c, 55));
+
+                row.RelativeItem().AlignCenter().AlignMiddle().Column(title =>
                 {
-                    inner.Item().Text("CREDIT RISK MANAGEMENT SYSTEM").Bold().FontSize(14);
-                    inner.Item().Text("LOAN APPLICATION PACK").FontSize(12);
+                    title.Item().AlignCenter()
+                        .Text("BANK OF AGRICULTURE")
+                        .Bold().FontSize(14).FontColor(Color.FromHex(Primary));
+                    title.Item().AlignCenter()
+                        .Text("LOAN APPLICATION PACK")
+                        .FontSize(9).Bold().FontColor(Color.FromHex(Accent)).LetterSpacing(0.04f);
+                    title.Item().AlignCenter().PaddingTop(1)
+                        .Text("Confidential Credit Document")
+                        .FontSize(7.5f).Italic().FontColor(Colors.Grey.Darken2);
                 });
 
-                row.RelativeItem().AlignRight().Column(inner =>
+                row.ConstantItem(120).AlignMiddle().Column(meta =>
                 {
-                    inner.Item().Text($"Application: {data.ApplicationNumber}").Bold();
-                    inner.Item().Text($"Generated: {data.GeneratedAt:dd-MMM-yyyy HH:mm}");
-                    inner.Item().Text($"Version: {data.Version}");
+                    meta.Item().AlignRight()
+                        .Text($"Application:  {data.ApplicationNumber}")
+                        .FontSize(8).Bold().FontColor(Color.FromHex(Primary));
+                    meta.Item().AlignRight().PaddingTop(2)
+                        .Text($"Generated:  {data.GeneratedAt:dd MMM yyyy HH:mm}")
+                        .FontSize(7.5f).FontColor(Colors.Grey.Darken2);
+                    meta.Item().AlignRight().PaddingTop(1)
+                        .Text($"Version:  {data.Version}")
+                        .FontSize(7.5f).FontColor(Colors.Grey.Darken2);
                 });
             });
 
-            col.Item().PaddingTop(10).LineHorizontal(1);
+            col.Item().PaddingTop(8).LineHorizontal(2.5f).LineColor(Color.FromHex(Primary));
+            col.Item().PaddingTop(3).LineHorizontal(1).LineColor(Color.FromHex(Subtle));
         });
     }
 
-    private void ComposeContent(IContainer container, LoanPackData data)
+    // ── Content ──────────────────────────────────────────────────────────────
+
+    private static void ComposeContent(IContainer container, LoanPackData data)
     {
-        container.PaddingVertical(10).Column(col =>
+        container.PaddingTop(8).Column(col =>
         {
-            // 1. Executive Summary
             col.Item().Element(c => ComposeExecutiveSummary(c, data));
             col.Item().PageBreak();
 
-            // 2. Application Timeline
             col.Item().Element(c => ComposeApplicationTimeline(c, data));
             col.Item().PageBreak();
 
-            // 3. Customer Profile
             col.Item().Element(c => ComposeCustomerProfile(c, data));
             col.Item().PageBreak();
 
-            // 4. Directors & Signatories
             if (data.Directors.Any() || data.Signatories.Any())
             {
                 col.Item().Element(c => ComposeDirectorsAndSignatories(c, data));
                 col.Item().PageBreak();
             }
 
-            // 5. Supporting Documents
             if (data.Documents.Any())
             {
                 col.Item().Element(c => ComposeDocuments(c, data));
                 col.Item().PageBreak();
             }
 
-            // 6. Bureau Reports
             if (data.BureauReports.Any())
             {
                 col.Item().Element(c => ComposeBureauReports(c, data));
                 col.Item().PageBreak();
             }
 
-            // 7. Financial Analysis
             if (data.FinancialStatements.Any())
             {
                 col.Item().Element(c => ComposeFinancialAnalysis(c, data));
                 col.Item().PageBreak();
             }
 
-            // 8. Cashflow Analysis
             if (data.CashflowAnalysis != null)
             {
                 col.Item().Element(c => ComposeCashflowAnalysis(c, data));
                 col.Item().PageBreak();
             }
 
-            // 9. Collateral
             if (data.Collaterals.Any())
             {
                 col.Item().Element(c => ComposeCollateral(c, data));
                 col.Item().PageBreak();
             }
 
-            // 10. Guarantors
             if (data.Guarantors.Any())
             {
                 col.Item().Element(c => ComposeGuarantors(c, data));
                 col.Item().PageBreak();
             }
 
-            // 11. AI Advisory
             if (data.AIAdvisory != null)
             {
                 col.Item().Element(c => ComposeAIAdvisory(c, data));
                 col.Item().PageBreak();
             }
 
-            // 12. Credit Officer Notes
             if (data.CreditOfficerNotes.Any())
             {
                 col.Item().PageBreak();
                 col.Item().Element(c => ComposeCreditOfficerNotes(c, data));
             }
 
-            // 13. Committee Comments
             if (data.CommitteeComments.Any())
             {
                 col.Item().PageBreak();
                 col.Item().Element(c => ComposeCommitteeComments(c, data));
             }
 
-            // 14. Committee Decision
             if (data.CommitteeDecision != null)
             {
                 col.Item().PageBreak();
                 col.Item().Element(c => ComposeCommitteeDecision(c, data));
             }
 
-            // 15. Conditions of Approval (committee-stipulated)
             if (data.ApprovalConditions.Any())
             {
                 col.Item().PageBreak();
                 col.Item().Element(c => ComposeConditionsOfApproval(c, data));
             }
 
-            // 16. Disbursement Checklist (CP / CS)
             if (data.DisbursementChecklist.Any())
             {
                 col.Item().PageBreak();
                 col.Item().Element(c => ComposeDisbursementChecklist(c, data));
             }
 
-            // 17. Approval Audit Trail
             if (data.ApprovalAuditTrail.Any())
             {
                 col.Item().PageBreak();
                 col.Item().Element(c => ComposeApprovalAuditTrail(c, data));
             }
+
+            if (data.WorkflowHistory.Any())
+            {
+                col.Item().PageBreak();
+                col.Item().Element(c => ComposeWorkflowHistory(c, data));
+            }
         });
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Section composers
-    // ──────────────────────────────────────────────────────────────────────────
+    // ── Section composers ─────────────────────────────────────────────────────
 
-    private void ComposeExecutiveSummary(IContainer container, LoanPackData data)
+    private static void ComposeExecutiveSummary(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("EXECUTIVE SUMMARY").Bold().FontSize(14);
-            col.Item().PaddingTop(10);
-
-            col.Item().Table(table =>
+            SectionTitle(col, "EXECUTIVE SUMMARY");
+            col.Item().PaddingTop(8).Table(table =>
             {
                 table.ColumnsDefinition(cols =>
                 {
-                    cols.RelativeColumn(1);
-                    cols.RelativeColumn(2);
-                    cols.RelativeColumn(1);
-                    cols.RelativeColumn(2);
+                    cols.RelativeColumn(1); cols.RelativeColumn(2);
+                    cols.RelativeColumn(1); cols.RelativeColumn(2);
                 });
 
-                TableCell(table, "Customer:", true);
-                TableCell(table, data.Customer.Name);
-                TableCell(table, "Application Date:", true);
-                TableCell(table, data.ApplicationDate.ToString("dd-MMM-yyyy"));
-
-                TableCell(table, "Product:", true);
-                TableCell(table, $"{data.LoanProductName} ({data.LoanProductCode})");
-                TableCell(table, "Account Number:", true);
-                TableCell(table, data.Customer.AccountNumber);
-
-                TableCell(table, "Requested Amount:", true);
-                TableCell(table, $"{data.Currency} {data.RequestedAmount:N2}");
-                TableCell(table, "Requested Tenor:", true);
-                TableCell(table, $"{data.RequestedTenorMonths} months");
-
-                TableCell(table, "Interest Rate:", true);
-                TableCell(table, $"{data.RequestedInterestRate:N2}% p.a.");
-                TableCell(table, "Purpose:", true);
-                TableCell(table, data.Purpose);
-
-                TableCell(table, "Current Status:", true);
-                TableCell(table, data.Timeline.CurrentStatus);
-                TableCell(table, "Application Type:", true);
-                TableCell(table, data.Timeline.ApplicationType);
+                DataRow(table, "Customer:", data.Customer.Name, "Application Date:", data.ApplicationDate.ToString("dd MMM yyyy"), true);
+                DataRow(table, "Product:", $"{data.LoanProductName} ({data.LoanProductCode})", "Account Number:", data.Customer.AccountNumber, false);
+                DataRow(table, "Requested Amount:", $"{data.Currency} {data.RequestedAmount:N2}", "Requested Tenor:", $"{data.RequestedTenorMonths} months", true);
+                DataRow(table, "Interest Rate:", $"{data.RequestedInterestRate:N2}% p.a.", "Purpose:", data.Purpose, false);
+                DataRow(table, "Current Status:", data.Timeline.CurrentStatus, "Application Type:", data.Timeline.ApplicationType, true);
 
                 if (data.ApprovedAmount.HasValue || data.ApprovedTenorMonths.HasValue || data.ApprovedInterestRate.HasValue)
                 {
-                    TableCell(table, "Approved Amount:", true);
-                    TableCell(table, data.ApprovedAmount.HasValue ? $"{data.Currency} {data.ApprovedAmount:N2}" : "—");
-                    TableCell(table, "Approved Tenor:", true);
-                    TableCell(table, data.ApprovedTenorMonths.HasValue ? $"{data.ApprovedTenorMonths} months" : "—");
-
-                    TableCell(table, "Approved Rate:", true);
-                    TableCell(table, data.ApprovedInterestRate.HasValue ? $"{data.ApprovedInterestRate:N2}%" : "—");
-                    TableCell(table, "Committee Decision:", true);
-                    TableCell(table, data.CommitteeDecision?.Decision ?? "—");
+                    DataRow(table, "Approved Amount:", data.ApprovedAmount.HasValue ? $"{data.Currency} {data.ApprovedAmount:N2}" : "—", "Approved Tenor:", data.ApprovedTenorMonths.HasValue ? $"{data.ApprovedTenorMonths} months" : "—", false);
+                    DataRow(table, "Approved Rate:", data.ApprovedInterestRate.HasValue ? $"{data.ApprovedInterestRate:N2}%" : "—", "Committee Decision:", data.CommitteeDecision?.Decision ?? "—", true);
                 }
             });
 
-            col.Item().PaddingTop(15);
-            col.Item().Text("KEY METRICS").Bold().FontSize(12);
-            col.Item().PaddingTop(5);
-
-            col.Item().Row(row =>
+            col.Item().PaddingTop(14);
+            SubSectionTitle(col, "KEY METRICS");
+            col.Item().PaddingTop(6).Row(row =>
             {
                 if (data.AIAdvisory != null)
                 {
-                    row.RelativeItem().Border(1).Padding(10).Column(c =>
-                    {
-                        c.Item().AlignCenter().Text("RISK SCORE").Bold();
-                        c.Item().AlignCenter().Text(data.AIAdvisory.OverallRiskScore.ToString())
-                            .FontSize(24).Bold().FontColor(GetRiskColor(data.AIAdvisory.RiskRating));
-                        c.Item().AlignCenter().Text(data.AIAdvisory.RiskRating);
-                    });
+                    row.RelativeItem()
+                        .Border(1.5f).BorderColor(Color.FromHex(MedGray))
+                        .Background(Color.FromHex(PanelGreen))
+                        .Padding(10).Column(c =>
+                        {
+                            c.Item().AlignCenter().Text("RISK SCORE").Bold().FontSize(8).FontColor(Color.FromHex(Primary));
+                            c.Item().AlignCenter().Text(data.AIAdvisory.OverallRiskScore.ToString())
+                                .FontSize(24).Bold().FontColor(GetRiskColor(data.AIAdvisory.RiskRating));
+                            c.Item().AlignCenter().Text(data.AIAdvisory.RiskRating).FontSize(9);
+                        });
                 }
 
-                row.RelativeItem().Border(1).Padding(10).Column(c =>
-                {
-                    c.Item().AlignCenter().Text("COLLATERAL COVERAGE").Bold();
-                    c.Item().AlignCenter().Text($"{data.CollateralCoverageRatio:P0}").FontSize(24).Bold();
-                    c.Item().AlignCenter().Text($"{data.Currency} {data.TotalCollateralValue:N0}");
-                });
+                row.RelativeItem()
+                    .Border(1.5f).BorderColor(Color.FromHex(MedGray))
+                    .Background(Color.FromHex(PanelGreen))
+                    .Padding(10).Column(c =>
+                    {
+                        c.Item().AlignCenter().Text("COLLATERAL COVERAGE").Bold().FontSize(8).FontColor(Color.FromHex(Primary));
+                        c.Item().AlignCenter().Text($"{data.CollateralCoverageRatio:P0}").FontSize(24).Bold().FontColor(Color.FromHex(Accent));
+                        c.Item().AlignCenter().Text($"{data.Currency} {data.TotalCollateralValue:N0}").FontSize(9);
+                    });
 
-                row.RelativeItem().Border(1).Padding(10).Column(c =>
-                {
-                    c.Item().AlignCenter().Text("BUREAU CHECKS").Bold();
-                    var avgScore = data.BureauReports.Where(b => b.CreditScore.HasValue)
-                        .Select(b => b.CreditScore!.Value).DefaultIfEmpty(0).Average();
-                    c.Item().AlignCenter().Text($"{avgScore:N0}").FontSize(24).Bold();
-                    c.Item().AlignCenter().Text($"{data.BureauReports.Count} reports");
-                });
+                row.RelativeItem()
+                    .Border(1.5f).BorderColor(Color.FromHex(MedGray))
+                    .Background(Color.FromHex(PanelGreen))
+                    .Padding(10).Column(c =>
+                    {
+                        c.Item().AlignCenter().Text("BUREAU CHECKS").Bold().FontSize(8).FontColor(Color.FromHex(Primary));
+                        var avgScore = data.BureauReports.Where(b => b.CreditScore.HasValue)
+                            .Select(b => b.CreditScore!.Value).DefaultIfEmpty(0).Average();
+                        c.Item().AlignCenter().Text($"{avgScore:N0}").FontSize(24).Bold().FontColor(Color.FromHex(Accent));
+                        c.Item().AlignCenter().Text($"{data.BureauReports.Count} reports").FontSize(9);
+                    });
 
                 if (data.AIAdvisory != null)
                 {
-                    row.RelativeItem().Border(1).Padding(10).Column(c =>
-                    {
-                        c.Item().AlignCenter().Text("RECOMMENDED").Bold();
-                        c.Item().AlignCenter().Text($"{data.Currency} {data.AIAdvisory.RecommendedAmount:N0}")
-                            .FontSize(16).Bold();
-                        c.Item().AlignCenter().Text($"{data.AIAdvisory.RecommendedTenorMonths} months @ {data.AIAdvisory.RecommendedInterestRate:N2}%");
-                    });
+                    row.RelativeItem()
+                        .Border(1.5f).BorderColor(Color.FromHex(Primary))
+                        .Background(Color.FromHex(Primary))
+                        .Padding(10).Column(c =>
+                        {
+                            c.Item().AlignCenter().Text("RECOMMENDED").Bold().FontSize(8).FontColor(Colors.White);
+                            c.Item().AlignCenter().Text($"{data.Currency} {data.AIAdvisory.RecommendedAmount:N0}")
+                                .FontSize(16).Bold().FontColor(Colors.White);
+                            c.Item().AlignCenter()
+                                .Text($"{data.AIAdvisory.RecommendedTenorMonths} months @ {data.AIAdvisory.RecommendedInterestRate:N2}%")
+                                .FontSize(8).FontColor(Color.FromHex(Subtle));
+                        });
                 }
             });
 
             if (data.AIAdvisory?.RedFlags.Any() == true)
             {
-                col.Item().PaddingTop(15);
-                col.Item().Background(Colors.Red.Lighten4).Padding(10).Column(c =>
-                {
-                    c.Item().Text("RED FLAGS").Bold().FontColor(Colors.Red.Darken2);
-                    foreach (var flag in data.AIAdvisory.RedFlags)
-                        c.Item().Text($"• {flag}").FontColor(Colors.Red.Darken2);
-                });
+                col.Item().PaddingTop(12)
+                    .Background(Color.FromHex("#fff5f5"))
+                    .Border(1).BorderColor(Color.FromHex("#fc8181"))
+                    .PaddingHorizontal(10).PaddingVertical(8).Column(c =>
+                    {
+                        c.Item().Text("RED FLAGS").Bold().FontSize(9).FontColor(Color.FromHex("#c53030"));
+                        foreach (var flag in data.AIAdvisory.RedFlags)
+                            c.Item().PaddingTop(2).Text($"• {flag}").FontSize(9).FontColor(Color.FromHex("#c53030"));
+                    });
             }
 
             if (data.AIAdvisory?.MitigatingFactors.Any() == true)
             {
-                col.Item().PaddingTop(10);
-                col.Item().Background(Colors.Green.Lighten4).Padding(10).Column(c =>
-                {
-                    c.Item().Text("MITIGATING FACTORS").Bold().FontColor(Colors.Green.Darken2);
-                    foreach (var factor in data.AIAdvisory.MitigatingFactors)
-                        c.Item().Text($"• {factor}").FontColor(Colors.Green.Darken2);
-                });
+                col.Item().PaddingTop(8)
+                    .Background(Color.FromHex(PanelGreen))
+                    .Border(1).BorderColor(Color.FromHex(Subtle))
+                    .PaddingHorizontal(10).PaddingVertical(8).Column(c =>
+                    {
+                        c.Item().Text("MITIGATING FACTORS").Bold().FontSize(9).FontColor(Color.FromHex(Primary));
+                        foreach (var factor in data.AIAdvisory.MitigatingFactors)
+                            c.Item().PaddingTop(2).Text($"• {factor}").FontSize(9).FontColor(Color.FromHex(Accent));
+                    });
             }
         });
     }
 
-    private void ComposeApplicationTimeline(IContainer container, LoanPackData data)
+    private static void ComposeApplicationTimeline(IContainer container, LoanPackData data)
     {
         var tl = data.Timeline;
 
         container.Column(col =>
         {
-            col.Item().Text("APPLICATION TIMELINE").Bold().FontSize(14);
+            SectionTitle(col, "APPLICATION TIMELINE");
             col.Item().PaddingTop(4)
                 .Text($"Current Status: {tl.CurrentStatus}  |  Type: {tl.ApplicationType}")
-                .FontSize(10).FontColor(Colors.Grey.Darken2);
-            col.Item().PaddingTop(10);
-
-            // Key dates table
-            col.Item().Table(table =>
+                .FontSize(9).FontColor(Colors.Grey.Darken2).Italic();
+            col.Item().PaddingTop(8).Table(table =>
             {
                 table.ColumnsDefinition(cols =>
                 {
-                    cols.RelativeColumn(2);
-                    cols.RelativeColumn(2);
-                    cols.RelativeColumn(2);
-                    cols.RelativeColumn(2);
+                    cols.RelativeColumn(2); cols.RelativeColumn(2);
+                    cols.RelativeColumn(2); cols.RelativeColumn(2);
                 });
 
-                TableHeader(table, "Milestone");
-                TableHeader(table, "Date");
-                TableHeader(table, "Milestone");
-                TableHeader(table, "Date");
+                TableHeader(table, "Milestone"); TableHeader(table, "Date");
+                TableHeader(table, "Milestone"); TableHeader(table, "Date");
 
-                TimelineRow(table, "Application Created", data.ApplicationDate);
-                TimelineRow(table, "Submitted", tl.SubmittedAt);
-
-                TimelineRow(table, "Branch Approved", tl.BranchApprovedAt);
-                TimelineRow(table, "Credit Check Started", tl.CreditCheckStartedAt);
-
-                TimelineRow(table, "Credit Check Completed", tl.CreditCheckCompletedAt);
-                TimelineRow(table, "Final Approved", tl.FinalApprovedAt);
-
-                TimelineRow(table, "Offer Issued", tl.OfferIssuedAt);
-                TimelineRow(table, "Offer Accepted", tl.OfferAcceptedAt);
-
-                TimelineRow(table, "Customer Signed", tl.CustomerSignedAt);
-                TimelineRow(table, "Disbursed", tl.DisbursedAt);
+                TimelineRow(table, "Application Created", data.ApplicationDate, true);
+                TimelineRow(table, "Submitted", tl.SubmittedAt, false);
+                TimelineRow(table, "Branch Approved", tl.BranchApprovedAt, true);
+                TimelineRow(table, "Credit Check Started", tl.CreditCheckStartedAt, false);
+                TimelineRow(table, "Credit Check Completed", tl.CreditCheckCompletedAt, true);
+                TimelineRow(table, "Final Approved", tl.FinalApprovedAt, false);
+                TimelineRow(table, "Offer Issued", tl.OfferIssuedAt, true);
+                TimelineRow(table, "Offer Accepted", tl.OfferAcceptedAt, false);
+                TimelineRow(table, "Customer Signed", tl.CustomerSignedAt, true);
+                TimelineRow(table, "Disbursed", tl.DisbursedAt, false);
             });
 
-            // Offer acceptance details
             if (tl.OfferAcceptedAt.HasValue || tl.DisbursedAt.HasValue)
             {
-                col.Item().PaddingTop(15).Text("Offer & Disbursement Details").Bold().FontSize(12);
+                col.Item().PaddingTop(14);
+                SubSectionTitle(col, "Offer & Disbursement Details");
                 col.Item().PaddingTop(5).Table(table =>
                 {
                     table.ColumnsDefinition(cols =>
                     {
-                        cols.RelativeColumn(2);
-                        cols.RelativeColumn(3);
-                        cols.RelativeColumn(2);
-                        cols.RelativeColumn(3);
+                        cols.RelativeColumn(2); cols.RelativeColumn(3);
+                        cols.RelativeColumn(2); cols.RelativeColumn(3);
                     });
 
-                    TableCell(table, "Acceptance Method:", true);
-                    TableCell(table, tl.AcceptanceMethod ?? "—");
-                    TableCell(table, "KFS Acknowledged:", true);
-                    TableCell(table, tl.KfsAcknowledged ? "Yes" : "No");
-
-                    TableCell(table, "Core Banking Loan ID:", true);
-                    TableCell(table, tl.CoreBankingLoanId ?? "—");
-                    TableCell(table, "Disbursement Date:", true);
-                    TableCell(table, tl.DisbursedAt.HasValue ? tl.DisbursedAt.Value.ToString("dd-MMM-yyyy") : "—");
+                    DataRow(table, "Acceptance Method:", tl.AcceptanceMethod ?? "—", "KFS Acknowledged:", tl.KfsAcknowledged ? "Yes" : "No", true);
+                    DataRow(table, "Core Banking Loan ID:", tl.CoreBankingLoanId ?? "—", "Disbursement Date:", tl.DisbursedAt.HasValue ? tl.DisbursedAt.Value.ToString("dd MMM yyyy") : "—", false);
                 });
             }
 
-            // Processing duration
             if (tl.SubmittedAt.HasValue && tl.FinalApprovedAt.HasValue)
             {
-                var processingDays = (int)(tl.FinalApprovedAt.Value - tl.SubmittedAt.Value).TotalDays;
+                var days = (int)(tl.FinalApprovedAt.Value - tl.SubmittedAt.Value).TotalDays;
                 col.Item().PaddingTop(10)
-                    .Background(Colors.Blue.Lighten5).Padding(8)
-                    .Text($"Processing time from submission to final approval: {processingDays} day(s).")
-                    .FontSize(9).FontColor(Colors.Blue.Darken2);
+                    .Background(Color.FromHex(PanelGreen))
+                    .Border(1).BorderColor(Color.FromHex(Subtle))
+                    .PaddingHorizontal(10).PaddingVertical(7)
+                    .Text($"Processing time from submission to final approval: {days} day(s).")
+                    .FontSize(9).FontColor(Color.FromHex(Primary));
             }
         });
     }
 
-    private void ComposeCustomerProfile(IContainer container, LoanPackData data)
+    private static void ComposeCustomerProfile(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("CUSTOMER PROFILE").Bold().FontSize(14);
-            col.Item().PaddingTop(10);
-
-            col.Item().Table(table =>
+            SectionTitle(col, "CUSTOMER PROFILE");
+            col.Item().PaddingTop(8).Table(table =>
             {
-                table.ColumnsDefinition(cols =>
-                {
-                    cols.RelativeColumn(1);
-                    cols.RelativeColumn(2);
-                });
+                table.ColumnsDefinition(cols => { cols.RelativeColumn(1); cols.RelativeColumn(2); });
 
-                TableCell(table, "Company Name:", true);
-                TableCell(table, data.Customer.Name);
-
-                TableCell(table, "Registration Number:", true);
-                TableCell(table, data.Customer.RegistrationNumber);
-
-                TableCell(table, "Incorporation Date:", true);
-                TableCell(table, data.Customer.IncorporationDate?.ToString("dd-MMM-yyyy") ?? "N/A");
-
-                TableCell(table, "Industry:", true);
-                TableCell(table, data.Customer.Industry);
-
-                TableCell(table, "Sector:", true);
-                TableCell(table, string.IsNullOrWhiteSpace(data.Customer.Sector) ? "N/A" : data.Customer.Sector);
-
-                TableCell(table, "Address:", true);
-                TableCell(table, string.IsNullOrWhiteSpace(data.Customer.Address) ? "N/A" : data.Customer.Address);
-
-                TableCell(table, "Phone:", true);
-                TableCell(table, string.IsNullOrWhiteSpace(data.Customer.Phone) ? "N/A" : data.Customer.Phone);
-
-                TableCell(table, "Email:", true);
-                TableCell(table, string.IsNullOrWhiteSpace(data.Customer.Email) ? "N/A" : data.Customer.Email);
-
-                TableCell(table, "Account Number:", true);
-                TableCell(table, data.Customer.AccountNumber);
-
-                TableCell(table, "Account Type:", true);
-                TableCell(table, string.IsNullOrWhiteSpace(data.Customer.AccountType) ? "N/A" : data.Customer.AccountType);
-
-                TableCell(table, "Account Open Date:", true);
-                TableCell(table, data.Customer.AccountOpenDate?.ToString("dd-MMM-yyyy") ?? "N/A");
-
-                TableCell(table, "Avg Monthly Balance:", true);
-                TableCell(table, data.Customer.AverageMonthlyBalance.HasValue
-                    ? $"{data.Currency} {data.Customer.AverageMonthlyBalance:N2}" : "N/A");
+                LabelValue(table, "Company Name:", data.Customer.Name, true);
+                LabelValue(table, "Registration Number:", data.Customer.RegistrationNumber, false);
+                LabelValue(table, "Incorporation Date:", data.Customer.IncorporationDate?.ToString("dd MMM yyyy") ?? "N/A", true);
+                LabelValue(table, "Industry:", data.Customer.Industry, false);
+                LabelValue(table, "Sector:", string.IsNullOrWhiteSpace(data.Customer.Sector) ? "N/A" : data.Customer.Sector, true);
+                LabelValue(table, "Address:", string.IsNullOrWhiteSpace(data.Customer.Address) ? "N/A" : data.Customer.Address, false);
+                LabelValue(table, "Phone:", string.IsNullOrWhiteSpace(data.Customer.Phone) ? "N/A" : data.Customer.Phone, true);
+                LabelValue(table, "Email:", string.IsNullOrWhiteSpace(data.Customer.Email) ? "N/A" : data.Customer.Email, false);
+                LabelValue(table, "Account Number:", data.Customer.AccountNumber, true);
+                LabelValue(table, "Account Type:", string.IsNullOrWhiteSpace(data.Customer.AccountType) ? "N/A" : data.Customer.AccountType, false);
+                LabelValue(table, "Account Open Date:", data.Customer.AccountOpenDate?.ToString("dd MMM yyyy") ?? "N/A", true);
+                LabelValue(table, "Avg Monthly Balance:", data.Customer.AverageMonthlyBalance.HasValue
+                    ? $"{data.Currency} {data.Customer.AverageMonthlyBalance:N2}" : "N/A", false);
             });
         });
     }
 
-    private void ComposeDirectorsAndSignatories(IContainer container, LoanPackData data)
+    private static void ComposeDirectorsAndSignatories(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("DIRECTORS & SIGNATORIES").Bold().FontSize(14);
+            SectionTitle(col, "DIRECTORS & SIGNATORIES");
 
             if (data.Directors.Any())
             {
-                col.Item().PaddingTop(10).Text("Directors").Bold().FontSize(12);
-                col.Item().PaddingTop(5);
-
-                col.Item().Table(table =>
+                col.Item().PaddingTop(10);
+                SubSectionTitle(col, "Directors — Credit Summary");
+                col.Item().PaddingTop(5).Table(table =>
                 {
                     table.ColumnsDefinition(cols =>
                     {
-                        cols.RelativeColumn(2);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(2);
+                        cols.RelativeColumn(2); cols.RelativeColumn(1); cols.RelativeColumn(1);
+                        cols.RelativeColumn(1); cols.RelativeColumn(1); cols.RelativeColumn(2);
                     });
 
-                    TableHeader(table, "Name");
-                    TableHeader(table, "Position");
-                    TableHeader(table, "Shareholding");
-                    TableHeader(table, "Credit Score");
-                    TableHeader(table, "Issues");
-                    TableHeader(table, "Bureau Summary");
+                    TableHeader(table, "Name"); TableHeader(table, "Position"); TableHeader(table, "Shareholding");
+                    TableHeader(table, "Credit Score"); TableHeader(table, "Delinquencies"); TableHeader(table, "Bureau Summary");
 
-                    foreach (var director in data.Directors)
+                    for (var i = 0; i < data.Directors.Count; i++)
                     {
-                        TableCell(table, director.Name);
-                        TableCell(table, director.Position);
-                        TableCell(table, director.ShareholdingPercentage.HasValue
-                            ? $"{director.ShareholdingPercentage:N1}%" : "N/A");
-                        TableCell(table, director.CreditScore?.ToString() ?? "N/A");
-                        TableCell(table, director.HasDelinquencies ? "Yes" : "No");
-                        TableCell(table, director.CreditSummary ?? "—");
+                        var d = data.Directors[i];
+                        var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                        DataCell(table, d.Name, bg); DataCell(table, d.Position, bg);
+                        DataCell(table, d.ShareholdingPercentage.HasValue ? $"{d.ShareholdingPercentage:N1}%" : "N/A", bg);
+                        var scoreText = d.CreditScore.HasValue
+                            ? $"{d.CreditScore} ({d.CreditRating ?? "N/A"})" : "N/A";
+                        DataCell(table, scoreText, bg);
+                        DataCell(table, d.HasDelinquencies ? "Yes" : "No", bg);
+                        DataCell(table, d.CreditSummary ?? "—", bg);
                     }
                 });
+
+                var directorsWithContact = data.Directors.Where(d =>
+                    !string.IsNullOrWhiteSpace(d.BVN) ||
+                    !string.IsNullOrWhiteSpace(d.Phone) ||
+                    !string.IsNullOrWhiteSpace(d.Email)).ToList();
+                if (directorsWithContact.Any())
+                {
+                    col.Item().PaddingTop(10);
+                    SubSectionTitle(col, "Directors — Identity & Contact");
+                    col.Item().PaddingTop(5).Table(table =>
+                    {
+                        table.ColumnsDefinition(cols =>
+                        {
+                            cols.RelativeColumn(2); cols.RelativeColumn(2); cols.RelativeColumn(2); cols.RelativeColumn(3);
+                        });
+                        TableHeader(table, "Name"); TableHeader(table, "BVN"); TableHeader(table, "Phone"); TableHeader(table, "Email");
+                        for (var i = 0; i < directorsWithContact.Count; i++)
+                        {
+                            var d = directorsWithContact[i];
+                            var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                            DataCell(table, d.Name, bg);
+                            DataCell(table, string.IsNullOrWhiteSpace(d.BVN) ? "—" : d.BVN, bg);
+                            DataCell(table, string.IsNullOrWhiteSpace(d.Phone) ? "—" : d.Phone, bg);
+                            DataCell(table, string.IsNullOrWhiteSpace(d.Email) ? "—" : d.Email, bg);
+                        }
+                    });
+                }
             }
 
             if (data.Signatories.Any())
             {
-                col.Item().PaddingTop(15).Text("Account Signatories").Bold().FontSize(12);
-                col.Item().PaddingTop(5);
-
-                col.Item().Table(table =>
+                col.Item().PaddingTop(14);
+                SubSectionTitle(col, "Account Signatories — Credit Summary");
+                col.Item().PaddingTop(5).Table(table =>
                 {
                     table.ColumnsDefinition(cols =>
                     {
-                        cols.RelativeColumn(2);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(1);
+                        cols.RelativeColumn(2); cols.RelativeColumn(1); cols.RelativeColumn(1);
+                        cols.RelativeColumn(1); cols.RelativeColumn(1);
                     });
 
-                    TableHeader(table, "Name");
-                    TableHeader(table, "Position");
-                    TableHeader(table, "Class");
-                    TableHeader(table, "Credit Score");
-                    TableHeader(table, "Issues");
+                    TableHeader(table, "Name"); TableHeader(table, "Position"); TableHeader(table, "Class");
+                    TableHeader(table, "Credit Score"); TableHeader(table, "Delinquencies");
 
-                    foreach (var sig in data.Signatories)
+                    for (var i = 0; i < data.Signatories.Count; i++)
                     {
-                        TableCell(table, sig.Name);
-                        TableCell(table, sig.Position);
-                        TableCell(table, sig.SignatoryClass);
-                        TableCell(table, sig.CreditScore?.ToString() ?? "N/A");
-                        TableCell(table, sig.HasDelinquencies ? "Yes" : "No");
+                        var s = data.Signatories[i];
+                        var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                        DataCell(table, s.Name, bg); DataCell(table, s.Position, bg);
+                        DataCell(table, s.SignatoryClass, bg);
+                        var scoreText = s.CreditScore.HasValue
+                            ? $"{s.CreditScore} ({s.CreditRating ?? "N/A"})" : "N/A";
+                        DataCell(table, scoreText, bg);
+                        DataCell(table, s.HasDelinquencies ? "Yes" : "No", bg);
                     }
                 });
+
+                var signatoriesWithContact = data.Signatories.Where(s =>
+                    !string.IsNullOrWhiteSpace(s.BVN) ||
+                    !string.IsNullOrWhiteSpace(s.Phone)).ToList();
+                if (signatoriesWithContact.Any())
+                {
+                    col.Item().PaddingTop(10);
+                    SubSectionTitle(col, "Signatories — Identity & Contact");
+                    col.Item().PaddingTop(5).Table(table =>
+                    {
+                        table.ColumnsDefinition(cols =>
+                        {
+                            cols.RelativeColumn(2); cols.RelativeColumn(2); cols.RelativeColumn(2);
+                        });
+                        TableHeader(table, "Name"); TableHeader(table, "BVN"); TableHeader(table, "Phone");
+                        for (var i = 0; i < signatoriesWithContact.Count; i++)
+                        {
+                            var s = signatoriesWithContact[i];
+                            var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                            DataCell(table, s.Name, bg);
+                            DataCell(table, string.IsNullOrWhiteSpace(s.BVN) ? "—" : s.BVN, bg);
+                            DataCell(table, string.IsNullOrWhiteSpace(s.Phone) ? "—" : s.Phone, bg);
+                        }
+                    });
+                }
             }
         });
     }
 
-    private void ComposeDocuments(IContainer container, LoanPackData data)
+    private static void ComposeDocuments(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("SUPPORTING DOCUMENTS").Bold().FontSize(14);
-            col.Item().PaddingTop(4)
+            SectionTitle(col, "SUPPORTING DOCUMENTS");
+            col.Item().PaddingTop(3)
                 .Text($"Total: {data.Documents.Count} document(s) attached to this application.")
-                .FontSize(10).FontColor(Colors.Grey.Darken2);
-            col.Item().PaddingTop(10);
-
-            col.Item().Table(table =>
+                .FontSize(9).FontColor(Colors.Grey.Darken2).Italic();
+            col.Item().PaddingTop(8).Table(table =>
             {
                 table.ColumnsDefinition(cols =>
                 {
-                    cols.RelativeColumn(3);
-                    cols.RelativeColumn(2);
-                    cols.RelativeColumn(1);
-                    cols.RelativeColumn(2);
-                    cols.RelativeColumn(3);
+                    cols.RelativeColumn(3); cols.RelativeColumn(2); cols.RelativeColumn(1);
+                    cols.RelativeColumn(2); cols.RelativeColumn(3);
                 });
 
-                TableHeader(table, "File Name");
-                TableHeader(table, "Category");
-                TableHeader(table, "Status");
-                TableHeader(table, "Uploaded");
-                TableHeader(table, "Description");
+                TableHeader(table, "File Name"); TableHeader(table, "Category"); TableHeader(table, "Status");
+                TableHeader(table, "Uploaded"); TableHeader(table, "Description");
 
-                foreach (var doc in data.Documents)
+                for (var i = 0; i < data.Documents.Count; i++)
                 {
-                    TableCell(table, doc.FileName);
-                    TableCell(table, doc.Category);
+                    var doc = data.Documents[i];
+                    var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                    DataCell(table, doc.FileName, bg); DataCell(table, doc.Category, bg);
 
-                    var statusColor = doc.Status == "Verified" ? Colors.Green.Darken2
-                        : doc.Status == "Rejected" ? Colors.Red.Darken2
+                    var statusColor = doc.Status == "Verified" ? Color.FromHex(Accent)
+                        : doc.Status == "Rejected" ? Color.FromHex("#c53030")
                         : Colors.Grey.Darken2;
-                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
-                        .Text(doc.Status).FontSize(9).FontColor(statusColor);
+                    table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray)).Padding(5)
+                        .Text(doc.Status).FontSize(9).FontColor(statusColor).Bold();
 
-                    TableCell(table, doc.UploadedAt.ToString("dd-MMM-yy"));
-                    TableCell(table, doc.Description ?? "");
+                    DataCell(table, doc.UploadedAt.ToString("dd-MMM-yy"), bg);
+                    DataCell(table, doc.Description ?? "", bg);
                 }
             });
         });
     }
 
-    private void ComposeBureauReports(IContainer container, LoanPackData data)
+    private static void ComposeBureauReports(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("CREDIT BUREAU REPORTS").Bold().FontSize(14);
-            col.Item().PaddingTop(10);
+            SectionTitle(col, "CREDIT BUREAU REPORTS");
+            col.Item().PaddingTop(8);
 
             foreach (var report in data.BureauReports)
             {
-                col.Item().Border(1).Padding(10).Column(c =>
+                col.Item().Border(1.5f).BorderColor(Color.FromHex(MedGray)).Column(card =>
                 {
-                    c.Item().Row(row =>
+                    card.Item().Background(Color.FromHex(Primary))
+                        .PaddingHorizontal(10).PaddingVertical(6).Row(row =>
+                        {
+                            row.RelativeItem().Text($"{report.SubjectName} ({report.SubjectType})")
+                                .Bold().FontSize(10).FontColor(Colors.White);
+                            row.AutoItem().Text($"Score: {report.CreditScore?.ToString() ?? "N/A"}")
+                                .Bold().FontSize(10).FontColor(Color.FromHex(Subtle));
+                        });
+
+                    card.Item().PaddingHorizontal(10).PaddingVertical(6).Column(c =>
                     {
-                        row.RelativeItem().Text($"{report.SubjectName} ({report.SubjectType})").Bold();
-                        row.RelativeItem().AlignRight().Text($"Score: {report.CreditScore?.ToString() ?? "N/A"}")
-                            .Bold().FontColor(GetScoreColor(report.CreditScore));
+                        c.Item().Text($"Bureau: {report.BureauProvider}  |  Report Date: {report.ReportDate:dd MMM yyyy}  |  Rating: {report.CreditRating ?? "N/A"}  |  Active Loans: {report.ActiveLoanCount}  |  Outstanding: {data.Currency} {report.TotalOutstandingDebt:N0}  |  Delinquent: {report.DelinquentAccountCount}")
+                            .FontSize(8.5f).FontColor(Colors.Grey.Darken2);
+
+                        if (report.HasLegalIssues)
+                        {
+                            c.Item().PaddingTop(4)
+                                .Background(Color.FromHex("#fff5f5")).Border(1).BorderColor(Color.FromHex("#fc8181"))
+                                .PaddingHorizontal(8).PaddingVertical(5)
+                                .Text($"LEGAL ISSUES: {report.LegalIssueDetails}")
+                                .FontSize(9).Bold().FontColor(Color.FromHex("#c53030"));
+                        }
+
+                        if (report.ActiveLoans.Any())
+                        {
+                            c.Item().PaddingTop(8).Text("Active Facilities").Bold().FontSize(9).FontColor(Color.FromHex(Primary));
+                            c.Item().PaddingTop(3).Table(t =>
+                            {
+                                t.ColumnsDefinition(cols =>
+                                {
+                                    cols.RelativeColumn(2); cols.RelativeColumn(1); cols.RelativeColumn(1);
+                                    cols.RelativeColumn(1); cols.RelativeColumn(1); cols.RelativeColumn(1);
+                                });
+                                TableHeader(t, "Lender"); TableHeader(t, "Facility Type"); TableHeader(t, "Original");
+                                TableHeader(t, "Outstanding"); TableHeader(t, "Maturity"); TableHeader(t, "Status");
+                                for (var i = 0; i < Math.Min(10, report.ActiveLoans.Count); i++)
+                                {
+                                    var loan = report.ActiveLoans[i];
+                                    var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                                    DataCell(t, loan.LenderName, bg); DataCell(t, loan.FacilityType, bg);
+                                    DataCell(t, $"{data.Currency} {loan.OriginalAmount:N0}", bg);
+                                    DataCell(t, $"{data.Currency} {loan.OutstandingBalance:N0}", bg);
+                                    DataCell(t, loan.MaturityDate.HasValue ? loan.MaturityDate.Value.ToString("dd-MMM-yy") : "—", bg);
+                                    DataCell(t, loan.Status, bg);
+                                }
+                            });
+                        }
+
+                        if (report.Delinquencies.Any())
+                        {
+                            c.Item().PaddingTop(8).Text("Delinquent Accounts").Bold().FontSize(9).FontColor(Color.FromHex("#c53030"));
+                            c.Item().PaddingTop(3).Table(t =>
+                            {
+                                t.ColumnsDefinition(cols =>
+                                {
+                                    cols.RelativeColumn(2); cols.RelativeColumn(1); cols.RelativeColumn(1); cols.RelativeColumn(1);
+                                });
+                                TableHeader(t, "Lender"); TableHeader(t, "Facility Type"); TableHeader(t, "Amount"); TableHeader(t, "Days Overdue");
+                                for (var i = 0; i < Math.Min(5, report.Delinquencies.Count); i++)
+                                {
+                                    var d = report.Delinquencies[i];
+                                    var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                                    DataCell(t, d.LenderName, bg); DataCell(t, d.FacilityType, bg);
+                                    DataCell(t, $"{data.Currency} {d.Amount:N0}", bg); DataCell(t, d.DaysOverdue.ToString(), bg);
+                                }
+                            });
+                        }
                     });
-
-                    c.Item().Text($"Bureau: {report.BureauProvider} | Report Date: {report.ReportDate:dd-MMM-yyyy}");
-                    c.Item().Text($"Rating: {report.CreditRating ?? "N/A"} | Active Loans: {report.ActiveLoanCount} | Outstanding: {data.Currency} {report.TotalOutstandingDebt:N0} | Delinquent Accounts: {report.DelinquentAccountCount}");
-
-                    if (report.HasLegalIssues)
-                    {
-                        c.Item().Background(Colors.Red.Lighten4).Padding(5)
-                            .Text($"LEGAL ISSUES: {report.LegalIssueDetails}").FontColor(Colors.Red.Darken2);
-                    }
-
-                    if (report.ActiveLoans.Any())
-                    {
-                        c.Item().PaddingTop(5).Text("Active Facilities:").Bold();
-                        c.Item().Table(t =>
-                        {
-                            t.ColumnsDefinition(cols =>
-                            {
-                                cols.RelativeColumn(2);
-                                cols.RelativeColumn(1);
-                                cols.RelativeColumn(1);
-                                cols.RelativeColumn(1);
-                                cols.RelativeColumn(1);
-                            });
-                            TableHeader(t, "Lender");
-                            TableHeader(t, "Facility Type");
-                            TableHeader(t, "Original");
-                            TableHeader(t, "Outstanding");
-                            TableHeader(t, "Status");
-                            foreach (var loan in report.ActiveLoans.Take(10))
-                            {
-                                TableCell(t, loan.LenderName);
-                                TableCell(t, loan.FacilityType);
-                                TableCell(t, $"{data.Currency} {loan.OriginalAmount:N0}");
-                                TableCell(t, $"{data.Currency} {loan.OutstandingBalance:N0}");
-                                TableCell(t, loan.Status);
-                            }
-                        });
-                    }
-
-                    if (report.Delinquencies.Any())
-                    {
-                        c.Item().PaddingTop(5).Text("Delinquent Accounts:").Bold();
-                        c.Item().Table(t =>
-                        {
-                            t.ColumnsDefinition(cols =>
-                            {
-                                cols.RelativeColumn(2);
-                                cols.RelativeColumn(1);
-                                cols.RelativeColumn(1);
-                                cols.RelativeColumn(1);
-                            });
-                            TableHeader(t, "Lender");
-                            TableHeader(t, "Facility Type");
-                            TableHeader(t, "Amount");
-                            TableHeader(t, "Days Overdue");
-                            foreach (var d in report.Delinquencies.Take(5))
-                            {
-                                TableCell(t, d.LenderName);
-                                TableCell(t, d.FacilityType);
-                                TableCell(t, $"{data.Currency} {d.Amount:N0}");
-                                TableCell(t, d.DaysOverdue.ToString());
-                            }
-                        });
-                    }
                 });
 
                 col.Item().PaddingTop(10);
@@ -650,256 +631,212 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
         });
     }
 
-    private void ComposeFinancialAnalysis(IContainer container, LoanPackData data)
+    private static void ComposeFinancialAnalysis(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("FINANCIAL ANALYSIS").Bold().FontSize(14);
-            col.Item().PaddingTop(10);
-
-            col.Item().Text("Financial Statements").Bold().FontSize(12);
-            col.Item().PaddingTop(5);
-
-            col.Item().Table(table =>
+            SectionTitle(col, "FINANCIAL ANALYSIS");
+            col.Item().PaddingTop(8);
+            SubSectionTitle(col, "Financial Statements");
+            col.Item().PaddingTop(5).Table(table =>
             {
+                var statements = data.FinancialStatements.OrderByDescending(f => f.Year).Take(3).ToList();
                 table.ColumnsDefinition(cols =>
                 {
                     cols.RelativeColumn(2);
-                    foreach (var _ in data.FinancialStatements.OrderByDescending(f => f.Year).Take(3))
-                        cols.RelativeColumn(1);
+                    foreach (var _ in statements) cols.RelativeColumn(1);
                 });
-
-                var statements = data.FinancialStatements.OrderByDescending(f => f.Year).Take(3).ToList();
 
                 TableHeader(table, "Item");
                 foreach (var stmt in statements)
                     TableHeader(table, $"{stmt.Year} ({stmt.StatementType})");
 
-                AddFinancialRow(table, "Revenue", statements.Select(s => s.Revenue), data.Currency);
-                AddFinancialRow(table, "Gross Profit", statements.Select(s => s.GrossProfit), data.Currency);
-                AddFinancialRow(table, "Operating Profit", statements.Select(s => s.OperatingProfit), data.Currency);
-                AddFinancialRow(table, "Net Profit", statements.Select(s => s.NetProfit), data.Currency);
-                AddFinancialRow(table, "EBITDA", statements.Select(s => s.EBITDA), data.Currency);
-                AddFinancialRow(table, "Total Assets", statements.Select(s => s.TotalAssets), data.Currency);
-                AddFinancialRow(table, "Current Assets", statements.Select(s => s.CurrentAssets), data.Currency);
-                AddFinancialRow(table, "Total Liabilities", statements.Select(s => s.TotalLiabilities), data.Currency);
-                AddFinancialRow(table, "Current Liabilities", statements.Select(s => s.CurrentLiabilities), data.Currency);
-                AddFinancialRow(table, "Long-term Debt", statements.Select(s => s.LongTermDebt), data.Currency);
-                AddFinancialRow(table, "Shareholders' Equity", statements.Select(s => s.ShareholdersEquity), data.Currency);
+                AddFinancialRow(table, "Revenue", statements.Select(s => s.Revenue), data.Currency, true);
+                AddFinancialRow(table, "Gross Profit", statements.Select(s => s.GrossProfit), data.Currency, false);
+                AddFinancialRow(table, "Operating Profit", statements.Select(s => s.OperatingProfit), data.Currency, true);
+                AddFinancialRow(table, "Net Profit", statements.Select(s => s.NetProfit), data.Currency, false);
+                AddFinancialRow(table, "EBITDA", statements.Select(s => s.EBITDA), data.Currency, true);
+                AddFinancialRow(table, "Total Assets", statements.Select(s => s.TotalAssets), data.Currency, false);
+                AddFinancialRow(table, "Current Assets", statements.Select(s => s.CurrentAssets), data.Currency, true);
+                AddFinancialRow(table, "Fixed Assets", statements.Select(s => s.FixedAssets), data.Currency, false);
+                AddFinancialRow(table, "Total Liabilities", statements.Select(s => s.TotalLiabilities), data.Currency, true);
+                AddFinancialRow(table, "Current Liabilities", statements.Select(s => s.CurrentLiabilities), data.Currency, false);
+                AddFinancialRow(table, "Long-term Debt", statements.Select(s => s.LongTermDebt), data.Currency, true);
+                AddFinancialRow(table, "Shareholders' Equity", statements.Select(s => s.ShareholdersEquity), data.Currency, false);
             });
 
             if (data.FinancialRatios != null)
             {
-                col.Item().PaddingTop(15).Text("Key Financial Ratios").Bold().FontSize(12);
-                col.Item().PaddingTop(5);
-
-                col.Item().Row(row =>
+                col.Item().PaddingTop(14);
+                SubSectionTitle(col, "Key Financial Ratios");
+                col.Item().PaddingTop(6).Row(row =>
                 {
-                    row.RelativeItem().Border(1).Padding(8).Column(c =>
-                    {
-                        c.Item().Text("Liquidity").Bold();
-                        c.Item().Text($"Current Ratio: {data.FinancialRatios.CurrentRatio:N2}x");
-                        c.Item().Text($"Quick Ratio: {data.FinancialRatios.QuickRatio:N2}x");
-                        c.Item().Text($"Cash Ratio: {data.FinancialRatios.CashRatio:N2}x");
-                    });
+                    RatioPanel(row, "Liquidity",
+                        $"Current Ratio: {data.FinancialRatios.CurrentRatio:N2}x",
+                        $"Quick Ratio: {data.FinancialRatios.QuickRatio:N2}x",
+                        $"Cash Ratio: {data.FinancialRatios.CashRatio:N2}x");
 
-                    row.RelativeItem().Border(1).Padding(8).Column(c =>
-                    {
-                        c.Item().Text("Leverage").Bold();
-                        c.Item().Text($"Debt/Equity: {data.FinancialRatios.DebtToEquity:N2}x");
-                        c.Item().Text($"Debt/Assets: {data.FinancialRatios.DebtToAssets:N2}x");
-                        c.Item().Text($"Interest Coverage: {data.FinancialRatios.InterestCoverage:N2}x");
-                    });
+                    RatioPanel(row, "Leverage",
+                        $"Debt/Equity: {data.FinancialRatios.DebtToEquity:N2}x",
+                        $"Debt/Assets: {data.FinancialRatios.DebtToAssets:N2}x",
+                        $"Interest Coverage: {data.FinancialRatios.InterestCoverage:N2}x");
 
-                    row.RelativeItem().Border(1).Padding(8).Column(c =>
-                    {
-                        c.Item().Text("Profitability").Bold();
-                        c.Item().Text($"Gross Margin: {data.FinancialRatios.GrossMargin:P1}");
-                        c.Item().Text($"Net Margin: {data.FinancialRatios.NetMargin:P1}");
-                        c.Item().Text($"ROE: {data.FinancialRatios.ReturnOnEquity:P1}");
-                        c.Item().Text($"ROA: {data.FinancialRatios.ReturnOnAssets:P1}");
-                    });
+                    RatioPanel(row, "Profitability",
+                        $"Gross Margin: {data.FinancialRatios.GrossMargin:P1}",
+                        $"Operating Margin: {data.FinancialRatios.OperatingMargin:P1}",
+                        $"Net Margin: {data.FinancialRatios.NetMargin:P1}",
+                        $"ROE: {data.FinancialRatios.ReturnOnEquity:P1}",
+                        $"ROA: {data.FinancialRatios.ReturnOnAssets:P1}");
 
-                    row.RelativeItem().Border(1).Padding(8).Column(c =>
+                    var coverageLines = new List<string>
                     {
-                        c.Item().Text("Coverage & Efficiency").Bold();
-                        c.Item().Text($"DSCR: {data.FinancialRatios.DebtServiceCoverageRatio:N2}x");
-                        c.Item().Text($"Asset Turnover: {data.FinancialRatios.AssetTurnover:N2}x");
-                        if (data.FinancialRatios.RevenueGrowthYoY.HasValue)
-                            c.Item().Text($"Revenue Growth (YoY): {data.FinancialRatios.RevenueGrowthYoY:N1}%");
-                        if (data.FinancialRatios.ProfitGrowthYoY.HasValue)
-                            c.Item().Text($"Profit Growth (YoY): {data.FinancialRatios.ProfitGrowthYoY:N1}%");
-                    });
+                        $"DSCR: {data.FinancialRatios.DebtServiceCoverageRatio:N2}x",
+                        $"Asset Turnover: {data.FinancialRatios.AssetTurnover:N2}x"
+                    };
+                    if (data.FinancialRatios.InventoryTurnover.HasValue)
+                        coverageLines.Add($"Inventory Turnover: {data.FinancialRatios.InventoryTurnover:N2}x");
+                    if (data.FinancialRatios.ReceivablesDays.HasValue)
+                        coverageLines.Add($"Receivables Days: {data.FinancialRatios.ReceivablesDays:N0} days");
+                    if (data.FinancialRatios.PayablesDays.HasValue)
+                        coverageLines.Add($"Payables Days: {data.FinancialRatios.PayablesDays:N0} days");
+                    if (data.FinancialRatios.RevenueGrowthYoY.HasValue)
+                        coverageLines.Add($"Revenue Growth (YoY): {data.FinancialRatios.RevenueGrowthYoY:N1}%");
+                    if (data.FinancialRatios.ProfitGrowthYoY.HasValue)
+                        coverageLines.Add($"Profit Growth (YoY): {data.FinancialRatios.ProfitGrowthYoY:N1}%");
+                    RatioPanel(row, "Coverage & Efficiency", coverageLines.ToArray());
                 });
             }
         });
     }
 
-    private void ComposeCashflowAnalysis(IContainer container, LoanPackData data)
+    private static void ComposeCashflowAnalysis(IContainer container, LoanPackData data)
     {
         var cf = data.CashflowAnalysis!;
-
         container.Column(col =>
         {
-            col.Item().Text("CASHFLOW ANALYSIS").Bold().FontSize(14);
-            col.Item().PaddingTop(4).Text($"Based on {cf.MonthsAnalyzed} months of bank statement data.").Italic();
-            col.Item().PaddingTop(10);
-
-            col.Item().Row(row =>
+            SectionTitle(col, "CASHFLOW ANALYSIS");
+            col.Item().PaddingTop(3)
+                .Text($"Based on {cf.MonthsAnalyzed} months of bank statement data.")
+                .FontSize(9).Italic().FontColor(Colors.Grey.Darken2);
+            col.Item().PaddingTop(8).Row(row =>
             {
-                row.RelativeItem().Border(1).Padding(10).Column(c =>
-                {
-                    c.Item().Text("Monthly Averages").Bold();
-                    c.Item().Text($"Avg Inflow: {data.Currency} {cf.AverageMonthlyInflow:N0}");
-                    c.Item().Text($"Avg Outflow: {data.Currency} {cf.AverageMonthlyOutflow:N0}");
-                    c.Item().Text($"Net Cashflow: {data.Currency} {cf.NetCashflow:N0}")
-                        .FontColor(cf.NetCashflow >= 0 ? Colors.Green.Darken2 : Colors.Red.Darken2);
-                });
+                CashflowPanel(row, "Monthly Averages",
+                    ($"Avg Inflow", $"{data.Currency} {cf.AverageMonthlyInflow:N0}", false),
+                    ($"Avg Outflow", $"{data.Currency} {cf.AverageMonthlyOutflow:N0}", false),
+                    ($"Net Cashflow", $"{data.Currency} {cf.NetCashflow:N0}", cf.NetCashflow < 0));
 
-                row.RelativeItem().Border(1).Padding(10).Column(c =>
-                {
-                    c.Item().Text("Balance Analysis").Bold();
-                    c.Item().Text($"Avg Balance: {data.Currency} {cf.AverageBalance:N0}");
-                    c.Item().Text($"Lowest: {data.Currency} {cf.LowestMonthlyBalance:N0}");
-                    c.Item().Text($"Highest: {data.Currency} {cf.HighestMonthlyBalance:N0}");
-                });
+                CashflowPanel(row, "Balance Analysis",
+                    ("Avg Balance", $"{data.Currency} {cf.AverageBalance:N0}", false),
+                    ("Lowest", $"{data.Currency} {cf.LowestMonthlyBalance:N0}", false),
+                    ("Highest", $"{data.Currency} {cf.HighestMonthlyBalance:N0}", false));
 
-                row.RelativeItem().Border(1).Padding(10).Column(c =>
-                {
-                    c.Item().Text("Inflow Breakdown").Bold();
-                    c.Item().Text($"Salary: {data.Currency} {cf.SalaryInflows:N0}");
-                    c.Item().Text($"Business: {data.Currency} {cf.BusinessInflows:N0}");
-                    c.Item().Text($"Other: {data.Currency} {cf.OtherInflows:N0}");
-                });
+                CashflowPanel(row, "Inflow Breakdown",
+                    ("Salary", $"{data.Currency} {cf.SalaryInflows:N0}", false),
+                    ("Business", $"{data.Currency} {cf.BusinessInflows:N0}", false),
+                    ("Other", $"{data.Currency} {cf.OtherInflows:N0}", false));
 
-                row.RelativeItem().Border(1).Padding(10).Column(c =>
-                {
-                    c.Item().Text("Outflow Breakdown").Bold();
-                    c.Item().Text($"Loan Repayments: {data.Currency} {cf.LoanRepayments:N0}");
-                    c.Item().Text($"Rent/Utilities: {data.Currency} {cf.RentUtilities:N0}");
-                    c.Item().Text($"Other: {data.Currency} {cf.OtherOutflows:N0}");
-                });
+                CashflowPanel(row, "Outflow Breakdown",
+                    ("Loan Repayments", $"{data.Currency} {cf.LoanRepayments:N0}", false),
+                    ("Rent/Utilities", $"{data.Currency} {cf.RentUtilities:N0}", false),
+                    ("Salary Payments", $"{data.Currency} {cf.SalaryPayments:N0}", false),
+                    ("Other", $"{data.Currency} {cf.OtherOutflows:N0}", false));
             });
 
-            col.Item().PaddingTop(10).Row(row =>
+            col.Item().PaddingTop(8).Row(row =>
             {
-                row.RelativeItem().Border(1).Padding(10).Column(c =>
-                {
-                    c.Item().Text("Quality Metrics").Bold();
-                    c.Item().Text($"Inflow Volatility: {cf.InflowVolatility:P1}");
-                    c.Item().Text($"Balance Volatility: {cf.BalanceVolatility:P1}");
-                    c.Item().Text($"Returned Cheques: {cf.ReturnedChequeCount}");
-                    c.Item().Text($"Overdraft Usage: {cf.OverdraftUtilization:P1}");
-                });
+                CashflowPanel(row, "Quality Metrics",
+                    ("Inflow Volatility", $"{cf.InflowVolatility:P1}", false),
+                    ("Balance Volatility", $"{cf.BalanceVolatility:P1}", false),
+                    ("Returned Cheques", $"{cf.ReturnedChequeCount}", false),
+                    ("Overdraft Usage", $"{cf.OverdraftUtilization:P1}", false));
 
-                row.RelativeItem().Border(1).Padding(15).Column(c =>
-                {
-                    c.Item().Text("Trust Assessment").Bold();
-                    c.Item().AlignCenter().Text(cf.TrustLevel).FontSize(18).Bold()
-                        .FontColor(cf.TrustLevel == "High" ? Colors.Green.Darken2 :
-                                   cf.TrustLevel == "Medium" ? Colors.Orange.Darken2 : Colors.Red.Darken2);
-                    c.Item().AlignCenter().Text($"Weighted Score: {cf.TrustWeightedScore:N0}");
-                });
+                row.RelativeItem()
+                    .Border(1.5f).BorderColor(Color.FromHex(MedGray))
+                    .Background(Color.FromHex(PanelGreen))
+                    .Padding(12).Column(c =>
+                    {
+                        c.Item().Text("Trust Assessment").Bold().FontSize(9).FontColor(Color.FromHex(Primary));
+                        var trustColor = cf.TrustLevel == "High" ? Color.FromHex(Accent)
+                            : cf.TrustLevel == "Medium" ? Color.FromHex("#c05621")
+                            : Color.FromHex("#c53030");
+                        c.Item().PaddingTop(4).AlignCenter()
+                            .Text(cf.TrustLevel).FontSize(20).Bold().FontColor(trustColor);
+                        c.Item().AlignCenter()
+                            .Text($"Weighted Score: {cf.TrustWeightedScore:N0}").FontSize(9);
+                    });
             });
         });
     }
 
-    private void ComposeCollateral(IContainer container, LoanPackData data)
+    private static void ComposeCollateral(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("COLLATERAL").Bold().FontSize(14);
-            col.Item().PaddingTop(4)
+            SectionTitle(col, "COLLATERAL");
+            col.Item().PaddingTop(3)
                 .Text($"Total Acceptable Value: {data.Currency} {data.TotalCollateralValue:N0}  |  Coverage Ratio: {data.CollateralCoverageRatio:P0}")
-                .Bold();
-            col.Item().PaddingTop(10);
-
-            // Valuation summary table
-            col.Item().Table(table =>
+                .Bold().FontSize(9.5f).FontColor(Color.FromHex(Primary));
+            col.Item().PaddingTop(8).Table(table =>
             {
                 table.ColumnsDefinition(cols =>
                 {
-                    cols.RelativeColumn(1);   // Type
-                    cols.RelativeColumn(2);   // Description / Location
-                    cols.RelativeColumn(1);   // Market Value
-                    cols.RelativeColumn(1);   // FSV
-                    cols.RelativeColumn(1);   // Acceptable
-                    cols.RelativeColumn(1);   // Status
+                    cols.RelativeColumn(1); cols.RelativeColumn(2); cols.RelativeColumn(1);
+                    cols.RelativeColumn(1); cols.RelativeColumn(1); cols.RelativeColumn(1);
                 });
 
-                TableHeader(table, "Type");
-                TableHeader(table, "Description");
-                TableHeader(table, "Market Value");
-                TableHeader(table, "FSV");
-                TableHeader(table, "Acceptable");
-                TableHeader(table, "Status");
+                TableHeader(table, "Type"); TableHeader(table, "Description"); TableHeader(table, "Market Value");
+                TableHeader(table, "FSV"); TableHeader(table, "Acceptable"); TableHeader(table, "Status");
 
-                foreach (var c in data.Collaterals)
+                for (var i = 0; i < data.Collaterals.Count; i++)
                 {
-                    TableCell(table, c.Type);
-                    TableCell(table, string.IsNullOrWhiteSpace(c.Location)
-                        ? c.Description
-                        : $"{c.Description}\n{c.Location}");
-                    TableCell(table, $"{data.Currency} {c.MarketValue:N0}");
-                    TableCell(table, $"{data.Currency} {c.ForcedSaleValue:N0}");
-                    TableCell(table, $"{data.Currency} {c.AcceptableValue:N0}");
+                    var c = data.Collaterals[i];
+                    var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                    DataCell(table, c.Type, bg);
+                    DataCell(table, string.IsNullOrWhiteSpace(c.Location) ? c.Description : $"{c.Description}\n{c.Location}", bg);
+                    DataCell(table, $"{data.Currency} {c.MarketValue:N0}", bg);
+                    DataCell(table, $"{data.Currency} {c.ForcedSaleValue:N0}", bg);
+                    DataCell(table, $"{data.Currency} {c.AcceptableValue:N0}", bg);
 
-                    var statusColor = c.Status is "Approved" or "Perfected" ? Colors.Green.Darken2
-                        : c.Status == "Rejected" ? Colors.Red.Darken2
+                    var statusColor = c.Status is "Approved" or "Perfected" ? Color.FromHex(Accent)
+                        : c.Status == "Rejected" ? Color.FromHex("#c53030")
                         : Colors.Grey.Darken2;
-                    table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
-                        .Text(c.Status).FontSize(9).FontColor(statusColor);
+                    table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray)).Padding(5)
+                        .Text(c.Status).FontSize(9).FontColor(statusColor).Bold();
                 }
             });
 
-            // Per-collateral detail cards (valuer, lien, insurance, legal)
-            col.Item().PaddingTop(15).Text("Collateral Detail").Bold().FontSize(12);
+            col.Item().PaddingTop(14);
+            SubSectionTitle(col, "Collateral Detail");
 
             foreach (var c in data.Collaterals)
             {
-                col.Item().PaddingTop(8).Border(1).Padding(10).Column(card =>
+                col.Item().PaddingTop(8).Border(1.5f).BorderColor(Color.FromHex(MedGray)).Column(card =>
                 {
-                    card.Item().Row(row =>
-                    {
-                        row.RelativeItem().Text($"{c.Type} — {c.Description}").Bold();
-                        var legalBadge = c.IsLegalCleared
-                            ? "Legal Cleared ✓"
-                            : "Legal Clearance Pending";
-                        var legalColor = c.IsLegalCleared ? Colors.Green.Darken2 : Colors.Orange.Darken2;
-                        row.AutoItem().Text(legalBadge).FontSize(9).FontColor(legalColor);
-                    });
+                    card.Item().Background(c.IsLegalCleared ? Color.FromHex(PanelGreen) : Color.FromHex("#fffbeb"))
+                        .PaddingHorizontal(10).PaddingVertical(6).Row(row =>
+                        {
+                            row.RelativeItem().Text($"{c.Type} — {c.Description}").Bold().FontSize(9.5f);
+                            var legalColor = c.IsLegalCleared ? Color.FromHex(Accent) : Color.FromHex("#c05621");
+                            row.AutoItem().Text(c.IsLegalCleared ? "Legal Cleared ✓" : "Legal Clearance Pending")
+                                .FontSize(8.5f).FontColor(legalColor).Bold();
+                        });
 
-                    card.Item().PaddingTop(5).Table(table =>
+                    card.Item().PaddingHorizontal(10).PaddingVertical(6).Table(table =>
                     {
                         table.ColumnsDefinition(cols =>
                         {
-                            cols.RelativeColumn(1);
-                            cols.RelativeColumn(2);
-                            cols.RelativeColumn(1);
-                            cols.RelativeColumn(2);
+                            cols.RelativeColumn(1); cols.RelativeColumn(2);
+                            cols.RelativeColumn(1); cols.RelativeColumn(2);
                         });
 
-                        TableCell(table, "Valuation Date:", true);
-                        TableCell(table, string.IsNullOrWhiteSpace(c.ValuationDate) ? "Not yet valued" : c.ValuationDate);
-                        TableCell(table, "Valuer:", true);
-                        TableCell(table, string.IsNullOrWhiteSpace(c.ValuerName) ? "—" : c.ValuerName);
-
-                        TableCell(table, "Lien Type:", true);
-                        TableCell(table, string.IsNullOrWhiteSpace(c.LienType) ? "—" : c.LienType);
-                        TableCell(table, "Lien Reference:", true);
-                        TableCell(table, c.LienReference ?? "—");
-
-                        TableCell(table, "Insurance Policy:", true);
-                        TableCell(table, c.InsurancePolicy ?? "—");
-                        TableCell(table, "Insurance Expiry:", true);
-                        TableCell(table, c.InsuranceExpiry.HasValue ? c.InsuranceExpiry.Value.ToString("dd-MMM-yyyy") : "—");
+                        DataRow(table, "Valuation Date:", string.IsNullOrWhiteSpace(c.ValuationDate) ? "Not yet valued" : c.ValuationDate, "Valuer:", string.IsNullOrWhiteSpace(c.ValuerName) ? "—" : c.ValuerName, true);
+                        DataRow(table, "Lien Type:", string.IsNullOrWhiteSpace(c.LienType) ? "—" : c.LienType, "Lien Reference:", c.LienReference ?? "—", false);
+                        DataRow(table, "Insurance Policy:", c.InsurancePolicy ?? "—", "Insurance Expiry:", c.InsuranceExpiry.HasValue ? c.InsuranceExpiry.Value.ToString("dd MMM yyyy") : "—", true);
 
                         if (c.IsLegalCleared && c.LegalClearedAt.HasValue)
                         {
-                            TableCell(table, "Legal Cleared At:", true);
-                            TableCell(table, c.LegalClearedAt.Value.ToString("dd-MMM-yyyy HH:mm"));
-                            TableCell(table, "", false);
-                            TableCell(table, "");
+                            LabelValue(table, "Legal Cleared At:", c.LegalClearedAt.Value.ToString("dd MMM yyyy HH:mm"), false);
+                            table.Cell().Padding(5); table.Cell().Padding(5);
                         }
                     });
                 });
@@ -907,559 +844,809 @@ public class LoanPackPdfGenerator : ILoanPackGenerator
         });
     }
 
-    private void ComposeGuarantors(IContainer container, LoanPackData data)
+    private static void ComposeGuarantors(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("GUARANTORS").Bold().FontSize(14);
-            col.Item().PaddingTop(4)
-                .Text($"Total Guarantee Amount: {data.Currency} {data.TotalGuaranteeAmount:N0}").Bold();
-            col.Item().PaddingTop(10);
-
-            col.Item().Table(table =>
+            SectionTitle(col, "GUARANTORS");
+            col.Item().PaddingTop(3)
+                .Text($"Total Guarantee Amount: {data.Currency} {data.TotalGuaranteeAmount:N0}")
+                .Bold().FontSize(9.5f).FontColor(Color.FromHex(Primary));
+            col.Item().PaddingTop(8).Table(table =>
             {
                 table.ColumnsDefinition(cols =>
                 {
-                    cols.RelativeColumn(2);
-                    cols.RelativeColumn(1);
-                    cols.RelativeColumn(1);
-                    cols.RelativeColumn(1);
-                    cols.RelativeColumn(1);
-                    cols.RelativeColumn(1);
-                    cols.RelativeColumn(1);
+                    cols.RelativeColumn(2); cols.RelativeColumn(1); cols.RelativeColumn(1);
+                    cols.RelativeColumn(1); cols.RelativeColumn(1); cols.RelativeColumn(1); cols.RelativeColumn(1); cols.RelativeColumn(1);
                 });
 
-                TableHeader(table, "Name");
-                TableHeader(table, "Type");
-                TableHeader(table, "Relationship");
-                TableHeader(table, "Net Worth");
-                TableHeader(table, "Guarantee");
-                TableHeader(table, "Credit Score");
-                TableHeader(table, "Status");
+                TableHeader(table, "Name"); TableHeader(table, "Type"); TableHeader(table, "Relationship");
+                TableHeader(table, "Net Worth"); TableHeader(table, "Guarantee");
+                TableHeader(table, "Credit Score"); TableHeader(table, "Rating"); TableHeader(table, "Status");
 
-                foreach (var g in data.Guarantors)
+                for (var i = 0; i < data.Guarantors.Count; i++)
                 {
-                    TableCell(table, g.Name);
-                    TableCell(table, g.Type);
-                    TableCell(table, g.Relationship);
-                    TableCell(table, $"{data.Currency} {g.NetWorth:N0}");
-                    TableCell(table, $"{data.Currency} {g.GuaranteeAmount:N0}");
-                    TableCell(table, g.CreditScore?.ToString() ?? "N/A");
-                    TableCell(table, g.Status);
+                    var g = data.Guarantors[i];
+                    var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                    DataCell(table, g.Name, bg); DataCell(table, g.Type, bg); DataCell(table, g.Relationship, bg);
+                    DataCell(table, $"{data.Currency} {g.NetWorth:N0}", bg);
+                    DataCell(table, $"{data.Currency} {g.GuaranteeAmount:N0}", bg);
+                    DataCell(table, g.CreditScore?.ToString() ?? "N/A", bg);
+                    DataCell(table, g.CreditRating ?? "—", bg);
+                    DataCell(table, g.Status, bg);
                 }
             });
 
-            // Guarantor address/contact cards
-            var guarantorsWithAddress = data.Guarantors.Where(g =>
-                !string.IsNullOrWhiteSpace(g.Address) || !string.IsNullOrWhiteSpace(g.Phone)).ToList();
-            if (guarantorsWithAddress.Any())
+            var withAddress = data.Guarantors.Where(g => !string.IsNullOrWhiteSpace(g.Address) || !string.IsNullOrWhiteSpace(g.Phone)).ToList();
+            if (withAddress.Any())
             {
-                col.Item().PaddingTop(10).Text("Guarantor Contact Details").Bold().FontSize(12);
-                foreach (var g in guarantorsWithAddress)
+                col.Item().PaddingTop(12);
+                SubSectionTitle(col, "Guarantor Contact Details");
+                col.Item().PaddingTop(5).Table(table =>
                 {
-                    col.Item().PaddingTop(5).Table(table =>
+                    table.ColumnsDefinition(cols => { cols.RelativeColumn(1); cols.RelativeColumn(3); });
+                    foreach (var g in withAddress)
                     {
-                        table.ColumnsDefinition(cols =>
-                        {
-                            cols.RelativeColumn(1);
-                            cols.RelativeColumn(3);
-                        });
-                        TableCell(table, g.Name, true);
-                        TableCell(table, $"Address: {g.Address}  |  Phone: {g.Phone}");
-                    });
-                }
+                        LabelValue(table, g.Name, $"Address: {g.Address}  |  Phone: {g.Phone}", false);
+                    }
+                });
             }
         });
     }
 
-    private void ComposeAIAdvisory(IContainer container, LoanPackData data)
+    private static void ComposeAIAdvisory(IContainer container, LoanPackData data)
     {
         var ai = data.AIAdvisory!;
 
+        var recColor = ai.Recommendation switch
+        {
+            "Approve"            => Color.FromHex(Accent),
+            "ConditionalApprove" => Color.FromHex("#c05621"),
+            "Decline"            => Color.FromHex("#c53030"),
+            _                    => Colors.Grey.Darken2
+        };
+        var recLabel = ai.Recommendation switch
+        {
+            "ConditionalApprove" => "Conditional Approve",
+            _ => ai.Recommendation
+        };
+
         container.Column(col =>
         {
-            col.Item().Text("AI ADVISORY ASSESSMENT").Bold().FontSize(14);
-            col.Item().PaddingTop(10);
+            SectionTitle(col, "AI ADVISORY ASSESSMENT");
 
-            col.Item().Row(row =>
-            {
-                row.RelativeItem().Border(2).Padding(15).Column(c =>
+            // ── Hero banner ──────────────────────────────────────────────────
+            col.Item().PaddingTop(10)
+                .Background(Color.FromHex(Primary))
+                .PaddingHorizontal(14).PaddingVertical(12).Row(row =>
                 {
-                    c.Item().AlignCenter().Text("OVERALL RISK SCORE").Bold();
-                    c.Item().AlignCenter().Text(ai.OverallRiskScore.ToString())
-                        .FontSize(36).Bold().FontColor(GetRiskColor(ai.RiskRating));
-                    c.Item().AlignCenter().Text(ai.RiskRating).FontSize(14)
-                        .FontColor(GetRiskColor(ai.RiskRating));
+                    row.AutoItem().AlignMiddle().Column(c =>
+                    {
+                        c.Item().AlignCenter().Text("RISK SCORE").Bold().FontSize(7.5f).FontColor(Color.FromHex(Subtle));
+                        c.Item().AlignCenter().Text(ai.OverallRiskScore.ToString())
+                            .FontSize(36).Bold().FontColor(GetRiskColor(ai.RiskRating));
+                        c.Item().AlignCenter().Text($"{ai.RiskRating} Risk")
+                            .Bold().FontSize(10).FontColor(GetRiskColor(ai.RiskRating));
+                    });
+
+                    row.ConstantItem(20);
+
+                    row.RelativeItem().AlignMiddle().Column(c =>
+                    {
+                        if (!string.IsNullOrWhiteSpace(recLabel))
+                        {
+                            c.Item().Border(1.5f).BorderColor(recColor)
+                                .Background(recColor).PaddingHorizontal(10).PaddingVertical(4)
+                                .Text(recLabel.ToUpperInvariant())
+                                .Bold().FontSize(9).FontColor(Colors.White).LetterSpacing(0.03f);
+                        }
+                        if (ai.HasCriticalRedFlags)
+                        {
+                            c.Item().PaddingTop(4).Border(1.5f).BorderColor(Color.FromHex("#c53030"))
+                                .Background(Color.FromHex("#c53030")).PaddingHorizontal(10).PaddingVertical(4)
+                                .Text("⚠ CRITICAL RED FLAGS").Bold().FontSize(9).FontColor(Colors.White);
+                        }
+                        c.Item().PaddingTop(6).Text(ai.RiskSummary).FontSize(9.5f).FontColor(Colors.White).LineHeight(1.4f);
+                    });
+
+                    row.ConstantItem(100).AlignMiddle().Column(c =>
+                    {
+                        c.Item().AlignRight().Text(ai.GeneratedAt.ToString("dd MMM yyyy")).FontSize(8).FontColor(Color.FromHex(Subtle));
+                        if (!string.IsNullOrWhiteSpace(ai.ModelVersion))
+                            c.Item().AlignRight().Text(ai.ModelVersion).FontSize(7.5f).FontColor(Color.FromHex(Subtle)).Italic();
+                    });
                 });
 
-                row.RelativeItem(2).Padding(10).Column(c =>
+            // ── Recommended Terms ─────────────────────────────────────────────
+            if (ai.RecommendedAmount.HasValue)
+            {
+                col.Item().PaddingTop(10).Row(row =>
                 {
-                    c.Item().Text("Risk Summary").Bold();
-                    c.Item().Text(ai.RiskSummary);
+                    row.RelativeItem().Border(1.5f).BorderColor(Color.FromHex(MedGray))
+                        .Background(Color.FromHex(PanelGreen)).Padding(10).Column(c =>
+                        {
+                            c.Item().AlignCenter().Text("RECOMMENDED AMOUNT").Bold().FontSize(7.5f).FontColor(Color.FromHex(Primary));
+                            c.Item().AlignCenter().Text($"{data.Currency} {ai.RecommendedAmount:N0}")
+                                .FontSize(14).Bold().FontColor(Color.FromHex(Accent));
+                        });
+                    if (ai.RecommendedTenorMonths.HasValue)
+                        row.RelativeItem().Border(1.5f).BorderColor(Color.FromHex(MedGray))
+                            .Background(Color.FromHex(PanelGreen)).Padding(10).Column(c =>
+                            {
+                                c.Item().AlignCenter().Text("TENOR").Bold().FontSize(7.5f).FontColor(Color.FromHex(Primary));
+                                c.Item().AlignCenter().Text($"{ai.RecommendedTenorMonths} months")
+                                    .FontSize(14).Bold().FontColor(Color.FromHex(Accent));
+                            });
+                    if (ai.RecommendedInterestRate.HasValue)
+                        row.RelativeItem().Border(1.5f).BorderColor(Color.FromHex(MedGray))
+                            .Background(Color.FromHex(PanelGreen)).Padding(10).Column(c =>
+                            {
+                                c.Item().AlignCenter().Text("INTEREST RATE").Bold().FontSize(7.5f).FontColor(Color.FromHex(Primary));
+                                c.Item().AlignCenter().Text($"{ai.RecommendedInterestRate:N2}%")
+                                    .FontSize(14).Bold().FontColor(Color.FromHex(Accent));
+                            });
                 });
-            });
+            }
 
-            col.Item().PaddingTop(15).Text("Component Scores").Bold().FontSize(12);
-            col.Item().PaddingTop(5);
-
-            col.Item().Table(table =>
+            // ── Risk Category Breakdown ───────────────────────────────────────
+            if (ai.ScoreBreakdown.Any())
             {
-                table.ColumnsDefinition(cols =>
+                col.Item().PaddingTop(14);
+                SubSectionTitle(col, "Risk Category Breakdown");
+                col.Item().PaddingTop(6).Table(table =>
                 {
-                    cols.RelativeColumn(2);
-                    cols.RelativeColumn(1);
-                    cols.RelativeColumn(2);
-                    cols.RelativeColumn(1);
+                    table.ColumnsDefinition(cols =>
+                    {
+                        cols.RelativeColumn(2); cols.ConstantColumn(45); cols.RelativeColumn(1); cols.RelativeColumn(5);
+                    });
+                    TableHeader(table, "Category"); TableHeader(table, "Score"); TableHeader(table, "Rating"); TableHeader(table, "Rationale");
+
+                    for (var i = 0; i < ai.ScoreBreakdown.Count; i++)
+                    {
+                        var s = ai.ScoreBreakdown[i];
+                        var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                        var scoreColor = s.Score >= 65 ? Color.FromHex(Accent)
+                            : s.Score >= 40 ? Color.FromHex("#c05621")
+                            : Color.FromHex("#c53030");
+
+                        DataCell(table, FormatAdvisoryCategory(s.Category), bg);
+                        table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray)).Padding(5)
+                            .Text(s.Score.ToString()).Bold().FontSize(9).FontColor(scoreColor);
+                        DataCell(table, s.Rating ?? "—", bg);
+                        DataCell(table, s.Rationale ?? "—", bg);
+                    }
                 });
+            }
 
-                TableCell(table, "Credit History:", true);
-                TableCell(table, ai.CreditHistoryScore.ToString());
-                TableCell(table, "Financial Strength:", true);
-                TableCell(table, ai.FinancialStrengthScore.ToString());
-
-                TableCell(table, "Cashflow Quality:", true);
-                TableCell(table, ai.CashflowQualityScore.ToString());
-                TableCell(table, "Collateral Coverage:", true);
-                TableCell(table, ai.CollateralCoverageScore.ToString());
-
-                TableCell(table, "Industry Risk:", true);
-                TableCell(table, ai.IndustryRiskScore.ToString());
-                TableCell(table, "Management Quality:", true);
-                TableCell(table, ai.ManagementQualityScore.ToString());
-
-                TableCell(table, "Relationship Strength:", true);
-                TableCell(table, ai.RelationshipStrengthScore.ToString());
-                TableCell(table, "External Factors:", true);
-                TableCell(table, ai.ExternalFactorsScore.ToString());
-            });
-
-            col.Item().PaddingTop(15).Text("Recommendations").Bold().FontSize(12);
-            col.Item().PaddingTop(5).Border(1).Padding(10).Column(c =>
+            // ── Red Flags ─────────────────────────────────────────────────────
+            if (ai.RedFlags.Any())
             {
-                c.Item().Text($"Amount: {ai.AmountRecommendation}");
-                c.Item().Text($"Tenor: {ai.TenorRecommendation}");
-                c.Item().Text($"Pricing: {ai.PricingRecommendation}");
-                if (!string.IsNullOrWhiteSpace(ai.StructuringRecommendation))
-                    c.Item().Text($"Structuring: {ai.StructuringRecommendation}");
-            });
+                col.Item().PaddingTop(12);
+                var flagBg   = ai.HasCriticalRedFlags ? Color.FromHex("#fff5f5") : Color.FromHex("#fff7ed");
+                var flagBorder = ai.HasCriticalRedFlags ? Color.FromHex("#fc8181") : Color.FromHex("#fed7aa");
+                var flagText  = ai.HasCriticalRedFlags ? Color.FromHex("#c53030") : Color.FromHex("#c2410c");
+                var flagLabel = ai.HasCriticalRedFlags ? "CRITICAL RED FLAGS" : "RED FLAGS";
 
-            if (ai.RecommendedConditions.Any())
+                col.Item().Background(flagBg).Border(1).BorderColor(flagBorder)
+                    .PaddingHorizontal(10).PaddingVertical(8).Column(c =>
+                    {
+                        c.Item().Text(flagLabel).Bold().FontSize(9).FontColor(flagText);
+                        foreach (var flag in ai.RedFlags)
+                            c.Item().PaddingTop(2).Text($"• {flag}").FontSize(9).FontColor(flagText);
+                    });
+            }
+
+            // ── Executive Summary ─────────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(ai.RiskSummary))
             {
-                col.Item().PaddingTop(10).Text("Recommended Conditions").Bold().FontSize(12);
-                col.Item().PaddingTop(5).Border(1).Padding(10).Column(c =>
+                col.Item().PaddingTop(12)
+                    .Background(Color.FromHex("#f8fafc")).Border(1).BorderColor(Color.FromHex(MedGray))
+                    .PaddingHorizontal(12).PaddingVertical(10).Column(c =>
+                    {
+                        c.Item().Text("EXECUTIVE SUMMARY").Bold().FontSize(8.5f).FontColor(Color.FromHex(Primary));
+                        c.Item().PaddingTop(4).Text(ai.RiskSummary).FontSize(9.5f).LineHeight(1.6f);
+                    });
+            }
+
+            // ── Strengths & Weaknesses ────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(ai.StrengthsAnalysis) || !string.IsNullOrWhiteSpace(ai.WeaknessesAnalysis))
+            {
+                col.Item().PaddingTop(10).Row(row =>
                 {
-                    foreach (var condition in ai.RecommendedConditions)
-                        c.Item().Text($"• {condition}");
+                    if (!string.IsNullOrWhiteSpace(ai.StrengthsAnalysis))
+                        row.RelativeItem().Background(Color.FromHex(PanelGreen))
+                            .Border(1).BorderColor(Color.FromHex(Subtle))
+                            .PaddingHorizontal(10).PaddingVertical(8).Column(c =>
+                            {
+                                c.Item().Text("STRENGTHS").Bold().FontSize(8.5f).FontColor(Color.FromHex(Primary));
+                                c.Item().PaddingTop(4).Text(ai.StrengthsAnalysis).FontSize(9.5f).LineHeight(1.5f).FontColor(Color.FromHex(Primary));
+                            });
+                    if (!string.IsNullOrWhiteSpace(ai.WeaknessesAnalysis))
+                        row.RelativeItem().Background(Color.FromHex("#fff5f5"))
+                            .Border(1).BorderColor(Color.FromHex("#fecaca"))
+                            .PaddingHorizontal(10).PaddingVertical(8).Column(c =>
+                            {
+                                c.Item().Text("WEAKNESSES").Bold().FontSize(8.5f).FontColor(Color.FromHex("#c53030"));
+                                c.Item().PaddingTop(4).Text(ai.WeaknessesAnalysis).FontSize(9.5f).LineHeight(1.5f).FontColor(Color.FromHex("#7f1d1d"));
+                            });
+                });
+            }
+
+            // ── Mitigating Factors & Key Risks ────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(ai.MitigatingFactorsText) || !string.IsNullOrWhiteSpace(ai.KeyRisks))
+            {
+                col.Item().PaddingTop(10).Row(row =>
+                {
+                    if (!string.IsNullOrWhiteSpace(ai.MitigatingFactorsText))
+                        row.RelativeItem().Background(Color.FromHex("#eff6ff"))
+                            .Border(1).BorderColor(Color.FromHex("#bfdbfe"))
+                            .PaddingHorizontal(10).PaddingVertical(8).Column(c =>
+                            {
+                                c.Item().Text("MITIGATING FACTORS").Bold().FontSize(8.5f).FontColor(Color.FromHex("#1e40af"));
+                                c.Item().PaddingTop(4).Text(ai.MitigatingFactorsText).FontSize(9.5f).LineHeight(1.5f).FontColor(Color.FromHex("#1e3a8a"));
+                            });
+                    if (!string.IsNullOrWhiteSpace(ai.KeyRisks))
+                        row.RelativeItem().Background(Color.FromHex("#fffbeb"))
+                            .Border(1).BorderColor(Color.FromHex("#fde68a"))
+                            .PaddingHorizontal(10).PaddingVertical(8).Column(c =>
+                            {
+                                c.Item().Text("KEY RISKS").Bold().FontSize(8.5f).FontColor(Color.FromHex("#92400e"));
+                                c.Item().PaddingTop(4).Text(ai.KeyRisks).FontSize(9.5f).LineHeight(1.5f).FontColor(Color.FromHex("#78350f"));
+                            });
+                });
+            }
+
+            // ── Conditions & Covenants ────────────────────────────────────────
+            if (ai.RecommendedConditions.Any() || ai.Covenants.Any())
+            {
+                col.Item().PaddingTop(12).Row(row =>
+                {
+                    if (ai.RecommendedConditions.Any())
+                        row.RelativeItem()
+                            .Border(1).BorderColor(Color.FromHex("#e9d5ff"))
+                            .Background(Color.FromHex("#faf5ff"))
+                            .PaddingHorizontal(10).PaddingVertical(8).Column(c =>
+                            {
+                                c.Item().Text("PRECEDENT CONDITIONS").Bold().FontSize(8.5f).FontColor(Color.FromHex("#6d28d9"));
+                                for (var i = 0; i < ai.RecommendedConditions.Count; i++)
+                                    c.Item().PaddingTop(3).Text($"{i + 1}. {ai.RecommendedConditions[i]}").FontSize(9.5f).FontColor(Color.FromHex("#4c1d95"));
+                            });
+                    if (ai.Covenants.Any())
+                        row.RelativeItem()
+                            .Border(1).BorderColor(Color.FromHex("#a5f3fc"))
+                            .Background(Color.FromHex("#ecfeff"))
+                            .PaddingHorizontal(10).PaddingVertical(8).Column(c =>
+                            {
+                                c.Item().Text("ONGOING COVENANTS").Bold().FontSize(8.5f).FontColor(Color.FromHex("#0e7490"));
+                                for (var i = 0; i < ai.Covenants.Count; i++)
+                                    c.Item().PaddingTop(3).Text($"{i + 1}. {ai.Covenants[i]}").FontSize(9.5f).FontColor(Color.FromHex("#164e63"));
+                            });
                 });
             }
         });
     }
 
-    private void ComposeCreditOfficerNotes(IContainer container, LoanPackData data)
+    private static string FormatAdvisoryCategory(string category) => category switch
+    {
+        "CreditHistory"        => "Credit History",
+        "FinancialHealth"      => "Financial Health",
+        "CashflowStability"    => "Cashflow Stability",
+        "DebtServiceCapacity"  => "Debt Service (DSCR)",
+        "CollateralCoverage"   => "Collateral Coverage",
+        "ManagementRisk"       => "Management Quality",
+        "IndustryRisk"         => "Industry Risk",
+        "ConcentrationRisk"    => "Concentration Risk",
+        _                      => category
+    };
+
+    private static void ComposeCreditOfficerNotes(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("CREDIT OFFICER NOTES").Bold().FontSize(14);
-            col.Item().PaddingTop(4)
+            SectionTitle(col, "CREDIT OFFICER NOTES");
+            col.Item().PaddingTop(3)
                 .Text("Application-level notes and observations logged by the processing team.")
-                .FontSize(10).FontColor(Colors.Grey.Darken2);
-            col.Item().PaddingTop(10);
+                .FontSize(9).Italic().FontColor(Colors.Grey.Darken2);
+            col.Item().PaddingTop(8);
 
-            // Group notes by category for readability
             var grouped = data.CreditOfficerNotes
                 .GroupBy(n => string.IsNullOrWhiteSpace(n.Category) ? "General" : n.Category)
                 .OrderBy(g => g.Key);
 
             foreach (var group in grouped)
             {
-                col.Item().PaddingTop(6).Text(group.Key.ToUpper()).Bold().FontSize(10)
-                    .FontColor(Colors.Grey.Darken3);
+                col.Item().PaddingTop(6)
+                    .Background(Color.FromHex(PanelGreen))
+                    .PaddingHorizontal(8).PaddingVertical(4)
+                    .Text(group.Key.ToUpper()).Bold().FontSize(9).FontColor(Color.FromHex(Primary));
 
                 foreach (var note in group)
                 {
-                    col.Item().PaddingTop(4).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(c =>
-                    {
-                        c.Item().AlignRight().Text(note.CreatedAt.ToString("dd-MMM-yyyy HH:mm"))
-                            .FontSize(8).FontColor(Colors.Grey.Darken1);
-                        c.Item().PaddingTop(3).Text(note.Content).FontSize(10);
-                    });
+                    col.Item().PaddingTop(4)
+                        .Border(1).BorderColor(Color.FromHex(MedGray))
+                        .Padding(8).Column(c =>
+                        {
+                            c.Item().AlignRight().Text(note.CreatedAt.ToString("dd MMM yyyy HH:mm"))
+                                .FontSize(8).FontColor(Colors.Grey.Darken1);
+                            c.Item().PaddingTop(3).Text(note.Content).FontSize(9.5f);
+                        });
                 }
-
-                col.Item().PaddingTop(4);
             }
         });
     }
 
-    private void ComposeCommitteeComments(IContainer container, LoanPackData data)
+    private static void ComposeCommitteeComments(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().PaddingTop(15).Text("COMMITTEE COMMENTS").Bold().FontSize(14);
+            SectionTitle(col, "COMMITTEE COMMENTS");
             col.Item().PaddingTop(10);
 
             foreach (var comment in data.CommitteeComments.OrderByDescending(c => c.Timestamp))
             {
-                col.Item().Border(1).Padding(10).Column(c =>
+                col.Item().Border(1).BorderColor(Color.FromHex(MedGray)).Column(card =>
                 {
-                    c.Item().Row(row =>
+                    card.Item().Background(Color.FromHex(PanelGreen))
+                        .PaddingHorizontal(10).PaddingVertical(5).Row(row =>
+                        {
+                            row.RelativeItem().Text($"{comment.MemberName} ({comment.MemberRole})")
+                                .Bold().FontSize(9.5f).FontColor(Color.FromHex(Primary));
+                            row.AutoItem().PaddingRight(8)
+                                .Text($"[{comment.Visibility}]")
+                                .FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
+                            row.AutoItem().Text(comment.Timestamp.ToString("dd-MMM-yy HH:mm"))
+                                .FontSize(8.5f).FontColor(Colors.Grey.Darken2);
+                        });
+
+                    card.Item().PaddingHorizontal(10).PaddingVertical(6).Column(c =>
                     {
-                        row.RelativeItem().Text($"{comment.MemberName} ({comment.MemberRole})").Bold();
-                        row.RelativeItem().AlignRight().Text(comment.Timestamp.ToString("dd-MMM-yy HH:mm"));
+                        if (!string.IsNullOrEmpty(comment.Vote))
+                        {
+                            var voteColor = comment.Vote == "Approve" ? Color.FromHex(Accent)
+                                : comment.Vote == "Reject" ? Color.FromHex("#c53030")
+                                : Colors.Grey.Darken2;
+                            c.Item().Text($"Vote: {comment.Vote}").Bold().FontSize(9.5f).FontColor(voteColor);
+                            c.Item().PaddingTop(3);
+                        }
+                        c.Item().Text(comment.Comment).FontSize(9.5f).LineHeight(1.4f);
                     });
-
-                    if (!string.IsNullOrEmpty(comment.Vote))
-                    {
-                        c.Item().Text($"Vote: {comment.Vote}").Bold()
-                            .FontColor(comment.Vote == "Approve" ? Colors.Green.Darken2 :
-                                       comment.Vote == "Reject" ? Colors.Red.Darken2 : Colors.Grey.Darken2);
-                    }
-
-                    c.Item().PaddingTop(5).Text(comment.Comment);
                 });
 
-                col.Item().PaddingTop(5);
+                col.Item().PaddingTop(6);
             }
         });
     }
 
-    private void ComposeCommitteeDecision(IContainer container, LoanPackData data)
+    private static void ComposeCommitteeDecision(IContainer container, LoanPackData data)
     {
         var decision = data.CommitteeDecision!;
-
         container.Column(col =>
         {
-            col.Item().Text("COMMITTEE DECISION").Bold().FontSize(14);
+            SectionTitle(col, "COMMITTEE DECISION");
             col.Item().PaddingTop(10);
 
-            var decisionColor = decision.Decision == "Approved" ? Colors.Green.Darken2
-                : decision.Decision == "Rejected" ? Colors.Red.Darken2
-                : Colors.Orange.Darken2;
+            var decisionColor = decision.Decision == "Approved" ? Color.FromHex(Accent)
+                : decision.Decision == "Rejected" ? Color.FromHex("#c53030")
+                : Color.FromHex("#c05621");
 
-            col.Item().Background(decision.Decision == "Approved" ? Colors.Green.Lighten4
-                : decision.Decision == "Rejected" ? Colors.Red.Lighten4
-                : Colors.Orange.Lighten4)
-                .Padding(12).Row(row =>
+            var decisionBg = decision.Decision == "Approved" ? Color.FromHex(PanelGreen)
+                : decision.Decision == "Rejected" ? Color.FromHex("#fff5f5")
+                : Color.FromHex("#fffbeb");
+
+            col.Item().Background(decisionBg)
+                .Border(2).BorderColor(decisionColor)
+                .PaddingHorizontal(12).PaddingVertical(10).Row(row =>
                 {
                     row.RelativeItem().Column(c =>
                     {
                         c.Item().Text(decision.Decision.ToUpper()).FontSize(18).Bold().FontColor(decisionColor);
                         if (!string.IsNullOrEmpty(decision.DecisionRationale))
-                            c.Item().PaddingTop(4).Text(decision.DecisionRationale).FontSize(10);
+                            c.Item().PaddingTop(4).Text(decision.DecisionRationale).FontSize(9.5f).LineHeight(1.4f);
                     });
 
-                    row.AutoItem().Padding(8).Column(c =>
-                    {
-                        c.Item().AlignCenter().Text($"{decision.ApprovalVotes}").FontSize(22).Bold().FontColor(Colors.Green.Darken2);
-                        c.Item().AlignCenter().Text("Approve").FontSize(9);
-                    });
-                    row.AutoItem().Padding(8).Column(c =>
-                    {
-                        c.Item().AlignCenter().Text($"{decision.RejectionVotes}").FontSize(22).Bold().FontColor(Colors.Red.Darken2);
-                        c.Item().AlignCenter().Text("Reject").FontSize(9);
-                    });
+                    VoteBadge(row, decision.ApprovalVotes.ToString(), "Approve", Color.FromHex(Accent));
+                    VoteBadge(row, decision.RejectionVotes.ToString(), "Reject", Color.FromHex("#c53030"));
                     if (decision.AbstainVotes > 0)
-                    {
-                        row.AutoItem().Padding(8).Column(c =>
-                        {
-                            c.Item().AlignCenter().Text($"{decision.AbstainVotes}").FontSize(22).Bold().FontColor(Colors.Grey.Darken2);
-                            c.Item().AlignCenter().Text("Abstain").FontSize(9);
-                        });
-                    }
+                        VoteBadge(row, decision.AbstainVotes.ToString(), "Abstain", Colors.Grey.Darken2);
                     if (decision.PendingVotes > 0)
-                    {
-                        row.AutoItem().Padding(8).Column(c =>
-                        {
-                            c.Item().AlignCenter().Text($"{decision.PendingVotes}").FontSize(22).Bold().FontColor(Colors.Orange.Darken2);
-                            c.Item().AlignCenter().Text("Pending").FontSize(9);
-                        });
-                    }
+                        VoteBadge(row, decision.PendingVotes.ToString(), "Pending", Color.FromHex("#c05621"));
                 });
 
             if (decision.RecommendedAmount.HasValue || decision.RecommendedTenorMonths.HasValue || decision.RecommendedInterestRate.HasValue)
             {
-                col.Item().PaddingTop(10).Text("Committee Approved Terms").Bold().FontSize(12);
+                col.Item().PaddingTop(14);
+                SubSectionTitle(col, "Committee Approved Terms");
                 col.Item().PaddingTop(5).Table(table =>
                 {
                     table.ColumnsDefinition(cols =>
                     {
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(2);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(2);
+                        cols.RelativeColumn(1); cols.RelativeColumn(2);
+                        cols.RelativeColumn(1); cols.RelativeColumn(2);
                     });
 
-                    TableCell(table, "Amount:", true);
-                    TableCell(table, decision.RecommendedAmount.HasValue ? $"{data.Currency} {decision.RecommendedAmount:N2}" : "—");
-                    TableCell(table, "Tenor:", true);
-                    TableCell(table, decision.RecommendedTenorMonths.HasValue ? $"{decision.RecommendedTenorMonths} months" : "—");
-
-                    TableCell(table, "Interest Rate:", true);
-                    TableCell(table, decision.RecommendedInterestRate.HasValue ? $"{decision.RecommendedInterestRate:N2}%" : "—");
-                    TableCell(table, "", false);
-                    TableCell(table, "");
+                    DataRow(table, "Amount:", decision.RecommendedAmount.HasValue ? $"{data.Currency} {decision.RecommendedAmount:N2}" : "—", "Tenor:", decision.RecommendedTenorMonths.HasValue ? $"{decision.RecommendedTenorMonths} months" : "—", true);
+                    DataRow(table, "Interest Rate:", decision.RecommendedInterestRate.HasValue ? $"{decision.RecommendedInterestRate:N2}%" : "—", "", "", false);
                 });
             }
 
             if (decision.MemberVotes.Any())
             {
-                col.Item().PaddingTop(15).Text("Member Votes").Bold().FontSize(12);
+                col.Item().PaddingTop(14);
+                SubSectionTitle(col, "Member Votes");
                 col.Item().PaddingTop(5).Table(table =>
                 {
                     table.ColumnsDefinition(cols =>
                     {
-                        cols.RelativeColumn(2);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(1);
-                        cols.RelativeColumn(3);
+                        cols.RelativeColumn(2); cols.RelativeColumn(1); cols.RelativeColumn(1);
+                        cols.RelativeColumn(1); cols.RelativeColumn(3);
                     });
 
-                    TableHeader(table, "Member");
-                    TableHeader(table, "Role");
-                    TableHeader(table, "Vote");
-                    TableHeader(table, "Voted At");
-                    TableHeader(table, "Comment");
+                    TableHeader(table, "Member"); TableHeader(table, "Role"); TableHeader(table, "Vote");
+                    TableHeader(table, "Voted At"); TableHeader(table, "Comment");
 
-                    foreach (var vote in decision.MemberVotes)
+                    for (var i = 0; i < decision.MemberVotes.Count; i++)
                     {
-                        TableCell(table, vote.MemberName);
-                        TableCell(table, vote.MemberRole);
+                        var vote = decision.MemberVotes[i];
+                        var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                        DataCell(table, vote.MemberName, bg); DataCell(table, vote.MemberRole, bg);
 
-                        var voteColor = vote.Vote == "Approve" ? Colors.Green.Darken2
-                            : vote.Vote == "Reject" ? Colors.Red.Darken2
+                        var voteColor = vote.Vote == "Approve" ? Color.FromHex(Accent)
+                            : vote.Vote == "Reject" ? Color.FromHex("#c53030")
                             : Colors.Grey.Darken2;
-                        table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                        table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray)).Padding(5)
                             .Text(vote.Vote ?? "Pending").FontSize(9).Bold().FontColor(voteColor);
 
-                        TableCell(table, vote.VotedAt.HasValue ? vote.VotedAt.Value.ToString("dd-MMM-yy HH:mm") : "—");
-                        TableCell(table, vote.VoteComment ?? "");
+                        DataCell(table, vote.VotedAt.HasValue ? vote.VotedAt.Value.ToString("dd-MMM-yy HH:mm") : "—", bg);
+                        DataCell(table, vote.VoteComment ?? "", bg);
                     }
                 });
             }
         });
     }
 
-    private void ComposeConditionsOfApproval(IContainer container, LoanPackData data)
+    private static void ComposeConditionsOfApproval(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("CONDITIONS OF APPROVAL").Bold().FontSize(14);
-            col.Item().PaddingTop(4).Text(
-                "The following conditions were stipulated by the Credit Committee as part of the approval decision. " +
-                "All Conditions Precedent must be satisfied before disbursement. " +
-                "Conditions Subsequent are monitored post-disbursement per the terms agreed in the offer letter.")
-                .FontSize(10).FontColor(Colors.Grey.Darken2);
+            SectionTitle(col, "CONDITIONS OF APPROVAL");
+            col.Item().PaddingTop(4)
+                .Text("The following conditions were stipulated by the Credit Committee as part of the approval decision. " +
+                      "All Conditions Precedent must be satisfied before disbursement. " +
+                      "Conditions Subsequent are monitored post-disbursement per the terms agreed in the offer letter.")
+                .FontSize(9).FontColor(Colors.Grey.Darken2).LineHeight(1.4f);
 
             col.Item().PaddingTop(10).Table(table =>
             {
                 table.ColumnsDefinition(cols =>
                 {
-                    cols.ConstantColumn(30);
-                    cols.RelativeColumn();
+                    cols.ConstantColumn(30); cols.RelativeColumn();
                 });
 
                 table.Header(header =>
                 {
-                    header.Cell().Background(Colors.Grey.Lighten2).Padding(6).Text("#").Bold().FontSize(9);
-                    header.Cell().Background(Colors.Grey.Lighten2).Padding(6).Text("Condition").Bold().FontSize(9);
+                    header.Cell().Background(Color.FromHex(Accent)).PaddingHorizontal(8).PaddingVertical(5)
+                        .Text("#").Bold().FontSize(9).FontColor(Colors.White);
+                    header.Cell().Background(Color.FromHex(Accent)).PaddingHorizontal(8).PaddingVertical(5)
+                        .Text("Condition").Bold().FontSize(9).FontColor(Colors.White);
                 });
 
                 for (var i = 0; i < data.ApprovalConditions.Count; i++)
                 {
-                    var rowBg = i % 2 == 0 ? Colors.White : Colors.Grey.Lighten5;
-                    table.Cell().Background(rowBg).Padding(6).Text($"{i + 1}").FontSize(10);
-                    table.Cell().Background(rowBg).Padding(6).Text(data.ApprovalConditions[i]).FontSize(10);
+                    var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                    table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray)).Padding(6)
+                        .Text($"{i + 1}").FontSize(9.5f);
+                    table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray)).Padding(6)
+                        .Text(data.ApprovalConditions[i]).FontSize(9.5f);
                 }
             });
         });
     }
 
-    private void ComposeDisbursementChecklist(IContainer container, LoanPackData data)
+    private static void ComposeDisbursementChecklist(IContainer container, LoanPackData data)
     {
         var cpItems = data.DisbursementChecklist.Where(c => c.ConditionType == "Precedent").ToList();
         var csItems = data.DisbursementChecklist.Where(c => c.ConditionType == "Subsequent").ToList();
 
         container.Column(col =>
         {
-            col.Item().Text("DISBURSEMENT CHECKLIST").Bold().FontSize(14);
-            col.Item().PaddingTop(4).Text(
-                "Conditions Precedent (CP) must be satisfied or waived before offer acceptance is confirmed. " +
-                "Conditions Subsequent (CS) are monitored after disbursement.")
-                .FontSize(10).FontColor(Colors.Grey.Darken2);
+            SectionTitle(col, "DISBURSEMENT CHECKLIST");
+            col.Item().PaddingTop(4)
+                .Text("Conditions Precedent (CP) must be satisfied or waived before offer acceptance is confirmed. " +
+                      "Conditions Subsequent (CS) are monitored after disbursement.")
+                .FontSize(9).FontColor(Colors.Grey.Darken2).LineHeight(1.4f);
 
             if (cpItems.Any())
             {
-                col.Item().PaddingTop(12).Text("Conditions Precedent (CP)").Bold().FontSize(12);
-                col.Item().PaddingTop(5).Element(c => RenderChecklistTable(c, cpItems, data.Currency));
+                col.Item().PaddingTop(12);
+                SubSectionTitle(col, "Conditions Precedent (CP)");
+                col.Item().PaddingTop(5).Element(c => RenderChecklistTable(c, cpItems));
             }
 
             if (csItems.Any())
             {
-                col.Item().PaddingTop(15).Text("Conditions Subsequent (CS)").Bold().FontSize(12);
-                col.Item().PaddingTop(5).Element(c => RenderChecklistTable(c, csItems, data.Currency));
+                col.Item().PaddingTop(14);
+                SubSectionTitle(col, "Conditions Subsequent (CS)");
+                col.Item().PaddingTop(5).Element(c => RenderChecklistTable(c, csItems));
             }
         });
     }
 
-    private void RenderChecklistTable(IContainer container, List<ChecklistItemData> items, string currency)
+    private static void RenderChecklistTable(IContainer container, List<ChecklistItemData> items)
     {
         container.Table(table =>
         {
             table.ColumnsDefinition(cols =>
             {
-                cols.RelativeColumn(3);   // Item Name
-                cols.RelativeColumn(1);   // Mandatory
-                cols.RelativeColumn(1);   // Status
-                cols.RelativeColumn(2);   // Satisfied At / Due Date
-                cols.RelativeColumn(2);   // Waiver / Note
+                cols.RelativeColumn(3); cols.RelativeColumn(1); cols.RelativeColumn(1);
+                cols.RelativeColumn(2); cols.RelativeColumn(2);
             });
 
-            TableHeader(table, "Condition");
-            TableHeader(table, "Mandatory");
-            TableHeader(table, "Status");
-            TableHeader(table, "Satisfied / Due");
-            TableHeader(table, "Waiver / Notes");
+            TableHeader(table, "Condition"); TableHeader(table, "Mandatory"); TableHeader(table, "Status");
+            TableHeader(table, "Satisfied / Due"); TableHeader(table, "Waiver / Notes");
 
-            foreach (var item in items)
+            for (var i = 0; i < items.Count; i++)
             {
-                var statusColor = item.Status is "Satisfied" or "WaiverApproved"
-                    ? Colors.Green.Darken2
-                    : item.Status is "Rejected" or "WaiverRejected"
-                        ? Colors.Red.Darken2
-                        : Colors.Orange.Darken2;
+                var item = items[i];
+                var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
 
-                // Item name + description
-                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Column(c =>
+                var statusColor = item.Status is "Satisfied" or "WaiverApproved"
+                    ? Color.FromHex(Accent)
+                    : item.Status is "Rejected" or "WaiverRejected"
+                        ? Color.FromHex("#c53030")
+                        : Color.FromHex("#c05621");
+
+                table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray)).Padding(5).Column(c =>
                 {
                     c.Item().Text(item.ItemName).Bold().FontSize(9);
                     if (!string.IsNullOrWhiteSpace(item.Description) && item.Description != item.ItemName)
                         c.Item().Text(item.Description).FontSize(8).FontColor(Colors.Grey.Darken2);
                 });
 
-                TableCell(table, item.IsMandatory ? "Yes" : "No");
+                DataCell(table, item.IsMandatory ? "Yes" : "No", bg);
 
-                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
-                    .Text(item.Status).FontSize(9).FontColor(statusColor);
+                table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray)).Padding(5)
+                    .Text(item.Status).FontSize(9).FontColor(statusColor).Bold();
 
-                var dateText = item.SatisfiedAt.HasValue
-                    ? item.SatisfiedAt.Value.ToString("dd-MMM-yy")
-                    : item.DueDate.HasValue
-                        ? $"Due: {item.DueDate.Value:dd-MMM-yy}"
-                        : "—";
-                TableCell(table, dateText);
+                var dateText = item.SatisfiedAt.HasValue ? item.SatisfiedAt.Value.ToString("dd-MMM-yy")
+                    : item.DueDate.HasValue ? $"Due: {item.DueDate.Value:dd-MMM-yy}" : "—";
+                DataCell(table, dateText, bg);
 
                 var waiverText = !string.IsNullOrWhiteSpace(item.WaiverReason)
-                    ? $"Waiver: {item.WaiverReason}"
-                        + (item.WaiverProposedAt.HasValue
-                            ? $" ({item.WaiverProposedAt.Value:dd-MMM-yy})" : "")
+                    ? $"Waiver: {item.WaiverReason}" + (item.WaiverProposedAt.HasValue ? $" ({item.WaiverProposedAt.Value:dd-MMM-yy})" : "")
                     : "";
-                TableCell(table, waiverText);
+                DataCell(table, waiverText, bg);
             }
         });
     }
 
-    private void ComposeApprovalAuditTrail(IContainer container, LoanPackData data)
+    private static void ComposeApprovalAuditTrail(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().Text("APPROVAL AUDIT TRAIL").Bold().FontSize(14);
-            col.Item().PaddingTop(4)
+            SectionTitle(col, "APPROVAL AUDIT TRAIL");
+            col.Item().PaddingTop(3)
                 .Text("Chronological record of all status transitions for this application.")
-                .FontSize(10).FontColor(Colors.Grey.Darken2);
-            col.Item().PaddingTop(10);
-
-            col.Item().Table(table =>
+                .FontSize(9).Italic().FontColor(Colors.Grey.Darken2);
+            col.Item().PaddingTop(8).Table(table =>
             {
                 table.ColumnsDefinition(cols =>
                 {
-                    cols.RelativeColumn(2);   // Date/Time
-                    cols.RelativeColumn(2);   // Status
-                    cols.RelativeColumn(2);   // Actor
-                    cols.RelativeColumn(5);   // Comment
+                    cols.RelativeColumn(2); cols.RelativeColumn(2); cols.RelativeColumn(2); cols.RelativeColumn(5);
                 });
 
-                TableHeader(table, "Date / Time");
-                TableHeader(table, "Status");
-                TableHeader(table, "Actor");
-                TableHeader(table, "Comment / Action");
+                TableHeader(table, "Date / Time"); TableHeader(table, "Status");
+                TableHeader(table, "Actor"); TableHeader(table, "Comment / Action");
 
-                foreach (var entry in data.ApprovalAuditTrail)
+                for (var i = 0; i < data.ApprovalAuditTrail.Count; i++)
                 {
-                    TableCell(table, entry.ChangedAt.ToString("dd-MMM-yyyy HH:mm"));
-                    TableCell(table, entry.Status);
-                    TableCell(table, entry.ActorName);
-                    TableCell(table, entry.Comment ?? "");
+                    var entry = data.ApprovalAuditTrail[i];
+                    var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                    DataCell(table, entry.ChangedAt.ToString("dd-MMM-yyyy HH:mm"), bg);
+                    DataCell(table, entry.Status, bg);
+                    DataCell(table, entry.ActorName, bg);
+                    DataCell(table, entry.Comment ?? "", bg);
                 }
             });
         });
     }
 
-    private void ComposeFooter(IContainer container, LoanPackData data)
+    private static void ComposeWorkflowHistory(IContainer container, LoanPackData data)
     {
         container.Column(col =>
         {
-            col.Item().LineHorizontal(1);
-            col.Item().PaddingTop(5).Row(row =>
+            SectionTitle(col, "WORKFLOW ACTION LOG");
+            col.Item().PaddingTop(3)
+                .Text("Detailed log of every workflow action performed — includes system transitions and explicit actor decisions.")
+                .FontSize(9).Italic().FontColor(Colors.Grey.Darken2);
+            col.Item().PaddingTop(8).Table(table =>
             {
-                row.RelativeItem().Text($"Application: {data.ApplicationNumber}").FontSize(8);
-                row.RelativeItem().AlignCenter().DefaultTextStyle(x => x.FontSize(8)).Text(x =>
+                table.ColumnsDefinition(cols =>
                 {
-                    x.Span("Page ");
-                    x.CurrentPageNumber();
-                    x.Span(" of ");
-                    x.TotalPages();
+                    cols.RelativeColumn(2); cols.RelativeColumn(2); cols.RelativeColumn(2);
+                    cols.RelativeColumn(2); cols.RelativeColumn(4);
                 });
-                row.RelativeItem().AlignRight().Text($"Generated: {data.GeneratedAt:dd-MMM-yyyy HH:mm} | v{data.Version}").FontSize(8);
+
+                TableHeader(table, "Date / Time"); TableHeader(table, "From Status");
+                TableHeader(table, "To Status"); TableHeader(table, "Actor"); TableHeader(table, "Action / Comment");
+
+                for (var i = 0; i < data.WorkflowHistory.Count; i++)
+                {
+                    var entry = data.WorkflowHistory[i];
+                    var bg = i % 2 == 0 ? Colors.White : Color.FromHex(PanelGreen);
+                    DataCell(table, entry.Timestamp.ToString("dd-MMM-yyyy HH:mm"), bg);
+                    DataCell(table, string.IsNullOrWhiteSpace(entry.FromStatus) ? "—" : entry.FromStatus, bg);
+                    DataCell(table, entry.ToStatus, bg);
+                    DataCell(table, entry.PerformedBy, bg);
+                    table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray)).Padding(5).Column(c =>
+                    {
+                        c.Item().Text(entry.Action).Bold().FontSize(9).FontColor(Color.FromHex(Primary));
+                        if (!string.IsNullOrWhiteSpace(entry.Comment))
+                            c.Item().PaddingTop(1).Text(entry.Comment).FontSize(8.5f).FontColor(Colors.Grey.Darken2);
+                    });
+                }
             });
         });
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Helper methods
-    // ──────────────────────────────────────────────────────────────────────────
+    // ── Footer ────────────────────────────────────────────────────────────────
+
+    private static void ComposeFooter(IContainer container, LoanPackData data)
+    {
+        container.Column(col =>
+        {
+            col.Item().LineHorizontal(1).LineColor(Color.FromHex(Subtle));
+            col.Item().PaddingTop(3).Row(row =>
+            {
+                row.RelativeItem()
+                    .Text($"Application: {data.ApplicationNumber}  |  LOAN APPLICATION PACK")
+                    .FontSize(7).FontColor(Colors.Grey.Darken1);
+                row.RelativeItem().AlignCenter()
+                    .DefaultTextStyle(x => x.FontSize(7).FontColor(Colors.Grey.Darken1))
+                    .Text(t => { t.Span("Page "); t.CurrentPageNumber(); t.Span(" of "); t.TotalPages(); });
+                row.RelativeItem().AlignRight()
+                    .Text($"v{data.Version}  |  {data.GeneratedAt:dd MMM yyyy HH:mm}")
+                    .FontSize(7).FontColor(Colors.Grey.Darken1);
+            });
+            col.Item().PaddingTop(3).AlignCenter()
+                .Text("CONFIDENTIAL — FOR INTERNAL USE ONLY")
+                .FontSize(6).Italic().FontColor(Colors.Grey.Medium);
+            col.Item().PaddingTop(6).Height(4).Background(Color.FromHex(Primary));
+        });
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static void SectionTitle(ColumnDescriptor col, string title)
+    {
+        col.Item()
+            .Background(Color.FromHex(Primary))
+            .PaddingHorizontal(10).PaddingVertical(7)
+            .Text(title).Bold().FontSize(11).FontColor(Colors.White).LetterSpacing(0.04f);
+    }
+
+    private static void SubSectionTitle(ColumnDescriptor col, string title)
+    {
+        col.Item()
+            .Background(Color.FromHex(Accent))
+            .PaddingHorizontal(10).PaddingVertical(5)
+            .Text(title).Bold().FontSize(9.5f).FontColor(Colors.White);
+    }
 
     private static void TableHeader(TableDescriptor table, string text)
     {
-        table.Cell().Background(Colors.Grey.Lighten2).Padding(5).Text(text).Bold().FontSize(9);
+        table.Cell()
+            .Background(Color.FromHex(Accent))
+            .PaddingHorizontal(6).PaddingVertical(5)
+            .Text(text).Bold().FontSize(9).FontColor(Colors.White);
     }
 
-    private static void TableCell(TableDescriptor table, string text, bool bold = false)
+    private static void DataCell(TableDescriptor table, string text, Color bg)
     {
-        var cell = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5).Text(text).FontSize(9);
-        if (bold) cell.Bold();
+        table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray))
+            .Padding(5).Text(text).FontSize(9);
     }
 
-    private static void TimelineRow(TableDescriptor table, string label, DateTime? date)
+    private static void LabelValue(TableDescriptor table, string label, string value, bool shaded)
     {
-        table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
-            .Text(label).FontSize(9).Bold();
-        table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
-            .Text(date.HasValue ? date.Value.ToString("dd-MMM-yyyy HH:mm") : "—")
-            .FontSize(9)
-            .FontColor(date.HasValue ? Colors.Black : Colors.Grey.Darken1);
+        var bg = shaded ? Color.FromHex(PanelGreen) : Colors.White;
+        table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray))
+            .PaddingHorizontal(8).PaddingVertical(6)
+            .Text(label).Bold().FontSize(9).FontColor(Color.FromHex(Primary));
+        table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray))
+            .PaddingHorizontal(8).PaddingVertical(6)
+            .Text(value).FontSize(9);
     }
 
-    private static void AddFinancialRow(TableDescriptor table, string label, IEnumerable<decimal?> values, string currency)
+    private static void DataRow(TableDescriptor table,
+        string label1, string value1, string label2, string value2, bool shaded)
     {
-        TableCell(table, label, true);
+        LabelValue(table, label1, value1, shaded);
+        LabelValue(table, label2, value2, shaded);
+    }
+
+    private static void TimelineRow(TableDescriptor table, string label, DateTime? date, bool shaded)
+    {
+        var bg = shaded ? Color.FromHex(PanelGreen) : Colors.White;
+        table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray))
+            .Padding(5).Text(label).FontSize(9).Bold().FontColor(Color.FromHex(Primary));
+        table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray))
+            .Padding(5).Text(date.HasValue ? date.Value.ToString("dd MMM yyyy HH:mm") : "—")
+            .FontSize(9).FontColor(date.HasValue ? Colors.Black : Colors.Grey.Darken1);
+    }
+
+    private static void AddFinancialRow(TableDescriptor table, string label, IEnumerable<decimal?> values, string currency, bool shaded)
+    {
+        var bg = shaded ? Color.FromHex(PanelGreen) : Colors.White;
+        table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray))
+            .PaddingHorizontal(6).PaddingVertical(5)
+            .Text(label).Bold().FontSize(9).FontColor(Color.FromHex(Primary));
         foreach (var value in values)
-            TableCell(table, value.HasValue ? $"{currency} {value:N0}" : "N/A");
+        {
+            table.Cell().Background(bg).BorderBottom(1).BorderColor(Color.FromHex(MedGray))
+                .PaddingHorizontal(6).PaddingVertical(5)
+                .Text(value.HasValue ? $"{currency} {value:N0}" : "N/A").FontSize(9);
+        }
+    }
+
+    private static void RatioPanel(RowDescriptor row, string title, params string[] lines)
+    {
+        row.RelativeItem()
+            .Border(1.5f).BorderColor(Color.FromHex(MedGray))
+            .Background(Color.FromHex(PanelGreen)).Column(c =>
+            {
+                c.Item().Background(Color.FromHex(Accent))
+                    .PaddingHorizontal(8).PaddingVertical(4)
+                    .Text(title).Bold().FontSize(8.5f).FontColor(Colors.White);
+                foreach (var line in lines)
+                    c.Item().PaddingHorizontal(8).PaddingVertical(3)
+                        .Text(line).FontSize(9);
+            });
+    }
+
+    private static void CashflowPanel(RowDescriptor row, string title, params (string Label, string Value, bool Alert)[] lines)
+    {
+        row.RelativeItem()
+            .Border(1.5f).BorderColor(Color.FromHex(MedGray))
+            .Background(Color.FromHex(PanelGreen)).Column(c =>
+            {
+                c.Item().Background(Color.FromHex(Accent))
+                    .PaddingHorizontal(8).PaddingVertical(4)
+                    .Text(title).Bold().FontSize(8.5f).FontColor(Colors.White);
+                foreach (var (label, value, alert) in lines)
+                {
+                    c.Item().PaddingHorizontal(8).PaddingVertical(3).Row(r =>
+                    {
+                        r.RelativeItem().Text(label).FontSize(9).FontColor(Color.FromHex(Primary));
+                        r.AutoItem().Text(value).FontSize(9)
+                            .FontColor(alert ? Color.FromHex("#c53030") : Colors.Black);
+                    });
+                }
+            });
+    }
+
+    private static void VoteBadge(RowDescriptor row, string count, string label, Color color)
+    {
+        row.AutoItem().Padding(8).Column(c =>
+        {
+            c.Item().AlignCenter().Text(count).FontSize(22).Bold().FontColor(color);
+            c.Item().AlignCenter().Text(label).FontSize(9);
+        });
     }
 
     private static Color GetRiskColor(string? riskRating) => riskRating switch
     {
-        "Low" => Colors.Green.Darken2,
-        "Moderate" => Colors.Orange.Darken2,
-        "High" => Colors.Red.Darken2,
-        "VeryHigh" => Colors.Red.Darken4,
-        _ => Colors.Grey.Darken2
+        "Low"      => Color.FromHex(Accent),
+        "Moderate" => Color.FromHex("#c05621"),
+        "High"     => Color.FromHex("#c53030"),
+        "VeryHigh" => Color.FromHex("#742a2a"),
+        _          => Colors.Grey.Darken2
     };
 
     private static Color GetScoreColor(int? score) => score switch
     {
-        >= 700 => Colors.Green.Darken2,
-        >= 600 => Colors.Orange.Darken2,
-        < 600 => Colors.Red.Darken2,
-        _ => Colors.Grey.Darken2
+        >= 700 => Color.FromHex(Accent),
+        >= 600 => Color.FromHex("#c05621"),
+        < 600  => Color.FromHex("#c53030"),
+        _      => Colors.Grey.Darken2
     };
 }

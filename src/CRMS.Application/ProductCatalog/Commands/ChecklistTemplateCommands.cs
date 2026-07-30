@@ -21,7 +21,8 @@ public record AddChecklistTemplateItemCommand(
     bool RequiresDocumentUpload,
     bool RequiresLegalRatification,
     bool CanBeWaived,
-    int SortOrder
+    int SortOrder,
+    string? LinkedDocumentCategory = null
 ) : IRequest<ApplicationResult<ChecklistTemplateItemDto>>;
 
 public class AddChecklistTemplateItemHandler
@@ -49,6 +50,11 @@ public class AddChecklistTemplateItemHandler
         if (product == null)
             return ApplicationResult<ChecklistTemplateItemDto>.Failure("Loan product not found");
 
+        DocumentCategory? linkedCategory = null;
+        if (!string.IsNullOrEmpty(request.LinkedDocumentCategory) &&
+            Enum.TryParse<DocumentCategory>(request.LinkedDocumentCategory, ignoreCase: true, out var parsedCategory))
+            linkedCategory = parsedCategory;
+
         var result = product.AddChecklistTemplateItem(
             request.ItemName,
             request.Description,
@@ -58,7 +64,8 @@ public class AddChecklistTemplateItemHandler
             request.RequiresDocumentUpload,
             request.RequiresLegalRatification,
             request.CanBeWaived,
-            request.SortOrder);
+            request.SortOrder,
+            linkedCategory);
 
         if (result.IsFailure)
             return ApplicationResult<ChecklistTemplateItemDto>.Failure(result.Error);
@@ -79,7 +86,8 @@ public class AddChecklistTemplateItemHandler
             item.RequiresLegalRatification,
             item.CanBeWaived,
             item.SortOrder,
-            item.IsActive
+            item.IsActive,
+            item.LinkedDocumentCategory?.ToString()
         ));
     }
 }
@@ -100,7 +108,8 @@ public record UpdateChecklistTemplateItemCommand(
     bool RequiresDocumentUpload,
     bool RequiresLegalRatification,
     bool CanBeWaived,
-    int SortOrder
+    int SortOrder,
+    string? LinkedDocumentCategory = null
 ) : IRequest<ApplicationResult>;
 
 public class UpdateChecklistTemplateItemHandler : IRequestHandler<UpdateChecklistTemplateItemCommand, ApplicationResult>
@@ -127,6 +136,11 @@ public class UpdateChecklistTemplateItemHandler : IRequestHandler<UpdateChecklis
         if (product == null)
             return ApplicationResult.Failure("Loan product not found");
 
+        DocumentCategory? linkedCategory = null;
+        if (!string.IsNullOrEmpty(request.LinkedDocumentCategory) &&
+            Enum.TryParse<DocumentCategory>(request.LinkedDocumentCategory, ignoreCase: true, out var parsedCategory))
+            linkedCategory = parsedCategory;
+
         var result = product.UpdateChecklistTemplateItem(
             request.ItemId,
             request.ItemName,
@@ -137,7 +151,8 @@ public class UpdateChecklistTemplateItemHandler : IRequestHandler<UpdateChecklis
             request.RequiresDocumentUpload,
             request.RequiresLegalRatification,
             request.CanBeWaived,
-            request.SortOrder);
+            request.SortOrder,
+            linkedCategory);
 
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);

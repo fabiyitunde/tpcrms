@@ -338,18 +338,19 @@ public record GuarantorData(
 public record AIAdvisoryData(
     // Overall Assessment
     int OverallRiskScore,
-    string RiskRating, // Low, Moderate, High, VeryHigh
-    string RiskSummary,
+    string RiskRating,           // Low, Moderate, High, VeryHigh
+    string RiskSummary,          // ExecutiveSummary
+    string Recommendation,       // Approve, ConditionalApprove, Decline
+    bool HasCriticalRedFlags,
 
-    // Component Scores
-    int CreditHistoryScore,
-    int FinancialStrengthScore,
-    int CashflowQualityScore,
-    int CollateralCoverageScore,
-    int IndustryRiskScore,
-    int ManagementQualityScore,
-    int RelationshipStrengthScore,
-    int ExternalFactorsScore,
+    // Component Scores (rich list: category + score + rating + rationale)
+    List<AdvisoryScoreItem> ScoreBreakdown,
+
+    // Analysis narratives
+    string? StrengthsAnalysis,
+    string? WeaknessesAnalysis,
+    string? KeyRisks,
+    string? MitigatingFactorsText,  // raw narrative text
 
     // Recommendations
     string AmountRecommendation,
@@ -360,14 +361,24 @@ public record AIAdvisoryData(
     decimal? RecommendedInterestRate,
     string StructuringRecommendation,
 
-    // Red Flags
+    // Red Flags & Mitigating Factors (list form)
     List<string> RedFlags,
-
-    // Mitigating Factors
     List<string> MitigatingFactors,
 
-    // Conditions
-    List<string> RecommendedConditions
+    // Conditions & Covenants
+    List<string> RecommendedConditions,
+    List<string> Covenants,
+
+    // Metadata
+    DateTime GeneratedAt,
+    string? ModelVersion
+);
+
+public record AdvisoryScoreItem(
+    string Category,
+    int Score,
+    string? Rating,
+    string? Rationale
 );
 
 public record WorkflowHistoryData(

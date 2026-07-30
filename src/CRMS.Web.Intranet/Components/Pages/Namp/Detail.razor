@@ -2791,6 +2791,12 @@ else
     ══════════════════════════════════════════════ -->
     @if (detailTab == "loan-account")
     {
+        <div style="display: flex; justify-content: flex-end; margin-bottom: var(--space-3);">
+            <button class="btn btn-outline btn-sm" @onclick='() => LoadLoanAccountTab(force: true)' disabled="@isLoadingLoanAccount">
+                <span class="material-symbols-outlined" style="font-size: 16px;">refresh</span>
+                Refresh
+            </button>
+        </div>
         @if (isLoadingLoanAccount)
         {
             <div class="p-6 text-center"><div class="spinner" style="margin: 0 auto;"></div></div>
@@ -2829,7 +2835,7 @@ else
                         {
                             <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem;">
                                 <span class="material-symbols-outlined" style="color: var(--success-600); font-size: 20px;">check_circle</span>
-                                <span style="font-size: 0.875rem; color: var(--success-700);">Fineract reports this loan as closed. Mark the CRMS application as Closed to complete the lifecycle.</span>
+                                <span style="font-size: 0.875rem; color: var(--success-700);">The CBA reports this loan as closed. Mark the CRMS application as Closed to complete the lifecycle.</span>
                                 <button class="btn btn-success btn-sm" @onclick="MarkAsClosed" disabled="@isMarkingClosed">
                                     @if (isMarkingClosed) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
                                     Mark as Closed
@@ -4218,10 +4224,10 @@ else
     private bool FineractLoanIsClosed =>
         loanAccount?.Status is "closedObligationsMet" or "closed" or "LOAN_STATUS_CLOSED_OBLIGATIONS_MET";
 
-    private async Task LoadLoanAccountTab()
+    private async Task LoadLoanAccountTab(bool force = false)
     {
         detailTab = "loan-account";
-        if (loanAccountLoaded) return;
+        if (loanAccountLoaded && !force) return;
         isLoadingLoanAccount = true;
         loanAccountError = null;
         StateHasChanged();
@@ -4234,7 +4240,8 @@ else
         }
         else
         {
-            loanAccountError = response.Error ?? "Could not load loan account from Fineract.";
+            loanAccountError = response.Error ?? "Could not load loan account from the Core Banking System.";
+            loanAccountLoaded = false;
         }
         isLoadingLoanAccount = false;
     }

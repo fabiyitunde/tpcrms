@@ -33,16 +33,16 @@
 
                 <div class="form-group">
                     <label class="form-label">Market Value (₦) *</label>
-                    <input type="number" class="form-control" @bind="marketValue" min="0" step="1000"
+                    <input type="number" class="form-control" value="@marketValue" @oninput="OnMarketValueInput" min="0" step="1000"
                         placeholder="Enter professional valuation amount" />
                     <div class="form-hint">Independent professional valuation amount</div>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Forced Sale Value (₦)</label>
-                    <input type="number" class="form-control" @bind="forcedSaleValue" min="0" step="1000"
-                        placeholder="Defaults to 70% of market value" />
-                    <div class="form-hint">Leave blank to auto-calculate as 70% of market value</div>
+                    <label class="form-label">Forced Sale Value (₦) <span style="font-weight: 400; color: var(--text-secondary);">(default: 70% of market value)</span></label>
+                    <input type="number" class="form-control" value="@forcedSaleValue" @oninput="OnFsvInput" min="0" step="1000"
+                        placeholder="Auto-filled as 70% of market value" />
+                    <div class="form-hint">Edit to override the auto-calculated default</div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -144,6 +144,7 @@
 
     private decimal marketValue;
     private decimal? forcedSaleValue;
+    private bool fsvManuallySet;
     private decimal haircutPercentage;
     private string valuationBasis = "MarketValue";
     private decimal? valuerAcceptableValue;
@@ -168,6 +169,7 @@
         {
             marketValue = collateral.MarketValue ?? 0;
             forcedSaleValue = collateral.ForcedSaleValue;
+            fsvManuallySet = collateral.ForcedSaleValue.HasValue;
             haircutPercentage = collateral.HaircutPercentage ?? GetDefaultHaircut(collateral.Type);
             valuationBasis = collateral.ValuationBasis ?? "MarketValue";
             valuerAcceptableValue = collateral.ValuerAcceptableValue;
@@ -221,6 +223,30 @@
         finally
         {
             isSubmitting = false;
+        }
+    }
+
+    private void OnMarketValueInput(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var v))
+        {
+            marketValue = v;
+            if (!fsvManuallySet)
+                forcedSaleValue = v > 0 ? Math.Round(v * 0.7m, 0) : null;
+        }
+    }
+
+    private void OnFsvInput(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var v) && v > 0)
+        {
+            forcedSaleValue = v;
+            fsvManuallySet = true;
+        }
+        else
+        {
+            forcedSaleValue = null;
+            fsvManuallySet = false; // cleared → auto-fill again if market value changes
         }
     }
 

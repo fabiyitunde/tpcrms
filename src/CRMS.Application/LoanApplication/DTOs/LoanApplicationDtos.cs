@@ -33,7 +33,19 @@ public record LoanApplicationDto(
     List<LoanApplicationPartyDto> Parties,
     DateTime? IncorporationDate = null,
     string? IndustrySector = null,
-    string? DisbursementMemoStoragePath = null
+    string? DisbursementMemoStoragePath = null,
+    DateTimeOffset? LegalReviewCompletedAt = null,
+    decimal? CreditAppraisalDscr = null,
+    decimal? CreditAppraisalLeverage = null,
+    decimal? CreditAppraisalCurrentRatio = null,
+    decimal? CreditAppraisalLtv = null,
+    string? CreditAppraisalCapacityRating = null,
+    string? CreditAppraisalRecommendation = null,
+    string? CreditAppraisalNotes = null,
+    string? CreditAppraisalMemoPath = null,
+    string? CreditAppraisalMemoFileName = null,
+    DateTimeOffset? CreditAppraisalSavedAt = null,
+    Guid? CreditAppraisalSavedByUserId = null
 );
 
 public record LoanApplicationSummaryDto(

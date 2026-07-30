@@ -186,6 +186,8 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
         var collaterals         = await _collateralRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
         var guarantors          = await _guarantorRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
         var advisory            = await _advisoryRepository.GetLatestByLoanApplicationIdAsync(loanApp.Id, ct);
+        // Hydrate JSON-backed collections that EF ignores on load
+        advisory?.SetPersistedData(advisory.RiskScoresJson, advisory.RedFlagsJson, advisory.ConditionsJson, advisory.CovenantsJson);
         var workflow            = await _workflowRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
         var committeeReview     = await _committeeRepository.GetByLoanApplicationIdAsync(loanApp.Id, ct);
 
@@ -471,27 +473,32 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
         AIAdvisoryData? aiData = null;
         if (advisory != null)
         {
-            decimal getScore(Domain.Enums.RiskCategory category) =>
-                advisory.RiskScores.FirstOrDefault(s => s.Category == category)?.Score ?? 0;
-
-            var mitigatingFactors = string.IsNullOrWhiteSpace(advisory.MitigatingFactors)
+            var mitigatingFactorsList = string.IsNullOrWhiteSpace(advisory.MitigatingFactors)
                 ? new List<string>()
                 : advisory.MitigatingFactors
                     .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .ToList();
 
+            var scoreBreakdown = advisory.RiskScores
+                .OrderBy(s => s.Category)
+                .Select(s => new AdvisoryScoreItem(
+                    s.Category.ToString(),
+                    (int)s.Score,
+                    s.Rating.ToString(),
+                    s.Rationale))
+                .ToList();
+
             aiData = new AIAdvisoryData(
                 (int)advisory.OverallScore,
                 advisory.OverallRating.ToString(),
                 advisory.ExecutiveSummary ?? "",
-                (int)getScore(Domain.Enums.RiskCategory.CreditHistory),
-                (int)getScore(Domain.Enums.RiskCategory.FinancialHealth),
-                (int)getScore(Domain.Enums.RiskCategory.CashflowStability),
-                (int)getScore(Domain.Enums.RiskCategory.CollateralCoverage),
-                (int)getScore(Domain.Enums.RiskCategory.IndustryRisk),
-                (int)getScore(Domain.Enums.RiskCategory.ManagementRisk),
-                (int)getScore(Domain.Enums.RiskCategory.ConcentrationRisk),
-                (int)getScore(Domain.Enums.RiskCategory.DebtServiceCapacity),
+                advisory.Recommendation.ToString(),
+                advisory.HasCriticalRedFlags,
+                scoreBreakdown,
+                advisory.StrengthsAnalysis,
+                advisory.WeaknessesAnalysis,
+                advisory.KeyRisks,
+                advisory.MitigatingFactors,
                 advisory.RecommendedAmount.HasValue
                     ? $"Recommend {loanApp.RequestedAmount.Currency} {advisory.RecommendedAmount:N0}" : "",
                 advisory.RecommendedAmount,
@@ -503,18 +510,24 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 advisory.RecommendedInterestRate,
                 "",
                 advisory.RedFlags.ToList(),
-                mitigatingFactors,
-                advisory.Conditions.ToList());
+                mitigatingFactorsList,
+                advisory.Conditions.ToList(),
+                advisory.Covenants.ToList(),
+                advisory.GeneratedAt,
+                advisory.ModelVersion);
         }
 
-        // ── Approval audit trail (from LoanApplicationStatusHistory) ────────
-        // Resolve actor names for all unique user IDs in the status history.
-        var actorIds = loanApp.StatusHistory.Select(h => h.ChangedByUserId).Distinct().ToList();
+        // ── Resolve all actor/author names in one lookup ────────────────────
+        var allActorIds = loanApp.StatusHistory.Select(h => h.ChangedByUserId)
+            .Concat(loanApp.Comments.Select(c => c.UserId))
+            .Concat(workflow?.TransitionHistory.Select(t => t.PerformedByUserId) ?? Enumerable.Empty<Guid>())
+            .Distinct().ToList();
         var allUsers = await _userRepository.GetAllAsync(ct);
         var userNameLookup = allUsers
-            .Where(u => actorIds.Contains(u.Id))
+            .Where(u => allActorIds.Contains(u.Id))
             .ToDictionary(u => u.Id, u => u.FullName);
 
+        // ── Approval audit trail (from LoanApplicationStatusHistory) ────────
         var approvalAuditTrail = loanApp.StatusHistory
             .OrderBy(h => h.ChangedAt)
             .Select(h => new ApprovalAuditEntry(
@@ -531,10 +544,10 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 c.CreatedAt,
                 c.Content,
                 c.Category,
-                c.UserId.ToString()))
+                userNameLookup.TryGetValue(c.UserId, out var authorName) ? authorName : c.UserId.ToString()))
             .ToList();
 
-        // ── Workflow history (raw transition log — kept for completeness) ────
+        // ── Workflow history (raw transition log) ────────────────────────────
         var workflowHistory = workflow?.TransitionHistory
             .OrderBy(t => t.PerformedAt)
             .Select(t => new WorkflowHistoryData(
@@ -542,7 +555,7 @@ public class GenerateLoanPackHandler : IRequestHandler<GenerateLoanPackCommand, 
                 t.FromStatus?.ToString() ?? "",
                 t.ToStatus.ToString(),
                 t.Action.ToString(),
-                t.PerformedByUserId.ToString(),
+                userNameLookup.TryGetValue(t.PerformedByUserId, out var wfName) ? wfName : t.PerformedByUserId.ToString(),
                 t.Comment))
             .ToList() ?? new List<WorkflowHistoryData>();
 

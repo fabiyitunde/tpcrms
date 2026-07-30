@@ -486,7 +486,7 @@ public class GetNampLoanAccountHandler
             return ApplicationResult<NampLoanAccountDto>.Failure("NAMP application not found.");
 
         if (app.FineractLoanId is null)
-            return ApplicationResult<NampLoanAccountDto>.Failure("No Fineract loan linked to this application.");
+            return ApplicationResult<NampLoanAccountDto>.Failure("No Core Banking loan account is linked to this application.");
 
         var result = await _fineract.GetLoanDetailAsync(app.FineractLoanId.Value, ct);
         if (!result.IsSuccess)

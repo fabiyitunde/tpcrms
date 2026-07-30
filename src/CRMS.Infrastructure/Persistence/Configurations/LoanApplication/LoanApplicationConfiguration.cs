@@ -101,6 +101,9 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
         builder.Property(x => x.CoreBankingLoanId)
             .HasMaxLength(50);
 
+        builder.Property(x => x.FineractLoanId)
+            .IsRequired(false);
+
         builder.Property(x => x.DisbursementMemoStoragePath)
             .HasMaxLength(500)
             .IsRequired(false);
@@ -161,6 +164,24 @@ public class LoanApplicationConfiguration : IEntityTypeConfiguration<LA.LoanAppl
             .WithOne()
             .HasForeignKey(x => x.LoanApplicationId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Parallel credit + legal review fields (streamlined corporate flow)
+        builder.Property(x => x.LegalReviewCompletedAt).IsRequired(false);
+        builder.Property(x => x.LegalReviewNote).HasMaxLength(1000).IsRequired(false);
+        builder.Property(x => x.CreditReviewNote).HasMaxLength(1000).IsRequired(false);
+
+        // Credit Appraisal fields
+        builder.Property(x => x.CreditAppraisalDscr).HasPrecision(10, 4).IsRequired(false);
+        builder.Property(x => x.CreditAppraisalLeverage).HasPrecision(10, 4).IsRequired(false);
+        builder.Property(x => x.CreditAppraisalCurrentRatio).HasPrecision(10, 4).IsRequired(false);
+        builder.Property(x => x.CreditAppraisalLtv).HasPrecision(10, 4).IsRequired(false);
+        builder.Property(x => x.CreditAppraisalCapacityRating).HasMaxLength(30).IsRequired(false);
+        builder.Property(x => x.CreditAppraisalRecommendation).HasMaxLength(30).IsRequired(false);
+        builder.Property(x => x.CreditAppraisalNotes).HasMaxLength(2000).IsRequired(false);
+        builder.Property(x => x.CreditAppraisalMemoPath).HasMaxLength(500).IsRequired(false);
+        builder.Property(x => x.CreditAppraisalMemoFileName).HasMaxLength(255).IsRequired(false);
+        builder.Property(x => x.CreditAppraisalSavedAt).IsRequired(false);
+        builder.Property(x => x.CreditAppraisalSavedByUserId).IsRequired(false);
 
         builder.Ignore(x => x.DomainEvents);
     }

@@ -1,0 +1,455 @@
+@using CRMS.Web.Intranet.Models
+@inject ApplicationService AppService
+@inject IJSRuntime JS
+
+@if (CanEdit)
+{
+    <!-- Editable form -->
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+
+        <!-- Ratios card -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Financial Ratios</h3>
+                <span style="font-size: 0.75rem; color: var(--text-secondary);">Auto-populated where possible — edit as needed</span>
+            </div>
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">DSCR (Debt Service Coverage Ratio)</label>
+                        <input type="number" class="form-control" step="0.01" placeholder="e.g. 1.25"
+                               @bind="dscr" />
+                        <div class="form-hint">Net income ÷ annual debt service</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Leverage (Debt / Equity)</label>
+                        <input type="number" class="form-control" step="0.01" placeholder="e.g. 2.10"
+                               @bind="leverage" />
+                        @if (AutoLeverage.HasValue)
+                        {
+                            <div class="form-hint" style="color: var(--primary-600);">
+                                Auto from financials: @AutoLeverage.Value.ToString("N2")x
+                            </div>
+                        }
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Current Ratio</label>
+                        <input type="number" class="form-control" step="0.01" placeholder="e.g. 1.50"
+                               @bind="currentRatio" />
+                        <div class="form-hint">Current assets ÷ current liabilities</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">LTV — Loan-to-Value (%)</label>
+                        <input type="number" class="form-control" step="0.01" placeholder="e.g. 65.00"
+                               @bind="ltv" />
+                        @if (AutoLtv.HasValue)
+                        {
+                            <div class="form-hint" style="color: var(--primary-600);">
+                                Auto from collateral: @AutoLtv.Value.ToString("N1")%
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Assessment card -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Credit Officer Assessment</h3>
+            </div>
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Repayment Capacity Rating *</label>
+                        <select class="form-control" @bind="capacityRating">
+                            <option value="">-- Select --</option>
+                            <option value="Strong">Strong</option>
+                            <option value="Adequate">Adequate</option>
+                            <option value="Marginal">Marginal</option>
+                            <option value="Insufficient">Insufficient</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Recommendation *</label>
+                        <select class="form-control" @bind="recommendation">
+                            <option value="">-- Select --</option>
+                            <option value="Approve">Approve</option>
+                            <option value="ConditionalApprove">Conditional Approve</option>
+                            <option value="Decline">Decline</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Appraisal Notes</label>
+                    <textarea class="form-control" rows="4" placeholder="Overall credit assessment, key findings, conditions recommended…"
+                              @bind="notes"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Memo upload card -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Credit Appraisal Memo</h3>
+            </div>
+            <div class="card-body">
+                @if (pendingMemoRemoval)
+                {
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--danger-50); border: 1px solid var(--danger-200); border-radius: 8px; margin-bottom: 1rem;">
+                        <span class="material-symbols-outlined" style="font-size: 20px; color: var(--danger-600);">delete</span>
+                        <div style="flex: 1; font-size: 0.875rem; color: var(--danger-700);">Memo will be removed when you save.</div>
+                        <button class="btn btn-ghost btn-sm" @onclick="UndoMemoRemoval">Undo</button>
+                    </div>
+                }
+                else if (Appraisal?.MemoFileName != null && selectedMemoFile == null)
+                {
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--success-50); border: 1px solid var(--success-200); border-radius: 8px; margin-bottom: 1rem;">
+                        <span class="material-symbols-outlined" style="font-size: 20px; color: var(--success-600);">description</span>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 0.875rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@Appraisal.MemoFileName</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Uploaded @Appraisal.SavedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</div>
+                        </div>
+                        <button class="btn btn-ghost btn-sm" @onclick="PreviewMemo" title="Preview">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                        </button>
+                        <button class="btn btn-ghost btn-sm" @onclick="DownloadMemo" title="Download">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                        </button>
+                        <button class="btn btn-ghost btn-sm" style="color: var(--danger-600);" @onclick="MarkMemoForRemoval" title="Remove">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                        </button>
+                    </div>
+                }
+                @if (!pendingMemoRemoval)
+                {
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">
+                            @if (selectedMemoFile != null)
+                            {
+                                <span>Replace Memo (selected)</span>
+                            }
+                            else if (Appraisal?.MemoFileName != null)
+                            {
+                                <span>Replace Memo (PDF / Word)</span>
+                            }
+                            else
+                            {
+                                <span>Upload Memo (PDF / Word)</span>
+                            }
+                        </label>
+                        <InputFile OnChange="HandleMemoFile" accept=".pdf,.docx,.doc" class="form-control" style="padding: var(--space-2);" />
+                        @if (selectedMemoFile != null)
+                        {
+                            <div class="form-hint" style="color: var(--success-600);">
+                                <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">attach_file</span>
+                                @selectedMemoFile.Name — will replace existing memo on save
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="form-hint">PDF or Word document — the formal credit appraisal write-up</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(saveError))
+        {
+            <div class="alert alert-danger">@saveError</div>
+        }
+
+        <div style="display: flex; justify-content: flex-end;">
+            <button class="btn btn-primary" @onclick="HandleSave" disabled="@(!CanSave || IsSaving)">
+                @if (IsSaving)
+                {
+                    <span class="spinner" style="width: 16px; height: 16px;"></span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined" style="font-size: 18px;">save</span>
+                }
+                Save Appraisal
+            </button>
+        </div>
+    </div>
+}
+else if (Appraisal == null)
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <span class="material-symbols-outlined">rate_review</span>
+            </div>
+            <div class="empty-state-title">No appraisal recorded</div>
+            <div class="empty-state-text">The credit officer has not yet submitted a formal credit appraisal for this application.</div>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Read-only view -->
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+
+        <!-- Header badge -->
+        <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 10px; color: white;">
+            <span class="material-symbols-outlined" style="font-size: 28px; opacity: 0.7;">rate_review</span>
+            <div style="flex: 1;">
+                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.5; margin-bottom: 2px;">Credit Appraisal</div>
+                <div style="font-size: 1rem; font-weight: 700;">
+                    @(Appraisal.Recommendation switch {
+                        "Approve" => "Recommended: Approve",
+                        "ConditionalApprove" => "Recommended: Conditional Approve",
+                        "Decline" => "Recommended: Decline",
+                        _ => "Assessment recorded"
+                    })
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-top: 6px; flex-wrap: wrap;">
+                    @if (!string.IsNullOrEmpty(Appraisal.CapacityRating))
+                    {
+                        var ratingColor = Appraisal.CapacityRating switch {
+                            "Strong" => "#16a34a", "Adequate" => "#2563eb", "Marginal" => "#d97706", _ => "#dc2626"
+                        };
+                        <span style="background: @ratingColor; color: white; padding: 2px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 700;">@Appraisal.CapacityRating Capacity</span>
+                    }
+                    @if (!string.IsNullOrEmpty(Appraisal.Recommendation))
+                    {
+                        var recColor = Appraisal.Recommendation switch {
+                            "Approve" => "#16a34a", "ConditionalApprove" => "#d97706", _ => "#dc2626"
+                        };
+                        <span style="background: @recColor; color: white; padding: 2px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 700;">
+                            @(Appraisal.Recommendation == "ConditionalApprove" ? "Conditional Approve" : Appraisal.Recommendation)
+                        </span>
+                    }
+                </div>
+            </div>
+            <div style="font-size: 0.7rem; opacity: 0.4; text-align: right; line-height: 1.6;">
+                @Appraisal.SavedAt?.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
+            </div>
+        </div>
+
+        <!-- Ratios grid -->
+        @if (Appraisal.Dscr.HasValue || Appraisal.Leverage.HasValue || Appraisal.CurrentRatio.HasValue || Appraisal.Ltv.HasValue)
+        {
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
+                @if (Appraisal.Dscr.HasValue)
+                {
+                    <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 4px;">DSCR</div>
+                        <div style="font-size: 1.2rem; font-weight: 700; color: @(Appraisal.Dscr >= 1.25m ? "var(--success-600)" : Appraisal.Dscr >= 1.0m ? "var(--warning-600)" : "var(--danger-600)");">@Appraisal.Dscr.Value.ToString("N2")x</div>
+                    </div>
+                }
+                @if (Appraisal.Leverage.HasValue)
+                {
+                    <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 4px;">Leverage</div>
+                        <div style="font-size: 1.2rem; font-weight: 700;">@Appraisal.Leverage.Value.ToString("N2")x</div>
+                    </div>
+                }
+                @if (Appraisal.CurrentRatio.HasValue)
+                {
+                    <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 4px;">Current Ratio</div>
+                        <div style="font-size: 1.2rem; font-weight: 700; color: @(Appraisal.CurrentRatio >= 2.0m ? "var(--success-600)" : Appraisal.CurrentRatio >= 1.0m ? "var(--warning-600)" : "var(--danger-600)");">@Appraisal.CurrentRatio.Value.ToString("N2")x</div>
+                    </div>
+                }
+                @if (Appraisal.Ltv.HasValue)
+                {
+                    <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 4px;">LTV</div>
+                        <div style="font-size: 1.2rem; font-weight: 700; color: @(Appraisal.Ltv <= 70m ? "var(--success-600)" : Appraisal.Ltv <= 85m ? "var(--warning-600)" : "var(--danger-600)");">@Appraisal.Ltv.Value.ToString("N1")%</div>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(Appraisal.Notes))
+        {
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem;">
+                <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 0.5rem;">Appraisal Notes</div>
+                <div style="font-size: 0.9rem; line-height: 1.7; color: var(--text-primary); white-space: pre-wrap;">@Appraisal.Notes</div>
+            </div>
+        }
+
+        @if (Appraisal.MemoFileName != null)
+        {
+            <div class="card">
+                <div class="card-body" style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span class="material-symbols-outlined" style="font-size: 24px; color: var(--primary-500);">description</span>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 0.875rem; font-weight: 500;">@Appraisal.MemoFileName</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">Credit Appraisal Memo</div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" @onclick="PreviewMemo">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                        View
+                    </button>
+                    <button class="btn btn-secondary btn-sm" @onclick="DownloadMemo">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                        Download
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Preview modal -->
+@if (showPreviewModal)
+{
+    <div class="modal-backdrop show" @onclick="ClosePreview">
+        <div class="modal" style="max-width: 1000px; height: 92vh; max-height: 92vh;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@(Appraisal?.MemoFileName ?? "Credit Appraisal Memo")</h3>
+                <button class="modal-close" @onclick="ClosePreview">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 0; flex: 1; overflow: hidden; min-height: 0;">
+                @if (isLoadingPreview)
+                {
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%;">
+                        <div class="spinner" style="width: 32px; height: 32px;"></div>
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(previewBlobUrl))
+                {
+                    <iframe src="@previewBlobUrl" style="width: 100%; height: 100%; border: none;"></iframe>
+                }
+                else
+                {
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 1rem;">
+                        <span class="material-symbols-outlined" style="font-size: 64px; color: var(--gray-400);">description</span>
+                        <div style="text-align: center;">
+                            <div style="font-weight: 600;">@(Appraisal?.MemoFileName)</div>
+                            <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">This file cannot be previewed in the browser.</div>
+                        </div>
+                        <button class="btn btn-primary" @onclick="DownloadMemo">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                            Download File
+                        </button>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="ClosePreview">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public CreditAppraisalInfo? Appraisal { get; set; }
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter] public bool IsSaving { get; set; }
+    [Parameter] public EventCallback<SaveCreditAppraisalArgs> OnSave { get; set; }
+    [Parameter] public decimal? AutoLtv { get; set; }
+    [Parameter] public decimal? AutoLeverage { get; set; }
+
+    private decimal? dscr;
+    private decimal? leverage;
+    private decimal? currentRatio;
+    private decimal? ltv;
+    private string capacityRating = string.Empty;
+    private string recommendation = string.Empty;
+    private string notes = string.Empty;
+    private IBrowserFile? selectedMemoFile;
+    private bool pendingMemoRemoval;
+    private string? saveError;
+
+    private bool showPreviewModal;
+    private bool isLoadingPreview;
+    private string? previewBlobUrl;
+
+    private bool CanSave =>
+        !string.IsNullOrEmpty(capacityRating) &&
+        !string.IsNullOrEmpty(recommendation);
+
+    protected override void OnParametersSet()
+    {
+        if (Appraisal != null)
+        {
+            dscr = Appraisal.Dscr;
+            leverage = Appraisal.Leverage;
+            currentRatio = Appraisal.CurrentRatio;
+            ltv = Appraisal.Ltv;
+            capacityRating = Appraisal.CapacityRating ?? string.Empty;
+            recommendation = Appraisal.Recommendation ?? string.Empty;
+            notes = Appraisal.Notes ?? string.Empty;
+        }
+        else
+        {
+            ltv ??= AutoLtv;
+            leverage ??= AutoLeverage;
+        }
+    }
+
+    private void HandleMemoFile(InputFileChangeEventArgs e)
+    {
+        selectedMemoFile = e.File;
+        pendingMemoRemoval = false;
+    }
+
+    private void MarkMemoForRemoval()
+    {
+        pendingMemoRemoval = true;
+        selectedMemoFile = null;
+    }
+
+    private void UndoMemoRemoval() => pendingMemoRemoval = false;
+
+    private async Task HandleSave()
+    {
+        saveError = null;
+        await OnSave.InvokeAsync(new SaveCreditAppraisalArgs(
+            dscr, leverage, currentRatio, ltv,
+            string.IsNullOrEmpty(capacityRating) ? null : capacityRating,
+            string.IsNullOrEmpty(recommendation) ? null : recommendation,
+            string.IsNullOrEmpty(notes) ? null : notes,
+            pendingMemoRemoval ? null : selectedMemoFile,
+            ClearMemo: pendingMemoRemoval));
+
+        // Clear transient file state so the saved memo becomes visible after the parent reloads Appraisal.
+        selectedMemoFile = null;
+        pendingMemoRemoval = false;
+    }
+
+    private async Task DownloadMemo()
+    {
+        var path = Appraisal?.MemoPath;
+        var fileName = Appraisal?.MemoFileName ?? "credit-appraisal-memo.pdf";
+        if (string.IsNullOrEmpty(path)) return;
+        var bytes = await AppService.DownloadGeneratedFileAsync(path);
+        if (bytes != null)
+            await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", bytes);
+    }
+
+    private async Task PreviewMemo()
+    {
+        var path = Appraisal?.MemoPath;
+        if (string.IsNullOrEmpty(path)) return;
+
+        showPreviewModal = true;
+        isLoadingPreview = true;
+        previewBlobUrl = null;
+        StateHasChanged();
+
+        var bytes = await AppService.DownloadGeneratedFileAsync(path);
+        if (bytes != null)
+        {
+            var ext = Path.GetExtension(Appraisal?.MemoFileName ?? ".pdf").ToLowerInvariant();
+            if (ext is ".pdf" or ".png" or ".jpg" or ".jpeg")
+                previewBlobUrl = await JS.InvokeAsync<string>("createBlobUrl", bytes, ext == ".pdf" ? "application/pdf" : "image/" + ext.TrimStart('.'));
+        }
+        isLoadingPreview = false;
+    }
+
+    private async Task ClosePreview()
+    {
+        if (!string.IsNullOrEmpty(previewBlobUrl))
+            await JS.InvokeVoidAsync("revokeBlobUrl", previewBlobUrl);
+        previewBlobUrl = null;
+        showPreviewModal = false;
+    }
+}

@@ -330,6 +330,23 @@
                             Requires Legal Ratification
                         </label>
                     </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">Auto-Satisfy on Document Upload</label>
+                        <select class="form-control" @bind="editingChecklistItem.LinkedDocumentCategory">
+                            <option value="">— None (manual action required) —</option>
+                            <option value="SignedOfferLetter">Signed Offer Letter</option>
+                            <option value="SignedKfsAcknowledgement">Signed KFS Acknowledgement</option>
+                            <option value="SignedDisbursementMemo">Signed Disbursement Memo</option>
+                            <option value="BoardResolution">Board Resolution</option>
+                            <option value="CollateralDocument">Collateral Document</option>
+                            <option value="TaxClearance">Tax Clearance</option>
+                            <option value="CompanyRegistration">Company Registration</option>
+                            <option value="IdentityDocument">Identity Document</option>
+                        </select>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">
+                            When set, uploading a document of this type automatically satisfies this CP item.
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -694,6 +711,7 @@
             RequiresDocumentUpload = item.RequiresDocumentUpload,
             RequiresLegalRatification = item.RequiresLegalRatification,
             CanBeWaived = item.CanBeWaived,
+            LinkedDocumentCategory = item.LinkedDocumentCategory,
             SortOrder = item.SortOrder,
             IsActive = item.IsActive
         };

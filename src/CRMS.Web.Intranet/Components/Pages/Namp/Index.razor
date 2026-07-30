@@ -49,7 +49,17 @@
             <span class="badge badge-secondary" style="margin-left: 6px;">@myApps.Count</span>
         }
     </div>
-    @if (IsAdmin)
+    @if (!CanSeeAllApplications)
+    {
+        <div class="tab @(activeTab == "branch" ? "active" : "")" @onclick='() => SwitchTab("branch")'>
+            Branch Applications
+            @if (branchApps.Count > 0)
+            {
+                <span class="badge badge-secondary" style="margin-left: 6px;">@branchApps.Count</span>
+            }
+        </div>
+    }
+    @if (CanSeeAllApplications)
     {
         <div class="tab @(activeTab == "all" ? "active" : "")" @onclick='() => SwitchTab("all")'>
             All Applications
@@ -357,6 +367,132 @@
     </div>
 }
 
+<!-- ── Branch Applications Tab (non-admin) ── -->
+@if (activeTab == "branch")
+{
+    <div class="card mb-4">
+        <div class="card-body" style="padding: var(--space-4);">
+            <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: flex-end;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-control" placeholder="App #, applicant name…"
+                           @bind="branchAppsSearch" @bind:event="oninput" @bind:after="() => branchAppsPage = 1" />
+                </div>
+                <div style="width: 220px;">
+                    <label class="form-label">Status</label>
+                    <select class="form-control" @bind="branchFilterStatus" @bind:after="LoadBranchApplications">
+                        <option value="">All Active</option>
+                        <option value="Draft">Draft</option>
+                        <option value="Submitted">Submitted</option>
+                        <option value="FinancialAppraisal">Financial Appraisal</option>
+                        <option value="BranchCommitteeCirculation">Branch Committee</option>
+                        <option value="ZonalCommitteeCirculation">Zonal Committee</option>
+                        <option value="RegionalCommitteeCirculation">Regional Committee</option>
+                        <option value="HOCommitteeCirculation">HO Committee</option>
+                        <option value="Ratification">Ratification</option>
+                        <option value="OfferGenerated">Offer Generated</option>
+                        <option value="OfferAccepted">Offer Accepted</option>
+                        <option value="LegalClearance">Legal Clearance</option>
+                        <option value="LegalReturned">Legal Returned</option>
+                        <option value="PreDeploymentVerification">Pre-Deployment</option>
+                        <option value="Deployment">Deployment</option>
+                        <option value="Active">Active</option>
+                        <option value="FinancialDeclined">Financial Declined</option>
+                        <option value="BranchCommitteeDeclined">Branch Declined</option>
+                        <option value="ZonalCommitteeDeclined">Zonal Declined</option>
+                        <option value="RegionalCommitteeDeclined">Regional Declined</option>
+                        <option value="HOCommitteeDeclined">HO Declined</option>
+                        <option value="RatificationDeclined">Ratification Declined</option>
+                        <option value="OfferLapsed">Offer Lapsed</option>
+                        <option value="LegalDeclined">Legal Declined</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body" style="padding: 0;">
+            @if (isLoadingBranchApps)
+            {
+                <div class="p-6 text-center"><div class="spinner" style="margin: 0 auto;"></div></div>
+            }
+            else if (branchApps.Count == 0)
+            {
+                <div class="p-6 text-center text-muted">No applications found for the selected filter.</div>
+            }
+            else
+            {
+                var filtered = FilteredBranchApps;
+                var paged = filtered.Skip((branchAppsPage - 1) * PageSize).Take(PageSize).ToList();
+                var totalPages = (int)Math.Ceiling(filtered.Count / (double)PageSize);
+
+                @if (filtered.Count == 0)
+                {
+                    <div class="p-6 text-center text-muted">No records match your search.</div>
+                }
+                else
+                {
+                    <div class="table-wrapper">
+                        <table class="table table-clickable">
+                            <thead>
+                                <tr>
+                                    <th>App #</th>
+                                    <th>Applicant</th>
+                                    <th>Category</th>
+                                    <th>Equipment Value</th>
+                                    <th>Tier</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var app in paged)
+                                {
+                                    <tr style="cursor: pointer;" @onclick='() => Navigation.NavigateTo($"/namp/{app.Id}")'>
+                                        <td style="font-weight: 600; color: var(--primary-600); font-family: monospace;">@app.ApplicationNumber</td>
+                                        <td>@app.ApplicantName</td>
+                                        <td><span class="badge badge-info">@FormatCategory(app.ApplicantCategory)</span></td>
+                                        <td style="font-weight: 500;">₦@app.EquipmentValue.ToString("N0")</td>
+                                        <td><span class="badge badge-secondary">@app.CommitteeTier</span></td>
+                                        <td><span class="badge @GetStatusBadgeClass(app.Status)">@FormatStatusDisplay(app)</span></td>
+                                        <td style="font-size: var(--text-sm); color: var(--text-secondary); white-space: nowrap;">@app.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                        <td @onclick:stopPropagation>
+                                            <button class="btn btn-ghost btn-sm" @onclick='() => Navigation.NavigateTo($"/namp/{app.Id}")'>
+                                                <span class="material-symbols-outlined">chevron_right</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if (totalPages > 1)
+                    {
+                        <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: var(--text-sm); color: var(--gray-500);">
+                                Showing @((branchAppsPage - 1) * PageSize + 1)–@Math.Min(branchAppsPage * PageSize, filtered.Count) of @filtered.Count
+                            </span>
+                            <div style="display: flex; gap: var(--space-2);">
+                                <button class="btn btn-outline btn-sm" disabled="@(branchAppsPage <= 1)" @onclick="() => branchAppsPage--">
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>
+                                    Previous
+                                </button>
+                                <button class="btn btn-outline btn-sm" disabled="@(branchAppsPage >= totalPages)" @onclick="() => branchAppsPage++">
+                                    Next
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                }
+            }
+        </div>
+    </div>
+}
+
 <!-- ── All Applications Tab (admin) ── -->
 @if (activeTab == "all")
 {
@@ -533,19 +669,24 @@
     private List<NampApplicationSummaryDto> myQueue = [];
     private List<NampApplicationSummaryDto> myApps = [];
     private List<NampApplicationSummaryDto> allApps = [];
+    private List<NampApplicationSummaryDto> branchApps = [];
     private string filterStatus = "all";
+    private string branchFilterStatus = "";
+    private bool isLoadingBranchApps = false;
 
     // Search state (per tab)
     private string stagingSearch = "";
     private string myQueueSearch = "";
     private string myAppsSearch = "";
     private string allAppsSearch = "";
+    private string branchAppsSearch = "";
 
     // Pagination state (per tab)
     private int stagingPage = 1;
     private int myQueuePage = 1;
     private int myAppsPage = 1;
     private int allAppsPage = 1;
+    private int branchAppsPage = 1;
 
     // Recall modal
     private bool showRecallModal;
@@ -556,6 +697,8 @@
     // Role helpers
     private bool IsLoanOfficer => User?.HasAnyRole("LoanOfficer", "SystemAdmin") ?? false;
     private bool IsAdmin => User?.HasRole("SystemAdmin") ?? false;
+    private bool IsHeadOffice => User?.IsHeadOffice ?? false;
+    private bool CanSeeAllApplications => IsAdmin || IsHeadOffice;
     private UserInfo? User => AuthService.CurrentUser;
 
     private string QueueSubtitle => activeTab switch
@@ -563,6 +706,7 @@
         "staging"  => $"{stagingQueue.Count} pending recall{(stagingQueue.Count == 1 ? "" : "s")}",
         "apps"     => $"{myQueue.Count} pending action{(myQueue.Count == 1 ? "" : "s")}",
         "myapps"   => $"{myApps.Count} application{(myApps.Count == 1 ? "" : "s")} you have contributed to",
+        "branch"   => $"{branchApps.Count} application{(branchApps.Count == 1 ? "" : "s")} in {(User?.IsHeadOffice == true ? "all branches" : "your branch")}",
         _          => "All applications"
     };
 
@@ -610,6 +754,20 @@
         }
     }
 
+    private List<NampApplicationSummaryDto> FilteredBranchApps
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(branchAppsSearch)) return branchApps;
+            var q = branchAppsSearch.Trim().ToLowerInvariant();
+            return branchApps.Where(a =>
+                a.ApplicationNumber.ToLowerInvariant().Contains(q) ||
+                a.ApplicantName.ToLowerInvariant().Contains(q) ||
+                FormatStatus(a.Status).ToLowerInvariant().Contains(q)
+            ).ToList();
+        }
+    }
+
     private List<NampApplicationSummaryDto> FilteredAllApps
     {
         get
@@ -626,7 +784,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!IsLoanOfficer && !IsAdmin) activeTab = "apps";
+        if (!IsLoanOfficer && !IsAdmin && !IsHeadOffice) activeTab = "apps";
         await LoadAll();
     }
 
@@ -635,6 +793,7 @@
         activeTab = tab;
         if (tab == "all" && allApps.Count == 0) await LoadAdminAll();
         if (tab == "myapps" && myApps.Count == 0) await LoadMyApplications();
+        if (tab == "branch" && branchApps.Count == 0) await LoadBranchApplications();
     }
 
     private async Task LoadAll()
@@ -648,6 +807,7 @@
             await LoadStagingQueue(stagingBranchId);
             await LoadMyQueue();
             if (activeTab == "all") await LoadAdminAll();
+            if (!CanSeeAllApplications) await LoadBranchApplications();
         }
         finally { isLoading = false; }
     }
@@ -786,6 +946,31 @@
             }
         }
         finally { isLoadingAll = false; }
+    }
+
+    private async Task LoadBranchApplications()
+    {
+        isLoadingBranchApps = true;
+        branchAppsPage = 1;
+        try
+        {
+            // HO users have no branch restriction; branch users are scoped to their branch.
+            var branchId = (User?.IsHeadOffice == true) ? (Guid?)null : User?.LocationId;
+            if (string.IsNullOrEmpty(branchFilterStatus))
+            {
+                var activeStatuses = new[] { "Draft", "Submitted", "FinancialAppraisal",
+                    "BranchCommitteeCirculation", "ZonalCommitteeCirculation", "RegionalCommitteeCirculation",
+                    "HOCommitteeCirculation", "Ratification", "OfferGenerated", "OfferAccepted",
+                    "LegalClearance", "LegalReturned",
+                    "PreDeploymentVerification", "Deployment", "Active" };
+                branchApps = await AppService.GetNampApplicationsByStatusesAsync(activeStatuses, branchId);
+            }
+            else
+            {
+                branchApps = await AppService.GetNampApplicationsByStatusAsync(branchFilterStatus, branchId);
+            }
+        }
+        finally { isLoadingBranchApps = false; }
     }
 
     private void OpenRecallModal(NampStagingRecordSummaryDto rec)

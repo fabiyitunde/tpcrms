@@ -274,6 +274,14 @@
                 }
             }
 
+            // Auto-start voting immediately so committee members can vote right away
+            var startResult = await AppService.StartVotingAsync(reviewId);
+            if (!startResult.Success)
+            {
+                errorMessage = startResult.Error ?? "Committee created but failed to start voting automatically.";
+                return;
+            }
+
             await OnCreated.InvokeAsync();
         }
         finally { isSubmitting = false; }

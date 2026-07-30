@@ -149,10 +149,10 @@ else
                                     }
                                     @if (CanManageValuation)
                                     {
-                                        @if (collateral.Status is "Proposed" or "UnderValuation")
+                                        @if (collateral.Status is "Proposed" or "UnderValuation" or "Valued")
                                         {
-                                            <button type="button" class="btn btn-ghost btn-sm" title="Set Valuation" style="color: var(--info-600);" @onclick="() => OnSetValuation.InvokeAsync(currentCollateral.Id)">
-                                                <span class="material-symbols-outlined" style="font-size: 18px;">fact_check</span>
+                                            <button type="button" class="btn btn-ghost btn-sm" title="@(collateral.Status == "Valued" ? "Edit Valuation" : "Set Valuation")" style="color: var(--info-600);" @onclick="() => OnSetValuation.InvokeAsync(currentCollateral.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">@(collateral.Status == "Valued" ? "edit" : "fact_check")</span>
                                             </button>
                                         }
                                         @if (collateral.Status == "Valued")

@@ -102,7 +102,8 @@ public static class LoanProductMappings
             item.RequiresLegalRatification,
             item.CanBeWaived,
             item.SortOrder,
-            item.IsActive
+            item.IsActive,
+            item.LinkedDocumentCategory?.ToString()
         );
     }
 }

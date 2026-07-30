@@ -486,6 +486,79 @@ public static class ComprehensiveDataSeeder
                 logger.LogInformation("Workflow definition already current, skipping upgrade.");
             }
 
+            // Upgrade: add streamlined corporate loan flow stages (CreditReview, Ratification, Disbursement)
+            if (existing != null && !existing.Stages.Any(s => s.Status == LoanApplicationStatus.CreditReview))
+            {
+                logger.LogInformation("Upgrading workflow definition: adding streamlined corporate loan stages...");
+                var wfId = existing.Id;
+                var now = DateTime.UtcNow;
+
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'CreditReview', 'Credit & Legal Review', 'Credit Officer and Legal Officer review in parallel', 'CreditOfficer', 72, 2, 0, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'Ratification', 'Ratification', 'Final Approver ratifies committee decision and issues offer letter', 'FinalApprover', 24, 11, 0, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'Disbursement', 'Disbursement', 'Operations completes disbursement', 'Operations', 24, 17, 0, 0, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+
+                // New-flow transitions
+                await InsertTransitionIfMissingAsync(context, wfId, "Draft",               "CreditReview",         "Submit",          Roles.LoanOfficer,    now);
+                await InsertTransitionIfMissingAsync(context, wfId, "CreditReview",        "Draft",                "Return",          Roles.CreditOfficer,  now);
+                await InsertTransitionIfMissingAsync(context, wfId, "CreditReview",        "Draft",                "Return",          Roles.LegalOfficer,   now);
+                await InsertTransitionIfMissingAsync(context, wfId, "CreditReview",        "CommitteeCirculation", "Approve",         Roles.CreditOfficer,  now);
+                await InsertTransitionIfMissingAsync(context, wfId, "CreditReview",        "Rejected",             "Reject",          Roles.CreditOfficer,  now);
+                await InsertTransitionIfMissingAsync(context, wfId, "CommitteeApproved",   "Ratification",         "MoveToNextStage", Roles.FinalApprover,  now);
+                await InsertTransitionIfMissingAsync(context, wfId, "Ratification",        "OfferGenerated",       "Approve",         Roles.FinalApprover,  now);
+                await InsertTransitionIfMissingAsync(context, wfId, "Ratification",        "Rejected",             "Reject",          Roles.FinalApprover,  now);
+                await InsertTransitionIfMissingAsync(context, wfId, "OfferAccepted",       "SecurityPerfection",   "MoveToNextStage", Roles.LoanOfficer,    now);
+                await InsertTransitionIfMissingAsync(context, wfId, "SecurityPerfection",  "Disbursement",         "Approve",         Roles.LegalOfficer,   now);
+                await InsertTransitionIfMissingAsync(context, wfId, "SecurityPerfection",  "OfferAccepted",        "Return",          Roles.LegalOfficer,   now);
+                await InsertTransitionIfMissingAsync(context, wfId, "Disbursement",        "Disbursed",            "Complete",        Roles.Operations,        now);
+                await InsertTransitionIfMissingAsync(context, wfId, "Disbursement",        "Disbursed",            "Complete",        Roles.DeploymentOfficer, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "Disbursement",        "SecurityPerfection",   "Return",          Roles.Operations,        now);
+                await InsertTransitionIfMissingAsync(context, wfId, "Disbursement",        "SecurityPerfection",   "Return",          Roles.DeploymentOfficer, now);
+
+                // Update OfferGenerated→OfferAccepted actor to LoanOfficer (was Operations)
+                await context.Database.ExecuteSqlRawAsync(
+                    "UPDATE WorkflowTransitions SET RequiredRole = 'LoanOfficer' " +
+                    "WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'OfferGenerated' AND ToStatus = 'OfferAccepted'",
+                    wfId);
+
+                logger.LogInformation("Streamlined corporate loan stages added successfully.");
+            }
+
+            // Upgrade: add RatificationDeclined stage and fix CommitteeApproved→Ratification auto-transition role
+            if (existing != null && !existing.Stages.Any(s => s.Status == LoanApplicationStatus.RatificationDeclined))
+            {
+                logger.LogInformation("Upgrading workflow definition: adding RatificationDeclined stage...");
+                var wfId = existing.Id;
+                var now = DateTime.UtcNow;
+
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT IGNORE INTO WorkflowStages (Id, WorkflowDefinitionId, Status, DisplayName, Description, AssignedRole, SLAHours, SortOrder, RequiresComment, IsTerminal, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy) " +
+                    "VALUES (@p0, @p1, 'RatificationDeclined', 'Ratification Declined', 'FinalApprover declined to ratify — terminal', 'SystemAdmin', 0, 12, 0, 1, @p2, '', NULL, NULL)",
+                    Guid.NewGuid(), wfId, now);
+
+                // Fix: CommitteeApproved→Ratification is an auto-transition by SystemAdmin (event handler), not FinalApprover
+                await context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM WorkflowTransitions WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'CommitteeApproved' AND ToStatus = 'Ratification' AND RequiredRole = 'FinalApprover'",
+                    wfId);
+                await InsertTransitionIfMissingAsync(context, wfId, "CommitteeApproved", "Ratification", "MoveToNextStage", Roles.SystemAdmin, now);
+
+                // Replace Ratification→Rejected with Ratification→RatificationDeclined
+                await context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM WorkflowTransitions WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'Ratification' AND ToStatus = 'Rejected'",
+                    wfId);
+                await InsertTransitionIfMissingAsync(context, wfId, "Ratification", "RatificationDeclined", "Reject", Roles.FinalApprover, now);
+
+                logger.LogInformation("RatificationDeclined stage and transitions added successfully.");
+            }
+
             // Correction: Approved→OfferGenerated must be performed by LoanOfficer, not Operations.
             // Idempotent — only updates the row if it currently has the wrong role.
             if (existing != null)
@@ -494,6 +567,53 @@ public static class ComprehensiveDataSeeder
                     "UPDATE WorkflowTransitions SET RequiredRole = 'LoanOfficer' " +
                     "WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'Approved' AND ToStatus = 'OfferGenerated' AND RequiredRole != 'LoanOfficer'",
                     existing.Id);
+            }
+
+            // Correction: OfferGenerated→OfferAccepted must be performed by LoanOfficer, not Operations or SystemAdmin.
+            // The original seeder inserted this with Operations; the upgrade block that corrected it only ran
+            // when Ratification was being added for the first time — so existing DBs that already had Ratification
+            // were skipped. This unconditional UPDATE ensures the role is always correct.
+            if (existing != null)
+            {
+                await context.Database.ExecuteSqlRawAsync(
+                    "UPDATE WorkflowTransitions SET RequiredRole = 'LoanOfficer' " +
+                    "WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'OfferGenerated' AND ToStatus = 'OfferAccepted' AND RequiredRole != 'LoanOfficer'",
+                    existing.Id);
+            }
+
+            // Correction: Ensure DeploymentOfficer can complete/return at the Disbursement stage,
+            // and LoanOfficer can advance OfferAccepted → SecurityPerfection.
+            // InsertTransitionIfMissingAsync guards on (FromStatus, ToStatus, Action) without RequiredRole,
+            // so these rows were silently skipped if an Operations/SystemAdmin row already existed.
+            // Use role-aware WHERE NOT EXISTS to insert the missing rows idempotently.
+            if (existing != null)
+            {
+                var wfId = existing.Id;
+                var now = DateTime.UtcNow;
+                foreach (var (fromStatus, toStatus, action, role) in new[]
+                {
+                    ("Disbursement",  "Disbursed",           "Complete",        Roles.DeploymentOfficer),
+                    ("Disbursement",  "SecurityPerfection",  "Return",          Roles.DeploymentOfficer),
+                    ("OfferAccepted", "SecurityPerfection",  "MoveToNextStage", Roles.LoanOfficer),
+                })
+                {
+                    await context.Database.ExecuteSqlRawAsync(
+                        @"INSERT INTO WorkflowTransitions
+                              (Id, WorkflowDefinitionId, FromStatus, ToStatus, Action, RequiredRole,
+                               RequiresComment, ConditionExpression, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy)
+                          SELECT @p0, @p1, @p2, @p3, @p4, @p5,
+                                 0, NULL, @p6, '', NULL, NULL
+                          WHERE NOT EXISTS (
+                              SELECT 1 FROM WorkflowTransitions
+                              WHERE WorkflowDefinitionId = @p7
+                                AND FromStatus  = @p8
+                                AND ToStatus    = @p9
+                                AND Action      = @p10
+                                AND RequiredRole = @p11
+                          )",
+                        Guid.NewGuid(), wfId, fromStatus, toStatus, action, role, now,
+                        wfId, fromStatus, toStatus, action, role);
+                }
             }
 
             // Correction: Remove DisbursementBranchApproval hop — Operations now approves directly to DisbursementHQApproval.
@@ -554,30 +674,21 @@ public static class ComprehensiveDataSeeder
 
         var workflow = workflowResult.Value;
 
-        // Add all stages
+        // Add all stages — streamlined 8-stage corporate loan flow
         var stages = new[]
         {
-            (LoanApplicationStatus.Draft, "Draft", "Application draft", Roles.LoanOfficer, 0, 1, false, false),
-            (LoanApplicationStatus.Submitted, "Submitted", "Submitted for review", Roles.LoanOfficer, 24, 2, false, false),
-            (LoanApplicationStatus.BranchReview, "Branch Review", "Under branch review", Roles.BranchApprover, 48, 3, true, false),
-            (LoanApplicationStatus.BranchApproved, "Branch Approved", "Approved by branch", Roles.CreditOfficer, 24, 4, false, false),
-            (LoanApplicationStatus.CreditAnalysis, "Credit Analysis", "Credit analysis in progress", Roles.CreditOfficer, 72, 5, false, false),
-            (LoanApplicationStatus.HOReview, "HO Review", "Head Office review", Roles.HOReviewer, 48, 6, true, false),
-            (LoanApplicationStatus.LegalReview, "Legal Review", "Legal officer preparing opinion", Roles.LegalOfficer, 48, 7, false, false),
-            (LoanApplicationStatus.LegalApproval, "Legal Approval", "Head of Legal countersigning opinion", Roles.HeadOfLegal, 24, 8, true, false),
-            (LoanApplicationStatus.CommitteeCirculation, "Committee", "Committee review", Roles.CommitteeMember, 72, 9, false, false),
-            (LoanApplicationStatus.CommitteeApproved, "Committee Approved", "Committee decision recorded, pending final sign-off", Roles.SystemAdmin, 0, 10, false, false),
-            (LoanApplicationStatus.FinalApproval, "Final Approval", "Awaiting MD/CEO executive sign-off", Roles.FinalApprover, 24, 11, false, false),
-            (LoanApplicationStatus.Approved, "Approved", "Final approval granted", Roles.Operations, 24, 12, false, false),
-            (LoanApplicationStatus.OfferGenerated, "Offer Letter Issued", "Offer letter issued to customer, awaiting signed acceptance", Roles.LoanOfficer, 72, 13, false, false),
-            (LoanApplicationStatus.OfferAccepted, "Offer Accepted", "Customer accepted offer, pending security perfection", Roles.LegalOfficer, 48, 14, false, false),
-            (LoanApplicationStatus.SecurityPerfection, "Security Perfection", "Legal officer perfecting security instruments", Roles.LegalOfficer, 72, 15, false, false),
-            (LoanApplicationStatus.SecurityApproval, "Security Approval", "Head of Legal countersigning security perfection", Roles.HeadOfLegal, 24, 16, true, false),
-            (LoanApplicationStatus.DisbursementPending, "Disbursement Pending", "Operations preparing disbursement memo", Roles.Operations, 24, 17, false, false),
-            (LoanApplicationStatus.DisbursementBranchApproval, "Disbursement — Branch Auth", "Branch Manager authorising disbursement", Roles.BranchApprover, 24, 18, true, false),
-            (LoanApplicationStatus.DisbursementHQApproval, "Disbursement — HQ Auth", "GM Finance releasing funds", Roles.GMFinance, 24, 19, true, false),
-            (LoanApplicationStatus.Disbursed, "Disbursed", "Loan disbursed", Roles.Operations, 0, 20, false, true),
-            (LoanApplicationStatus.Rejected, "Rejected", "Application rejected", Roles.LoanOfficer, 0, 21, false, true)
+            (LoanApplicationStatus.Draft,                 "Draft",                "Application draft",                                                  Roles.LoanOfficer,    0,  1,  false, false),
+            (LoanApplicationStatus.CreditReview,          "Credit & Legal Review","Credit Officer and Legal Officer review in parallel",                 Roles.CreditOfficer,  72, 2,  false, false),
+            (LoanApplicationStatus.CommitteeCirculation,  "Committee",            "Committee review",                                                    Roles.CommitteeMember, 72, 3, false, false),
+            (LoanApplicationStatus.CommitteeApproved,     "Committee Approved",   "Committee decision recorded — pending ratification",                  Roles.SystemAdmin,    0,  4,  false, false),
+            (LoanApplicationStatus.Ratification,          "Ratification",         "Final Approver ratifies committee decision and issues offer letter",   Roles.FinalApprover,  24, 5,  false, false),
+            (LoanApplicationStatus.OfferGenerated,        "Offer Issued",         "Offer letter issued to customer — awaiting signed acceptance",         Roles.LoanOfficer,    72, 6,  false, false),
+            (LoanApplicationStatus.OfferAccepted,         "Offer Accepted",       "Customer accepted offer — proceeding to security perfection",          Roles.LoanOfficer,    0,  7,  false, false),
+            (LoanApplicationStatus.SecurityPerfection,    "Security Perfection",  "Legal Officer perfecting security instruments",                        Roles.LegalOfficer,   72, 8,  false, false),
+            (LoanApplicationStatus.Disbursement,          "Disbursement",         "Operations completing disbursement",                                   Roles.Operations,     24, 9,  false, false),
+            (LoanApplicationStatus.Disbursed,             "Disbursed",            "Loan disbursed",                                                      Roles.Operations,     0,  10, false, true),
+            (LoanApplicationStatus.Rejected,              "Rejected",             "Application rejected",                                                Roles.LoanOfficer,    0,  11, false, true),
+            (LoanApplicationStatus.RatificationDeclined, "Ratification Declined","FinalApprover declined to ratify — terminal",                         Roles.SystemAdmin,    0,  12, false, true),
         };
 
         foreach (var (status, name, desc, role, sla, order, requiresComment, isTerminal) in stages)
@@ -585,37 +696,25 @@ public static class ComprehensiveDataSeeder
             workflow.AddStage(status, name, desc, role, sla, order, requiresComment, isTerminal);
         }
 
-        // Add transitions
+        // Add transitions — streamlined 8-stage corporate loan flow
         var transitions = new[]
         {
-            (LoanApplicationStatus.Draft, LoanApplicationStatus.Submitted, WorkflowAction.Submit, Roles.LoanOfficer),
-            (LoanApplicationStatus.Submitted, LoanApplicationStatus.BranchReview, WorkflowAction.MoveToNextStage, Roles.LoanOfficer),
-            (LoanApplicationStatus.BranchReview, LoanApplicationStatus.BranchApproved, WorkflowAction.Approve, Roles.BranchApprover),
-            (LoanApplicationStatus.BranchReview, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.BranchApprover),
-            (LoanApplicationStatus.BranchApproved, LoanApplicationStatus.CreditAnalysis, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
-            (LoanApplicationStatus.CreditAnalysis, LoanApplicationStatus.HOReview, WorkflowAction.Approve, Roles.CreditOfficer),
-            (LoanApplicationStatus.CreditAnalysis, LoanApplicationStatus.BranchReview, WorkflowAction.Return, Roles.CreditOfficer),
-            (LoanApplicationStatus.HOReview, LoanApplicationStatus.LegalReview, WorkflowAction.Approve, Roles.HOReviewer),
-            (LoanApplicationStatus.HOReview, LoanApplicationStatus.CreditAnalysis, WorkflowAction.Return, Roles.HOReviewer),
-            (LoanApplicationStatus.HOReview, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.HOReviewer),
-            (LoanApplicationStatus.LegalReview, LoanApplicationStatus.LegalApproval, WorkflowAction.Approve, Roles.LegalOfficer),
-            (LoanApplicationStatus.LegalReview, LoanApplicationStatus.HOReview, WorkflowAction.Return, Roles.LegalOfficer),
-            (LoanApplicationStatus.LegalApproval, LoanApplicationStatus.CommitteeCirculation, WorkflowAction.Approve, Roles.HeadOfLegal),
-            (LoanApplicationStatus.LegalApproval, LoanApplicationStatus.LegalReview, WorkflowAction.Return, Roles.HeadOfLegal),
-            (LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.CommitteeApproved, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
-            (LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.SystemAdmin),
-            (LoanApplicationStatus.CommitteeApproved, LoanApplicationStatus.FinalApproval, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
-            (LoanApplicationStatus.FinalApproval, LoanApplicationStatus.Approved, WorkflowAction.Approve, Roles.FinalApprover),
-            (LoanApplicationStatus.FinalApproval, LoanApplicationStatus.Rejected, WorkflowAction.Reject, Roles.FinalApprover),
-            (LoanApplicationStatus.Approved, LoanApplicationStatus.OfferGenerated, WorkflowAction.MoveToNextStage, Roles.LoanOfficer),
-            (LoanApplicationStatus.OfferGenerated, LoanApplicationStatus.OfferAccepted, WorkflowAction.MoveToNextStage, Roles.Operations),
-            (LoanApplicationStatus.OfferAccepted, LoanApplicationStatus.SecurityPerfection, WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
-            (LoanApplicationStatus.SecurityPerfection, LoanApplicationStatus.SecurityApproval, WorkflowAction.Approve, Roles.LegalOfficer),
-            (LoanApplicationStatus.SecurityApproval, LoanApplicationStatus.DisbursementPending, WorkflowAction.Approve, Roles.HeadOfLegal),
-            (LoanApplicationStatus.SecurityApproval, LoanApplicationStatus.SecurityPerfection, WorkflowAction.Return, Roles.HeadOfLegal),
-            (LoanApplicationStatus.DisbursementPending, LoanApplicationStatus.DisbursementHQApproval, WorkflowAction.Approve, Roles.Operations),
-            (LoanApplicationStatus.DisbursementPending, LoanApplicationStatus.SecurityPerfection, WorkflowAction.Return, Roles.Operations),
-            (LoanApplicationStatus.DisbursementHQApproval, LoanApplicationStatus.Disbursed, WorkflowAction.Complete, Roles.GMFinance)
+            (LoanApplicationStatus.Draft,                LoanApplicationStatus.CreditReview,         WorkflowAction.Submit,          Roles.LoanOfficer),
+            (LoanApplicationStatus.CreditReview,         LoanApplicationStatus.Draft,                WorkflowAction.Return,          Roles.CreditOfficer),
+            (LoanApplicationStatus.CreditReview,         LoanApplicationStatus.Draft,                WorkflowAction.Return,          Roles.LegalOfficer),
+            (LoanApplicationStatus.CreditReview,         LoanApplicationStatus.CommitteeCirculation, WorkflowAction.Approve,         Roles.CreditOfficer),
+            (LoanApplicationStatus.CreditReview,         LoanApplicationStatus.Rejected,             WorkflowAction.Reject,          Roles.CreditOfficer),
+            (LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.CommitteeApproved,    WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
+            (LoanApplicationStatus.CommitteeCirculation, LoanApplicationStatus.Rejected,             WorkflowAction.Reject,          Roles.SystemAdmin),
+            (LoanApplicationStatus.CommitteeApproved,    LoanApplicationStatus.Ratification,         WorkflowAction.MoveToNextStage, Roles.SystemAdmin),
+            (LoanApplicationStatus.Ratification,         LoanApplicationStatus.OfferGenerated,       WorkflowAction.Approve,         Roles.FinalApprover),
+            (LoanApplicationStatus.Ratification,         LoanApplicationStatus.RatificationDeclined, WorkflowAction.Reject,          Roles.FinalApprover),
+            (LoanApplicationStatus.OfferGenerated,       LoanApplicationStatus.OfferAccepted,        WorkflowAction.MoveToNextStage, Roles.LoanOfficer),
+            (LoanApplicationStatus.OfferAccepted,        LoanApplicationStatus.SecurityPerfection,   WorkflowAction.MoveToNextStage, Roles.LoanOfficer),
+            (LoanApplicationStatus.SecurityPerfection,   LoanApplicationStatus.Disbursement,         WorkflowAction.Approve,         Roles.LegalOfficer),
+            (LoanApplicationStatus.SecurityPerfection,   LoanApplicationStatus.OfferAccepted,        WorkflowAction.Return,          Roles.LegalOfficer),
+            (LoanApplicationStatus.Disbursement,         LoanApplicationStatus.Disbursed,            WorkflowAction.Complete,        Roles.Operations),
+            (LoanApplicationStatus.Disbursement,         LoanApplicationStatus.SecurityPerfection,   WorkflowAction.Return,          Roles.Operations),
         };
 
         foreach (var (from, to, action, role) in transitions)

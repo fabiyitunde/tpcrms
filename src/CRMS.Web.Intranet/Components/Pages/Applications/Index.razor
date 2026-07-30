@@ -35,6 +35,7 @@
                         <option value="Draft">Draft</option>
                         <option value="BranchReview">Branch Review</option>
                         <option value="CreditAnalysis">Credit Analysis</option>
+                        <option value="CreditReview">Credit &amp; Legal Review</option>
                         <option value="HOReview">HO Review</option>
                         <option value="LegalReview">Legal Review</option>
                         <option value="LegalApproval">Legal Approval</option>
@@ -48,6 +49,7 @@
                         <option value="SecurityApproval">Security Approval</option>
                         <option value="DisbursementPending">Disbursement Pending</option>
                         <option value="DisbursementHQApproval">Disbursement — HQ Approval</option>
+                        <option value="Disbursement">Disbursement</option>
                         <option value="Disbursed">Disbursed</option>
                     </optgroup>
                     <optgroup label="── Terminal ────────────">
@@ -232,41 +234,45 @@
         var defaultReviewStatuses = user?.PrimaryRole switch
         {
             "BranchApprover" => new[] { "BranchReview" },
-            "CreditOfficer"  => new[] { "CreditAnalysis" },
+            "CreditOfficer"  => new[] { "CreditAnalysis", "CreditReview" },
             "HOReviewer"     => new[] { "HOReview" },
-            "LegalOfficer"   => new[] { "LegalReview", "SecurityPerfection" },
+            "LegalOfficer"   => new[] { "LegalReview", "SecurityPerfection", "CreditReview" },
             "HeadOfLegal"    => new[] { "LegalApproval", "SecurityApproval" },
-            "FinalApprover"  => new[] { "FinalApproval" },
-            "Operations"     => new[] { "OfferGenerated", "DisbursementPending" },
-            "GMFinance"      => new[] { "DisbursementHQApproval" },
-            _                => Array.Empty<string>()
+            "FinalApprover"  => new[] { "FinalApproval", "CommitteeApproved" },
+            "Operations"         => new[] { "OfferGenerated", "DisbursementPending", "Disbursement" },
+            "GMFinance"          => new[] { "DisbursementHQApproval" },
+            "DeploymentOfficer"  => new[] { "Disbursement" },
+            _                    => Array.Empty<string>()
         };
 
-        // If a specific status filter is active, use only that; otherwise use the role's default queue
-        var effectiveStatuses = !string.IsNullOrEmpty(filter.Status)
-            ? new[] { filter.Status }
-            : defaultReviewStatuses;
+        // Committee members see applications they're assigned to — separate from the status-based queue
+        var isCommitteeMember = user?.HasRole("CommitteeMember") ?? false;
+        var committeeApps = isCommitteeMember && user?.Id != null
+            ? await AppService.GetApplicationsForCommitteeMemberAsync(user.Id)
+            : new List<LoanApplicationSummary>();
 
-        if (effectiveStatuses.Length > 0)
+        if (!string.IsNullOrEmpty(filter.Status))
         {
-            var allStatusApps = new List<LoanApplicationSummary>();
-            foreach (var status in effectiveStatuses)
-            {
-                var (statusApps, _) = await AppService.GetApplicationsByStatusAsync(
-                    status, user?.LocationId, user?.PrimaryRole, user?.Id);
-                allStatusApps.AddRange(statusApps);
-            }
+            // Explicit status filter: restrict to exactly that status (+ committee apps)
+            var (statusApps, _) = await AppService.GetApplicationsByStatusAsync(
+                filter.Status, user?.LocationId, user?.PrimaryRole, user?.Id);
 
-            // Merge own apps + status queue, deduplicate, then keep only the queued statuses
-            applications = myApps.Concat(allStatusApps)
+            applications = myApps.Concat(statusApps).Concat(committeeApps)
                 .GroupBy(a => a.Id)
                 .Select(g => g.First())
-                .Where(a => effectiveStatuses.Contains(a.Status))
+                .Where(a => a.Status == filter.Status || committeeApps.Any(c => c.Id == a.Id))
                 .ToList();
         }
         else
         {
-            applications = myApps;
+            // No status filter — show every application visible to this user at any status
+            var allVisible = await AppService.GetAllVisibleApplicationsAsync(
+                user?.LocationId, user?.PrimaryRole, user?.Id);
+
+            applications = myApps.Concat(allVisible).Concat(committeeApps)
+                .GroupBy(a => a.Id)
+                .Select(g => g.First())
+                .ToList();
         }
         
         // Apply search filter if provided
@@ -347,7 +353,7 @@
     private static string GetStatusBadgeClass(string status) => status switch
     {
         "Draft" => "badge-gray",
-        "BranchReview" or "HOReview" or "CreditAnalysis" => "badge-warning",
+        "BranchReview" or "HOReview" or "CreditAnalysis" or "CreditReview" => "badge-warning",
         "LegalReview" or "LegalApproval" => "badge-info",
         "CommitteeCirculation" or "FinalApproval" => "badge-primary",
         "CommitteeApproved" or "Approved" or "Disbursed" => "badge-success",

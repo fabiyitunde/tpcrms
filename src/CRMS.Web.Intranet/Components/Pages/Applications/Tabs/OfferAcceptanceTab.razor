@@ -38,28 +38,48 @@
                             <div style="font-size: var(--text-xs); color: var(--gray-500);">Generated automatically at offer acceptance</div>
                         </div>
                     </div>
-                    @if (!string.IsNullOrEmpty(DisbursementMemoStoragePath))
-                    {
-                        <button class="btn btn-secondary btn-sm" @onclick="DownloadDisbursementMemo" disabled="@isDownloadingMemo">
-                            @if (isDownloadingMemo)
-                            {
-                                <span class="spinner" style="width: 14px; height: 14px;"></span>
-                            }
-                            else
-                            {
-                                <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
-                            }
-                            Download
-                        </button>
-                    }
-                    else
-                    {
-                        <span style="font-size: var(--text-xs); color: var(--gray-400); font-style: italic;">Not available</span>
-                    }
+                    <div style="display: flex; gap: var(--space-2); align-items: center;">
+                        @if (!string.IsNullOrEmpty(DisbursementMemoStoragePath))
+                        {
+                            <button class="btn btn-secondary btn-sm" @onclick="DownloadDisbursementMemo" disabled="@isDownloadingMemo">
+                                @if (isDownloadingMemo)
+                                {
+                                    <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                }
+                                Download
+                            </button>
+                        }
+                        else if (!CanRegenerateMemo)
+                        {
+                            <span style="font-size: var(--text-xs); color: var(--gray-400); font-style: italic;">Not available</span>
+                        }
+                        @if (CanRegenerateMemo)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="RegenerateMemo" disabled="@isRegeneratingMemo">
+                                @if (isRegeneratingMemo)
+                                {
+                                    <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">refresh</span>
+                                }
+                                @(string.IsNullOrEmpty(DisbursementMemoStoragePath) ? "Generate Memo" : "Regenerate")
+                            </button>
+                        }
+                    </div>
                 </div>
                 @if (!string.IsNullOrEmpty(memoDownloadError))
                 {
                     <div style="padding: var(--space-2) var(--space-4); color: var(--danger-600); font-size: var(--text-xs);">@memoDownloadError</div>
+                }
+                @if (!string.IsNullOrEmpty(memoRegenerateError))
+                {
+                    <div style="padding: var(--space-2) var(--space-4); color: var(--danger-600); font-size: var(--text-xs);">@memoRegenerateError</div>
                 }
 
                 @* Row 2: Countersigned copy *@
@@ -525,11 +545,15 @@ else
     [Parameter] public List<DocumentInfo> Documents { get; set; } = new();
     [Parameter] public bool CanUploadSignedMemo { get; set; }
     [Parameter] public EventCallback OnSignedMemoUploaded { get; set; }
+    [Parameter] public bool CanRegenerateMemo { get; set; }
+    [Parameter] public EventCallback OnMemoRegenerated { get; set; }
 
     private DisbursementChecklistModel? checklist;
     private bool isLoading = true;
     private bool isDownloadingMemo;
     private string? memoDownloadError;
+    private bool isRegeneratingMemo;
+    private string? memoRegenerateError;
 
     // Signed memo upload state
     private bool showUploadSignedMemoModal;
@@ -544,7 +568,8 @@ else
     private bool ShowMemoCard => !string.IsNullOrEmpty(DisbursementMemoStoragePath)
         || SignedMemoDoc != null
         || (ApplicationStatus is "OfferAccepted" or "SecurityPerfection" or "SecurityApproval"
-            or "DisbursementPending" or "DisbursementHQApproval" or "Disbursed");
+            or "DisbursementPending" or "DisbursementHQApproval" or "Disbursed"
+            or "Disbursement");
 
     // Evidence viewer state
     private bool showEvidenceViewer;
@@ -583,6 +608,24 @@ else
         finally
         {
             isDownloadingMemo = false;
+        }
+    }
+
+    private async Task RegenerateMemo()
+    {
+        isRegeneratingMemo = true;
+        memoRegenerateError = null;
+        try
+        {
+            var result = await AppService.RegenerateDisbursementMemoAsync(ApplicationId);
+            if (result.Success)
+                await OnMemoRegenerated.InvokeAsync();
+            else
+                memoRegenerateError = result.Error ?? "Failed to generate disbursement memo.";
+        }
+        finally
+        {
+            isRegeneratingMemo = false;
         }
     }
 

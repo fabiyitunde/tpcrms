@@ -225,6 +225,9 @@ public static class DependencyInjection
         // Approval Override
         services.AddScoped<IApprovalOverrideRepository, ApprovalOverrideRepository>();
 
+        // Security Perfection
+        services.AddScoped<ISecurityPerfectionDocumentRepository, SecurityPerfectionDocumentRepository>();
+
         // Advisory
         services.AddScoped<ICreditAdvisoryRepository, CreditAdvisoryRepository>();
         
@@ -438,12 +441,31 @@ public static class DependencyInjection
         services.AddScoped<Application.LoanApplication.Commands.ReturnFromDisbursementPendingHandler>();
         services.AddScoped<Application.LoanApplication.Commands.ApproveDisbursementHQHandler>();
         services.AddScoped<Application.LoanApplication.Commands.FinalApproveHandler>();
+        // Streamlined corporate loan flow handlers
+        services.AddScoped<Application.LoanApplication.Commands.SaveCreditAppraisalHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.CompleteLegalReviewHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromCreditReviewHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ApproveCreditReviewHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.RatifyCorporateLoanHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.IssueRatifiedOfferLetterHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.DeclineRatificationHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.RecordCorporateOfferAcceptanceHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.CompleteSecurityPerfectionNewHandler>();
+        services.AddScoped<Application.SecurityPerfection.UploadLoanLevelSecurityDocumentHandler>();
+        services.AddScoped<Application.SecurityPerfection.UploadCollateralSecurityDocumentHandler>();
+        services.AddScoped<Application.SecurityPerfection.DeleteSecurityPerfectionDocumentHandler>();
+        services.AddScoped<Application.SecurityPerfection.GetSecurityPerfectionDocumentsHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.CompleteCorporateDisbursementHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.ReturnFromDisbursementNewHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.GetCorporateLoanAccountHandler>();
+        services.AddScoped<Application.LoanApplication.Commands.MarkCorporateClosedHandler>();
         services.AddScoped<Application.LoanApplication.Commands.UploadDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Commands.VerifyDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Commands.RejectDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Commands.DeleteDocumentHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetLoanApplicationByIdHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetLoanApplicationsByStatusHandler>();
+        services.AddScoped<Application.LoanApplication.Queries.GetAllVisibleApplicationsHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetMyLoanApplicationsHandler>();
         services.AddScoped<Application.LoanApplication.Queries.GetPendingBranchReviewHandler>();
         

@@ -277,7 +277,8 @@ public class LoanProduct : AggregateRoot
         bool requiresDocumentUpload,
         bool requiresLegalRatification,
         bool canBeWaived,
-        int sortOrder)
+        int sortOrder,
+        Enums.DocumentCategory? linkedDocumentCategory = null)
     {
         if (Status == ProductStatus.Discontinued)
             return Result.Failure<DisbursementChecklistTemplate>("Cannot modify a discontinued product");
@@ -285,7 +286,7 @@ public class LoanProduct : AggregateRoot
         var result = DisbursementChecklistTemplate.Create(
             Id, itemName, description, isMandatory, conditionType,
             subsequentDueDays, requiresDocumentUpload, requiresLegalRatification,
-            canBeWaived, sortOrder);
+            canBeWaived, sortOrder, linkedDocumentCategory);
 
         if (result.IsFailure)
             return result;
@@ -304,7 +305,8 @@ public class LoanProduct : AggregateRoot
         bool requiresDocumentUpload,
         bool requiresLegalRatification,
         bool canBeWaived,
-        int sortOrder)
+        int sortOrder,
+        Enums.DocumentCategory? linkedDocumentCategory = null)
     {
         if (Status == ProductStatus.Discontinued)
             return Result.Failure("Cannot modify a discontinued product");
@@ -315,7 +317,7 @@ public class LoanProduct : AggregateRoot
 
         return item.Update(itemName, description, isMandatory, conditionType,
             subsequentDueDays, requiresDocumentUpload, requiresLegalRatification,
-            canBeWaived, sortOrder);
+            canBeWaived, sortOrder, linkedDocumentCategory);
     }
 
     public Result RemoveChecklistTemplateItem(Guid itemId)

@@ -135,8 +135,10 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
         if (loanApp == null)
             return ApplicationResult<CreditCheckBatchResultDto>.Failure("Loan application not found");
 
-        if (loanApp.Status != LoanApplicationStatus.BranchApproved && loanApp.Status != LoanApplicationStatus.CreditAnalysis)
-            return ApplicationResult<CreditCheckBatchResultDto>.Failure($"Loan must be in BranchApproved or CreditAnalysis status to run credit checks. Current: {loanApp.Status}");
+        if (loanApp.Status != LoanApplicationStatus.BranchApproved
+            && loanApp.Status != LoanApplicationStatus.CreditAnalysis
+            && loanApp.Status != LoanApplicationStatus.CreditReview)
+            return ApplicationResult<CreditCheckBatchResultDto>.Failure($"Loan must be in BranchApproved, CreditAnalysis, or CreditReview status to run credit checks. Current: {loanApp.Status}");
 
         // Idempotency check: If all credit checks are already completed with no retryable or missing reports, return early.
         // Retryable = Failed, ConsentRequired, Completed-with-DERIVED-score, or NotFound.
@@ -324,6 +326,17 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 if (wfResult.IsFailure)
                     _logger.LogWarning("Could not sync workflow to CreditAnalysis for loan {LoanId}: {Error}",
                         loanApp.Id, wfResult.Error);
+            }
+        }
+        else if (loanApp.Status == LoanApplicationStatus.CreditReview)
+        {
+            // New streamlined flow: already in CreditReview, initialize credit check counter
+            // without changing status (stays in CreditReview while checks run)
+            if (loanApp.TotalCreditChecksRequired == 0 || request.ForceRefresh)
+            {
+                var initResult = loanApp.InitializeCreditChecksForReview(totalChecks, request.SystemUserId);
+                if (initResult.IsFailure)
+                    return ApplicationResult<CreditCheckBatchResultDto>.Failure(initResult.Error);
             }
         }
         else if (loanApp.Status == LoanApplicationStatus.CreditAnalysis)

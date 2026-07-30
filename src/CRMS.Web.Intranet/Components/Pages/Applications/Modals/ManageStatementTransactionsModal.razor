@@ -44,16 +44,19 @@
                         }
                     </span>
                 </div>
-                <div class="stat-box" style="min-width: 140px;">
-                    <span class="stat-label">Expected Closing</span>
-                    <span class="stat-value">₦@FormatAmt(Statement.ClosingBalance)</span>
-                </div>
-                @if (rows.Any() && !IsReconciled)
+                @if (CanReconcile)
                 {
-                    <div class="stat-box" style="min-width: 140px; border-color: var(--warning-300); background: var(--warning-50);">
-                        <span class="stat-label">Discrepancy</span>
-                        <span class="stat-value" style="color: var(--warning-700);">₦@FormatAmt(Math.Abs(ComputedClosing - Statement.ClosingBalance))</span>
+                    <div class="stat-box" style="min-width: 140px;">
+                        <span class="stat-label">Expected Closing</span>
+                        <span class="stat-value">₦@FormatAmt(Statement.ClosingBalance)</span>
                     </div>
+                    @if (rows.Any() && !IsReconciled)
+                    {
+                        <div class="stat-box" style="min-width: 140px; border-color: var(--warning-300); background: var(--warning-50);">
+                            <span class="stat-label">Discrepancy</span>
+                            <span class="stat-value" style="color: var(--warning-700);">₦@FormatAmt(Math.Abs(ComputedClosing - Statement.ClosingBalance))</span>
+                        </div>
+                    }
                 }
             </div>
         </div>
@@ -242,7 +245,9 @@
     private decimal TotalCredits => rows.Sum(r => r.CreditAmount ?? 0m);
     private decimal TotalDebits => rows.Sum(r => r.DebitAmount ?? 0m);
     private decimal ComputedClosing => BaseBalance + TotalCredits - TotalDebits;
-    private bool IsReconciled => Math.Abs(ComputedClosing - Statement.ClosingBalance) <= 1.0m;
+    // Reconciliation is only meaningful when a non-zero closing balance was provided
+    private bool CanReconcile => Statement.ClosingBalance != 0;
+    private bool IsReconciled => !CanReconcile || Math.Abs(ComputedClosing - Statement.ClosingBalance) <= 1.0m;
 
     private string ReconciliationBorderColor => rows.Any()
         ? (IsReconciled ? "var(--success-300)" : "var(--warning-300)")

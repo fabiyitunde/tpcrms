@@ -65,7 +65,19 @@ public class GetLoanApplicationByIdHandler : IRequestHandler<GetLoanApplicationB
             p.PhoneNumber, p.Designation, p.ShareholdingPercent, p.BVNVerified)).ToList(),
         app.IncorporationDate,
         app.IndustrySector,
-        app.DisbursementMemoStoragePath
+        app.DisbursementMemoStoragePath,
+        app.LegalReviewCompletedAt,
+        app.CreditAppraisalDscr,
+        app.CreditAppraisalLeverage,
+        app.CreditAppraisalCurrentRatio,
+        app.CreditAppraisalLtv,
+        app.CreditAppraisalCapacityRating,
+        app.CreditAppraisalRecommendation,
+        app.CreditAppraisalNotes,
+        app.CreditAppraisalMemoPath,
+        app.CreditAppraisalMemoFileName,
+        app.CreditAppraisalSavedAt,
+        app.CreditAppraisalSavedByUserId
     );
 }
 
@@ -127,7 +139,19 @@ public class GetLoanApplicationByNumberHandler : IRequestHandler<GetLoanApplicat
             p.PhoneNumber, p.Designation, p.ShareholdingPercent, p.BVNVerified)).ToList(),
         app.IncorporationDate,
         app.IndustrySector,
-        app.DisbursementMemoStoragePath
+        app.DisbursementMemoStoragePath,
+        app.LegalReviewCompletedAt,
+        app.CreditAppraisalDscr,
+        app.CreditAppraisalLeverage,
+        app.CreditAppraisalCurrentRatio,
+        app.CreditAppraisalLtv,
+        app.CreditAppraisalCapacityRating,
+        app.CreditAppraisalRecommendation,
+        app.CreditAppraisalNotes,
+        app.CreditAppraisalMemoPath,
+        app.CreditAppraisalMemoFileName,
+        app.CreditAppraisalSavedAt,
+        app.CreditAppraisalSavedByUserId
     );
 }
 
@@ -208,6 +232,62 @@ public class GetMyLoanApplicationsHandler : IRequestHandler<GetMyLoanApplication
     public async Task<ApplicationResult<List<LoanApplicationSummaryDto>>> Handle(GetMyLoanApplicationsQuery request, CancellationToken ct = default)
     {
         var applications = await _repository.GetByInitiatorAsync(request.UserId, ct);
+        var dtos = applications.Select(app => new LoanApplicationSummaryDto(
+            app.Id,
+            app.ApplicationNumber,
+            app.Type.ToString(),
+            app.Status.ToString(),
+            app.ProductCode,
+            app.CustomerName,
+            app.RequestedAmount.Amount,
+            app.RequestedAmount.Currency,
+            app.SubmittedAt,
+            app.CreatedAt
+        )).ToList();
+
+        return ApplicationResult<List<LoanApplicationSummaryDto>>.Success(dtos);
+    }
+}
+
+public record GetAllVisibleApplicationsQuery(
+    Guid? UserLocationId = null,
+    string? UserRole = null,
+    Guid? UserId = null) : IRequest<ApplicationResult<List<LoanApplicationSummaryDto>>>;
+
+public class GetAllVisibleApplicationsHandler : IRequestHandler<GetAllVisibleApplicationsQuery, ApplicationResult<List<LoanApplicationSummaryDto>>>
+{
+    private readonly ILoanApplicationRepository _repository;
+    private readonly VisibilityService _visibilityService;
+
+    public GetAllVisibleApplicationsHandler(ILoanApplicationRepository repository, VisibilityService visibilityService)
+    {
+        _repository = repository;
+        _visibilityService = visibilityService;
+    }
+
+    public async Task<ApplicationResult<List<LoanApplicationSummaryDto>>> Handle(GetAllVisibleApplicationsQuery request, CancellationToken ct = default)
+    {
+        IReadOnlyList<LA.LoanApplication> applications;
+
+        if (request.UserRole != null)
+        {
+            var scope = VisibilityService.GetVisibilityScopeForRole(request.UserRole);
+            if (scope == VisibilityScope.Own && request.UserId.HasValue)
+            {
+                applications = await _repository.GetByInitiatorAsync(request.UserId.Value, ct);
+            }
+            else
+            {
+                var visibleBranchIds = await _visibilityService.GetVisibleBranchIdsAsync(
+                    request.UserLocationId, request.UserRole, ct);
+                applications = await _repository.GetAllFilteredAsync(visibleBranchIds, ct);
+            }
+        }
+        else
+        {
+            applications = await _repository.GetAllFilteredAsync(null, ct);
+        }
+
         var dtos = applications.Select(app => new LoanApplicationSummaryDto(
             app.Id,
             app.ApplicationNumber,

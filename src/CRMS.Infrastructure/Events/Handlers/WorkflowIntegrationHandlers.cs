@@ -89,29 +89,29 @@ public class CommitteeDecisionWorkflowHandler : IDomainEventHandler<CommitteeDec
                         return;
                     }
 
-                    // Step 2: Auto-transition to FinalApproval — MD/CEO sign-off queue
-                    loanApplication.MoveToFinalApproval(SystemConstants.SystemUserId);
+                    // Step 2: Auto-transition to Ratification — FinalApprover sign-off queue
+                    loanApplication.MoveToRatification(SystemConstants.SystemUserId);
 
-                    var finalApprovalResult = await _workflowService.TransitionAsync(
+                    var ratificationResult = await _workflowService.TransitionAsync(
                         workflowInstance.Id,
-                        LoanApplicationStatus.FinalApproval,
+                        LoanApplicationStatus.Ratification,
                         WorkflowAction.MoveToNextStage,
                         SystemConstants.SystemUserId,
                         "SystemAdmin",
-                        "Auto-transition: Awaiting MD/CEO executive sign-off",
+                        "Auto-transition: Awaiting FinalApprover ratification",
                         ct);
 
-                    if (finalApprovalResult.IsFailure)
+                    if (ratificationResult.IsFailure)
                     {
-                        _logger.LogError("Failed to transition workflow to FinalApproval for loan {LoanId}: {Error}",
-                            domainEvent.LoanApplicationId, finalApprovalResult.Error);
+                        _logger.LogError("Failed to transition workflow to Ratification for loan {LoanId}: {Error}",
+                            domainEvent.LoanApplicationId, ratificationResult.Error);
                         return;
                     }
 
                     _loanApplicationRepository.Update(loanApplication);
                     await _unitOfWork.SaveChangesAsync(ct);
 
-                    _logger.LogInformation("Successfully processed committee approval for loan {LoanId}. Moved to FinalApproval.",
+                    _logger.LogInformation("Successfully processed committee approval for loan {LoanId}. Moved to Ratification.",
                         domainEvent.LoanApplicationId);
                     return;
                 }

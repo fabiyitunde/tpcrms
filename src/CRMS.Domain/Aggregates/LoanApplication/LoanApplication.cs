@@ -51,9 +51,28 @@ public class LoanApplication : AggregateRoot
 
     // Core Banking Reference
     public string? CoreBankingLoanId { get; private set; }
+    public long? FineractLoanId { get; private set; }
 
     // Disbursement Memo
     public string? DisbursementMemoStoragePath { get; private set; }
+
+    // Streamlined credit & legal parallel review (CreditReview stage)
+    public DateTimeOffset? LegalReviewCompletedAt { get; private set; }
+    public string? LegalReviewNote { get; private set; }
+    public string? CreditReviewNote { get; private set; }
+
+    // Credit Appraisal (formal credit officer write-up at CreditReview stage)
+    public decimal? CreditAppraisalDscr { get; private set; }
+    public decimal? CreditAppraisalLeverage { get; private set; }
+    public decimal? CreditAppraisalCurrentRatio { get; private set; }
+    public decimal? CreditAppraisalLtv { get; private set; }
+    public string? CreditAppraisalCapacityRating { get; private set; }
+    public string? CreditAppraisalRecommendation { get; private set; }
+    public string? CreditAppraisalNotes { get; private set; }
+    public string? CreditAppraisalMemoPath { get; private set; }
+    public string? CreditAppraisalMemoFileName { get; private set; }
+    public DateTimeOffset? CreditAppraisalSavedAt { get; private set; }
+    public Guid? CreditAppraisalSavedByUserId { get; private set; }
 
     // Credit Check Tracking
     public int TotalCreditChecksRequired { get; private set; }
@@ -336,8 +355,8 @@ public class LoanApplication : AggregateRoot
 
     public Result RecordCreditCheckCompleted(Guid userId)
     {
-        if (Status != LoanApplicationStatus.CreditAnalysis)
-            return Result.Failure("Application must be in CreditAnalysis status");
+        if (Status != LoanApplicationStatus.CreditAnalysis && Status != LoanApplicationStatus.CreditReview)
+            return Result.Failure("Application must be in CreditAnalysis or CreditReview status");
 
         CreditChecksCompleted++;
 
@@ -361,8 +380,8 @@ public class LoanApplication : AggregateRoot
     /// </summary>
     public Result ResetCreditCheckProgress(Guid userId)
     {
-        if (Status != LoanApplicationStatus.CreditAnalysis)
-            return Result.Failure("Application must be in CreditAnalysis status to reset credit checks");
+        if (Status != LoanApplicationStatus.CreditAnalysis && Status != LoanApplicationStatus.CreditReview)
+            return Result.Failure("Application must be in CreditAnalysis or CreditReview status to reset credit checks");
 
         CreditChecksCompleted = 0;
         CreditCheckCompletedAt = null;
@@ -581,8 +600,29 @@ public class LoanApplication : AggregateRoot
                 template.RequiresDocumentUpload,
                 template.RequiresLegalRatification,
                 template.CanBeWaived,
-                template.SortOrder));
+                template.SortOrder,
+                template.LinkedDocumentCategory));
         }
+    }
+
+    /// <summary>
+    /// Called after a document is uploaded. Finds any Pending CP items linked to the given
+    /// document category and auto-satisfies them with the uploaded document as evidence.
+    /// Returns the count of items satisfied.
+    /// </summary>
+    public int AutoSatisfyChecklistItemsForDocument(
+        Enums.DocumentCategory category, Guid documentId, Guid uploadedByUserId)
+    {
+        var matched = _checklistItems
+            .Where(i => i.LinkedDocumentCategory == category
+                     && i.Status is Enums.ChecklistItemStatus.Pending
+                                 or Enums.ChecklistItemStatus.LegalReturned)
+            .ToList();
+
+        foreach (var item in matched)
+            item.AutoSatisfyFromDocument(documentId, uploadedByUserId);
+
+        return matched.Count;
     }
 
     public Result AcceptOffer(Guid userId, DateTime customerSignedAt, OfferAcceptanceMethod acceptanceMethod, bool kfsAcknowledged)
@@ -754,6 +794,257 @@ public class LoanApplication : AggregateRoot
 
         AddStatusHistory(Status, userId, $"Loan disbursed. Core Banking ID: {coreBankingLoanId}");
         AddDomainEvent(new LoanApplicationDisbursedEvent(Id, ApplicationNumber, coreBankingLoanId));
+
+        return Result.Success();
+    }
+
+    // =========================================================================
+    // Streamlined corporate loan flow methods (new 8-stage flow)
+    // =========================================================================
+
+    public Result SubmitForCreditReview(Guid userId)
+    {
+        if (Status != LoanApplicationStatus.Draft)
+            return Result.Failure("Application can only be submitted from Draft status");
+
+        Status = LoanApplicationStatus.CreditReview;
+        SubmittedAt = DateTime.UtcNow;
+        LegalReviewCompletedAt = null;
+        LegalReviewNote = null;
+        CreditReviewNote = null;
+        AddStatusHistory(Status, userId, "Submitted for credit and legal review");
+        AddDomainEvent(new LoanApplicationSubmittedEvent(Id, ApplicationNumber));
+
+        return Result.Success();
+    }
+
+    public Result InitializeCreditChecksForReview(int totalChecksRequired, Guid userId)
+    {
+        if (Status != LoanApplicationStatus.CreditReview)
+            return Result.Failure("Application must be in CreditReview status");
+
+        if (totalChecksRequired <= 0)
+            return Result.Failure("At least one credit check is required");
+
+        TotalCreditChecksRequired = totalChecksRequired;
+        CreditChecksCompleted = 0;
+        CreditCheckStartedAt = DateTime.UtcNow;
+        CreditCheckCompletedAt = null;
+        AddStatusHistory(Status, userId, $"Credit checks initiated for {totalChecksRequired} parties");
+        AddDomainEvent(new CreditAnalysisStartedEvent(Id, ApplicationNumber, totalChecksRequired));
+
+        return Result.Success();
+    }
+
+    public Result CompleteLegalReview(Guid userId, string note)
+    {
+        if (Status != LoanApplicationStatus.CreditReview)
+            return Result.Failure("Legal review can only be completed when the application is in Credit Review");
+
+        LegalReviewCompletedAt = DateTimeOffset.UtcNow;
+        LegalReviewNote = note;
+        AddStatusHistory(Status, userId, $"Legal review completed: {note}");
+
+        return Result.Success();
+    }
+
+    public Result ReturnFromCreditReview(Guid userId, string reason)
+    {
+        if (Status != LoanApplicationStatus.CreditReview)
+            return Result.Failure("Application must be in CreditReview status");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Return reason is required");
+
+        Status = LoanApplicationStatus.Draft;
+        LegalReviewCompletedAt = null;
+        LegalReviewNote = null;
+        CreditReviewNote = null;
+        AddStatusHistory(Status, userId, reason);
+        AddComment(userId, reason, "Returned to Loan Officer");
+
+        return Result.Success();
+    }
+
+    public Result SaveCreditAppraisal(
+        Guid userId,
+        decimal? dscr,
+        decimal? leverage,
+        decimal? currentRatio,
+        decimal? ltv,
+        string? capacityRating,
+        string? recommendation,
+        string? notes,
+        string? memoPath,
+        string? memoFileName,
+        bool clearMemo = false)
+    {
+        if (Status != LoanApplicationStatus.CreditReview)
+            return Result.Failure("Credit appraisal can only be edited during Credit Review");
+
+        CreditAppraisalDscr = dscr;
+        CreditAppraisalLeverage = leverage;
+        CreditAppraisalCurrentRatio = currentRatio;
+        CreditAppraisalLtv = ltv;
+        CreditAppraisalCapacityRating = capacityRating;
+        CreditAppraisalRecommendation = recommendation;
+        CreditAppraisalNotes = notes;
+        if (clearMemo) { CreditAppraisalMemoPath = null; CreditAppraisalMemoFileName = null; }
+        else if (memoPath != null) { CreditAppraisalMemoPath = memoPath; CreditAppraisalMemoFileName = memoFileName; }
+        CreditAppraisalSavedAt = DateTimeOffset.UtcNow;
+        CreditAppraisalSavedByUserId = userId;
+        AddStatusHistory(Status, userId, "Credit appraisal saved");
+
+        return Result.Success();
+    }
+
+    public Result ApproveCreditReview(Guid userId, string? note = null)
+    {
+        if (Status != LoanApplicationStatus.CreditReview)
+            return Result.Failure("Application must be in CreditReview status");
+
+        if (LegalReviewCompletedAt == null)
+            return Result.Failure("Legal review must be completed before Credit Review can be approved");
+
+        if (CreditAppraisalSavedAt == null)
+            return Result.Failure("Credit appraisal must be completed before approving");
+
+        Status = LoanApplicationStatus.CommitteeCirculation;
+        CreditReviewNote = note;
+        AddStatusHistory(Status, userId, note ?? "Credit and legal review approved — referred to committee");
+
+        return Result.Success();
+    }
+
+    public Result MoveToRatification(Guid userId)
+    {
+        if (Status != LoanApplicationStatus.CommitteeApproved)
+            return Result.Failure("Application must be in CommitteeApproved status");
+
+        Status = LoanApplicationStatus.Ratification;
+        AddStatusHistory(Status, userId, "Auto-advanced to ratification — awaiting FinalApprover sign-off");
+
+        return Result.Success();
+    }
+
+    public Result Ratify(Guid userId, Money approvedAmount, int approvedTenor, decimal approvedRate, string? note = null)
+    {
+        if (Status != LoanApplicationStatus.Ratification)
+            return Result.Failure("Application must be in Ratification status to ratify");
+
+        // Status stays at Ratification — IssueRatifiedOfferLetter advances it to OfferGenerated
+        ApprovedAmount = approvedAmount;
+        ApprovedTenorMonths = approvedTenor;
+        ApprovedInterestRate = approvedRate;
+        FinalApprovedAt = DateTime.UtcNow;
+        FinalApprovedByUserId = userId;
+        AddStatusHistory(Status, userId, note ?? "Committee decision ratified — offer letter being generated");
+        AddDomainEvent(new LoanApplicationApprovedEvent(Id, ApplicationNumber, approvedAmount.Amount));
+
+        return Result.Success();
+    }
+
+    public Result DeclineRatification(Guid userId, string reason)
+    {
+        if (Status != LoanApplicationStatus.Ratification)
+            return Result.Failure("Application must be in Ratification status to decline");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Decline reason is required");
+
+        Status = LoanApplicationStatus.RatificationDeclined;
+        AddStatusHistory(Status, userId, reason);
+        AddComment(userId, reason, "Ratification Declined");
+
+        return Result.Success();
+    }
+
+    public Result IssueRatifiedOfferLetter(Guid userId)
+    {
+        if (Status != LoanApplicationStatus.Ratification)
+            return Result.Failure("Offer letter can only be issued from Ratification status");
+
+        Status = LoanApplicationStatus.OfferGenerated;
+        OfferIssuedAt = DateTime.UtcNow;
+        OfferIssuedByUserId = userId;
+        AddStatusHistory(Status, userId, "Offer letter issued — awaiting customer acceptance");
+        AddDomainEvent(new OfferLetterIssuedEvent(Id, ApplicationNumber));
+
+        return Result.Success();
+    }
+
+    public Result RecordCorporateOfferAcceptance(Guid userId, DateTime customerSignedAt, OfferAcceptanceMethod acceptanceMethod, bool kfsAcknowledged)
+    {
+        if (Status != LoanApplicationStatus.OfferGenerated)
+            return Result.Failure("Offer can only be accepted from OfferGenerated status");
+
+        if (!kfsAcknowledged)
+            return Result.Failure("KFS acknowledgement is required before recording acceptance");
+
+        Status = LoanApplicationStatus.OfferAccepted;
+        OfferAcceptedAt = DateTime.UtcNow;
+        OfferAcceptedByUserId = userId;
+        CustomerSignedAt = customerSignedAt;
+        AcceptanceMethod = acceptanceMethod;
+        KfsAcknowledged = kfsAcknowledged;
+        AddStatusHistory(Status, userId, $"Customer acceptance confirmed via {acceptanceMethod}");
+        AddDomainEvent(new OfferAcceptedEvent(Id, ApplicationNumber));
+
+        return Result.Success();
+    }
+
+    public Result CompleteSecurityPerfection(Guid userId, string? note = null)
+    {
+        if (Status != LoanApplicationStatus.SecurityPerfection)
+            return Result.Failure("Application must be in SecurityPerfection status");
+
+        Status = LoanApplicationStatus.Disbursement;
+        AddStatusHistory(Status, userId, note ?? "Security perfection complete — referred to Operations for disbursement");
+
+        return Result.Success();
+    }
+
+    public Result CompleteDisbursement(string coreBankingLoanId, Guid userId, long? fineractLoanId = null)
+    {
+        if (Status != LoanApplicationStatus.Disbursement)
+            return Result.Failure("Disbursement can only be recorded from Disbursement status");
+
+        if (string.IsNullOrWhiteSpace(coreBankingLoanId))
+            return Result.Failure("Core Banking Loan ID is required");
+
+        Status = LoanApplicationStatus.Disbursed;
+        CoreBankingLoanId = coreBankingLoanId;
+        FineractLoanId = fineractLoanId;
+        DisbursedAt = DateTime.UtcNow;
+
+        foreach (var item in _checklistItems.Where(i => i.ConditionType == Enums.ConditionType.Subsequent))
+            item.SetDueDate(DisbursedAt.Value);
+
+        AddStatusHistory(Status, userId, $"Loan disbursed. Core Banking ID: {coreBankingLoanId}");
+        AddDomainEvent(new LoanApplicationDisbursedEvent(Id, ApplicationNumber, coreBankingLoanId));
+
+        return Result.Success();
+    }
+
+    public Result MarkAsClosed(Guid userId)
+    {
+        if (Status != LoanApplicationStatus.Disbursed)
+            return Result.Failure("Application must be in Disbursed status to mark as closed");
+
+        Status = LoanApplicationStatus.Closed;
+        AddStatusHistory(Status, userId, "Loan account marked as closed — all repayments completed");
+
+        return Result.Success();
+    }
+
+    public Result ReturnFromDisbursement(Guid userId, string reason)
+    {
+        if (Status != LoanApplicationStatus.Disbursement)
+            return Result.Failure("Application must be in Disbursement status to return");
+
+        Status = LoanApplicationStatus.SecurityPerfection;
+        AddStatusHistory(Status, userId, reason);
+        AddComment(userId, reason, "Returned to Security Perfection");
 
         return Result.Success();
     }

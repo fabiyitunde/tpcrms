@@ -1,0 +1,537 @@
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject IJSRuntime JS
+
+<div style="display: flex; flex-direction: column; gap: var(--space-6);">
+
+    @* ── Loan-Level Security Instruments ─────────────────────────────────── *@
+    <div class="card">
+        <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                <span class="material-symbols-outlined" style="color: var(--primary-600); font-size: 20px;">gavel</span>
+                <div>
+                    <h3 class="card-title" style="margin: 0;">Loan-Level Security Instruments</h3>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">
+                        Facility agreement, debenture, CAC charge registration, board resolution, and other loan-wide documents
+                    </div>
+                </div>
+            </div>
+            @if (CanUpload)
+            {
+                <button class="btn btn-primary btn-sm" @onclick='() => OpenUploadModal("LoanLevel", null, "")'>
+                    <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+                    Upload Document
+                </button>
+            }
+        </div>
+        <div class="card-body" style="padding: 0;">
+            @{ var loanLevelDocs = Documents.Where(d => d.Category == "LoanLevel").ToList(); }
+            @if (!loanLevelDocs.Any())
+            {
+                <div style="padding: var(--space-6); text-align: center; color: var(--gray-400); font-size: var(--text-sm);">
+                    <span class="material-symbols-outlined" style="font-size: 32px; display: block; margin-bottom: var(--space-2);">folder_open</span>
+                    No loan-level security documents uploaded yet
+                </div>
+            }
+            else
+            {
+                <table class="table" style="margin: 0;">
+                    <thead>
+                        <tr>
+                            <th>Document Type</th>
+                            <th>File</th>
+                            <th>Notes</th>
+                            <th>Uploaded By</th>
+                            <th>Date</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in loanLevelDocs)
+                        {
+                            <tr>
+                                <td style="font-weight: 500; font-size: var(--text-sm);">@doc.DocumentType</td>
+                                <td style="font-size: var(--text-sm);">
+                                    <div style="display: flex; align-items: center; gap: var(--space-1);">
+                                        <button class="btn btn-ghost btn-sm" title="View" @onclick="() => ViewDoc(doc)"
+                                            disabled="@(isViewing && viewingId == doc.Id)"
+                                            style="color: var(--primary-600);">
+                                            @if (isViewing && viewingId == doc.Id)
+                                            {
+                                                <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                            }
+                                            else
+                                            {
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                                            }
+                                        </button>
+                                        <button class="btn btn-ghost btn-sm" title="Download" @onclick="() => DownloadDoc(doc)"
+                                            disabled="@(isDownloading && downloadingId == doc.Id)">
+                                            @if (isDownloading && downloadingId == doc.Id)
+                                            {
+                                                <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                            }
+                                            else
+                                            {
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                            }
+                                        </button>
+                                        <span style="font-size: var(--text-xs); color: var(--gray-600);">@doc.FileName</span>
+                                    </div>
+                                </td>
+                                <td style="font-size: var(--text-sm); color: var(--gray-600);">@doc.Description</td>
+                                <td style="font-size: var(--text-sm); color: var(--gray-500);">@doc.UploadedByName</td>
+                                <td style="font-size: var(--text-sm); color: var(--gray-500);">@doc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                <td>
+                                    @if (CanUpload)
+                                    {
+                                        <button class="btn btn-ghost btn-sm" title="Delete" @onclick="() => ConfirmDelete(doc)"
+                                            style="color: var(--danger-500);">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+
+    @* ── Collateral Security Documents ────────────────────────────────────── *@
+    @if (Collaterals.Any())
+    {
+        <div class="card">
+            <div class="card-header">
+                <div style="display: flex; align-items: center; gap: var(--space-2);">
+                    <span class="material-symbols-outlined" style="color: var(--primary-600); font-size: 20px;">real_estate_agent</span>
+                    <div>
+                        <h3 class="card-title" style="margin: 0;">Collateral Security Documents</h3>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px;">
+                            Per-collateral perfection documents — charge certificates, Land Registry filings, lien letters, insurance, etc.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                @foreach (var collateral in Collaterals)
+                {
+                    var collateralDocs = Documents.Where(d => d.Category == "CollateralSpecific" && d.CollateralId == collateral.Id).ToList();
+                    <div style="border-bottom: 1px solid var(--gray-100); padding: var(--space-4);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3);">
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                <div>
+                                    <div style="font-weight: 600; font-size: var(--text-sm);">@collateral.Description</div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                                        @collateral.Type
+                                        @if (collateral.IsLegalCleared)
+                                        {
+                                            <span style="margin-left: var(--space-2); color: var(--success-600); font-weight: 500;">
+                                                <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">verified</span>
+                                                Legally Cleared
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span style="margin-left: var(--space-2); color: var(--warning-600);">
+                                                <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">pending</span>
+                                                Clearance Pending
+                                            </span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            @if (CanUpload)
+                            {
+                                <button class="btn btn-secondary btn-sm"
+                                    @onclick='() => OpenUploadModal("CollateralSpecific", collateral.Id, collateral.Description)'>
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">upload</span>
+                                    Upload
+                                </button>
+                            }
+                        </div>
+
+                        @if (!collateralDocs.Any())
+                        {
+                            <div style="font-size: var(--text-xs); color: var(--gray-400); font-style: italic; padding-left: var(--space-2);">
+                                No security documents uploaded for this collateral
+                            </div>
+                        }
+                        else
+                        {
+                            <table class="table" style="margin: 0; font-size: var(--text-sm);">
+                                <thead>
+                                    <tr>
+                                        <th>Document Type</th>
+                                        <th>File</th>
+                                        <th>Notes</th>
+                                        <th>Date</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var doc in collateralDocs)
+                                    {
+                                        <tr>
+                                            <td style="font-weight: 500;">@doc.DocumentType</td>
+                                            <td>
+                                                <div style="display: flex; align-items: center; gap: var(--space-1);">
+                                                    <button class="btn btn-ghost btn-sm" title="View" @onclick="() => ViewDoc(doc)"
+                                                        disabled="@(isViewing && viewingId == doc.Id)"
+                                                        style="color: var(--primary-600);">
+                                                        @if (isViewing && viewingId == doc.Id)
+                                                        {
+                                                            <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                                                        }
+                                                    </button>
+                                                    <button class="btn btn-ghost btn-sm" title="Download" @onclick="() => DownloadDoc(doc)"
+                                                        disabled="@(isDownloading && downloadingId == doc.Id)">
+                                                        @if (isDownloading && downloadingId == doc.Id)
+                                                        {
+                                                            <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                                        }
+                                                    </button>
+                                                    <span style="font-size: var(--text-xs); color: var(--gray-600);">@doc.FileName</span>
+                                                </div>
+                                            </td>
+                                            <td style="color: var(--gray-600);">@doc.Description</td>
+                                            <td style="color: var(--gray-500);">@doc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                            <td>
+                                                @if (CanUpload)
+                                                {
+                                                    <button class="btn btn-ghost btn-sm" title="Delete" @onclick="() => ConfirmDelete(doc)"
+                                                        style="color: var(--danger-500);">
+                                                        <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                                    </button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@* ── Upload Modal ─────────────────────────────────────────────────────────── *@
+@if (showUploadModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseUploadModal">
+        <div class="modal" style="max-width: 500px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Upload Security Document</h3>
+                <button class="btn btn-ghost btn-sm" @onclick="CloseUploadModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @if (uploadCategory == "CollateralSpecific" && !string.IsNullOrEmpty(uploadCollateralDescription))
+                {
+                    <div style="padding: var(--space-2) var(--space-3); background: var(--gray-50); border-radius: var(--radius-md); margin-bottom: var(--space-4); font-size: var(--text-sm); color: var(--gray-700);">
+                        <strong>Collateral:</strong> @uploadCollateralDescription
+                    </div>
+                }
+                <div class="form-group">
+                    <label class="form-label">Document Type <span style="color: var(--danger-600);">*</span></label>
+                    <input type="text" class="form-control" @bind="uploadDocumentType"
+                        placeholder='@(uploadCategory == "LoanLevel" ? "e.g. Facility Agreement, Debenture, CAC Charge Certificate, Board Resolution" : "e.g. Land Registry Filing, Lien Letter, Insurance Cover Note, CSCS Confirmation")' />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes / Description</label>
+                    <textarea class="form-control" rows="2" @bind="uploadDescription"
+                        placeholder="Brief description of what was done or what this document confirms..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">File (PDF, JPG, PNG) <span style="color: var(--danger-600);">*</span></label>
+                    <InputFile OnChange="HandleFileSelected" accept=".pdf,.jpg,.jpeg,.png" class="form-control" style="padding: var(--space-2);" />
+                    @if (uploadFile != null)
+                    {
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">
+                            @uploadFile.Name (@FormatFileSize(uploadFile.Size))
+                        </div>
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(uploadError))
+                {
+                    <div style="color: var(--danger-600); font-size: var(--text-sm);">@uploadError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseUploadModal" disabled="@isUploading">Cancel</button>
+                <button class="btn btn-primary" @onclick="ExecuteUpload"
+                    disabled="@(isUploading || uploadFile == null || string.IsNullOrWhiteSpace(uploadDocumentType))">
+                    @if (isUploading) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                    Upload
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Delete Confirm Modal ─────────────────────────────────────────────────── *@
+@if (deletingDoc != null)
+{
+    <div class="modal-backdrop show" @onclick="() => deletingDoc = null">
+        <div class="modal" style="max-width: 420px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--danger-600);">Delete Document</h3>
+                <button class="btn btn-ghost btn-sm" @onclick="() => deletingDoc = null">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Delete <strong>@deletingDoc.FileName</strong>? This cannot be undone.</p>
+                @if (!string.IsNullOrEmpty(deleteError))
+                {
+                    <div style="color: var(--danger-600); font-size: var(--text-sm); margin-top: var(--space-2);">@deleteError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="() => deletingDoc = null" disabled="@isDeleting">Cancel</button>
+                <button class="btn btn-danger" @onclick="ExecuteDelete" disabled="@isDeleting">
+                    @if (isDeleting) { <span class="spinner" style="width: 16px; height: 16px;"></span> }
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Document Preview Modal ───────────────────────────────────────────────── *@
+@if (showPreviewModal && previewUrl != null)
+{
+    <div class="modal-backdrop show" @onclick="ClosePreviewModal">
+        <div class="modal" style="max-width: 92vw; width: 92vw; height: 92vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+            <div class="modal-header" style="flex-shrink: 0;">
+                <h3 class="modal-title" style="font-size: var(--text-base); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: calc(100% - 48px);">
+                    <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: var(--space-2);">@(previewIsPdf ? "picture_as_pdf" : "image")</span>
+                    @previewFileName
+                </h3>
+                <button class="btn btn-ghost btn-sm" @onclick="ClosePreviewModal">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div style="flex: 1; overflow: hidden; padding: 0;">
+                @if (previewIsPdf)
+                {
+                    <iframe src="@previewUrl" style="width: 100%; height: 100%; border: none; display: block;"></iframe>
+                }
+                else
+                {
+                    <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--gray-50); overflow: auto;">
+                        <img src="@previewUrl" alt="@previewFileName" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid ApplicationId { get; set; }
+    [Parameter] public List<SecurityPerfectionDocumentInfo> Documents { get; set; } = [];
+    [Parameter] public List<CollateralInfo> Collaterals { get; set; } = [];
+    [Parameter] public bool CanUpload { get; set; }
+    [Parameter] public EventCallback OnDocumentChanged { get; set; }
+
+    // Upload state
+    private bool showUploadModal;
+    private string uploadCategory = string.Empty;
+    private Guid? uploadCollateralId;
+    private string uploadCollateralDescription = string.Empty;
+    private string uploadDocumentType = string.Empty;
+    private string uploadDescription = string.Empty;
+    private IBrowserFile? uploadFile;
+    private bool isUploading;
+    private string? uploadError;
+
+    // Download/view state
+    private bool isDownloading;
+    private Guid? downloadingId;
+    private bool isViewing;
+    private Guid? viewingId;
+
+    // Preview modal state
+    private bool showPreviewModal;
+    private string? previewUrl;
+    private string? previewFileName;
+    private bool previewIsPdf;
+
+    // Delete state
+    private SecurityPerfectionDocumentInfo? deletingDoc;
+    private bool isDeleting;
+    private string? deleteError;
+
+    private void OpenUploadModal(string category, Guid? collateralId, string collateralDescription)
+    {
+        uploadCategory = category;
+        uploadCollateralId = collateralId;
+        uploadCollateralDescription = collateralDescription;
+        uploadDocumentType = string.Empty;
+        uploadDescription = string.Empty;
+        uploadFile = null;
+        uploadError = null;
+        showUploadModal = true;
+    }
+
+    private void CloseUploadModal()
+    {
+        showUploadModal = false;
+        uploadFile = null;
+        uploadError = null;
+    }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e) => uploadFile = e.File;
+
+    private async Task ExecuteUpload()
+    {
+        if (uploadFile == null || string.IsNullOrWhiteSpace(uploadDocumentType)) return;
+
+        isUploading = true;
+        uploadError = null;
+        try
+        {
+            const long maxSize = 20 * 1024 * 1024;
+            using var ms = new MemoryStream();
+            using var stream = uploadFile.OpenReadStream(maxSize);
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            var contentType = string.IsNullOrEmpty(uploadFile.ContentType) ? "application/pdf" : uploadFile.ContentType;
+            ApiResponse result;
+
+            if (uploadCategory == "LoanLevel")
+            {
+                var r = await AppService.UploadLoanLevelSecurityDocumentAsync(
+                    ApplicationId, uploadDocumentType, uploadDescription,
+                    uploadFile.Name, ms, uploadFile.Size, contentType,
+                    AuthService.CurrentUser?.Id ?? Guid.Empty);
+                result = r.Success ? ApiResponse.Ok() : ApiResponse.Fail(r.Error);
+            }
+            else
+            {
+                var r = await AppService.UploadCollateralSecurityDocumentAsync(
+                    ApplicationId, uploadCollateralId!.Value, uploadCollateralDescription,
+                    uploadDocumentType, uploadDescription,
+                    uploadFile.Name, ms, uploadFile.Size, contentType,
+                    AuthService.CurrentUser?.Id ?? Guid.Empty);
+                result = r.Success ? ApiResponse.Ok() : ApiResponse.Fail(r.Error);
+            }
+
+            if (!result.Success)
+            {
+                uploadError = result.Error ?? "Upload failed";
+                return;
+            }
+
+            CloseUploadModal();
+            await OnDocumentChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            uploadError = $"Upload failed: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private async Task ViewDoc(SecurityPerfectionDocumentInfo doc)
+    {
+        isViewing = true;
+        viewingId = doc.Id;
+        try
+        {
+            var bytes = await AppService.DownloadSecurityPerfectionDocumentAsync(doc.StoragePath);
+            if (bytes == null) return;
+            var contentType = GetContentType(doc.FileName);
+            previewUrl = await JS.InvokeAsync<string>("createBlobUrl", bytes, contentType);
+            previewFileName = doc.FileName;
+            previewIsPdf = contentType == "application/pdf";
+            showPreviewModal = true;
+        }
+        finally { isViewing = false; viewingId = null; }
+    }
+
+    private async Task ClosePreviewModal()
+    {
+        showPreviewModal = false;
+        if (previewUrl != null)
+        {
+            await JS.InvokeVoidAsync("revokeBlobUrl", previewUrl);
+            previewUrl = null;
+        }
+        previewFileName = null;
+    }
+
+    private async Task DownloadDoc(SecurityPerfectionDocumentInfo doc)
+    {
+        isDownloading = true;
+        downloadingId = doc.Id;
+        try
+        {
+            var bytes = await AppService.DownloadSecurityPerfectionDocumentAsync(doc.StoragePath);
+            if (bytes != null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes", doc.FileName, GetContentType(doc.FileName), bytes);
+        }
+        finally { isDownloading = false; downloadingId = null; }
+    }
+
+    private static string GetContentType(string fileName) =>
+        System.IO.Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".pdf"  => "application/pdf",
+            ".png"  => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            _ => "application/octet-stream"
+        };
+
+    private void ConfirmDelete(SecurityPerfectionDocumentInfo doc)
+    {
+        deletingDoc = doc;
+        deleteError = null;
+    }
+
+    private async Task ExecuteDelete()
+    {
+        if (deletingDoc == null) return;
+        isDeleting = true;
+        deleteError = null;
+        try
+        {
+            var result = await AppService.DeleteSecurityPerfectionDocumentAsync(deletingDoc.Id);
+            if (!result.Success)
+            {
+                deleteError = result.Error ?? "Delete failed";
+                return;
+            }
+            deletingDoc = null;
+            await OnDocumentChanged.InvokeAsync();
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024):F1} MB";
+    }
+}

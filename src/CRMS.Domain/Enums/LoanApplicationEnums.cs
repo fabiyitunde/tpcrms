@@ -35,7 +35,13 @@ public enum LoanApplicationStatus
     DisbursementHQApproval,
     Disbursed,
     Closed,
-    Cancelled
+    Cancelled,
+
+    // Streamlined corporate loan flow (2026-06-27)
+    CreditReview,           // Replaces BranchReview/CreditAnalysis/HOReview/LegalReview/LegalApproval
+    Ratification,           // Replaces FinalApproval/Approved — offer letter generated here
+    Disbursement,           // Replaces DisbursementPending/DisbursementHQApproval
+    RatificationDeclined,   // FinalApprover declined to ratify — terminal
 }
 
 public enum DocumentCategory
@@ -48,6 +54,8 @@ public enum DocumentCategory
     TaxClearance,
     CollateralDocument,
     SignedDisbursementMemo,
+    SignedOfferLetter,
+    SignedKfsAcknowledgement,
     Other
 }
 

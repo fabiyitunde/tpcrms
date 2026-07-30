@@ -1,0 +1,244 @@
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<div class="modal-backdrop show" @onclick="Close">
+<div class="modal" style="max-width: 700px;" @onclick:stopPropagation>
+    <div class="modal-header">
+        <h3 class="modal-title">Send to Committee</h3>
+        <button class="btn btn-ghost btn-sm" @onclick="Close">
+            <span class="material-symbols-outlined">close</span>
+        </button>
+    </div>
+    <div class="modal-body">
+        @* Loan summary *@
+        <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4);">
+            <div style="font-weight: 700; font-size: var(--text-base); color: var(--gray-900); margin-bottom: var(--space-1);">@CustomerName</div>
+            <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-2);">
+                <span><strong style="color: var(--gray-700);">Ref:</strong> @ApplicationNumber</span>
+                <span><strong style="color: var(--gray-700);">Product:</strong> @ProductName</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--gray-200);">
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Amount</div>
+                    <div style="font-weight: 600; color: var(--gray-700);">@FormatCurrency(LoanAmount)</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Tenor</div>
+                    <div style="font-weight: 600; color: var(--gray-700);">@(TenorMonths.HasValue ? $"{TenorMonths} months" : "—")</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-400); text-transform: uppercase;">Rate</div>
+                    <div style="font-weight: 600; color: var(--gray-700);">@(InterestRate.HasValue ? $"{InterestRate:0.##}% p.a." : "—")</div>
+                </div>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div style="text-align: center; padding: var(--space-6);"><div class="spinner"></div></div>
+        }
+        else if (standingCommittee == null)
+        {
+            <div style="background: var(--danger-50); border: 1px solid var(--danger-200); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4);">
+                <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2);">
+                    <span class="material-symbols-outlined" style="color: var(--danger-600); font-size: 22px;">block</span>
+                    <strong style="color: var(--danger-700);">No committee configured for this amount</strong>
+                </div>
+                <div style="font-size: var(--text-sm); color: var(--danger-700);">
+                    No standing committee is configured to handle a facility of <strong>@FormatCurrency(LoanAmount)</strong>.
+                    An admin must configure a standing committee in <strong>Admin &gt; Committees</strong> before this application can be sent to committee.
+                </div>
+            </div>
+        }
+        else if (!standingCommittee.Members.Any())
+        {
+            <div style="background: var(--danger-50); border: 1px solid var(--danger-200); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4);">
+                <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2);">
+                    <span class="material-symbols-outlined" style="color: var(--danger-600); font-size: 22px;">group_off</span>
+                    <strong style="color: var(--danger-700);">Committee has no members</strong>
+                </div>
+                <div style="font-size: var(--text-sm); color: var(--danger-700);">
+                    The <strong>@standingCommittee.Name</strong> committee is configured for this amount but has no members assigned.
+                    An admin must add members in <strong>Admin &gt; Committees</strong> before this application can proceed.
+                </div>
+            </div>
+        }
+        else
+        {
+            <div style="background: var(--success-50); border: 1px solid var(--success-200); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4);">
+                <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2);">
+                    <span class="material-symbols-outlined" style="color: var(--success-600); font-size: 20px;">check_circle</span>
+                    <strong>Auto-routed to: @standingCommittee.Name</strong>
+                </div>
+                <div style="font-size: var(--text-sm); color: var(--gray-600);">
+                    Based on the facility amount of <strong>@FormatCurrency(LoanAmount)</strong>, this application will be routed to
+                    <strong>@standingCommittee.Name</strong>. Voting will begin immediately.
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4" style="margin-bottom: var(--space-4);">
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase;">Committee Type</div>
+                    <div style="font-weight: 600;">@FormatType(standingCommittee.CommitteeType)</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase;">Required / Min Approval</div>
+                    <div style="font-weight: 600;">@standingCommittee.RequiredVotes / @standingCommittee.MinimumApprovalVotes votes</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase;">Voting Deadline</div>
+                    <div style="font-weight: 600;">@standingCommittee.DefaultDeadlineHours hours</div>
+                </div>
+            </div>
+
+            <label class="form-label">Committee Members (@standingCommittee.Members.Count)</label>
+            <table class="table" style="font-size: var(--text-sm); margin-bottom: var(--space-4);">
+                <thead>
+                    <tr><th>Member</th><th>Role</th><th>Chairperson</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in standingCommittee.Members)
+                    {
+                        <tr>
+                            <td style="font-weight: 500;">@m.UserName</td>
+                            <td>@m.Role</td>
+                            <td>@(m.IsChairperson ? "Yes" : "")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <div class="form-group">
+                <label class="form-label">Comments (Optional)</label>
+                <textarea class="form-control" rows="3" @bind="comments" placeholder="Enter any comments for the committee..."></textarea>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger" style="margin-top: var(--space-3);">@errorMessage</div>
+        }
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-secondary" @onclick="Close" disabled="@isSubmitting">Cancel</button>
+        @if (!isLoading && standingCommittee != null && standingCommittee.Members.Any())
+        {
+            <button class="btn btn-success" @onclick="Submit" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span class="spinner" style="width: 16px; height: 16px;"></span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined" style="font-size: 18px;">send</span>
+                }
+                Confirm & Send to Committee
+            </button>
+        }
+    </div>
+</div>
+</div>
+
+@code {
+    [Parameter] public Guid LoanApplicationId { get; set; }
+    [Parameter] public string ApplicationNumber { get; set; } = "";
+    [Parameter] public decimal LoanAmount { get; set; }
+    [Parameter] public string CustomerName { get; set; } = "";
+    [Parameter] public string ProductName { get; set; } = "";
+    [Parameter] public int? TenorMonths { get; set; }
+    [Parameter] public decimal? InterestRate { get; set; }
+    [Parameter] public EventCallback OnConfirmed { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private StandingCommitteeInfo? standingCommittee;
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string comments = "";
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        standingCommittee = await AppService.GetStandingCommitteeForAmountAsync(LoanAmount);
+        isLoading = false;
+    }
+
+    private async Task Submit()
+    {
+        if (standingCommittee == null || !standingCommittee.Members.Any()) return;
+
+        errorMessage = null;
+        isSubmitting = true;
+        try
+        {
+            var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+            var userRole = AuthService.CurrentUser?.Roles.FirstOrDefault() ?? "CreditOfficer";
+
+            // Step 1: advance application to CommitteeCirculation
+            var approveResult = await AppService.ApproveApplicationAsync(LoanApplicationId, comments, userId, userRole);
+            if (!approveResult.Success)
+            {
+                errorMessage = approveResult.Error ?? "Failed to advance application to Committee Circulation.";
+                return;
+            }
+
+            // Step 2: create the CommitteeReview
+            var createResult = await AppService.CreateCommitteeReviewAsync(
+                LoanApplicationId, ApplicationNumber,
+                standingCommittee.CommitteeType,
+                standingCommittee.RequiredVotes,
+                standingCommittee.MinimumApprovalVotes,
+                standingCommittee.DefaultDeadlineHours,
+                userId);
+
+            if (!createResult.Success || createResult.Data == Guid.Empty)
+            {
+                errorMessage = createResult.Error ?? "Application moved to committee but failed to create review record.";
+                return;
+            }
+
+            var reviewId = createResult.Data;
+
+            // Step 3: add all members
+            foreach (var m in standingCommittee.Members)
+            {
+                var addResult = await AppService.AddCommitteeMemberAsync(reviewId, m.UserId, m.UserName, m.Role, m.IsChairperson);
+                if (!addResult.Success)
+                {
+                    errorMessage = $"Review created but failed to add {m.UserName}: {addResult.Error}";
+                    return;
+                }
+            }
+
+            // Step 4: start voting immediately
+            var startResult = await AppService.StartVotingAsync(reviewId);
+            if (!startResult.Success)
+            {
+                errorMessage = startResult.Error ?? "Committee created but failed to start voting.";
+                return;
+            }
+
+            await OnConfirmed.InvokeAsync();
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Close() => OnClose.InvokeAsync();
+
+    private static string FormatCurrency(decimal amount) =>
+        amount >= 1_000_000_000 ? $"₦{amount / 1_000_000_000:N2}B" :
+        amount >= 1_000_000 ? $"₦{amount / 1_000_000:N0}M" :
+        $"₦{amount:N0}";
+
+    private static string FormatType(string type) => type switch
+    {
+        "BranchCredit" => "Branch Credit",
+        "RegionalCredit" => "Regional Credit",
+        "HeadOfficeCredit" => "Head Office Credit",
+        "ManagementCredit" => "Management Credit",
+        "BoardCredit" => "Board Credit",
+        _ => type
+    };
+}

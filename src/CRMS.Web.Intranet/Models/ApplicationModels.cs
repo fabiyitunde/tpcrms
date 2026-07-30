@@ -85,6 +85,8 @@ public class LoanApplicationDetail
 
     public List<BankStatementInfo> BankStatements { get; set; } = new List<BankStatementInfo>();
 
+    public CreditAppraisalInfo? CreditAppraisal { get; set; }
+
     public AdvisoryInfo? Advisory { get; set; }
 
     public List<WorkflowHistoryItem> WorkflowHistory { get; set; } = new List<WorkflowHistoryItem>();
@@ -100,6 +102,8 @@ public class LoanApplicationDetail
     public string CreatedBy { get; set; } = string.Empty;
 
     public string? DisbursementMemoStoragePath { get; set; }
+
+    public DateTimeOffset? LegalReviewCompletedAt { get; set; }
 }
 
 public class CustomerInfo
@@ -138,6 +142,8 @@ public class LoanInfo
     public decimal InterestRate { get; set; }
     public string InterestRateType { get; set; } = string.Empty;
     public int TenorMonths { get; set; }
+    public int? ApprovedTenorMonths { get; set; }
+    public decimal? ApprovedInterestRate { get; set; }
     public string Purpose { get; set; } = string.Empty;
 }
 
@@ -248,14 +254,52 @@ public class BureauReportInfo
     public string? ErrorMessage { get; set; }
 }
 
+public class CreditAppraisalInfo
+{
+    public decimal? Dscr { get; set; }
+    public decimal? Leverage { get; set; }
+    public decimal? CurrentRatio { get; set; }
+    public decimal? Ltv { get; set; }
+    public string? CapacityRating { get; set; }
+    public string? Recommendation { get; set; }
+    public string? Notes { get; set; }
+    public string? MemoPath { get; set; }
+    public string? MemoFileName { get; set; }
+    public DateTimeOffset? SavedAt { get; set; }
+    public Guid? SavedByUserId { get; set; }
+}
+
+public record SaveCreditAppraisalArgs(
+    decimal? Dscr,
+    decimal? Leverage,
+    decimal? CurrentRatio,
+    decimal? Ltv,
+    string? CapacityRating,
+    string? Recommendation,
+    string? Notes,
+    IBrowserFile? MemoFile,
+    bool ClearMemo = false
+);
+
 public class AdvisoryInfo
 {
     public decimal OverallScore { get; set; }
     public string RiskRating { get; set; } = string.Empty;
+    public string Recommendation { get; set; } = string.Empty;
     public List<ScoreCategory> ScoreBreakdown { get; set; } = [];
-    public List<string> Recommendations { get; set; } = [];
     public List<string> RedFlags { get; set; } = [];
-    public List<string> Strengths { get; set; } = [];
+    public bool HasCriticalRedFlags { get; set; }
+    public string? ExecutiveSummary { get; set; }
+    public string? StrengthsAnalysis { get; set; }
+    public string? WeaknessesAnalysis { get; set; }
+    public string? MitigatingFactors { get; set; }
+    public string? KeyRisks { get; set; }
+    public List<string> Conditions { get; set; } = [];
+    public List<string> Covenants { get; set; } = [];
+    public decimal? RecommendedAmount { get; set; }
+    public int? RecommendedTenorMonths { get; set; }
+    public decimal? RecommendedInterestRate { get; set; }
+    public string ModelVersion { get; set; } = string.Empty;
     public DateTime GeneratedAt { get; set; }
 }
 
@@ -265,6 +309,8 @@ public class ScoreCategory
     public decimal Score { get; set; }
     public decimal MaxScore { get; set; }
     public decimal Weight { get; set; }
+    public string Rating { get; set; } = string.Empty;
+    public string Rationale { get; set; } = string.Empty;
 }
 
 public class WorkflowHistoryItem
@@ -282,6 +328,8 @@ public class CommitteeInfo
     public Guid ReviewId { get; set; }
     public string CommitteeType { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public DateTime CirculatedAt { get; set; }
+    public DateTime? DeadlineAt { get; set; }
     public List<CommitteeMemberVote> Members { get; set; } = [];
     // Recommended terms (captured before voting starts)
     public decimal? RecommendedAmount { get; set; }
@@ -289,6 +337,7 @@ public class CommitteeInfo
     public decimal? RecommendedInterestRate { get; set; }
     public string? RecommendedConditions { get; set; }
     // Vote tally
+    public int RequiredVotes { get; set; }
     public int MinimumApprovalVotes { get; set; }
     public int ApprovalVotes { get; set; }
     public int RejectionVotes { get; set; }
@@ -501,8 +550,9 @@ public class UploadExternalStatementRequest
     public string BankName { get; set; } = string.Empty;
     public string AccountNumber { get; set; } = string.Empty;
     public string AccountName { get; set; } = string.Empty;
-    public DateTime PeriodFrom { get; set; } = DateTime.Today.AddMonths(-6);
-    public DateTime PeriodTo { get; set; } = DateTime.Today;
+    // Wide defaults so parser accepts any statement; user can narrow via Advanced section
+    public DateTime PeriodFrom { get; set; } = DateTime.Today.AddYears(-5);
+    public DateTime PeriodTo { get; set; } = DateTime.Today.AddYears(1);
     public decimal OpeningBalance { get; set; }
     public decimal ClosingBalance { get; set; }
     public IBrowserFile? File { get; set; }
@@ -829,6 +879,7 @@ public class ChecklistTemplateItemModel
     public bool RequiresDocumentUpload { get; set; }
     public bool RequiresLegalRatification { get; set; }
     public bool CanBeWaived { get; set; }
+    public string? LinkedDocumentCategory { get; set; }
     public int SortOrder { get; set; }
     public bool IsActive { get; set; }
 }
@@ -877,4 +928,19 @@ public class ApprovalOverrideInfo
     public DateTime? ResolvedAt { get; set; }
     public string? ResolvedByName { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+public class SecurityPerfectionDocumentInfo
+{
+    public Guid Id { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public Guid? CollateralId { get; set; }
+    public string CollateralDescription { get; set; } = string.Empty;
+    public string DocumentType { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string StoragePath { get; set; } = string.Empty;
+    public long FileSizeBytes { get; set; }
+    public DateTime UploadedAt { get; set; }
+    public string UploadedByName { get; set; } = string.Empty;
 }

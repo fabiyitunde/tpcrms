@@ -11,6 +11,7 @@ public interface ILoanApplicationRepository
     Task<LoanApplication?> GetByApplicationNumberAsync(string applicationNumber, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetByStatusAsync(LoanApplicationStatus status, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetByStatusFilteredAsync(LoanApplicationStatus status, IReadOnlyList<Guid>? visibleBranchIds, CancellationToken ct = default);
+    Task<IReadOnlyList<LoanApplication>> GetAllFilteredAsync(IReadOnlyList<Guid>? visibleBranchIds, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetByInitiatorAsync(Guid userId, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetPendingBranchReviewAsync(Guid? branchId = null, CancellationToken ct = default);
     Task<IReadOnlyList<LoanApplication>> GetPendingBranchReviewFilteredAsync(IReadOnlyList<Guid>? visibleBranchIds, CancellationToken ct = default);
