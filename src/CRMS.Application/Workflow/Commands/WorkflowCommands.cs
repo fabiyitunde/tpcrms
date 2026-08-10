@@ -248,10 +248,10 @@ public class SeedCorporateLoanWorkflowHandler : IRequestHandler<SeedCorporateLoa
         definition.AddStage(LoanApplicationStatus.CommitteeApproved, "Committee Approved", "Committee decision recorded, pending final sign-off", "System", 0, 11);
         definition.AddStage(LoanApplicationStatus.CommitteeRejected, "Committee Rejected", "Rejected by committee", "None", 0, 12, isTerminal: true);
         definition.AddStage(LoanApplicationStatus.FinalApproval, "Final Approval", "Awaiting MD/CEO executive sign-off", "FinalApprover", 24, 13);
-        definition.AddStage(LoanApplicationStatus.Approved, "Final Approved", "Final approval granted", "Operations", 4, 14);
+        definition.AddStage(LoanApplicationStatus.Approved, "Final Approved", "Final approval granted", "DisbursementOfficer", 4, 14);
         definition.AddStage(LoanApplicationStatus.Rejected, "Rejected", "Application rejected", "None", 0, 15, isTerminal: true);
-        definition.AddStage(LoanApplicationStatus.OfferGenerated, "Offer Generated", "Offer letter ready", "Operations", 24, 16);
-        definition.AddStage(LoanApplicationStatus.OfferAccepted, "Offer Accepted", "Customer accepted offer", "Operations", 48, 17);
+        definition.AddStage(LoanApplicationStatus.OfferGenerated, "Offer Generated", "Offer letter ready", "DisbursementOfficer", 24, 16);
+        definition.AddStage(LoanApplicationStatus.OfferAccepted, "Offer Accepted", "Customer accepted offer", "DisbursementOfficer", 48, 17);
         definition.AddStage(LoanApplicationStatus.Disbursed, "Disbursed", "Loan disbursed", "None", 0, 18, isTerminal: true);
 
         // Add transitions
@@ -297,13 +297,13 @@ public class SeedCorporateLoanWorkflowHandler : IRequestHandler<SeedCorporateLoa
         definition.AddTransition(LoanApplicationStatus.FinalApproval, LoanApplicationStatus.Rejected, WorkflowAction.Reject, "FinalApprover", requiresComment: true);
         
         // Approved -> OfferGenerated
-        definition.AddTransition(LoanApplicationStatus.Approved, LoanApplicationStatus.OfferGenerated, WorkflowAction.MoveToNextStage, "Operations");
+        definition.AddTransition(LoanApplicationStatus.Approved, LoanApplicationStatus.OfferGenerated, WorkflowAction.MoveToNextStage, "DisbursementOfficer");
         
         // OfferGenerated -> OfferAccepted
-        definition.AddTransition(LoanApplicationStatus.OfferGenerated, LoanApplicationStatus.OfferAccepted, WorkflowAction.Approve, "Operations");
+        definition.AddTransition(LoanApplicationStatus.OfferGenerated, LoanApplicationStatus.OfferAccepted, WorkflowAction.Approve, "DisbursementOfficer");
         
         // OfferAccepted -> Disbursed
-        definition.AddTransition(LoanApplicationStatus.OfferAccepted, LoanApplicationStatus.Disbursed, WorkflowAction.Complete, "Operations");
+        definition.AddTransition(LoanApplicationStatus.OfferAccepted, LoanApplicationStatus.Disbursed, WorkflowAction.Complete, "DisbursementOfficer");
 
         await _repository.AddAsync(definition, ct);
         await _unitOfWork.SaveChangesAsync(ct);

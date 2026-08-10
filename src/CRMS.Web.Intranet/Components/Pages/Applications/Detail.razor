@@ -2308,7 +2308,7 @@ else
 
     private bool CanGeneratePack =>
         application?.Status is not (null or AppStatus.Draft or AppStatus.Rejected or AppStatus.CommitteeRejected or AppStatus.Cancelled or AppStatus.Closed) &&
-        (AuthService.CurrentUser?.HasAnyRole("LoanOfficer", "CreditOfficer", "LegalOfficer", "HOReviewer", "BranchApprover", "FinalApprover", "Operations", "CommitteeMember", "SystemAdmin") ?? false ||
+        (AuthService.CurrentUser?.HasAnyRole("LoanOfficer", "CreditOfficer", "LegalOfficer", "HOReviewer", "BranchApprover", "FinalApprover", "DisbursementOfficer", "CommitteeMember", "SystemAdmin") ?? false ||
          application?.Committee?.Members.Any(m => m.UserId == (AuthService.CurrentUser?.Id ?? Guid.Empty)) == true);
     // Controls the tab — stays visible for the full post-offer lifecycle so documents remain accessible
     // Ratification is excluded: the offer letter is generated as part of the Ratify action itself;
@@ -2471,10 +2471,10 @@ else
         AppStatus.LegalReview                => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
         AppStatus.LegalApproval              => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
         AppStatus.FinalApproval              => AuthService.CurrentUser?.HasRole("FinalApprover") ?? false,
-        AppStatus.OfferAccepted              => AuthService.CurrentUser?.HasRole("Operations") ?? false,
+        AppStatus.OfferAccepted              => AuthService.CurrentUser?.HasRole("DisbursementOfficer") ?? false,
         AppStatus.SecurityPerfection         => false, // uses dedicated Complete Security Perfection button
         AppStatus.SecurityApproval           => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
-        AppStatus.DisbursementPending        => AuthService.CurrentUser?.HasRole("Operations") ?? false,
+        AppStatus.DisbursementPending        => AuthService.CurrentUser?.HasRole("DisbursementOfficer") ?? false,
         AppStatus.CreditReview               => AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false,
         _ => false
     };
@@ -2488,10 +2488,10 @@ else
         AppStatus.LegalApproval       => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
         AppStatus.SecurityPerfection  => AuthService.CurrentUser?.HasRole("LegalOfficer") ?? false,
         AppStatus.SecurityApproval    => AuthService.CurrentUser?.HasRole("HeadOfLegal") ?? false,
-        AppStatus.DisbursementPending => AuthService.CurrentUser?.HasRole("Operations") ?? false,
+        AppStatus.DisbursementPending => AuthService.CurrentUser?.HasRole("DisbursementOfficer") ?? false,
         AppStatus.CreditReview        => AuthService.CurrentUser?.HasRole("CreditOfficer") == true ||
                                          (AuthService.CurrentUser?.HasRole("LegalOfficer") == true && !application!.LegalReviewCompletedAt.HasValue),
-        AppStatus.Disbursement        => AuthService.CurrentUser?.HasRole("Operations") ?? false,
+        AppStatus.Disbursement        => AuthService.CurrentUser?.HasRole("DisbursementOfficer") ?? false,
         _ => false
     };
 
@@ -2736,15 +2736,15 @@ else
     // Offer letter workflow
     private bool ShowIssueOfferLetterButton =>
         application?.Status == AppStatus.Approved &&
-        (AuthService.CurrentUser?.HasAnyRole("Operations", "LoanOfficer", "FinalApprover", "SystemAdmin") ?? false);
+        (AuthService.CurrentUser?.HasAnyRole("DisbursementOfficer", "LoanOfficer", "FinalApprover", "SystemAdmin") ?? false);
 
     private bool ShowRecordAcceptanceButton =>
         application?.Status == AppStatus.OfferGenerated &&
-        (AuthService.CurrentUser?.HasAnyRole("Operations", "LoanOfficer") ?? false);
+        (AuthService.CurrentUser?.HasAnyRole("DisbursementOfficer", "LoanOfficer") ?? false);
 
     private bool ShowDisburseButton =>
         (application?.Status == AppStatus.DisbursementHQApproval || application?.Status == AppStatus.Disbursement) &&
-        (AuthService.CurrentUser?.HasAnyRole("GMFinance", "Operations", "DeploymentOfficer", "SystemAdmin") ?? false);
+        (AuthService.CurrentUser?.HasAnyRole("GMFinance", "DisbursementOfficer", "DeploymentOfficer", "SystemAdmin") ?? false);
 
     private bool ShowCompleteLegalReviewButton =>
         application?.Status == AppStatus.CreditReview &&
@@ -2753,22 +2753,22 @@ else
 
     private bool ShowRatifyButton =>
         application?.Status == AppStatus.Ratification &&
-        (AuthService.CurrentUser?.HasRole("FinalApprover") ?? false);
+        (AuthService.CurrentUser?.HasAnyRole("FinalApprover", "BranchManager", "ZonalManager", "RegionalManager", "MdCeo") ?? false);
 
     private bool ShowDeclineRatificationButton =>
         application?.Status == AppStatus.Ratification &&
-        (AuthService.CurrentUser?.HasRole("FinalApprover") ?? false);
+        (AuthService.CurrentUser?.HasAnyRole("FinalApprover", "BranchManager", "ZonalManager", "RegionalManager", "MdCeo") ?? false);
 
     private bool ShowAdvanceToSecurityPerfectionButton => false; // auto-advanced at end of ConfirmRecordAcceptance
 
     private bool CanUploadSignedMemo =>
-        (AuthService.CurrentUser?.HasAnyRole("Operations", "DeploymentOfficer", "SystemAdmin") ?? false) &&
+        (AuthService.CurrentUser?.HasAnyRole("DisbursementOfficer", "DeploymentOfficer", "SystemAdmin") ?? false) &&
         (application?.Status == AppStatus.DisbursementPending ||
          application?.Status == AppStatus.DisbursementHQApproval ||
          application?.Status == AppStatus.Disbursement);
 
     private bool CanRegenerateMemo =>
-        (AuthService.CurrentUser?.HasAnyRole("Operations", "LoanOfficer", "SystemAdmin") ?? false) &&
+        (AuthService.CurrentUser?.HasAnyRole("DisbursementOfficer", "LoanOfficer", "SystemAdmin") ?? false) &&
         application?.Status is AppStatus.OfferAccepted or AppStatus.SecurityPerfection or AppStatus.SecurityApproval
             or AppStatus.DisbursementPending or AppStatus.DisbursementHQApproval or AppStatus.Disbursement;
 
@@ -2871,7 +2871,7 @@ else
         try
         {
             var userName = AuthService.CurrentUser?.FullName ?? "System";
-            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "Operations";
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "DisbursementOfficer";
 
             // Generate the PDF first if not already generated
             if (!offerLetters.Any(l => l.Status == "Generated"))
@@ -2948,7 +2948,7 @@ else
         acceptanceError = null;
         try
         {
-            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "Operations";
+            var userRole = AuthService.CurrentUser?.PrimaryRole ?? "DisbursementOfficer";
             var userName = AuthService.CurrentUser?.FullName ?? "Operations Officer";
 
             if (!Enum.TryParse<CRMS.Domain.Enums.OfferAcceptanceMethod>(acceptanceMethod, out var parsedMethod))

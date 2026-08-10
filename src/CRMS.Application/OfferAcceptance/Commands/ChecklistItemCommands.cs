@@ -30,7 +30,7 @@ public class SatisfyChecklistItemHandler : IRequestHandler<SatisfyChecklistItemC
 
     public async Task<ApplicationResult> Handle(SatisfyChecklistItemCommand request, CancellationToken ct = default)
     {
-        if (request.SatisfiedByUserRole is not (Roles.LoanOfficer or Roles.Operations or Roles.SystemAdmin))
+        if (request.SatisfiedByUserRole is not (Roles.LoanOfficer or Roles.DisbursementOfficer or Roles.SystemAdmin))
             return ApplicationResult.Failure("Only LoanOfficer or Operations may satisfy checklist items");
 
         var loanApp = await _loanAppRepository.GetByIdWithChecklistAsync(request.LoanApplicationId, ct);
@@ -77,7 +77,7 @@ public class SubmitForLegalReviewHandler : IRequestHandler<SubmitForLegalReviewC
 
     public async Task<ApplicationResult> Handle(SubmitForLegalReviewCommand request, CancellationToken ct = default)
     {
-        if (request.SubmittedByUserRole is not (Roles.LoanOfficer or Roles.Operations or Roles.SystemAdmin))
+        if (request.SubmittedByUserRole is not (Roles.LoanOfficer or Roles.DisbursementOfficer or Roles.SystemAdmin))
             return ApplicationResult.Failure("Only LoanOfficer may submit items for legal review");
 
         var loanApp = await _loanAppRepository.GetByIdWithChecklistAsync(request.LoanApplicationId, ct);
@@ -261,7 +261,7 @@ public class RequestCsExtensionHandler : IRequestHandler<RequestCsExtensionComma
 
     public async Task<ApplicationResult> Handle(RequestCsExtensionCommand request, CancellationToken ct = default)
     {
-        if (request.RequestedByUserRole is not (Roles.LoanOfficer or Roles.Operations or Roles.SystemAdmin))
+        if (request.RequestedByUserRole is not (Roles.LoanOfficer or Roles.DisbursementOfficer or Roles.SystemAdmin))
             return ApplicationResult.Failure("Only LoanOfficer or Operations may request extensions");
 
         var loanApp = await _loanAppRepository.GetByIdWithChecklistAsync(request.LoanApplicationId, ct);

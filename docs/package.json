@@ -1,0 +1,14 @@
+{
+  "name": "crms-docs",
+  "version": "1.0.0",
+  "description": "CRMS documentation conversion tools",
+  "private": true,
+  "scripts": {
+    "convert": "node convert.js"
+  },
+  "dependencies": {
+    "html-to-docx": "^1.8.0",
+    "marked": "^12.0.0",
+    "puppeteer-core": "^22.0.0"
+  }
+}

@@ -45,8 +45,8 @@ public class ConfirmOfferAcceptanceHandler : IRequestHandler<ConfirmOfferAccepta
 
     public async Task<ApplicationResult> Handle(ConfirmOfferAcceptanceCommand request, CancellationToken ct = default)
     {
-        if (request.ConfirmedByUserRole is not Roles.Operations)
-            return ApplicationResult.Failure("Only Operations may confirm offer acceptance");
+        if (request.ConfirmedByUserRole is not Roles.DisbursementOfficer)
+            return ApplicationResult.Failure("Only DisbursementOfficer may confirm offer acceptance");
 
         var loanApp = await _loanAppRepository.GetByIdWithChecklistAsync(request.LoanApplicationId, ct);
         if (loanApp == null)

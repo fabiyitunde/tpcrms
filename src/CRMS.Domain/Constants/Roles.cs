@@ -13,7 +13,7 @@ public static class Roles
     public const string HOReviewer = "HOReviewer";
     public const string CommitteeMember = "CommitteeMember";
     public const string FinalApprover = "FinalApprover";
-    public const string Operations = "Operations";
+    public const string DisbursementOfficer = "DisbursementOfficer";
     public const string GMFinance = "GMFinance";
     public const string LegalOfficer = "LegalOfficer";
     public const string HeadOfLegal = "HeadOfLegal";
@@ -41,7 +41,7 @@ public static class Roles
         HOReviewer,
         CommitteeMember,
         FinalApprover,
-        Operations,
+        DisbursementOfficer,
         GMFinance,
         LegalOfficer,
         HeadOfLegal,
@@ -69,22 +69,22 @@ public static class Roles
         { HOReviewer, "Head office review for corporate loans" },
         { CommitteeMember, "Committee voting and comments for corporate loans" },
         { FinalApprover, "Final loan approval authority" },
-        { Operations, "Prepares disbursement memo and books loan in core banking" },
+        { DisbursementOfficer, "Prepares disbursement memo and books loan in core banking (Corporate and Retail)" },
         { GMFinance, "GM Finance / HQ Treasury — final funds-release authoriser" },
         { LegalOfficer, "Prepares legal opinion and security documents" },
         { HeadOfLegal, "Countersigns legal opinion before committee circulation" },
         { Auditor, "Read-only audit access" },
         { Customer, "Self-service retail loan applicant" },
-        // NAMP
-        { BranchManager, "NAMP: Ratifies Branch Credit Committee decision" },
-        { ZonalManager, "NAMP: Ratifies Zonal Credit Committee decision" },
-        { RegionalManager, "NAMP: Ratifies Regional Credit Committee decision" },
-        { MdCeo, "NAMP: Ratifies HO Credit Committee decision (MD/CEO)" },
-        { BranchCommitteeMember, "NAMP: Votes in Branch Credit Committee" },
-        { ZonalCommitteeMember, "NAMP: Votes in Zonal Credit Committee" },
-        { RegionalCommitteeMember, "NAMP: Votes in Regional Credit Committee" },
-        { HOCommitteeMember, "NAMP: Votes in HO Credit Committee" },
-        { DeploymentOfficer, "NAMP: Pre-deployment verification and equipment deployment tracking" },
+        // Tier managers — ratify both NAMP and Corporate loan committee decisions
+        { BranchManager, "Ratifies Branch Credit Committee decisions (NAMP and Corporate)" },
+        { ZonalManager, "Ratifies Zonal Credit Committee decisions (NAMP and Corporate)" },
+        { RegionalManager, "Ratifies Regional Credit Committee decisions (NAMP and Corporate)" },
+        { MdCeo, "Ratifies HO Credit Committee decisions — MD/CEO (NAMP and Corporate)" },
+        { BranchCommitteeMember, "Votes in Branch Credit Committee" },
+        { ZonalCommitteeMember, "Votes in Zonal Credit Committee" },
+        { RegionalCommitteeMember, "Votes in Regional Credit Committee" },
+        { HOCommitteeMember, "Votes in HO Credit Committee" },
+        { DeploymentOfficer, "Pre-deployment verification and equipment/funds disbursement (NAMP and Corporate)" },
     };
 
     /// <summary>
@@ -102,7 +102,7 @@ public static class Roles
         { HOReviewer, VisibilityScope.Global },
         { CommitteeMember, VisibilityScope.Global },
         { FinalApprover, VisibilityScope.Global },
-        { Operations, VisibilityScope.Global },
+        { DisbursementOfficer, VisibilityScope.Global },
         { GMFinance, VisibilityScope.Global },
         { LegalOfficer, VisibilityScope.Global },
         { HeadOfLegal, VisibilityScope.Global },

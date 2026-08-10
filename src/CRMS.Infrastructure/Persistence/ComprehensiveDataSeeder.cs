@@ -132,7 +132,7 @@ public static class ComprehensiveDataSeeder
         ("mdceo",          "Babatunde",   "Adekunle",      [Roles.MdCeo, Roles.HOCommitteeMember],                                "babatunde.adekunle@crms.ng", UserType.Staff),
         ("deployment",     "Musa",        "Garba",         [Roles.DeploymentOfficer],                                             "musa.garba@crms.ng",         UserType.Staff),
         // ────────────────────────────────────────────────────────────────────
-        ("operations",     "Folake",      "Balogun",       [Roles.Operations],                                                    "folake.balogun@crms.ng",     UserType.Staff),
+        ("operations",     "Folake",      "Balogun",       [Roles.DisbursementOfficer],                                                    "folake.balogun@crms.ng",     UserType.Staff),
         ("gmfinance",      "Chidi",       "Okafor",        [Roles.GMFinance],                                                     "chidi.okafor@crms.ng",       UserType.Staff),
         ("legalofficer",   "Adaeze",      "Nwosu",         [Roles.LegalOfficer],                                                  "adaeze.nwosu@crms.ng",       UserType.Staff),
         ("headoflegal",    "Obiageli",    "Okonkwo",       [Roles.HeadOfLegal],                                                   "obiageli.okonkwo@crms.ng",   UserType.Staff),
@@ -144,7 +144,7 @@ public static class ComprehensiveDataSeeder
     private static async Task<(ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover,
         ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
         ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-        ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor)>
+        ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor)>
         SeedUsersAsync(CRMSDbContext context, ILogger logger)
     {
         var roles = await context.Roles.ToListAsync();
@@ -402,8 +402,8 @@ public static class ComprehensiveDataSeeder
 
                 // Add the new three-step post-approval transitions
                 await InsertTransitionIfMissingAsync(context, wfId, "Approved",       "OfferGenerated", "MoveToNextStage", Roles.LoanOfficer, now);
-                await InsertTransitionIfMissingAsync(context, wfId, "OfferGenerated", "OfferAccepted",  "MoveToNextStage", Roles.Operations, now);
-                await InsertTransitionIfMissingAsync(context, wfId, "OfferAccepted",  "Disbursed",      "Complete",        Roles.Operations, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "OfferGenerated", "OfferAccepted",  "MoveToNextStage", Roles.DisbursementOfficer, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "OfferAccepted",  "Disbursed",      "Complete",        Roles.DisbursementOfficer, now);
 
                 logger.LogInformation("Offer letter workflow stages added successfully.");
             }
@@ -475,8 +475,8 @@ public static class ComprehensiveDataSeeder
                 await InsertTransitionIfMissingAsync(context, wfId, "SecurityPerfection",        "SecurityApproval",          "Approve",         Roles.LegalOfficer,   now);
                 await InsertTransitionIfMissingAsync(context, wfId, "SecurityApproval",          "DisbursementPending",       "Approve",         Roles.HeadOfLegal,    now);
                 await InsertTransitionIfMissingAsync(context, wfId, "SecurityApproval",          "SecurityPerfection",        "Return",          Roles.HeadOfLegal,    now);
-                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending",       "DisbursementHQApproval",    "Approve",         Roles.Operations,     now);
-                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending",       "SecurityPerfection",        "Return",          Roles.Operations,     now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending",       "DisbursementHQApproval",    "Approve",         Roles.DisbursementOfficer,     now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending",       "SecurityPerfection",        "Return",          Roles.DisbursementOfficer,     now);
                 await InsertTransitionIfMissingAsync(context, wfId, "DisbursementHQApproval",    "Disbursed",                 "Complete",        Roles.GMFinance,      now);
 
                 logger.LogInformation("Security Perfection and Disbursement stages added successfully.");
@@ -518,9 +518,9 @@ public static class ComprehensiveDataSeeder
                 await InsertTransitionIfMissingAsync(context, wfId, "OfferAccepted",       "SecurityPerfection",   "MoveToNextStage", Roles.LoanOfficer,    now);
                 await InsertTransitionIfMissingAsync(context, wfId, "SecurityPerfection",  "Disbursement",         "Approve",         Roles.LegalOfficer,   now);
                 await InsertTransitionIfMissingAsync(context, wfId, "SecurityPerfection",  "OfferAccepted",        "Return",          Roles.LegalOfficer,   now);
-                await InsertTransitionIfMissingAsync(context, wfId, "Disbursement",        "Disbursed",            "Complete",        Roles.Operations,        now);
+                await InsertTransitionIfMissingAsync(context, wfId, "Disbursement",        "Disbursed",            "Complete",        Roles.DisbursementOfficer,        now);
                 await InsertTransitionIfMissingAsync(context, wfId, "Disbursement",        "Disbursed",            "Complete",        Roles.DeploymentOfficer, now);
-                await InsertTransitionIfMissingAsync(context, wfId, "Disbursement",        "SecurityPerfection",   "Return",          Roles.Operations,        now);
+                await InsertTransitionIfMissingAsync(context, wfId, "Disbursement",        "SecurityPerfection",   "Return",          Roles.DisbursementOfficer,        now);
                 await InsertTransitionIfMissingAsync(context, wfId, "Disbursement",        "SecurityPerfection",   "Return",          Roles.DeploymentOfficer, now);
 
                 // Update OfferGenerated→OfferAccepted actor to LoanOfficer (was Operations)
@@ -616,6 +616,77 @@ public static class ComprehensiveDataSeeder
                 }
             }
 
+            // Rename: Operations → DisbursementOfficer across workflow tables and identity roles.
+            // Idempotent — safe to run on both new and existing databases.
+            if (existing != null)
+            {
+                // Workflow tables
+                await context.Database.ExecuteSqlRawAsync(
+                    "UPDATE WorkflowTransitions SET RequiredRole = 'DisbursementOfficer' WHERE RequiredRole = 'Operations'");
+                await context.Database.ExecuteSqlRawAsync(
+                    "UPDATE WorkflowStages SET AssignedRole = 'DisbursementOfficer' WHERE AssignedRole = 'Operations'");
+
+                // Ensure DisbursementOfficer exists in CRMS Roles table (Type=0 = System)
+                await context.Database.ExecuteSqlRawAsync(
+                    @"INSERT INTO Roles (Id, Name, NormalizedName, Description, Type, CreatedAt, CreatedBy)
+                      SELECT UUID(), 'DisbursementOfficer', 'DISBURSEMENTOFFICER',
+                             'Prepares disbursement memo and books loan in core banking (Corporate and Retail)',
+                             0, NOW(), 'system'
+                      FROM (SELECT 1) AS tmp
+                      WHERE NOT EXISTS (
+                          SELECT 1 FROM Roles WHERE NormalizedName = 'DISBURSEMENTOFFICER'
+                      )");
+
+                // Grant DisbursementOfficer to all current Operations role holders (additive — does not remove Operations)
+                await context.Database.ExecuteSqlRawAsync(
+                    @"INSERT INTO UserRoles (Id, UserId, RoleId, AssignedAt, CreatedAt, CreatedBy)
+                      SELECT UUID(), ur.UserId, dr.Id, NOW(), NOW(), 'system'
+                      FROM UserRoles ur
+                      INNER JOIN Roles `or` ON `or`.Id = ur.RoleId AND `or`.NormalizedName = 'OPERATIONS'
+                      INNER JOIN Roles dr ON dr.NormalizedName = 'DISBURSEMENTOFFICER'
+                      WHERE NOT EXISTS (
+                          SELECT 1 FROM UserRoles x
+                          WHERE x.UserId = ur.UserId AND x.RoleId = dr.Id
+                      )");
+            }
+
+            // Upgrade: tiered ratification — add BranchManager/ZonalManager/RegionalManager/MdCeo alongside
+            // FinalApprover for Corporate loan ratification (Phase 1: both coexist; FinalApprover not removed).
+            if (existing != null)
+            {
+                var wfId = existing.Id;
+                var now = DateTime.UtcNow;
+                foreach (var (fromStatus, toStatus, action, role) in new[]
+                {
+                    ("Ratification", "OfferGenerated",       "Approve", Roles.BranchManager),
+                    ("Ratification", "OfferGenerated",       "Approve", Roles.ZonalManager),
+                    ("Ratification", "OfferGenerated",       "Approve", Roles.RegionalManager),
+                    ("Ratification", "OfferGenerated",       "Approve", Roles.MdCeo),
+                    ("Ratification", "RatificationDeclined", "Reject",  Roles.BranchManager),
+                    ("Ratification", "RatificationDeclined", "Reject",  Roles.ZonalManager),
+                    ("Ratification", "RatificationDeclined", "Reject",  Roles.RegionalManager),
+                    ("Ratification", "RatificationDeclined", "Reject",  Roles.MdCeo),
+                })
+                {
+                    await context.Database.ExecuteSqlRawAsync(
+                        @"INSERT INTO WorkflowTransitions
+                              (Id, WorkflowDefinitionId, FromStatus, ToStatus, Action, RequiredRole,
+                               RequiresComment, ConditionExpression, CreatedAt, CreatedBy, ModifiedAt, ModifiedBy)
+                          SELECT @p0, @p1, @p2, @p3, @p4, @p5,
+                                 0, NULL, @p6, '', NULL, NULL
+                          WHERE NOT EXISTS (
+                              SELECT 1 FROM WorkflowTransitions
+                              WHERE WorkflowDefinitionId = @p7
+                                AND FromStatus   = @p8
+                                AND ToStatus     = @p9
+                                AND Action       = @p10
+                                AND RequiredRole = @p11
+                          )",
+                        Guid.NewGuid(), wfId, fromStatus, toStatus, action, role, now,
+                        wfId, fromStatus, toStatus, action, role);
+                }
+            }
+
             // Correction: Remove DisbursementBranchApproval hop — Operations now approves directly to DisbursementHQApproval.
             // Replace the old DisbursementPending→DisbursementBranchApproval transition with DisbursementPending→DisbursementHQApproval.
             // Also ensure the Return path (DisbursementPending→SecurityPerfection) exists.
@@ -626,8 +697,8 @@ public static class ComprehensiveDataSeeder
                 await context.Database.ExecuteSqlRawAsync(
                     "DELETE FROM WorkflowTransitions WHERE WorkflowDefinitionId = @p0 AND FromStatus = 'DisbursementPending' AND ToStatus = 'DisbursementBranchApproval'",
                     wfId);
-                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending", "DisbursementHQApproval", "Approve", Roles.Operations, now);
-                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending", "SecurityPerfection",     "Return",  Roles.Operations, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending", "DisbursementHQApproval", "Approve", Roles.DisbursementOfficer, now);
+                await InsertTransitionIfMissingAsync(context, wfId, "DisbursementPending", "SecurityPerfection",     "Return",  Roles.DisbursementOfficer, now);
             }
 
             // Data repair: fix any applications stuck at DisbursementBranchApproval (the removed stage).
@@ -685,8 +756,8 @@ public static class ComprehensiveDataSeeder
             (LoanApplicationStatus.OfferGenerated,        "Offer Issued",         "Offer letter issued to customer — awaiting signed acceptance",         Roles.LoanOfficer,    72, 6,  false, false),
             (LoanApplicationStatus.OfferAccepted,         "Offer Accepted",       "Customer accepted offer — proceeding to security perfection",          Roles.LoanOfficer,    0,  7,  false, false),
             (LoanApplicationStatus.SecurityPerfection,    "Security Perfection",  "Legal Officer perfecting security instruments",                        Roles.LegalOfficer,   72, 8,  false, false),
-            (LoanApplicationStatus.Disbursement,          "Disbursement",         "Operations completing disbursement",                                   Roles.Operations,     24, 9,  false, false),
-            (LoanApplicationStatus.Disbursed,             "Disbursed",            "Loan disbursed",                                                      Roles.Operations,     0,  10, false, true),
+            (LoanApplicationStatus.Disbursement,          "Disbursement",         "Operations completing disbursement",                                   Roles.DisbursementOfficer,     24, 9,  false, false),
+            (LoanApplicationStatus.Disbursed,             "Disbursed",            "Loan disbursed",                                                      Roles.DisbursementOfficer,     0,  10, false, true),
             (LoanApplicationStatus.Rejected,              "Rejected",             "Application rejected",                                                Roles.LoanOfficer,    0,  11, false, true),
             (LoanApplicationStatus.RatificationDeclined, "Ratification Declined","FinalApprover declined to ratify — terminal",                         Roles.SystemAdmin,    0,  12, false, true),
         };
@@ -713,8 +784,8 @@ public static class ComprehensiveDataSeeder
             (LoanApplicationStatus.OfferAccepted,        LoanApplicationStatus.SecurityPerfection,   WorkflowAction.MoveToNextStage, Roles.LoanOfficer),
             (LoanApplicationStatus.SecurityPerfection,   LoanApplicationStatus.Disbursement,         WorkflowAction.Approve,         Roles.LegalOfficer),
             (LoanApplicationStatus.SecurityPerfection,   LoanApplicationStatus.OfferAccepted,        WorkflowAction.Return,          Roles.LegalOfficer),
-            (LoanApplicationStatus.Disbursement,         LoanApplicationStatus.Disbursed,            WorkflowAction.Complete,        Roles.Operations),
-            (LoanApplicationStatus.Disbursement,         LoanApplicationStatus.SecurityPerfection,   WorkflowAction.Return,          Roles.Operations),
+            (LoanApplicationStatus.Disbursement,         LoanApplicationStatus.Disbursed,            WorkflowAction.Complete,        Roles.DisbursementOfficer),
+            (LoanApplicationStatus.Disbursement,         LoanApplicationStatus.SecurityPerfection,   WorkflowAction.Return,          Roles.DisbursementOfficer),
         };
 
         foreach (var (from, to, action, role) in transitions)
@@ -988,7 +1059,7 @@ public static class ComprehensiveDataSeeder
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
          ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
          ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users,
+         ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users,
         List<LoanProduct> products,
         WorkflowDefinition? workflowDef)
     {
@@ -1063,7 +1134,7 @@ public static class ComprehensiveDataSeeder
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
          ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
          ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users,
+         ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users,
         LoanProduct product,
         WorkflowDefinition? workflowDef,
         string companyName,
@@ -1126,7 +1197,7 @@ public static class ComprehensiveDataSeeder
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
          ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
          ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users,
+         ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users,
         WorkflowDefinition? workflowDef)
     {
         if (targetStatus == LoanApplicationStatus.Draft) return;
@@ -1233,7 +1304,7 @@ public static class ComprehensiveDataSeeder
         if (targetStatus == LoanApplicationStatus.DisbursementPending) return;
 
         // Disbursement Pending (Operations maker)
-        app.PrepareDisbursementMemo(users.Operations.Id, "Disbursement memo prepared and core banking entry initiated");
+        app.PrepareDisbursementMemo(users.DisbursementOfficer.Id, "Disbursement memo prepared and core banking entry initiated");
         if (targetStatus == LoanApplicationStatus.DisbursementBranchApproval) return;
 
         // Disbursement Branch Authorisation (BranchApprover checker 1)
@@ -1266,7 +1337,7 @@ public static class ComprehensiveDataSeeder
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
          ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
          ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         // 1. Consent Records
         foreach (var party in app.Parties.Where(p => p.PartyType == PartyType.Director || p.PartyType == PartyType.Signatory))
@@ -1619,7 +1690,7 @@ public static class ComprehensiveDataSeeder
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
          ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
          ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         var advisoryResult = CreditAdvisory.Create(app.Id, users.CreditOfficer.Id, "MOCK-AI-v1.0");
         if (advisoryResult.IsFailure) return;
@@ -1674,7 +1745,7 @@ public static class ComprehensiveDataSeeder
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
          ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
          ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         var reviewResult = CommitteeReview.Create(
             app.Id, app.ApplicationNumber, CommitteeType.HeadOfficeCredit,
@@ -1712,7 +1783,7 @@ public static class ComprehensiveDataSeeder
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
          ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
          ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         var packResult = LoanPack.Create(app.Id, app.ApplicationNumber, users.CreditOfficer.Id,
             users.CreditOfficer.FullName, app.CustomerName, app.ProductCode, app.RequestedAmount.Amount);
@@ -1815,7 +1886,7 @@ public static class ComprehensiveDataSeeder
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
          ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
          ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         if (await context.AuditLogs.AnyAsync())
         {
@@ -1839,7 +1910,7 @@ public static class ComprehensiveDataSeeder
             (AuditAction.Decision, AuditCategory.Committee, "Committee decision recorded", users.CommitteeMember1),
             (AuditAction.Approve, AuditCategory.LoanApplication, "Final approval granted", users.FinalApprover),
             (AuditAction.ConfigChange, AuditCategory.Configuration, "Scoring parameter updated", users.SystemAdmin),
-            (AuditAction.Export, AuditCategory.DataAccess, "Loan pack exported", users.Operations),
+            (AuditAction.Export, AuditCategory.DataAccess, "Loan pack exported", users.DisbursementOfficer),
             (AuditAction.Read, AuditCategory.DataAccess, "Bureau report viewed", users.Auditor)
         };
 
@@ -1962,7 +2033,7 @@ public static class ComprehensiveDataSeeder
                 await context.RolePermissions.AddAsync(new ApplicationRolePermission(finalApproverRole.Id, perm.Id));
         }
 
-        var operationsRole = roles.FirstOrDefault(r => r.Name == Roles.Operations);
+        var operationsRole = roles.FirstOrDefault(r => r.Name == Roles.DisbursementOfficer);
         if (operationsRole != null)
         {
             // Disbursement operations: view and complete approved loans, generate reports
@@ -2101,7 +2172,7 @@ public static class ComprehensiveDataSeeder
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
          ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
          ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         if (await context.DataAccessLogs.CountAsync() > 1)
         {
@@ -2119,7 +2190,7 @@ public static class ComprehensiveDataSeeder
             DataAccessLog.Create(users.Auditor.Id, users.Auditor.FullName, Roles.Auditor,
                 SensitiveDataType.PersonalInformation, "LoanApplicationParty", Guid.NewGuid(), DataAccessType.View,
                 null, null, null, "Party information reviewed during audit", "192.168.1.101"),
-            DataAccessLog.Create(users.Operations.Id, users.Operations.FullName, Roles.Operations,
+            DataAccessLog.Create(users.DisbursementOfficer.Id, users.DisbursementOfficer.FullName, Roles.DisbursementOfficer,
                 SensitiveDataType.BankStatement, "BankStatement", Guid.NewGuid(), DataAccessType.Export,
                 null, null, null, "Bank statement exported for review", "192.168.1.102"),
             DataAccessLog.Create(users.LoanOfficer.Id, users.LoanOfficer.FullName, Roles.LoanOfficer,
@@ -2140,7 +2211,7 @@ public static class ComprehensiveDataSeeder
         (ApplicationUser SystemAdmin, ApplicationUser LoanOfficer, ApplicationUser BranchApprover, 
          ApplicationUser CreditOfficer, ApplicationUser HOReviewer, ApplicationUser LegalOfficer, ApplicationUser HeadOfLegal,
          ApplicationUser CommitteeMember1, ApplicationUser CommitteeMember2, ApplicationUser CommitteeMember3,
-         ApplicationUser FinalApprover, ApplicationUser Operations, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
+         ApplicationUser FinalApprover, ApplicationUser DisbursementOfficer, ApplicationUser GMFinance, ApplicationUser RiskManager, ApplicationUser Auditor) users)
     {
         if (await context.Notifications.AnyAsync())
         {
@@ -2160,7 +2231,7 @@ public static class ComprehensiveDataSeeder
                 "CREDIT_CHECK_COMPLETE", "Credit Check Complete", "Credit bureau checks have been completed for LA-2026-002."),
             (NotificationType.CommitteeVoteRequired, NotificationChannel.Email, NotificationPriority.High, users.CommitteeMember1,
                 "COMMITTEE_VOTE_REQUIRED", "Committee Vote Required", "Your vote is required for loan application LA-2026-003."),
-            (NotificationType.ApplicationDisbursed, NotificationChannel.SMS, NotificationPriority.High, users.Operations,
+            (NotificationType.ApplicationDisbursed, NotificationChannel.SMS, NotificationPriority.High, users.DisbursementOfficer,
                 "DISBURSEMENT_READY", "Disbursement Ready", "Loan LA-2026-004 is ready for disbursement."),
             (NotificationType.WorkflowSLAWarning, NotificationChannel.Email, NotificationPriority.Urgent, users.LoanOfficer,
                 "SLA_WARNING", "SLA Warning", "Application LA-2026-005 is approaching SLA deadline.")

@@ -38,32 +38,24 @@
                 <label class="form-label">Role</label>
                 <select class="form-control" @bind="selectedRole">
                     <option value="">All Roles</option>
-                    <optgroup label="── Corporate ──">
-                        <option value="SystemAdmin">System Admin</option>
-                        <option value="LoanOfficer">Loan Officer</option>
-                        <option value="CreditOfficer">Credit Officer</option>
-                        <option value="BranchApprover">Branch Approver</option>
-                        <option value="HOReviewer">HO Reviewer</option>
-                        <option value="CommitteeMember">Committee Member</option>
-                        <option value="FinalApprover">Final Approver</option>
-                        <option value="RiskManager">Risk Manager</option>
-                        <option value="Operations">Operations</option>
-                        <option value="GMFinance">GM Finance</option>
-                        <option value="LegalOfficer">Legal Officer</option>
-                        <option value="HeadOfLegal">Head of Legal</option>
-                        <option value="Auditor">Auditor</option>
-                    </optgroup>
-                    <optgroup label="── NAMP ──">
-                        <option value="BranchManager">Branch Manager</option>
-                        <option value="ZonalManager">Zonal Manager</option>
-                        <option value="RegionalManager">Regional Manager</option>
-                        <option value="MdCeo">MD / CEO</option>
-                        <option value="BranchCommitteeMember">Branch Committee Member</option>
-                        <option value="ZonalCommitteeMember">Zonal Committee Member</option>
-                        <option value="RegionalCommitteeMember">Regional Committee Member</option>
-                        <option value="HOCommitteeMember">HO Committee Member</option>
-                        <option value="DeploymentOfficer">Deployment Officer</option>
-                    </optgroup>
+                    <option value="SystemAdmin">System Admin</option>
+                    <option value="LoanOfficer">Loan Officer</option>
+                    <option value="CreditOfficer">Credit Officer</option>
+                    <option value="LegalOfficer">Legal Officer</option>
+                    <option value="RiskManager">Risk Manager</option>
+                    <option value="GMFinance">GM Finance</option>
+                    <option value="DisbursementOfficer">Disbursement Officer</option>
+                    <option value="DeploymentOfficer">Deployment Officer</option>
+                    <option value="CommitteeMember">Committee Member</option>
+                    <option value="BranchCommitteeMember">Branch Committee Member</option>
+                    <option value="ZonalCommitteeMember">Zonal Committee Member</option>
+                    <option value="RegionalCommitteeMember">Regional Committee Member</option>
+                    <option value="HOCommitteeMember">HO Committee Member</option>
+                    <option value="BranchManager">Branch Manager</option>
+                    <option value="ZonalManager">Zonal Manager</option>
+                    <option value="RegionalManager">Regional Manager</option>
+                    <option value="MdCeo">MD / CEO</option>
+                    <option value="Auditor">Auditor</option>
                 </select>
             </div>
             <div style="width: 140px;">
@@ -205,18 +197,7 @@
                 <div class="form-group">
                     <label class="form-label">Roles * <small style="font-weight:400; color: var(--gray-500);">(select one or more)</small></label>
                     <div class="role-checkbox-list">
-                        <div class="role-group-label">Corporate Loan Roles</div>
-                        @foreach (var (value, label) in CorporateRoles)
-                        {
-                            <label class="role-checkbox-item">
-                                <input type="checkbox"
-                                       checked="@editingUser.Roles.Contains(value)"
-                                       @onchange="e => ToggleRole(value, (bool)e.Value!)" />
-                                <span>@label</span>
-                            </label>
-                        }
-                        <div class="role-group-label" style="margin-top: 0.75rem;">NAMP Roles</div>
-                        @foreach (var (value, label) in NampRoles)
+                        @foreach (var (value, label) in AvailableRoles)
                         {
                             <label class="role-checkbox-item">
                                 <input type="checkbox"
@@ -349,34 +330,26 @@
     private UserModel editingUser = new();
     private List<LocationInfo> availableLocations = [];
 
-    private static readonly (string Value, string Label)[] CorporateRoles =
+    private static readonly (string Value, string Label)[] AvailableRoles =
     [
-        ("SystemAdmin",      "System Admin"),
-        ("LoanOfficer",      "Loan Officer"),
-        ("CreditOfficer",    "Credit Officer"),
-        ("BranchApprover",   "Branch Approver"),
-        ("HOReviewer",       "HO Reviewer"),
-        ("CommitteeMember",  "Committee Member"),
-        ("FinalApprover",    "Final Approver"),
-        ("RiskManager",      "Risk Manager"),
-        ("Operations",       "Operations"),
-        ("GMFinance",        "GM Finance"),
-        ("LegalOfficer",     "Legal Officer"),
-        ("HeadOfLegal",      "Head of Legal"),
-        ("Auditor",          "Auditor"),
-    ];
-
-    private static readonly (string Value, string Label)[] NampRoles =
-    [
-        ("BranchManager",           "Branch Manager"),
-        ("ZonalManager",            "Zonal Manager"),
-        ("RegionalManager",         "Regional Manager"),
-        ("MdCeo",                   "MD / CEO"),
+        ("SystemAdmin",             "System Admin"),
+        ("LoanOfficer",             "Loan Officer"),
+        ("CreditOfficer",           "Credit Officer"),
+        ("LegalOfficer",            "Legal Officer"),
+        ("RiskManager",             "Risk Manager"),
+        ("GMFinance",               "GM Finance"),
+        ("DisbursementOfficer",     "Disbursement Officer"),
+        ("DeploymentOfficer",       "Deployment Officer"),
+        ("CommitteeMember",         "Committee Member"),
         ("BranchCommitteeMember",   "Branch Committee Member"),
         ("ZonalCommitteeMember",    "Zonal Committee Member"),
         ("RegionalCommitteeMember", "Regional Committee Member"),
         ("HOCommitteeMember",       "HO Committee Member"),
-        ("DeploymentOfficer",       "Deployment Officer"),
+        ("BranchManager",           "Branch Manager"),
+        ("ZonalManager",            "Zonal Manager"),
+        ("RegionalManager",         "Regional Manager"),
+        ("MdCeo",                   "MD / CEO"),
+        ("Auditor",                 "Auditor"),
     ];
 
     protected override async Task OnInitializedAsync()
@@ -599,13 +572,14 @@
     private static string GetRoleBadgeClass(string role) => role switch
     {
         "SystemAdmin"                                        => "badge-danger",
-        "RiskManager" or "AuditOfficer"                     => "badge-warning",
+        "RiskManager"                                        => "badge-warning",
         "BranchManager" or "ZonalManager" or
         "RegionalManager" or "MdCeo"                        => "badge-primary",
         "BranchCommitteeMember" or "ZonalCommitteeMember" or
         "RegionalCommitteeMember" or "HOCommitteeMember" or
         "CommitteeMember"                                   => "badge-info",
-        "Auditor" or "Customer"                             => "badge-gray",
+        "DisbursementOfficer" or "DeploymentOfficer"        => "badge-success",
+        "Auditor"                                            => "badge-gray",
         _                                                   => "badge-secondary"
     };
 
@@ -614,23 +588,22 @@
         "SystemAdmin"             => "Admin",
         "LoanOfficer"             => "Loan Officer",
         "CreditOfficer"           => "Credit Officer",
-        "BranchApprover"          => "Branch Approver",
-        "HOReviewer"              => "HO Reviewer",
-        "CommitteeMember"         => "Committee",
-        "FinalApprover"           => "Final Approver",
+        "LegalOfficer"            => "Legal Officer",
         "RiskManager"             => "Risk Manager",
         "GMFinance"               => "GM Finance",
-        "LegalOfficer"            => "Legal Officer",
-        "HeadOfLegal"             => "Head of Legal",
-        "BranchManager"           => "Branch Mgr",
-        "ZonalManager"            => "Zonal Mgr",
-        "RegionalManager"         => "Regional Mgr",
-        "MdCeo"                   => "MD/CEO",
+        "DisbursementOfficer"     => "Disbursement",
+        "DeploymentOfficer"       => "Deployment",
+        "CommitteeMember"         => "Committee",
         "BranchCommitteeMember"   => "Branch Cmte",
         "ZonalCommitteeMember"    => "Zonal Cmte",
         "RegionalCommitteeMember" => "Regional Cmte",
         "HOCommitteeMember"       => "HO Cmte",
-        "DeploymentOfficer"       => "Deployment",
+        "BranchManager"           => "Branch Mgr",
+        "ZonalManager"            => "Zonal Mgr",
+        "RegionalManager"         => "Regional Mgr",
+        "MdCeo"                   => "MD/CEO",
+        "Auditor"                 => "Auditor",
+        "FinalApprover"           => "Final Approver",
         _                         => role
     };
 

@@ -267,7 +267,7 @@ public class GetQueueSummaryHandler : IRequestHandler<GetQueueSummaryQuery, Appl
 
     public async Task<ApplicationResult<List<WorkflowQueueSummaryDto>>> Handle(GetQueueSummaryQuery request, CancellationToken ct = default)
     {
-        var roles = new[] { "LoanOfficer", "BranchApprover", "CreditOfficer", "CommitteeMember", "FinalApprover", "Operations" };
+        var roles = new[] { "LoanOfficer", "BranchApprover", "CreditOfficer", "CommitteeMember", "FinalApprover", "DisbursementOfficer" };
         var summaries = new List<WorkflowQueueSummaryDto>();
 
         foreach (var role in roles)

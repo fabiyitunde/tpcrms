@@ -4182,7 +4182,7 @@ else
     private bool CanUploadSignedOfferLetter =>
         app?.OfferLetterStoragePath != null &&
         app.Status is "OfferGenerated" or "OfferAccepted" or "LegalClearance" or "LegalReturned" or "PreDeploymentVerification" or "Deployment" or "Deployed" &&
-        (User?.HasAnyRole("LoanOfficer", "Operations", "SystemAdmin") ?? false);
+        (User?.HasAnyRole("LoanOfficer", "DisbursementOfficer", "SystemAdmin") ?? false);
 
     private bool ShowGrantLegalClearanceButton =>
         app?.Status == "LegalClearance" &&

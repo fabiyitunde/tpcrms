@@ -1,0 +1,2149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRMS Loan Processing Tutorial — Bank of Agriculture</title>
+  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.75;
+    color: #1e293b;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+
+  .page-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 56px;
+  }
+
+  /* ── Cover header ── */
+  .doc-header {
+    border-bottom: 4px solid #1a6b2a;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .doc-header-logo {
+    background: #1a6b2a;
+    color: white;
+    font-size: 22px;
+    font-weight: 800;
+    padding: 10px 18px;
+    border-radius: 6px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .doc-header-text h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: #0f3d18;
+  }
+  .doc-header-text p {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  /* ── Typography ── */
+  h1 { font-size: 26px; font-weight: 700; color: #0f3d18; margin: 48px 0 8px; border-bottom: 2px solid #1a6b2a; padding-bottom: 8px; }
+  h2 { font-size: 20px; font-weight: 700; color: #1a6b2a; margin: 36px 0 8px; }
+  h3 { font-size: 16px; font-weight: 600; color: #334155; margin: 28px 0 6px; }
+  h4 { font-size: 14px; font-weight: 600; color: #475569; margin: 20px 0 4px; }
+
+  p { margin: 0 0 12px; }
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  a { color: #1a6b2a; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Code / formulas ── */
+  pre {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-left: 4px solid #1a6b2a;
+    border-radius: 6px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 16px 0;
+  }
+  code {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12.5px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 13px;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+  th {
+    background: #1a6b2a;
+    color: white;
+    font-weight: 600;
+    padding: 10px 14px;
+    text-align: left;
+    border: 1px solid #1a6b2a;
+  }
+  td {
+    padding: 9px 14px;
+    border: 1px solid #e2e8f0;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #e8f5eb; }
+  tr:hover td { background: #dceee0; }
+
+  /* ── Lists ── */
+  ul, ol { margin: 8px 0 12px; padding-left: 24px; }
+  li { margin-bottom: 4px; }
+
+  /* ── Blockquotes / callouts ── */
+  blockquote {
+    margin: 16px 0;
+    padding: 12px 20px;
+    background: #e8f5eb;
+    border-left: 4px solid #1a6b2a;
+    border-radius: 0 6px 6px 0;
+    color: #1e3a22;
+    font-size: 13px;
+  }
+  blockquote p { margin: 0; }
+
+  /* ── Horizontal rule ── */
+  hr {
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    margin: 32px 0;
+  }
+
+  /* ── TOC ── */
+  .toc-section { background: #e8f5eb; border: 1px solid #a7c9b0; border-radius: 8px; padding: 20px 28px; margin-bottom: 36px; }
+  .toc-section h2 { margin-top: 0; color: #0f3d18; font-size: 16px; border: none; }
+
+  /* ── Print / PDF ── */
+  @media print {
+    body { font-size: 12px; }
+    .page-wrap { padding: 24px 32px; max-width: 100%; }
+    pre { page-break-inside: avoid; }
+    table { page-break-inside: avoid; }
+    h1, h2 { page-break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+  <div class="page-wrap">
+    <div class="doc-header">
+      <div class="doc-header-logo">BOA</div>
+      <div class="doc-header-text">
+        <h1>Bank of Agriculture Limited</h1>
+        <p>Credit and Risk Management System (CRMS) &mdash; Loan Processing Tutorial &mdash; 31 July 2026</p>
+      </div>
+    </div>
+    <h1>CRMS Loan Processing Tutorial</h1>
+<blockquote>
+<p><strong>Platform:</strong> Credit and Risk Management System (CRMS) — Bank of Agriculture<br><strong>Last updated:</strong> 2026-07-31<br><strong>Scope:</strong> Two main loan processes — Corporate and NAMP Agricultural Equipment Financing</p>
+</blockquote>
+<hr>
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#1-system-overview">System Overview</a></li>
+<li><a href="#2-admin-configuration--before-you-begin">Admin Configuration — Before You Begin</a><ul>
+<li>2.1 <a href="#21-common-setup-both-processes">Common Setup (Both Processes)</a></li>
+<li>2.2 <a href="#22-corporate-loan-configuration">Corporate Loan Configuration</a></li>
+<li>2.3 <a href="#23-namp-loan-configuration">NAMP Loan Configuration</a></li>
+</ul>
+</li>
+<li><a href="#3-corporate-loan-process">Corporate Loan Process</a><ul>
+<li>3.1 <a href="#31-stage-1--draft-loan-officer">Stage 1 — Draft (Loan Officer)</a></li>
+<li>3.2 <a href="#32-stage-2--credit-review-credit-officer--legal-officer-parallel">Stage 2 — Credit Review (Credit Officer + Legal Officer, Parallel)</a></li>
+<li>3.3 <a href="#33-stage-3--committee-circulation-committee-members">Stage 3 — Committee Circulation (Committee Members)</a></li>
+<li>3.4 <a href="#34-stage-4--ratification-tiered-managers">Stage 4 — Ratification (Tiered Managers)</a></li>
+<li>3.5 <a href="#35-stage-5--offer-generated-loan-officer--customer">Stage 5 — Offer Generated (Loan Officer + Customer)</a></li>
+<li>3.6 <a href="#36-stage-6--security-perfection-legal-officer">Stage 6 — Security Perfection (Legal Officer)</a></li>
+<li>3.7 <a href="#37-stage-7--disbursement-disbursement-officer">Stage 7 — Disbursement (Disbursement Officer)</a></li>
+<li>3.8 <a href="#38-corporate-loan-status-summary">Corporate Loan Status Summary</a></li>
+</ul>
+</li>
+<li><a href="#4-namp-agricultural-equipment-financing-process">NAMP Agricultural Equipment Financing Process</a><ul>
+<li>4.1 <a href="#41-pre-stage--pays-portal-intake">Pre-Stage — PAYS Portal Intake</a></li>
+<li>4.2 <a href="#42-stage-1--loan-officer-review-draft">Stage 1 — Loan Officer Review (Draft)</a></li>
+<li>4.3 <a href="#43-stage-2--financial-appraisal-credit-officer">Stage 2 — Financial Appraisal (Credit Officer)</a></li>
+<li>4.4 <a href="#44-stage-3--committee-circulation-tiered">Stage 3 — Committee Circulation (Tiered)</a></li>
+<li>4.5 <a href="#45-stage-4--ratification-tier-manager">Stage 4 — Ratification (Tier Manager)</a></li>
+<li>4.6 <a href="#46-stage-5--offer-documents">Stage 5 — Offer Documents</a></li>
+<li>4.7 <a href="#47-stage-6--legal-clearance-legal-officer">Stage 6 — Legal Clearance (Legal Officer)</a></li>
+<li>4.8 <a href="#48-stage-7--pre-deployment-verification-deployment-officer">Stage 7 — Pre-Deployment Verification (Deployment Officer)</a></li>
+<li>4.9 <a href="#49-stage-8--deployment-deployment-officer">Stage 8 — Deployment (Deployment Officer)</a></li>
+<li>4.10 <a href="#410-stage-9--active-and-closed">Stage 9 — Active and Closed</a></li>
+<li>4.11 <a href="#411-namp-status-summary">NAMP Status Summary</a></li>
+</ul>
+</li>
+<li><a href="#5-user-roles-quick-reference">User Roles Quick Reference</a><ul>
+<li>5.1 <a href="#51-unified-role-list">Unified Role List</a></li>
+<li>5.2 <a href="#52-role-to-stage-reference">Role-to-Stage Reference</a></li>
+<li>5.3 <a href="#53-roles-no-longer-active">Roles No Longer Active</a></li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2>1. System Overview</h2>
+<p>The CRMS platform manages two distinct loan origination channels for Bank of Agriculture:</p>
+<table>
+<thead>
+<tr>
+<th>Channel</th>
+<th>Who Applies</th>
+<th>Purpose</th>
+<th>Entry Point</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Corporate Loan</strong></td>
+<td>Existing corporate customers</td>
+<td>SME or business lending via direct bank officer engagement</td>
+<td>Loan Officer creates a new application</td>
+</tr>
+<tr>
+<td><strong>NAMP</strong></td>
+<td>Agripreneurs and Agro-Service companies</td>
+<td>Agricultural equipment financing under the National Agricultural Mechanisation Programme</td>
+<td>External PAYS portal sends application via webhook</td>
+</tr>
+</tbody></table>
+<p>Both processes share the same underlying infrastructure (committees, credit bureaus, document storage, core banking integration) and — as of the unified actor framework — the same set of roles. A Loan Officer, Credit Officer, Legal Officer, or BranchManager performs the same function regardless of whether the loan is Corporate or NAMP. The processes follow separate workflow paths because they differ in how applications enter the system, how committees are tiered, and what the terminal stages involve.</p>
+<p><strong>Why two separate paths?</strong><br>The Corporate process starts inside the bank — a Loan Officer walks through a 3-step wizard to create the application. The NAMP process starts outside the bank — applicants apply through the PAYS portal, and the application arrives in a staging queue. A Loan Officer then &quot;recalls&quot; it for internal review. The final stages also differ: Corporate ends with Security Perfection then Disbursement (cash); NAMP ends with Legal Clearance, Pre-Deployment Verification, and physical equipment Deployment with GPS activation.</p>
+<p><strong>One person, multiple roles:</strong><br>Staff members who work across both loan types can hold both the <code>DeploymentOfficer</code> role (for NAMP equipment deployment) and the <code>DisbursementOfficer</code> role (for Corporate/Retail cash disbursement). The system grants access based on whichever role is relevant to the application currently on screen.</p>
+<hr>
+<h2>2. Admin Configuration — Before You Begin</h2>
+<p>The system will not function correctly unless the following configuration has been done by a <strong>SystemAdmin</strong> user. This section covers what must be set up and why each setting matters.</p>
+<h3>2.1 Common Setup (Both Processes)</h3>
+<p>These settings are required for both Corporate and NAMP loans.</p>
+<hr>
+<h4>A. Locations (Branches, Zones, Regions)</h4>
+<p><strong>Where:</strong> Admin → Locations</p>
+<p><strong>Why:</strong> Every loan application is associated with a branch. The branch determines visibility (a Loan Officer at Lagos Main Branch sees only that branch&#39;s applications) and, for NAMP, is used to route applications to the correct committee tier.</p>
+<p><strong>What to configure:</strong></p>
+<ul>
+<li>Create a Region (e.g., &quot;South-West Region&quot;)</li>
+<li>Under the Region, create Zones (e.g., &quot;Lagos Zone&quot;)</li>
+<li>Under each Zone, create Branches (e.g., &quot;Lagos Main Branch&quot;, &quot;Ikeja Branch&quot;)</li>
+</ul>
+<p>Each branch will be assigned a Location ID that users and applications reference. Get this hierarchy right before creating users, because users are assigned to a branch on creation.</p>
+<hr>
+<h4>B. Users and Roles</h4>
+<p><strong>Where:</strong> Admin → Users</p>
+<p><strong>Why:</strong> Every action in CRMS is role-gated. The system will silently hide buttons from users who lack the right role. A user with no role, or the wrong role, will see an empty application detail page with no available actions.</p>
+<p><strong>What to configure:</strong></p>
+<p>Create a user account for each staff member and assign them the appropriate role. Each user has exactly one primary role. The full list of roles and what they can do is in <a href="#5-user-roles-quick-reference">Section 5</a>.</p>
+<p>Key points:</p>
+<ul>
+<li>Assign the user to their branch. For Head Office roles, the branch can be left blank or set to the HO location.</li>
+<li>A user&#39;s branch controls what they see on the application list. A Loan Officer at Branch A will not see Branch B&#39;s applications.</li>
+<li>The password for all test/seeded accounts is <code>Password1$$$</code>.</li>
+</ul>
+<hr>
+<h4>C. Collateral Types</h4>
+<p><strong>Where:</strong> Admin → Collateral Types</p>
+<p><strong>Why:</strong> When a Loan Officer adds collateral to a corporate application (e.g., &quot;Landed Property at 14 Broad Street&quot;), they must select a collateral type from a dropdown. If no types are configured, the dropdown will be empty and collateral cannot be added.</p>
+<p><strong>What to configure:</strong><br>Create the categories of acceptable collateral (e.g., Landed Property, Vehicle, Equipment, Stock/Inventory, Cash Deposit). For each type, you can optionally set valuation rules or coverage ratios.</p>
+<hr>
+<h3>2.2 Corporate Loan Configuration</h3>
+<p>These settings are specific to the Corporate loan process.</p>
+<hr>
+<h4>A. Loan Products</h4>
+<p><strong>Where:</strong> Admin → Products</p>
+<p><strong>Why:</strong> Every loan application must be linked to a product. The product defines the parameters (min/max amount, tenor range, interest rate) and also controls which documents are mandatory and what conditions precedent must be satisfied before disbursement.</p>
+<p><strong>What to configure:</strong></p>
+<ol>
+<li><p>Click <strong>New Product</strong> and fill in:</p>
+<ul>
+<li><strong>Product Name</strong>: e.g., &quot;SME Business Loan&quot;</li>
+<li><strong>Product Code</strong>: e.g., &quot;SME-BIZ&quot;</li>
+<li><strong>Type</strong>: Select <strong>Corporate</strong></li>
+<li><strong>Minimum Amount / Maximum Amount</strong>: The range of loan amounts this product supports (e.g., ₦5,000,000 – ₦500,000,000)</li>
+<li><strong>Minimum Tenor / Maximum Tenor (months)</strong>: e.g., 6 – 60 months</li>
+<li><strong>Base Interest Rate (% p.a.)</strong>: The standard rate, e.g., 12.0%</li>
+<li><strong>Fineract Product ID</strong>: The numeric ID of the corresponding product in the Fineract core banking system. This is required for loan account booking at disbursement. Obtain this from the IT/CBS team.</li>
+</ul>
+</li>
+<li><p>Under the product, add <strong>Pricing Tiers</strong> (optional):<br>Pricing tiers let you define different interest rates for different credit risk bands. For example, a customer with a credit score above 750 may get 10% p.a., while one between 600–749 gets 13% p.a. Each tier needs:</p>
+<ul>
+<li>Tier Name (e.g., &quot;Prime&quot;, &quot;Standard&quot;, &quot;Sub-standard&quot;)</li>
+<li>Interest Rate (% p.a.)</li>
+<li>Credit Score Range (minimum and maximum score for this tier to apply)</li>
+</ul>
+</li>
+<li><p>Under the product, add <strong>Document Requirements</strong>:<br>These are the document categories that must be uploaded before the application can be submitted. If a required document is missing, the Submit button will be blocked. Common requirements:</p>
+<ul>
+<li>Bank Statement (at least 6 months)</li>
+<li>Audited Financials (most recent 3 years)</li>
+<li>Company Registration</li>
+<li>Board Resolution (authorising the loan)</li>
+<li>Tax Clearance Certificate</li>
+<li>Identity Documents for Directors</li>
+</ul>
+</li>
+<li><p>Under the product, add <strong>Disbursement Checklist Template Items</strong>:<br>These are conditions precedent — items that must be confirmed or satisfied before the Operations team can disburse funds. They are auto-seeded onto the application when the customer accepts the offer. Examples:</p>
+<ul>
+<li>&quot;Board Resolution for loan drawdown&quot;</li>
+<li>&quot;Signed Offer Letter returned to bank&quot;</li>
+<li>&quot;Signed KFS (Key Facts Statement) returned to bank&quot;</li>
+<li>&quot;Collateral registration confirmed&quot;</li>
+<li>&quot;Insurance policy on collateral&quot;</li>
+</ul>
+<p>For each item, configure:</p>
+<ul>
+<li>Title and description</li>
+<li>Whether it requires a document upload (yes/no)</li>
+<li>Whether it blocks disbursement if not checked (mandatory)</li>
+<li>Whether it can be waived</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h4>B. Standing Committees</h4>
+<p><strong>Where:</strong> Admin → Committees</p>
+<p><strong>Why:</strong> In the Corporate process, after credit review, the application goes to a committee for a collective decision. The system needs to know which committees exist, what their quorum rules are, and who the members are. Without a configured committee, the Credit Officer cannot set up the committee vote.</p>
+<p><strong>What to configure:</strong></p>
+<p>For each committee:</p>
+<ol>
+<li><p>Click <strong>New Committee</strong> and fill in:</p>
+<ul>
+<li><strong>Committee Name</strong>: e.g., &quot;Branch Credit Committee — Lagos Main&quot;</li>
+<li><strong>Committee Type</strong>: Select from BranchCredit, RegionalCredit, HeadOfficeCredit, ManagementCredit, or BoardCredit</li>
+<li><strong>Location</strong> (optional): Assign to a specific branch if it is a branch-level committee. Leave blank for HO-wide committees.</li>
+<li><strong>Minimum Loan Amount / Maximum Loan Amount</strong>: The range of loan amounts this committee handles. If a loan falls outside this range, the Credit Officer will not see this committee as an option.</li>
+<li><strong>Required Votes</strong>: Total number of votes needed to constitute a quorum</li>
+<li><strong>Minimum Approval Votes</strong>: How many &quot;Approve&quot; votes are needed for the committee to pass the application</li>
+<li><strong>Default Deadline (hours)</strong>: How long members have to vote (e.g., 120 hours = 5 days)</li>
+</ul>
+</li>
+<li><p>Add <strong>Members</strong> to the committee:</p>
+<ul>
+<li>Select a user from the system</li>
+<li>Assign their role label (e.g., &quot;Member&quot;, &quot;Chairperson&quot;)</li>
+<li>Mark one member as Chairperson — this person will have additional responsibilities to formally record the decision after voting</li>
+</ul>
+</li>
+</ol>
+<p><strong>Tip:</strong> Set up at least one committee before testing the Corporate flow end-to-end. Without a committee, the workflow will stall at CommitteeCirculation.</p>
+<hr>
+<h3>2.3 NAMP Loan Configuration</h3>
+<p>These settings are specific to the NAMP process. Most of them are <strong>seeded automatically</strong> when the system first starts (via <code>NampWorkflowSeeder</code>), but they can be reviewed and adjusted through the admin UI.</p>
+<hr>
+<h4>A. NAMP Loan Product</h4>
+<p><strong>Where:</strong> Admin → Products</p>
+<p><strong>What to configure:</strong><br>Create at least one product of <strong>Type: Namp</strong>. The fields are the same as a corporate product (name, code, amounts, tenor, Fineract product ID). The NAMP product is linked to applications when a Loan Officer recalls them from staging.</p>
+<hr>
+<h4>B. NAMP Routing Configuration</h4>
+<p><strong>Where:</strong> Admin → NAMP Routing Config</p>
+<p><strong>Why:</strong> NAMP applications go to different committee tiers depending on the loan amount and the applicant category. This configuration defines those routing bands. Without it, the system cannot determine which committee to circulate the application to.</p>
+<p><strong>Default bands (seeded at startup):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Applicant Category</th>
+<th>Loan Amount Range</th>
+<th>Committee Tier</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Youth Agripreneur</td>
+<td>₦0 – ₦5,000,000</td>
+<td>Branch</td>
+</tr>
+<tr>
+<td>Youth Agripreneur</td>
+<td>₦5,000,001 – ₦20,000,000</td>
+<td>Zonal</td>
+</tr>
+<tr>
+<td>Youth Agripreneur</td>
+<td>₦20,000,001 – ₦50,000,000</td>
+<td>Regional</td>
+</tr>
+<tr>
+<td>Youth Agripreneur</td>
+<td>Above ₦50,000,000</td>
+<td>Head Office</td>
+</tr>
+<tr>
+<td>Women Agripreneur</td>
+<td>₦0 – ₦5,000,000</td>
+<td>Branch</td>
+</tr>
+<tr>
+<td>Women Agripreneur</td>
+<td>₦5,000,001 – ₦20,000,000</td>
+<td>Zonal</td>
+</tr>
+<tr>
+<td>Women Agripreneur</td>
+<td>₦20,000,001 – ₦50,000,000</td>
+<td>Regional</td>
+</tr>
+<tr>
+<td>Women Agripreneur</td>
+<td>Above ₦50,000,000</td>
+<td>Head Office</td>
+</tr>
+<tr>
+<td>Agro-Service Company</td>
+<td>₦0 – ₦20,000,000</td>
+<td>Zonal</td>
+</tr>
+<tr>
+<td>Agro-Service Company</td>
+<td>₦20,000,001 – ₦100,000,000</td>
+<td>Regional</td>
+</tr>
+<tr>
+<td>Agro-Service Company</td>
+<td>Above ₦100,000,000</td>
+<td>Head Office</td>
+</tr>
+</tbody></table>
+<p><strong>Note:</strong> Agro-Service Companies start at the Zonal tier regardless of size. This is intentional — companies have more complex structures and require at least zonal-level oversight.</p>
+<p>To adjust these bands: click a row, update the Min/Max amounts, and save.</p>
+<hr>
+<h4>C. NAMP Workflow Stage Configuration</h4>
+<p><strong>Where:</strong> Admin → NAMP Workflow Config</p>
+<p><strong>Why:</strong> Each NAMP stage has an assigned role (who is responsible), an SLA (how many hours they have to act), and a display name. These are seeded at startup.</p>
+<p><strong>Default configuration (for reference):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Assigned Role</th>
+<th>SLA</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Received</td>
+<td>Loan Officer</td>
+<td>48 hours</td>
+</tr>
+<tr>
+<td>Recall Pending</td>
+<td>Loan Officer</td>
+<td>48 hours</td>
+</tr>
+<tr>
+<td>Draft</td>
+<td>Loan Officer</td>
+<td>48 hours</td>
+</tr>
+<tr>
+<td>Submitted</td>
+<td>Credit Officer</td>
+<td>72 hours</td>
+</tr>
+<tr>
+<td>Financial Appraisal</td>
+<td>Credit Officer</td>
+<td>72 hours</td>
+</tr>
+<tr>
+<td>Branch Committee Circulation</td>
+<td>Committee Member</td>
+<td>120 hours</td>
+</tr>
+<tr>
+<td>Zonal Committee Circulation</td>
+<td>Committee Member</td>
+<td>120 hours</td>
+</tr>
+<tr>
+<td>Regional Committee Circulation</td>
+<td>Committee Member</td>
+<td>120 hours</td>
+</tr>
+<tr>
+<td>HO Committee Circulation</td>
+<td>Committee Member</td>
+<td>120 hours</td>
+</tr>
+<tr>
+<td>Ratification</td>
+<td>Tier Manager (BranchManager / ZonalManager / RegionalManager / MdCeo)</td>
+<td>48 hours</td>
+</tr>
+<tr>
+<td>Offer Generated</td>
+<td>Loan Officer</td>
+<td>168 hours (7 days)</td>
+</tr>
+<tr>
+<td>Legal Clearance</td>
+<td>Legal Officer</td>
+<td>72 hours</td>
+</tr>
+<tr>
+<td>Legal Returned</td>
+<td>Loan Officer</td>
+<td>48 hours</td>
+</tr>
+<tr>
+<td>Pre-Deployment Verification</td>
+<td>Deployment Officer</td>
+<td>48 hours</td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>Deployment Officer</td>
+<td>168 hours (7 days)</td>
+</tr>
+<tr>
+<td>Active</td>
+<td>Loan Officer</td>
+<td>No SLA</td>
+</tr>
+</tbody></table>
+<p>You can change the SLA hours and descriptions through the admin UI. You cannot change the assigned role from the UI — contact the system administrator if a role change is needed.</p>
+<hr>
+<h4>D. NAMP Pre-Deployment Checklist</h4>
+<p><strong>Where:</strong> Admin → NAMP Pre-Deploy Checklist</p>
+<p><strong>Why:</strong> Before equipment can be deployed, four conditions must be verified. These are seeded as checklist items and appear on the Deployment Officer&#39;s screen during the Pre-Deployment Verification stage.</p>
+<p><strong>Default items (seeded at startup):</strong></p>
+<ol>
+<li><strong>Equity Deposit Confirmed</strong> — The applicant must pay their equity contribution upfront (the portion of the equipment cost not covered by the loan). A receipt must be uploaded.</li>
+<li><strong>Lease / Hire-Purchase Agreement Signed</strong> — The applicant must sign the equipment lease or hire-purchase agreement before they can take possession of the equipment.</li>
+<li><strong>GPS Tracking Consent Obtained</strong> — The applicant must sign the GPS Tracking Consent Form authorising the bank to install and monitor a GPS device on the equipment.</li>
+<li><strong>NAIC Insurance In Place</strong> — A valid Nigerian Agricultural Insurance Corporation (NAIC) insurance policy must cover the equipment. The certificate must be uploaded.</li>
+</ol>
+<p>All four items are mandatory. The Deployment Officer cannot proceed to the Deployment stage until all four are checked and evidence documents uploaded.</p>
+<hr>
+<h4>E. NAMP Document Templates</h4>
+<p><strong>Where:</strong> Admin → NAMP Document Templates</p>
+<p><strong>Why:</strong> At ratification, three documents are auto-generated for the applicant:</p>
+<ol>
+<li><strong>Offer Letter</strong> — Formal offer of the NAMP credit facility</li>
+<li><strong>Hire-Purchase / Lease Agreement</strong> — The equipment financing contract</li>
+<li><strong>GPS Tracking Consent Form</strong> — Authorisation for GPS installation and monitoring</li>
+</ol>
+<p>These documents are generated from templates with placeholders such as <code>{{ApplicantName}}</code>, <code>{{LoanAmount}}</code>, <code>{{TenorMonths}}</code>, <code>{{InterestRate}}</code>, etc. The templates are seeded at startup with appropriate default text, but the legal/compliance team can edit the body text through the admin UI.</p>
+<p><strong>Important:</strong> Do not remove the placeholder tags (e.g., <code>{{ApplicantName}}</code>). These are replaced with live data when the document is generated. If a placeholder is deleted, that field will be blank in the generated document.</p>
+<hr>
+<h4>F. NAMP Committees</h4>
+<p><strong>Where:</strong> Admin → Committees</p>
+<p><strong>Why:</strong> The NAMP process routes applications to committees at up to four tiers (Branch, Zonal, Regional, Head Office). A committee must exist at each tier before the system can circulate applications at that tier.</p>
+<p>Create one committee for each tier that will be used:</p>
+<ul>
+<li><strong>Branch Credit Committee</strong> (Type: BranchCredit, linked to the relevant branch)</li>
+<li><strong>Zonal Credit Committee</strong> (Type: ZonalCredit or as configured)</li>
+<li><strong>Regional Credit Committee</strong> (Type: RegionalCredit)</li>
+<li><strong>HO Credit Committee</strong> (Type: HeadOfficeCredit)</li>
+</ul>
+<p>Assign members with the corresponding committee member roles:</p>
+<ul>
+<li>Branch committee → <code>BranchCommitteeMember</code></li>
+<li>Zonal committee → <code>ZonalCommitteeMember</code></li>
+<li>Regional committee → <code>RegionalCommitteeMember</code></li>
+<li>HO committee → <code>HOCommitteeMember</code></li>
+</ul>
+<hr>
+<h2>3. Corporate Loan Process</h2>
+<p>The Corporate loan process has <strong>seven active stages</strong>:</p>
+<pre><code>Draft
+ └─ Submit for Credit Review
+     └─ CreditReview (Credit Officer + Legal Officer, in parallel)
+         └─ Send to Committee
+             └─ CommitteeCirculation (Committee Members vote)
+                 └─ Committee Approved → auto-advances
+                     └─ Ratification (BranchManager / ZonalManager / RegionalManager / MdCeo)
+                         └─ Ratify (offer letter generated automatically)
+                             └─ OfferGenerated
+                                 └─ Record Customer Acceptance
+                                     └─ OfferAccepted → auto-advances
+                                         └─ SecurityPerfection (Legal Officer)
+                                             └─ Complete Security Perfection
+                                                 └─ Disbursement (Disbursement Officer)
+                                                     └─ Disburse → Disbursed ■
+</code></pre>
+<hr>
+<h3>3.1 Stage 1 — Draft (Loan Officer)</h3>
+<p><strong>Status:</strong> Draft<br><strong>Who acts:</strong> Loan Officer<br><strong>Navigation:</strong> Applications → New Application</p>
+<h4>What is happening at this stage?</h4>
+<p>The Loan Officer creates a new loan application on behalf of a corporate customer. This involves three steps: identifying the customer via their CBS account number, entering the loan details, and then enriching the application with parties, documents, collateral, and financials before submitting.</p>
+<hr>
+<h4>Step A: Create the Application (3-Step Wizard)</h4>
+<p><strong>Step 1 — Customer Selection:</strong></p>
+<ol>
+<li>Navigate to <strong>Applications</strong> in the left menu, then click <strong>New Application</strong> (top right).</li>
+<li>In the &quot;Corporate Account Number&quot; field, enter the customer&#39;s 10-digit account number and click <strong>Fetch</strong>.</li>
+<li>The system queries Core Banking and retrieves the company name, registration details, and signatories. If the account is not found or is not a corporate account, an error message will appear.</li>
+<li>Once the customer card appears showing the company name and an &quot;Account Verified&quot; badge, click <strong>Next</strong>.</li>
+</ol>
+<p><strong>Step 2 — Loan Details:</strong></p>
+<p>Fill in the financial terms of the proposed loan:</p>
+<ul>
+<li><strong>Product</strong>: Select the loan product from the dropdown. This determines the allowable amount/tenor range, required documents, and disbursement checklist items. Products must be configured in Admin → Products before they appear here.</li>
+<li><strong>Requested Amount (₦)</strong>: The amount the customer wants to borrow. Must fall within the product&#39;s Min/Max range.</li>
+<li><strong>Tenor (months)</strong>: The proposed loan duration. Must fall within the product&#39;s Min/Max tenor.</li>
+<li><strong>Interest Rate (%)</strong>: The proposed interest rate (per annum).</li>
+<li><strong>Interest Rate Type</strong>: Fixed or Variable.</li>
+</ul>
+<p>Click <strong>Next</strong> to proceed to Review.</p>
+<p><strong>Step 3 — Review and Create:</strong></p>
+<p>Review the summary and click <strong>Create Application</strong>. The system will:</p>
+<ol>
+<li>Create the loan application with status <strong>Draft</strong></li>
+<li>Generate an application number in the format <code>LA{yyyyMMdd}{6-char hex}</code> (e.g., <code>LA202607301A4B2F</code>)</li>
+<li>Automatically fetch the 6-month internal bank statement from Core Banking</li>
+<li>Automatically add the company&#39;s directors and signatories from CBS and SmartComply</li>
+</ol>
+<p>You are now on the application detail page.</p>
+<hr>
+<h4>Step B: Review Directors and Signatories (Parties Tab)</h4>
+<p>Click the <strong>Directors &amp; Signatories</strong> tab.</p>
+<p>You will see:</p>
+<ul>
+<li><strong>Directors</strong>: Fetched from CAC via SmartComply. Review each director&#39;s name, nationality, and shareholding percentage.</li>
+<li><strong>Signatories</strong>: Fetched from Core Banking. Review each signatory&#39;s name and role.</li>
+</ul>
+<p><strong>Complete missing BVNs:</strong> Each director and signatory must have a BVN (Bank Verification Number) for the credit bureau check to run. If a BVN field shows as blank or &quot;Not provided&quot;, click the edit icon on that party and enter the BVN. The system cannot run a credit bureau check on a party without a BVN.</p>
+<p><strong>Enter shareholding percentages:</strong> Each director&#39;s shareholding percentage must be entered. The credit bureau will use this to assess the extent of each director&#39;s financial exposure to the business.</p>
+<hr>
+<h4>Step C: Upload Documents (Documents Tab)</h4>
+<p>Click the <strong>Documents</strong> tab.</p>
+<p>The tab shows which document categories are required by the product. Upload at least one file in each mandatory category. Common categories:</p>
+<table>
+<thead>
+<tr>
+<th>Document Category</th>
+<th>What It Is</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Bank Statement</td>
+<td>Minimum 6 months — internal (auto-fetched) + external banks</td>
+</tr>
+<tr>
+<td>Audited Financials</td>
+<td>Last 2-3 years of audited accounts</td>
+</tr>
+<tr>
+<td>Company Registration</td>
+<td>CAC certificate and memorandum/articles</td>
+</tr>
+<tr>
+<td>Board Resolution</td>
+<td>Resolution authorising the loan and signatories</td>
+</tr>
+<tr>
+<td>Tax Clearance</td>
+<td>TCC from FIRS</td>
+</tr>
+<tr>
+<td>Identity Documents</td>
+<td>Valid ID for each director/signatory</td>
+</tr>
+</tbody></table>
+<p>To upload a document:</p>
+<ol>
+<li>Click <strong>Upload Document</strong></li>
+<li>Select the document category</li>
+<li>Choose the file (PDF or image)</li>
+<li>Click <strong>Upload</strong></li>
+</ol>
+<p>Documents can be re-uploaded or replaced at any point while the application is in Draft status.</p>
+<hr>
+<h4>Step D: Add Collateral (Collateral Tab)</h4>
+<p>Click the <strong>Collateral</strong> tab.</p>
+<p>Collateral is security the customer pledges against the loan. The total market value of all collateral is used by the Credit Officer to compute the Loan-to-Value ratio (LTV).</p>
+<p>To add collateral:</p>
+<ol>
+<li>Click <strong>Add Collateral</strong></li>
+<li>Select the <strong>Collateral Type</strong> (from the types configured in Admin)</li>
+<li>Enter a <strong>Description</strong> (e.g., &quot;3-bedroom flat at 14 Allen Avenue, Ikeja&quot;)</li>
+<li>Enter the <strong>Market Value (₦)</strong> — the current estimated market value</li>
+<li>Enter the <strong>Forced Sale Value (₦)</strong> — what the bank could realistically recover if it had to sell quickly (typically 60-70% of market value)</li>
+<li>Optionally add the address/legal description</li>
+<li>Click <strong>Save</strong></li>
+</ol>
+<p>Add all pledged collateral items. The system sums them automatically to compute the LTV later.</p>
+<hr>
+<h4>Step E: Add Guarantors (Guarantors Tab)</h4>
+<p>Click the <strong>Guarantors</strong> tab.</p>
+<p>A guarantor is a person or entity who agrees to repay the loan if the borrower defaults. To add a guarantor:</p>
+<ol>
+<li>Click <strong>Add Guarantor</strong></li>
+<li>Enter the guarantor&#39;s name, BVN, and relationship to the borrower</li>
+<li>Click <strong>Save</strong></li>
+</ol>
+<p>Each guarantor&#39;s BVN will be checked against the credit bureau automatically when the application is submitted.</p>
+<hr>
+<h4>Step F: Enter Financial Statements (Financial Analysis Tab)</h4>
+<p>Click the <strong>Financial Analysis</strong> tab.</p>
+<p>Enter the company&#39;s financial data for the last two or three financial years. The data entered here powers the automatic computation of certain financial ratios used by the Credit Officer.</p>
+<p>For each year, enter:</p>
+<ul>
+<li>Year</li>
+<li>Total Revenue</li>
+<li>Net Profit After Tax</li>
+<li>Total Assets</li>
+<li>Total Liabilities</li>
+<li>Current Assets</li>
+<li>Current Liabilities</li>
+<li>Total Equity</li>
+<li>Total Debt (interest-bearing borrowings)</li>
+</ul>
+<p><strong>Why this matters:</strong> The Credit Officer will compute the Leverage ratio and Current Ratio from these figures. Accurate financial data leads to accurate ratios.</p>
+<hr>
+<h4>Step G: Submit for Credit Review</h4>
+<p>Once all required documents are uploaded and all party BVNs are filled in, the <strong>Submit for Credit Review</strong> button becomes active in the top-right corner.</p>
+<p>Before clicking, confirm:</p>
+<ul>
+<li>At least one bank statement is present</li>
+<li>All director and signatory BVNs are filled</li>
+<li>All mandatory documents are uploaded</li>
+</ul>
+<p>Click <strong>Submit for Credit Review</strong>. The application status changes from <strong>Draft</strong> to <strong>CreditReview</strong> and the application enters the Credit Officer&#39;s queue. The system simultaneously triggers an automated credit bureau check on all directors, signatories, guarantors, and (if an RC number is present) the company itself.</p>
+<hr>
+<h3>3.2 Stage 2 — Credit Review (Credit Officer + Legal Officer, Parallel)</h3>
+<p><strong>Status:</strong> CreditReview<br><strong>Who acts:</strong> Credit Officer (primary reviewer) AND Legal Officer (parallel)<br><strong>SLA:</strong> 72 hours</p>
+<h4>What is happening at this stage?</h4>
+<p>Two things happen in parallel:</p>
+<ol>
+<li><strong>Automated credit checks</strong> run in the background for all parties with BVNs. The Credit Officer cannot proceed until these are complete (or until they re-run checks that failed).</li>
+<li><strong>The Legal Officer</strong> reviews the legal standing of the application and marks their review as complete. The Credit Officer cannot send the application to committee until the Legal Officer has signed off.</li>
+</ol>
+<p>Both tasks must be completed before the application can advance.</p>
+<hr>
+<h4>Credit Bureau Checks (Automatic)</h4>
+<p>As soon as the application enters CreditReview, the system automatically checks the credit bureau for all directors, signatories, guarantors, and the company (by RC number). This runs in the background — no action is needed.</p>
+<p><strong>View results on the Credit Bureau tab.</strong> Each party gets a card showing:</p>
+<ul>
+<li><strong>Credit Score</strong> (e.g., 756/A — for individuals only; businesses show N/A)</li>
+<li><strong>Score Grade</strong>: A+ (excellent), A, B, C, D, E (very poor)</li>
+<li><strong>Active Loans</strong>: Number of currently active credit facilities</li>
+<li><strong>Delinquencies</strong>: Number of overdue accounts</li>
+<li><strong>Overdue Amount (₦)</strong></li>
+<li><strong>Fraud Risk Score</strong> and <strong>Fraud Recommendation</strong></li>
+</ul>
+<p><strong>Card Status Indicators:</strong></p>
+<ul>
+<li><strong>Completed</strong> (normal card) — check ran successfully</li>
+<li><strong>Consent Required</strong> — no NDPA consent record found for this BVN; check was skipped</li>
+<li><strong>Check Failed</strong> — the bureau API returned an error</li>
+<li><strong>Not Found</strong> — the BVN/RC number is not in the bureau database</li>
+</ul>
+<p><strong>Re-running checks:</strong><br>If any check shows &quot;Failed&quot;, &quot;Consent Required&quot;, or &quot;Not Found&quot;, the <strong>Re-run Credit Checks</strong> button will appear in the header. Click it to retry only the failed/incomplete checks. Successfully completed checks are not re-run.</p>
+<hr>
+<h4>Legal Review (Legal Officer&#39;s Task)</h4>
+<p>The Legal Officer sees the <strong>Legal Review Complete</strong> button in the top-right corner.</p>
+<p>The Legal Officer should:</p>
+<ol>
+<li>Review the Directors &amp; Signatories tab to confirm the legal structure is correct</li>
+<li>Review the Documents tab to confirm all legal documents (Company Registration, Board Resolution, etc.) are present and valid</li>
+<li>Review any collateral documentation</li>
+<li>Enter their review note in the modal</li>
+<li>Click <strong>Legal Review Complete</strong></li>
+</ol>
+<p>This records the time of legal review and the note. Once this is done, the Legal Review Complete button disappears.</p>
+<p><strong>Important:</strong> The Credit Officer&#39;s &quot;Send to Committee&quot; button will not be available until the Legal Officer has completed their review AND the Credit Officer has saved a credit appraisal. Both conditions must be met.</p>
+<hr>
+<h4>Credit Appraisal (Credit Officer&#39;s Task)</h4>
+<p>Click the <strong>Credit Appraisal</strong> tab (visible during CreditReview).</p>
+<p>The Credit Officer must assess the borrower&#39;s creditworthiness and record a formal credit appraisal. The form has two sections:</p>
+<p><strong>Financial Ratios:</strong></p>
+<p>These ratios give a quantitative picture of the borrower&#39;s financial health. The system auto-computes some ratios from the financial statements you entered, but the Credit Officer must verify and may override them.</p>
+<p><strong>1. DSCR — Debt Service Coverage Ratio</strong><br><em>What it measures:</em> Can the borrower generate enough income to cover their loan repayments?</p>
+<pre><code>DSCR = Net Operating Income ÷ Annual Debt Service
+
+Where:
+  Net Operating Income = EBIT (Earnings Before Interest and Tax)
+                       = Total Revenue – Operating Expenses
+  Annual Debt Service  = Total annual loan principal + interest payments
+                       = (Proposed monthly repayment × 12)
+                       + any existing loan obligations in the same period
+
+Example:
+  Net Operating Income = ₦18,000,000 per year
+  Annual Debt Service  = ₦12,000,000 (proposed loan) + ₦2,400,000 (existing)
+                       = ₦14,400,000
+
+  DSCR = ₦18,000,000 ÷ ₦14,400,000 = 1.25x
+</code></pre>
+<p><strong>Interpretation:</strong></p>
+<ul>
+<li>DSCR ≥ 1.25 — Strong (displayed in green). Income comfortably covers repayments.</li>
+<li>DSCR 1.00–1.24 — Acceptable (yellow). Income barely covers repayments; any shortfall is a risk.</li>
+<li>DSCR &lt; 1.00 — Weak (red). The borrower cannot generate enough income to service the debt.</li>
+</ul>
+<p><strong>2. Leverage (Debt/Equity Ratio)</strong><br><em>What it measures:</em> How much of the company is financed by debt versus owner&#39;s equity?</p>
+<pre><code>Leverage = Total Debt ÷ Total Equity
+
+Where:
+  Total Debt   = All interest-bearing borrowings (short + long-term loans)
+  Total Equity = Total Assets – Total Liabilities
+
+Example:
+  Total Debt   = ₦40,000,000
+  Total Equity = ₦25,000,000
+
+  Leverage = ₦40,000,000 ÷ ₦25,000,000 = 1.60x
+</code></pre>
+<p>The system auto-computes this from the financial statements you entered. Check the &quot;Auto from financials&quot; hint to see the computed value. A lower leverage ratio indicates a less debt-heavy business. High leverage (e.g., above 3x) is a risk signal.</p>
+<p><strong>3. Current Ratio</strong><br><em>What it measures:</em> Can the business meet its short-term (current year) financial obligations?</p>
+<pre><code>Current Ratio = Current Assets ÷ Current Liabilities
+
+Where:
+  Current Assets      = Cash + receivables + inventory + other assets realisable within 12 months
+  Current Liabilities = Payables + short-term loans + other amounts due within 12 months
+
+Example:
+  Current Assets      = ₦30,000,000
+  Current Liabilities = ₦18,000,000
+
+  Current Ratio = ₦30,000,000 ÷ ₦18,000,000 = 1.67x
+</code></pre>
+<p><strong>Interpretation:</strong></p>
+<ul>
+<li>Current Ratio ≥ 2.0 — Strong (green). Business has comfortable liquidity.</li>
+<li>Current Ratio 1.0–1.99 — Acceptable (yellow). Liquid enough but with little buffer.</li>
+<li>Current Ratio &lt; 1.0 — Weak (red). Business may struggle to pay short-term obligations.</li>
+</ul>
+<p><strong>4. LTV — Loan-to-Value Ratio</strong><br><em>What it measures:</em> How much of the collateral&#39;s market value is covered by the loan? A lower LTV means better security for the bank.</p>
+<pre><code>LTV (%) = Loan Amount ÷ Market Value of Collateral × 100
+
+Where:
+  Loan Amount               = The requested loan amount
+  Market Value of Collateral = Sum of market values of all pledged collateral items
+
+Example:
+  Loan Amount                = ₦80,000,000
+  Total Collateral Market Value = ₦120,000,000
+
+  LTV = ₦80,000,000 ÷ ₦120,000,000 × 100 = 66.7%
+</code></pre>
+<p>The system auto-computes this from the collateral values entered during Draft. Check the &quot;Auto from collateral&quot; hint to see the computed value.</p>
+<p><strong>Interpretation:</strong></p>
+<ul>
+<li>LTV ≤ 70% — Good (green). Collateral comfortably covers the loan.</li>
+<li>LTV 70–85% — Borderline (yellow). Some risk if the collateral value drops.</li>
+<li>LTV &gt; 85% — High risk (red). The bank is under-secured.</li>
+</ul>
+<hr>
+<p><strong>Credit Officer Assessment Section:</strong></p>
+<p>After entering the ratios, the Credit Officer must select:</p>
+<ul>
+<li><p><strong>Repayment Capacity Rating</strong>: An overall qualitative judgement on the borrower&#39;s ability to repay:</p>
+<ul>
+<li><em>Strong</em> — Excellent financial position, comfortable margins</li>
+<li><em>Adequate</em> — Acceptable position, may have some weaknesses</li>
+<li><em>Marginal</em> — On the borderline; significant risk factors present</li>
+<li><em>Insufficient</em> — Borrower is unlikely to be able to service the debt</li>
+</ul>
+</li>
+<li><p><strong>Recommendation</strong>: The Credit Officer&#39;s formal recommendation to the committee:</p>
+<ul>
+<li><em>Approve</em> — Recommend approval on the stated terms</li>
+<li><em>Conditional Approve</em> — Recommend approval subject to stated conditions</li>
+<li><em>Decline</em> — Recommend rejection</li>
+</ul>
+</li>
+<li><p><strong>Appraisal Notes</strong>: Write your detailed assessment — key findings, risk factors, mitigants, and any conditions you are recommending.</p>
+</li>
+<li><p><strong>Credit Appraisal Memo</strong> (optional): Upload the full formal credit appraisal memo as a PDF or Word document. This is the detailed write-up and becomes part of the permanent record.</p>
+</li>
+</ul>
+<p>Click <strong>Save Appraisal</strong> to save. You can save multiple times and update the appraisal while the application is in CreditReview.</p>
+<hr>
+<h4>Sending to Committee</h4>
+<p>Once:</p>
+<ol>
+<li>All credit bureau checks are complete (or have been re-run)</li>
+<li>The Legal Officer has marked their review as complete</li>
+<li>The Credit Officer has saved a credit appraisal with at least a Capacity Rating and Recommendation</li>
+</ol>
+<p>…the <strong>Send to Committee</strong> button (labelled &quot;Approve&quot; in some contexts) becomes active for the Credit Officer.</p>
+<p>Before clicking, the system runs an approval gate check. If there are issues (e.g., some credit checks failed, or certain documents are missing), a warning modal appears listing them. The Credit Officer can:</p>
+<ul>
+<li><strong>Go back and fix the issues</strong> — close the modal and resolve the flagged items</li>
+<li><strong>Proceed with override</strong> — enter a reason explaining why the issues are acceptable, and confirm. This creates an override record visible to all downstream reviewers.</li>
+</ul>
+<p>After confirming, a &quot;Send to Committee&quot; modal appears where the Credit Officer enters a note. The application moves to <strong>CommitteeCirculation</strong>.</p>
+<hr>
+<h4>Returning or Rejecting at Credit Review</h4>
+<ul>
+<li><strong>Return</strong> (Credit Officer or Legal Officer who has not yet completed legal review): Sends the application back to Draft for the Loan Officer to correct. A mandatory note must be entered explaining what needs to be fixed.</li>
+<li><strong>Reject</strong> (Credit Officer only): Permanently rejects the application. A mandatory reason must be entered. This is a terminal action — the application cannot be resubmitted after rejection.</li>
+</ul>
+<hr>
+<h3>3.3 Stage 3 — Committee Circulation (Committee Members)</h3>
+<p><strong>Status:</strong> CommitteeCirculation<br><strong>Who acts:</strong> Credit Officer (setup and decision recording), Committee Members (voting)<br><strong>SLA:</strong> Configurable per committee (default 120 hours)</p>
+<h4>What is happening at this stage?</h4>
+<p>A group of designated committee members review the credit assessment and collectively decide whether to approve, reject, defer, or escalate the application. The Credit Officer facilitates this process — they set up the committee review, notify members, and eventually record the final collective decision.</p>
+<hr>
+<h4>Step A: Set Up the Committee Review (Credit Officer)</h4>
+<p>When the application first enters CommitteeCirculation, the Credit Officer sees a <strong>Committee Setup</strong> panel on the Committee tab.</p>
+<ol>
+<li>Select the <strong>Committee</strong> from the dropdown. Only committees whose amount range covers this loan amount will appear.</li>
+<li>Review the pre-filled committee members (from the committee configuration).</li>
+<li>Adjust the <strong>Deadline</strong> if needed (default from the committee configuration).</li>
+<li>Click <strong>Set Up Committee Review</strong> to create the review record.</li>
+</ol>
+<p>Once set up, the committee&#39;s status changes to <strong>Pending</strong> and members can see the application.</p>
+<hr>
+<h4>Step B: Start Voting (Credit Officer)</h4>
+<p>After the committee is set up, the Credit Officer clicks <strong>Start Voting</strong> on the Committee tab. This changes the committee status to <strong>InProgress</strong> and enables the vote buttons for all assigned committee members.</p>
+<p><strong>Note:</strong> Members cannot vote until the Credit Officer explicitly starts the voting process.</p>
+<hr>
+<h4>Step C: Voting (Committee Members)</h4>
+<p>Each assigned committee member sees a <strong>Vote</strong> button when they open the application. To vote:</p>
+<ol>
+<li>Navigate to the application (it will appear in their &quot;In My Queue&quot; list)</li>
+<li>Click the <strong>Committee</strong> tab</li>
+<li>Click the vote button and choose:<ul>
+<li><strong>Approve</strong> — I recommend this application be approved</li>
+<li><strong>Reject</strong> — I recommend this application be rejected</li>
+<li><strong>Abstain</strong> — I am declining to vote on this application</li>
+</ul>
+</li>
+<li>Add a vote comment (optional)</li>
+<li>Confirm the vote</li>
+</ol>
+<p>Each member can vote only once. After voting, the vote counters update in real time. No vote can be changed after submission.</p>
+<p>Committee members can also add <strong>Comments</strong> on the Comments tab at any time (both before and after voting). Comments can be marked Public (visible to all) or Private (visible to committee members only).</p>
+<hr>
+<h4>Step D: Record the Committee Decision (Credit Officer/Chairperson)</h4>
+<p>Once all members have voted (or the deadline is reached and there is a quorum), the Credit Officer or Chairperson records the formal decision.</p>
+<p>Click <strong>Record Decision</strong> on the Committee tab and choose one of:</p>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>When to Use</th>
+<th>What Happens</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Approved</strong></td>
+<td>Clear majority voted to approve</td>
+<td>Application advances to Ratification; approved terms are locked</td>
+</tr>
+<tr>
+<td><strong>Approved with Conditions</strong></td>
+<td>Majority approved but with stated conditions</td>
+<td>Application advances to Ratification; conditions are recorded and visible to Final Approver</td>
+</tr>
+<tr>
+<td><strong>Rejected</strong></td>
+<td>Majority voted to reject</td>
+<td>Application is rejected — terminal; no further action</td>
+</tr>
+<tr>
+<td><strong>Deferred</strong></td>
+<td>Committee needs more information</td>
+<td>Application returns to the Credit Officer&#39;s queue for more work</td>
+</tr>
+<tr>
+<td><strong>Escalated</strong></td>
+<td>Exceeds this committee&#39;s authority</td>
+<td>Application must be sent to a higher-tier committee</td>
+</tr>
+</tbody></table>
+<p>For an <strong>Approved</strong> or <strong>Approved with Conditions</strong> decision, you must enter:</p>
+<ul>
+<li><strong>Approved Amount (₦)</strong>: The amount the committee is recommending (may differ from the requested amount)</li>
+<li><strong>Approved Tenor (months)</strong>: The approved term</li>
+<li><strong>Approved Interest Rate (% p.a.)</strong>: The approved rate</li>
+</ul>
+<p>These values become the final approved terms of the loan (subject to ratification).</p>
+<p>After recording an Approved decision, the application automatically advances to <strong>Ratification</strong>.</p>
+<hr>
+<h3>3.4 Stage 4 — Ratification (Tiered Managers)</h3>
+<p><strong>Status:</strong> Ratification<br><strong>Who acts:</strong> BranchManager, ZonalManager, RegionalManager, or MdCeo (depending on loan size)<br><strong>SLA:</strong> 48 hours</p>
+<h4>What is happening at this stage?</h4>
+<p>The committee&#39;s recommendation must be formally ratified by a senior authority — the same tiered ratification model used in the NAMP process. The ratifying manager reviews the committee&#39;s decision and either confirms or declines it. This is the last gate before the offer letter is generated.</p>
+<p><strong>Who ratifies a Corporate loan:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Loan Amount (indicative)</th>
+<th>Ratifying Authority</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Branch-level exposure</td>
+<td>Branch Manager</td>
+</tr>
+<tr>
+<td>Zonal-level exposure</td>
+<td>Zonal Manager</td>
+</tr>
+<tr>
+<td>Regional-level exposure</td>
+<td>Regional Manager</td>
+</tr>
+<tr>
+<td>HO / large exposures</td>
+<td>MD/CEO</td>
+</tr>
+</tbody></table>
+<p>The appropriate authority is determined by internal delegation limits. When the ratifying manager opens the application, they see:</p>
+<ul>
+<li>All application details</li>
+<li>The committee&#39;s decision, approved amount, tenor, and rate</li>
+<li>The credit appraisal (ratios, capacity rating, recommendation)</li>
+<li>Bureau reports for all parties</li>
+<li>Any approval override records</li>
+</ul>
+<hr>
+<h4>Ratify the Decision</h4>
+<p>If the manager agrees with the committee&#39;s recommendation:</p>
+<ol>
+<li>Click <strong>Ratify</strong> (top-right corner)</li>
+<li>A modal appears — review the approved terms (they can be adjusted here if needed)</li>
+<li>Click <strong>Confirm Ratification</strong></li>
+</ol>
+<p>The system then:</p>
+<ol>
+<li>Locks in the approved amount, tenor, and rate</li>
+<li>Automatically generates the Offer Letter PDF</li>
+<li>Advances the application to <strong>OfferGenerated</strong></li>
+</ol>
+<p><strong>The offer letter is generated automatically as part of ratification.</strong> No separate trigger is needed.</p>
+<hr>
+<h4>Decline Ratification</h4>
+<p>If the manager disagrees with the committee&#39;s recommendation:</p>
+<ol>
+<li>Click <strong>Decline</strong> (top-right corner)</li>
+<li>Enter a mandatory reason explaining the decline</li>
+<li>Confirm</li>
+</ol>
+<p>The application moves to <strong>RatificationDeclined</strong> — a terminal status. The application is permanently declined and cannot be resubmitted through this process.</p>
+<hr>
+<h3>3.5 Stage 5 — Offer Generated (Loan Officer + Customer)</h3>
+<p><strong>Status:</strong> OfferGenerated<br><strong>Who acts:</strong> Loan Officer (or Disbursement Officer)<br><strong>SLA:</strong> 168 hours (7 days)</p>
+<h4>What is happening at this stage?</h4>
+<p>The bank has approved the loan. The offer letter has been generated. The loan officer now needs to present the offer to the customer, obtain their signed acceptance, and return the signed documents to the bank before the application can proceed.</p>
+<hr>
+<h4>Download the Offer Letter</h4>
+<p>Navigate to the <strong>Offer Letters</strong> tab. You will see:</p>
+<ul>
+<li>The generated offer letter (PDF) — download and print this for the customer</li>
+<li>An <strong>Amortisation Schedule</strong> (downloadable) — shows the repayment schedule month by month</li>
+<li>A <strong>Key Facts Statement (KFS)</strong> — a simplified one-page summary of the loan terms required by regulation</li>
+</ul>
+<p>Download all three documents and share them with the customer.</p>
+<hr>
+<h4>Customer Reviews and Signs</h4>
+<p>The customer (and their legal counsel, if applicable) reviews:</p>
+<ol>
+<li>The offer letter — approved amount, tenor, interest rate, conditions</li>
+<li>The amortisation schedule — monthly payment amounts, total interest payable</li>
+<li>The Key Facts Statement — headline terms in plain language</li>
+</ol>
+<p>If the customer accepts, they sign the offer letter and return it to the bank.</p>
+<hr>
+<h4>Upload Signed Documents</h4>
+<p>On the <strong>Offer Letters</strong> tab, there is a <strong>Signed Copies</strong> section:</p>
+<ol>
+<li><strong>Signed Offer Letter</strong> — Upload the customer-signed offer letter</li>
+<li><strong>Signed KFS Acknowledgement</strong> — Upload the signed KFS</li>
+</ol>
+<p>Click <strong>Upload</strong> next to each row and select the scanned file.</p>
+<hr>
+<h4>Record Customer Acceptance</h4>
+<p>Once signed documents are uploaded, click <strong>Record Customer Acceptance</strong> (top-right corner).</p>
+<p>In the modal:</p>
+<ul>
+<li><strong>Date Customer Signed</strong>: Enter the actual date the customer signed the offer letter</li>
+<li><strong>Acceptance Method</strong>: Select how the acceptance was obtained (In-Branch Signing, Courier, Electronic)</li>
+<li><strong>KFS Acknowledged</strong>: Check this box to confirm the customer has received and acknowledged the KFS</li>
+</ul>
+<p>Click <strong>Confirm Acceptance</strong>.</p>
+<p>The application automatically advances to <strong>OfferAccepted</strong> and then immediately to <strong>SecurityPerfection</strong>. No further action is needed at this stage.</p>
+<hr>
+<h3>3.6 Stage 6 — Security Perfection (Legal Officer)</h3>
+<p><strong>Status:</strong> SecurityPerfection<br><strong>Who acts:</strong> Legal Officer<br><strong>No fixed SLA (complete as soon as possible)</strong></p>
+<h4>What is happening at this stage?</h4>
+<p>Before funds can be released, the legal team must perfect the security — meaning the bank&#39;s interest in the collateral must be formally registered and legally documented. This may include:</p>
+<ul>
+<li>Registration of mortgage or charge at the Corporate Affairs Commission</li>
+<li>Execution of debenture documents</li>
+<li>Transfer of title documents to the bank&#39;s custody</li>
+<li>Registration with the National Collateral Registry</li>
+</ul>
+<hr>
+<h4>Upload Security Documents (Legal Officer)</h4>
+<p>Click the <strong>Security Perfection</strong> tab.</p>
+<p>For each piece of collateral, the Legal Officer uploads the relevant security documents:</p>
+<ol>
+<li>Click <strong>Upload Security Document</strong></li>
+<li>Select the document category (e.g., mortgage deed, debenture)</li>
+<li>Select the collateral item this document covers</li>
+<li>Upload the file</li>
+<li>Click <strong>Save</strong></li>
+</ol>
+<p>The Collateral section on this tab shows all pledged collateral items and allows the Legal Officer to link uploaded documents to specific collateral items.</p>
+<hr>
+<h4>Complete Security Perfection</h4>
+<p>Once all security documents are in order and registered, click <strong>Security Perfection Complete</strong> (top-right corner).</p>
+<p>In the modal, enter a note summarising the security perfection steps taken (e.g., &quot;Mortgage registered at CAC. Title documents received and held in strong room.&quot;).</p>
+<p>Click <strong>Confirm</strong>.</p>
+<p>The application advances to <strong>Disbursement</strong>.</p>
+<hr>
+<h4>Returning from Security Perfection</h4>
+<p>If issues arise (e.g., the customer has not provided all documents, or there is a legal problem with the collateral), the Legal Officer can click <strong>Return</strong> to send the application back to <strong>OfferAccepted</strong> status, where the Loan Officer can work with the customer to resolve the issues.</p>
+<hr>
+<h3>3.7 Stage 7 — Disbursement (Disbursement Officer)</h3>
+<p><strong>Status:</strong> Disbursement<br><strong>Who acts:</strong> Disbursement Officer (and GM Finance for final release)<br><strong>SLA:</strong> None (complete as quickly as possible)</p>
+<h4>What is happening at this stage?</h4>
+<p>The loan is now ready to be drawn down. The Operations team prepares the disbursement instruction and books the loan in the core banking system.</p>
+<hr>
+<h4>Check the Disbursement Checklist</h4>
+<p>Navigate to the <strong>Disbursement Checklist</strong> tab (appears from OfferGenerated status onwards).</p>
+<p>This tab shows all the conditions precedent seeded from the product template when the customer accepted the offer. For each item:</p>
+<ul>
+<li>If the item requires a document: upload the document — this automatically marks the item as satisfied.</li>
+<li>If the item requires a manual confirmation: click <strong>Mark as Met</strong>.</li>
+</ul>
+<p>All mandatory items must be checked before the <strong>Disburse Loan</strong> button becomes active.</p>
+<p>Common checklist items include:</p>
+<ul>
+<li>Board resolution for loan drawdown received</li>
+<li>Signed offer letter returned</li>
+<li>Signed KFS received</li>
+<li>Collateral registration confirmed</li>
+<li>Insurance policy on collateral in place</li>
+</ul>
+<hr>
+<h4>Disburse the Loan</h4>
+<p>Click <strong>Disburse Loan</strong> (top-right corner).</p>
+<p>In the modal:</p>
+<ul>
+<li><strong>Core Banking Loan ID</strong>: Enter the loan account ID as it appears in the Fineract/CBS system. This is the account number generated when the loan was booked in core banking. Obtain this from the CBS team.</li>
+</ul>
+<p>Click <strong>Confirm Disbursement</strong>.</p>
+<p>The application moves to <strong>Disbursed</strong> — a terminal status. The loan has been drawn down and the lifecycle is complete.</p>
+<hr>
+<h3>3.8 Corporate Loan Status Summary</h3>
+<pre><code>Draft                    → [LoanOfficer: Submit for Credit Review]
+CreditReview             → [CreditOfficer: Send to Committee]
+                           [CreditOfficer: Return to Loan Officer]
+                           [CreditOfficer: Reject] ■
+CommitteeCirculation     → [CreditOfficer records: Approved] → CommitteeApproved
+                           [CreditOfficer records: Rejected] ■
+                           [CreditOfficer records: Deferred] → CreditReview (loop)
+CommitteeApproved        → [Auto-advance] → Ratification
+Ratification             → [BranchManager|ZonalManager|RegionalManager|MdCeo: Ratify] → OfferGenerated
+                           [BranchManager|ZonalManager|RegionalManager|MdCeo: Decline] → RatificationDeclined ■
+OfferGenerated           → [LoanOfficer: Record Customer Acceptance] → SecurityPerfection
+SecurityPerfection       → [LegalOfficer: Complete] → Disbursement
+                           [LegalOfficer: Return] → OfferAccepted (loop)
+Disbursement             → [DisbursementOfficer: Disburse] → Disbursed ■
+
+■ = Terminal status
+</code></pre>
+<hr>
+<h2>4. NAMP Agricultural Equipment Financing Process</h2>
+<p>The NAMP process has <strong>nine active stages</strong> (plus a pre-stage for portal intake):</p>
+<pre><code>PAYS Portal
+ └─ Received (staging)
+     └─ RecallPending → [LoanOfficer: Recall]
+         └─ Draft
+             └─ [LoanOfficer: Submit for Appraisal]
+                 └─ Submitted → FinancialAppraisal
+                     └─ [CreditOfficer: Financial Appraisal Decision]
+                         └─ Committee Circulation (Branch/Zonal/Regional/HO, based on amount)
+                             └─ [Committee: Approved]
+                                 └─ Ratification
+                                     └─ [Manager: Ratify] → OfferGenerated
+                                         └─ [LoanOfficer: Record Acceptance] → OfferAccepted
+                                             └─ LegalClearance
+                                                 └─ [LegalOfficer: Grant Clearance]
+                                                     └─ PreDeploymentVerification
+                                                         └─ [DeploymentOfficer: Verify 4 Gates]
+                                                             └─ Deployment
+                                                                 └─ [DeploymentOfficer: Confirm GPS Activation]
+                                                                     └─ Active
+                                                                         └─ [PAYS: Repayment Complete]
+                                                                             └─ Closed ■
+</code></pre>
+<hr>
+<h3>4.1 Pre-Stage — PAYS Portal Intake</h3>
+<p><strong>Status:</strong> Received → RecallPending<br><strong>Who acts:</strong> External System (PAYS), then Loan Officer</p>
+<h4>What is happening at this stage?</h4>
+<p>NAMP applications do not start inside CRMS. Applicants apply through the external <strong>PAYS portal</strong>. When an application is submitted in PAYS, it sends a webhook notification to CRMS. CRMS saves the raw payload to a <strong>staging table</strong> and marks the application as <strong>Received</strong>.</p>
+<p>The application stays in staging until a Loan Officer recalls it for review. CRMS does not automatically assign or route staging records — a Loan Officer must actively claim the application.</p>
+<hr>
+<h4>Viewing the Staging Queue</h4>
+<p>Navigate to <strong>NAMP</strong> in the left menu.</p>
+<p>The NAMP index page shows:</p>
+<ul>
+<li><strong>Received / Staging</strong> queue — applications waiting to be recalled</li>
+<li><strong>My Applications</strong> — applications this Loan Officer has already recalled</li>
+<li><strong>Branch Applications</strong> — all applications at your branch (if you have branch-level visibility)</li>
+</ul>
+<p>Each staging record shows the applicant&#39;s name, BOA account number, equipment description, category (Youth/Women/Agro-Service), and the time it was received.</p>
+<hr>
+<h4>Recalling an Application</h4>
+<p>Click <strong>Recall</strong> on a staging record.</p>
+<p>Recalling does the following:</p>
+<ol>
+<li>Creates a formal <code>NampApplication</code> record with status <strong>Draft</strong></li>
+<li>Unpacks the PAYS payload — extracts applicant name, BVN, NIN, BOA account, equipment details, loan amount, equity amount</li>
+<li>For <strong>Agro-Service Company</strong> applications: automatically fetches the CAC profile from SmartComply using the company&#39;s RC number</li>
+</ol>
+<p>The application now appears in the Loan Officer&#39;s active queue and is no longer in staging.</p>
+<hr>
+<h3>4.2 Stage 1 — Loan Officer Review (Draft)</h3>
+<p><strong>Status:</strong> Draft<br><strong>Who acts:</strong> Loan Officer<br><strong>SLA:</strong> 48 hours</p>
+<h4>What is happening at this stage?</h4>
+<p>The Loan Officer reviews the application data that came from PAYS, verifies it, and enriches it with any additional information or documents before submitting for financial appraisal.</p>
+<hr>
+<h4>Review the Overview Tab</h4>
+<p>Open the application and review the <strong>Overview</strong> tab. Key information to verify:</p>
+<ul>
+<li><strong>Applicant Name and BOA Account Number</strong>: Does this match the customer on record?</li>
+<li><strong>Applicant Category</strong>: Youth Agripreneur, Women Agripreneur, or Agro-Service Company — this determines the committee tier routing.</li>
+<li><strong>Equipment Description and Value</strong>: What equipment is being financed? What is the total cart value?</li>
+<li><strong>Loan Amount and Equity Amount</strong>: The loan amount is what the bank finances; the equity amount is what the applicant pays upfront.</li>
+<li><strong>BVN and NIN</strong>: Essential for credit bureau checks. If missing, contact the applicant and update via the edit button.</li>
+</ul>
+<hr>
+<h4>For Agro-Service Company: Review CAC Data and Directors</h4>
+<p>If the applicant is an <strong>Agro-Service Company</strong>, the CAC section on the Overview tab will show the company profile fetched from SmartComply:</p>
+<ul>
+<li>Company name, RC number, registration date</li>
+<li>Nature of business, share capital</li>
+<li>Registered address</li>
+</ul>
+<p>Below this, the <strong>Directors</strong> section shows directors fetched from the CAC registry. For each director:</p>
+<ol>
+<li>Verify the director&#39;s name and shareholding percentage</li>
+<li>Enter their <strong>BVN</strong> (required for credit bureau check — the CAC does not hold BVN data)</li>
+<li>Confirm the BVN by clicking the verify button</li>
+</ol>
+<p><strong>Important:</strong> All directors of an Agro-Service Company must have BVNs entered before the application can be submitted. The system will block submission if any director is missing a BVN. This is because the bank runs credit bureau checks on every director — if a director&#39;s BVN is missing, their creditworthiness cannot be assessed.</p>
+<hr>
+<h4>Upload Documents (Documents Tab)</h4>
+<p>Click the <strong>Documents</strong> tab.</p>
+<p>Upload any supporting documents for this application. Document categories used in NAMP:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>When It&#39;s Needed</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>General</td>
+<td>Any document that doesn&#39;t fit another category</td>
+</tr>
+<tr>
+<td>Site Photo</td>
+<td>Photos of the farm, equipment site, or applicant</td>
+</tr>
+<tr>
+<td>Financial Model</td>
+<td>At least one required before submission</td>
+</tr>
+<tr>
+<td>Credit Report</td>
+<td>Bureau reports (auto-generated, or uploaded externally)</td>
+</tr>
+<tr>
+<td>Supporting Document</td>
+<td>Any additional supporting material</td>
+</tr>
+<tr>
+<td>Signed NAMP Offer Letter</td>
+<td>Uploaded after the applicant signs the offer letter</td>
+</tr>
+<tr>
+<td>Equity Deposit Receipt</td>
+<td>Required as Gate 1 in pre-deployment</td>
+</tr>
+<tr>
+<td>Lease Agreement</td>
+<td>Required as Gate 2 in pre-deployment</td>
+</tr>
+<tr>
+<td>GPS Consent Form</td>
+<td>Required as Gate 3 in pre-deployment</td>
+</tr>
+<tr>
+<td>Insurance Certificate</td>
+<td>Required as Gate 4 in pre-deployment</td>
+</tr>
+</tbody></table>
+<p>At minimum, upload at least one <strong>Financial Model</strong> document — this is required before the Credit Officer can complete their financial appraisal.</p>
+<hr>
+<h4>Submit for Appraisal</h4>
+<p>Once the application data has been reviewed and at least one Financial Model document is uploaded, click <strong>Submit for Appraisal</strong> (top-right corner).</p>
+<p>A confirmation modal appears. Enter any notes for the Credit Officer, then confirm.</p>
+<p>The application advances to <strong>Submitted</strong> and is routed to the Credit Officer&#39;s queue.</p>
+<hr>
+<h3>4.3 Stage 2 — Financial Appraisal (Credit Officer)</h3>
+<p><strong>Status:</strong> FinancialAppraisal<br><strong>Who acts:</strong> Credit Officer<br><strong>SLA:</strong> 72 hours</p>
+<h4>What is happening at this stage?</h4>
+<p>The Credit Officer reviews the financial viability of the NAMP application and prepares a structured financial appraisal report. Unlike the Corporate process, the NAMP appraisal focuses on the applicant&#39;s rental revenue capacity (since the equipment generates income that repays the loan) rather than on business profit margins.</p>
+<hr>
+<h4>Click &quot;Financial Appraisal Decision&quot;</h4>
+<p>The Credit Officer clicks <strong>Financial Appraisal Decision</strong> in the header. A detailed financial appraisal form appears.</p>
+<hr>
+<h4>Financial Appraisal Fields and Formulas</h4>
+<p><strong>Repayment Source Selection:</strong><br>First, select how the loan will be repaid:</p>
+<ul>
+<li><strong>Primary Income</strong>: The applicant&#39;s existing salary or business income covers the repayment (more common for individuals)</li>
+<li><strong>Rental / Hire Revenue</strong>: The equipment generates rental income that covers the repayment (more common for tractors, harvesters)</li>
+<li><strong>Mixed</strong>: A combination of both</li>
+<li><strong>Company Cash Flow</strong>: The company&#39;s existing revenue covers the repayment (for Agro-Service Companies)</li>
+</ul>
+<p>The repayment source you select determines which additional fields appear in the form.</p>
+<hr>
+<p><strong>For Rental / Hire Revenue model (most common in NAMP):</strong></p>
+<p><strong>Projected Monthly Rental Revenue:</strong><br>Estimate the monthly income the equipment will generate from hiring it out.</p>
+<pre><code>Projected Monthly Rental Revenue = Daily Hire Rate × Working Days per Month
+
+Example:
+  Daily hire rate for a tractor = ₦25,000
+  Expected working days per month = 18
+
+  Projected Monthly Revenue = ₦25,000 × 18 = ₦450,000
+</code></pre>
+<p><strong>Utilisation Rate Assumption (%):</strong><br>The assumed proportion of the time the equipment will be in active use (not idle, under repair, etc.).</p>
+<pre><code>Effective Monthly Revenue = Projected Monthly Rental Revenue × Utilisation Rate
+
+Example:
+  Projected Monthly Revenue = ₦450,000
+  Utilisation Rate           = 75%
+
+  Effective Monthly Revenue = ₦450,000 × 0.75 = ₦337,500
+</code></pre>
+<p><strong>Evidence of Demand Note:</strong><br>Describe the evidence that this level of demand exists — for example, existing customers who have expressed interest in hiring the equipment, comparable equipment hire rates in the area, or a feasibility study from an agricultural extension officer.</p>
+<hr>
+<p><strong>Monthly Disposable Income:</strong><br>The amount available after essential living or operating costs to service the loan.</p>
+<pre><code>Monthly Disposable Income = Effective Monthly Revenue – Monthly Operating Costs
+                          – Living Expenses (for individuals)
+                          – Existing Loan Obligations
+
+Example (individual with equipment):
+  Effective Monthly Revenue  = ₦337,500
+  Equipment maintenance cost = ₦30,000/month
+  Living expenses            = ₦80,000/month
+  Existing loan payment      = ₦15,000/month
+
+  Monthly Disposable Income = ₦337,500 – ₦30,000 – ₦80,000 – ₦15,000
+                            = ₦212,500
+</code></pre>
+<hr>
+<p><strong>DSCR — Debt Service Coverage Ratio (NAMP):</strong></p>
+<pre><code>DSCR = Monthly Disposable Income ÷ Monthly Loan Payment
+
+Where:
+  Monthly Loan Payment = The proposed monthly repayment on this NAMP facility
+
+Example:
+  Monthly Disposable Income = ₦212,500
+  Monthly Loan Payment      = ₦150,000 (computed from loan amount, tenor, interest rate)
+
+  DSCR = ₦212,500 ÷ ₦150,000 = 1.42x
+</code></pre>
+<p>A DSCR ≥ 1.25 indicates the applicant can comfortably service the loan. Below 1.0 indicates they cannot.</p>
+<hr>
+<p><strong>LTV — Loan-to-Value Ratio (NAMP):</strong></p>
+<p>In NAMP, the &quot;collateral&quot; is the equipment itself. The bank holds ownership of the equipment under the hire-purchase arrangement until the loan is fully repaid.</p>
+<pre><code>LTV (%) = Loan Amount ÷ Equipment Value × 100
+
+Where:
+  Loan Amount      = The amount the bank is financing
+  Equipment Value  = The total purchase price of the equipment (cart total)
+
+Example:
+  Loan Amount      = ₦3,500,000
+  Equipment Value  = ₦5,000,000 (of which ₦1,500,000 is the applicant&#39;s equity)
+
+  LTV = ₦3,500,000 ÷ ₦5,000,000 × 100 = 70%
+</code></pre>
+<p>A 70% LTV means the bank finances 70% of the equipment; the applicant contributes 30% as equity. The equipment acts as its own security.</p>
+<hr>
+<p><strong>Repayment Capacity Rating:</strong><br>Select the overall qualitative rating:</p>
+<ul>
+<li><strong>Strong</strong> — Excellent projected income, comfortable margins</li>
+<li><strong>Adequate</strong> — Sufficient income with reasonable confidence</li>
+<li><strong>Marginal</strong> — Income just covers repayments; limited buffer</li>
+<li><strong>Insufficient</strong> — Projected income is unlikely to cover repayments</li>
+</ul>
+<hr>
+<p><strong>Credit Bureau Summary:</strong><br>Enter a brief summary of the bureau results for the applicant&#39;s BVN (and for all directors if Agro-Service Company). Note any delinquencies, active loans, or fraud risk flags.</p>
+<hr>
+<p><strong>Equity Assessment Note:</strong><br>Confirm that the equity amount shown in the application is realistic and that the applicant has the means to make the equity deposit before equipment deployment.</p>
+<hr>
+<p><strong>Credit Officer Recommendation:</strong>  </p>
+<ul>
+<li><strong>Pass</strong> — Recommend the application advances to committee</li>
+<li><strong>Fail</strong> — Recommend the application is declined</li>
+</ul>
+<hr>
+<h4>Submit the Decision</h4>
+<p>After completing all fields, click <strong>Submit Decision</strong>.</p>
+<ul>
+<li>If <strong>Pass</strong>: The application advances to the appropriate committee tier (determined by the loan amount and applicant category per the routing configuration).</li>
+<li>If <strong>Fail</strong>: The application moves to <strong>FinancialDeclined</strong> — a terminal status.</li>
+</ul>
+<hr>
+<h3>4.4 Stage 3 — Committee Circulation (Tiered)</h3>
+<p><strong>Status:</strong> BranchCommitteeCirculation, ZonalCommitteeCirculation, RegionalCommitteeCirculation, or HOCommitteeCirculation (only one at a time)<br><strong>Who acts:</strong> Credit Officer (setup), Committee Members (voting)<br><strong>SLA:</strong> 120 hours</p>
+<h4>What is happening at this stage?</h4>
+<p>The application is reviewed by a committee at the appropriate tier. The tier is determined automatically by the routing configuration:</p>
+<table>
+<thead>
+<tr>
+<th>If the applicant is...</th>
+<th>And the loan amount is...</th>
+<th>Then it goes to...</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Youth or Women Agripreneur</td>
+<td>₦0 – ₦5M</td>
+<td>Branch Committee</td>
+</tr>
+<tr>
+<td>Youth or Women Agripreneur</td>
+<td>₦5M – ₦20M</td>
+<td>Zonal Committee</td>
+</tr>
+<tr>
+<td>Youth or Women Agripreneur</td>
+<td>₦20M – ₦50M</td>
+<td>Regional Committee</td>
+</tr>
+<tr>
+<td>Youth or Women Agripreneur</td>
+<td>Above ₦50M</td>
+<td>Head Office Committee</td>
+</tr>
+<tr>
+<td>Agro-Service Company</td>
+<td>₦0 – ₦20M</td>
+<td>Zonal Committee</td>
+</tr>
+<tr>
+<td>Agro-Service Company</td>
+<td>₦20M – ₦100M</td>
+<td>Regional Committee</td>
+</tr>
+<tr>
+<td>Agro-Service Company</td>
+<td>Above ₦100M</td>
+<td>Head Office Committee</td>
+</tr>
+</tbody></table>
+<p>The committee circulation process for NAMP is identical to the Corporate process: the Credit Officer sets up the review and starts voting, committee members vote, and the Credit Officer records the collective decision. See <a href="#33-stage-3--committee-circulation-committee-members">Section 3.3</a> for the step-by-step process.</p>
+<p><strong>Key NAMP-specific committee roles:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Committee Tier</th>
+<th>Member Role</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Branch</td>
+<td>BranchCommitteeMember</td>
+</tr>
+<tr>
+<td>Zonal</td>
+<td>ZonalCommitteeMember</td>
+</tr>
+<tr>
+<td>Regional</td>
+<td>RegionalCommitteeMember</td>
+</tr>
+<tr>
+<td>Head Office</td>
+<td>HOCommitteeMember</td>
+</tr>
+</tbody></table>
+<p>Make sure users with the correct committee member role have been created and added to the appropriate committee in Admin → Committees.</p>
+<hr>
+<h3>4.5 Stage 4 — Ratification (Tier Manager)</h3>
+<p><strong>Status:</strong> Ratification<br><strong>Who acts:</strong> Depends on the committee tier<br><strong>SLA:</strong> 48 hours</p>
+<h4>What is happening at this stage?</h4>
+<p>The committee&#39;s recommendation must be ratified by the appropriate senior officer, who acts as the final approval authority for NAMP loans at that tier.</p>
+<table>
+<thead>
+<tr>
+<th>Committee Tier</th>
+<th>Who Ratifies</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Branch Committee</td>
+<td>Branch Manager (role: BranchManager)</td>
+</tr>
+<tr>
+<td>Zonal Committee</td>
+<td>Zonal Manager (role: ZonalManager)</td>
+</tr>
+<tr>
+<td>Regional Committee</td>
+<td>Regional Manager (role: RegionalManager)</td>
+</tr>
+<tr>
+<td>Head Office Committee</td>
+<td>MD/CEO (role: MdCeo)</td>
+</tr>
+</tbody></table>
+<p>The ratification process is identical to the Corporate process — the manager sees the application and the committee&#39;s recommendation, then clicks <strong>Ratify Decision</strong> or <strong>Decline</strong>.</p>
+<hr>
+<h4>Ratify the Decision</h4>
+<p>Click <strong>Ratify Decision</strong> in the header.</p>
+<p>The system generates three documents automatically:</p>
+<ol>
+<li><strong>Offer Letter</strong> — The formal NAMP credit offer</li>
+<li><strong>Hire-Purchase / Lease Agreement</strong> — The equipment financing contract</li>
+<li><strong>GPS Tracking Consent Form</strong> — Authorisation for GPS monitoring</li>
+</ol>
+<p>These use the document templates configured in Admin → NAMP Document Templates.</p>
+<p>The application advances to <strong>OfferGenerated</strong>.</p>
+<hr>
+<h4>Decline Ratification</h4>
+<p>If the manager does not agree with the committee&#39;s recommendation, click <strong>Decline</strong>. Enter a mandatory reason. The application moves to <strong>RatificationDeclined</strong> — terminal.</p>
+<hr>
+<h3>4.6 Stage 5 — Offer Documents</h3>
+<p><strong>Status:</strong> OfferGenerated → OfferAccepted<br><strong>Who acts:</strong> Loan Officer<br><strong>SLA:</strong> 168 hours (7 days) — if applicant does not respond within 7 days, the offer lapses</p>
+<h4>What is happening at this stage?</h4>
+<p>The three generated documents are shared with the applicant:</p>
+<ol>
+<li>The <strong>Offer Letter</strong> summarises the approved credit terms</li>
+<li>The <strong>Lease/Hire-Purchase Agreement</strong> is the legal contract for the equipment</li>
+<li>The <strong>GPS Consent Form</strong> must be signed before deployment</li>
+</ol>
+<hr>
+<h4>Download and Share the Documents</h4>
+<p>On the application&#39;s Overview or Documents tab, download:</p>
+<ul>
+<li>The Offer Letter (PDF)</li>
+<li>The Lease/Hire-Purchase Agreement (PDF)</li>
+<li>The GPS Tracking Consent Form (PDF)</li>
+</ul>
+<p>Share these with the applicant. They should review all three carefully, ideally with legal counsel.</p>
+<hr>
+<h4>Record the Applicant&#39;s Acceptance</h4>
+<p>Once the applicant has signed and returned the documents:</p>
+<ol>
+<li>Upload the <strong>signed offer letter</strong> to the Documents tab under the category &quot;Signed NAMP Offer Letter&quot;</li>
+<li>Click <strong>Record Acceptance</strong> in the header</li>
+<li>Confirm the acceptance in the modal</li>
+</ol>
+<p>The application automatically advances to <strong>OfferAccepted</strong> and then immediately to <strong>LegalClearance</strong>.</p>
+<hr>
+<h4>Offer Lapse</h4>
+<p>If the applicant does not respond within 7 days (168 hours), click <strong>Lapse Offer</strong> in the header. This moves the application to <strong>OfferLapsed</strong> — a terminal status. The application is permanently closed.</p>
+<hr>
+<h3>4.7 Stage 6 — Legal Clearance (Legal Officer)</h3>
+<p><strong>Status:</strong> LegalClearance<br><strong>Who acts:</strong> Legal Officer<br><strong>SLA:</strong> 72 hours</p>
+<h4>What is happening at this stage?</h4>
+<p>Before the equipment can be deployed, the Legal Officer reviews the application to ensure all legal prerequisites are in order. This is a gate to catch any legal issues before the bank commits physical equipment to the applicant.</p>
+<p>The Legal Officer reviews:</p>
+<ul>
+<li>The signed offer letter and hire-purchase agreement</li>
+<li>The applicant&#39;s CAC status (for Agro-Service Companies)</li>
+<li>Director information and bureau reports</li>
+<li>Any outstanding legal concerns raised during the earlier stages</li>
+</ul>
+<hr>
+<h4>Grant Legal Clearance</h4>
+<p>If everything is in order, click <strong>Grant Clearance</strong>.</p>
+<p>Enter a brief note summarising the legal review (e.g., &quot;All legal documents in order. No adverse findings. Cleared for pre-deployment.&quot;).</p>
+<p>The application advances to <strong>PreDeploymentVerification</strong>.</p>
+<hr>
+<h4>Return to Loan Officer</h4>
+<p>If there are issues the Loan Officer must resolve (e.g., missing documents, a director&#39;s information needs to be corrected), click <strong>Return to LO</strong>.</p>
+<p>Enter a note explaining what needs to be fixed. The application moves to <strong>LegalReturned</strong> and the Loan Officer receives a notification.</p>
+<p>The Loan Officer reviews the note, makes the necessary corrections, and clicks <strong>Resubmit to Legal</strong>. The application returns to <strong>LegalClearance</strong> for the Legal Officer to re-review.</p>
+<hr>
+<h4>Decline</h4>
+<p>If there is a fundamental legal issue that cannot be resolved (e.g., the company is not legally registered, the applicant is under litigation), click <strong>Decline</strong>.</p>
+<p>Enter a mandatory reason. The application moves to <strong>LegalDeclined</strong> — a terminal status.</p>
+<hr>
+<h3>4.8 Stage 7 — Pre-Deployment Verification (Deployment Officer)</h3>
+<p><strong>Status:</strong> PreDeploymentVerification<br><strong>Who acts:</strong> Deployment Officer<br><strong>SLA:</strong> 48 hours</p>
+<h4>What is happening at this stage?</h4>
+<p>Before the bank releases the equipment to the applicant, four mandatory conditions must be verified and documented. All four must be satisfied before the application can advance to the Deployment stage. These gates protect the bank&#39;s interests — if any condition is not met, the bank should not deploy the equipment.</p>
+<hr>
+<h4>The Four Mandatory Gates</h4>
+<p><strong>Gate 1 — Equity Deposit Confirmed</strong><br><em>What it means:</em> The applicant must pay their equity contribution (their portion of the equipment cost) before the bank releases the equipment. This confirms they have financial skin in the game.</p>
+<p><em>Evidence required:</em> Upload the equity deposit receipt showing the payment has been received at the branch.</p>
+<p>How to complete:</p>
+<ol>
+<li>Confirm the applicant has paid the equity amount shown in the application</li>
+<li>Obtain the payment receipt from the branch cashier or treasury</li>
+<li>Upload the receipt to the Documents tab under category &quot;Equity Deposit Receipt&quot;</li>
+<li>The checklist item will automatically be marked as satisfied once the document is uploaded</li>
+</ol>
+<p><strong>Gate 2 — Lease / Hire-Purchase Agreement Signed</strong><br><em>What it means:</em> The applicant must have signed the equipment lease or hire-purchase agreement. This legally binds them to the repayment terms.</p>
+<p><em>Evidence required:</em> Upload the signed agreement.</p>
+<p>How to complete:</p>
+<ol>
+<li>Confirm the signed agreement has been received (it should have been returned with the offer acceptance)</li>
+<li>If not already uploaded, upload it to the Documents tab under category &quot;Lease Agreement&quot;</li>
+<li>The checklist item will automatically be marked as satisfied</li>
+</ol>
+<p><strong>Gate 3 — GPS Tracking Consent Obtained</strong><br><em>What it means:</em> The applicant must have signed the GPS Tracking Consent Form. This legally authorises the bank to install a GPS device on the equipment and monitor its location throughout the loan tenor.</p>
+<p><em>Evidence required:</em> Upload the signed GPS consent form.</p>
+<p>How to complete:</p>
+<ol>
+<li>Confirm the signed GPS consent form has been received</li>
+<li>Upload it to the Documents tab under category &quot;GPS Consent Form&quot;</li>
+<li>The checklist item will automatically be marked as satisfied</li>
+</ol>
+<p><strong>Gate 4 — NAIC Insurance In Place</strong><br><em>What it means:</em> The equipment must be insured under a valid Nigerian Agricultural Insurance Corporation (NAIC) policy. This protects the bank if the equipment is lost, stolen, or damaged.</p>
+<p><em>Evidence required:</em> Upload the NAIC insurance certificate showing the equipment is covered and the Bank of Agriculture is named as co-insured or loss payee.</p>
+<p>How to complete:</p>
+<ol>
+<li>Request the insurance certificate from the applicant (or arrange it if the bank&#39;s insurance department handles this)</li>
+<li>Upload the certificate to the Documents tab under category &quot;Insurance Certificate&quot;</li>
+<li>The checklist item will automatically be marked as satisfied</li>
+</ol>
+<hr>
+<h4>Complete Verification</h4>
+<p>Once all four gates are satisfied (indicated by green check marks on the checklist), click <strong>Complete Verification</strong> in the header.</p>
+<p>Enter a verification note summarising the actions taken (e.g., &quot;Equity deposit of ₦1.5M confirmed. Lease agreement signed on 28 July 2026. GPS consent obtained. NAIC policy number 2026/NAMP/00234 received, valid to 31 Dec 2027.&quot;).</p>
+<p>The application advances to <strong>Deployment</strong>.</p>
+<hr>
+<h3>4.9 Stage 8 — Deployment (Deployment Officer)</h3>
+<p><strong>Status:</strong> Deployment<br><strong>Who acts:</strong> Deployment Officer<br><strong>SLA:</strong> 168 hours (7 days)</p>
+<h4>What is happening at this stage?</h4>
+<p>The physical equipment is delivered to the applicant and a GPS tracking device is installed and activated.</p>
+<hr>
+<h4>Confirm Equipment Delivery</h4>
+<p>Once the equipment has been delivered to the applicant&#39;s location:</p>
+<ol>
+<li>Document the delivery — photograph the handover if possible</li>
+<li>Confirm the equipment serial number matches what was financed</li>
+<li>Confirm the applicant has physically received the equipment</li>
+</ol>
+<hr>
+<h4>Confirm GPS Activation</h4>
+<p>After the GPS device is installed and activated:</p>
+<ol>
+<li>Confirm the device is online and tracking (check the GPS monitoring portal)</li>
+<li>Note the GPS device serial number</li>
+</ol>
+<hr>
+<h4>Record Deployment Completion</h4>
+<p>Click <strong>Confirm Deployment</strong> in the header.</p>
+<p>In the modal:</p>
+<ul>
+<li>Confirm equipment delivery</li>
+<li>Confirm GPS is activated</li>
+<li>Enter any relevant notes (equipment serial numbers, GPS device ID, delivery location, delivery date)</li>
+</ul>
+<p>Click <strong>Confirm</strong>.</p>
+<p>The application advances to <strong>Active</strong>.</p>
+<hr>
+<h3>4.10 Stage 9 — Active and Closed</h3>
+<p><strong>Status:</strong> Active → Closed<br><strong>Who acts:</strong> PAYS (automated) / Loan Officer (monitoring)</p>
+<h4>Active</h4>
+<p>The loan is now live. The equipment is with the applicant and the GPS is tracking it. The <strong>PAYS repayment system</strong> handles the monthly repayment collection — applicants make their repayments through the PAYS portal, which automatically debits the BOA account or uses other payment channels.</p>
+<p><strong>Monitoring via the Loan Account Tab:</strong><br>The Loan Account tab appears on the application once it is in Active status. It shows:</p>
+<ul>
+<li>Core Banking loan account details (fetched from Fineract)</li>
+<li>Outstanding balance</li>
+<li>Amount paid to date</li>
+<li>Next repayment date</li>
+<li>Repayment history</li>
+</ul>
+<p>The Loan Officer should monitor this tab periodically to identify any early signs of repayment difficulty.</p>
+<hr>
+<h4>Closed</h4>
+<p>When the final repayment is made and the full loan balance plus interest is settled, PAYS sends a callback to CRMS marking the application as <strong>Closed</strong>.</p>
+<p>Closed is a terminal status. The equipment ownership transfers to the applicant at this point (per the hire-purchase agreement).</p>
+<hr>
+<h3>4.11 NAMP Status Summary</h3>
+<pre><code>Received                → [Staging queue; awaiting recall]
+RecallPending           → [LoanOfficer: Recall] → Draft
+Draft                   → [LoanOfficer: Submit for Appraisal] → FinancialAppraisal
+FinancialAppraisal      → [CreditOfficer: Pass] → Tier Committee Circulation
+                          [CreditOfficer: Fail] → FinancialDeclined ■
+*CommitteeCirculation   → [Committee: Approved] → Ratification
+                          [Committee: Rejected] → *CommitteeDeclined ■
+Ratification            → [Manager: Ratify] → OfferGenerated (3 docs auto-generated)
+                          [Manager: Decline] → RatificationDeclined ■
+OfferGenerated          → [LoanOfficer: Record Acceptance] → LegalClearance
+                          [LoanOfficer: Lapse Offer] → OfferLapsed ■
+LegalClearance          → [LegalOfficer: Grant Clearance] → PreDeploymentVerification
+                          [LegalOfficer: Return to LO] → LegalReturned (loop)
+                          [LegalOfficer: Decline] → LegalDeclined ■
+LegalReturned           → [LoanOfficer: Resubmit to Legal] → LegalClearance
+PreDeploymentVerification → [DeploymentOfficer: Complete Verification] → Deployment
+Deployment              → [DeploymentOfficer: Confirm Deployment] → Active
+Active                  → [PAYS: Repayment complete] → Closed ■
+
+* &quot;Tier Committee Circulation&quot; = one of:
+  BranchCommitteeCirculation, ZonalCommitteeCirculation,
+  RegionalCommitteeCirculation, HOCommitteeCirculation
+
+* &quot;Tier Committee Declined&quot; = one of:
+  BranchCommitteeDeclined, ZonalCommitteeDeclined,
+  RegionalCommitteeDeclined, HOCommitteeDeclined
+
+■ = Terminal status
+</code></pre>
+<hr>
+<h2>5. User Roles Quick Reference</h2>
+<p>This section maps every role to the stages and actions it unlocks. As of the unified actor framework, the same roles apply across both Corporate and NAMP loans — there is no longer a separate role list per process. A Legal Officer, BranchManager, or Disbursement Officer performs the same function regardless of which loan type they are working on.</p>
+<hr>
+<h3>5.1 Unified Role List</h3>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>System Name</th>
+<th>Function</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>System Admin</td>
+<td><code>SystemAdmin</code></td>
+<td>Full access to all admin configuration, user management, and all application actions</td>
+</tr>
+<tr>
+<td>Loan Officer</td>
+<td><code>LoanOfficer</code></td>
+<td>Creates Corporate applications; recalls and manages NAMP applications; records customer/applicant acceptance</td>
+</tr>
+<tr>
+<td>Credit Officer</td>
+<td><code>CreditOfficer</code></td>
+<td>Manages credit appraisal (Corporate) and financial appraisal (NAMP); drives committee circulation on both</td>
+</tr>
+<tr>
+<td>Legal Officer</td>
+<td><code>LegalOfficer</code></td>
+<td>Parallel legal review (Corporate CreditReview); Security Perfection (Corporate); Legal Clearance (NAMP)</td>
+</tr>
+<tr>
+<td>Risk Manager</td>
+<td><code>RiskManager</code></td>
+<td>Read-only access to all applications; can replace committee members</td>
+</tr>
+<tr>
+<td>GM Finance</td>
+<td><code>GMFinance</code></td>
+<td>Senior disbursement authority; shares Disbursement action with Disbursement Officer</td>
+</tr>
+<tr>
+<td>Disbursement Officer</td>
+<td><code>DisbursementOfficer</code></td>
+<td>Prepares disbursement memo and books the loan in core banking (Corporate and Retail)</td>
+</tr>
+<tr>
+<td>Deployment Officer</td>
+<td><code>DeploymentOfficer</code></td>
+<td>Pre-deployment verification and physical equipment deployment with GPS activation (NAMP)</td>
+</tr>
+<tr>
+<td>Committee Member</td>
+<td><code>CommitteeMember</code></td>
+<td>Votes on Corporate committee reviews (generic, covers all Corporate committee tiers)</td>
+</tr>
+<tr>
+<td>Branch Committee Member</td>
+<td><code>BranchCommitteeMember</code></td>
+<td>Votes on NAMP Branch-tier committee reviews</td>
+</tr>
+<tr>
+<td>Zonal Committee Member</td>
+<td><code>ZonalCommitteeMember</code></td>
+<td>Votes on NAMP Zonal-tier committee reviews</td>
+</tr>
+<tr>
+<td>Regional Committee Member</td>
+<td><code>RegionalCommitteeMember</code></td>
+<td>Votes on NAMP Regional-tier committee reviews</td>
+</tr>
+<tr>
+<td>HO Committee Member</td>
+<td><code>HOCommitteeMember</code></td>
+<td>Votes on NAMP Head Office-tier committee reviews</td>
+</tr>
+<tr>
+<td>Branch Manager</td>
+<td><code>BranchManager</code></td>
+<td>Ratifies Branch Credit Committee decisions — Corporate and NAMP</td>
+</tr>
+<tr>
+<td>Zonal Manager</td>
+<td><code>ZonalManager</code></td>
+<td>Ratifies Zonal Credit Committee decisions — Corporate and NAMP</td>
+</tr>
+<tr>
+<td>Regional Manager</td>
+<td><code>RegionalManager</code></td>
+<td>Ratifies Regional Credit Committee decisions — Corporate and NAMP</td>
+</tr>
+<tr>
+<td>MD/CEO</td>
+<td><code>MdCeo</code></td>
+<td>Ratifies Head Office Credit Committee decisions — highest authority on both processes</td>
+</tr>
+<tr>
+<td>Auditor</td>
+<td><code>Auditor</code></td>
+<td>Read-only access to all applications, documents, and audit trails</td>
+</tr>
+</tbody></table>
+<p><strong>One person, two roles:</strong> A staff member who handles both NAMP equipment disbursement and Corporate loan disbursement can hold both <code>DeploymentOfficer</code> and <code>DisbursementOfficer</code> simultaneously. The system grants the relevant buttons based on which role is applicable to the loan type on screen.</p>
+<hr>
+<h3>5.2 Role-to-Stage Reference</h3>
+<hr>
+<p><strong>Loan Officer</strong></p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Stage</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Corporate</td>
+<td>Draft</td>
+<td>Create new applications via the 3-step wizard. Add/edit directors, signatories, financial statements, collateral, guarantors, documents. Delete the application before submission. Submit for credit review.</td>
+</tr>
+<tr>
+<td>Corporate</td>
+<td>OfferGenerated</td>
+<td>Upload signed offer letter and signed KFS. Record the customer&#39;s formal acceptance (date, method, KFS acknowledged).</td>
+</tr>
+<tr>
+<td>NAMP</td>
+<td>Staging queue</td>
+<td>View incoming applications from the PAYS portal. Recall an application, which creates the NampApplication record in Draft.</td>
+</tr>
+<tr>
+<td>NAMP</td>
+<td>Draft</td>
+<td>Review and verify applicant data from PAYS (name, BOA account, BVN, NIN, equipment, amounts). For Agro-Service Companies: review CAC profile, enter director BVNs. Upload documents (Financial Model required). Submit for appraisal.</td>
+</tr>
+<tr>
+<td>NAMP</td>
+<td>OfferGenerated</td>
+<td>Download and share the three generated documents. Upload the signed offer letter. Record the applicant&#39;s acceptance. Lapse the offer if the applicant does not respond within the SLA.</td>
+</tr>
+<tr>
+<td>NAMP</td>
+<td>LegalReturned</td>
+<td>Resubmit to Legal after resolving the issues flagged by the Legal Officer.</td>
+</tr>
+<tr>
+<td>Both</td>
+<td>Any</td>
+<td>Download the Loan Pack PDF from CreditReview stage onwards (Corporate).</td>
+</tr>
+</tbody></table>
+<hr>
+<p><strong>Credit Officer</strong></p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Stage</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Corporate</td>
+<td>CreditReview</td>
+<td>Verify bank statements and documents. Re-run bureau checks. Save/update the Credit Appraisal (DSCR, Leverage, Current Ratio, LTV, Capacity Rating, Recommendation, Notes, Memo). Send to committee once legal review is complete and appraisal is saved. Return to Draft. Reject outright (terminal).</td>
+</tr>
+<tr>
+<td>Corporate</td>
+<td>CommitteeCirculation</td>
+<td>Set up committee review. Start voting. Record the collective committee decision (Approved / Conditions / Rejected / Deferred / Escalated) with approved amount, tenor, and rate.</td>
+</tr>
+<tr>
+<td>NAMP</td>
+<td>FinancialAppraisal</td>
+<td>Complete the financial appraisal: repayment source, projected rental revenue, utilisation rate, disposable income, DSCR, LTV, equity assessment, bureau summary, capacity rating, recommendation. Submit Pass (advances to committee) or Fail (terminal).</td>
+</tr>
+<tr>
+<td>NAMP</td>
+<td>CommitteeCirculation</td>
+<td>Set up committee review for the correct tier. Start voting. Record the committee decision.</td>
+</tr>
+</tbody></table>
+<hr>
+<p><strong>Legal Officer</strong></p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Stage</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Corporate</td>
+<td>CreditReview</td>
+<td>Parallel legal review — mark complete with a note. Prerequisite: Credit Officer cannot send to committee until this is done. Return to Draft before completing if a document is wrong or missing.</td>
+</tr>
+<tr>
+<td>Corporate</td>
+<td>SecurityPerfection</td>
+<td>Upload security documents linked to collateral items. Mark Security Perfection complete (advances to Disbursement). Return to OfferAccepted if issues arise.</td>
+</tr>
+<tr>
+<td>NAMP</td>
+<td>LegalClearance</td>
+<td>Review the full application. Grant clearance (advances to PreDeploymentVerification). Return to Loan Officer with a note (moves to LegalReturned). Decline (terminal).</td>
+</tr>
+</tbody></table>
+<hr>
+<p><strong>Disbursement Officer</strong></p>
+<p>The Disbursement Officer handles the final cash release on Corporate (and Retail) loans. This is the renamed successor to the former &quot;Operations&quot; role.</p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Stage</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Corporate</td>
+<td>OfferGenerated</td>
+<td>Record the customer&#39;s acceptance (same access as Loan Officer at this stage).</td>
+</tr>
+<tr>
+<td>Corporate</td>
+<td>Disbursement</td>
+<td>Work through the disbursement checklist — upload documents for conditions precedent, manually mark non-document items as met. Disburse the loan: enter the Core Banking loan ID and confirm (terminal — advances to Disbursed). Return to SecurityPerfection if a pre-disbursement issue is found.</td>
+</tr>
+</tbody></table>
+<hr>
+<p><strong>Deployment Officer</strong></p>
+<p>The Deployment Officer handles physical equipment release and GPS activation for NAMP loans.</p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Stage</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>NAMP</td>
+<td>PreDeploymentVerification</td>
+<td>Review all four mandatory checklist gates (equity deposit, signed agreement, GPS consent, NAIC insurance). All four must show uploaded evidence documents before the Complete Verification button activates. Confirm completion — advances to Deployment.</td>
+</tr>
+<tr>
+<td>NAMP</td>
+<td>Deployment</td>
+<td>Confirm physical equipment delivery, confirm GPS is installed and active. Record deployment details (equipment serial number, GPS device ID, delivery date). Confirm — advances to Active.</td>
+</tr>
+</tbody></table>
+<hr>
+<p><strong>GM Finance</strong></p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Stage</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Corporate</td>
+<td>Disbursement</td>
+<td>Disburse the loan — same access as Disbursement Officer. Acts as the senior funds-release authority where the bank&#39;s process requires a higher sign-off before funds leave.</td>
+</tr>
+</tbody></table>
+<hr>
+<p><strong>Tier Managers (BranchManager / ZonalManager / RegionalManager / MdCeo)</strong></p>
+<p>All four tier manager roles perform the same function — ratification — but at different authority levels. The appropriate manager acts based on the loan amount and which committee tier reviewed the application.</p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Stage</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Corporate</td>
+<td>Ratification</td>
+<td>Review the committee decision, approved terms, credit appraisal, and bureau reports. Ratify — locks in the approved terms, auto-generates the Offer Letter PDF, advances to OfferGenerated. Decline — terminal, must enter a reason (RatificationDeclined).</td>
+</tr>
+<tr>
+<td>NAMP</td>
+<td>Ratification</td>
+<td>Review the committee recommendation. Ratify — auto-generates the Offer Letter, Lease/Hire-Purchase Agreement, and GPS Consent Form, advances to OfferGenerated. Decline — terminal (RatificationDeclined).</td>
+</tr>
+</tbody></table>
+<p><strong>Which manager ratifies:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Committee Tier</th>
+<th>Corporate</th>
+<th>NAMP</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Branch</td>
+<td>Branch Manager</td>
+<td>Branch Manager</td>
+</tr>
+<tr>
+<td>Zonal</td>
+<td>Zonal Manager</td>
+<td>Zonal Manager</td>
+</tr>
+<tr>
+<td>Regional</td>
+<td>Regional Manager</td>
+<td>Regional Manager</td>
+</tr>
+<tr>
+<td>Head Office</td>
+<td>MD/CEO</td>
+<td>MD/CEO</td>
+</tr>
+</tbody></table>
+<hr>
+<p><strong>Committee Members</strong></p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Stage</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>CommitteeMember</td>
+<td>CommitteeCirculation (Corporate)</td>
+<td>Vote (Approve / Reject / Abstain). Add comments (Public or Private). One vote per member, not changeable after submission. Voting opens only after the Credit Officer starts the voting round.</td>
+</tr>
+<tr>
+<td>BranchCommitteeMember</td>
+<td>BranchCommitteeCirculation (NAMP)</td>
+<td>Same as CommitteeMember above, for Branch-tier NAMP applications.</td>
+</tr>
+<tr>
+<td>ZonalCommitteeMember</td>
+<td>ZonalCommitteeCirculation (NAMP)</td>
+<td>Same as above, for Zonal-tier.</td>
+</tr>
+<tr>
+<td>RegionalCommitteeMember</td>
+<td>RegionalCommitteeCirculation (NAMP)</td>
+<td>Same as above, for Regional-tier.</td>
+</tr>
+<tr>
+<td>HOCommitteeMember</td>
+<td>HOCommitteeCirculation (NAMP)</td>
+<td>Same as above, for Head Office-tier.</td>
+</tr>
+</tbody></table>
+<hr>
+<p><strong>Risk Manager</strong></p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Stage</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Both</td>
+<td>CommitteeCirculation</td>
+<td>Replace a committee member (swap one member for another). Also available to SystemAdmin.</td>
+</tr>
+<tr>
+<td>Both</td>
+<td>Any</td>
+<td>Read-only view of all application data, bureau reports, audit trail, and workflow history. No action buttons at any other stage.</td>
+</tr>
+</tbody></table>
+<hr>
+<p><strong>Auditor</strong></p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Stage</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Both</td>
+<td>Any</td>
+<td>Read-only access to all applications, documents, workflow history, and audit trails. No action buttons shown at any stage.</td>
+</tr>
+</tbody></table>
+<hr>
+<h3>5.3 Roles No Longer Active</h3>
+<p>The following roles existed in earlier versions of the workflow but have been retired. Users assigned these roles will see the application list but will find no action buttons on any live application.</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>What it was for</th>
+<th>Current status</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>BranchApprover</strong></td>
+<td>Approved or returned applications at the BranchReview stage, which no longer exists in the current flow.</td>
+<td>No active stage.</td>
+</tr>
+<tr>
+<td><strong>HOReviewer</strong></td>
+<td>Reviewed applications at the HOReview stage before committee, which no longer exists.</td>
+<td>No active stage.</td>
+</tr>
+<tr>
+<td><strong>HeadOfLegal</strong></td>
+<td>Countersigned the legal opinion at the SecurityApproval stage (removed). In the current flow the Legal Officer completes security perfection directly.</td>
+<td>No active stage.</td>
+</tr>
+<tr>
+<td><strong>FinalApprover</strong></td>
+<td>Sole ratification authority for Corporate loans in the original flow. Now replaced by the tiered BranchManager / ZonalManager / RegionalManager / MdCeo ratification model, which applies to both Corporate and NAMP.</td>
+<td>Being phased out. Existing users should be re-assigned an appropriate tier manager role.</td>
+</tr>
+</tbody></table>
+<hr>
+<p><em>End of Tutorial</em></p>
+
+  </div>
+</body>
+</html>

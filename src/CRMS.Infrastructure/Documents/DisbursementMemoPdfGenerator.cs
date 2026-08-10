@@ -150,7 +150,7 @@ public class DisbursementMemoPdfGenerator : IDisbursementMemoPdfGenerator
 
                 section.Item().PaddingTop(24).Row(row =>
                 {
-                    SignatureBlock(row, data.AcceptedByUserName, "Operations Officer", data.OfferAcceptedAt.ToString("dd MMM yyyy"));
+                    SignatureBlock(row, data.AcceptedByUserName, "Disbursement Officer", data.OfferAcceptedAt.ToString("dd MMM yyyy"));
                     row.ConstantItem(60);
                     SignatureBlock(row, "________________________", "Branch Authorised Signatory", "Date: _______________");
                     row.ConstantItem(60);
