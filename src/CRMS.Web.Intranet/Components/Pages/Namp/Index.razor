@@ -385,6 +385,7 @@
                         <option value="Draft">Draft</option>
                         <option value="Submitted">Submitted</option>
                         <option value="FinancialAppraisal">Financial Appraisal</option>
+                        <option value="RiskReview">Risk Review</option>
                         <option value="BranchCommitteeCirculation">Branch Committee</option>
                         <option value="ZonalCommitteeCirculation">Zonal Committee</option>
                         <option value="RegionalCommitteeCirculation">Regional Committee</option>
@@ -398,6 +399,7 @@
                         <option value="Deployment">Deployment</option>
                         <option value="Active">Active</option>
                         <option value="FinancialDeclined">Financial Declined</option>
+                        <option value="RiskDeclined">Risk Declined</option>
                         <option value="BranchCommitteeDeclined">Branch Declined</option>
                         <option value="ZonalCommitteeDeclined">Zonal Declined</option>
                         <option value="RegionalCommitteeDeclined">Regional Declined</option>
@@ -513,6 +515,7 @@
                         <option value="Draft">Draft</option>
                         <option value="Submitted">Submitted</option>
                         <option value="FinancialAppraisal">Financial Appraisal</option>
+                        <option value="RiskReview">Risk Review</option>
                         <option value="BranchCommitteeCirculation">Branch Committee</option>
                         <option value="ZonalCommitteeCirculation">Zonal Committee</option>
                         <option value="RegionalCommitteeCirculation">Regional Committee</option>
@@ -527,6 +530,7 @@
                         <option value="Active">Active</option>
                         <option value="" disabled>── Declined / Terminal ──</option>
                         <option value="FinancialDeclined">Financial Declined</option>
+                        <option value="RiskDeclined">Risk Declined</option>
                         <option value="BranchCommitteeDeclined">Branch Declined</option>
                         <option value="ZonalCommitteeDeclined">Zonal Declined</option>
                         <option value="RegionalCommitteeDeclined">Regional Declined</option>
@@ -802,8 +806,11 @@
         pageError = null;
         try
         {
-            // Head-office-domiciled actors see all branches; branch actors are scoped to their branch.
-            var stagingBranchId = IsLoanOfficer && !IsAdmin && !(User?.IsHeadOffice ?? false) ? User?.LocationId : (Guid?)null;
+            // Branch LOs see only records resolved to their branch. HO LOs (LocationType = HeadOffice)
+            // see the full national queue regardless of resolved branch.
+            var stagingBranchId = IsLoanOfficer && !IsAdmin && !(User?.IsHeadOffice ?? false)
+                ? User?.LocationId
+                : (Guid?)null;
             await LoadStagingQueue(stagingBranchId);
             await LoadMyQueue();
             if (activeTab == "all") await LoadAdminAll();
@@ -873,6 +880,19 @@
             results.AddRange(ratApps);
         }
 
+        // Risk Review + Committee Circulation: filtered by the Risk Officer's tier.
+        // Risk Officers own both steps: reviewing (RiskReview) and circulating to committee ([Tier]CommitteeCirculation).
+        var riskTier = GetRiskReviewTier(user);
+        if (riskTier != null)
+        {
+            var riskBranchId = user.HasRole("BranchRiskOfficer") && !user.IsHeadOffice ? user.LocationId : (Guid?)null;
+            var riskApps = await AppService.GetNampApplicationsByStatusAndTierAsync("RiskReview", riskTier, riskBranchId);
+            results.AddRange(riskApps);
+            var circulationStatus = RiskTierCirculationStatus(riskTier);
+            var circApps = await AppService.GetNampApplicationsByStatusAndTierAsync(circulationStatus, riskTier, riskBranchId);
+            results.AddRange(circApps);
+        }
+
         // Deduplicate by Id (user may hold multiple roles that overlap statuses)
         myQueue = results.DistinctBy(a => a.Id).OrderByDescending(a => a.CreatedAt).ToList();
         myQueuePage = 1;
@@ -886,7 +906,7 @@
         if (user.HasAnyRole("LoanOfficer", "SystemAdmin"))
             statuses.UnionWith(["Draft", "OfferGenerated", "LegalReturned"]);
         if (user.HasAnyRole("CreditOfficer", "SystemAdmin"))
-            statuses.UnionWith(["Submitted", "FinancialAppraisal", "BranchCommitteeCirculation"]);
+            statuses.UnionWith(["Submitted", "FinancialAppraisal"]);
         if (user.HasAnyRole("LegalOfficer", "SystemAdmin"))
             statuses.UnionWith(["LegalClearance"]);
         if (user.HasAnyRole("DeploymentOfficer", "SystemAdmin"))
@@ -895,13 +915,10 @@
         return [.. statuses];
     }
 
-    /// <summary>Global statuses (no branch filter) — higher-level committee circulation for CreditOfficers/Admins.</summary>
+    /// <summary>Global statuses (no branch filter) — higher-level committee circulation for Risk Officers/Admins.</summary>
     private static string[] GetGlobalStatuses(UserInfo user)
     {
         var statuses = new HashSet<string>();
-
-        if (user.HasAnyRole("CreditOfficer", "SystemAdmin"))
-            statuses.UnionWith(["ZonalCommitteeCirculation", "RegionalCommitteeCirculation", "HOCommitteeCirculation"]);
 
         return [.. statuses];
     }
@@ -913,13 +930,33 @@
     /// <summary>Returns the CommitteeTier string for ratification if this user is a tier manager; null otherwise.</summary>
     private static string? GetRatificationTier(UserInfo user)
     {
-        if (user.HasRole("MdCeo"))       return "HeadOffice";
+        if (user.HasRole("MdCeo"))           return "HeadOffice";
         if (user.HasRole("RegionalManager")) return "Regional";
         if (user.HasRole("ZonalManager"))    return "Zonal";
         if (user.HasRole("BranchManager"))   return "Branch";
-        if (user.HasRole("SystemAdmin"))     return null; // Admin sees all via GetGlobalStatuses; skip here to avoid duplication
+        if (user.HasRole("SystemAdmin"))     return null;
         return null;
     }
+
+    /// <summary>Returns the CommitteeTier string for risk review if this user is a Risk Officer; null otherwise.</summary>
+    private static string? GetRiskReviewTier(UserInfo user)
+    {
+        if (user.HasRole("HORiskOfficer"))       return "HeadOffice";
+        if (user.HasRole("RegionalRiskOfficer")) return "Regional";
+        if (user.HasRole("ZonalRiskOfficer"))    return "Zonal";
+        if (user.HasRole("BranchRiskOfficer"))   return "Branch";
+        return null;
+    }
+
+    /// <summary>Maps a CommitteeTier string to the corresponding committee circulation status.</summary>
+    private static string RiskTierCirculationStatus(string tier) => tier switch
+    {
+        "Branch"     => "BranchCommitteeCirculation",
+        "Zonal"      => "ZonalCommitteeCirculation",
+        "Regional"   => "RegionalCommitteeCirculation",
+        "HeadOffice" => "HOCommitteeCirculation",
+        _            => "HOCommitteeCirculation"
+    };
 
     private async Task LoadAdminAll()
     {
@@ -1005,7 +1042,7 @@
     private static string GetStatusBadgeClass(string status) => status switch
     {
         "Draft"                                                      => "badge-gray",
-        "Submitted" or "FinancialAppraisal"                          => "badge-warning",
+        "Submitted" or "FinancialAppraisal" or "RiskReview"          => "badge-warning",
         var s when s.Contains("CommitteeCirculation")                => "badge-info",
         "Ratification"                                               => "badge-primary",
         "OfferGenerated" or "OfferAccepted"                          => "badge-info",
@@ -1046,6 +1083,8 @@
         "RegionalCommitteeDeclined"    => "Regional Declined",
         "HOCommitteeDeclined"          => "HO Declined",
         "FinancialDeclined"            => "Financial Declined",
+        "RiskReview"                   => "Risk Review",
+        "RiskDeclined"                 => "Risk Declined",
         "RatificationDeclined"         => "Ratification Declined",
         "LegalClearance"               => "Legal Clearance",
         "LegalReturned"                => "Legal Returned",

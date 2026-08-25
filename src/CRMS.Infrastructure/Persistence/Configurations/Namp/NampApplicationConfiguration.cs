@@ -106,6 +106,11 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
         builder.Property(x => x.FinancialAppraisalNote)
             .HasColumnType("text");
 
+        // Risk Review
+        builder.Property(x => x.RiskReviewNote).HasColumnType("text");
+        builder.Property(x => x.RiskReturnNote).HasColumnType("text");
+        builder.Property(x => x.RiskDeclineNote).HasColumnType("text");
+
         builder.Property(x => x.CommitteeDecisionNote)
             .HasColumnType("text");
 

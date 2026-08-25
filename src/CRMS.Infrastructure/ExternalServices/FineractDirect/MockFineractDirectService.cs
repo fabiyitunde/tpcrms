@@ -373,8 +373,9 @@ public class MockFineractDirectService : IFineractDirectService
 
     public Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
     {
-        // Simulate a known test account; any other account returns not found
-        if (boaAccountNumber == "0000000029" || boaAccountNumber.StartsWith("TEST"))
+        // In mock mode, accept any non-empty account number so local tests succeed
+        // regardless of which BOA account number was used in the test webhook payload.
+        if (!string.IsNullOrWhiteSpace(boaAccountNumber))
             return Task.FromResult(Result.Success(new NampBoaAccountInfo(
                 ClientId: 1001L, AccountStatus: "Active", SavingsAccountId: 2001L, SavingsAccountNo: boaAccountNumber)));
 

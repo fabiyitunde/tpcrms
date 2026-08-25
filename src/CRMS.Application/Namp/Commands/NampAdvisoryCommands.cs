@@ -376,6 +376,55 @@ public class GenerateNampAdvisoryHandler
                     sb.AppendLine($"  Demand Evidence: {finReport.DemandEvidenceNote}");
             }
 
+            // Operational assumptions (viability calculator inputs)
+            bool hasOpInputs = finReport.HectaresPerMonth.HasValue || finReport.RatePerHectare.HasValue
+                || finReport.MonthlyFuelCost.HasValue || finReport.MonthlyMaintenanceCost.HasValue
+                || finReport.MonthlyOperatorWage.HasValue;
+            if (hasOpInputs)
+            {
+                sb.AppendLine();
+                sb.AppendLine("OPERATIONAL ASSUMPTIONS (monthly):");
+                if (finReport.HectaresPerMonth.HasValue)
+                    sb.AppendLine($"  Hectares Serviced Per Month: {finReport.HectaresPerMonth:N1} ha");
+                if (finReport.RatePerHectare.HasValue)
+                    sb.AppendLine($"  Rate Per Hectare: NGN {finReport.RatePerHectare:N0}");
+                if (finReport.MonthlyFuelCost.HasValue)
+                    sb.AppendLine($"  Fuel Cost: NGN {finReport.MonthlyFuelCost:N0}");
+                if (finReport.MonthlyMaintenanceCost.HasValue)
+                    sb.AppendLine($"  Maintenance Cost: NGN {finReport.MonthlyMaintenanceCost:N0}");
+                if (finReport.MonthlyOperatorWage.HasValue)
+                    sb.AppendLine($"  Operator Wage: NGN {finReport.MonthlyOperatorWage:N0}");
+            }
+
+            // Viability metrics (computed by calculator)
+            bool hasViabilityMetrics = finReport.NetPresentValue.HasValue || finReport.BenefitCostRatio.HasValue
+                || finReport.InternalRateOfReturn.HasValue || finReport.ProfitabilityIndex.HasValue;
+            if (hasViabilityMetrics)
+            {
+                sb.AppendLine();
+                sb.AppendLine("VIABILITY METRICS (over loan tenor):");
+                if (finReport.NetPresentValue.HasValue)
+                {
+                    var npvPass = finReport.NetPresentValue.Value > 0;
+                    sb.AppendLine($"  NPV: NGN {finReport.NetPresentValue:N0} — {(npvPass ? "PASS (positive NPV)" : "FAIL (negative NPV)")}");
+                }
+                if (finReport.BenefitCostRatio.HasValue)
+                {
+                    var bcrPass = finReport.BenefitCostRatio.Value > 1.0m;
+                    sb.AppendLine($"  BCR: {finReport.BenefitCostRatio:N2}x — {(bcrPass ? "PASS (>1.0)" : "FAIL (<1.0)")}");
+                }
+                if (finReport.InternalRateOfReturn.HasValue)
+                {
+                    var irrPass = finReport.InternalRateOfReturn.Value > 15m;
+                    sb.AppendLine($"  IRR: {finReport.InternalRateOfReturn:N2}% — {(irrPass ? "PASS (>15%)" : "FAIL (<15%)")}");
+                }
+                if (finReport.ProfitabilityIndex.HasValue)
+                {
+                    var piPass = finReport.ProfitabilityIndex.Value > 1.0m;
+                    sb.AppendLine($"  PI: {finReport.ProfitabilityIndex:N2} — {(piPass ? "PASS (>1.0)" : "FAIL (<1.0)")}");
+                }
+            }
+
             sb.AppendLine();
             sb.AppendLine("CREDIT OFFICER FINANCIAL APPRAISAL:");
             if (finReport.MonthlyDisposableIncome.HasValue)

@@ -31,6 +31,12 @@ public static class Roles
     public const string HOCommitteeMember = "HOCommitteeMember";             // Votes in HO Credit Committee
     public const string DeploymentOfficer = "DeploymentOfficer";             // Pre-deployment verification and equipment deployment tracking
 
+    // ── NAMP Risk Officers (tier-scoped) ─────────────────────────────────
+    public const string BranchRiskOfficer   = "BranchRiskOfficer";           // Reviews Branch-tier NAMP applications before committee
+    public const string ZonalRiskOfficer    = "ZonalRiskOfficer";            // Reviews Zonal-tier NAMP applications before committee
+    public const string RegionalRiskOfficer = "RegionalRiskOfficer";         // Reviews Regional-tier NAMP applications before committee
+    public const string HORiskOfficer       = "HORiskOfficer";               // Reviews HO-tier NAMP applications before committee
+
     public static readonly string[] AllRoles =
     [
         SystemAdmin,
@@ -57,6 +63,10 @@ public static class Roles
         RegionalCommitteeMember,
         HOCommitteeMember,
         DeploymentOfficer,
+        BranchRiskOfficer,
+        ZonalRiskOfficer,
+        RegionalRiskOfficer,
+        HORiskOfficer,
     ];
 
     public static readonly Dictionary<string, string> RoleDescriptions = new()
@@ -85,6 +95,10 @@ public static class Roles
         { RegionalCommitteeMember, "Votes in Regional Credit Committee" },
         { HOCommitteeMember, "Votes in HO Credit Committee" },
         { DeploymentOfficer, "Pre-deployment verification and equipment/funds disbursement (NAMP and Corporate)" },
+        { BranchRiskOfficer,   "Reviews Branch-tier NAMP applications before committee circulation" },
+        { ZonalRiskOfficer,    "Reviews Zonal-tier NAMP applications before committee circulation" },
+        { RegionalRiskOfficer, "Reviews Regional-tier NAMP applications before committee circulation" },
+        { HORiskOfficer,       "Reviews HO-tier NAMP applications before committee circulation" },
     };
 
     /// <summary>
@@ -117,7 +131,11 @@ public static class Roles
         { ZonalCommitteeMember, VisibilityScope.Global },
         { RegionalCommitteeMember, VisibilityScope.Global },
         { HOCommitteeMember, VisibilityScope.Global },
-        { DeploymentOfficer, VisibilityScope.Global },
+        { DeploymentOfficer,    VisibilityScope.Global },
+        { BranchRiskOfficer,    VisibilityScope.Branch },
+        { ZonalRiskOfficer,     VisibilityScope.Global },
+        { RegionalRiskOfficer,  VisibilityScope.Global },
+        { HORiskOfficer,        VisibilityScope.Global },
     };
 
     /// <summary>
@@ -125,6 +143,15 @@ public static class Roles
     /// Branch Manager ratifies the Branch committee, Zonal Manager the Zonal committee, etc.
     /// Falls back to the generic FinalApprover if the tier is unrecognised.
     /// </summary>
+    public static string RiskOfficerRoleForTier(NampCommitteeTier tier) => tier switch
+    {
+        NampCommitteeTier.Branch     => BranchRiskOfficer,
+        NampCommitteeTier.Zonal      => ZonalRiskOfficer,
+        NampCommitteeTier.Regional   => RegionalRiskOfficer,
+        NampCommitteeTier.HeadOffice => HORiskOfficer,
+        _                            => HORiskOfficer,
+    };
+
     public static string RatifierRoleForTier(NampCommitteeTier tier) => tier switch
     {
         NampCommitteeTier.Branch     => BranchManager,

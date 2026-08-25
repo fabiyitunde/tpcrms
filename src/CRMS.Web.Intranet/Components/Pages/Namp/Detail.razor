@@ -43,7 +43,14 @@ else
             }
             @if (ShowFinancialAppraisalButton)
             {
+                <button class="btn btn-warning" @onclick="OpenFinReturnModal" style="color: #000;">Return to LO</button>
                 <button class="btn btn-success" @onclick="OpenFinDecisionModal">Financial Appraisal Decision</button>
+            }
+            @if (ShowRiskReviewButtons)
+            {
+                <button class="btn btn-warning" @onclick="OpenRiskReturnModal" style="color: #000;">Return to Appraisal</button>
+                <button class="btn btn-danger" @onclick="OpenRiskDeclineModal">Decline</button>
+                <button class="btn btn-success" @onclick="OpenRiskApproveModal">Approve to Committee</button>
             }
             @if (ShowCirculateButton)
             {
@@ -985,96 +992,265 @@ else
     {
         var finReport = app.FinancialAppraisalReport;
         var finDocs = app.Documents.Where(d => d.Stage == "FinancialAppraisal").ToList();
-        var hasFinModelDoc = finDocs.Any(d => d.Category == "CreditReport");
         var canEditFin = (app.Status == "FinancialAppraisal" || app.Status == "Submitted") &&
                          (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
+        var verdictClass = FinDsr >= 1.5m ? "alert-success" : FinDsr >= 1.0m ? "alert-warning" : "alert-danger";
+        var verdictText = FinDsr >= 1.5m
+            ? $"✓ Healthy — net income covers the monthly instalment {FinDsr:F1}× over. Beneficiary has a comfortable repayment buffer."
+            : FinDsr >= 1.0m
+            ? $"⚠ Borderline — net income barely covers the instalment ({FinDsr:F1}×). Any drop in utilisation or rise in costs creates default risk. A guarantor or cooperative cross-guarantee is recommended."
+            : $"✗ Unviable — net income ({FmtM(FinNetIncome)}) does not cover the monthly instalment ({FmtM(FinMonthlyInstalment)}). Beneficiary must service at least {(int)FinBreakEvenLoan} ha/month to break even.";
 
         <div style="display: flex; flex-direction: column; gap: 1.5rem;">
 
-            <!-- Report Form -->
+            <!-- ── Calculator Card ── -->
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">Financial Appraisal Report</h3>
-                    @if (finReport != null && !canEditFin)
-                    { <span class="badge badge-success">Submitted @app.FinancialAppraisalAt?.ToLocalTime().ToString("dd MMM yyyy")</span> }
+                    <div>
+                        <h3 class="card-title">Tractor Loan Viability Calculator</h3>
+                        <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: 2px;">Enter operational assumptions collected from the applicant — all appraisal metrics are computed automatically.</p>
+                    </div>
+                    <span class="badge badge-primary" style="white-space: nowrap;">@FinTrackLabel · @FinTenorMonths months · @($"{FinInterestRate:F1}")% p.a.</span>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+
+                    <!-- Loan parameters (read-only) -->
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 0.75rem;">Loan parameters — from application &amp; product</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
                         <div class="form-group">
-                            <label class="form-label">Repayment Source *</label>
-                            <select class="form-control" @bind="finRepaymentSource" disabled="@(!canEditFin)">
-                                <option value="PrimaryIncome">Primary Income (salary / farm)</option>
-                                <option value="RentalHireRevenue">Rental / Hire Revenue</option>
-                                <option value="Mixed">Mixed (income + rental)</option>
-                                <option value="CompanyCashFlow">Company Cash Flow</option>
-                            </select>
-                        </div>
-                        @if (finRepaymentSource is "RentalHireRevenue" or "Mixed")
-                        {
-                            <div class="form-group">
-                                <label class="form-label">Projected Monthly Rental Revenue (₦)</label>
-                                <input type="number" class="form-control" step="0.01" @bind="finProjectedRentalRevenue" disabled="@(!canEditFin)" placeholder="e.g. 500000" />
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Utilisation Rate Assumption (%)</label>
-                                <input type="number" class="form-control" step="0.1" @bind="finUtilisationRate" disabled="@(!canEditFin)" placeholder="e.g. 65.0" />
-                            </div>
-                            <div class="form-group" style="grid-column: 1 / -1;">
-                                <label class="form-label">Demand Evidence Note</label>
-                                <textarea class="form-control" rows="2" @bind="finDemandEvidence" disabled="@(!canEditFin)" placeholder="e.g. 3 signed hire agreements with Ogun cooperative..."></textarea>
-                            </div>
-                        }
-                        <div class="form-group">
-                            <label class="form-label">Monthly Disposable Income (₦)</label>
-                            <input type="number" class="form-control" step="0.01" @bind="finMonthlyIncome" disabled="@(!canEditFin)" />
+                            <label class="form-label">Equipment / Tractor Value (₦)</label>
+                            <input class="form-control" readonly value="@FinEquipmentValue.ToString("N0")" />
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Debt Service Coverage Ratio</label>
-                            <input type="number" class="form-control" step="0.01" @bind="finDscr" disabled="@(!canEditFin)" placeholder="e.g. 1.25" />
+                            <label class="form-label">Equity Contribution (@((int)(FinEquityPct * 100))%)</label>
+                            <input class="form-control" readonly value="@FinEquityAmount.ToString("N0")" />
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Loan-to-Value Ratio (%)</label>
-                            <input type="number" class="form-control" step="0.01" @bind="finLtv" disabled="@(!canEditFin)" placeholder="e.g. 65.00" />
+                            <label class="form-label">Loan Principal</label>
+                            <input class="form-control" readonly value="@FinLoanPrincipal.ToString("N0")" />
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Repayment Capacity Rating *</label>
-                            <select class="form-control" @bind="finRepaymentRating" disabled="@(!canEditFin)">
-                                <option value="">-- Select --</option>
-                                <option value="Strong">Strong</option>
-                                <option value="Adequate">Adequate</option>
-                                <option value="Marginal">Marginal</option>
-                                <option value="Insufficient">Insufficient</option>
-                            </select>
+                            <label class="form-label">Tenor (months)</label>
+                            <input class="form-control" readonly value="@FinTenorMonths" />
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Credit Officer Recommendation *</label>
-                            <select class="form-control" @bind="finCreditRecommendation" disabled="@(!canEditFin)">
-                                <option value="">-- Select --</option>
-                                <option value="Pass">Pass</option>
-                                <option value="Fail">Fail</option>
-                            </select>
+                            <label class="form-label">Interest Rate (% p.a.) — product rate</label>
+                            <input class="form-control" readonly value="@FinInterestRate.ToString("F1")" />
                         </div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Equity Assessment Note</label>
-                            <textarea class="form-control" rows="2" @bind="finEquityNote" disabled="@(!canEditFin)" placeholder="Equity contribution assessment..."></textarea>
-                        </div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Credit Bureau Summary</label>
-                            <textarea class="form-control" rows="3" @bind="finBureauSummary" disabled="@(!canEditFin)" placeholder="Summary of bureau results (auto-populated if credit check ran)..."></textarea>
-                        </div>
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Summary Notes</label>
-                            <textarea class="form-control" rows="2" @bind="finSummaryNotes" disabled="@(!canEditFin)" placeholder="Overall financial assessment..."></textarea>
+                        <div class="form-group">
+                            <label class="form-label">Monthly Instalment (computed)</label>
+                            <input class="form-control" readonly value="@FmtM(FinMonthlyInstalment)"
+                                   style="border-color: var(--primary-600); background: var(--primary-50, #f0fdf4); color: var(--primary-600); font-weight: 600;" />
                         </div>
                     </div>
+
+                    <!-- Operational assumptions -->
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 0.75rem;">
+                        Monthly operating assumptions
+                        <span style="font-weight: 400; color: var(--warning-600); text-transform: none; letter-spacing: 0; margin-left: 6px;">★ officer fills in after applicant call</span>
+                    </div>
+
+                    <!-- Ha/month with inline evidence note -->
+                    <div style="display: grid; grid-template-columns: 180px 1fr; gap: 1rem; align-items: start; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Hectares / month</label>
+                            <input type="number" class="form-control" min="0"
+                                   value="@finHectaresPerMonth" disabled="@(!canEditFin)"
+                                   @oninput="e => { finHectaresPerMonth = decimal.TryParse(e.Value?.ToString(), out var v) ? v : null; }" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="color: var(--warning-600);">★ Basis / demand evidence for this figure</label>
+                            <textarea class="form-control" rows="2" @bind="finDemandEvidence" disabled="@(!canEditFin)"
+                                      placeholder="e.g. 3 signed hire agreements with Ogun cooperative covering 45 ha; verbal commitment from 2 additional farms for planting season"></textarea>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div class="form-group">
+                            <label class="form-label">Rate per hectare (₦)</label>
+                            <input type="number" class="form-control" min="0"
+                                   value="@finRatePerHectare" disabled="@(!canEditFin)"
+                                   @oninput="e => { finRatePerHectare = decimal.TryParse(e.Value?.ToString(), out var v) ? v : null; }" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Monthly fuel cost (₦)</label>
+                            <input type="number" class="form-control" min="0"
+                                   value="@finMonthlyFuelCost" disabled="@(!canEditFin)"
+                                   @oninput="e => { finMonthlyFuelCost = decimal.TryParse(e.Value?.ToString(), out var v) ? v : null; }" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Maintenance / repairs (₦)</label>
+                            <input type="number" class="form-control" min="0"
+                                   value="@finMonthlyMaintenanceCost" disabled="@(!canEditFin)"
+                                   @oninput="e => { finMonthlyMaintenanceCost = decimal.TryParse(e.Value?.ToString(), out var v) ? v : null; }" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Operator wages (₦)</label>
+                            <input type="number" class="form-control" min="0"
+                                   value="@finMonthlyOperatorWage" disabled="@(!canEditFin)"
+                                   @oninput="e => { finMonthlyOperatorWage = decimal.TryParse(e.Value?.ToString(), out var v) ? v : null; }" />
+                        </div>
+                    </div>
+
+                    <!-- Cashflow summary metrics -->
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 0.75rem;">Monthly cashflow summary</div>
+                    <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
+                        @foreach (var (label, value, sub, color) in new[] {
+                            ("Gross Revenue",          FmtM(FinGrossRevenue),     "ha × rate/ha",        ""),
+                            ("Operating Costs",        FmtM(FinTotalCosts),       "fuel + maint + wages",""),
+                            ("Net Income",             FmtM(FinNetIncome),        "before repayment",    FinNetIncome > 0 ? "var(--success-600)" : "var(--danger-600)"),
+                            ("Monthly Instalment",     FmtM(FinMonthlyInstalment),"reducing balance",    ""),
+                            ("Surplus After Repayment",FmtM(FinSurplus),          "take-home profit",    FinSurplus > 0 ? "var(--success-600)" : "var(--danger-600)"),
+                            ("Debt Service Ratio",     $"{FinDsr:F2}×",           "net ÷ instalment",    FinDsr >= 1.5m ? "var(--success-600)" : FinDsr >= 1.0m ? "var(--warning-600)" : "var(--danger-600)")
+                        })
+                        {
+                            <div style="background: var(--bg-secondary, #f8fafc); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem;">
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 4px;">@label</div>
+                                <div style="font-size: 1.05rem; font-weight: 700; color: @(string.IsNullOrEmpty(color) ? "inherit" : color);">@value</div>
+                                <div style="font-size: 0.67rem; color: var(--text-secondary); margin-top: 3px;">@sub</div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Bar chart -->
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 0.75rem;">Income breakdown vs instalment</div>
+                    <div style="background: var(--bg-secondary, #f8fafc); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                        @foreach (var (lbl, val, bg) in new[] {
+                            ("Revenue",    FinGrossRevenue,     "#3b82f6"),
+                            ("Op. Costs",  FinTotalCosts,       "#ef4444"),
+                            ("Instalment", FinMonthlyInstalment,"#f59e0b"),
+                            ("Surplus",    Math.Max(0, FinSurplus), "#10b981")
+                        })
+                        {
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 0.8rem;">
+                                <div style="min-width: 80px; color: var(--text-secondary); font-weight: 500;">@lbl</div>
+                                <div style="flex: 1; height: 10px; border-radius: 5px; background: #e2e8f0; overflow: hidden;">
+                                    <div style="height: 100%; border-radius: 5px; background: @bg; width: @(FinBarPct(val))%;"></div>
+                                </div>
+                                <div style="min-width: 80px; text-align: right; font-weight: 600; font-size: 0.8125rem;">@FmtM(val)</div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Verdict -->
+                    <div class="alert @verdictClass" style="margin-bottom: 1rem;">@verdictText</div>
+
+                    <!-- 5-check appraisal framework -->
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 0.75rem;">Bank appraisal viability framework</div>
+                    <div style="margin-bottom: 1.25rem;">
+                        @foreach (var (metric, pass, detail) in new[] {
+                            ("Net Present Value (NPV) must be positive",  FinNpvPass,  FinNpvPass  ? $"₦{FinNpv / 1_000_000m:F2}m" : ""),
+                            ("Benefit-Cost Ratio (BCR) must be > 1.0",   FinBcrPass,  FinBcrPass  ? $"{FinBcr:F2}" : ""),
+                            ("Internal Rate of Return (IRR) must beat 15%", FinIrrPass, FinIrrPass ? $"{FinIrr * 100:F1}%" : ""),
+                            ("Net Cash Balance buffer validation",         FinCashPass, ""),
+                            ("Profitability Index must be > 1.0",         FinPiPass,   FinPiPass   ? $"{FinPi:F2}" : "")
+                        })
+                        {
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; font-size: 0.8125rem; background: #fff;">
+                                <span>@metric</span>
+                                <span class="badge @(pass ? "badge-success" : "badge-danger")">
+                                    @(pass ? $"Pass{(string.IsNullOrEmpty(detail) ? "" : " (" + detail + ")")}" : "Fail")
+                                </span>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Break-even -->
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 0.75rem;">Break-even utilisation</div>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;">
+                        @foreach (var (lbl, val) in new[] {
+                            ("Min. ha/month to cover costs only",         $"{(int)FinBreakEvenCosts} ha/month"),
+                            ("Min. ha/month to also cover instalment",    $"{(int)FinBreakEvenLoan} ha/month"),
+                            ($"Equity Required ({(int)(FinEquityPct*100)}%)", FmtM(FinEquityAmount)),
+                            ("Loan-to-Value Ratio",                       $"{FinLtv:F1}%")
+                        })
+                        {
+                            <div style="background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem;">
+                                <div style="font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 4px;">@lbl</div>
+                                <div style="font-size: 1rem; font-weight: 700;">@val</div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="alert alert-secondary" style="font-size: 0.78rem; padding: 0.625rem 0.875rem;">
+                        Interest rate and equity % are locked to the NAMP loan product. Instalment uses standard reducing-balance amortisation. NPV/BCR/IRR use a 5-year evaluation window discounted at the 15% hurdle rate.
+                    </div>
+
+                    <!-- Download PDF -->
+                    <div style="margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;">
+                        <span style="font-size: 0.78rem; color: var(--text-secondary); flex: 1;">PDF is generated in your browser. Attach it manually to the application documents if a paper record is needed.</span>
+                        <button class="btn btn-secondary" @onclick="DownloadFinAppraisalPdf">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                            Download Appraisal Report
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Officer Recommendation Card ── -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Officer Recommendation</h3>
+                        <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: 2px;">Computed metrics carried forward from the calculator. Add any risk context the numbers don't capture, then record your decision.</p>
+                    </div>
+                    @if (finReport != null && !canEditFin)
+                    { <span class="badge badge-success">Saved @finReport.SavedAt.ToLocalTime().ToString("dd MMM yyyy")</span> }
+                </div>
+                <div class="card-body">
+                    <!-- Auto-derived strip -->
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 0.625rem;">Computed — read only</div>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; background: var(--bg-secondary, #f8fafc); border: 1px solid var(--border); border-radius: 6px; padding: 0.875rem; margin-bottom: 1.25rem;">
+                        @foreach (var (lbl, val, sub, col) in new[] {
+                            ("Monthly Disposable Income", FmtM(FinSurplus),      "surplus after instalment", FinSurplus > 0 ? "var(--primary-600)" : "var(--danger-600)"),
+                            ("Debt Service Coverage",     $"{FinDsr:F2}×",       "net income ÷ instalment",  FinDsr >= 1.5m ? "var(--success-600)" : FinDsr >= 1.0m ? "var(--warning-600)" : "var(--danger-600)"),
+                            ("Loan-to-Value Ratio",       $"{FinLtv:F1}%",       "loan ÷ equipment value",   "var(--primary-600)"),
+                            ("Repayment Capacity",        FinCapacityRating,     "derived from DSR band",    FinCapacityRating == "Strong" || FinCapacityRating == "Adequate" ? "var(--success-600)" : FinCapacityRating == "Marginal" ? "var(--warning-600)" : "var(--danger-600)")
+                        })
+                        {
+                            <div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 3px;">@lbl</div>
+                                <div style="font-size: 0.9375rem; font-weight: 700; color: @col;">@val</div>
+                                <div style="font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px;">@sub</div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Single qualitative field -->
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label class="form-label">Risk commentary for committee <span style="font-weight: 400; color: var(--text-secondary);">(optional)</span></label>
+                        <textarea class="form-control" rows="3" @bind="finRiskCommentary" disabled="@(!canEditFin)"
+                                  placeholder="e.g. Seasonal variation — recommend monitoring Q1 utilisation. Cooperative membership provides backstop demand guarantee. Applicant also operates a second tractor generating ₦800k/month not reflected above."></textarea>
+                    </div>
+
+                    <!-- Pass / Fail toggle -->
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 0.625rem;">
+                        Credit officer recommendation <span style="color: var(--danger-600);">*</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <button class="btn @(finCreditRecommendation == "Pass" ? "btn-success" : "btn-secondary")"
+                                style="padding: 10px; font-size: 0.9rem;"
+                                disabled="@(!canEditFin)"
+                                @onclick='() => finCreditRecommendation = "Pass"'>
+                            ✓ Pass — recommend for committee circulation
+                        </button>
+                        <button class="btn @(finCreditRecommendation == "Fail" ? "btn-danger" : "btn-secondary")"
+                                style="padding: 10px; font-size: 0.9rem;"
+                                disabled="@(!canEditFin)"
+                                @onclick='() => finCreditRecommendation = "Fail"'>
+                            ✗ Fail — decline at financial appraisal stage
+                        </button>
+                    </div>
+
                     @if (!string.IsNullOrEmpty(finReportError))
                     { <div class="alert alert-danger" style="margin-top: 0.75rem;">@finReportError</div> }
+
                     @if (canEditFin)
                     {
-                        <div style="margin-top: 1rem; display: flex; justify-content: flex-end;">
+                        <div style="margin-top: 1.25rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
                             <button class="btn btn-secondary" @onclick="SaveFinReport" disabled="@isSavingFinReport">
                                 @if (isSavingFinReport) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
-                                Save Report Draft
+                                Save Draft
                             </button>
                         </div>
                     }
@@ -1098,7 +1274,7 @@ else
                         <div class="p-4 text-center text-muted">
                             <span class="material-symbols-outlined" style="font-size: 36px; opacity: 0.3;">folder_open</span>
                             <div style="margin-top: 0.5rem; font-size: 0.875rem;">No documents uploaded for this stage yet.</div>
-                            @if (canEditFin) { <div style="font-size: 0.8rem; color: var(--danger-600); margin-top: 0.25rem;">At least one Financial Model document is required before approving.</div> }
+                            @if (canEditFin) { <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">Supporting documents are optional — upload any additional files here if needed.</div> }
                         </div>
                     }
                     else
@@ -1828,7 +2004,7 @@ else
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 class="card-title" style="margin: 0;">Documents</h3>
                 <div style="display: flex; gap: var(--space-2); align-items: center;">
-                    @if (!(app.Status is "Closed" or "TechnicalDeclined" or "FinancialDeclined" or
+                    @if (!(app.Status is "Closed" or "TechnicalDeclined" or "FinancialDeclined" or "RiskDeclined" or
                            "BranchCommitteeDeclined" or "ZonalCommitteeDeclined" or "RegionalCommitteeDeclined" or
                            "HOCommitteeDeclined" or "RatificationDeclined" or "Declined" or "OfferLapsed") &&
                          (User?.HasAnyRole("LoanOfficer", "SystemAdmin") ?? false))
@@ -2294,21 +2470,22 @@ else
                             Upload Document
                         </button>
                     </div>
+                }
 
-                    @if (app.Documents.Any(d => d.Stage == "LegalClearance"))
-                    {
-                        <div style="margin-top: var(--space-4);">
-                            <div style="font-size: var(--text-sm); font-weight: 600; color: var(--gray-700); margin-bottom: var(--space-2);">Documents Uploaded at This Stage</div>
-                            @foreach (var doc in app.Documents.Where(d => d.Stage == "LegalClearance"))
-                            {
-                                <div style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 1px solid var(--gray-100);">
-                                    <span class="material-symbols-outlined" style="font-size: 18px; color: var(--gray-400);">description</span>
-                                    <span style="flex: 1; font-size: var(--text-sm);">@doc.FileName</span>
-                                    <a href="@doc.StoragePath" target="_blank" class="btn btn-xs btn-outline">View</a>
-                                </div>
-                            }
-                        </div>
-                    }
+                @if (app.Documents.Any(d => d.Stage == "LegalClearance"))
+                {
+                    <div style="margin-top: var(--space-4);">
+                        <div style="font-size: var(--text-sm); font-weight: 600; color: var(--gray-700); margin-bottom: var(--space-2);">Documents Uploaded at This Stage</div>
+                        @foreach (var doc in app.Documents.Where(d => d.Stage == "LegalClearance"))
+                        {
+                            var capturedLegalDoc = doc;
+                            <div style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 1px solid var(--gray-100);">
+                                <span class="material-symbols-outlined" style="font-size: 18px; color: var(--gray-400);">description</span>
+                                <span style="flex: 1; font-size: var(--text-sm);">@capturedLegalDoc.FileName</span>
+                                <button class="btn btn-xs btn-outline" @onclick="() => OpenDocView(capturedLegalDoc.Id, capturedLegalDoc.FileName, capturedLegalDoc.ContentType)">View</button>
+                            </div>
+                        }
+                    </div>
                 }
 
                 @if (app.Status is "LegalReturned" && ShowResubmitToLegalButton)
@@ -2410,7 +2587,7 @@ else
                                 </div>
                                 @if (!string.IsNullOrEmpty(GetItemError(item.Id)))
                                 { <div class="alert alert-danger" style="margin-bottom: 0.5rem;">@GetItemError(item.Id)</div> }
-                                <button class="btn btn-secondary btn-sm" @onclick="() => SaveChecklistItem(item.Id)" disabled="@IsItemSaving(item.Id)">
+                                <button class="btn btn-primary btn-sm" @onclick="() => SaveChecklistItem(item.Id)" disabled="@IsItemSaving(item.Id)">
                                     @if (IsItemSaving(item.Id)) { <span class="spinner" style="width: 12px; height: 12px;"></span> }
                                     Save
                                 </button>
@@ -2685,6 +2862,65 @@ else
                         </div>
                     }
 
+                    <!-- ── Viability Calculator Summary ── -->
+                    @if (app?.FinancialAppraisalReport is { } finRpt && (finRpt.NetPresentValue.HasValue || finRpt.HectaresPerMonth.HasValue))
+                    {
+                        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 1.1rem; margin-bottom: 1.25rem;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.9rem;">
+                                <span class="material-symbols-outlined" style="font-size: 17px; color: #0284c7;">calculate</span>
+                                <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #0284c7;">Viability Calculator Summary</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.8125rem;">
+                                @if (finRpt.HectaresPerMonth.HasValue || finRpt.RatePerHectare.HasValue)
+                                {
+                                    <div style="grid-column: 1 / -1; font-weight: 600; color: #0369a1; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.25rem;">Operational Assumptions (monthly)</div>
+                                    @if (finRpt.HectaresPerMonth.HasValue)
+                                    {
+                                        <div><span style="color: var(--text-secondary);">Hectares / month:</span> <strong>@finRpt.HectaresPerMonth:N1 ha</strong></div>
+                                    }
+                                    @if (finRpt.RatePerHectare.HasValue)
+                                    {
+                                        <div><span style="color: var(--text-secondary);">Rate / hectare:</span> <strong>₦@finRpt.RatePerHectare.Value.ToString("N0")</strong></div>
+                                    }
+                                    @if (finRpt.MonthlyFuelCost.HasValue)
+                                    {
+                                        <div><span style="color: var(--text-secondary);">Fuel cost:</span> <strong>₦@finRpt.MonthlyFuelCost.Value.ToString("N0")</strong></div>
+                                    }
+                                    @if (finRpt.MonthlyMaintenanceCost.HasValue)
+                                    {
+                                        <div><span style="color: var(--text-secondary);">Maintenance:</span> <strong>₦@finRpt.MonthlyMaintenanceCost.Value.ToString("N0")</strong></div>
+                                    }
+                                    @if (finRpt.MonthlyOperatorWage.HasValue)
+                                    {
+                                        <div><span style="color: var(--text-secondary);">Operator wage:</span> <strong>₦@finRpt.MonthlyOperatorWage.Value.ToString("N0")</strong></div>
+                                    }
+                                }
+                                @if (finRpt.NetPresentValue.HasValue || finRpt.BenefitCostRatio.HasValue || finRpt.InternalRateOfReturn.HasValue || finRpt.ProfitabilityIndex.HasValue)
+                                {
+                                    <div style="grid-column: 1 / -1; font-weight: 600; color: #0369a1; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.5rem; margin-bottom: 0.25rem;">Computed Viability Metrics</div>
+                                    @foreach (var vm in new (string Label, string? Value, bool Pass, string Threshold)[] {
+                                        ("NPV", finRpt.NetPresentValue.HasValue ? $"₦{finRpt.NetPresentValue.Value:N0}" : null, finRpt.NetPresentValue.GetValueOrDefault() > 0, "> 0"),
+                                        ("BCR", finRpt.BenefitCostRatio.HasValue ? $"{finRpt.BenefitCostRatio.Value:N2}x" : null, finRpt.BenefitCostRatio.GetValueOrDefault() > 1.0m, "> 1.0"),
+                                        ("IRR", finRpt.InternalRateOfReturn.HasValue ? $"{finRpt.InternalRateOfReturn.Value * 100:N1}%" : null, finRpt.InternalRateOfReturn.GetValueOrDefault() > 0.15m, "> 15%"),
+                                        ("PI",  finRpt.ProfitabilityIndex.HasValue  ? $"{finRpt.ProfitabilityIndex.Value:N2}" : null,  finRpt.ProfitabilityIndex.GetValueOrDefault()  > 1.0m, "> 1.0"),
+                                    })
+                                    {
+                                        if (vm.Value != null)
+                                        {
+                                            <div style="display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #e0f2fe; border-radius: 6px; padding: 6px 10px;">
+                                                <span style="color: var(--text-secondary);">@vm.Label <span style="font-size: 0.7rem; opacity: 0.6;">(@vm.Threshold)</span></span>
+                                                <span style="display: flex; align-items: center; gap: 5px;">
+                                                    <strong>@vm.Value</strong>
+                                                    <span style="font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: @(vm.Pass ? "#dcfce7" : "#fee2e2"); color: @(vm.Pass ? "#15803d" : "#b91c1c");">@(vm.Pass ? "PASS" : "FAIL")</span>
+                                                </span>
+                                            </div>
+                                        }
+                                    }
+                                }
+                            </div>
+                        </div>
+                    }
+
                     <!-- ── Executive Summary ── -->
                     @if (!string.IsNullOrEmpty(nampAdvisory.ExecutiveSummary))
                     {
@@ -2804,6 +3040,64 @@ else
         else if (!string.IsNullOrEmpty(loanAccountError))
         {
             <div class="alert alert-danger">@loanAccountError</div>
+        }
+        else if (loanAccountLoaded && loanAccount == null)
+        {
+            @* No CBS link — show application-level loan details *@
+            <div class="card" style="margin-bottom: 1rem;">
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem;">
+                        <div>
+                            <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Loan Amount</div>
+                            <div style="font-weight: 700; font-size: 0.9rem;">@(app!.LoanAmount.HasValue ? $"₦{app.LoanAmount.Value:N0}" : "—")</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Tenor</div>
+                            <div style="font-weight: 600; font-size: 0.875rem;">@(app.RequestedTenorMonths.HasValue ? $"{app.RequestedTenorMonths} months" : "—")</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Interest Rate (p.a.)</div>
+                            <div style="font-weight: 600; font-size: 0.875rem;">@(app.ApprovedInterestRate.HasValue ? $"{app.ApprovedInterestRate:0.##}%" : "—")</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Deployed</div>
+                            <div style="font-weight: 500; font-size: 0.875rem;">@(app.DeployedAt.HasValue ? app.DeployedAt.Value.ToLocalTime().ToString("dd MMM yyyy") : "—")</div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(app.FineractLoanAccountNumber))
+                    {
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">CBS Loan Account No.</div>
+                            <div style="font-weight: 700; font-size: 0.9rem; font-family: monospace;">@app.FineractLoanAccountNumber</div>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="alert alert-warning" style="display: flex; align-items: flex-start; gap: 0.75rem;">
+                <span class="material-symbols-outlined" style="font-size: 20px; flex-shrink: 0; margin-top: 2px;">warning</span>
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; margin-bottom: 0.3rem;">Not linked to Core Banking System</div>
+                    <div style="font-size: 0.875rem;">The CBS booking was not completed when this application was deployed. Live repayment schedule and balance data are not available.</div>
+                    @if (!string.IsNullOrEmpty(cbsBookingRetryError))
+                    {
+                        <div style="margin-top: 0.5rem; color: var(--danger-color); font-size: 0.8rem;">@cbsBookingRetryError</div>
+                    }
+                    <div style="margin-top: 0.75rem;">
+                        <button class="btn btn-warning btn-sm" @onclick="RetryFineractBooking" disabled="@isRetryingCbsBooking">
+                            @if (isRetryingCbsBooking)
+                            {
+                                <span class="spinner-border spinner-border-sm" style="margin-right: 0.4rem;"></span>
+                                <span>Booking...</span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size: 15px; vertical-align: middle; margin-right: 0.3rem;">link</span>
+                                <span>Link to Core Banking System</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
         }
         else if (loanAccount != null)
         {
@@ -3165,9 +3459,7 @@ else
 <!-- Financial Appraisal Decision Modal -->
 @if (showFinDecisionModal)
 {
-    var finDocs2 = app!.Documents.Where(d => d.Stage == "FinancialAppraisal").ToList();
-    var hasFinDoc = finDocs2.Any(d => d.Category == "CreditReport");
-    var blocked = app.FinancialAppraisalReport == null || !hasFinDoc;
+    var blocked = app!.FinancialAppraisalReport == null;
     <div class="modal-backdrop show" @onclick="CloseFinDecisionModal">
         <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
             <div class="modal-header">
@@ -3181,7 +3473,6 @@ else
                         <strong>Cannot submit decision yet:</strong>
                         <ul style="margin: 0.5rem 0 0 1rem; padding: 0;">
                             @if (app.FinancialAppraisalReport == null) { <li>Save the financial appraisal report first.</li> }
-                            @if (!hasFinDoc) { <li>Upload at least one document categorised as <strong>Financial Model</strong>.</li> }
                         </ul>
                     </div>
                 }
@@ -3215,9 +3506,124 @@ else
                 {
                     <button class="btn @(finDecisionApproved ? "btn-success" : "btn-danger")" @onclick="SubmitFinDecision" disabled="@isSubmittingFinDecision">
                         @if (isSubmittingFinDecision) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
-                        @(finDecisionApproved ? "Approve — Pass to Committee" : "Decline Application")
+                        @(finDecisionApproved ? "Approve — Pass to Risk Review" : "Decline Application")
                     </button>
                 }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Return Financial Appraisal to LO Modal -->
+@if (showFinReturnModal)
+{
+    <div class="modal-backdrop show" style="z-index: 1100;" @onclick="CloseFinReturnModal">
+        <div class="modal" style="max-width: 520px; z-index: 1101;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Return to Loan Officer</h3>
+                <button class="btn-close" @onclick="CloseFinReturnModal"></button>
+            </div>
+            <div class="modal-body">
+                <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 1rem;">
+                    The application will be returned to <strong>Draft</strong> status. The Loan Officer will be able to make adjustments and resubmit for financial appraisal.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Return Reason <span class="text-danger">*</span></label>
+                    <textarea class="form-control" rows="3" @bind="finReturnReason"
+                              placeholder="State clearly what needs to be corrected or provided..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(finReturnError))
+                { <div class="alert alert-danger" style="margin-top: 0.75rem;">@finReturnError</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseFinReturnModal">Cancel</button>
+                <button class="btn btn-warning" style="color: #000;" @onclick="SubmitFinReturn" disabled="@isSubmittingFinReturn">
+                    @if (isSubmittingFinReturn) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                    Return to Loan Officer
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Risk Review — Approve Modal -->
+@if (showRiskApproveModal)
+{
+    <div class="modal-backdrop show" style="z-index: 1100;" @onclick="CloseRiskApproveModal">
+        <div class="modal" style="max-width: 480px; z-index: 1101;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Approve to Committee</h3>
+                <button class="btn-close" @onclick="CloseRiskApproveModal"></button>
+            </div>
+            <div class="modal-body">
+                <p>The application will be forwarded to the <strong>@app!.CommitteeTier Committee</strong> for review.</p>
+                <div class="form-group">
+                    <label class="form-label">Note <span class="text-muted">(optional)</span></label>
+                    <textarea class="form-control" rows="3" @bind="riskApproveNote" placeholder="Any observations or conditions for the committee..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(riskActionError)) { <div class="alert alert-danger">@riskActionError</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseRiskApproveModal">Cancel</button>
+                <button class="btn btn-success" @onclick="SubmitRiskApprove" disabled="@isSubmittingRiskAction">
+                    @if (isSubmittingRiskAction) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                    Approve to Committee
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Risk Review — Return Modal -->
+@if (showRiskReturnModal)
+{
+    <div class="modal-backdrop show" style="z-index: 1100;" @onclick="CloseRiskReturnModal">
+        <div class="modal" style="max-width: 480px; z-index: 1101;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Return to Financial Appraisal</h3>
+                <button class="btn-close" @onclick="CloseRiskReturnModal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Return Reason *</label>
+                    <textarea class="form-control" rows="4" @bind="riskReturnReason" placeholder="Explain what needs to be revised in the financial appraisal..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(riskActionError)) { <div class="alert alert-danger">@riskActionError</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseRiskReturnModal">Cancel</button>
+                <button class="btn btn-warning" style="color: #000;" @onclick="SubmitRiskReturn" disabled="@isSubmittingRiskAction">
+                    @if (isSubmittingRiskAction) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                    Return to Financial Appraisal
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Risk Review — Decline Modal -->
+@if (showRiskDeclineModal)
+{
+    <div class="modal-backdrop show" style="z-index: 1100;" @onclick="CloseRiskDeclineModal">
+        <div class="modal" style="max-width: 480px; z-index: 1101;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Decline Application</h3>
+                <button class="btn-close" @onclick="CloseRiskDeclineModal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">This will permanently decline the application. This action cannot be undone.</div>
+                <div class="form-group">
+                    <label class="form-label">Decline Reason *</label>
+                    <textarea class="form-control" rows="4" @bind="riskDeclineReason" placeholder="State the risk grounds for declining this application..."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(riskActionError)) { <div class="alert alert-danger">@riskActionError</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseRiskDeclineModal">Cancel</button>
+                <button class="btn btn-danger" @onclick="SubmitRiskDecline" disabled="@isSubmittingRiskAction">
+                    @if (isSubmittingRiskAction) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                    Decline Application
+                </button>
             </div>
         </div>
     </div>
@@ -3241,15 +3647,15 @@ else
                 }
                 else if (viewDocContentType == "application/pdf" || viewDocContentType.Contains("pdf"))
                 {
-                    <iframe src="@viewDocUrl" style="width: 100%; height: 100%; border: none;"></iframe>
+                    <iframe src="@(viewDocUrl + "#toolbar=0&navpanes=0")" style="width: 100%; height: 100%; border: none;"></iframe>
                 }
                 else
                 {
                     <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: var(--text-secondary);">
                         <span class="material-symbols-outlined" style="font-size: 64px; opacity: 0.4;">insert_drive_file</span>
                         <div style="font-size: 0.875rem;">Preview not available for this file type.</div>
-                        <a href="@viewDocUrl" target="_blank" class="btn btn-primary btn-sm">
-                            <span class="material-symbols-outlined" style="font-size: 16px;">open_in_new</span> Open in new tab
+                        <a href="@viewDocUrl.Replace("/view", "/download")" class="btn btn-primary btn-sm">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Download
                         </a>
                     </div>
                 }
@@ -3364,9 +3770,9 @@ else
                 <div class="form-group">
                     <label class="form-label">Category *</label>
                     <select class="form-control" @bind="uploadDocCategory">
-                        <option value="CreditReport">Credit Report (Required)</option>
-                        <option value="FinancialModel">Financial Model</option>
                         <option value="SupportingDocument">Supporting Document</option>
+                        <option value="CreditReport">Credit Report</option>
+                        <option value="FinancialModel">Financial Model</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -3406,15 +3812,20 @@ else
             <div class="modal-body">
                 <div class="form-group">
                     <label class="form-label">Category *</label>
-                    <select class="form-control" @bind="uploadDocCategory">
-                        <option value="General">General</option>
-                        <option value="SupportingDocument">Supporting Document</option>
-                        <option value="CreditReport">Credit Report / Bank Statement</option>
-                        <option value="FinancialModel">Financial Model / Audited Accounts</option>
-                        <option value="TechnicalReport">Technical Report</option>
-                        <option value="SitePhoto">Site Photo</option>
-                        <option value="SoilTestResult">Soil Test Result</option>
-                    </select>
+                    @if (uploadDocCategory is "LeaseAgreement" or "GpsConsentForm" or "SignedNampOfferLetter" or "EquityDepositReceipt" or "InsuranceCertificate")
+                    {
+                        <input type="text" class="form-control" value="@FormatDocCategory(uploadDocCategory)" readonly style="background:var(--bg-secondary);color:var(--text-secondary);" />
+                    }
+                    else
+                    {
+                        <select class="form-control" @bind="uploadDocCategory">
+                            <option value="General">General</option>
+                            <option value="SupportingDocument">Supporting Document</option>
+                            <option value="CreditReport">Credit Report / Bank Statement</option>
+                            <option value="FinancialModel">Financial Model / Audited Accounts</option>
+                            <option value="SitePhoto">Site Photo</option>
+                        </select>
+                    }
                 </div>
                 <div class="form-group">
                     <label class="form-label">File *</label>
@@ -4024,6 +4435,20 @@ else
     private int committeeDeadlineHours = 72;
 
     private bool showFinDecisionModal;
+    private bool showFinReturnModal;
+    private string? finReturnReason;
+    private string? finReturnError;
+    private bool isSubmittingFinReturn;
+
+    // Risk Review modals
+    private bool showRiskApproveModal;
+    private bool showRiskReturnModal;
+    private bool showRiskDeclineModal;
+    private string? riskApproveNote;
+    private string? riskReturnReason;
+    private string? riskDeclineReason;
+    private string? riskActionError;
+    private bool isSubmittingRiskAction;
 
     // Pre-Deployment dynamic checklist
     private Dictionary<Guid, bool?> checklistConfirmed = new();
@@ -4038,21 +4463,71 @@ else
     private bool isUploadingChecklistDoc;
     private string? checklistDocError;
 
-    // Financial Appraisal form
-    private decimal? finMonthlyIncome;
-    private decimal? finDscr;
-    private decimal? finLtv;
-    private string finRepaymentRating = "";
-    private string? finEquityNote;
-    private string? finBureauSummary;
-    private string finCreditRecommendation = "";
-    private string? finSummaryNotes;
-    private string finRepaymentSource = "PrimaryIncome";
-    private decimal? finProjectedRentalRevenue;
-    private decimal? finUtilisationRate;
+    // Financial Appraisal — calculator inputs (officer-collected from applicant call)
+    private decimal? finHectaresPerMonth;
+    private decimal? finRatePerHectare;
+    private decimal? finMonthlyFuelCost;
+    private decimal? finMonthlyMaintenanceCost;
+    private decimal? finMonthlyOperatorWage;
     private string? finDemandEvidence;
+    private string? finRiskCommentary;
+    private string finCreditRecommendation = "Pass";
     private bool isSavingFinReport;
     private string? finReportError;
+
+    // Financial Appraisal — computed from application data
+    private decimal FinLoanPrincipal       => app?.LoanAmount ?? 0;
+    private decimal FinEquipmentValue      => app?.EquipmentValue ?? 0;
+    private decimal FinInterestRate        => app?.FineractNominalInterestRate ?? app?.ApprovedInterestRate ?? 9m;
+    private int     FinTenorMonths         => app?.RequestedTenorMonths ?? (app?.ApplicantCategory == "AgroServiceCompany" ? 36 : 60);
+    private decimal FinEquityPct           => app?.ApplicantCategory == "AgroServiceCompany" ? 0.25m : 0.15m;
+    private decimal FinEquityAmount        => FinEquipmentValue * FinEquityPct;
+    private string  FinTrackLabel          => app?.ApplicantCategory == "AgroServiceCompany" ? "Track B — Companies" : "Track A — Women & Youth";
+
+    // Financial Appraisal — computed from calculator inputs
+    private decimal FinMonthlyInstalment   => ComputePmt(FinLoanPrincipal, FinInterestRate, FinTenorMonths);
+    private decimal FinGrossRevenue        => (finHectaresPerMonth ?? 0) * (finRatePerHectare ?? 0);
+    private decimal FinTotalCosts          => (finMonthlyFuelCost ?? 0) + (finMonthlyMaintenanceCost ?? 0) + (finMonthlyOperatorWage ?? 0);
+    private decimal FinNetIncome           => FinGrossRevenue - FinTotalCosts;
+    private decimal FinSurplus             => FinNetIncome - FinMonthlyInstalment;
+    private decimal FinDsr                 => FinMonthlyInstalment > 0 ? FinNetIncome / FinMonthlyInstalment : 0;
+    private decimal FinLtv                 => FinEquipmentValue > 0 ? FinLoanPrincipal / FinEquipmentValue * 100 : 0;
+    private string  FinCapacityRating      => FinDsr >= 1.5m ? "Strong" : FinDsr >= 1.2m ? "Adequate" : FinDsr >= 1.0m ? "Marginal" : "Insufficient";
+    private decimal FinBreakEvenCosts      => (finRatePerHectare ?? 0) > 0 ? Math.Ceiling(FinTotalCosts / finRatePerHectare!.Value) : 0;
+    private decimal FinBreakEvenLoan       => (finRatePerHectare ?? 0) > 0 ? Math.Ceiling((FinTotalCosts + FinMonthlyInstalment) / finRatePerHectare!.Value) : 0;
+
+    // Financial Appraisal — 5-metric appraisal framework (5-yr, 15% hurdle)
+    private decimal FinPvInflows { get { decimal pv = 0; for (int y = 1; y <= 5; y++) pv += (FinSurplus * 12) / (decimal)Math.Pow(1.15, y); return pv; } }
+    private decimal FinNpv  => FinPvInflows - FinEquityAmount;
+    private decimal FinBcr  => FinEquityAmount > 0 ? FinPvInflows / FinEquityAmount : 0;
+    private decimal FinPi   => FinEquityAmount > 0 ? (FinNpv / FinEquityAmount) + 1 : 0;
+    private decimal FinIrr  => FinSurplus > 0 && FinEquityAmount > 0 ? ((FinSurplus * 12) / FinEquityAmount) - 0.05m : 0;
+    private bool    FinNpvPass  => FinNpv > 0 && FinSurplus > 0;
+    private bool    FinBcrPass  => FinBcr > 1.0m && FinSurplus > 0;
+    private bool    FinIrrPass  => FinIrr > 0.15m && FinSurplus > 0;
+    private bool    FinCashPass => FinSurplus >= FinTotalCosts && FinSurplus > 0;
+    private bool    FinPiPass   => FinPi > 1.0m && FinSurplus > 0;
+
+    // Financial Appraisal — bar chart helpers
+    private decimal FinBarMax => Math.Max(FinGrossRevenue, Math.Max(FinTotalCosts, Math.Max(FinMonthlyInstalment, FinSurplus > 0 ? FinSurplus : 0)));
+    private int FinBarPct(decimal v) => FinBarMax > 0 ? (int)Math.Round(Math.Max(0, Math.Min(100, v / FinBarMax * 100))) : 0;
+
+    // Financial Appraisal — formatting helper
+    private static string FmtM(decimal n)
+    {
+        var a = Math.Abs(n); var s = n < 0 ? "-" : "";
+        if (a >= 1_000_000m) return $"{s}₦{a / 1_000_000m:F2}m";
+        if (a >= 1_000m)     return $"{s}₦{a / 1_000m:F0}k";
+        return $"{s}₦{a:F0}";
+    }
+    private static decimal ComputePmt(decimal principal, decimal annualRate, int months)
+    {
+        if (months == 0) return 0;
+        if (annualRate == 0) return principal / months;
+        var r = annualRate / 100m / 12m;
+        var factor = (decimal)Math.Pow((double)(1m + r), months);
+        return principal * r * factor / (factor - 1m);
+    }
     private bool finDecisionApproved = true;
     private string? finDecisionNote;
     private bool isSubmittingFinDecision;
@@ -4100,7 +4575,7 @@ else
     // ── Role-gated action visibility ──────────────────────────────────────
 
     private bool CanUploadLoDoc =>
-        !(app?.Status is "Closed" or "TechnicalDeclined" or "FinancialDeclined" or
+        !(app?.Status is "Closed" or "TechnicalDeclined" or "FinancialDeclined" or "RiskDeclined" or
           "BranchCommitteeDeclined" or "ZonalCommitteeDeclined" or "RegionalCommitteeDeclined" or
           "HOCommitteeDeclined" or "RatificationDeclined" or "Declined" or "OfferLapsed") &&
         (User?.HasAnyRole("LoanOfficer", "SystemAdmin") ?? false);
@@ -4114,8 +4589,17 @@ else
         (app?.Status == "Submitted" || app?.Status == "FinancialAppraisal") &&
         (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
+    private bool ShowRiskReviewButtons =>
+        app?.Status == "RiskReview" &&
+        (User?.HasAnyRole(
+            app?.CommitteeTier == "Branch"     ? "BranchRiskOfficer"   :
+            app?.CommitteeTier == "Zonal"      ? "ZonalRiskOfficer"    :
+            app?.CommitteeTier == "Regional"   ? "RegionalRiskOfficer" : "HORiskOfficer",
+            "SystemAdmin") ?? false);
+
     private bool ShowFinancialAppraisalTab =>
         app?.Status == "Submitted" || app?.Status == "FinancialAppraisal" || app?.Status == "FinancialDeclined" ||
+        app?.Status == "RiskReview" || app?.Status == "RiskDeclined" ||
         IsAfter(app!, "FinancialAppraisal") ||
         app?.FinancialAppraisalReport != null;
 
@@ -4130,9 +4614,7 @@ else
         app?.FinancialAppraisalReport != null &&
         (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
-    private bool FinDecisionBlocked =>
-        app?.FinancialAppraisalReport == null ||
-        !app.Documents.Any(d => d.Stage == "FinancialAppraisal" && d.Category == "CreditReport");
+    private bool FinDecisionBlocked => app?.FinancialAppraisalReport == null;
 
     private bool IsCommitteeStatus => app?.Status is
         "BranchCommitteeCirculation" or "ZonalCommitteeCirculation" or
@@ -4140,7 +4622,8 @@ else
 
     private bool ShowCirculateButton =>
         IsCommitteeStatus && app?.CurrentCommitteeReviewId == null &&
-        (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
+        (User?.HasAnyRole("SystemAdmin",
+            "BranchRiskOfficer", "ZonalRiskOfficer", "RegionalRiskOfficer", "HORiskOfficer") ?? false);
 
 
     private bool IsCommitteeMemberForCurrentStatus => app?.Status switch
@@ -4171,18 +4654,15 @@ else
 
     private bool CanGenerateLoanPack =>
         app?.Status is not (null or "Draft") &&
-        (User?.HasAnyRole("LoanOfficer", "CreditOfficer", "BranchManager",
-            "ZonalManager", "RegionalManager", "MdCeo", "Operations", "SystemAdmin",
-            "DeploymentOfficer", "BranchCommitteeMember", "ZonalCommitteeMember",
-            "RegionalCommitteeMember", "HOCommitteeMember") ?? false);
+        User != null;
 
     private NampDocumentDto? SignedOfferLetterDoc =>
         app?.Documents.FirstOrDefault(d => d.Category == "SignedNampOfferLetter");
 
     private bool CanUploadSignedOfferLetter =>
         app?.OfferLetterStoragePath != null &&
-        app.Status is "OfferGenerated" or "OfferAccepted" or "LegalClearance" or "LegalReturned" or "PreDeploymentVerification" or "Deployment" or "Deployed" &&
-        (User?.HasAnyRole("LoanOfficer", "DisbursementOfficer", "SystemAdmin") ?? false);
+        app.Status is "OfferGenerated" or "OfferAccepted" or "LegalClearance" or "LegalReturned" or "LegalDeclined" or "PreDeploymentVerification" or "Deployment" or "Deployed" &&
+        (User?.HasAnyRole("LoanOfficer", "DeploymentOfficer", "SystemAdmin") ?? false);
 
     private bool ShowGrantLegalClearanceButton =>
         app?.Status == "LegalClearance" &&
@@ -4211,7 +4691,7 @@ else
         app?.PreDeploymentVerifiedAt != null ||
         app?.PreDeploymentChecklist.Any() == true;
 
-    private bool ShowLoanAccountTab => app?.FineractLoanId.HasValue == true;
+    private bool ShowLoanAccountTab => app?.Status is "Deployment" or "Active" or "Closed";
 
     // ── Loan Account state ────────────────────────────────────────────────
 
@@ -4220,6 +4700,8 @@ else
     private string? loanAccountError;
     private bool isMarkingClosed;
     private bool loanAccountLoaded;
+    private bool isRetryingCbsBooking;
+    private string? cbsBookingRetryError;
 
     private bool FineractLoanIsClosed =>
         loanAccount?.Status is "closedObligationsMet" or "closed" or "LOAN_STATUS_CLOSED_OBLIGATIONS_MET";
@@ -4228,6 +4710,15 @@ else
     {
         detailTab = "loan-account";
         if (loanAccountLoaded && !force) return;
+
+        if (app?.FineractLoanId is null)
+        {
+            loanAccount = null;
+            loanAccountError = null;
+            loanAccountLoaded = true;
+            return;
+        }
+
         isLoadingLoanAccount = true;
         loanAccountError = null;
         StateHasChanged();
@@ -4244,6 +4735,28 @@ else
             loanAccountLoaded = false;
         }
         isLoadingLoanAccount = false;
+    }
+
+    private async Task RetryFineractBooking()
+    {
+        if (User is null || app is null) return;
+        isRetryingCbsBooking = true;
+        cbsBookingRetryError = null;
+        StateHasChanged();
+
+        var result = await AppService.RetryNampFineractBookingAsync(app.Id, User.Id);
+        if (result.Success)
+        {
+            app = result.Data;
+            // Reload the tab — FineractLoanId is now set, so it will fetch live CBS data
+            loanAccountLoaded = false;
+            await LoadLoanAccountTab(force: true);
+        }
+        else
+        {
+            cbsBookingRetryError = result.Error ?? "CBS booking failed. Please try again.";
+        }
+        isRetryingCbsBooking = false;
     }
 
     private async Task MarkAsClosed()
@@ -4413,32 +4926,14 @@ else
         var fr = app.FinancialAppraisalReport;
         if (fr != null)
         {
-            finMonthlyIncome = fr.MonthlyDisposableIncome;
-            finDscr = fr.DebtServiceCoverageRatio;
-            finLtv = fr.LoanToValueRatio;
-            finRepaymentRating = fr.RepaymentCapacityRating;
-            finEquityNote = fr.EquityAssessmentNote;
-            finBureauSummary = fr.CreditBureauSummary;
-            finCreditRecommendation = fr.CreditOfficerRecommendation;
-            finSummaryNotes = fr.SummaryNotes;
-            finRepaymentSource = fr.RepaymentSource;
-            finProjectedRentalRevenue = fr.ProjectedMonthlyRentalRevenue;
-            finUtilisationRate = fr.UtilisationRateAssumption;
-            finDemandEvidence = fr.DemandEvidenceNote;
-        }
-
-        // Auto-populate bureau summary if not already saved and reports are available
-        if (string.IsNullOrWhiteSpace(finBureauSummary) && app.BureauReports.Count > 0)
-        {
-            var lines = app.BureauReports.Select(r =>
-            {
-                var type = r.SubjectType == "NampApplicant" ? "Applicant" : "Guarantor";
-                var score = r.CreditScore.HasValue ? $"{r.CreditScore} ({r.ScoreGrade ?? "N/A"})" : "Pending";
-                var outstanding = r.TotalOutstanding.HasValue ? $"₦{r.TotalOutstanding:N0}" : "N/A";
-                var delinquent = r.DelinquentFacilities.HasValue ? r.DelinquentFacilities.ToString() : "N/A";
-                return $"[{type}] {r.SubjectName} | BVN: {r.Bvn} | Score: {score} | Delinquent Facilities: {delinquent} | Total Outstanding: {outstanding}";
-            });
-            finBureauSummary = string.Join("\n", lines);
+            finHectaresPerMonth      = fr.HectaresPerMonth;
+            finRatePerHectare        = fr.RatePerHectare;
+            finMonthlyFuelCost       = fr.MonthlyFuelCost;
+            finMonthlyMaintenanceCost = fr.MonthlyMaintenanceCost;
+            finMonthlyOperatorWage   = fr.MonthlyOperatorWage;
+            finDemandEvidence        = fr.DemandEvidenceNote;
+            finRiskCommentary        = fr.SummaryNotes;
+            finCreditRecommendation  = fr.CreditOfficerRecommendation;
         }
     }
 
@@ -4910,21 +5405,115 @@ else
 
     private void OpenFinDecisionModal() { finDecisionApproved = true; finDecisionNote = null; finDecisionError = null; showFinDecisionModal = true; }
     private void CloseFinDecisionModal() => showFinDecisionModal = false;
+    private void OpenFinReturnModal() { finReturnReason = null; finReturnError = null; showFinReturnModal = true; }
+    private void CloseFinReturnModal() => showFinReturnModal = false;
+
+    // ── Risk Review actions ───────────────────────────────────────────────
+    private void OpenRiskApproveModal()  { riskApproveNote = null; riskActionError = null; showRiskApproveModal = true; }
+    private void CloseRiskApproveModal() => showRiskApproveModal = false;
+    private void OpenRiskReturnModal()   { riskReturnReason = null; riskActionError = null; showRiskReturnModal = true; }
+    private void CloseRiskReturnModal()  => showRiskReturnModal = false;
+    private void OpenRiskDeclineModal()  { riskDeclineReason = null; riskActionError = null; showRiskDeclineModal = true; }
+    private void CloseRiskDeclineModal() => showRiskDeclineModal = false;
+
+    private async Task SubmitRiskApprove()
+    {
+        isSubmittingRiskAction = true; riskActionError = null;
+        try
+        {
+            var result = await AppService.ApproveNampRiskReviewAsync(Id, User?.Id ?? Guid.Empty, riskApproveNote);
+            if (result.Success) { showRiskApproveModal = false; await Load(); }
+            else riskActionError = result.Error ?? "Approval failed";
+        }
+        finally { isSubmittingRiskAction = false; }
+    }
+
+    private async Task SubmitRiskReturn()
+    {
+        if (string.IsNullOrWhiteSpace(riskReturnReason)) { riskActionError = "A return reason is required."; return; }
+        isSubmittingRiskAction = true; riskActionError = null;
+        try
+        {
+            var result = await AppService.ReturnNampRiskReviewAsync(Id, User?.Id ?? Guid.Empty, riskReturnReason!);
+            if (result.Success) { showRiskReturnModal = false; await Load(); }
+            else riskActionError = result.Error ?? "Return failed";
+        }
+        finally { isSubmittingRiskAction = false; }
+    }
+
+    private async Task SubmitRiskDecline()
+    {
+        if (string.IsNullOrWhiteSpace(riskDeclineReason)) { riskActionError = "A decline reason is required."; return; }
+        isSubmittingRiskAction = true; riskActionError = null;
+        try
+        {
+            var result = await AppService.DeclineNampRiskReviewAsync(Id, User?.Id ?? Guid.Empty, riskDeclineReason!);
+            if (result.Success) { showRiskDeclineModal = false; await Load(); }
+            else riskActionError = result.Error ?? "Decline failed";
+        }
+        finally { isSubmittingRiskAction = false; }
+    }
+
+    private async Task DownloadFinAppraisalPdf()
+    {
+        if (app == null) return;
+        var data = new
+        {
+            appNumber        = app.ApplicationNumber,
+            applicantName    = app.ApplicantName,
+            track            = FinTrackLabel,
+            tenorMonths      = FinTenorMonths,
+            equityPct        = (int)(FinEquityPct * 100),
+            interestRate     = (double)FinInterestRate,
+            equipmentValue   = (double)FinEquipmentValue,
+            equityAmount     = (double)FinEquityAmount,
+            loanPrincipal    = (double)FinLoanPrincipal,
+            monthlyInstalment= (double)FinMonthlyInstalment,
+            hectaresPerMonth = finHectaresPerMonth.HasValue ? (double?)finHectaresPerMonth.Value : null,
+            ratePerHectare   = finRatePerHectare.HasValue   ? (double?)finRatePerHectare.Value   : null,
+            monthlyFuelCost  = finMonthlyFuelCost.HasValue  ? (double?)finMonthlyFuelCost.Value  : null,
+            monthlyMaintenanceCost = finMonthlyMaintenanceCost.HasValue ? (double?)finMonthlyMaintenanceCost.Value : null,
+            monthlyOperatorWage    = finMonthlyOperatorWage.HasValue    ? (double?)finMonthlyOperatorWage.Value    : null,
+            totalCosts       = (double)FinTotalCosts,
+            grossRevenue     = (double)FinGrossRevenue,
+            netIncome        = (double)FinNetIncome,
+            surplus          = (double)FinSurplus,
+            dsr              = (double)FinDsr,
+            ltv              = (double)FinLtv,
+            capacityRating   = FinCapacityRating,
+            breakEvenCosts   = (int)FinBreakEvenCosts,
+            breakEvenLoan    = (int)FinBreakEvenLoan,
+            npv              = (double)FinNpv,
+            bcr              = (double)FinBcr,
+            irr              = (double)FinIrr,
+            pi               = (double)FinPi,
+            npvPass          = FinNpvPass,
+            bcrPass          = FinBcrPass,
+            irrPass          = FinIrrPass,
+            cashPass         = FinCashPass,
+            piPass           = FinPiPass,
+            demandEvidence   = finDemandEvidence ?? "",
+            riskCommentary   = finRiskCommentary ?? "",
+            recommendation   = finCreditRecommendation
+        };
+        await JS.InvokeVoidAsync("generateNampAppraisalPdf", data);
+    }
 
     private async Task SaveFinReport()
     {
-        if (string.IsNullOrWhiteSpace(finRepaymentRating) || string.IsNullOrWhiteSpace(finCreditRecommendation))
-        { finReportError = "Repayment capacity rating and credit officer recommendation are required."; return; }
-
         isSavingFinReport = true; finReportError = null;
         try
         {
             var result = await AppService.SaveNampFinancialAppraisalReportAsync(
                 Id, User?.Id ?? Guid.Empty,
-                finMonthlyIncome, finDscr, finLtv,
-                finRepaymentRating, NullIfEmpty(finEquityNote), NullIfEmpty(finBureauSummary),
-                finCreditRecommendation, NullIfEmpty(finSummaryNotes),
-                finRepaymentSource, finProjectedRentalRevenue, finUtilisationRate, NullIfEmpty(finDemandEvidence));
+                FinSurplus, FinDsr, FinLtv,
+                FinCapacityRating, null, null,
+                string.IsNullOrWhiteSpace(finCreditRecommendation) ? "Pass" : finCreditRecommendation,
+                NullIfEmpty(finRiskCommentary),
+                "RentalHireRevenue", FinGrossRevenue, null, NullIfEmpty(finDemandEvidence),
+                finHectaresPerMonth, finRatePerHectare,
+                finMonthlyFuelCost, finMonthlyMaintenanceCost, finMonthlyOperatorWage,
+                FinNpv, FinBcr, FinIrr, FinPi);
             if (result.Success) { await Load(); }
             else finReportError = result.Error ?? "Failed to save report";
         }
@@ -4936,17 +5525,21 @@ else
         if (!finDecisionApproved && string.IsNullOrWhiteSpace(finDecisionNote))
         { finDecisionError = "A note is required when declining."; return; }
 
-        if (string.IsNullOrWhiteSpace(finRepaymentRating) || string.IsNullOrWhiteSpace(finCreditRecommendation))
-        { finDecisionError = "Complete and save the report before submitting a decision."; return; }
+        if (string.IsNullOrWhiteSpace(finCreditRecommendation))
+        { finDecisionError = "Select a credit recommendation (Pass or Fail) before submitting."; return; }
 
         isSubmittingFinDecision = true; finDecisionError = null;
         try
         {
             var saveResult = await AppService.SaveNampFinancialAppraisalReportAsync(
                 Id, User?.Id ?? Guid.Empty,
-                finMonthlyIncome, finDscr, finLtv,
-                finRepaymentRating, NullIfEmpty(finEquityNote), NullIfEmpty(finBureauSummary),
-                finCreditRecommendation, NullIfEmpty(finSummaryNotes));
+                FinSurplus, FinDsr, FinLtv,
+                FinCapacityRating, null, null,
+                finCreditRecommendation, NullIfEmpty(finRiskCommentary),
+                "RentalHireRevenue", FinGrossRevenue, null, NullIfEmpty(finDemandEvidence),
+                finHectaresPerMonth, finRatePerHectare,
+                finMonthlyFuelCost, finMonthlyMaintenanceCost, finMonthlyOperatorWage,
+                FinNpv, FinBcr, FinIrr, FinPi);
             if (!saveResult.Success) { finDecisionError = saveResult.Error ?? "Failed to save report"; return; }
 
             var result = await AppService.SubmitNampFinancialAppraisalAsync(Id, User?.Id ?? Guid.Empty, finDecisionApproved, NullIfEmpty(finDecisionNote));
@@ -4954,6 +5547,21 @@ else
             else finDecisionError = result.Error ?? "Decision submission failed";
         }
         finally { isSubmittingFinDecision = false; }
+    }
+
+    private async Task SubmitFinReturn()
+    {
+        if (string.IsNullOrWhiteSpace(finReturnReason))
+        { finReturnError = "A return reason is required."; return; }
+
+        isSubmittingFinReturn = true; finReturnError = null;
+        try
+        {
+            var result = await AppService.ReturnNampFinancialAppraisalAsync(Id, User?.Id ?? Guid.Empty, finReturnReason!);
+            if (result.Success) { showFinReturnModal = false; await Load(); }
+            else finReturnError = result.Error ?? "Return failed";
+        }
+        finally { isSubmittingFinReturn = false; }
     }
 
     // ── Document upload ────────────────────────────────────────────────────
@@ -4964,8 +5572,23 @@ else
     {
         viewDocUrl = $"/api/namp-documents/{docId}/view";
         viewDocName = fileName;
-        viewDocContentType = contentType;
+        // Infer content type from extension when browser didn't supply it
+        viewDocContentType = InferContentType(fileName, contentType);
         showDocViewModal = true;
+    }
+
+    private static string InferContentType(string fileName, string contentType)
+    {
+        if (!string.IsNullOrWhiteSpace(contentType)) return contentType;
+        return Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".pdf"  => "application/pdf",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png"  => "image/png",
+            ".gif"  => "image/gif",
+            ".webp" => "image/webp",
+            _       => "application/octet-stream"
+        };
     }
 
     private void CloseDocView() { showDocViewModal = false; }
@@ -5055,7 +5678,7 @@ else
 
     private void OpenFinDocUpload()
     {
-        uploadDocCategory = "CreditReport"; uploadDocDescription = null;
+        uploadDocCategory = "SupportingDocument"; uploadDocDescription = null;
         uploadSelectedFile = null; uploadFileBytes = null; uploadDocError = null;
         showFinDocUploadModal = true;
     }
@@ -5165,8 +5788,9 @@ else
     private static List<StageInfo> StageProgression =>
     [
         new(1, "Draft / Recall", "Loan Officer", a => IsAfter(a, "Draft"), a => a.Status == "Draft"),
-        new(2, "Financial Appraisal", "Credit Officer", a => IsAfter(a, "FinancialAppraisal"), a => a.Status is "Submitted" or "FinancialAppraisal"),
-        new(3, "Committee Review", "Committee Members", a => IsAfter(a, "Ratification"), a => a.Status is "BranchCommitteeCirculation" or "ZonalCommitteeCirculation" or "RegionalCommitteeCirculation" or "HOCommitteeCirculation"),
+        new(2, "Financial Appraisal", "Credit Officer", a => IsAfter(a, "RiskReview"), a => a.Status is "Submitted" or "FinancialAppraisal"),
+        new(3, "Risk Review", "Risk Officer", a => IsAfter(a, "BranchCommitteeCirculation") || IsAfter(a, "ZonalCommitteeCirculation") || IsAfter(a, "RegionalCommitteeCirculation") || IsAfter(a, "HOCommitteeCirculation"), a => a.Status == "RiskReview"),
+        new(4, "Committee Review", "Committee Members", a => IsAfter(a, "Ratification"), a => a.Status is "BranchCommitteeCirculation" or "ZonalCommitteeCirculation" or "RegionalCommitteeCirculation" or "HOCommitteeCirculation"),
         new(4, "Ratification", "Final Approver", a => IsAfter(a, "OfferGenerated"), a => a.Status == "Ratification"),
         new(5, "Offer Letter", "Loan Officer", a => IsAfter(a, "OfferAccepted"), a => a.Status is "OfferGenerated" or "OfferAccepted"),
         new(6, "Legal Clearance", "Legal Officer", a => IsAfter(a, "LegalClearance"), a => a.Status is "LegalClearance" or "LegalReturned"),
@@ -5175,7 +5799,7 @@ else
     ];
 
     private static readonly string[] StatusOrder = [
-        "Draft", "Submitted", "FinancialAppraisal",
+        "Draft", "Submitted", "FinancialAppraisal", "RiskReview",
         "BranchCommitteeCirculation", "ZonalCommitteeCirculation", "RegionalCommitteeCirculation", "HOCommitteeCirculation",
         "Ratification", "OfferGenerated", "OfferAccepted", "LegalClearance", "PreDeploymentVerification",
         "Deployment", "Active", "Closed"
@@ -5298,7 +5922,7 @@ else
     private static string GetStatusBadgeClass(string status) => status switch
     {
         "Draft" => "badge-gray",
-        "Submitted" or "FinancialAppraisal" => "badge-warning",
+        "Submitted" or "FinancialAppraisal" or "RiskReview" => "badge-warning",
         var s when s.Contains("CommitteeCirculation") => "badge-info",
         "Ratification" => "badge-primary",
         "OfferGenerated" or "OfferAccepted" => "badge-info",
@@ -5321,6 +5945,8 @@ else
         "HOCommitteeDeclined" => "HO Declined",
         "TechnicalDeclined" => "Technical Declined",
         "FinancialDeclined" => "Financial Declined",
+        "RiskReview" => "Risk Review",
+        "RiskDeclined" => "Risk Declined",
         "RatificationDeclined" => "Ratification Declined",
         "PreDeploymentVerification" => "Pre-Deployment",
         "OfferGenerated" => "Offer Sent",
@@ -5345,12 +5971,17 @@ else
 
     private static string FormatDocCategory(string cat) => cat switch
     {
-        "TechnicalReport" => "Technical Report",
-        "SitePhoto" => "Site Photo",
-        "SoilTestResult" => "Soil Test",
-        "FinancialModel" => "Financial Model",
-        "CreditReport" => "Credit Report",
-        "SupportingDocument" => "Supporting Doc",
+        "TechnicalReport"      => "Technical Report",
+        "SitePhoto"            => "Site Photo",
+        "SoilTestResult"       => "Soil Test",
+        "FinancialModel"       => "Financial Model",
+        "CreditReport"         => "Credit Report",
+        "SupportingDocument"   => "Supporting Doc",
+        "LeaseAgreement"       => "Lease / Hire-Purchase Agreement",
+        "GpsConsentForm"       => "GPS Consent Form",
+        "SignedNampOfferLetter" => "Signed Offer Letter",
+        "EquityDepositReceipt" => "Equity Deposit Receipt",
+        "InsuranceCertificate" => "Insurance Certificate",
         _ => cat
     };
 

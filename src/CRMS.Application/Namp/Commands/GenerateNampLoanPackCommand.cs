@@ -21,6 +21,7 @@ public class GenerateNampLoanPackHandler
     private readonly IBureauReportRepository _bureauRepo;
     private readonly ICommitteeReviewRepository _committeeRepo;
     private readonly IUserRepository _userRepo;
+    private readonly INampAdvisoryRepository _advisoryRepo;
     private readonly INampLoanPackGenerator _generator;
 
     public GenerateNampLoanPackHandler(
@@ -28,12 +29,14 @@ public class GenerateNampLoanPackHandler
         IBureauReportRepository bureauRepo,
         ICommitteeReviewRepository committeeRepo,
         IUserRepository userRepo,
+        INampAdvisoryRepository advisoryRepo,
         INampLoanPackGenerator generator)
     {
         _repo = repo;
         _bureauRepo = bureauRepo;
         _committeeRepo = committeeRepo;
         _userRepo = userRepo;
+        _advisoryRepo = advisoryRepo;
         _generator = generator;
     }
 
@@ -44,8 +47,10 @@ public class GenerateNampLoanPackHandler
         if (app is null)
             return ApplicationResult<byte[]>.Failure("NAMP application not found.");
 
-        var finReport  = await _repo.GetFinancialAppraisalReportAsync(request.NampApplicationId, ct);
+        var finReport     = await _repo.GetFinancialAppraisalReportAsync(request.NampApplicationId, ct);
         var bureauReports = await _bureauRepo.GetByNampApplicationIdAsync(request.NampApplicationId, ct);
+        var advisoryEntity = await _advisoryRepo.GetByNampApplicationIdAsync(request.NampApplicationId, ct);
+        var advisoryDto    = advisoryEntity != null ? GenerateNampAdvisoryHandler.MapToDto(advisoryEntity) : null;
 
         // Load committee review (most recent, if app has one)
         Domain.Aggregates.Committee.CommitteeReview? committeeReview = null;
@@ -163,6 +168,7 @@ public class GenerateNampLoanPackHandler
             CommitteeConditions:  committeeReview?.ApprovalConditions,
             CommitteeMembers:     committeeMembers,
             FinancialAppraisal:   dto.FinancialAppraisalReport,
+            Advisory:             advisoryDto,
             Directors:            dto.Directors,
             Guarantors:           dto.Guarantors,
             Collaterals:          dto.Collaterals,

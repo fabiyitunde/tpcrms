@@ -214,8 +214,29 @@ app.MapGet("/api/namp-documents/{id:guid}/view", async (Guid id, CRMSDbContext d
     try
     {
         var fileBytes = await fileStorage.DownloadAsync(document.StoragePath);
+        var contentType = string.IsNullOrEmpty(document.ContentType) ? "application/octet-stream" : document.ContentType;
         httpContext.Response.Headers.ContentDisposition = $"inline; filename=\"{document.FileName}\"";
-        return Results.File(fileBytes, document.ContentType);
+        return Results.File(fileBytes, contentType);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error retrieving file: {ex.Message}");
+    }
+}).DisableAntiforgery();
+
+app.MapGet("/api/namp-documents/{id:guid}/download", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage) =>
+{
+    var document = await db.Set<CRMS.Domain.Aggregates.Namp.NampDocument>()
+        .FirstOrDefaultAsync(d => d.Id == id);
+
+    if (document == null)
+        return Results.NotFound("Document not found");
+
+    try
+    {
+        var fileBytes = await fileStorage.DownloadAsync(document.StoragePath);
+        var contentType = string.IsNullOrEmpty(document.ContentType) ? "application/octet-stream" : document.ContentType;
+        return Results.File(fileBytes, contentType, document.FileName);
     }
     catch (Exception ex)
     {

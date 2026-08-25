@@ -642,11 +642,19 @@ public static class DependencyInjection
         services.AddScoped<Application.Namp.Commands.RecallNampApplicationHandler>();
         services.AddScoped<Application.Namp.Commands.SubmitNampApplicationHandler>();
         services.AddScoped<Application.Namp.Commands.SubmitNampFinancialAppraisalHandler>();
+        services.AddScoped<Application.Namp.Commands.ReturnNampFinancialAppraisalHandler>();
+        services.AddScoped<Application.Namp.Commands.ApproveNampRiskReviewHandler>();
+        services.AddScoped<Application.Namp.Commands.ReturnNampRiskReviewHandler>();
+        services.AddScoped<Application.Namp.Commands.DeclineNampRiskReviewHandler>();
         services.AddScoped<Application.Namp.Commands.CirculateNampToCommitteeHandler>();
         services.AddScoped<Application.Namp.Commands.RatifyNampDecisionHandler>();
         services.AddScoped<Application.Namp.Commands.DeclineNampRatificationHandler>();
         services.AddScoped<Application.Namp.Commands.RecordNampOfferAcceptanceHandler>();
         services.AddScoped<Application.Namp.Commands.LapseNampOfferHandler>();
+        services.AddScoped<Application.Namp.Commands.GrantNampLegalClearanceHandler>();
+        services.AddScoped<Application.Namp.Commands.ReturnFromNampLegalHandler>();
+        services.AddScoped<Application.Namp.Commands.ResubmitToNampLegalHandler>();
+        services.AddScoped<Application.Namp.Commands.DeclineNampLegalHandler>();
         services.AddScoped<Application.Namp.Commands.BeginNampPreDeploymentVerificationHandler>();
         services.AddScoped<Application.Namp.Commands.ConfirmNampChecklistItemHandler>();
         services.AddScoped<Application.Namp.Commands.AddNampChecklistTemplateItemHandler>();
@@ -660,6 +668,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Namp.Commands.DeleteNampDocumentHandler>();
         services.AddScoped<Application.Namp.Commands.UpdateNampDocumentHandler>();
         services.AddScoped<Application.Namp.Commands.RetryNampDocumentImportHandler>();
+        services.AddScoped<Application.Namp.Commands.RetryNampFineractBookingHandler>();
         services.AddScoped<Application.Namp.Commands.CreateNampRoutingConfigHandler>();
         services.AddScoped<Application.Namp.Commands.UpdateNampRoutingConfigHandler>();
         services.AddScoped<Application.Namp.Commands.ToggleNampRoutingConfigHandler>();

@@ -372,7 +372,7 @@
 
     private bool CanInitiateLoan => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "LoanOfficer") ?? false;
     private bool CanViewReports => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer") ?? false;
-    private bool CanViewNamp => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer", "LoanOfficer") ?? false;
+    private bool CanViewNamp => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer", "LoanOfficer", "LegalOfficer") ?? false;
 
     protected override async Task OnInitializedAsync()
     {

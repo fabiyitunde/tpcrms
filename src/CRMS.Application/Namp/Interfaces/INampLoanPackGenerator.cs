@@ -75,6 +75,7 @@ public record NampLoanPackData(
     List<NampLoanPackMemberVote> CommitteeMembers,
     // Appraisals
     NampFinancialAppraisalReportDto? FinancialAppraisal,
+    NampAdvisoryDto? Advisory,
     // Collections
     List<NampDirectorDto> Directors,
     List<NampGuarantorDto> Guarantors,

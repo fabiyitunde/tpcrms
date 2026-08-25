@@ -27,11 +27,24 @@ public class NampFinancialAppraisalReport : Entity
     public NampCreditRecommendation CreditOfficerRecommendation { get; private set; }
     public string? SummaryNotes { get; private set; }
 
-    // Repayment source (rental model fields)
+    // Repayment source (rental model fields — kept for backward compat, not shown in new UI)
     public NampRepaymentSource RepaymentSource { get; private set; }
     public decimal? ProjectedMonthlyRentalRevenue { get; private set; }
     public decimal? UtilisationRateAssumption { get; private set; }
     public string? DemandEvidenceNote { get; private set; }
+
+    // Viability calculator inputs (officer-collected from applicant call)
+    public decimal? HectaresPerMonth { get; private set; }
+    public decimal? RatePerHectare { get; private set; }
+    public decimal? MonthlyFuelCost { get; private set; }
+    public decimal? MonthlyMaintenanceCost { get; private set; }
+    public decimal? MonthlyOperatorWage { get; private set; }
+
+    // Viability calculator computed metrics (stored at save time for AI advisory and audit trail)
+    public decimal? NetPresentValue { get; private set; }
+    public decimal? BenefitCostRatio { get; private set; }
+    public decimal? InternalRateOfReturn { get; private set; }
+    public decimal? ProfitabilityIndex { get; private set; }
 
     private NampFinancialAppraisalReport() { }
 
@@ -49,7 +62,16 @@ public class NampFinancialAppraisalReport : Entity
         NampRepaymentSource repaymentSource = NampRepaymentSource.PrimaryIncome,
         decimal? projectedMonthlyRentalRevenue = null,
         decimal? utilisationRateAssumption = null,
-        string? demandEvidenceNote = null)
+        string? demandEvidenceNote = null,
+        decimal? hectaresPerMonth = null,
+        decimal? ratePerHectare = null,
+        decimal? monthlyFuelCost = null,
+        decimal? monthlyMaintenanceCost = null,
+        decimal? monthlyOperatorWage = null,
+        decimal? netPresentValue = null,
+        decimal? benefitCostRatio = null,
+        decimal? internalRateOfReturn = null,
+        decimal? profitabilityIndex = null)
     {
         return Result.Success(new NampFinancialAppraisalReport
         {
@@ -68,6 +90,15 @@ public class NampFinancialAppraisalReport : Entity
             ProjectedMonthlyRentalRevenue = projectedMonthlyRentalRevenue,
             UtilisationRateAssumption = utilisationRateAssumption,
             DemandEvidenceNote = demandEvidenceNote,
+            HectaresPerMonth = hectaresPerMonth,
+            RatePerHectare = ratePerHectare,
+            MonthlyFuelCost = monthlyFuelCost,
+            MonthlyMaintenanceCost = monthlyMaintenanceCost,
+            MonthlyOperatorWage = monthlyOperatorWage,
+            NetPresentValue = netPresentValue,
+            BenefitCostRatio = benefitCostRatio,
+            InternalRateOfReturn = internalRateOfReturn,
+            ProfitabilityIndex = profitabilityIndex,
         });
     }
 
@@ -84,7 +115,16 @@ public class NampFinancialAppraisalReport : Entity
         NampRepaymentSource repaymentSource = NampRepaymentSource.PrimaryIncome,
         decimal? projectedMonthlyRentalRevenue = null,
         decimal? utilisationRateAssumption = null,
-        string? demandEvidenceNote = null)
+        string? demandEvidenceNote = null,
+        decimal? hectaresPerMonth = null,
+        decimal? ratePerHectare = null,
+        decimal? monthlyFuelCost = null,
+        decimal? monthlyMaintenanceCost = null,
+        decimal? monthlyOperatorWage = null,
+        decimal? netPresentValue = null,
+        decimal? benefitCostRatio = null,
+        decimal? internalRateOfReturn = null,
+        decimal? profitabilityIndex = null)
     {
         PreparedByUserId = updatedByUserId;
         SavedAt = DateTime.UtcNow;
@@ -100,5 +140,14 @@ public class NampFinancialAppraisalReport : Entity
         ProjectedMonthlyRentalRevenue = projectedMonthlyRentalRevenue;
         UtilisationRateAssumption = utilisationRateAssumption;
         DemandEvidenceNote = demandEvidenceNote;
+        HectaresPerMonth = hectaresPerMonth;
+        RatePerHectare = ratePerHectare;
+        MonthlyFuelCost = monthlyFuelCost;
+        MonthlyMaintenanceCost = monthlyMaintenanceCost;
+        MonthlyOperatorWage = monthlyOperatorWage;
+        NetPresentValue = netPresentValue;
+        BenefitCostRatio = benefitCostRatio;
+        InternalRateOfReturn = internalRateOfReturn;
+        ProfitabilityIndex = profitabilityIndex;
     }
 }

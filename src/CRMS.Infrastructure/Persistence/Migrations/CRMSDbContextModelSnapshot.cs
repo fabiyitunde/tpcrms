@@ -3652,6 +3652,21 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("FinancialAppraisalNote")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("RiskReviewedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("RiskReviewedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("RiskReviewNote")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RiskReturnNote")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RiskDeclineNote")
+                        .HasColumnType("text");
+
                     b.Property<long?>("FineractClientId")
                         .HasColumnType("bigint");
 
@@ -4217,6 +4232,27 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("MonthlyDisposableIncome")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("MonthlyFuelCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("MonthlyMaintenanceCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("MonthlyOperatorWage")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("NetPresentValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("BenefitCostRatio")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal?>("InternalRateOfReturn")
+                        .HasColumnType("decimal(10,6)");
+
+                    b.Property<decimal?>("ProfitabilityIndex")
+                        .HasColumnType("decimal(10,4)");
+
                     b.Property<Guid>("NampApplicationId")
                         .HasColumnType("char(36)");
 
@@ -4224,6 +4260,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("char(36)");
 
                     b.Property<decimal?>("ProjectedMonthlyRentalRevenue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("RatePerHectare")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("RepaymentCapacityRating")
@@ -4239,6 +4278,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("SummaryNotes")
                         .HasColumnType("text");
+
+                    b.Property<decimal?>("HectaresPerMonth")
+                        .HasColumnType("decimal(10,2)");
 
                     b.Property<decimal?>("UtilisationRateAssumption")
                         .HasColumnType("decimal(5,2)");

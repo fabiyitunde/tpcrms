@@ -30,6 +30,17 @@ public class NampFinancialAppraisalReportConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.UtilisationRateAssumption).HasColumnType("decimal(5,2)");
         builder.Property(x => x.DemandEvidenceNote).HasColumnType("text");
 
+        builder.Property(x => x.HectaresPerMonth).HasColumnType("decimal(10,2)");
+        builder.Property(x => x.RatePerHectare).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.MonthlyFuelCost).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.MonthlyMaintenanceCost).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.MonthlyOperatorWage).HasColumnType("decimal(18,2)");
+
+        builder.Property(x => x.NetPresentValue).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.BenefitCostRatio).HasColumnType("decimal(10,4)");
+        builder.Property(x => x.InternalRateOfReturn).HasColumnType("decimal(10,6)");
+        builder.Property(x => x.ProfitabilityIndex).HasColumnType("decimal(10,4)");
+
         builder.Property(x => x.CreatedBy).HasMaxLength(100);
         builder.Property(x => x.ModifiedBy).HasMaxLength(100);
 

@@ -208,7 +208,8 @@
     private bool CanViewNamp => User?.HasAnyRole("SystemAdmin", "LoanOfficer", "CreditOfficer",
         "CommitteeMember", "BranchCommitteeMember", "ZonalCommitteeMember", "RegionalCommitteeMember", "HOCommitteeMember",
         "BranchManager", "ZonalManager", "RegionalManager", "MdCeo",
-        "FinalApprover", "DeploymentOfficer") ?? false;
+        "FinalApprover", "DeploymentOfficer", "LegalOfficer",
+        "BranchRiskOfficer", "ZonalRiskOfficer", "RegionalRiskOfficer", "HORiskOfficer") ?? false;
 
     protected override async Task OnInitializedAsync()
     {

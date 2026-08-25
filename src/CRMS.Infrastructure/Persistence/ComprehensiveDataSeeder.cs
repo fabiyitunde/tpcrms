@@ -131,6 +131,10 @@ public static class ComprehensiveDataSeeder
         ("regionalmanager","Ngozi",       "Obi",           [Roles.RegionalManager, Roles.RegionalCommitteeMember],                "ngozi.obi@crms.ng",          UserType.Staff),
         ("mdceo",          "Babatunde",   "Adekunle",      [Roles.MdCeo, Roles.HOCommitteeMember],                                "babatunde.adekunle@crms.ng", UserType.Staff),
         ("deployment",     "Musa",        "Garba",         [Roles.DeploymentOfficer],                                             "musa.garba@crms.ng",         UserType.Staff),
+        ("branchrisk",    "Sola",        "Adeyemi",       [Roles.BranchRiskOfficer],                                             "sola.adeyemi@crms.ng",       UserType.Staff),
+        ("zonalrisk",     "Ifeanyi",     "Okonkwo",       [Roles.ZonalRiskOfficer],                                              "ifeanyi.okonkwo@crms.ng",    UserType.Staff),
+        ("regionalrisk",  "Amaka",       "Eze",           [Roles.RegionalRiskOfficer],                                           "amaka.eze@crms.ng",          UserType.Staff),
+        ("horisk",        "Tolu",        "Fashola",       [Roles.HORiskOfficer],                                                 "tolu.fashola@crms.ng",       UserType.Staff),
         // ────────────────────────────────────────────────────────────────────
         ("operations",     "Folake",      "Balogun",       [Roles.DisbursementOfficer],                                                    "folake.balogun@crms.ng",     UserType.Staff),
         ("gmfinance",      "Chidi",       "Okafor",        [Roles.GMFinance],                                                     "chidi.okafor@crms.ng",       UserType.Staff),

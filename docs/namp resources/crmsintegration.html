@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRMS Integration Brief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap">
+
+<style>
+  :root {
+    --bg: #F5F7F3;
+    --surface: #FFFFFF;
+    --surface-2: #FBFCFA;
+    --panel: #EEF2EB;
+    --ink: #17201A;
+    --ink-soft: #4E574F;
+    --ink-faint: #79817A;
+    --line: #E1E6DD;
+    --line-strong: #CDD5C8;
+    --accent: #1E6B2C;
+    --accent-hover: #175021;
+    --accent-soft: #E7F0E7;
+    --accent-line: #BFD8C2;
+    --warn: #9A6410;
+    --warn-soft: #FBF0DC;
+    --warn-line: #ECD3A3;
+    --get: #2C5A87;
+    --get-soft: #E4EDF5;
+    --method-post-ink: #FFFFFF;
+    /* code panel — constant dark in both themes */
+    --code-bg: #0E1712;
+    --code-ink: #DCE7DD;
+    --code-faint: #7E8C80;
+    --code-line: #22302700;
+    --code-bar: #14201A;
+    --diagram-bg: #FAFBF8;
+    --shadow: 0 1px 2px rgba(20,40,25,.04), 0 8px 30px rgba(20,40,25,.05);
+    --radius: 10px;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #0F1210;
+      --surface: #161A15;
+      --surface-2: #12160F;
+      --panel: #1C221A;
+      --ink: #E7ECE4;
+      --ink-soft: #A9B2A6;
+      --ink-faint: #7C857A;
+      --line: #262C24;
+      --line-strong: #333B30;
+      --accent: #86C58E;
+      --accent-hover: #A0D6A6;
+      --accent-soft: #17241A;
+      --accent-line: #2C3E2E;
+      --warn: #D9AF6A;
+      --warn-soft: #241E12;
+      --warn-line: #3D3320;
+      --get: #8FB6DC;
+      --get-soft: #16202A;
+      --method-post-ink: #0F1210;
+      --diagram-bg: #EAEDE7;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 34px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F1210;
+    --surface: #161A15;
+    --surface-2: #12160F;
+    --panel: #1C221A;
+    --ink: #E7ECE4;
+    --ink-soft: #A9B2A6;
+    --ink-faint: #7C857A;
+    --line: #262C24;
+    --line-strong: #333B30;
+    --accent: #86C58E;
+    --accent-hover: #A0D6A6;
+    --accent-soft: #17241A;
+    --accent-line: #2C3E2E;
+    --warn: #D9AF6A;
+    --warn-soft: #241E12;
+    --warn-line: #3D3320;
+    --get: #8FB6DC;
+    --get-soft: #16202A;
+    --diagram-bg: #EAEDE7;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 34px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html { font-size: 17px; scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    line-height: 1.68;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ---- header ---- */
+  .masthead {
+    border-bottom: 1px solid var(--line);
+    background:
+      radial-gradient(120% 140% at 88% -10%, var(--accent-soft) 0%, transparent 42%),
+      var(--surface);
+  }
+  .masthead__inner { max-width: 1200px; margin: 0 auto; padding: 40px 32px 34px; }
+  .eyebrow {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: 600; font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .eyebrow .rel { color: var(--ink-faint); font-weight: 500; letter-spacing: .1em; }
+  h1 {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: 700; font-size: clamp(2rem, 4.4vw, 2.9rem); line-height: 1.06;
+    letter-spacing: -.02em; margin: 0 0 14px; max-width: 20ch; text-wrap: balance;
+  }
+  .lede {
+    font-size: 1.12rem; color: var(--ink-soft); max-width: 60ch; margin: 0 0 22px;
+  }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-family: "IBM Plex Sans", sans-serif; }
+  .chip {
+    font-size: .78rem; font-weight: 500; color: var(--ink-soft);
+    background: var(--surface-2); border: 1px solid var(--line);
+    padding: 5px 11px; border-radius: 100px; white-space: nowrap;
+  }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .pill {
+    font-size: .72rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--warn); background: var(--warn-soft); border: 1px solid var(--warn-line);
+    padding: 5px 11px; border-radius: 100px;
+  }
+
+  /* ---- shell / layout ---- */
+  .shell { max-width: 1200px; margin: 0 auto; padding: 0 32px 96px; display: grid; gap: 48px; grid-template-columns: 240px minmax(0, 1fr); }
+  nav.toc { font-family: "IBM Plex Sans", sans-serif; }
+  nav.toc .toc__sticky { position: sticky; top: 24px; padding-top: 40px; }
+  nav.toc .toc__label { font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; margin: 0 0 12px; padding-left: 34px; }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; counter-reset: toc; }
+  nav.toc a {
+    display: grid; grid-template-columns: 22px 1fr; gap: 12px; align-items: baseline;
+    text-decoration: none; color: var(--ink-soft); font-size: .86rem; line-height: 1.35;
+    padding: 7px 10px 7px 12px; border-radius: 7px; border-left: 2px solid transparent;
+  }
+  nav.toc a::before { counter-increment: toc; content: counter(toc); font-size: .72rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; text-align: right; }
+  nav.toc a:hover { background: var(--accent-soft); color: var(--ink); }
+  nav.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  main { min-width: 0; padding-top: 40px; max-width: 860px; }
+  main > section { padding: 34px 0; border-top: 1px solid var(--line); }
+  main > section:first-child { border-top: none; padding-top: 8px; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin: 0 0 8px; }
+  .sec-num {
+    font-family: "IBM Plex Mono", monospace; font-size: .82rem; font-weight: 500;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-line);
+    border-radius: 6px; padding: 3px 8px; line-height: 1; flex: none; position: relative; top: -2px;
+  }
+  h2 {
+    font-family: "IBM Plex Sans", sans-serif; font-weight: 700;
+    font-size: clamp(1.4rem, 2.4vw, 1.72rem); letter-spacing: -.01em; line-height: 1.15;
+    margin: 0; text-wrap: balance;
+  }
+  h3 {
+    font-family: "IBM Plex Sans", sans-serif; font-weight: 600; font-size: 1.14rem;
+    letter-spacing: -.005em; margin: 30px 0 10px; scroll-margin-top: 24px;
+  }
+  h4 { font-family: "IBM Plex Sans", sans-serif; font-weight: 600; font-size: .96rem; margin: 22px 0 8px; color: var(--ink); }
+  p { margin: 0 0 15px; max-width: 68ch; }
+  main a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; text-decoration-color: var(--accent-line); }
+  main a:hover { color: var(--accent-hover); text-decoration-color: currentColor; }
+  strong, b { font-weight: 600; color: var(--ink); }
+  em { font-style: italic; }
+  ul, ol.steps { margin: 0 0 16px; padding-left: 0; max-width: 68ch; }
+  ul { list-style: none; }
+  ul li { position: relative; padding-left: 22px; margin: 0 0 8px; }
+  ul li::before { content: ""; position: absolute; left: 4px; top: .72em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  ol.steps { counter-reset: step; list-style: none; padding-left: 0; }
+  ol.steps > li { position: relative; padding-left: 40px; margin: 0 0 12px; }
+  ol.steps > li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 0; top: -1px; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--accent);
+    font-family: "IBM Plex Sans", sans-serif; font-weight: 600; font-size: .8rem;
+    display: grid; place-items: center;
+  }
+  code {
+    font-family: "IBM Plex Mono", monospace; font-size: .86em;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 6px; color: var(--ink); word-break: break-word;
+  }
+
+  /* ---- callouts ---- */
+  .callout {
+    border: 1px solid var(--accent-line); background: var(--accent-soft);
+    border-radius: var(--radius); padding: 16px 20px; margin: 20px 0; max-width: 74ch;
+    border-left-width: 3px;
+  }
+  .callout p { margin: 0; }
+  .callout p + p { margin-top: 8px; }
+  .callout__tag {
+    font-family: "IBM Plex Sans", sans-serif; font-weight: 700; font-size: .68rem;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
+    display: block; margin-bottom: 6px;
+  }
+  .callout--warn { border-color: var(--warn-line); background: var(--warn-soft); }
+  .callout--warn .callout__tag { color: var(--warn); }
+
+  /* ---- tables ---- */
+  .table-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; font-family: "IBM Plex Sans", sans-serif; font-size: .88rem; }
+  thead th {
+    text-align: left; font-weight: 600; font-size: .74rem; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--ink-soft); background: var(--surface-2); padding: 11px 16px; border-bottom: 1px solid var(--line-strong); white-space: nowrap;
+  }
+  tbody td { padding: 11px 16px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-soft); line-height: 1.5; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td:first-child { color: var(--ink); font-weight: 500; }
+  tbody code { font-size: .82em; }
+  td.who { font-weight: 600; color: var(--accent); white-space: nowrap; }
+
+  /* ---- endpoint + code ---- */
+  .endpoint {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 14px; margin: 8px 0 14px;
+  }
+  .method {
+    font-family: "IBM Plex Sans", sans-serif; font-weight: 700; font-size: .72rem; letter-spacing: .05em;
+    padding: 4px 9px; border-radius: 5px; flex: none;
+  }
+  .method--post { color: var(--method-post-ink); background: var(--accent); }
+  .method--get { color: var(--get); background: var(--get-soft); border: 1px solid color-mix(in srgb, var(--get) 30%, transparent); }
+  .endpoint .path { font-family: "IBM Plex Mono", monospace; font-size: .86rem; background: none; border: none; padding: 0; color: var(--ink); word-break: break-all; }
+
+  figure.code { margin: 16px 0; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line-strong); box-shadow: var(--shadow); }
+  figure.code figcaption {
+    font-family: "IBM Plex Sans", sans-serif; font-size: .72rem; font-weight: 500; letter-spacing: .04em;
+    color: var(--code-faint); background: var(--code-bar); padding: 8px 16px; border-bottom: 1px solid rgba(255,255,255,.05);
+    text-transform: uppercase;
+  }
+  figure.code pre { margin: 0; background: var(--code-bg); padding: 16px 18px; overflow-x: auto; }
+  figure.code code {
+    font-family: "IBM Plex Mono", monospace; font-size: .8rem; line-height: 1.6; color: var(--code-ink);
+    background: none; border: none; padding: 0; white-space: pre; display: block; tab-size: 2;
+  }
+
+  /* ---- diagram ---- */
+  .diagram { background: var(--diagram-bg); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 20px; margin: 18px 0; overflow-x: auto; box-shadow: var(--shadow); }
+  .diagram pre.mermaid { margin: 0; text-align: center; min-width: 520px; }
+  .diagram-cap { font-family: "IBM Plex Sans", sans-serif; font-size: .78rem; color: var(--ink-faint); margin: 8px 0 0; text-align: center; }
+
+  /* ---- prompt block (§11) ---- */
+  blockquote.prompt {
+    margin: 16px 0; padding: 20px 24px; border-radius: var(--radius);
+    background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    font-family: "IBM Plex Serif", serif; font-style: italic; color: var(--ink-soft); box-shadow: var(--shadow); max-width: 74ch;
+  }
+  blockquote.prompt p { margin: 0; }
+
+  /* ---- footer ---- */
+  footer { border-top: 1px solid var(--line); background: var(--surface-2); }
+  footer .foot { max-width: 1200px; margin: 0 auto; padding: 26px 32px 40px; font-family: "IBM Plex Sans", sans-serif; font-size: .82rem; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; justify-content: space-between; }
+  footer .foot .brand { color: var(--ink-soft); font-weight: 500; }
+
+  .hr-note { font-family: "IBM Plex Sans", sans-serif; font-size: .84rem; color: var(--ink-faint); font-style: normal; }
+
+  /* ---- responsive ---- */
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; gap: 0; padding: 0 22px 72px; }
+    .masthead__inner { padding: 30px 22px 26px; }
+    nav.toc { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); margin-top: 26px; }
+    nav.toc .toc__sticky { position: static; padding: 16px 6px; }
+    nav.toc .toc__label { padding-left: 16px; margin-bottom: 8px; }
+    main { padding-top: 8px; max-width: none; }
+    html { font-size: 16px; }
+  }
+  @media (max-width: 520px) {
+    .masthead__inner { padding: 26px 18px 22px; }
+    .shell { padding: 0 18px 56px; }
+  }
+  :where(a, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+</style>
+
+<header class="masthead">
+  <div class="masthead__inner">
+    <p class="eyebrow">Integration Brief <span class="rel">RH-SHF Portal &rarr; CRMS</span></p>
+    <h1>FAC Credit-Profiling Integration</h1>
+    <p class="lede">Everything the Credit Management System team needs to build the CRMS side of the FAC credit-check integration for the RH-SHF programme portal — the contract, endpoints, security, and acceptance criteria.</p>
+    <div class="meta">
+      <span class="pill">Proposed &middot; v0.1</span>
+      <span class="chip"><b>Portal</b> &nbsp;Blazor WASM + ASP.NET (C#) + MySQL</span>
+      <span class="chip"><b>Updated</b> &nbsp;2026-08-22</span>
+      <span class="chip">Audience: CRMS engineering (+ AI assistants)</span>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="toc" aria-label="Contents">
+    <div class="toc__sticky">
+      <p class="toc__label">Contents</p>
+      <ol>
+        <li><a href="#context">Business context</a></li>
+        <li><a href="#glance">Integration at a glance</a></li>
+        <li><a href="#responsibilities">What each side builds</a></li>
+        <li><a href="#contract">The contract</a></li>
+        <li><a href="#vocabulary">Status &amp; decision vocabulary</a></li>
+        <li><a href="#security">Security summary</a></li>
+        <li><a href="#data">Data dictionary</a></li>
+        <li><a href="#nonfunctional">Non-functional expectations</a></li>
+        <li><a href="#acceptance">Acceptance criteria</a></li>
+        <li><a href="#open">Open items to confirm</a></li>
+        <li><a href="#ai">Using this with an AI assistant</a></li>
+      </ol>
+    </div>
+  </nav>
+
+  <main>
+    <section id="intro" aria-label="Overview">
+      <div class="callout">
+        <span class="callout__tag">This is a proposal, not a mandate</span>
+        <p>Treat the field names, endpoints and token shape as a starting point — tell us what you'd change. The <strong>behaviours</strong> are the requirements: submit &rarr; token &rarr; CRMS-hosted resumable form &rarr; outcome webhook &rarr; status query, plus the equality rule. The exact wire format is negotiable, and we'll finalise it together before building.</p>
+      </div>
+    </section>
+
+    <section id="context">
+      <div class="sec-head"><span class="sec-num">01</span><h2>Business context</h2></div>
+      <p>The RH-SHF portal lets <strong>FACs</strong> (Farmer Aggregator Companies) apply for input-financing under a <strong>programme</strong> (e.g. <em>&ldquo;Renewed Hope &ndash; Dry Season 2026&rdquo;</em>) for a given <strong>session / farming season</strong>. A FAC builds an <strong>EOP</strong> — a set of input line items, one per commodity (maize, sorghum&hellip;), each with a quantity and price, which sum to a <strong>total EOP value</strong>.</p>
+      <p>Before that plan can proceed to financing, the FAC must pass a credit check on your CRMS. The governing rule:</p>
+      <div class="callout callout--warn">
+        <span class="callout__tag">The rule</span>
+        <p>The FAC's total EOP value for a programme + session <strong>equals</strong> the loan amount the FAC is profiled for on the CRMS — exactly. EOP processing continues down the line <strong>only when the CRMS returns a positive approval</strong>.</p>
+      </div>
+      <p>Where the integration sits in the portal flow:</p>
+      <ol class="steps">
+        <li>FAC creates its per-commodity EOP records.</li>
+        <li>FAC clicks <strong>&ldquo;Submit for processing&rdquo;</strong> — declaring its complete EOP set for the programme+session (this locks further EOP creation).</li>
+        <li>A <strong>BOA admin vets</strong> the submission — may return it to the FAC for changes, or <strong>certify</strong> it.</li>
+        <li><strong>On certification, the portal calls your CRMS</strong> — this integration begins.</li>
+        <li>Positive CRMS approval &rarr; EOP processing continues downstream (credit paper, offer letter, supplier orders&hellip;).</li>
+      </ol>
+      <p>You are integrating at <strong>steps 4&ndash;5</strong>. Everything before step 4 is internal to the portal.</p>
+    </section>
+
+    <section id="glance">
+      <div class="sec-head"><span class="sec-num">02</span><h2>Integration at a glance</h2></div>
+      <p>Four touchpoints. Three of the four are things the CRMS exposes or calls.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Touchpoint</th><th>Direction</th><th>Built by</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Submit consolidated EOP</td><td>Portal &rarr; CRMS</td><td class="who">CRMS</td><td>Portal posts the FAC + consolidated EOP; CRMS creates a profiling case and returns a secure reference token.</td></tr>
+            <tr><td>2</td><td>Profiling form (CRMS-hosted)</td><td>Browser &rarr; CRMS</td><td class="who">CRMS</td><td>The FAC completes profiling <strong>on the CRMS domain</strong> (opened via the tokenised link — no iframe); the token authenticates the session and resumes the FAC at the right stage. The portal tracks progress via the status API + webhook.</td></tr>
+            <tr><td>3</td><td>Outcome webhook</td><td>CRMS &rarr; Portal</td><td class="who">CRMS</td><td>CRMS notifies the portal when the credit decision (or a status change) occurs.</td></tr>
+            <tr><td>4</td><td>Status query</td><td>Portal &rarr; CRMS</td><td class="who">CRMS</td><td>Portal polls current status/decision — a fallback and reconciliation for the webhook.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="diagram">
+        <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant FAC as FAC (browser)
+    participant P as RH-SHF Portal
+    participant C as CRMS
+    Note over P: BOA admin certifies the FAC's EOP set
+    P->>C: POST /credit-profiles (consolidated EOP + total + callback)
+    C-->>P: 201 { reference, token, profilingUrl, expiresAt }
+    P->>FAC: Email link back to the portal
+    FAC->>P: Logs in; status + "Continue on CRMS"
+    FAC->>C: Open profilingUrl?token=... on CRMS domain
+    C-->>FAC: Render correct profiling stage (resumable)
+    FAC->>C: Completes profiling steps
+    C-->>P: POST callbackUrl (signed outcome)
+    P->>C: GET /credit-profiles/{reference}/status (poll / reconcile)
+    C-->>P: 200 { status, decision, approvedAmount }
+        </pre>
+      </div>
+      <p class="diagram-cap">End-to-end sequence across the four touchpoints.</p>
+    </section>
+
+    <section id="responsibilities">
+      <div class="sec-head"><span class="sec-num">03</span><h2>What each side builds</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>CRMS builds (your work)</th><th>Portal builds (for context)</th></tr></thead>
+          <tbody>
+            <tr><td>The <strong>submit</strong> endpoint that creates a case and mints the token.</td><td>The outbound call to your submit endpoint on BOA certification.</td></tr>
+            <tr><td>The <strong>profiling web form</strong>: token-authenticated, resumable, on your own domain.</td><td>The email to the FAC linking back into the portal.</td></tr>
+            <tr><td>The <strong>outcome webhook</strong> caller, HMAC-signed.</td><td>The in-portal CRMS-profiling page (status + a &ldquo;Continue on CRMS&rdquo; link that opens your form with a token).</td></tr>
+            <tr><td>The <strong>status</strong> endpoint.</td><td>A webhook receiver that verifies your signature.</td></tr>
+            <tr><td>A <strong>token-refresh</strong> endpoint (recommended).</td><td>A status poller that reconciles against your status endpoint.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="contract">
+      <div class="sec-head"><span class="sec-num">04</span><h2>The contract</h2></div>
+      <p>All bodies are JSON (<code>application/json</code>). Base URLs, credentials and the portal callback/origin are exchanged per environment (<strong>sandbox</strong> and <strong>production</strong>) during onboarding.</p>
+
+      <h3 id="c-submit">4.1 &nbsp;Submit consolidated EOP</h3>
+      <div class="endpoint"><span class="method method--post">POST</span><code class="path">{CRMS_BASE_URL}/v1/credit-profiles</code></div>
+      <p>Called once, when a BOA admin certifies the FAC's EOP set.</p>
+      <ul>
+        <li><strong>Auth (portal &rarr; CRMS):</strong> choose one and tell us — OAuth2 client-credentials (preferred), a static API-key header, or mTLS. We send whatever you specify.</li>
+        <li><strong>Idempotency:</strong> the portal sends an <code>Idempotency-Key</code> header (also <code>submissionId</code> in the body). Re-sending the same key must return the <em>same</em> case/token, never a duplicate.</li>
+      </ul>
+      <figure class="code"><figcaption>Request body &middot; proposed</figcaption><pre><code>{
+  "submissionId": "b1f0c2e4-...-uuid",         // portal's id for this EOP submission (idempotency)
+  "programme":   { "code": "RH-SHF-DRY-2026", "name": "Renewed Hope - Dry Season 2026" },
+  "session":     { "code": "2026-DRY", "name": "Dry Season 2026" },
+  "fac": {
+    "facId":        "a5c9-...-uuid",            // portal FAC id (EoiSubmission id)
+    "companyName":  "Alliedsoft Limited",
+    "rcNumber":     "RC123456",                 // CAC registration number
+    "tin":          "01234567-0001",
+    "boaAccountNumber": "0123456789",
+    "contact":      { "email": "fac@company.com", "phone": "+2348012345678" },
+    "state":        "Kano",
+    "lga":          "Nassarawa"
+  },
+  "totalEopValue": 51500000.00,                 // NGN - amount to profile the FAC for (the loan amount)
+  "currency": "NGN",
+  "farmerCount": 1200,
+  "eopLines": [                                  // per-commodity breakdown (context; optional)
+    { "commodity": "Maize",   "quantityKg": 100000, "unitPricePerKg": 340.00, "lineValue": 34000000.00 },
+    { "commodity": "Sorghum", "quantityKg":  50000, "unitPricePerKg": 330.00, "lineValue": 16500000.00 }
+  ],
+  "callbackUrl": "https://portal.example.gov.ng/api/integrations/crms/webhook",
+  "metadata": { "certifiedByAdmin": "admin@boa.gov.ng", "certifiedAt": "2026-08-22T10:15:00Z" }
+}</code></pre></figure>
+      <figure class="code"><figcaption>Response &middot; 201 Created</figcaption><pre><code>{
+  "reference": "CRMS-2026-000123",              // CRMS case reference (human-readable, stable)
+  "token": "eyJhbGciOi...",                     // secure reference token (4.2) - carried by the portal
+  "profilingUrl": "https://crms.example.com/profiling",
+  "tokenExpiresAt": "2026-08-22T10:45:00Z",
+  "status": "RECEIVED"
+}</code></pre></figure>
+      <p>The portal opens the form as <code>{profilingUrl}?token={token}</code> in a new tab on the CRMS domain. If you'd rather return the complete URL with the token already embedded, return <code>profilingUrl</code> fully-formed and say so. Errors use standard HTTP codes with a JSON body <code>{ "error": "code", "message": "human text" }</code>.</p>
+
+      <h3 id="c-token">4.2 &nbsp;The secure reference token</h3>
+      <ul>
+        <li>A <strong>signed, JWT-shaped token issued and verified by the CRMS</strong> (your signing key; the portal never verifies it — only carries and forwards it).</li>
+        <li><strong>It names the session; it does not store progress.</strong> Keep the FAC's live stage server-side on the CRMS, keyed by the token's subject. On load: verify token &rarr; look up the case &rarr; render the current stage. Don't bake mutable progress into an immutable token.</li>
+        <li><strong>Short-lived and refreshable</strong> — it travels in a URL query string, and URLs leak (browser history, proxy/server logs, <code>Referer</code>). Suggested lifetime 15&ndash;30 min; single-use or rotate on load. If the FAC opens the link after expiry, the portal calls token-refresh (4.6) first.</li>
+        <li>Suggested claims: <code>sub</code> (case/reference), <code>facId</code>, <code>programme</code>, <code>aud</code>, <code>iat</code>, <code>exp</code>, <code>jti</code>. Bind it to the case so a token for case A can never open case B.</li>
+      </ul>
+
+      <h3 id="c-form">4.3 &nbsp;Profiling form (CRMS-hosted, opened on the CRMS domain)</h3>
+      <p>The FAC completes profiling on <strong>your form, on the CRMS domain</strong> — opened in a normal browser tab, <strong>not embedded in an iframe</strong>. Requirements:</p>
+      <ol class="steps">
+        <li><strong>Accept the token</strong> from the <code>token</code> query-string parameter; verify it; <strong>resume at the FAC's current stage</strong>. Your form keeps its own session/cookies normally — first-party, on your own domain (no <code>SameSite=None</code> gymnastics).</li>
+        <li><strong>Handle expiry gracefully</strong> — on an expired/invalid token, show a friendly &ldquo;session expired&rdquo; page telling the FAC to return to the portal and reopen the link (the portal mints a fresh token via 4.6).</li>
+        <li><strong>On completion</strong>, show a clear &ldquo;submitted — you can close this tab&rdquo; confirmation. The portal learns the outcome from the webhook (4.4) and reflects live status from the status API (4.5); no <code>postMessage</code> bridge is required.</li>
+      </ol>
+      <div class="callout">
+        <span class="callout__tag">Why not an iframe?</span>
+        <p>We evaluated embedding the form in the portal and dropped it. Iframing depends on your pages allowing <code>frame-ancestors</code> for our origin — which secure/banking systems usually block (<code>X-Frame-Options: DENY|SAMEORIGIN</code>) — and it adds third-party-cookie and cross-origin-messaging complexity. Accessing the form <strong>directly on the CRMS domain</strong> removes that risk entirely, and the status API + webhook already give the portal everything it needs to track progress.</p>
+      </div>
+      <p><strong>How the FAC reaches it:</strong> the portal is the authenticated hub — the email links <strong>back to the portal</strong>, the FAC logs in and sees a CRMS-profiling page showing current status and a <strong>&ldquo;Continue on CRMS&rdquo; button</strong> that opens your form (new tab) with a fresh token. Your form is always reached via a <strong>fresh, portal-issued link — never straight from the email</strong> — which lets the portal refresh the token just-in-time and keep the FAC's status view in one place.</p>
+
+      <h3 id="c-webhook">4.4 &nbsp;Outcome webhook</h3>
+      <div class="endpoint"><span class="method method--post">POST</span><code class="path">{callbackUrl}</code> <span style="color:var(--ink-faint);font-family:'IBM Plex Sans',sans-serif;font-size:.8rem;">CRMS &rarr; Portal</span></div>
+      <p>Call the <code>callbackUrl</code> from 4.1 whenever the case reaches a terminal decision, and (recommended) on notable status changes.</p>
+      <p><strong>Signing (required):</strong> sign the raw body with a shared secret (exchanged out-of-band) and send the signature in a header, plus a timestamp to prevent replay:</p>
+      <div class="endpoint" style="gap:6px;">
+        <code class="path">X-CRMS-Signature: sha256=&lt;hex HMAC-SHA256(secret, rawBody)&gt;</code>
+      </div>
+      <figure class="code"><figcaption>Webhook body &middot; proposed</figcaption><pre><code>{
+  "reference": "CRMS-2026-000123",
+  "submissionId": "b1f0c2e4-...-uuid",
+  "status": "APPROVED",                  // see section 5
+  "decision": {
+    "outcome": "APPROVED",               // APPROVED | DECLINED | INFO_REQUIRED
+    "approvedAmount": 51500000.00,        // should equal totalEopValue on approval
+    "currency": "NGN",
+    "reasons": [],                        // populated on DECLINE / INFO_REQUIRED
+    "decidedAt": "2026-08-22T14:03:00Z",
+    "decidedBy": "CRMS Credit Committee"
+  },
+  "eventId": "evt_9f2a...",               // unique per event (portal de-dupes on this)
+  "occurredAt": "2026-08-22T14:03:01Z"
+}</code></pre></figure>
+      <p>Portal responds <code>2xx</code> on receipt. Please <strong>retry with backoff</strong> on non-2xx / timeout (e.g. 5 attempts over ~30 min); make delivery idempotent via <code>eventId</code>.</p>
+
+      <h3 id="c-status">4.5 &nbsp;Status query</h3>
+      <div class="endpoint"><span class="method method--get">GET</span><code class="path">{CRMS_BASE_URL}/v1/credit-profiles/{reference}/status</code></div>
+      <p>Lets the portal poll and reconcile if a webhook is missed. Same portal&rarr;CRMS auth as 4.1.</p>
+      <figure class="code"><figcaption>Response &middot; proposed</figcaption><pre><code>{
+  "reference": "CRMS-2026-000123",
+  "submissionId": "b1f0c2e4-...-uuid",
+  "status": "PROFILING_IN_PROGRESS",     // see section 5
+  "stage": { "current": "documents", "index": 3, "total": 5 },
+  "decision": null,                       // populated once decided (same shape as 4.4)
+  "updatedAt": "2026-08-22T11:20:00Z"
+}</code></pre></figure>
+
+      <h3 id="c-refresh">4.6 &nbsp;Token refresh <span style="font-weight:400;color:var(--ink-faint);font-size:.9rem;">(optional, recommended)</span></h3>
+      <div class="endpoint"><span class="method method--post">POST</span><code class="path">{CRMS_BASE_URL}/v1/credit-profiles/{reference}/token</code></div>
+      <p>Returns a fresh <code>{ token, tokenExpiresAt }</code> for an existing case, so a FAC who opens an expired email link — or returns days later to continue — can resume.</p>
+    </section>
+
+    <section id="vocabulary">
+      <div class="sec-head"><span class="sec-num">05</span><h2>Status &amp; decision vocabulary</h2></div>
+      <p><strong>Case status</strong> (returned by 4.4 / 4.5):</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>RECEIVED</code></td><td>Submit accepted; case created.</td></tr>
+            <tr><td><code>PROFILING_PENDING</code></td><td>Awaiting the FAC to open the profiling form.</td></tr>
+            <tr><td><code>PROFILING_IN_PROGRESS</code></td><td>FAC is completing the form.</td></tr>
+            <tr><td><code>UNDER_REVIEW</code></td><td>CRMS is assessing.</td></tr>
+            <tr><td><code>APPROVED</code> / <code>DECLINED</code> / <code>INFO_REQUIRED</code></td><td>Terminal (or action-needed) decision states.</td></tr>
+            <tr><td><code>EXPIRED</code> / <code>CANCELLED</code></td><td>Case lapsed or withdrawn.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Decision outcome:</strong> <code>APPROVED</code> &middot; <code>DECLINED</code> &middot; <code>INFO_REQUIRED</code>.</p>
+      <p>For context, the portal's own states move: <code>SubmittedForProcessing &rarr; UnderBOAReview &rarr; (ReturnedToFAC | Certified) &rarr; CRMSProcessing &rarr; CRMSApproved | CRMSDeclined</code>. Your statuses drive the <code>CRMSProcessing &rarr; CRMSApproved/Declined</code> transition.</p>
+    </section>
+
+    <section id="security">
+      <div class="sec-head"><span class="sec-num">06</span><h2>Security summary</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Concern</th><th>Approach</th></tr></thead>
+          <tbody>
+            <tr><td>Portal &rarr; CRMS calls (4.1, 4.5, 4.6)</td><td>OAuth2 client-credentials, API key, or mTLS — <strong>your choice</strong>, TLS only.</td></tr>
+            <tr><td>CRMS &rarr; Portal webhook (4.4)</td><td>HMAC-SHA256 over the raw body + timestamp; shared secret exchanged out-of-band; TLS only.</td></tr>
+            <tr><td>Reference token (4.2)</td><td>CRMS-signed, short-lived, single-use/refreshable, bound to one case; not a progress store.</td></tr>
+            <tr><td>Profiling form access (4.3)</td><td>FAC reaches the CRMS-hosted form <strong>directly on the CRMS domain</strong> via the tokenised link — no iframe, so no <code>frame-ancestors</code> / <code>X-Frame-Options</code> accommodation needed.</td></tr>
+            <tr><td>PII</td><td>Payload carries FAC company + financial data. Encrypt in transit and at rest; restrict access; agree a data-processing / retention position.</td></tr>
+            <tr><td>Environments</td><td>Separate sandbox and production base URLs, credentials, signing secrets and allowed origins.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="data">
+      <div class="sec-head"><span class="sec-num">07</span><h2>Data dictionary</h2></div>
+      <p>Fields on the submit payload (4.1).</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>submissionId</code></td><td>UUID</td><td>Portal's submission id; idempotency key.</td></tr>
+            <tr><td><code>programme.code / name</code></td><td>string</td><td>The financing programme.</td></tr>
+            <tr><td><code>session.code / name</code></td><td>string</td><td>Farming season.</td></tr>
+            <tr><td><code>fac.facId</code></td><td>UUID</td><td>Portal FAC id.</td></tr>
+            <tr><td><code>fac.companyName</code></td><td>string</td><td>&mdash;</td></tr>
+            <tr><td><code>fac.rcNumber</code></td><td>string</td><td>CAC / RC number.</td></tr>
+            <tr><td><code>fac.tin</code></td><td>string</td><td>Tax id.</td></tr>
+            <tr><td><code>fac.boaAccountNumber</code></td><td>string</td><td>FAC's BOA account.</td></tr>
+            <tr><td><code>fac.contact.email / phone</code></td><td>string</td><td>Company email is the default profiling-link recipient.</td></tr>
+            <tr><td><code>fac.state / lga</code></td><td>string</td><td>Location.</td></tr>
+            <tr><td><code>totalEopValue</code></td><td>decimal</td><td><strong>NGN — the amount to profile the FAC for; must equal the approved amount.</strong></td></tr>
+            <tr><td><code>currency</code></td><td>string</td><td><code>NGN</code>.</td></tr>
+            <tr><td><code>farmerCount</code></td><td>int</td><td>Optional context.</td></tr>
+            <tr><td><code>eopLines[]</code></td><td>array</td><td>Per-commodity breakdown (optional context for the credit officer).</td></tr>
+            <tr><td><code>callbackUrl</code></td><td>url</td><td>Where to send the outcome webhook (4.4).</td></tr>
+            <tr><td><code>metadata</code></td><td>object</td><td>Free-form (certifying admin, timestamps).</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="nonfunctional">
+      <div class="sec-head"><span class="sec-num">08</span><h2>Non-functional expectations</h2></div>
+      <ul>
+        <li><strong>Idempotency:</strong> submit is idempotent on <code>Idempotency-Key</code> / <code>submissionId</code>; webhook is idempotent on <code>eventId</code>.</li>
+        <li><strong>Retries:</strong> webhook retried with backoff until <code>2xx</code>; the portal also polls 4.5 as a safety net.</li>
+        <li><strong>Timeouts:</strong> portal&rarr;CRMS calls respond within a few seconds; long work happens asynchronously and is reported via webhook / status.</li>
+        <li><strong>Timezones:</strong> all timestamps ISO-8601 UTC (<code>Z</code>).</li>
+        <li><strong>Versioning:</strong> path-versioned (<code>/v1/&hellip;</code>); additive changes only within a version.</li>
+        <li><strong>Correlation:</strong> <code>reference</code> (and <code>submissionId</code>) appear on every touchpoint for tracing.</li>
+      </ul>
+    </section>
+
+    <section id="acceptance">
+      <div class="sec-head"><span class="sec-num">09</span><h2>Acceptance criteria</h2></div>
+      <p>Definition of done for the CRMS side.</p>
+      <ol class="steps">
+        <li><code>POST /v1/credit-profiles</code> accepts the 4.1 payload, is idempotent, and returns <code>reference</code>, a valid short-lived signed token, and <code>profilingUrl</code>.</li>
+        <li>The profiling form, opened as <code>{profilingUrl}?token=&hellip;</code> <strong>on the CRMS domain</strong>, authenticates via the token and resumes at the correct stage.</li>
+        <li>Expired/invalid token &rarr; graceful &ldquo;session expired&rdquo; page directing the FAC back to the portal; token-refresh issues a new one.</li>
+        <li>On decision, CRMS calls the <code>callbackUrl</code> with a valid HMAC signature, retrying until <code>2xx</code>, idempotent on <code>eventId</code>.</li>
+        <li><code>GET /v1/credit-profiles/{reference}/status</code> returns current status / stage / decision at any time.</li>
+        <li>A sandbox environment is available for the portal team to test all four touchpoints end-to-end before production.</li>
+      </ol>
+    </section>
+
+    <section id="open">
+      <div class="sec-head"><span class="sec-num">10</span><h2>Open items to confirm</h2></div>
+      <ul>
+        <li>Portal&rarr;CRMS <strong>auth mechanism</strong> (OAuth2 client-creds / API key / mTLS).</li>
+        <li>Whether <code>profilingUrl</code> is a <strong>base URL</strong> (portal appends <code>?token=</code>) or <strong>fully-formed</strong>.</li>
+        <li><strong>Resolved:</strong> the CRMS form is accessed <strong>directly on the CRMS domain</strong> (no iframe), reached via the <strong>portal hub</strong> — the FAC clicks &ldquo;Continue on CRMS&rdquo; from an authenticated portal page, never straight from the email; the portal tracks progress via the status API + webhook.</li>
+        <li>Rule confirmation: <strong>total EOP value = approved amount, exactly</strong> — are partial approvals possible? If <code>INFO_REQUIRED</code>/partial can occur, how should the portal treat it?</li>
+        <li>Token lifetime, single-use vs refreshable, and the refresh endpoint.</li>
+        <li><strong>PII / data-processing</strong> agreement and retention.</li>
+        <li>Sandbox base URLs, credentials and signing secrets per environment.</li>
+      </ul>
+    </section>
+
+    <section id="ai">
+      <div class="sec-head"><span class="sec-num">11</span><h2>Using this with an AI assistant</h2></div>
+      <p>This brief is written to be handed straight to an AI coding assistant (e.g. Claude). A good starting prompt for your team:</p>
+      <blockquote class="prompt">
+        <p>&ldquo;You are helping build the <strong>CRMS side</strong> of an integration described in the attached brief. Our stack is <strong>[your language / framework / DB]</strong>. Implement, with tests: (1) <code>POST /v1/credit-profiles</code> — validate the payload, create a credit-profiling case, be idempotent on <code>submissionId</code>, and return a short-lived signed reference token per &sect;4.2; (2) token issuing/verification and a refresh endpoint (&sect;4.6); (3) the token-authenticated, <strong>resumable</strong> profiling web form (&sect;4.3), hosted on your own domain, that keeps progress server-side; (4) the <strong>HMAC-signed outcome webhook</strong> caller with retries/idempotency (&sect;4.4); and (5) the status endpoint (&sect;4.5). Use the exact JSON shapes and statuses in the brief. Flag anywhere our existing system makes a different choice more natural, and list the values you need from the portal team (auth, origins, secrets).&rdquo;</p>
+      </blockquote>
+      <p>Ask the assistant to keep to the JSON field names and status vocabulary above so both sides line up, and to surface any deviation explicitly so we can reconcile the contract.</p>
+    </section>
+  </main>
+</div>
+
+<footer>
+  <div class="foot">
+    <span class="brand">RH-SHF Programme Portal &middot; CRMS Integration Brief v0.1</span>
+    <span class="hr-note">Prepared as a proposed contract &mdash; review the open items and send back your adjustments; then we run an end-to-end sandbox test.</span>
+  </div>
+</footer>
+</body>
+</html>

@@ -64,11 +64,13 @@ public class SubmitNampFinancialAppraisalHandler
     : IRequestHandler<SubmitNampFinancialAppraisalCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly IBureauReportRepository _bureauRepo;
     private readonly IUnitOfWork _uow;
 
-    public SubmitNampFinancialAppraisalHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public SubmitNampFinancialAppraisalHandler(INampApplicationRepository repo, IBureauReportRepository bureauRepo, IUnitOfWork uow)
     {
         _repo = repo;
+        _bureauRepo = bureauRepo;
         _uow = uow;
     }
 
@@ -82,11 +84,12 @@ public class SubmitNampFinancialAppraisalHandler
         if (report is null)
             return ApplicationResult<NampApplicationDto>.Failure("Financial appraisal report must be saved before submitting a decision.");
 
-        var hasRequiredDoc = app.Documents.Any(d =>
-            d.Stage == NampDocumentStage.FinancialAppraisal &&
-            d.Category == NampDocumentCategory.CreditReport);
-        if (!hasRequiredDoc)
-            return ApplicationResult<NampApplicationDto>.Failure("At least one Credit Report document must be uploaded before submitting.");
+        var bureauReports = await _bureauRepo.GetByNampApplicationIdAsync(request.NampApplicationId, ct);
+        var hasBureauResult = bureauReports.Any(r =>
+            r.Status == BureauReportStatus.Completed ||
+            r.Status == BureauReportStatus.NotFound);
+        if (!hasBureauResult)
+            return ApplicationResult<NampApplicationDto>.Failure("Credit bureau checks must be run before submitting a financial appraisal decision. Go to the Bureau tab and run checks first.");
 
         var result = app.SubmitFinancialAppraisal(request.UserId, request.IsApproved, request.Note);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -94,6 +97,143 @@ public class SubmitNampFinancialAppraisalHandler
         app.SetAuditInfo(request.UserId.ToString());
         await _uow.SaveChangesAsync(ct);
 
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
+// ── Stage 2b: Return Financial Appraisal to Loan Officer ─────────────────
+
+public record ReturnNampFinancialAppraisalCommand(
+    Guid NampApplicationId,
+    Guid UserId,
+    string Reason
+) : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class ReturnNampFinancialAppraisalHandler
+    : IRequestHandler<ReturnNampFinancialAppraisalCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly IUnitOfWork _uow;
+
+    public ReturnNampFinancialAppraisalHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        ReturnNampFinancialAppraisalCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var result = app.ReturnFinancialAppraisalToLoanOfficer(request.UserId, request.Reason);
+        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
+// ── Stage 3: Risk Review ──────────────────────────────────────────────────
+
+public record ApproveNampRiskReviewCommand(
+    Guid NampApplicationId,
+    Guid UserId,
+    string? Note
+) : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class ApproveNampRiskReviewHandler
+    : IRequestHandler<ApproveNampRiskReviewCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly IUnitOfWork _uow;
+
+    public ApproveNampRiskReviewHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        ApproveNampRiskReviewCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var result = app.ApproveRiskReview(request.UserId, request.Note);
+        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
+public record ReturnNampRiskReviewCommand(
+    Guid NampApplicationId,
+    Guid UserId,
+    string Reason
+) : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class ReturnNampRiskReviewHandler
+    : IRequestHandler<ReturnNampRiskReviewCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly IUnitOfWork _uow;
+
+    public ReturnNampRiskReviewHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        ReturnNampRiskReviewCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var result = app.ReturnFromRiskReview(request.UserId, request.Reason);
+        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
+public record DeclineNampRiskReviewCommand(
+    Guid NampApplicationId,
+    Guid UserId,
+    string Reason
+) : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class DeclineNampRiskReviewHandler
+    : IRequestHandler<DeclineNampRiskReviewCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly IUnitOfWork _uow;
+
+    public DeclineNampRiskReviewHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        DeclineNampRiskReviewCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var result = app.DeclineAtRiskReview(request.UserId, request.Reason);
+        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
         return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
     }
 }
@@ -869,68 +1009,59 @@ public class ConfirmNampDeploymentHandler
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
 
         // ── Fineract loan booking ─────────────────────────────────────────────
+        // All conditions below are hard failures — deployment is blocked until CBS booking succeeds.
         if (app.FineractClientId is null)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                "CBS client ID is not set on this application — the BOA account lookup failed at recall time. " +
+                "Check Core Banking System connectivity and retry recall, or contact the system administrator.");
+
+        var fineractProductId = app.FineractProductId ?? 0;
+        if (fineractProductId <= 0)
         {
-            _logger.LogWarning("NAMP deployment: FineractClientId not set on application {Id} — loan will not be booked in Fineract.", app.Id);
+            var product = await _productRepo.GetByIdAsync(app.LoanProductId, ct);
+            fineractProductId = product?.FineractProductId ?? 0;
+        }
+        if (fineractProductId <= 0)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                "No Fineract product ID is configured for this loan product. Contact the system administrator.");
+
+        if (app.LoanAmount is null or <= 0)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                "Loan amount is not set on this application — ratification must complete before deployment.");
+
+        if (app.ApprovedInterestRate is null)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                "Approved interest rate is not set — ratification must complete before deployment.");
+
+        if (app.RequestedTenorMonths is null or <= 0)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                "Loan tenor is not set — ratification must complete before deployment.");
+
+        var bookingRequest = new FineractLoanBookingRequest(
+            ClientId: app.FineractClientId.Value,
+            ProductId: fineractProductId,
+            Principal: app.LoanAmount.Value,
+            TenorMonths: app.RequestedTenorMonths.Value,
+            InterestRatePerAnnum: app.ApprovedInterestRate.Value,
+            ValueDate: DateTime.UtcNow,
+            RepaymentAccountNumber: app.BoaAccountNumber,
+            DisburseToSavings: false,
+            CreateRepaymentStandingInstruction: true
+        );
+
+        var bookingResult = await _fineractService.BookApprovedLoanAsync(bookingRequest, ct);
+        if (bookingResult.IsSuccess)
+        {
+            app.SetFineractLoanResult(bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber);
+            _logger.LogInformation("NAMP deployment: Fineract loan booked — LoanId={LoanId}, Account={Account}, Disbursed={Disbursed}",
+                bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber, bookingResult.Value.Disbursed);
         }
         else
         {
-            // Use FineractProductId stored on the application at recall. Fall back to a product repo
-            // lookup only for applications recalled before this feature was added.
-            var fineractProductId = app.FineractProductId ?? 0;
-            if (fineractProductId <= 0)
-            {
-                var product = await _productRepo.GetByIdAsync(app.LoanProductId, ct);
-                fineractProductId = product?.FineractProductId ?? 0;
-            }
-
-            if (fineractProductId <= 0)
-            {
-                _logger.LogWarning("NAMP deployment: no FineractProductId on application {Id} or its LoanProduct — loan will not be booked.", app.Id);
-            }
-            else if (app.LoanAmount is null or <= 0)
-            {
-                _logger.LogWarning("NAMP deployment: LoanAmount is not set on application {Id} — loan will not be booked.", app.Id);
-            }
-            else
-            {
-                if (app.ApprovedInterestRate is null)
-                    return ApplicationResult<NampApplicationDto>.Failure(
-                        "Approved interest rate is not set — ratification must complete before deployment.");
-                if (app.RequestedTenorMonths is null or <= 0)
-                    return ApplicationResult<NampApplicationDto>.Failure(
-                        "Loan tenor is not set — ratification must complete before deployment.");
-
-                var interestRate = app.ApprovedInterestRate.Value;
-                var tenorMonths  = app.RequestedTenorMonths.Value;
-
-                var bookingRequest = new FineractLoanBookingRequest(
-                    ClientId: app.FineractClientId.Value,
-                    ProductId: fineractProductId,
-                    Principal: app.LoanAmount.Value,
-                    TenorMonths: tenorMonths,
-                    InterestRatePerAnnum: interestRate,
-                    ValueDate: DateTime.UtcNow,
-                    RepaymentAccountNumber: app.BoaAccountNumber,
-                    DisburseToSavings: false,                  // NAMP equipment loans disburse to the vendor, not the applicant's savings
-                    CreateRepaymentStandingInstruction: true   // ...but repayments are auto-debited from the applicant's BOA savings via a standing instruction
-                );
-
-                var bookingResult = await _fineractService.BookApprovedLoanAsync(bookingRequest, ct);
-                if (bookingResult.IsSuccess)
-                {
-                    app.SetFineractLoanResult(bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber);
-                    _logger.LogInformation("NAMP deployment: Fineract loan booked — LoanId={LoanId}, Account={Account}, Disbursed={Disbursed}",
-                        bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber, bookingResult.Value.Disbursed);
-                }
-                else
-                {
-                    _logger.LogError("NAMP deployment: Fineract loan booking failed for application {Id}: {Error}",
-                        app.Id, bookingResult.Error);
-                    return ApplicationResult<NampApplicationDto>.Failure(
-                        $"Fineract loan booking failed: {bookingResult.Error}");
-                }
-            }
+            _logger.LogError("NAMP deployment: Fineract loan booking failed for application {Id}: {Error}",
+                app.Id, bookingResult.Error);
+            return ApplicationResult<NampApplicationDto>.Failure(
+                $"Core Banking System booking failed: {bookingResult.Error}");
         }
 
         var result = app.ConfirmDeployment(request.UserId, request.GpsActivated, request.Note);
@@ -938,6 +1069,111 @@ public class ConfirmNampDeploymentHandler
 
         app.SetAuditInfo(request.UserId.ToString());
         await _uow.SaveChangesAsync(ct);
+
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
+// ── Retry Fineract CBS Booking ────────────────────────────────────────────
+// Used when deployment succeeded but the CBS booking was skipped (e.g. FineractClientId
+// was not resolved at recall time). Guards against double-booking: fails if FineractLoanId
+// is already set.
+
+public record RetryNampFineractBookingCommand(Guid NampApplicationId, Guid UserId)
+    : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class RetryNampFineractBookingHandler
+    : IRequestHandler<RetryNampFineractBookingCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly ILoanProductRepository _productRepo;
+    private readonly IFineractDirectService _fineractService;
+    private readonly IUnitOfWork _uow;
+    private readonly ILogger<RetryNampFineractBookingHandler> _logger;
+
+    public RetryNampFineractBookingHandler(
+        INampApplicationRepository repo,
+        ILoanProductRepository productRepo,
+        IFineractDirectService fineractService,
+        IUnitOfWork uow,
+        ILogger<RetryNampFineractBookingHandler> logger)
+    {
+        _repo            = repo;
+        _productRepo     = productRepo;
+        _fineractService = fineractService;
+        _uow             = uow;
+        _logger          = logger;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        RetryNampFineractBookingCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        // Guard: already booked — nothing to do
+        if (app.FineractLoanId.HasValue)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                "This loan is already linked to the Core Banking System.");
+
+        // Re-try resolving FineractClientId if it was never set
+        if (app.FineractClientId is null)
+        {
+            if (string.IsNullOrWhiteSpace(app.BoaAccountNumber))
+                return ApplicationResult<NampApplicationDto>.Failure(
+                    "Cannot resolve CBS client — BOA account number is missing on this application.");
+
+            var boaResult = await _fineractService.GetNampBoaAccountAsync(app.BoaAccountNumber, ct);
+            if (boaResult.IsFailure)
+                return ApplicationResult<NampApplicationDto>.Failure(
+                    $"Could not resolve CBS client for BOA account '{app.BoaAccountNumber}': {boaResult.Error}");
+
+            app.SetFineractClientId(boaResult.Value.ClientId);
+            _logger.LogInformation("RetryNampFineractBooking: resolved FineractClientId={ClientId} for application {Id}",
+                boaResult.Value.ClientId, app.Id);
+        }
+
+        // Resolve product
+        var fineractProductId = app.FineractProductId ?? 0;
+        if (fineractProductId <= 0)
+        {
+            var product = await _productRepo.GetByIdAsync(app.LoanProductId, ct);
+            fineractProductId = product?.FineractProductId ?? 0;
+        }
+        if (fineractProductId <= 0)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                "No Fineract product ID is configured for this loan product.");
+
+        if (app.LoanAmount is null or <= 0)
+            return ApplicationResult<NampApplicationDto>.Failure("Loan amount is not set on this application.");
+        if (app.ApprovedInterestRate is null)
+            return ApplicationResult<NampApplicationDto>.Failure("Approved interest rate is not set.");
+        if (app.RequestedTenorMonths is null or <= 0)
+            return ApplicationResult<NampApplicationDto>.Failure("Loan tenor is not set.");
+
+        var bookingRequest = new FineractLoanBookingRequest(
+            ClientId: app.FineractClientId!.Value,
+            ProductId: fineractProductId,
+            Principal: app.LoanAmount.Value,
+            TenorMonths: app.RequestedTenorMonths.Value,
+            InterestRatePerAnnum: app.ApprovedInterestRate.Value,
+            ValueDate: DateTime.UtcNow,
+            RepaymentAccountNumber: app.BoaAccountNumber,
+            DisburseToSavings: false,
+            CreateRepaymentStandingInstruction: true
+        );
+
+        var bookingResult = await _fineractService.BookApprovedLoanAsync(bookingRequest, ct);
+        if (bookingResult.IsFailure)
+            return ApplicationResult<NampApplicationDto>.Failure(
+                $"CBS booking failed: {bookingResult.Error}");
+
+        app.SetFineractLoanResult(bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber);
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+
+        _logger.LogInformation("RetryNampFineractBooking: booked LoanId={LoanId}, Account={Account} for application {Id}",
+            bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber, app.Id);
 
         return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
     }

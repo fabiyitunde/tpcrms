@@ -105,6 +105,12 @@ public record NampApplicationDto(
     Guid? FinancialAppraisalByUserId,
     DateTime? FinancialAppraisalAt,
     string? FinancialAppraisalNote,
+    // Risk Review
+    Guid? RiskReviewedByUserId,
+    DateTime? RiskReviewedAt,
+    string? RiskReviewNote,
+    string? RiskReturnNote,
+    string? RiskDeclineNote,
     // Committee
     Guid? CurrentCommitteeReviewId,
     DateTime? CommitteeDecisionAt,
@@ -358,7 +364,16 @@ public record NampFinancialAppraisalReportDto(
     string RepaymentSource,
     decimal? ProjectedMonthlyRentalRevenue,
     decimal? UtilisationRateAssumption,
-    string? DemandEvidenceNote
+    string? DemandEvidenceNote,
+    decimal? HectaresPerMonth,
+    decimal? RatePerHectare,
+    decimal? MonthlyFuelCost,
+    decimal? MonthlyMaintenanceCost,
+    decimal? MonthlyOperatorWage,
+    decimal? NetPresentValue,
+    decimal? BenefitCostRatio,
+    decimal? InternalRateOfReturn,
+    decimal? ProfitabilityIndex
 );
 
 public record NampPreDeploymentChecklistTemplateDto(

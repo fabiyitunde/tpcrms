@@ -20,7 +20,16 @@ public record SaveNampFinancialAppraisalReportCommand(
     string RepaymentSource,
     decimal? ProjectedMonthlyRentalRevenue,
     decimal? UtilisationRateAssumption,
-    string? DemandEvidenceNote
+    string? DemandEvidenceNote,
+    decimal? HectaresPerMonth = null,
+    decimal? RatePerHectare = null,
+    decimal? MonthlyFuelCost = null,
+    decimal? MonthlyMaintenanceCost = null,
+    decimal? MonthlyOperatorWage = null,
+    decimal? NetPresentValue = null,
+    decimal? BenefitCostRatio = null,
+    decimal? InternalRateOfReturn = null,
+    decimal? ProfitabilityIndex = null
 ) : IRequest<ApplicationResult<NampFinancialAppraisalReportDto>>;
 
 public class SaveNampFinancialAppraisalReportHandler
@@ -55,7 +64,11 @@ public class SaveNampFinancialAppraisalReportHandler
                 capacity, request.EquityAssessmentNote, request.CreditBureauSummary,
                 creditRec, request.SummaryNotes,
                 repaymentSource, request.ProjectedMonthlyRentalRevenue,
-                request.UtilisationRateAssumption, request.DemandEvidenceNote);
+                request.UtilisationRateAssumption, request.DemandEvidenceNote,
+                request.HectaresPerMonth, request.RatePerHectare,
+                request.MonthlyFuelCost, request.MonthlyMaintenanceCost, request.MonthlyOperatorWage,
+                request.NetPresentValue, request.BenefitCostRatio,
+                request.InternalRateOfReturn, request.ProfitabilityIndex);
 
             if (createResult.IsFailure)
                 return ApplicationResult<NampFinancialAppraisalReportDto>.Failure(createResult.Error);
@@ -72,7 +85,11 @@ public class SaveNampFinancialAppraisalReportHandler
                 capacity, request.EquityAssessmentNote, request.CreditBureauSummary,
                 creditRec, request.SummaryNotes,
                 repaymentSource, request.ProjectedMonthlyRentalRevenue,
-                request.UtilisationRateAssumption, request.DemandEvidenceNote);
+                request.UtilisationRateAssumption, request.DemandEvidenceNote,
+                request.HectaresPerMonth, request.RatePerHectare,
+                request.MonthlyFuelCost, request.MonthlyMaintenanceCost, request.MonthlyOperatorWage,
+                request.NetPresentValue, request.BenefitCostRatio,
+                request.InternalRateOfReturn, request.ProfitabilityIndex);
 
             await _uow.SaveChangesAsync(ct);
             return ApplicationResult<NampFinancialAppraisalReportDto>.Success(MapToDto(existing));
@@ -85,5 +102,8 @@ public class SaveNampFinancialAppraisalReportHandler
         r.RepaymentCapacityRating.ToString(), r.EquityAssessmentNote,
         r.CreditBureauSummary, r.CreditOfficerRecommendation.ToString(), r.SummaryNotes,
         r.RepaymentSource.ToString(), r.ProjectedMonthlyRentalRevenue,
-        r.UtilisationRateAssumption, r.DemandEvidenceNote);
+        r.UtilisationRateAssumption, r.DemandEvidenceNote,
+        r.HectaresPerMonth, r.RatePerHectare,
+        r.MonthlyFuelCost, r.MonthlyMaintenanceCost, r.MonthlyOperatorWage,
+        r.NetPresentValue, r.BenefitCostRatio, r.InternalRateOfReturn, r.ProfitabilityIndex);
 }

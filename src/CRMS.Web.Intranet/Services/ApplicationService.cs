@@ -5922,6 +5922,74 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> ReturnNampFinancialAppraisalAsync(Guid id, Guid userId, string reason)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.ReturnNampFinancialAppraisalHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.ReturnNampFinancialAppraisalCommand(id, userId, reason), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Return failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error returning NAMP financial appraisal {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to return application: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> ApproveNampRiskReviewAsync(Guid id, Guid userId, string? note)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.ApproveNampRiskReviewHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.ApproveNampRiskReviewCommand(id, userId, note), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Risk review approval failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error approving NAMP risk review {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to approve risk review: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> ReturnNampRiskReviewAsync(Guid id, Guid userId, string reason)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.ReturnNampRiskReviewHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.ReturnNampRiskReviewCommand(id, userId, reason), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Return failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error returning NAMP risk review {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to return risk review: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> DeclineNampRiskReviewAsync(Guid id, Guid userId, string reason)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.DeclineNampRiskReviewHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.DeclineNampRiskReviewCommand(id, userId, reason), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Decline failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error declining NAMP risk review {Id}", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Failed to decline risk review: {ex.Message}");
+        }
+    }
+
     public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> CirculateNampToCommitteeAsync(
         Guid id, Guid userId,
         List<CRMS.Application.Namp.Commands.NampCommitteeMemberInput> members,
@@ -6525,7 +6593,11 @@ public partial class ApplicationService
         string repaymentCapacityRating, string? equityAssessmentNote, string? creditBureauSummary,
         string creditOfficerRecommendation, string? summaryNotes,
         string repaymentSource = "PrimaryIncome", decimal? projectedMonthlyRentalRevenue = null,
-        decimal? utilisationRateAssumption = null, string? demandEvidenceNote = null)
+        decimal? utilisationRateAssumption = null, string? demandEvidenceNote = null,
+        decimal? hectaresPerMonth = null, decimal? ratePerHectare = null,
+        decimal? monthlyFuelCost = null, decimal? monthlyMaintenanceCost = null, decimal? monthlyOperatorWage = null,
+        decimal? netPresentValue = null, decimal? benefitCostRatio = null,
+        decimal? internalRateOfReturn = null, decimal? profitabilityIndex = null)
     {
         try
         {
@@ -6535,7 +6607,10 @@ public partial class ApplicationService
                 repaymentCapacityRating, equityAssessmentNote, creditBureauSummary,
                 creditOfficerRecommendation, summaryNotes,
                 repaymentSource, projectedMonthlyRentalRevenue,
-                utilisationRateAssumption, demandEvidenceNote),
+                utilisationRateAssumption, demandEvidenceNote,
+                hectaresPerMonth, ratePerHectare,
+                monthlyFuelCost, monthlyMaintenanceCost, monthlyOperatorWage,
+                netPresentValue, benefitCostRatio, internalRateOfReturn, profitabilityIndex),
                 CancellationToken.None);
             return result.IsSuccess
                 ? ApiResponse<CRMS.Application.Namp.DTOs.NampFinancialAppraisalReportDto>.Ok(result.Data!)
@@ -6561,6 +6636,22 @@ public partial class ApplicationService
         catch (Exception ex)
         {
             return ApiResponse<string>.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> RetryNampFineractBookingAsync(Guid nampApplicationId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.RetryNampFineractBookingHandler>();
+            var result = await handler.Handle(new CRMS.Application.Namp.Commands.RetryNampFineractBookingCommand(nampApplicationId, userId), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Retry failed");
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(ex.Message);
         }
     }
 

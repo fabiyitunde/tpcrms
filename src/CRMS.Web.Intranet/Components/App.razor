@@ -23,6 +23,9 @@
 <body>
     <Routes @rendermode="@(new InteractiveServerRenderMode(prerender: false))" />
     <script src="_framework/blazor.web.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
         function downloadFileFromBytes(fileName, contentType, byteArray) {
             const blob = new Blob([new Uint8Array(byteArray)], { type: contentType });
@@ -51,6 +54,110 @@
         function scrollToElement(id) {
             const el = document.getElementById(id);
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function generateNampAppraisalPdf(d) {
+            const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+            const fmtN = n => {
+                if (n == null) return '—';
+                const abs = Math.abs(n), sign = n < 0 ? '-' : '';
+                if (abs >= 1e6) return sign + '₦' + (abs / 1e6).toFixed(2) + 'm';
+                if (abs >= 1e3) return sign + '₦' + Math.round(abs / 1e3) + 'k';
+                return sign + '₦' + Math.round(abs);
+            };
+            const pass = ok => `<span style="font-weight:700;color:${ok ? '#166534' : '#991b1b'}">${ok ? 'PASS' : 'FAIL'}</span>`;
+            const row2 = (l1, v1, l2, v2) => `<tr><td class="lbl">${l1}</td><td>${v1}</td><td class="lbl">${l2}</td><td>${v2}</td></tr>`;
+            const row1 = (l, v) => `<tr><td class="lbl">${l}</td><td colspan="3">${v}</td></tr>`;
+
+            const dsrTxt = d.dsr.toFixed(1);
+            let conclusion = '', conclusionColor = '#166534';
+            if (d.dsr >= 1.5) {
+                conclusion = `APPROVED (Healthy Viability) — Net operating income covers the monthly amortisation by ${dsrTxt}×. The beneficiary retains a significant liquidity cushion to absorb seasonal agricultural fluctuations, fully satisfying standard underwriting guidelines.`;
+            } else if (d.dsr >= 1.0) {
+                conclusion = `BORDERLINE VIABILITY — Net operating income barely covers the monthly amortisation (${dsrTxt}×). Guarantor backing or cooperative cross-guarantee required before final approval.`;
+                conclusionColor = '#854d0e';
+            } else {
+                conclusion = `DECLINED (Unviable) — Projected utilisation does not generate sufficient net income to service the monthly amortisation (DSR ${dsrTxt}×). Borrower must demonstrate at least ${d.breakEvenLoan} ha/month or provide a larger equity deposit before reassessment.`;
+                conclusionColor = '#991b1b';
+            }
+
+            const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<title>${d.appNumber} — Credit Appraisal Report</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 9pt; color: #0f172a; padding: 24px; }
+  h1 { font-size: 14pt; color: #1a5c38; margin-bottom: 4px; }
+  .sub { font-size: 8pt; color: #64748b; margin-bottom: 18px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  th { background: #f0fdf4; color: #166534; font-size: 9pt; text-align: left; padding: 5px 8px; border: 1px solid #bbf7d0; }
+  td { border: 1px solid #e2e8f0; padding: 4px 8px; font-size: 8.5pt; vertical-align: top; }
+  td.lbl { background: #f8fafc; font-weight: 700; width: 22%; }
+  .conclusion { margin-top: 16px; padding: 10px 14px; border-left: 4px solid ${conclusionColor}; background: #f8fafc; }
+  .conclusion-title { font-size: 10pt; font-weight: 700; color: ${conclusionColor}; margin-bottom: 6px; }
+  .conclusion-body { font-size: 8.5pt; line-height: 1.6; }
+  .confidential { font-size: 7pt; color: #94a3b8; margin-top: 20px; font-style: italic; }
+  .no-print { display: flex; gap: 8px; margin-bottom: 16px; }
+  .btn { padding: 6px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 9pt; font-weight: 600; }
+  .btn-primary { background: #166534; color: white; }
+  .btn-secondary { background: #e2e8f0; color: #0f172a; }
+  @@media print { .no-print { display: none !important; } }
+</style>
+</head><body>
+<div class="no-print">
+  <button class="btn btn-primary" onclick="window.print()">&#128438; Print / Save as PDF</button>
+  <button class="btn btn-secondary" onclick="window.close()">Close</button>
+</div>
+<h1>NAMP Tractor Loan — Credit Appraisal Report</h1>
+<div class="sub">${d.appNumber} &nbsp;&middot;&nbsp; ${d.applicantName} &nbsp;&middot;&nbsp; Generated: ${date}</div>
+
+<table>
+  <tr><th colspan="4">Credit Allocation Parameters</th></tr>
+  ${row2('Track', d.track, 'Equity %', d.equityPct + '%')}
+  ${row2('Tenor', d.tenorMonths + ' months', 'Interest Rate', d.interestRate + '% p.a.')}
+  ${row2('Equipment Value', fmtN(d.equipmentValue), 'Equity Required', fmtN(d.equityAmount))}
+  ${row2('Loan Principal', fmtN(d.loanPrincipal), 'Monthly Instalment', fmtN(d.monthlyInstalment))}
+</table>
+
+<table>
+  <tr><th colspan="4">Operating Assumptions (Officer-Collected from Applicant Call)</th></tr>
+  ${row2('Hectares / Month', (d.hectaresPerMonth ?? '—') + ' ha', 'Rate per Hectare', fmtN(d.ratePerHectare))}
+  ${row2('Monthly Fuel', fmtN(d.monthlyFuelCost), 'Maintenance', fmtN(d.monthlyMaintenanceCost))}
+  ${row2('Operator Wages', fmtN(d.monthlyOperatorWage), 'Total Op. Costs', fmtN(d.totalCosts))}
+  ${row1('Demand Evidence', d.demandEvidence || '(not provided)')}
+</table>
+
+<table>
+  <tr><th colspan="4">Monthly Cash Flow Matrix</th></tr>
+  ${row2('Gross Revenue', fmtN(d.grossRevenue), 'Net Income (pre-debt)', fmtN(d.netIncome))}
+  ${row2('Monthly Instalment', fmtN(d.monthlyInstalment), 'Surplus After Repayment', fmtN(d.surplus))}
+  ${row2('Debt Service Ratio', d.dsr.toFixed(2) + '×', 'Repayment Capacity', d.capacityRating)}
+  ${row2('Loan-to-Value Ratio', d.ltv.toFixed(1) + '%', '', '')}
+</table>
+
+<table>
+  <tr><th>Appraisal Metric</th><th>Computed Value</th><th>Status</th></tr>
+  <tr><td>NPV &gt; 0</td><td>${fmtN(d.npv)}</td><td>${pass(d.npvPass)}</td></tr>
+  <tr><td>BCR &gt; 1.0</td><td>${d.bcr.toFixed(2)}</td><td>${pass(d.bcrPass)}</td></tr>
+  <tr><td>IRR &gt; 15%</td><td>${(d.irr * 100).toFixed(1)}%</td><td>${pass(d.irrPass)}</td></tr>
+  <tr><td>Net Cash Balance Buffer</td><td>Surplus vs Op. Costs</td><td>${pass(d.cashPass)}</td></tr>
+  <tr><td>Profitability Index &gt; 1.0</td><td>${d.pi.toFixed(2)}</td><td>${pass(d.piPass)}</td></tr>
+</table>
+
+${d.riskCommentary ? `<table><tr><th>Officer Risk Commentary</th></tr><tr><td style="white-space:pre-wrap;line-height:1.5">${d.riskCommentary}</td></tr></table>` : ''}
+
+<div class="conclusion">
+  <div class="conclusion-title">Credit Underwriting Final Determination</div>
+  <div class="conclusion-body">${conclusion}</div>
+</div>
+
+<div class="confidential">CONFIDENTIAL — For authorised bank personnel only. Not for distribution.</div>
+</body></html>`;
+
+            const w = window.open('', '_blank');
+            if (!w) { alert('Please allow pop-ups for this site to view the appraisal report.'); return; }
+            w.document.open();
+            w.document.write(html);
+            w.document.close();
         }
     </script>
 </body>

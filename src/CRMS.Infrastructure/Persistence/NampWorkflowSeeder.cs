@@ -44,6 +44,10 @@ public static class NampWorkflowSeeder
             Stage(NampApplicationStatus.FinancialAppraisal, "Financial Appraisal", "Credit Officer reviewing financial viability.", Roles.CreditOfficer, slaHours: 72, sort: 40),
             Stage(NampApplicationStatus.FinancialDeclined, "Financial Appraisal Declined", "Application failed financial appraisal.", Roles.SystemAdmin, slaHours: 0, sort: 45, isTerminal: true),
 
+            // ── Stage 3: Risk Review ──────────────────────────────────────
+            Stage(NampApplicationStatus.RiskReview,   "Risk Review",   "Risk Officer reviewing application before committee circulation.", Roles.BranchRiskOfficer, slaHours: 48, sort: 47),
+            Stage(NampApplicationStatus.RiskDeclined, "Risk Declined", "Application declined by Risk Officer.", Roles.SystemAdmin, slaHours: 0, sort: 49, isTerminal: true),
+
             // ── Stage 4: Committee Circulation ───────────────────────────
             Stage(NampApplicationStatus.BranchCommitteeCirculation, "Branch Committee Review", "Branch Credit Committee voting in progress.", Roles.CommitteeMember, slaHours: 120, sort: 50),
             Stage(NampApplicationStatus.BranchCommitteeDeclined, "Branch Committee Declined", "Branch Credit Committee declined the application.", Roles.SystemAdmin, slaHours: 0, sort: 55, isTerminal: true),
@@ -138,8 +142,61 @@ public static class NampWorkflowSeeder
 
     private static async Task SeedPreDeploymentChecklistAsync(CRMSDbContext context, ILogger logger)
     {
+        // SortOrder → (RequiresDoc, DocCategory)
+        // Equity deposit (sort 10) is confirmed by the NAMP portal before the webhook is sent;
+        // the deployment officer only needs to tick a checkbox — no document upload required here.
+        var expectedBySort = new Dictionary<int, (bool RequiresDoc, NampDocumentCategory? DocCategory)>
+        {
+            { 10, (false, null) },
+            { 20, (true,  NampDocumentCategory.LeaseAgreement) },
+            { 30, (true,  NampDocumentCategory.GpsConsentForm) },
+            { 40, (true,  NampDocumentCategory.InsuranceCertificate) },
+            { 50, (true,  NampDocumentCategory.SignedNampOfferLetter) },
+        };
+
         if (await context.NampPreDeploymentChecklistTemplates.AnyAsync())
         {
+            // Repair drift: enum ordinal shifts or policy changes since initial seed
+            var existing = await context.NampPreDeploymentChecklistTemplates.ToListAsync();
+            bool anyFixed = false;
+
+            foreach (var t in existing)
+            {
+                if (!expectedBySort.TryGetValue(t.SortOrder, out var expected)) continue;
+                if (t.RequiresDocumentUpload == expected.RequiresDoc && t.DocumentCategory == expected.DocCategory) continue;
+
+                t.Update(t.Title, t.Description, expected.RequiresDoc, expected.DocCategory, t.IsMandatory, t.SortOrder);
+                anyFixed = true;
+                logger.LogWarning(
+                    "Repaired checklist template SortOrder={Sort}: RequiresDoc={R}, DocCategory={C}",
+                    t.SortOrder, expected.RequiresDoc, expected.DocCategory);
+            }
+
+            if (anyFixed)
+            {
+                await context.SaveChangesAsync();
+
+                // Propagate to per-application instances
+                foreach (var t in existing)
+                {
+                    if (!expectedBySort.TryGetValue(t.SortOrder, out var expected)) continue;
+                    if (expected.DocCategory.HasValue)
+                    {
+                        await context.Database.ExecuteSqlRawAsync(
+                            "UPDATE NampPreDeploymentChecklistItems SET RequiresDocumentUpload = {0}, DocumentCategory = {1} WHERE TemplateItemId = {2}",
+                            expected.RequiresDoc ? 1 : 0, (int)expected.DocCategory.Value, t.Id.ToString());
+                    }
+                    else
+                    {
+                        await context.Database.ExecuteSqlRawAsync(
+                            "UPDATE NampPreDeploymentChecklistItems SET RequiresDocumentUpload = {0}, DocumentCategory = NULL WHERE TemplateItemId = {1}",
+                            expected.RequiresDoc ? 1 : 0, t.Id.ToString());
+                    }
+                }
+
+                logger.LogInformation("Repaired {Count} checklist template(s) and their application instances.", existing.Count(t => expectedBySort.ContainsKey(t.SortOrder)));
+            }
+
             logger.LogInformation("NAMP pre-deployment checklist already seeded, skipping.");
             return;
         }
@@ -150,9 +207,9 @@ public static class NampWorkflowSeeder
         {
             Checklist(
                 title: "Equity Deposit Confirmed",
-                description: "Confirm that the applicant has paid the required equity deposit and a receipt has been received at the branch.",
-                requiresDoc: true,
-                docCategory: NampDocumentCategory.EquityDepositReceipt,
+                description: "Confirm that the applicant's equity deposit has been paid via the NAMP portal prior to this application being submitted.",
+                requiresDoc: false,
+                docCategory: null,
                 isMandatory: true,
                 sortOrder: 10),
             Checklist(

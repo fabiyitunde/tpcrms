@@ -91,6 +91,13 @@ public class NampApplication : AggregateRoot
     public DateTime? FinancialAppraisalAt { get; private set; }
     public string? FinancialAppraisalNote { get; private set; }
 
+    // ── Stage 3: Risk Review ───────────────────────────────────────────────
+    public Guid? RiskReviewedByUserId { get; private set; }
+    public DateTime? RiskReviewedAt { get; private set; }
+    public string? RiskReviewNote { get; private set; }
+    public string? RiskReturnNote { get; private set; }
+    public string? RiskDeclineNote { get; private set; }
+
     // ── Stage 4: Committee ────────────────────────────────────────────────
     public Guid? CurrentCommitteeReviewId { get; private set; }
     public DateTime? CommitteeDecisionAt { get; private set; }
@@ -248,9 +255,67 @@ public class NampApplication : AggregateRoot
         FinancialAppraisalAt = DateTime.UtcNow;
         FinancialAppraisalNote = note;
 
-        Status = isApproved ? TierCirculationStatus() : TierDeclinedStatus();
-        var outcome = isApproved ? "Financial appraisal approved — circulating to committee." : "Financial appraisal declined.";
+        Status = isApproved ? NampApplicationStatus.RiskReview : NampApplicationStatus.FinancialDeclined;
+        var outcome = isApproved ? "Financial appraisal approved — forwarded to Risk Officer for review." : "Financial appraisal declined.";
         AddStatusHistory(Status, userId, $"{outcome}{(note != null ? $" Note: {note}" : "")}");
+        return Result.Success();
+    }
+
+    // ── Stage 3: Risk Review ──────────────────────────────────────────────
+
+    public Result ApproveRiskReview(Guid userId, string? note)
+    {
+        if (Status != NampApplicationStatus.RiskReview)
+            return Result.Failure("Application must be in Risk Review status.");
+
+        RiskReviewedByUserId = userId;
+        RiskReviewedAt = DateTime.UtcNow;
+        RiskReviewNote = note;
+        Status = TierCirculationStatus();
+        AddStatusHistory(Status, userId, $"Risk review approved — circulating to committee.{(note != null ? $" Note: {note}" : "")}");
+        return Result.Success();
+    }
+
+    public Result ReturnFromRiskReview(Guid userId, string reason)
+    {
+        if (Status != NampApplicationStatus.RiskReview)
+            return Result.Failure("Application must be in Risk Review status.");
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("A return reason is required.");
+
+        RiskReviewedByUserId = userId;
+        RiskReviewedAt = DateTime.UtcNow;
+        RiskReturnNote = reason;
+        Status = NampApplicationStatus.FinancialAppraisal;
+        AddStatusHistory(Status, userId, $"Returned to Financial Appraisal by Risk Officer. Reason: {reason}");
+        return Result.Success();
+    }
+
+    public Result DeclineAtRiskReview(Guid userId, string reason)
+    {
+        if (Status != NampApplicationStatus.RiskReview)
+            return Result.Failure("Application must be in Risk Review status.");
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("A decline reason is required.");
+
+        RiskReviewedByUserId = userId;
+        RiskReviewedAt = DateTime.UtcNow;
+        RiskDeclineNote = reason;
+        Status = NampApplicationStatus.RiskDeclined;
+        AddStatusHistory(Status, userId, $"Declined by Risk Officer. Reason: {reason}");
+        return Result.Success();
+    }
+
+    public Result ReturnFinancialAppraisalToLoanOfficer(Guid userId, string reason)
+    {
+        if (Status != NampApplicationStatus.FinancialAppraisal && Status != NampApplicationStatus.Submitted)
+            return Result.Failure("Application must be in Financial Appraisal status to return.");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("A return reason is required.");
+
+        Status = NampApplicationStatus.Draft;
+        AddStatusHistory(Status, userId, $"Returned to Loan Officer by Credit Officer. Reason: {reason}");
         return Result.Success();
     }
 

@@ -14,7 +14,11 @@ public enum NampApplicationStatus
     FinancialAppraisal,     // Credit Officer reviewing
     FinancialDeclined,      // Terminal: failed financial appraisal
 
-    // ── Stage 3: Committee ────────────────────────────────────
+    // ── Stage 3: Risk Review ──────────────────────────────────
+    RiskReview,             // Risk Officer reviewing before committee circulation
+    RiskDeclined,           // Terminal: Risk Officer declined
+
+    // ── Stage 4: Committee ────────────────────────────────────
     BranchCommitteeCirculation,
     BranchCommitteeDeclined,    // Terminal
 
@@ -92,16 +96,16 @@ public enum NampDocumentStage
 
 public enum NampDocumentCategory
 {
-    General,              // Default / unclassified
-    SitePhoto,
-    FinancialModel,       // Required at Financial Appraisal (at least 1)
-    CreditReport,
-    SupportingDocument,
-    SignedNampOfferLetter, // Countersigned offer letter uploaded post-ratification
-    EquityDepositReceipt,  // Gate 1: Equity deposit payment evidence
-    LeaseAgreement,        // Gate 2: Signed lease/hire-purchase agreement
-    GpsConsentForm,        // Gate 3: Signed GPS tracking consent form
-    InsuranceCertificate,  // Gate 4: NAIC insurance certificate
+    General = 0,              // Default / unclassified
+    SitePhoto = 1,
+    FinancialModel = 2,       // Required at Financial Appraisal (at least 1)
+    CreditReport = 3,
+    SupportingDocument = 4,
+    SignedNampOfferLetter = 5, // Countersigned offer letter uploaded post-ratification
+    EquityDepositReceipt = 6,  // Gate 1: Equity deposit payment evidence
+    LeaseAgreement = 7,        // Gate 2: Signed lease/hire-purchase agreement
+    GpsConsentForm = 8,        // Gate 3: Signed GPS tracking consent form
+    InsuranceCertificate = 9,  // Gate 4: NAIC insurance certificate
 }
 
 public enum NampRepaymentCapacityRating

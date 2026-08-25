@@ -222,16 +222,16 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
             {
                 var fa = data.FinancialAppraisal;
                 col.Item().Element(c => SectionHeader(c, "Financial Appraisal"));
-                col.Item().PaddingBottom(8).Table(t =>
+                col.Item().PaddingBottom(4).Table(t =>
                 {
                     t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
+                    InfoCell(t, "Repayment Source",          FormatRepaymentSource(fa.RepaymentSource));
                     InfoCell(t, "Monthly Disposable Income", fa.MonthlyDisposableIncome.HasValue ? $"NGN {fa.MonthlyDisposableIncome:N2}" : "—");
                     InfoCell(t, "DSCR",                      fa.DebtServiceCoverageRatio?.ToString("N2") ?? "—");
                     InfoCell(t, "LTV Ratio",                 fa.LoanToValueRatio.HasValue ? $"{fa.LoanToValueRatio:N1}%" : "—");
                     InfoCell(t, "Repayment Capacity",        fa.RepaymentCapacityRating);
                     InfoCell(t, "Credit Recommendation",     fa.CreditOfficerRecommendation);
                     InfoCell(t, "Prepared On",               fa.SavedAt.ToLocalTime().ToString("dd MMM yyyy"));
-                    InfoCell(t, "Repayment Source",          FormatRepaymentSource(fa.RepaymentSource));
                     if (fa.ProjectedMonthlyRentalRevenue.HasValue)
                         InfoCell(t, "Projected Rental Rev.", $"NGN {fa.ProjectedMonthlyRentalRevenue:N2}");
                     if (fa.UtilisationRateAssumption.HasValue)
@@ -245,6 +245,245 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
                     if (!string.IsNullOrWhiteSpace(fa.SummaryNotes))
                         InfoCellWide(t, "Summary Notes",     fa.SummaryNotes);
                 });
+
+                // Viability Calculator — only render if at least one input was captured
+                var hasViabilityInputs = fa.HectaresPerMonth.HasValue || fa.RatePerHectare.HasValue ||
+                                         fa.MonthlyFuelCost.HasValue  || fa.MonthlyMaintenanceCost.HasValue ||
+                                         fa.MonthlyOperatorWage.HasValue;
+                var hasViabilityMetrics = fa.NetPresentValue.HasValue || fa.BenefitCostRatio.HasValue ||
+                                          fa.InternalRateOfReturn.HasValue || fa.ProfitabilityIndex.HasValue;
+
+                if (hasViabilityInputs || hasViabilityMetrics)
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(2)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text("Tractor Loan Viability Calculator").Bold().FontSize(8).FontColor(Colors.White);
+
+                    if (hasViabilityInputs)
+                    {
+                        col.Item().PaddingBottom(4).Table(t =>
+                        {
+                            t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
+                            InfoCell(t, "Hectares / Month",      fa.HectaresPerMonth.HasValue ? $"{fa.HectaresPerMonth:N1} ha" : "—");
+                            InfoCell(t, "Rate / Hectare",        fa.RatePerHectare.HasValue ? $"NGN {fa.RatePerHectare:N2}" : "—");
+                            InfoCell(t, "Monthly Fuel Cost",     fa.MonthlyFuelCost.HasValue ? $"NGN {fa.MonthlyFuelCost:N2}" : "—");
+                            InfoCell(t, "Maintenance Cost",      fa.MonthlyMaintenanceCost.HasValue ? $"NGN {fa.MonthlyMaintenanceCost:N2}" : "—");
+                            InfoCell(t, "Operator Wage",         fa.MonthlyOperatorWage.HasValue ? $"NGN {fa.MonthlyOperatorWage:N2}" : "—");
+                        });
+                    }
+
+                    if (hasViabilityMetrics)
+                    {
+                        col.Item().PaddingBottom(4).Table(t =>
+                        {
+                            t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
+                            ViabilityMetricCell(t, "NPV",  fa.NetPresentValue.HasValue   ? $"NGN {fa.NetPresentValue:N0}" : "—",   fa.NetPresentValue > 0);
+                            ViabilityMetricCell(t, "BCR",  fa.BenefitCostRatio.HasValue  ? $"{fa.BenefitCostRatio:N3}" : "—",      fa.BenefitCostRatio > 1.0m);
+                            ViabilityMetricCell(t, "IRR",  fa.InternalRateOfReturn.HasValue ? $"{fa.InternalRateOfReturn * 100:N2}%" : "—", fa.InternalRateOfReturn * 100 > 15m);
+                            ViabilityMetricCell(t, "PI",   fa.ProfitabilityIndex.HasValue ? $"{fa.ProfitabilityIndex:N3}" : "—",   fa.ProfitabilityIndex > 1.0m);
+                        });
+                    }
+                }
+
+                // Monthly Cash Flow Summary
+                if (fa.ProjectedMonthlyRentalRevenue.HasValue || fa.MonthlyDisposableIncome.HasValue)
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(2)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text("Monthly Cash Flow Summary").Bold().FontSize(8).FontColor(Colors.White);
+
+                    col.Item().PaddingBottom(4).Table(t =>
+                    {
+                        t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
+                        InfoCell(t, "Gross Monthly Revenue",   fa.ProjectedMonthlyRentalRevenue.HasValue ? $"NGN {fa.ProjectedMonthlyRentalRevenue:N2}" : "—");
+                        InfoCell(t, "Surplus After Repayment", fa.MonthlyDisposableIncome.HasValue ? $"NGN {fa.MonthlyDisposableIncome:N2}" : "—");
+                        ViabilityMetricCell(t, "Cash Buffer",  fa.MonthlyDisposableIncome.HasValue ? (fa.MonthlyDisposableIncome > 0 ? "Positive" : "Negative") : "—", fa.MonthlyDisposableIncome > 0);
+                        ViabilityMetricCell(t, "DSR",          fa.DebtServiceCoverageRatio?.ToString("N2") + "×" ?? "—", fa.DebtServiceCoverageRatio >= 1.0m);
+                    });
+                }
+
+                // Credit Underwriting Determination
+                if (fa.DebtServiceCoverageRatio.HasValue)
+                {
+                    var dsr = fa.DebtServiceCoverageRatio.Value;
+                    string determination;
+                    Color determinationColor;
+                    if (dsr >= 1.5m)
+                    {
+                        determination = $"APPROVED — Healthy Viability. Net operating income covers the monthly amortisation by {dsr:N2}×. The beneficiary retains a significant liquidity cushion to absorb seasonal agricultural fluctuations, fully satisfying standard underwriting guidelines.";
+                        determinationColor = Colors.Green.Darken2;
+                    }
+                    else if (dsr >= 1.0m)
+                    {
+                        determination = $"BORDERLINE VIABILITY — Net operating income covers the monthly amortisation by {dsr:N2}×. Guarantor backing or cooperative cross-guarantee is required before final approval.";
+                        determinationColor = Colors.Orange.Darken2;
+                    }
+                    else
+                    {
+                        determination = $"DECLINED — Unviable. Projected utilisation does not generate sufficient net income to service the monthly amortisation (DSR {dsr:N2}×). The beneficiary must demonstrate a higher utilisation rate or provide additional equity before reassessment.";
+                        determinationColor = Colors.Red.Darken2;
+                    }
+
+                    col.Item().PaddingTop(2).PaddingBottom(2)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text("Credit Underwriting Determination").Bold().FontSize(8).FontColor(Colors.White);
+
+                    col.Item().PaddingBottom(8).Row(r =>
+                    {
+                        r.ConstantItem(4).Background(determinationColor);
+                        r.RelativeItem().PaddingLeft(6).PaddingVertical(5)
+                            .Background(Color.FromHex(LightGray))
+                            .Text(determination).FontSize(8).LineHeight(1.5f);
+                    });
+                }
+                else
+                {
+                    col.Item().PaddingBottom(8);
+                }
+            }
+
+            // ── AI Credit Advisory ───────────────────────────────────────────
+            if (data.Advisory != null && data.Advisory.Status == "Completed")
+            {
+                var adv = data.Advisory;
+                col.Item().Element(c => SectionHeader(c, "AI Credit Advisory"));
+
+                // Summary
+                col.Item().PaddingBottom(4).Table(t =>
+                {
+                    t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
+                    InfoCell(t, "Overall Score",    $"{adv.OverallScore:N1} / 100");
+                    InfoCell(t, "Risk Rating",      adv.OverallRating ?? "—");
+                    InfoCell(t, "Recommendation",   adv.Recommendation ?? "—");
+                    InfoCell(t, "Critical Red Flags", adv.HasCriticalRedFlags ? "Yes" : "No");
+                    if (adv.RecommendedAmount.HasValue)
+                        InfoCell(t, "Recommended Amount",  $"NGN {adv.RecommendedAmount:N2}");
+                    if (adv.RecommendedTenorMonths.HasValue)
+                        InfoCell(t, "Recommended Tenor",   $"{adv.RecommendedTenorMonths} months");
+                    if (adv.RecommendedInterestRate.HasValue)
+                        InfoCell(t, "Recommended Rate",    $"{adv.RecommendedInterestRate:N2}% p.a.");
+                    InfoCell(t, "Generated",               adv.GeneratedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm"));
+                });
+
+                // Risk Score table
+                if (adv.RiskScores.Count > 0)
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(2)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text("Risk Category Scores").Bold().FontSize(8).FontColor(Colors.White);
+
+                    col.Item().PaddingBottom(4).Table(t =>
+                    {
+                        t.ColumnsDefinition(cd =>
+                        {
+                            cd.RelativeColumn(2.5f);
+                            cd.RelativeColumn();
+                            cd.RelativeColumn();
+                            cd.RelativeColumn();
+                            cd.RelativeColumn(4f);
+                        });
+                        TableHeaderCell(t, "Category");
+                        TableHeaderCell(t, "Score");
+                        TableHeaderCell(t, "Rating");
+                        TableHeaderCell(t, "Weight");
+                        TableHeaderCell(t, "Rationale");
+
+                        foreach (var rs in adv.RiskScores)
+                        {
+                            TableBodyCell(t, rs.Category);
+                            TableBodyCell(t, $"{rs.Score:N1}");
+                            TableBodyCell(t, rs.Rating ?? "—");
+                            TableBodyCell(t, $"{rs.Weight:N0}%");
+                            TableBodyCell(t, rs.Rationale ?? "—");
+                        }
+                    });
+                }
+
+                // Narrative sections
+                if (!string.IsNullOrWhiteSpace(adv.ExecutiveSummary))
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(1)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text("Executive Summary").Bold().FontSize(8).FontColor(Colors.White);
+                    col.Item().PaddingBottom(4).Padding(4).Text(adv.ExecutiveSummary).FontSize(8);
+                }
+
+                if (!string.IsNullOrWhiteSpace(adv.StrengthsAnalysis))
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(1)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text("Strengths").Bold().FontSize(8).FontColor(Colors.White);
+                    col.Item().PaddingBottom(4).Padding(4).Text(adv.StrengthsAnalysis).FontSize(8);
+                }
+
+                if (!string.IsNullOrWhiteSpace(adv.WeaknessesAnalysis))
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(1)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text("Weaknesses").Bold().FontSize(8).FontColor(Colors.White);
+                    col.Item().PaddingBottom(4).Padding(4).Text(adv.WeaknessesAnalysis).FontSize(8);
+                }
+
+                if (!string.IsNullOrWhiteSpace(adv.MitigatingFactors))
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(1)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text("Mitigating Factors").Bold().FontSize(8).FontColor(Colors.White);
+                    col.Item().PaddingBottom(4).Padding(4).Text(adv.MitigatingFactors).FontSize(8);
+                }
+
+                if (!string.IsNullOrWhiteSpace(adv.KeyRisks))
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(1)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text("Key Risks").Bold().FontSize(8).FontColor(Colors.White);
+                    col.Item().PaddingBottom(4).Padding(4).Text(adv.KeyRisks).FontSize(8);
+                }
+
+                // Red flags
+                if (adv.RedFlags.Count > 0)
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(1)
+                        .Background(Colors.Red.Darken2).Padding(4)
+                        .Text($"Red Flags ({adv.RedFlags.Count})").Bold().FontSize(8).FontColor(Colors.White);
+                    col.Item().PaddingBottom(4).Table(t =>
+                    {
+                        t.ColumnsDefinition(cd => cd.RelativeColumn());
+                        foreach (var flag in adv.RedFlags)
+                            t.Cell().BorderBottom(0.5f).BorderColor(Color.FromHex(MediumGray))
+                                .Padding(4).Text($"• {flag}").FontSize(8).FontColor(Colors.Red.Darken3);
+                    });
+                }
+
+                // Conditions
+                if (adv.Conditions.Count > 0)
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(1)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text($"Conditions ({adv.Conditions.Count})").Bold().FontSize(8).FontColor(Colors.White);
+                    col.Item().PaddingBottom(4).Table(t =>
+                    {
+                        t.ColumnsDefinition(cd => cd.RelativeColumn());
+                        foreach (var cond in adv.Conditions)
+                            t.Cell().BorderBottom(0.5f).BorderColor(Color.FromHex(MediumGray))
+                                .Padding(4).Text($"• {cond}").FontSize(8);
+                    });
+                }
+
+                // Covenants
+                if (adv.Covenants.Count > 0)
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(1)
+                        .Background(Color.FromHex(AccentBlue)).Padding(4)
+                        .Text($"Covenants ({adv.Covenants.Count})").Bold().FontSize(8).FontColor(Colors.White);
+                    col.Item().PaddingBottom(8).Table(t =>
+                    {
+                        t.ColumnsDefinition(cd => cd.RelativeColumn());
+                        foreach (var cov in adv.Covenants)
+                            t.Cell().BorderBottom(0.5f).BorderColor(Color.FromHex(MediumGray))
+                                .Padding(4).Text($"• {cov}").FontSize(8);
+                    });
+                }
             }
 
             // ── Guarantors ───────────────────────────────────────────────────
@@ -528,6 +767,22 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
             .Padding(4).Text(value ?? "—").FontSize(8);
     }
 
+    private static void ViabilityMetricCell(TableDescriptor t, string label, string value, bool? pass)
+    {
+        t.Cell().Background(Color.FromHex(LightGray)).BorderBottom(0.5f).BorderColor(Color.FromHex(MediumGray))
+            .Padding(4).Text(label).FontSize(8).FontColor(Colors.Grey.Darken2);
+        t.Cell().BorderBottom(0.5f).BorderColor(Color.FromHex(MediumGray)).Padding(4).Row(r =>
+        {
+            r.AutoItem().Text(value).FontSize(8);
+            if (pass.HasValue)
+            {
+                var verdict = pass.Value ? "PASS" : "FAIL";
+                var color   = pass.Value ? Colors.Green.Darken2 : Colors.Red.Darken2;
+                r.AutoItem().PaddingLeft(6).Text(verdict).FontSize(7).Bold().FontColor(color);
+            }
+        });
+    }
+
     private static void FinRow(TableDescriptor t, string label, IEnumerable<decimal?> values)
     {
         t.Cell().Background(Color.FromHex(LightGray)).BorderBottom(0.5f).BorderColor(Color.FromHex(MediumGray))
@@ -564,6 +819,8 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
         "Submitted"                    => "Submitted",
         "FinancialAppraisal"           => "Financial Appraisal",
         "FinancialDeclined"            => "Financial Declined",
+        "RiskReview"                   => "Risk Review",
+        "RiskDeclined"                 => "Risk Declined",
         "BranchCommitteeCirculation"   => "Branch Committee",
         "BranchCommitteeDeclined"      => "Branch Committee Declined",
         "ZonalCommitteeCirculation"    => "Zonal Committee",
