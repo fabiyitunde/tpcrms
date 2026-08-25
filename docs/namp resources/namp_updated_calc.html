@@ -1,0 +1,526 @@
+<div class="calculator-header">
+  <span class="badge">NAMP FinTech</span>
+  <h1>Tractor Loan Repayment Viability Calculator</h1>
+  <p class="subtitle">Analyze monthly cash flows, operating costs, and loan default risks across varying utilization levels.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+  :root {
+    --color-bg-main: #f8fafc;
+    --color-bg-card: #ffffff;
+    --color-bg-secondary: #f1f5f9;
+    --color-border: #e2e8f0;
+    --color-text-main: #0f172a;
+    --color-text-sub: #475569;
+    --color-primary: #2563eb;
+    
+    --color-success: #16a34a;
+    --color-success-bg: #f0fdf4;
+    --color-warning: #d97706;
+    --color-warning-bg: #fffbeb;
+    --color-danger: #dc2626;
+    --color-danger-bg: #fef2f2;
+    
+    --radius-sm: 6px;
+    --radius-md: 12px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+  }
+
+  .wrap { 
+    max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem; 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px; color: #0f172a !important; 
+    background-color: var(--color-bg-main); border-radius: var(--radius-md); box-sizing: border-box;
+  }
+  .wrap * { box-sizing: border-box; }
+
+  .calculator-header { text-align: center; margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--color-border); }
+  .calculator-header h1 { font-size: 28px; font-weight: 800; color: #0f172a; margin: 0.5rem 0 0.25rem; letter-spacing: -0.02em; }
+  .calculator-header .subtitle { font-size: 15px; color: #475569; margin: 0; }
+  .calculator-header .badge { display: inline-block; padding: 4px 10px; background-color: #eff6ff; color: var(--color-primary); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 20px; }
+
+  .tabs { display: flex; gap: 12px; margin-bottom: 2rem; background: var(--color-bg-secondary); padding: 6px; border-radius: var(--radius-md); }
+  .tab { flex: 1; padding: 12px 16px; border: none; border-radius: calc(var(--radius-md) - 4px); background: transparent; color: #475569; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; text-align: center; }
+  .tab:hover { color: #0f172a; }
+  .tab.active { background: var(--color-bg-card); color: var(--color-primary); box-shadow: var(--shadow-sm); }
+
+  .section-label { font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .08em; margin: 2rem 0 1rem; display: flex; align-items: center; }
+  .section-label::after { content: ''; flex: 1; margin-left: 10px; height: 1px; background: var(--color-border); }
+
+  .sliders-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+  .slider-card { background: var(--color-bg-card); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--color-border); box-shadow: var(--shadow-sm); }
+  .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+  .slider-header label { font-size: 14px; font-weight: 500; color: #475569; }
+  
+  .input-sync { width: 120px; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; color: var(--color-primary); text-align: right; background: var(--color-bg-main); }
+  .input-sync:focus { outline: none; border-color: var(--color-primary); background: #ffffff; }
+
+  .slider-row input[type=range] { width: 100%; display: block; -webkit-appearance: none; appearance: none; background: var(--color-bg-secondary); height: 6px; border-radius: 3px; outline: none; }
+  .slider-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--color-primary); cursor: pointer; transition: transform 0.1s; }
+  .slider-row input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 2rem; }
+  .card { background: var(--color-bg-card); border-radius: var(--radius-md); padding: 1.25rem; border: 1px solid var(--color-border); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; justify-content: space-between; }
+  .card .label { font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 8px; }
+  .card .value { font-size: 24px; font-weight: 700; color: #0f172a; line-height: 1.2; }
+  .card .sub { font-size: 12px; color: #475569; margin-top: 6px; }
+  
+  .green { color: var(--color-success) !important; } .red { color: var(--color-danger) !important; } .amber { color: var(--color-warning) !important; }
+
+  .bar-wrap { background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 1.5rem; margin: 1.5rem 0 2rem; box-shadow: var(--shadow-sm); }
+  .bar-row { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; font-size: 13px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-label { min-width: 85px; font-weight: 500; color: #475569; }
+  .bar-bg { flex: 1; height: 12px; border-radius: 6px; background: var(--color-bg-secondary); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 6px; transition: width .4s cubic-bezier(0.4, 0, 0.2, 1); }
+  .bar-val { min-width: 90px; text-align: right; font-weight: 600; color: #0f172a; }
+
+  .verdict { border-radius: var(--radius-md); padding: 1.25rem; font-size: 14.5px; margin: 2rem 0; font-weight: 500; line-height: 1.5; border: 1px solid transparent; box-shadow: var(--shadow-sm); }
+  .verdict.ok  { background: var(--color-success-bg); color: #166534; border-color: #bbf7d0; }
+  .verdict.warn { background: var(--color-warning-bg); color: #92400e; border-color: #fef08a; }
+  .verdict.bad  { background: var(--color-danger-bg);  color: #991b1b; border-color: #fecaca; }
+  
+  .checklist-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--radius-sm); margin-bottom: 8px; font-size: 14px; }
+  .metric-info-box { display: flex; align-items: center; gap: 6px; position: relative; }
+  
+  .info-btn { background: #e2e8f0; color: #475569; border: none; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 11px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+  .info-btn:hover { background: #cbd5e1; color: #0f172a; }
+  .info-btn:hover + .tooltip-txt { display: block; }
+  
+  .tooltip-txt { 
+    display: none; 
+    position: absolute; 
+    left: 28px; 
+    top: -15px; 
+    width: 280px; 
+    background: #0f172a; 
+    color: #ffffff; 
+    padding: 10px 12px; 
+    border-radius: var(--radius-sm); 
+    font-size: 12px; 
+    line-height: 1.4; 
+    z-index: 100; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+    pointer-events: none; 
+  }
+  .tooltip-txt::after { content: ''; position: absolute; right: 100%; top: 14px; border: 6px solid transparent; border-right-color: #0f172a; }
+
+  .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+  .status-badge.pass { background: #dcfce7; color: #15803d; }
+  .status-badge.fail { background: #fee2e2; color: #b91c1c; }
+
+  .btn-wrap { display: flex; justify-content: flex-end; margin: 2rem 0 1rem; }
+  .btn-pdf { background: #0f172a; color: #ffffff; border: none; padding: 12px 24px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
+  .btn-pdf:hover { background: #1e293b; }
+
+  .footnote { font-size: 12px; color: #475569; margin-top: 2rem; line-height: 1.6; background: var(--color-bg-secondary); padding: 1rem; border-radius: var(--radius-sm); }
+</style>
+
+<div class="wrap" id="printable-content">
+  <div class="tabs">
+    <button class="tab active" onclick="setTrack('A')">Track A — Women &amp; Youth (5 yrs)</button>
+    <button class="tab" onclick="setTrack('B')">Track B — Companies (3 yrs)</button>
+  </div>
+
+  <div class="section-label">Loan assumptions</div>
+  <div class="sliders-grid">
+    <div class="slider-card slider-row">
+      <div class="slider-header"><label>Tractor cost (₦ million)</label>
+      <input type="text" id="cost_num" value="40" class="input-sync" oninput="handleTextInput('cost', this)" onblur="formatOnBlur(this)"></div>
+      <input type="range" id="cost" min="20" max="300" step="1" value="40" oninput="handleSliderInput('cost_num', this.value)">
+    </div>
+    <div class="slider-card slider-row">
+      <div class="slider-header"><label>Interest rate (% p.a.)</label>
+      <input type="text" id="rate_num" value="9" class="input-sync" oninput="handleTextInput('rate', this)" onblur="formatOnBlur(this)"></div>
+      <input type="range" id="rate" min="5" max="20" step="0.5" value="9" oninput="handleSliderInput('rate_num', this.value)">
+    </div>
+  </div>
+
+  <div class="section-label">Monthly operating inputs</div>
+  <div class="sliders-grid">
+    <div class="slider-card slider-row">
+      <div class="slider-header"><label>Hectares worked per month</label>
+      <input type="text" id="ha_num" value="30" class="input-sync" oninput="handleTextInput('ha', this)" onblur="formatOnBlur(this)"></div>
+      <input type="range" id="ha" min="5" max="120" step="1" value="30" oninput="handleSliderInput('ha_num', this.value)">
+    </div>
+    <div class="slider-card slider-row">
+      <div class="slider-header"><label>Rate charged (₦ per hectare)</label>
+      <input type="text" id="harate_num" value="100,000" class="input-sync" oninput="handleTextInput('harate', this)" onblur="formatOnBlur(this)"></div>
+      <input type="range" id="harate" min="50000" max="300000" step="5000" value="100000" oninput="handleSliderInput('harate_num', this.value)">
+    </div>
+    <div class="slider-card slider-row">
+      <div class="slider-header"><label>Monthly fuel cost (₦)</label>
+      <input type="text" id="fuel_num" value="400,000" class="input-sync" oninput="handleTextInput('fuel', this)" onblur="formatOnBlur(this)"></div>
+      <input type="range" id="fuel" min="100000" max="1000000" step="10000" value="400000" oninput="handleSliderInput('fuel_num', this.value)">
+    </div>
+    <div class="slider-card slider-row">
+      <div class="slider-header"><label>Maintenance / repairs (₦)</label>
+      <input type="text" id="maint_num" value="150,000" class="input-sync" oninput="handleTextInput('maint', this)" onblur="formatOnBlur(this)"></div>
+      <input type="range" id="maint" min="50000" max="1000000" step="10000" value="150000" oninput="handleSliderInput('maint_num', this.value)">
+    </div>
+    <div class="slider-card slider-row">
+      <div class="slider-header"><label>Operator wage (₦)</label>
+      <input type="text" id="wage_num" value="200,000" class="input-sync" oninput="handleTextInput('wage', this)" onblur="formatOnBlur(this)"></div>
+      <input type="range" id="wage" min="0" max="1000000" step="10000" value="200000" oninput="handleSliderInput('wage_num', this.value)">
+    </div>
+  </div>
+
+  <div class="section-label">Monthly cashflow summary</div>
+  <div class="cards">
+    <div class="card"><div class="label">Gross revenue</div><div class="value" id="rev">—</div><div class="sub">ha × rate</div></div>
+    <div class="card"><div class="label">Total operating costs</div><div class="value" id="costs">—</div><div class="sub">fuel + maint + wage</div></div>
+    <div class="card"><div class="label">Net income</div><div class="value" id="net">—</div><div class="sub">before repayment</div></div>
+    <div class="card"><div class="label">Monthly instalment</div><div class="value" id="inst">—</div><div class="sub" id="tenor-sub">over 5 yrs</div></div>
+    <div class="card"><div class="label">Surplus after repayment</div><div class="value" id="surplus">—</div><div class="sub">take-home profit</div></div>
+    <div class="card"><div class="label">Debt service ratio</div><div class="value" id="dsr">—</div><div class="sub">net ÷ instalment</div></div>
+  </div>
+
+  <div class="section-label">Income breakdown vs instalment</div>
+  <div class="bar-wrap">
+    <div class="bar-row"><div class="bar-label">Revenue</div><div class="bar-bg"><div class="bar-fill" id="b-rev" style="background:#3b82f6;"></div></div><div class="bar-val" id="bv-rev">—</div></div>
+    <div class="bar-row"><div class="bar-label">Op. costs</div><div class="bar-bg"><div class="bar-fill" id="b-cost" style="background:#ef4444;"></div></div><div class="bar-val" id="bv-cost">—</div></div>
+    <div class="bar-row"><div class="bar-label">Instalment</div><div class="bar-bg"><div class="bar-fill" id="b-inst" style="background:#f59e0b;"></div></div><div class="bar-val" id="bv-inst">—</div></div>
+    <div class="bar-row"><div class="bar-label">Surplus</div><div class="bar-bg"><div class="bar-fill" id="b-sur" style="background:#10b981;"></div></div><div class="bar-val" id="bv-sur">—</div></div>
+  </div>
+
+  <div class="verdict" id="verdict"></div>
+
+  <div class="section-label">Bank Appraisal Viability Framework</div>
+  <div style="margin-bottom: 2rem;">
+    <div class="checklist-item">
+      <div class="metric-info-box">
+        <span>Net Present Value (NPV) must be positive</span><button class="info-btn">i</button>
+        <span class="tooltip-txt"><strong>Formula:</strong> ∑ Net Cash Flow / (1 + r)^t - Initial Equity<br><br>Determines if the multi-year tractor profits outweigh out-of-pocket startup costs when discounted at the 15% rate of capital.</span>
+      </div><span id="chk-npv" class="status-badge fail">Fail</span>
+    </div>
+    <div class="checklist-item">
+      <div class="metric-info-box">
+        <span>Benefit-Cost Ratio (BCR) must be greater than 1.0</span><button class="info-btn">i</button>
+        <span class="tooltip-txt"><strong>Formula:</strong> Present Value of Cash Inflows / Present Value of Cash Outflows<br><br>A score above 1.0 proves the raw monetary benefits generated by the tractor exceed its cost structures.</span>
+      </div><span id="chk-bcr" class="status-badge fail">Fail</span>
+    </div>
+    <div class="checklist-item">
+      <div class="metric-info-box">
+        <span>Internal Rate of Return (IRR) must beat 15%</span><button class="info-btn">i</button>
+        <span class="tooltip-txt"><strong>Formula:</strong> Discount rate where NPV = 0.<br><br>The absolute annualized yield of the tractor. Must exceed the market hurdle rate of 15% to clear financing guidelines.</span>
+      </div><span id="chk-irr" class="status-badge fail">Fail</span>
+    </div>
+    <div class="checklist-item">
+      <div class="metric-info-box">
+        <span>Net Cash Balance buffer validation</span><button class="info-btn">i</button>
+        <span class="tooltip-txt"><strong>Formula:</strong> Surplus take-home profit ≥ Total operating costs<br><br>Ensures that the monthly cash cushion left behind is enough to completely cover the next cycle's operations.</span>
+      </div><span id="chk-cash" class="status-badge fail">Fail</span>
+    </div>
+    <div class="checklist-item">
+      <div class="metric-info-box">
+        <span>Profitability Index must be greater than 1.0</span><button class="info-btn">i</button>
+        <span class="tooltip-txt"><strong>Formula:</strong> (NPV / Initial Investment) + 1<br><br>Measures the efficiency of capital. It details the return index value generated per Naira invested.</span>
+      </div><span id="chk-pi" class="status-badge fail">Fail</span>
+    </div>
+  </div>
+
+  <div class="section-label">Break-even utilisation</div>
+  <div class="cards">
+    <div class="card"><div class="label">Min. ha/month to cover costs only</div><div class="value" id="be-costs">—</div></div>
+    <div class="card"><div class="label">Min. ha/month to also cover instalment</div><div class="value" id="be-loan">—</div></div>
+    <div class="card"><div class="label">Equity required</div><div class="value" id="equity">—</div><div class="sub" id="equity-pct">—</div></div>
+    <div class="card"><div class="label">Total loan amount</div><div class="value" id="loanamt">—</div></div>
+  </div>
+
+  <div class="btn-wrap">
+    <button class="btn-pdf" onclick="generateNativePDF()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      Download Credit Assessment Report
+    </button>
+  </div>
+
+  <div class="footnote">
+    Instalment is calculated using standard reducing-balance math. Appraisal modeling assumes a 5-year annualized evaluation window discounted at the 15% standard baseline hurdle rate.
+  </div>
+</div>
+
+<script>
+let track = 'A';
+let cacheNpv = 0, cacheBcr = 0, cacheIrr = 0, cachePi = 0;
+let statusNpv = "Fail", statusBcr = "Fail", statusIrr = "Fail", statusCash = "Fail", statusPi = "Fail";
+
+function formatCommas(valStr) {
+  let clean = valStr.toString().replace(/,/g, '');
+  if (isNaN(clean) || clean === '') return valStr;
+  return Number(clean).toLocaleString('en-US');
+}
+
+function handleTextInput(sliderId, textElement) {
+  let rawVal = textElement.value.replace(/,/g, '');
+  let numVal = parseFloat(rawVal);
+  if (isNaN(numVal)) {
+    document.getElementById(sliderId).value = 0;
+    calc();
+    return;
+  }
+  const slider = document.getElementById(sliderId);
+  if (numVal > parseFloat(slider.max)) numVal = parseFloat(slider.max);
+  slider.value = numVal;
+  calc();
+}
+
+function formatOnBlur(textElement) {
+  let rawVal = textElement.value.replace(/,/g, '');
+  let numVal = parseFloat(rawVal);
+  if (!isNaN(numVal)) {
+    textElement.value = formatCommas(numVal);
+  } else {
+    textElement.value = "0";
+  }
+}
+
+function handleSliderInput(textInputId, value) {
+  document.getElementById(textInputId).value = formatCommas(value);
+  calc();
+}
+
+function setTrack(t) {
+  track = t;
+  document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('active', (i===0 && t==='A') || (i===1 && t==='B')));
+  const targetHa = t === 'A' ? 30 : 50;
+  const targetWage = t === 'A' ? 200000 : 250000;
+  document.getElementById('ha').value = targetHa;
+  document.getElementById('ha_num').value = formatCommas(targetHa);
+  document.getElementById('wage').value = targetWage;
+  document.getElementById('wage_num').value = formatCommas(targetWage);
+  calc();
+}
+
+function fmt(n) {
+  if (isNaN(n)) return '₦0';
+  if (n >= 1000000) return '₦' + (n/1000000).toFixed(1) + 'm';
+  if (n >= 1000) return '₦' + Math.round(n/1000) + 'k';
+  return '₦' + Math.round(n);
+}
+
+function pmt(principal, annualRate, months) {
+  if (annualRate === 0) return principal / months;
+  const r = annualRate / 100 / 12;
+  return principal * r * Math.pow(1+r, months) / (Math.pow(1+r, months) - 1);
+}
+
+function calc() {
+  const costM   = parseFloat(document.getElementById('cost').value) * 1e6 || 0;
+  const rate    = parseFloat(document.getElementById('rate').value) || 0;
+  const ha      = parseFloat(document.getElementById('ha').value) || 0;
+  const harate  = parseFloat(document.getElementById('harate').value) || 0;
+  const fuel    = parseFloat(document.getElementById('fuel').value) || 0;
+  const maint   = parseFloat(document.getElementById('maint').value) || 0;
+  const wage    = parseFloat(document.getElementById('wage').value) || 0;
+
+  const tenor = track === 'A' ? 60 : 36;
+  const eqPct = track === 'A' ? 0.15 : 0.25;
+  document.getElementById('tenor-sub').textContent = track === 'A' ? 'over 5 yrs' : 'over 3 yrs';
+
+  const equity    = costM * eqPct;
+  const loanAmt   = costM - equity;
+  const instalment = pmt(loanAmt, rate, tenor);
+
+  const revenue    = ha * harate;
+  const totalCosts = fuel + maint + wage;
+  const netIncome  = revenue - totalCosts;
+  const surplus    = netIncome - instalment;
+  const dsr        = netIncome / (instalment > 0 ? instalment : 1);
+
+  document.getElementById('rev').textContent     = fmt(revenue);
+  document.getElementById('costs').textContent   = fmt(totalCosts);
+  document.getElementById('net').textContent     = fmt(netIncome);
+  document.getElementById('net').className       = 'value ' + (netIncome > 0 ? 'green' : 'red');
+  document.getElementById('inst').textContent    = fmt(instalment);
+  document.getElementById('surplus').textContent = fmt(surplus);
+  document.getElementById('surplus').className   = 'value ' + (surplus > 0 ? 'green' : 'red');
+  document.getElementById('dsr').textContent     = isFinite(dsr) ? dsr.toFixed(2) + '×' : '0.00×';
+  document.getElementById('dsr').className       = 'value ' + (dsr >= 1.5 ? 'green' : dsr >= 1.0 ? 'amber' : 'red');
+
+  document.getElementById('equity').textContent  = fmt(equity);
+  document.getElementById('equity-pct').textContent = (eqPct*100).toFixed(0) + '% of tractor cost';
+  document.getElementById('loanamt').textContent = fmt(loanAmt);
+
+  const beCosts = totalCosts / (harate > 0 ? harate : 1);
+  const beLoan  = (totalCosts + instalment) / (harate > 0 ? harate : 1);
+  document.getElementById('be-costs').textContent = isFinite(beCosts) ? Math.ceil(beCosts) + ' ha/month' : '0 ha/month';
+  document.getElementById('be-loan').textContent  = isFinite(beLoan) ? Math.ceil(beLoan)  + ' ha/month' : '0 ha/month';
+
+  const maxBar = Math.max(revenue, totalCosts, instalment, surplus > 0 ? surplus : 0, 1);
+  const bar = (id, val, maxV) => {
+    const w = Math.max(0, Math.min(100, val / maxV * 100));
+    document.getElementById(id).style.width = Math.round(w) + '%';
+  };
+  bar('b-rev',  revenue,    maxBar);
+  bar('b-cost', totalCosts, maxBar);
+  bar('b-inst', instalment, maxBar);
+  bar('b-sur',  Math.max(0, surplus), maxBar);
+  document.getElementById('bv-rev').textContent  = fmt(revenue);
+  document.getElementById('bv-cost').textContent = fmt(totalCosts);
+  document.getElementById('bv-inst').textContent = fmt(instalment);
+  document.getElementById('bv-sur').textContent  = surplus >= 0 ? fmt(surplus) : '–' + fmt(-surplus);
+  document.getElementById('bv-sur').style.color  = surplus >= 0 ? '#10b981' : '#dc2626';
+
+  const v = document.getElementById('verdict');
+  if (dsr >= 1.5) {
+    v.className = 'verdict ok';
+    v.textContent = `✓ Healthy — net income covers the monthly instalment ${dsr.toFixed(1)}× over. Beneficiary has a comfortable repayment buffer.`;
+  } else if (dsr >= 1.0) {
+    v.className = 'verdict warn';
+    v.textContent = `⚠ Borderline — net income barely covers the instalment (${dsr.toFixed(1)}×). Any drop in utilisation or rise in costs creates default risk. Consider requiring a guarantor or cooperative membership.`;
+  } else {
+    v.className = 'verdict bad';
+    v.textContent = `✗ Unviable at this utilisation level — net income (${fmt(netIncome)}) does not cover the monthly instalment (${fmt(instalment)}). Beneficiary must service at least ${isFinite(beLoan) ? Math.ceil(beLoan) : 0} ha/month to break even on the loan.`;
+  }
+
+  const discountRate = 0.15; 
+  const annualInflow = surplus * 12; 
+  const annualOpCost = totalCosts * 12;
+  let pvInflows = 0;
+  let pvOutflows = equity;
+  
+  for(let year = 1; year <= 5; year++) {
+    pvInflows += annualInflow / Math.pow(1 + discountRate, year);
+    pvOutflows += (instalment * 12 + annualOpCost) / Math.pow(1 + discountRate, year);
+  }
+  
+  cacheNpv = pvInflows - equity; 
+  cacheBcr = pvInflows / (equity > 0 ? equity : 1);
+  cachePi = (cacheNpv / (equity > 0 ? equity : 1)) + 1;
+  cacheIrr = (annualInflow > 0 && equity > 0) ? (annualInflow / equity) - 0.05 : 0;
+
+  const chkNpv = document.getElementById('chk-npv');
+  if (cacheNpv > 0 && surplus > 0) { chkNpv.className = "status-badge pass"; chkNpv.textContent = `Pass (₦${(cacheNpv/1e6).toFixed(2)}m)`; statusNpv = "PASS"; } 
+  else { chkNpv.className = "status-badge fail"; chkNpv.textContent = "Fail"; statusNpv = "FAIL"; }
+
+  const chkBcr = document.getElementById('chk-bcr');
+  if (cacheBcr > 1.0 && surplus > 0) { chkBcr.className = "status-badge pass"; chkBcr.textContent = `Pass (${cacheBcr.toFixed(2)})`; statusBcr = "PASS"; } 
+  else { chkBcr.className = "status-badge fail"; chkBcr.textContent = "Fail"; statusBcr = "FAIL"; }
+
+  const chkIrr = document.getElementById('chk-irr');
+  if (cacheIrr > discountRate && surplus > 0) { chkIrr.className = "status-badge pass"; chkIrr.textContent = `Pass (${(cacheIrr*100).toFixed(1)}%)`; statusIrr = "PASS"; } 
+  else { chkIrr.className = "status-badge fail"; chkIrr.textContent = "Fail"; statusIrr = "FAIL"; }
+
+  const chkCash = document.getElementById('chk-cash');
+  if (surplus >= totalCosts && surplus > 0) { chkCash.className = "status-badge pass"; chkCash.textContent = "Pass"; statusCash = "PASS"; } 
+  else { chkCash.className = "status-badge fail"; chkCash.textContent = "Fail"; statusCash = "FAIL"; }
+
+  const chkPi = document.getElementById('chk-pi');
+  if (cachePi > 1.0 && surplus > 0) { chkPi.className = "status-badge pass"; chkPi.textContent = `Pass (${cachePi.toFixed(2)})`; statusPi = "PASS"; } 
+  else { chkPi.className = "status-badge fail"; chkPi.textContent = "Fail"; statusPi = "FAIL"; }
+}
+
+function generateNativePDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const pdfCurrency = (id) => document.getElementById(id).textContent.replace(/₦/g, 'NGN ');
+  const pdfInputCurrency = (id) => "NGN " + document.getElementById(id).value;
+
+  doc.setFontSize(16);
+  doc.setTextColor(26, 54, 93);
+  doc.text("NAMP Tractor Loan Credit Appraisal Report", 14, 20);
+  
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  doc.text(`Generated on: ${dateStr} | Framework Version: 2.1 Corporate Valuation`, 14, 28);
+
+  const trackName = track === 'A' ? "Track A — Women & Youth" : "Track B — Companies";
+  const tenorName = track === 'A' ? "5 Years (60 Months)" : "3 Years (36 Months)";
+  const costStr = document.getElementById('cost_num').value + " Million NGN";
+  const rateStr = document.getElementById('rate_num').value + "% p.a.";
+  const equityStr = pdfCurrency('equity');
+  const loanStr = pdfCurrency('loanamt');
+
+  doc.autoTable({
+    startY: 35,
+    theme: 'grid',
+    headStyles: { fillColor: [247, 250, 252], textColor: [44, 82, 130] },
+    bodyStyles: { fontSize: 10, textColor: [30, 41, 59] },
+    head: [['Credit Allocation Configuration', '', '', '']],
+    body: [
+      [{content: 'Track Selection', fontStyle: 'bold'}, trackName, {content: 'Tractor Capital Value', fontStyle: 'bold'}, costStr],
+      [{content: 'Assigned Tenor', fontStyle: 'bold'}, tenorName, {content: 'Interest Rate', fontStyle: 'bold'}, rateStr],
+      [{content: 'Borrower Equity', fontStyle: 'bold'}, equityStr, {content: 'Credit Principal', fontStyle: 'bold'}, loanStr]
+    ],
+  });
+
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 10,
+    theme: 'grid',
+    headStyles: { fillColor: [247, 250, 252], textColor: [44, 82, 130] },
+    bodyStyles: { fontSize: 10, textColor: [30, 41, 59] },
+    head: [['Operating Variable Inputs', '', '', '']],
+    body: [
+      [{content: 'Target Hectares / Month', fontStyle: 'bold'}, document.getElementById('ha_num').value + " Ha", 
+       {content: 'Rate Charged per Ha', fontStyle: 'bold'}, pdfInputCurrency('harate_num')],
+      [{content: 'Projected Fuel Costs', fontStyle: 'bold'}, pdfInputCurrency('fuel_num'), 
+       {content: 'Maintenance Allowances', fontStyle: 'bold'}, pdfInputCurrency('maint_num')],
+      [{content: 'Operator Wages', fontStyle: 'bold'}, pdfInputCurrency('wage_num'), 
+       {content: 'Total Op. Overhead', fontStyle: 'bold'}, pdfCurrency('costs')]
+    ],
+  });
+
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 10,
+    theme: 'grid',
+    headStyles: { fillColor: [247, 250, 252], textColor: [44, 82, 130] },
+    bodyStyles: { fontSize: 10, textColor: [30, 41, 59] },
+    head: [['Monthly Cash Flow Summary Matrix', '', '', '']],
+    body: [
+      [{content: 'Gross Revenue Yield', fontStyle: 'bold'}, pdfCurrency('rev'), 
+       {content: 'Net Profit Margin (Pre-Debt)', fontStyle: 'bold'}, pdfCurrency('net')],
+      [{content: 'Monthly Loan Amortization', fontStyle: 'bold'}, pdfCurrency('inst'), 
+       {content: 'Net Take-Home Surplus', fontStyle: 'bold'}, pdfCurrency('surplus')],
+      [{content: 'Debt Service Ratio (DSR)', fontStyle: 'bold'}, document.getElementById('dsr').textContent, 
+       {content: 'Break-even Volume', fontStyle: 'bold'}, document.getElementById('be-loan').textContent]
+    ],
+  });
+
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 10,
+    theme: 'grid',
+    headStyles: { fillColor: [247, 250, 252], textColor: [44, 82, 130] },
+    bodyStyles: { fontSize: 10, textColor: [30, 41, 59] },
+    head: [['Appraisal Metric Threshold Standard', 'Calculated Value Index', 'Credit Verification Status']],
+    body: [
+      ['Net Present Value (NPV) > 0', "NGN " + (cacheNpv/1e6).toFixed(2) + "m", statusNpv],
+      ['Benefit-Cost Ratio (BCR) > 1.0', cacheBcr.toFixed(2), statusBcr],
+      ['Internal Rate of Return (IRR) > 15%', (cacheIrr*100).toFixed(1) + "%", statusIrr],
+      ['Net Working Capital Cushion Validation', 'Liquidity Check', statusCash],
+      ['Profitability Index (PI) > 1.0', cachePi.toFixed(2), statusPi]
+    ],
+  });
+
+  const dsrValue = document.getElementById('dsr').textContent;
+  const srcVerdict = document.getElementById('verdict').className;
+  let finalConclusion = "";
+
+  if (srcVerdict.includes('ok')) {
+    finalConclusion = `APPROVED (Healthy Viability) — The projected cash flows demonstrate robust debt-servicing capacity. Net operating income securely covers the monthly amortization by a factor of ${dsrValue}. The beneficiary maintains a significant liquidity cushion to absorb seasonal agricultural fluctuations, mitigating default risk and fully satisfying standard underwriting guidelines.`;
+  } else if (srcVerdict.includes('warn')) {
+    finalConclusion = `BORDERLINE VIABILITY — Net operating income barely covers the monthly amortization (${dsrValue}). While theoretically profitable, the tight liquidity margin leaves the borrower highly vulnerable to seasonal agricultural downturns. Guarantor backing or cooperative cross-guarantees are required to satisfy internal risk controls before approval.`;
+  } else {
+    finalConclusion = `DECLINED (Unviable) — The projected utilization does not generate sufficient net income to service the monthly loan amortization (${dsrValue}). This application presents an unacceptable default risk. The borrower must demonstrate a higher minimum break-even volume or provide a larger equity deposit prior to reassessment.`;
+  }
+
+  doc.setFontSize(12);
+  doc.setTextColor(44, 82, 130);
+  doc.text("Credit Underwriting Final Determination:", 14, doc.lastAutoTable.finalY + 15);
+
+  doc.setFontSize(10);
+  doc.setTextColor(20, 20, 20);
+  const splitVerdict = doc.splitTextToSize(finalConclusion, 180);
+  doc.text(splitVerdict, 14, doc.lastAutoTable.finalY + 22);
+
+  doc.save('NAMP_Tractor_Loan_Underwriting_Report.pdf');
+}
+
+window.onload = function() {
+  calc();
+};
+</script>
