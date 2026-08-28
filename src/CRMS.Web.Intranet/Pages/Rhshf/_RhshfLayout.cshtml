@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] - RH-SHF Credit Profiling</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+        body { background: #f5f7f3; }
+        .rhshf-shell { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+        .rhshf-brand { font-weight: 700; color: #1e6b2c; margin-bottom: 4px; }
+        .rhshf-stage-label { font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; color: #6c757d; }
+    </style>
+</head>
+<body>
+    @* Deliberately no Blazor script references here (_framework/blazor.server.js) — this layout
+       is plain server-rendered Razor Pages, never an interactive Blazor circuit. *@
+    <div class="rhshf-shell">
+        <div class="rhshf-brand">Bank of Agriculture · RH-SHF Credit Profiling</div>
+        @RenderBody()
+    </div>
+</body>
+</html>

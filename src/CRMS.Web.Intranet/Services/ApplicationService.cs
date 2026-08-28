@@ -6774,4 +6774,164 @@ public partial class ApplicationService
         }
     }
 
+    // ── RH-SHF Staff Queues & Decisions (Phase 4 — Appraisal + Risk Review) ────
+    // Own loan track, independent of NAMP — see docs/rhshf resources/.
+
+    public async Task<List<CRMS.Application.Rhshf.DTOs.RhshfQueueItemDto>> GetRhshfStaffQueueAsync(
+        CRMS.Domain.Enums.RhshfInternalStage stage, Guid? branchId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfStaffQueueHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfStaffQueueQuery(stage, branchId), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF staff queue for stage {Stage}", stage);
+            return [];
+        }
+    }
+
+    public async Task<CRMS.Application.Rhshf.DTOs.RhshfCaseWorkspaceDto?> GetRhshfCaseWorkspaceAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfCaseWorkspaceHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfCaseWorkspaceQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF case workspace for {Reference}", reference);
+            return null;
+        }
+    }
+
+    public async Task<ApiResponse> AppraiseRhshfCaseAsync(
+        string reference, Guid creditOfficerId, CRMS.Domain.Enums.RhshfAppraisalOutcome outcome, string? notes,
+        CRMS.Domain.Enums.RhshfProfilingStage? returnToStage)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.AppraiseRhshfCaseHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.AppraiseRhshfCaseCommand(reference, creditOfficerId, outcome, notes, returnToStage),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Appraisal failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error appraising RH-SHF case {Reference}", reference);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse> ReviewRhshfRiskAsync(
+        string reference, Guid riskOfficerId, CRMS.Domain.Enums.RhshfRiskReviewOutcome outcome, string? notes,
+        CRMS.Domain.Enums.RhshfProfilingStage? returnToStage)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ReviewRhshfRiskHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.ReviewRhshfRiskCommand(reference, riskOfficerId, outcome, notes, returnToStage),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Risk review failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recording RH-SHF risk review for {Reference}", reference);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
+    // ── RH-SHF Committee Voting (Phase 5) ──────────────────────────────────
+
+    public async Task<CRMS.Application.Rhshf.Queries.RhshfCommitteeReviewDto?> GetRhshfCommitteeReviewAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfCommitteeReviewHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfCommitteeReviewQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF committee review for {Reference}", reference);
+            return null;
+        }
+    }
+
+    public async Task<ApiResponse> CastRhshfCommitteeVoteAsync(
+        string reference, Guid userId, CRMS.Domain.Enums.RhshfCommitteeVoteChoice vote, string? comment)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.CastRhshfCommitteeVoteHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.CastRhshfCommitteeVoteCommand(reference, userId, vote, comment),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Vote failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error casting RH-SHF committee vote for {Reference}", reference);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse> ReturnRhshfCommitteeToFacAsync(
+        string reference, string? notes, CRMS.Domain.Enums.RhshfProfilingStage? returnToStage)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ReturnRhshfCommitteeToFacHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.ReturnRhshfCommitteeToFacCommand(reference, notes, returnToStage),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Return to FAC failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error returning RH-SHF committee case to FAC for {Reference}", reference);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
+    // ── RH-SHF Ratification + Offer (Phase 6) ──────────────────────────────
+
+    public async Task<ApiResponse> RatifyRhshfCaseAsync(
+        string reference, Guid finalApproverId, CRMS.Domain.Enums.RhshfRatificationOutcome outcome, decimal? approvedAmount,
+        string? notes, CRMS.Domain.Enums.RhshfProfilingStage? returnToStage)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RatifyRhshfCaseHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.RatifyRhshfCaseCommand(reference, finalApproverId, outcome, approvedAmount, notes, returnToStage),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Ratification failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error ratifying RH-SHF case {Reference}", reference);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
+    public async Task<CRMS.Application.Rhshf.Queries.RhshfOfferDto?> GetRhshfOfferAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfOfferHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfOfferQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF offer for {Reference}", reference);
+            return null;
+        }
+    }
 }

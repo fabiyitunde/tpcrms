@@ -1,0 +1,172 @@
+@page "/rhshf"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using CRMS.Application.Rhshf.DTOs
+@using CRMS.Domain.Enums
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<PageTitle>RH-SHF Queue - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">RH-SHF Credit Profiling</h1>
+        <p class="page-subtitle">Renewed Hope Dry Season — input-financing appraisal &amp; risk review</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" @onclick="LoadQueue" disabled="@isLoading" title="Refresh queue">
+        <span class="material-symbols-outlined" style="font-size: 18px; @(isLoading ? "animation: spin 1s linear infinite;" : "")">refresh</span>
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(pageError))
+{
+    <div class="alert alert-danger" style="margin-bottom: 1rem;">@pageError</div>
+}
+
+<div class="tabs">
+    @if (CanAppraise)
+    {
+        <div class="tab @(activeStage == RhshfInternalStage.Appraisal ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Appraisal)'>
+            Appraisal
+            @if (queue.Count > 0 && activeStage == RhshfInternalStage.Appraisal)
+            {
+                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
+            }
+        </div>
+    }
+    @if (CanReviewRisk)
+    {
+        <div class="tab @(activeStage == RhshfInternalStage.RiskReview ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.RiskReview)'>
+            Risk Review
+            @if (queue.Count > 0 && activeStage == RhshfInternalStage.RiskReview)
+            {
+                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
+            }
+        </div>
+    }
+    @if (CanVoteOnCommittee)
+    {
+        <div class="tab @(activeStage == RhshfInternalStage.CommitteeVoting ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.CommitteeVoting)'>
+            Committee
+            @if (queue.Count > 0 && activeStage == RhshfInternalStage.CommitteeVoting)
+            {
+                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
+            }
+        </div>
+    }
+    @if (CanRatify)
+    {
+        <div class="tab @(activeStage == RhshfInternalStage.Ratification ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Ratification)'>
+            Ratification
+            @if (queue.Count > 0 && activeStage == RhshfInternalStage.Ratification)
+            {
+                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
+            }
+        </div>
+    }
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        @if (isLoading)
+        {
+            <div class="p-6 text-center"><div class="spinner" style="margin: 0 auto;"></div></div>
+        }
+        else if (queue.Count == 0)
+        {
+            <div class="p-6 text-center" style="color: var(--gray-500);">Nothing in this queue right now.</div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Reference</th>
+                        <th>Company</th>
+                        <th class="text-end">Total EOP Value</th>
+                        <th>Cycle</th>
+                        <th>Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in queue)
+                    {
+                        <tr style="cursor: pointer;" @onclick="() => OpenReview(item.Reference)">
+                            <td><code>@item.Reference</code></td>
+                            <td>@item.CompanyName</td>
+                            <td class="text-end">@item.Currency @item.TotalEopValue.ToString("N2")</td>
+                            <td>@item.CurrentCycleNumber</td>
+                            <td>@item.UpdatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@if (selectedReference is not null)
+{
+    <RhshfReviewModal Reference="@selectedReference" Stage="@activeStage" OnClose="CloseReview" OnDecided="OnDecided" />
+}
+
+@code {
+    private RhshfInternalStage activeStage = RhshfInternalStage.Appraisal;
+    private List<RhshfQueueItemDto> queue = [];
+    private bool isLoading;
+    private string? pageError;
+    private string? selectedReference;
+
+    private bool CanAppraise => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer") ?? false;
+    private bool CanReviewRisk => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager") ?? false;
+    private bool CanVoteOnCommittee => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CommitteeMember") ?? false;
+    private bool CanRatify => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "FinalApprover") ?? false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!CanAppraise && CanReviewRisk)
+            activeStage = RhshfInternalStage.RiskReview;
+        else if (!CanAppraise && !CanReviewRisk && CanVoteOnCommittee)
+            activeStage = RhshfInternalStage.CommitteeVoting;
+        else if (!CanAppraise && !CanReviewRisk && !CanVoteOnCommittee && CanRatify)
+            activeStage = RhshfInternalStage.Ratification;
+
+        await LoadQueue();
+    }
+
+    private async Task SwitchTab(RhshfInternalStage stage)
+    {
+        activeStage = stage;
+        await LoadQueue();
+    }
+
+    private async Task LoadQueue()
+    {
+        isLoading = true;
+        pageError = null;
+        try
+        {
+            var user = AuthService.CurrentUser;
+            // Branch-scoped like every other CRMS queue — HO sees everything, branch staff see
+            // only their own branch (computed here, not deep in a child component).
+            Guid? branchId = (user?.IsHeadOffice ?? false) ? null : user?.LocationId;
+            queue = await AppService.GetRhshfStaffQueueAsync(activeStage, branchId);
+        }
+        catch (Exception ex)
+        {
+            pageError = $"Failed to load queue: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenReview(string reference) => selectedReference = reference;
+    private void CloseReview() => selectedReference = null;
+
+    private async Task OnDecided()
+    {
+        selectedReference = null;
+        await LoadQueue();
+    }
+}

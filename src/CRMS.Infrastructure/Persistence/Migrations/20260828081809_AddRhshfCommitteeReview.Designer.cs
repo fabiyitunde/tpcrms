@@ -4,6 +4,7 @@ using CRMS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CRMS.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CRMSDbContext))]
-    partial class CRMSDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260828081809_AddRhshfCommitteeReview")]
+    partial class AddRhshfCommitteeReview
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -6219,104 +6222,6 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("RhshfIssuedTokens", (string)null);
                 });
 
-            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfOffer", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<int>("CycleNumber")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("FacRespondedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime>("GeneratedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ModifiedBy")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("OfferDocumentPath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<Guid>("RhshfCreditProfileId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RhshfCreditProfileId", "CycleNumber")
-                        .IsUnique();
-
-                    b.ToTable("RhshfOffers", (string)null);
-                });
-
-            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfRatification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<decimal?>("ApprovedAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<int>("CycleNumber")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("FinalApproverId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ModifiedBy")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Outcome")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)");
-
-                    b.Property<DateTime>("RatifiedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<Guid>("RhshfCreditProfileId")
-                        .HasColumnType("char(36)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RhshfCreditProfileId");
-
-                    b.ToTable("RhshfRatifications", (string)null);
-                });
-
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfRiskReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8164,15 +8069,6 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfRatification", b =>
-                {
-                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
-                        .WithMany("Ratifications")
-                        .HasForeignKey("RhshfCreditProfileId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfRiskReview", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
@@ -8544,8 +8440,6 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Navigation("EopLines");
 
                     b.Navigation("IssuedTokens");
-
-                    b.Navigation("Ratifications");
 
                     b.Navigation("RiskReviews");
 

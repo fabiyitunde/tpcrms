@@ -97,6 +97,20 @@
         </div>
     }
 
+    @if (CanViewRhshf)
+    {
+        <div class="nav-section">
+            @if (!Collapsed)
+            {
+                <div class="nav-section-title">RH-SHF</div>
+            }
+            <NavLink href="/rhshf" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">grass</span>
+                @if (!Collapsed) { <span class="nav-item-text">RH-SHF Queue</span> }
+            </NavLink>
+        </div>
+    }
+
     @if (CanViewReports)
     {
         <div class="nav-section">
@@ -210,6 +224,9 @@
         "BranchManager", "ZonalManager", "RegionalManager", "MdCeo",
         "FinalApprover", "DeploymentOfficer", "LegalOfficer",
         "BranchRiskOfficer", "ZonalRiskOfficer", "RegionalRiskOfficer", "HORiskOfficer") ?? false;
+    // RH-SHF is its own loan track — reuses the same generic CreditOfficer/RiskManager roles NAMP
+    // and Corporate already use, but is otherwise independent (own queue, own domain).
+    private bool CanViewRhshf => User?.HasAnyRole("SystemAdmin", "CreditOfficer", "RiskManager", "CommitteeMember", "FinalApprover") ?? false;
 
     protected override async Task OnInitializedAsync()
     {

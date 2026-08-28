@@ -1,0 +1,375 @@
+@using CRMS.Application.Rhshf.DTOs
+@using CRMS.Domain.Enums
+@inject ApplicationService AppService
+@inject AuthService AuthService
+
+<div class="modal-backdrop show" @onclick="OnClose">
+    <div class="modal" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <span class="material-symbols-outlined" style="vertical-align: middle;">grass</span>
+                RH-SHF Case Review — @Reference
+            </h3>
+            <button class="modal-close" @onclick="OnClose">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="modal-body" style="overflow-y: auto; flex: 1;">
+            @if (isLoading)
+            {
+                <div style="text-align: center; padding: var(--space-8);"><div class="spinner"></div></div>
+            }
+            else if (workspace is null)
+            {
+                <div class="alert alert-danger">Could not load this case.</div>
+            }
+            else
+            {
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
+
+                <h4>@workspace.CompanyName</h4>
+                <dl class="row">
+                    <dt class="col-sm-4">RC Number</dt><dd class="col-sm-8">@workspace.RcNumber</dd>
+                    <dt class="col-sm-4">TIN</dt><dd class="col-sm-8">@workspace.Tin</dd>
+                    <dt class="col-sm-4">BOA Account</dt><dd class="col-sm-8">@workspace.BoaAccountNumber</dd>
+                    <dt class="col-sm-4">Location</dt><dd class="col-sm-8">@workspace.Lga, @workspace.State</dd>
+                    <dt class="col-sm-4">Cycle</dt><dd class="col-sm-8">@workspace.CurrentCycleNumber</dd>
+                </dl>
+
+                <h5>Credit Bureau Check</h5>
+                <p>
+                    <span class="badge @BureauBadgeClass(workspace.BureauCheckOutcome)">@workspace.BureauCheckOutcome</span>
+                    @if (workspace.BureauCheckOutcome != RhshfBureauOutcome.NotRun)
+                    {
+                        <span style="margin-left: 8px; color: var(--gray-500); font-size: var(--text-sm);">
+                            @workspace.BureauTotalLoans total · @workspace.BureauActiveLoans active · @workspace.BureauDelinquentFacilities delinquent
+                        </span>
+                    }
+                </p>
+
+                <h5>EOP Breakdown</h5>
+                <table class="table table-sm">
+                    <thead><tr><th>Commodity</th><th class="text-end">Qty (kg)</th><th class="text-end">Line Value</th></tr></thead>
+                    <tbody>
+                    @foreach (var line in workspace.EopLines)
+                    {
+                        <tr><td>@line.Commodity</td><td class="text-end">@line.QuantityKg.ToString("N0")</td><td class="text-end">@line.LineValue.ToString("N2")</td></tr>
+                    }
+                    </tbody>
+                    <tfoot>
+                        <tr class="fw-bold"><td colspan="2">Total EOP Value</td><td class="text-end">@workspace.Currency @workspace.TotalEopValue.ToString("N2")</td></tr>
+                    </tfoot>
+                </table>
+
+                <h5>Supporting Documents (@workspace.SupportingDocuments.Count)</h5>
+                @if (workspace.SupportingDocuments.Count > 0)
+                {
+                    <ul>
+                        @foreach (var doc in workspace.SupportingDocuments)
+                        {
+                            <li>@doc.FileName (@((doc.SizeBytes / 1024.0).ToString("N0")) KB)</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="text-muted">No documents attached.</p>
+                }
+
+                @if (workspace.Appraisals.Count > 0 || workspace.RiskReviews.Count > 0)
+                {
+                    <h5>Review History</h5>
+                    <ul>
+                        @foreach (var a in workspace.Appraisals)
+                        {
+                            <li>Cycle @a.CycleNumber — Appraisal: <strong>@a.Outcome</strong> (@a.AppraisedAt.ToLocalTime().ToString("MMM dd, HH:mm"))@(string.IsNullOrEmpty(a.Notes) ? "" : $" — {a.Notes}")</li>
+                        }
+                        @foreach (var r in workspace.RiskReviews)
+                        {
+                            <li>Cycle @r.CycleNumber — Risk Review: <strong>@r.Outcome</strong> (@r.ReviewedAt.ToLocalTime().ToString("MMM dd, HH:mm"))@(string.IsNullOrEmpty(r.Notes) ? "" : $" — {r.Notes}")</li>
+                        }
+                    </ul>
+                }
+
+                <hr />
+
+                @if (Stage == RhshfInternalStage.CommitteeVoting)
+                {
+                    <h5>Committee Vote</h5>
+                    @if (committeeReview is null)
+                    {
+                        <p class="text-muted">No committee review found for this cycle.</p>
+                    }
+                    else
+                    {
+                        <p>
+                            <span class="badge badge-info">@committeeReview.Votes.Count / @committeeReview.RequiredVotes votes cast</span>
+                            <span class="badge badge-secondary" style="margin-left: 6px;">Needs @committeeReview.MinimumApprovalVotes to approve</span>
+                        </p>
+                        @if (committeeReview.Votes.Count > 0)
+                        {
+                            <ul>
+                                @foreach (var v in committeeReview.Votes)
+                                {
+                                    <li>@v.Vote (@v.VotedAt.ToLocalTime().ToString("MMM dd, HH:mm"))@(string.IsNullOrEmpty(v.Comment) ? "" : $" — {v.Comment}")</li>
+                                }
+                            </ul>
+                        }
+
+                        @if (committeeReview.FinalDecision is not null)
+                        {
+                            <div class="alert alert-info">This review already reached a decision: <strong>@committeeReview.FinalDecision</strong></div>
+                        }
+                        else if (committeeReview.Votes.Any(v => v.UserId == (AuthService.CurrentUser?.Id ?? Guid.Empty)))
+                        {
+                            <div class="alert alert-secondary">You have already voted on this review.</div>
+                        }
+                        else
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Comment (optional)</label>
+                                <textarea class="form-control" rows="2" @bind="notes"></textarea>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success" disabled="@isSubmitting" @onclick='() => SubmitVote(RhshfCommitteeVoteChoice.Approve)'>Approve</button>
+                                <button class="btn btn-outline-danger" disabled="@isSubmitting" @onclick='() => SubmitVote(RhshfCommitteeVoteChoice.Reject)'>Reject</button>
+                                <button class="btn btn-outline-secondary" disabled="@isSubmitting" @onclick='() => SubmitVote(RhshfCommitteeVoteChoice.Abstain)'>Abstain</button>
+                                <button class="btn btn-outline-warning" disabled="@isSubmitting" @onclick="SubmitCommitteeReturnToFac">Return to FAC</button>
+                            </div>
+                        }
+                    }
+                }
+                else if (Stage == RhshfInternalStage.Ratification)
+                {
+                    <h5>Ratification</h5>
+                    <p class="text-muted">Approved amount must equal the total EOP value exactly — @workspace.Currency @workspace.TotalEopValue.ToString("N2").</p>
+                    <div class="mb-3">
+                        <label class="form-label">Notes @(ratifyDecision == "ReturnToFac" || ratifyDecision == "Declined" ? "(required)" : "(optional)")</label>
+                        <textarea class="form-control" rows="2" @bind="notes"></textarea>
+                    </div>
+
+                    @if (ratifyDecision == "ReturnToFac")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Reopen the FAC's form at:</label>
+                            <select class="form-select" @bind="returnToStage">
+                                @foreach (var stage in Enum.GetValues<RhshfProfilingStage>())
+                                {
+                                    <option value="@stage">@stage</option>
+                                }
+                            </select>
+                        </div>
+                    }
+
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-success" disabled="@isSubmitting" @onclick="SubmitRatify">Ratify (@workspace.Currency @workspace.TotalEopValue.ToString("N2"))</button>
+                        <button class="btn btn-outline-warning" disabled="@isSubmitting" @onclick='() => ratifyDecision = "ReturnToFac"'>Return to FAC</button>
+                        <button class="btn btn-outline-danger" disabled="@isSubmitting" @onclick='() => SubmitRatifyTerminal("Declined")'>Decline</button>
+                        @if (ratifyDecision == "ReturnToFac")
+                        {
+                            <button class="btn btn-primary" disabled="@isSubmitting" @onclick='() => SubmitRatifyTerminal("ReturnToFac")'>Confirm Return to FAC</button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <h5>Decision</h5>
+                    <div class="mb-3">
+                        <label class="form-label">Notes @(decision == "ReturnToFac" || decision == "Decline" ? "(required)" : "(optional)")</label>
+                        <textarea class="form-control" rows="2" @bind="notes"></textarea>
+                    </div>
+
+                    @if (decision == "ReturnToFac")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Reopen the FAC's form at:</label>
+                            <select class="form-select" @bind="returnToStage">
+                                @foreach (var stage in Enum.GetValues<RhshfProfilingStage>())
+                                {
+                                    <option value="@stage">@stage</option>
+                                }
+                            </select>
+                        </div>
+                    }
+
+                    <div class="d-flex gap-2">
+                        @if (Stage == RhshfInternalStage.Appraisal)
+                        {
+                            <button class="btn btn-success" disabled="@isSubmitting" @onclick='() => Submit("Proceed")'>Proceed</button>
+                            <button class="btn btn-outline-warning" disabled="@isSubmitting" @onclick='() => SelectDecision("ReturnToFac")'>Return to FAC</button>
+                            <button class="btn btn-outline-danger" disabled="@isSubmitting" @onclick='() => SelectDecision("Decline")'>Decline</button>
+                        }
+                        else if (Stage == RhshfInternalStage.RiskReview)
+                        {
+                            <button class="btn btn-success" disabled="@isSubmitting" @onclick='() => Submit("Cleared")'>Cleared</button>
+                            <button class="btn btn-outline-warning" disabled="@isSubmitting" @onclick='() => SelectDecision("ReturnToFac")'>Return to FAC</button>
+                            <button class="btn btn-outline-danger" disabled="@isSubmitting" @onclick='() => SelectDecision("Decline")'>Decline</button>
+                        }
+                        @if (decision == "ReturnToFac" || decision == "Decline")
+                        {
+                            <button class="btn btn-primary" disabled="@isSubmitting" @onclick='() => Submit(decision)'>Confirm @decision</button>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Reference { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public RhshfInternalStage Stage { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnDecided { get; set; }
+
+    private RhshfCaseWorkspaceDto? workspace;
+    private CRMS.Application.Rhshf.Queries.RhshfCommitteeReviewDto? committeeReview;
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string? errorMessage;
+    private string notes = string.Empty;
+    private string? decision; // null = no destructive action selected yet (Proceed/Cleared submit directly)
+    private string? ratifyDecision; // null = no destructive action selected yet (Ratify submits directly)
+    private RhshfProfilingStage returnToStage = RhshfProfilingStage.ReviewAndSubmit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        workspace = await AppService.GetRhshfCaseWorkspaceAsync(Reference);
+        if (Stage == RhshfInternalStage.CommitteeVoting)
+            committeeReview = await AppService.GetRhshfCommitteeReviewAsync(Reference);
+        isLoading = false;
+    }
+
+    private async Task SubmitVote(RhshfCommitteeVoteChoice vote)
+    {
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        isSubmitting = true;
+        errorMessage = null;
+
+        var result = await AppService.CastRhshfCommitteeVoteAsync(Reference, userId, vote, string.IsNullOrWhiteSpace(notes) ? null : notes);
+
+        isSubmitting = false;
+
+        if (!result.Success)
+        {
+            errorMessage = result.Error ?? "The vote could not be recorded.";
+            return;
+        }
+
+        await OnDecided.InvokeAsync();
+    }
+
+    private async Task SubmitCommitteeReturnToFac()
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            errorMessage = "Notes are required to return a case to the FAC.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var result = await AppService.ReturnRhshfCommitteeToFacAsync(Reference, notes, returnToStage);
+
+        isSubmitting = false;
+
+        if (!result.Success)
+        {
+            errorMessage = result.Error ?? "The case could not be returned to the FAC.";
+            return;
+        }
+
+        await OnDecided.InvokeAsync();
+    }
+
+    private async Task SubmitRatify()
+    {
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        isSubmitting = true;
+        errorMessage = null;
+
+        var result = await AppService.RatifyRhshfCaseAsync(
+            Reference, userId, RhshfRatificationOutcome.Ratified, workspace!.TotalEopValue,
+            string.IsNullOrWhiteSpace(notes) ? null : notes, null);
+
+        isSubmitting = false;
+
+        if (!result.Success)
+        {
+            errorMessage = result.Error ?? "Ratification could not be recorded.";
+            return;
+        }
+
+        await OnDecided.InvokeAsync();
+    }
+
+    private async Task SubmitRatifyTerminal(string outcome)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            errorMessage = "Notes are required for Return to FAC or Decline.";
+            return;
+        }
+
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        isSubmitting = true;
+        errorMessage = null;
+
+        var result = await AppService.RatifyRhshfCaseAsync(
+            Reference, userId, Enum.Parse<RhshfRatificationOutcome>(outcome), null, notes,
+            outcome == "ReturnToFac" ? returnToStage : null);
+
+        isSubmitting = false;
+
+        if (!result.Success)
+        {
+            errorMessage = result.Error ?? "The decision could not be recorded.";
+            return;
+        }
+
+        await OnDecided.InvokeAsync();
+    }
+
+    private void SelectDecision(string value) => decision = value;
+
+    private async Task Submit(string outcome)
+    {
+        if ((outcome == "ReturnToFac" || outcome == "Decline") && string.IsNullOrWhiteSpace(notes))
+        {
+            errorMessage = "Notes are required for Return to FAC or Decline.";
+            return;
+        }
+
+        var userId = AuthService.CurrentUser?.Id ?? Guid.Empty;
+        isSubmitting = true;
+        errorMessage = null;
+
+        var result = Stage == RhshfInternalStage.Appraisal
+            ? await AppService.AppraiseRhshfCaseAsync(Reference, userId, Enum.Parse<RhshfAppraisalOutcome>(outcome), notes,
+                outcome == "ReturnToFac" ? returnToStage : null)
+            : await AppService.ReviewRhshfRiskAsync(Reference, userId, Enum.Parse<RhshfRiskReviewOutcome>(outcome), notes,
+                outcome == "ReturnToFac" ? returnToStage : null);
+
+        isSubmitting = false;
+
+        if (!result.Success)
+        {
+            errorMessage = result.Error ?? "The decision could not be recorded.";
+            return;
+        }
+
+        await OnDecided.InvokeAsync();
+    }
+
+    private static string BureauBadgeClass(RhshfBureauOutcome outcome) => outcome switch
+    {
+        RhshfBureauOutcome.Cleared => "badge-success",
+        RhshfBureauOutcome.Flagged => "badge-warning",
+        RhshfBureauOutcome.Failed => "badge-secondary",
+        _ => "badge-secondary",
+    };
+}

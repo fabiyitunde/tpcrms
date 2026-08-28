@@ -1,0 +1,195 @@
+@page "/rhshf/profiling/{reference}"
+@model CRMS.Web.Intranet.Pages.Rhshf.ProfilingModel
+@using CRMS.Domain.Enums
+@{
+    ViewData["Title"] = "Credit Profiling";
+}
+
+@if (Model.IsExpired)
+{
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <h4 class="mb-3">Your session has expired</h4>
+            <p class="text-muted">
+                For your security, this profiling link is no longer valid — it may have expired, already
+                been used, or been opened for a different case.
+            </p>
+            <p class="text-muted mb-0">
+                Please return to the RH-SHF portal and select <strong>&ldquo;Continue on CRMS&rdquo;</strong>
+                again to resume — a fresh link will be issued automatically.
+            </p>
+        </div>
+    </div>
+}
+else if (Model.Session is null)
+{
+    <div class="alert alert-danger">Something went wrong loading this case. Please try again.</div>
+}
+else if (Model.Session.CurrentStage is null)
+{
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <h4 class="mb-3">Profiling submitted</h4>
+            <p class="text-muted mb-0">
+                Thank you — your credit profiling for <strong>@Model.Session.CompanyName</strong>
+                (reference <code>@Model.Session.Reference</code>) has been submitted and is now under
+                review. You can close this tab; the portal will show you the outcome once it's ready.
+            </p>
+        </div>
+    </div>
+}
+else
+{
+    var stages = new[]
+    {
+        RhshfProfilingStage.CompanyVerification, RhshfProfilingStage.CreditBureauCheck,
+        RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit
+    };
+    var currentIndex = Array.IndexOf(stages, Model.Session.CurrentStage.Value);
+
+    <p class="rhshf-stage-label mb-1">Step @(currentIndex + 1) of @stages.Length</p>
+    <div class="progress mb-4" style="height: 6px;">
+        <div class="progress-bar bg-success" style="width: @((currentIndex + 1) * 100 / stages.Length)%"></div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger">@Model.ErrorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+    {
+        <div class="alert alert-success">@Model.SuccessMessage</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            @switch (Model.Session.CurrentStage.Value)
+            {
+                case RhshfProfilingStage.CompanyVerification:
+                    <h4 class="mb-3">Confirm your company details</h4>
+                    <p class="text-muted">These details were submitted by the RH-SHF portal on your behalf. Please confirm they're correct before continuing.</p>
+                    <dl class="row">
+                        <dt class="col-sm-4">Company name</dt><dd class="col-sm-8">@Model.Session.CompanyName</dd>
+                        <dt class="col-sm-4">RC number</dt><dd class="col-sm-8">@Model.Session.RcNumber</dd>
+                        <dt class="col-sm-4">TIN</dt><dd class="col-sm-8">@Model.Session.Tin</dd>
+                        <dt class="col-sm-4">BOA account</dt><dd class="col-sm-8">@Model.Session.BoaAccountNumber</dd>
+                        <dt class="col-sm-4">Location</dt><dd class="col-sm-8">@Model.Session.Lga, @Model.Session.State</dd>
+                    </dl>
+                    <form method="post" asp-page-handler="Confirm">
+                        <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                        <input type="hidden" name="stage" value="@RhshfProfilingStage.CompanyVerification" />
+                        <button type="submit" class="btn btn-success">These details are correct — continue</button>
+                    </form>
+                    break;
+
+                case RhshfProfilingStage.CreditBureauCheck:
+                    <h4 class="mb-3">Credit bureau check</h4>
+                    @switch (Model.Session.BureauCheckOutcome)
+                    {
+                        case RhshfBureauOutcome.Cleared:
+                            <div class="alert alert-success">No adverse credit history found.</div>
+                            break;
+                        case RhshfBureauOutcome.Flagged:
+                            <div class="alert alert-warning">Some existing credit facilities were found on record. This does not block your application — it will be reviewed by our credit team.</div>
+                            break;
+                        case RhshfBureauOutcome.Failed:
+                            <div class="alert alert-secondary">We couldn't complete an automated check right now. This won't block your application — our credit team will review manually.</div>
+                            break;
+                        default:
+                            <div class="alert alert-secondary">Running credit bureau check…</div>
+                            break;
+                    }
+                    @if (Model.Session.BureauCheckOutcome != RhshfBureauOutcome.NotRun)
+                    {
+                        <dl class="row">
+                            <dt class="col-sm-6">Total facilities on record</dt><dd class="col-sm-6">@(Model.Session.BureauTotalLoans ?? 0)</dd>
+                            <dt class="col-sm-6">Active facilities</dt><dd class="col-sm-6">@(Model.Session.BureauActiveLoans ?? 0)</dd>
+                            <dt class="col-sm-6">Delinquent facilities</dt><dd class="col-sm-6">@(Model.Session.BureauDelinquentFacilities ?? 0)</dd>
+                        </dl>
+                        <form method="post" asp-page-handler="Confirm">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <input type="hidden" name="stage" value="@RhshfProfilingStage.CreditBureauCheck" />
+                            <button type="submit" class="btn btn-success">Continue</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="get">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <button type="submit" class="btn btn-outline-secondary">Refresh</button>
+                        </form>
+                    }
+                    break;
+
+                case RhshfProfilingStage.EopReview:
+                    <h4 class="mb-3">Review your Estimate of Production (EOP)</h4>
+                    <p class="text-muted">Confirm the commodity breakdown submitted by the portal.</p>
+                    <table class="table table-sm">
+                        <thead><tr><th>Commodity</th><th class="text-end">Quantity (kg)</th><th class="text-end">Unit price</th><th class="text-end">Line value</th></tr></thead>
+                        <tbody>
+                        @foreach (var line in Model.Session.EopLines)
+                        {
+                            <tr>
+                                <td>@line.Commodity</td>
+                                <td class="text-end">@line.QuantityKg.ToString("N0")</td>
+                                <td class="text-end">@line.UnitPricePerKg.ToString("N2")</td>
+                                <td class="text-end">@line.LineValue.ToString("N2")</td>
+                            </tr>
+                        }
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold"><td colspan="3">Total EOP value</td><td class="text-end">@Model.Session.Currency @Model.Session.TotalEopValue.ToString("N2")</td></tr>
+                        </tfoot>
+                    </table>
+                    <form method="post" asp-page-handler="Confirm">
+                        <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                        <input type="hidden" name="stage" value="@RhshfProfilingStage.EopReview" />
+                        <button type="submit" class="btn btn-success">This is correct — continue</button>
+                    </form>
+                    break;
+
+                case RhshfProfilingStage.SupportingDocuments:
+                    <h4 class="mb-3">Supporting documents</h4>
+                    <p class="text-muted">Attach any supporting documents (optional).</p>
+                    @if (Model.Session.SupportingDocuments.Count > 0)
+                    {
+                        <ul class="list-group mb-3">
+                            @foreach (var doc in Model.Session.SupportingDocuments)
+                            {
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>@doc.FileName</span>
+                                    <span class="text-muted">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="mb-3 d-flex gap-2">
+                        <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                        <input type="file" name="file" class="form-control" required />
+                        <button type="submit" class="btn btn-outline-success text-nowrap">Upload</button>
+                    </form>
+                    <form method="post" asp-page-handler="Confirm">
+                        <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                        <input type="hidden" name="stage" value="@RhshfProfilingStage.SupportingDocuments" />
+                        <button type="submit" class="btn btn-success">Continue</button>
+                    </form>
+                    break;
+
+                case RhshfProfilingStage.ReviewAndSubmit:
+                    <h4 class="mb-3">Review and submit</h4>
+                    <p class="text-muted">Please confirm the summary below before submitting for credit review.</p>
+                    <dl class="row">
+                        <dt class="col-sm-4">Company</dt><dd class="col-sm-8">@Model.Session.CompanyName</dd>
+                        <dt class="col-sm-4">Total EOP value</dt><dd class="col-sm-8">@Model.Session.Currency @Model.Session.TotalEopValue.ToString("N2")</dd>
+                        <dt class="col-sm-4">Documents attached</dt><dd class="col-sm-8">@Model.Session.SupportingDocuments.Count</dd>
+                    </dl>
+                    <form method="post" asp-page-handler="Confirm">
+                        <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                        <input type="hidden" name="stage" value="@RhshfProfilingStage.ReviewAndSubmit" />
+                        <button type="submit" class="btn btn-success">Submit for credit review</button>
+                    </form>
+                    break;
+            }
+        </div>
+    </div>
+}

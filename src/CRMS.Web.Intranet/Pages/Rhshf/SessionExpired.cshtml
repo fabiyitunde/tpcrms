@@ -1,0 +1,19 @@
+@page "/rhshf/session-expired"
+@model CRMS.Web.Intranet.Pages.Rhshf.SessionExpiredModel
+@{
+    ViewData["Title"] = "Session Expired";
+}
+
+<div class="card shadow-sm">
+    <div class="card-body p-4">
+        <h4 class="mb-3">Your session has expired</h4>
+        <p class="text-muted">
+            For your security, this profiling link is no longer valid — it may have expired, already
+            been used, or been opened for a different case.
+        </p>
+        <p class="text-muted mb-0">
+            Please return to the RH-SHF portal and select <strong>&ldquo;Continue on CRMS&rdquo;</strong>
+            again to resume — a fresh link will be issued automatically.
+        </p>
+    </div>
+</div>

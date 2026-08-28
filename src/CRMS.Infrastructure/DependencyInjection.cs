@@ -34,6 +34,9 @@ using CRMS.Infrastructure.Identity;
 using CRMS.Infrastructure.Persistence;
 using CRMS.Infrastructure.Persistence.Repositories;
 using CRMS.Infrastructure.Persistence.Repositories.Namp;
+using CRMS.Infrastructure.Persistence.Repositories.Rhshf;
+using CRMS.Infrastructure.ExternalServices.Rhshf;
+using CRMS.Application.Rhshf.Interfaces;
 using CRMS.Infrastructure.Workflow;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -695,6 +698,31 @@ public static class DependencyInjection
         // NAMP — Advisory
         services.AddScoped<Application.Namp.Commands.GenerateNampAdvisoryHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampAdvisoryHandler>();
+
+        // RH-SHF — own loan track, independent of NAMP (see docs/rhshf resources/)
+        services.Configure<RhshfSettings>(configuration.GetSection(RhshfSettings.SectionName));
+        services.AddScoped<IRhshfCreditProfileRepository, RhshfCreditProfileRepository>();
+        services.AddScoped<IRhshfTokenService, RhshfTokenService>();
+        services.AddScoped<Application.Rhshf.Commands.SubmitConsolidatedEopHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RefreshRhshfTokenHandler>();
+        services.AddScoped<Application.Rhshf.Commands.VerifyRhshfProfilingTokenHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfProfilingSessionHandler>();
+        services.AddScoped<Application.Rhshf.Commands.EnsureRhshfBureauCheckHandler>();
+        services.AddScoped<Application.Rhshf.Commands.AdvanceRhshfProfilingStageHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UploadRhshfSupportingDocumentHandler>();
+        services.AddScoped<Application.Rhshf.Commands.AppraiseRhshfCaseHandler>();
+        services.AddScoped<Application.Rhshf.Commands.ReviewRhshfRiskHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfStaffQueueHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfCaseWorkspaceHandler>();
+        services.AddScoped<IRhshfCommitteeReviewRepository, RhshfCommitteeReviewRepository>();
+        services.AddScoped<Application.Rhshf.Interfaces.IRhshfCommitteeConfig, RhshfCommitteeConfig>();
+        services.AddScoped<Application.Rhshf.Commands.CastRhshfCommitteeVoteHandler>();
+        services.AddScoped<Application.Rhshf.Commands.ReturnRhshfCommitteeToFacHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfCommitteeReviewHandler>();
+        services.AddScoped<IRhshfOfferRepository, RhshfOfferRepository>();
+        services.AddScoped<Application.Rhshf.Interfaces.IRhshfOfferLetterPdfGenerator, Documents.RhshfOfferLetterPdfGenerator>();
+        services.AddScoped<Application.Rhshf.Commands.RatifyRhshfCaseHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfOfferHandler>();
 
         // Approval Gate
         services.Configure<WorkflowApprovalGateSettings>(configuration.GetSection(WorkflowApprovalGateSettings.SectionName));

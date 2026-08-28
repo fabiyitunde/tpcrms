@@ -19,6 +19,7 @@ using NA = CRMS.Domain.Aggregates.Namp;
 using NF = CRMS.Domain.Aggregates.Notification;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
 using OL = CRMS.Domain.Aggregates.OfferLetter;
+using RH = CRMS.Domain.Aggregates.Rhshf;
 using WF = CRMS.Domain.Aggregates.Workflow;
 
 namespace CRMS.Infrastructure.Persistence;
@@ -141,6 +142,18 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     // Outbox
     public DbSet<CreditCheckOutboxEntry> CreditCheckOutbox => Set<CreditCheckOutboxEntry>();
 
+    // RH-SHF — own loan track, independent of NAMP
+    public DbSet<RH.RhshfCreditProfile> RhshfCreditProfiles => Set<RH.RhshfCreditProfile>();
+    public DbSet<RH.RhshfEopLine> RhshfEopLines => Set<RH.RhshfEopLine>();
+    public DbSet<RH.RhshfIssuedToken> RhshfIssuedTokens => Set<RH.RhshfIssuedToken>();
+    public DbSet<RH.RhshfSupportingDocument> RhshfSupportingDocuments => Set<RH.RhshfSupportingDocument>();
+    public DbSet<RH.RhshfAppraisal> RhshfAppraisals => Set<RH.RhshfAppraisal>();
+    public DbSet<RH.RhshfRiskReview> RhshfRiskReviews => Set<RH.RhshfRiskReview>();
+    public DbSet<RH.RhshfCommitteeReview> RhshfCommitteeReviews => Set<RH.RhshfCommitteeReview>();
+    public DbSet<RH.RhshfCommitteeVote> RhshfCommitteeVotes => Set<RH.RhshfCommitteeVote>();
+    public DbSet<RH.RhshfRatification> RhshfRatifications => Set<RH.RhshfRatification>();
+    public DbSet<RH.RhshfOffer> RhshfOffers => Set<RH.RhshfOffer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -168,6 +181,59 @@ public class CRMSDbContext : DbContext, IUnitOfWork
             entry.State = EntityState.Added;
         }
         foreach (var entry in ChangeTracker.Entries<CM.StandingCommitteeMember>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        // RhshfIssuedToken is NOT append-only like the others here — Consume() legitimately
+        // UPDATEs an existing row's ConsumedAt. A blanket Modified->Added flip (like the ones
+        // above) would wrongly re-INSERT that already-existing row, causing a duplicate-key error
+        // (confirmed live: "Duplicate entry ... for key 'rhshfissuedtokens.PRIMARY'"). Distinguish
+        // the two cases instead: a genuinely NEW token mis-tracked via navigation-discovery has no
+        // real DB snapshot to diff against, so EF marks every property modified; a genuinely
+        // EXISTING token that was actually loaded (via GetByReferenceAsync's Include) and then
+        // Consume()'d only has the properties that really changed (ConsumedAt + audit fields)
+        // marked modified.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfIssuedToken>()
+            .Where(e => e.State == EntityState.Modified && e.Properties.All(p => p.IsModified)))
+        {
+            entry.State = EntityState.Added;
+        }
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfEopLine>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfSupportingDocument>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        // RhshfAppraisal/RhshfRiskReview ARE genuinely append-only (unlike RhshfIssuedToken above) —
+        // never updated after creation, so the blanket flip is safe here.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfAppraisal>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfRiskReview>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        // RhshfCommitteeVote is genuinely append-only (never updated after being cast).
+        // RhshfCommitteeReview itself is NOT in this list — it's an independent aggregate root
+        // loaded/tracked via its own DbSet, not discovered through another aggregate's navigation,
+        // so it never hits this mis-tracking bug in the first place (see RhshfIssuedToken's comment
+        // above for the contrast: that one WAS a child entity of RhshfCreditProfile).
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfCommitteeVote>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        // RhshfRatification is genuinely append-only (never updated after creation). RhshfOffer is
+        // NOT in this list — own aggregate root, own DbSet, same reasoning as RhshfCommitteeReview.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfRatification>()
             .Where(e => e.State == EntityState.Modified))
         {
             entry.State = EntityState.Added;

@@ -26,6 +26,11 @@ builder.Services.AddMemoryCache();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// RH-SHF's public profiling form (Pages/Rhshf/*) — plain Razor Pages, deliberately NOT an
+// interactive Blazor component: anonymous FAC users must not hold open a live SignalR circuit on
+// the same app that serves bank staff. See docs/rhshf resources/ for the full design.
+builder.Services.AddRazorPages();
+
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddAuthorizationCore();
 
@@ -33,7 +38,18 @@ builder.Services.AddAuthorizationCore();
 // instead of crashing with "IAuthenticationService not found".
 // The Blazor circuit manages actual auth state via AuthService.
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options => { options.LoginPath = "/login"; });
+    .AddCookie(options => { options.LoginPath = "/login"; })
+    // RH-SHF's own cookie scheme — completely independent of staff login. Established only after
+    // the §4.2 token is verified+consumed (Phase 2); carries a single claim binding the browser
+    // session to one case reference. Never touches AuthService/AuthenticationStateProvider.
+    .AddCookie("RhshfProfiling", options =>
+    {
+        options.Cookie.Name = "RhshfProfilingAuth";
+        options.ExpireTimeSpan = TimeSpan.FromHours(2);
+        options.SlidingExpiration = true;
+        options.LoginPath = "/rhshf/session-expired";
+        options.AccessDeniedPath = "/rhshf/session-expired";
+    });
 
 // Application service (direct calls to handlers - no HTTP)
 builder.Services.Configure<CRMS.Web.Intranet.Services.BankSettings>(builder.Configuration.GetSection(CRMS.Web.Intranet.Services.BankSettings.SectionName));
@@ -114,6 +130,8 @@ app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+app.MapRazorPages();
 
 // Document file serving endpoints
 app.MapGet("/api/documents/{id:guid}/view", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
