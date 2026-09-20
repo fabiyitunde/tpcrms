@@ -64,6 +64,12 @@ public class LoanProductRepository : ILoanProductRepository
             .FirstOrDefaultAsync(p => p.Type == LoanProductType.Namp && p.Status == ProductStatus.Active, ct);
     }
 
+    public async Task<LoanProduct?> GetActiveRhshfProductAsync(CancellationToken ct = default)
+    {
+        return await _context.LoanProducts
+            .FirstOrDefaultAsync(p => p.Type == LoanProductType.Rhshf && p.Status == ProductStatus.Active, ct);
+    }
+
     public async Task<bool> ExistsAsync(string code, CancellationToken ct = default)
     {
         var normalizedCode = code.ToUpperInvariant();

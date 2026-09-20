@@ -17,6 +17,7 @@ public record RhshfQueueItemDto(
 /// breakdown, and uploaded documents, plus this cycle's appraisal/risk-review history.</summary>
 public record RhshfCaseWorkspaceDto(
     string Reference,
+    Guid SubmissionId,
     RhshfCaseStatus Status,
     RhshfInternalStage? InternalStage,
     int CurrentCycleNumber,
@@ -36,10 +37,31 @@ public record RhshfCaseWorkspaceDto(
     int? BureauDelinquentFacilities,
     decimal? BureauTotalOutstanding,
     decimal? BureauTotalOverdue,
+    string? BureauRawJson,
     List<RhshfSupportingDocumentDto> SupportingDocuments,
     List<RhshfAppraisalDto> Appraisals,
-    List<RhshfRiskReviewDto> RiskReviews);
+    List<RhshfRiskReviewDto> RiskReviews,
+    List<RhshfRatificationDto> Ratifications,
+    RhshfDecisionOutcome? DecisionOutcome,
+    decimal? ApprovedAmount,
+    DateTime? DecidedAt,
+    string? DecidedBy,
+    string? DecisionNotes,
+    DateTime ReceivedAt,
+    DateTime UpdatedAt);
 
 public record RhshfAppraisalDto(int CycleNumber, Guid CreditOfficerId, DateTime AppraisedAt, RhshfAppraisalOutcome Outcome, string? Notes);
 
 public record RhshfRiskReviewDto(int CycleNumber, Guid RiskOfficerId, DateTime ReviewedAt, RhshfRiskReviewOutcome Outcome, string? Notes);
+
+public record RhshfRatificationDto(int CycleNumber, Guid FinalApproverId, DateTime RatifiedAt, RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes);
+
+public record RhshfRoutingConfigDto(
+    Guid Id,
+    string Tier,
+    decimal MinEopValue,
+    decimal MaxEopValue,
+    int Priority,
+    bool IsActive,
+    DateTime CreatedAt
+);

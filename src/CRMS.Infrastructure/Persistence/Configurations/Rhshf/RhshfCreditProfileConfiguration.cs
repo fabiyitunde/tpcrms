@@ -85,6 +85,11 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
             .WithOne()
             .HasForeignKey(x => x.RhshfCreditProfileId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.Disbursements)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
 
@@ -98,6 +103,22 @@ public class RhshfRatificationConfiguration : IEntityTypeConfiguration<RhshfRati
         builder.Property(x => x.Outcome).IsRequired().HasConversion<string>().HasMaxLength(20);
         builder.Property(x => x.ApprovedAmount).HasColumnType("decimal(18,2)");
         builder.Property(x => x.Notes).HasColumnType("longtext");
+    }
+}
+
+public class RhshfDisbursementConfiguration : IEntityTypeConfiguration<RhshfDisbursement>
+{
+    public void Configure(EntityTypeBuilder<RhshfDisbursement> builder)
+    {
+        builder.ToTable("RhshfDisbursements");
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.FineractLoanAccountNumber).HasMaxLength(50);
+        builder.Property(x => x.DisbursedAmount).IsRequired().HasColumnType("decimal(18,2)");
+        builder.Property(x => x.SupplierAccountNumber).IsRequired().HasMaxLength(50);
+        builder.Property(x => x.SupplierName).HasMaxLength(200);
+        builder.Property(x => x.Status).IsRequired().HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.FailureReason).HasColumnType("longtext");
     }
 }
 

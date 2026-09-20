@@ -34,7 +34,8 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
             .Include(x => x.SupportingDocuments)
             .Include(x => x.Appraisals)
             .Include(x => x.RiskReviews)
-            .Include(x => x.Ratifications);
+            .Include(x => x.Ratifications)
+            .Include(x => x.Disbursements);
 
     public async Task AddAsync(RhshfCreditProfile profile, CancellationToken ct = default)
         => await _context.RhshfCreditProfiles.AddAsync(profile, ct);
@@ -47,4 +48,7 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
 
         return await query.OrderBy(x => x.UpdatedAt).ToListAsync(ct);
     }
+
+    public async Task<RhshfSupportingDocument?> GetSupportingDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
+        => await _context.RhshfSupportingDocuments.FirstOrDefaultAsync(x => x.Id == documentId, ct);
 }

@@ -1,0 +1,122 @@
+@page "/rhshf/offer/{reference}"
+@model CRMS.Web.Intranet.Pages.Rhshf.OfferModel
+@using CRMS.Domain.Enums
+@{
+    ViewData["Title"] = "Your Offer";
+}
+
+@if (Model.IsExpired)
+{
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <h4 class="mb-3">Your session has expired</h4>
+            <p class="text-muted mb-0">
+                Please return to the RH-SHF portal and select <strong>&ldquo;Continue on CRMS&rdquo;</strong>
+                again to resume — a fresh link will be issued automatically.
+            </p>
+        </div>
+    </div>
+}
+else if (Model.Workspace is null)
+{
+    <div class="alert alert-danger">Something went wrong loading this case. Please try again.</div>
+}
+else if (Model.Offer is null)
+{
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <h4 class="mb-3">No offer available yet</h4>
+            <p class="text-muted mb-0">There is currently no offer to review for this case.</p>
+        </div>
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger">@Model.ErrorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+    {
+        <div class="alert alert-success">@Model.SuccessMessage</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <h4 class="mb-3">Your RH-SHF Offer</h4>
+            <dl class="row">
+                <dt class="col-sm-4">Company</dt><dd class="col-sm-8">@Model.Workspace.CompanyName</dd>
+                <dt class="col-sm-4">Approved amount</dt><dd class="col-sm-8">@Model.Workspace.Currency @Model.Workspace.TotalEopValue.ToString("N2")</dd>
+                <dt class="col-sm-4">Offer generated</dt><dd class="col-sm-8">@Model.Offer.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy")</dd>
+            </dl>
+
+            <a class="btn btn-outline-success mb-3" href="@Url.Page("Offer", "Download", new { reference = Model.Workspace.Reference })">
+                Download offer document
+            </a>
+
+            @if (Model.Offer.Status != RhshfOfferStatus.Generated)
+            {
+                <div class="alert alert-info">
+                    You @(Model.Offer.Status == RhshfOfferStatus.Accepted ? "accepted" : "declined") this offer
+                    on @Model.Offer.FacRespondedAt?.ToLocalTime().ToString("MMM dd, yyyy HH:mm").
+                </div>
+            }
+            else
+            {
+                <hr />
+                <h5>Upload your signed copy</h5>
+                <p class="text-muted">A signed copy of the offer must be uploaded before you can accept it.</p>
+
+                @if (Model.Offer.SignedDocuments.Count > 0)
+                {
+                    <ul class="list-group mb-3">
+                        @foreach (var doc in Model.Offer.SignedDocuments)
+                        {
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>@doc.FileName</span>
+                                <span class="text-muted">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</span>
+                            </li>
+                        }
+                    </ul>
+                }
+
+                <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="mb-4 d-flex gap-2">
+                    <input type="hidden" name="reference" value="@Model.Workspace.Reference" />
+                    <input type="file" name="file" class="form-control" required />
+                    <button type="submit" class="btn btn-outline-success text-nowrap">Upload</button>
+                </form>
+
+                <hr />
+                <h5>Your decision</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <form method="post" asp-page-handler="Accept">
+                            <input type="hidden" name="reference" value="@Model.Workspace.Reference" />
+                            <div class="mb-2">
+                                <label class="form-label">Comment (optional)</label>
+                                <textarea class="form-control" rows="2" name="notes"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success" @(Model.Offer.SignedDocuments.Count == 0 ? "disabled" : "")>
+                                Accept offer
+                            </button>
+                            @if (Model.Offer.SignedDocuments.Count == 0)
+                            {
+                                <p class="text-muted mt-2"><small>Upload a signed copy above to enable Accept.</small></p>
+                            }
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <form method="post" asp-page-handler="Reject">
+                            <input type="hidden" name="reference" value="@Model.Workspace.Reference" />
+                            <div class="mb-2">
+                                <label class="form-label">Comment (optional)</label>
+                                <textarea class="form-control" rows="2" name="notes"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-outline-danger">Decline offer</button>
+                        </form>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}

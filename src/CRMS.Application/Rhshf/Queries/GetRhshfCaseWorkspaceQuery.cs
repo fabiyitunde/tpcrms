@@ -20,6 +20,7 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
 
         var dto = new RhshfCaseWorkspaceDto(
             Reference: profile.Reference,
+            SubmissionId: profile.SubmissionId,
             Status: profile.Status,
             InternalStage: profile.InternalStage,
             CurrentCycleNumber: profile.CurrentCycleNumber,
@@ -39,12 +40,22 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
             BureauDelinquentFacilities: profile.BureauDelinquentFacilities,
             BureauTotalOutstanding: profile.BureauTotalOutstanding,
             BureauTotalOverdue: profile.BureauTotalOverdue,
+            BureauRawJson: profile.BureauRawJson,
             SupportingDocuments: profile.SupportingDocuments
                 .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt)).ToList(),
             Appraisals: profile.Appraisals
                 .Select(a => new RhshfAppraisalDto(a.CycleNumber, a.CreditOfficerId, a.AppraisedAt, a.Outcome, a.Notes)).ToList(),
             RiskReviews: profile.RiskReviews
-                .Select(r => new RhshfRiskReviewDto(r.CycleNumber, r.RiskOfficerId, r.ReviewedAt, r.Outcome, r.Notes)).ToList());
+                .Select(r => new RhshfRiskReviewDto(r.CycleNumber, r.RiskOfficerId, r.ReviewedAt, r.Outcome, r.Notes)).ToList(),
+            Ratifications: profile.Ratifications
+                .Select(r => new RhshfRatificationDto(r.CycleNumber, r.FinalApproverId, r.RatifiedAt, r.Outcome, r.ApprovedAmount, r.Notes)).ToList(),
+            DecisionOutcome: profile.DecisionOutcome,
+            ApprovedAmount: profile.ApprovedAmount,
+            DecidedAt: profile.DecidedAt,
+            DecidedBy: profile.DecidedBy,
+            DecisionNotes: profile.DecisionNotes,
+            ReceivedAt: profile.ReceivedAt,
+            UpdatedAt: profile.UpdatedAt);
 
         return ApplicationResult<RhshfCaseWorkspaceDto>.Success(dto);
     }

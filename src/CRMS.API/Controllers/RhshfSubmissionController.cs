@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CRMS.Application.Rhshf.Commands;
 using CRMS.Application.Rhshf.DTOs;
+using CRMS.Application.Rhshf.Queries;
 using CRMS.Infrastructure.ExternalServices.Rhshf;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -19,17 +20,20 @@ public class RhshfSubmissionController : ControllerBase
 {
     private readonly SubmitConsolidatedEopHandler _submitHandler;
     private readonly RefreshRhshfTokenHandler _refreshHandler;
+    private readonly GetRhshfCaseStatusHandler _statusHandler;
     private readonly RhshfSettings _settings;
     private readonly ILogger<RhshfSubmissionController> _logger;
 
     public RhshfSubmissionController(
         SubmitConsolidatedEopHandler submitHandler,
         RefreshRhshfTokenHandler refreshHandler,
+        GetRhshfCaseStatusHandler statusHandler,
         IOptions<RhshfSettings> settings,
         ILogger<RhshfSubmissionController> logger)
     {
         _submitHandler = submitHandler;
         _refreshHandler = refreshHandler;
+        _statusHandler = statusHandler;
         _settings = settings.Value;
         _logger = logger;
     }
@@ -80,6 +84,23 @@ public class RhshfSubmissionController : ControllerBase
         var result = await _refreshHandler.Handle(new RefreshRhshfTokenCommand(reference), ct);
         if (!result.IsSuccess)
             return NotFound(new { error = "refresh_failed", message = result.Error });
+
+        return Ok(result.Data);
+    }
+
+    /// <summary>GET /v1/credit-profiles/{reference}/status — §4.5 of the integration brief.</summary>
+    [HttpGet("{reference}/status")]
+    public async Task<IActionResult> Status(string reference, CancellationToken ct)
+    {
+        if (!IsAuthorized())
+        {
+            _logger.LogWarning("RH-SHF status: invalid API key from {RemoteIp}", HttpContext.Connection.RemoteIpAddress);
+            return Unauthorized(new { error = "unauthorized", message = "Invalid or missing API key." });
+        }
+
+        var result = await _statusHandler.Handle(new GetRhshfCaseStatusQuery(reference), ct);
+        if (!result.IsSuccess)
+            return NotFound(new { error = "not_found", message = result.Error });
 
         return Ok(result.Data);
     }

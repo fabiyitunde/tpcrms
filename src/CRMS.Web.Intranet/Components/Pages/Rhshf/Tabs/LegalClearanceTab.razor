@@ -1,0 +1,45 @@
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
+
+<div class="card">
+    <div class="card-header"><h3 class="card-title">Legal Clearance</h3></div>
+
+    @if (History.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">gavel</span></div>
+            <div class="empty-state-title">No legal clearance yet</div>
+            <div class="empty-state-text">No legal clearance has been recorded for this case yet.</div>
+        </div>
+    }
+    else
+    {
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
+            @foreach (var (lc, i) in History.Select((lc, i) => (lc, i)))
+            {
+                <div style="@(i > 0 ? "border-top: 1px solid var(--gray-100); padding-top: 1rem;" : "")">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="badge @OutcomeBadgeClass(lc.Outcome)">@lc.Outcome</span>
+                        <span style="font-size: 0.8rem; color: var(--gray-500);">Cycle @lc.CycleNumber &middot; @lc.ClearedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(lc.Comments))
+                    {
+                        <div style="font-size: 0.875rem; margin-top: 0.4rem; color: var(--gray-700);">@lc.Comments</div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<RhshfLegalClearanceDto> History { get; set; } = [];
+
+    private static string OutcomeBadgeClass(RhshfLegalClearanceOutcome outcome) => outcome switch
+    {
+        RhshfLegalClearanceOutcome.Granted => "badge-success",
+        RhshfLegalClearanceOutcome.Declined => "badge-danger",
+        RhshfLegalClearanceOutcome.Returned => "badge-warning",
+        _ => "badge-gray",
+    };
+}

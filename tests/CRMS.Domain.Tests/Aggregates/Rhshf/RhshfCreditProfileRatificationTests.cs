@@ -46,6 +46,10 @@ public class RhshfCreditProfileRatificationTests
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfInternalStage.AwaitingOfferAcceptance, profile.InternalStage);
         Assert.Single(profile.Ratifications);
+        Assert.Contains(profile.DomainEvents, e => e is RhshfOfferReadyEvent);
+        // §6 #9 regression: Ratification alone must never fire the terminal "Approved" webhook —
+        // only Phase 9's successful Disbursement does.
+        Assert.DoesNotContain(profile.DomainEvents, e => e is RhshfCaseDecidedEvent);
     }
 
     [Fact]

@@ -1,0 +1,78 @@
+@using CRMS.Application.Rhshf.Commands
+@using CRMS.Domain.Enums
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 640px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">checklist</span>Record Eligibility Checklist</h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body" style="overflow-y: auto; flex: 1;">
+            <p class="text-muted">Institutional eligibility criteria per the RH-SHF programme (S/N 15).</p>
+            @foreach (var criterion in Enum.GetValues<RhshfEligibilityCriterion>())
+            {
+                var current = entries[criterion];
+                <div class="form-group" style="border: 1px solid var(--gray-200); border-radius: 6px; padding: 12px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 0.75rem;">
+                        <strong style="font-size: 0.9rem;">@FormatCriterion(criterion)</strong>
+                        <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                            <button type="button" class="btn btn-sm @(current.IsSatisfied ? "btn-success" : "btn-outline-success")" @onclick="() => SetSatisfied(criterion, true)">
+                                <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">check</span>
+                            </button>
+                            <button type="button" class="btn btn-sm @(!current.IsSatisfied ? "btn-danger" : "btn-outline-danger")" @onclick="() => SetSatisfied(criterion, false)">
+                                <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">close</span>
+                            </button>
+                        </div>
+                    </div>
+                    <textarea class="form-control" rows="1" placeholder="Notes (optional)" value="@current.Notes" @oninput="e => SetNotes(criterion, e.Value?.ToString())"></textarea>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="alert alert-danger">@ErrorMessage</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn btn-primary" disabled="@IsSubmitting" @onclick="Submit">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                Record Checklist
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<List<RhshfEligibilityCriterionInput>> OnConfirm { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private Dictionary<RhshfEligibilityCriterion, (bool IsSatisfied, string? Notes)> entries = Enum.GetValues<RhshfEligibilityCriterion>()
+        .ToDictionary(c => c, c => (IsSatisfied: true, Notes: (string?)null));
+
+    private void SetSatisfied(RhshfEligibilityCriterion criterion, bool isSatisfied) => entries[criterion] = (isSatisfied, entries[criterion].Notes);
+    private void SetNotes(RhshfEligibilityCriterion criterion, string? notes) => entries[criterion] = (entries[criterion].IsSatisfied, notes);
+
+    private async Task Submit()
+    {
+        var criteria = entries.Select(kv => new RhshfEligibilityCriterionInput(kv.Key, kv.Value.IsSatisfied, kv.Value.Notes)).ToList();
+        await OnConfirm.InvokeAsync(criteria);
+    }
+
+    private static string FormatCriterion(RhshfEligibilityCriterion criterion) => criterion switch
+    {
+        RhshfEligibilityCriterion.CacIncorporation => "Full incorporation with the Corporate Affairs Commission (CAC)",
+        RhshfEligibilityCriterion.AggregationTrackRecord => "Verifiable track record in agricultural aggregation and logistics",
+        RhshfEligibilityCriterion.OutGrowerNetwork => "Active, mapped out-grower network and farmer clusters",
+        RhshfEligibilityCriterion.WarehousingAndTransport => "Adequate, secure warehousing and transport infrastructure",
+        RhshfEligibilityCriterion.OffTakeAgreements => "Formalized, legally binding market linkage or off-take agreements",
+        RhshfEligibilityCriterion.BoaOperationalAccount => "Operational commercial account with the Bank of Agriculture (BOA)",
+        RhshfEligibilityCriterion.AuditedFinancials => "Valid audited financial statements and statutory compliance filings",
+        RhshfEligibilityCriterion.CleanBureauAndCrmsReports => "Clean Credit Bureau and Central Bank CRMS reports",
+        RhshfEligibilityCriterion.ZeroNplHistory => "Zero history of non-performing loans (NPLs) within the financial system",
+        RhshfEligibilityCriterion.BoaFrameworkCompliance => "Strict compliance with BOA's operational and risk management framework",
+        RhshfEligibilityCriterion.SmallholderBiometricRegistration => "Smallholders formally registered, biometrically captured, and verified under an accredited aggregator",
+        _ => criterion.ToString(),
+    };
+}

@@ -98,6 +98,9 @@ public class RhshfCreditProfile : AggregateRoot
     private readonly List<RhshfRatification> _ratifications = [];
     public IReadOnlyCollection<RhshfRatification> Ratifications => _ratifications.AsReadOnly();
 
+    private readonly List<RhshfDisbursement> _disbursements = [];
+    public IReadOnlyCollection<RhshfDisbursement> Disbursements => _disbursements.AsReadOnly();
+
     protected RhshfCreditProfile() { }
 
     public static Result<RhshfCreditProfile> Create(
@@ -374,10 +377,15 @@ public class RhshfCreditProfile : AggregateRoot
 
     /// <summary>Shared by every stage's Decline outcome — terminal, fires the domain event Phase 10's
     /// webhook dispatcher listens for.</summary>
-    private void Decline(string decidedBy, string? notes)
+    private void Decline(string decidedBy, string? notes) => Terminate(RhshfCaseStatus.Declined, RhshfDecisionOutcome.Declined, decidedBy, notes);
+
+    /// <summary>Shared terminal-transition helper. DecisionOutcome is null for a terminal status
+    /// that isn't actually a credit decision (design doc §6 #10) — e.g. a FAC withdrawing from
+    /// their own offer (Cancelled) is a lapse, not an adjudication, unlike Declined.</summary>
+    private void Terminate(RhshfCaseStatus status, RhshfDecisionOutcome? outcome, string decidedBy, string? notes)
     {
-        Status = RhshfCaseStatus.Declined;
-        DecisionOutcome = RhshfDecisionOutcome.Declined;
+        Status = status;
+        DecisionOutcome = outcome;
         DecidedAt = DateTime.UtcNow;
         DecidedBy = decidedBy;
         DecisionNotes = notes;
@@ -440,7 +448,11 @@ public class RhshfCreditProfile : AggregateRoot
     /// committee members who voted Approve (computed by the Application layer, since committee
     /// voting lives in a separate aggregate this method has no access to). On Ratified, advances to
     /// AwaitingOfferAcceptance directly — offer generation itself is an Application-layer side
-    /// effect (PDF rendering, file storage), not something a domain method can do.</summary>
+    /// effect (PDF rendering, file storage), not something a domain method can do.
+    /// Note: unlike Appraise/ReviewRisk, there is no "already ratified this cycle" guard — Legal
+    /// Clearance's Returned outcome (Phase 8) sends InternalStage back to Ratification within the
+    /// SAME cycle so the Final Approver can re-ratify; the stage guard above is what actually gates
+    /// re-entry (every other path out of Ratification sets InternalStage away from Ratification).</summary>
     public Result Ratify(
         Guid finalApproverId, RhshfRatificationOutcome outcome, decimal? approvedAmount, string? notes,
         RhshfProfilingStage? returnToStage, IReadOnlyCollection<Guid> excludedActorIds)
@@ -449,8 +461,6 @@ public class RhshfCreditProfile : AggregateRoot
             return Result.Failure("Case is not at the ratification stage.");
         if (excludedActorIds.Contains(finalApproverId))
             return Result.Failure("The Final Approver must be a different person from this cycle's appraiser, risk officer, and approving committee members.");
-        if (_ratifications.Any(r => r.CycleNumber == CurrentCycleNumber))
-            return Result.Failure("This cycle has already been ratified.");
         if (outcome == RhshfRatificationOutcome.Ratified && approvedAmount != TotalEopValue)
             return Result.Failure("Approved amount must equal the total EOP value exactly — no partial approval in v1.");
 
@@ -459,7 +469,12 @@ public class RhshfCreditProfile : AggregateRoot
         switch (outcome)
         {
             case RhshfRatificationOutcome.Ratified:
+                // Pre-Phase-9, nothing read this off the profile itself (only off the
+                // RhshfRatification child record) — Disbursement (Phase 9) is the first stage that
+                // needs the ratified amount available directly on the aggregate.
+                ApprovedAmount = approvedAmount;
                 InternalStage = RhshfInternalStage.AwaitingOfferAcceptance;
+                AddDomainEvent(new RhshfOfferReadyEvent(Id));
                 break;
             case RhshfRatificationOutcome.ReturnToFac:
                 ReturnToFac(returnToStage);
@@ -467,6 +482,119 @@ public class RhshfCreditProfile : AggregateRoot
             case RhshfRatificationOutcome.Declined:
                 Decline("CRMS Ratification", notes);
                 break;
+        }
+
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>FAC accepted the offer (design doc §3.6, Phase 7) — advances to LegalClearance.
+    /// Called by the Application layer once RhshfOffer.Accept() succeeds, since the offer itself
+    /// (and its signed-document precondition) lives in a separate aggregate.</summary>
+    public Result AdvanceToLegalClearance()
+    {
+        if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.AwaitingOfferAcceptance)
+            return Result.Failure("Case is not awaiting offer acceptance.");
+
+        InternalStage = RhshfInternalStage.LegalClearance;
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>FAC rejected the offer — a withdrawal, not a bank decision (design doc §6 #10), so
+    /// this maps to Cancelled rather than Declined and DecisionOutcome stays null.</summary>
+    public Result CancelDueToOfferRejection(string? notes)
+    {
+        if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.AwaitingOfferAcceptance)
+            return Result.Failure("Case is not awaiting offer acceptance.");
+
+        Terminate(RhshfCaseStatus.Cancelled, outcome: null, decidedBy: "FAC", notes: notes);
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>That cycle's ratifying Final Approver, if any — the Application layer needs this to
+    /// enforce the Legal Officer/Final Approver distinctness check when creating an
+    /// RhshfLegalClearance record (design doc §3.6, Phase 8), since legal clearance lives in its own
+    /// aggregate with no access to this profile's Ratifications collection.</summary>
+    public Guid? GetCurrentCycleFinalApproverId()
+        => _ratifications.Where(r => r.CycleNumber == CurrentCycleNumber)
+            .OrderByDescending(r => r.RatifiedAt).FirstOrDefault()?.FinalApproverId;
+
+    /// <summary>Legal Clearance Granted — fifth stage (design doc §3.6, Phase 8). Called by the
+    /// Application layer once RhshfLegalClearance.Create() succeeds with Granted, since legal
+    /// clearance lives in a separate aggregate.</summary>
+    public Result AdvanceToDisbursement()
+    {
+        if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.LegalClearance)
+            return Result.Failure("Case is not at the legal clearance stage.");
+
+        InternalStage = RhshfInternalStage.Disbursement;
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>Legal Clearance Returned — routes back to Ratification, not Appraisal, for the same
+    /// cycle (design doc §6 #12: a legal issue isn't a re-appraisal of the credit). Unlike every
+    /// other ReturnToFac path, the case stays UnderReview — this is an internal re-route, not a
+    /// round-trip to the FAC.</summary>
+    public Result ReturnToRatificationFromLegal()
+    {
+        if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.LegalClearance)
+            return Result.Failure("Case is not at the legal clearance stage.");
+
+        InternalStage = RhshfInternalStage.Ratification;
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>Legal Clearance Declined — terminal, same as every other stage's Decline (design doc
+    /// §6 #9's timing question applies the same way it does to Phase 7's offer rejection: a negative
+    /// terminal outcome is reported immediately, unlike the deferred "Approved" signal).</summary>
+    public Result DeclineAtLegalClearance(string? notes)
+    {
+        if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.LegalClearance)
+            return Result.Failure("Case is not at the legal clearance stage.");
+
+        Decline("CRMS Legal Clearance", notes);
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>Disbursement Officer's booking attempt — sixth and final stage (design doc §3.6,
+    /// Phase 9). disbursedAmount must equal the ratified ApprovedAmount — checked here regardless of
+    /// outcome, since the Application layer always constructs the booking request off ApprovedAmount
+    /// and a mismatch means something upstream is wrong, not a legitimate Fineract failure to record.
+    /// On Booked: this is the ONLY point that maps external status to Approved (design doc §6 #9 —
+    /// deliberately deferred past Ratification/LegalClearance/AwaitingOfferAcceptance, any of which
+    /// could still have killed the case). On Failed: recorded for audit/retry, no state change — the
+    /// case stays at Disbursement, not regressed to an earlier stage.</summary>
+    public Result RecordDisbursementAttempt(
+        Guid disbursementOfficerId, decimal disbursedAmount, string supplierAccountNumber, string? supplierName,
+        RhshfDisbursementStatus status, long? fineractLoanId, string? fineractLoanAccountNumber, string? failureReason)
+    {
+        if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.Disbursement)
+            return Result.Failure("Case is not at the disbursement stage.");
+        if (disbursedAmount != ApprovedAmount)
+            return Result.Failure("Disbursed amount must equal the ratified approved amount.");
+        if (string.IsNullOrWhiteSpace(supplierAccountNumber))
+            return Result.Failure("The input-supplier account number is required to record a disbursement.");
+
+        _disbursements.Add(new RhshfDisbursement(
+            Id, CurrentCycleNumber, disbursementOfficerId, disbursedAmount, supplierAccountNumber, supplierName,
+            status, fineractLoanId, fineractLoanAccountNumber, failureReason));
+
+        if (status == RhshfDisbursementStatus.Booked)
+        {
+            InternalStage = RhshfInternalStage.Completed;
+            Status = RhshfCaseStatus.Approved;
+            DecisionOutcome = RhshfDecisionOutcome.Approved;
+            DecidedAt = DateTime.UtcNow;
+            DecidedBy = "CRMS Disbursement";
+            DecisionNotes = fineractLoanAccountNumber is not null
+                ? $"Booked as Fineract loan {fineractLoanAccountNumber}."
+                : null;
+            AddDomainEvent(new RhshfCaseDecidedEvent(Id));
         }
 
         UpdatedAt = DateTime.UtcNow;
@@ -483,8 +611,18 @@ public class RhshfCreditProfile : AggregateRoot
     }
 }
 
-/// <summary>Raised whenever a case reaches a terminal decision (Approved or Declined), from any of
-/// the pipeline's several possible trigger points (design doc §6 #9). Phase 10's webhook dispatcher
-/// listens for this — kept minimal (just the id) since the handler re-loads the aggregate to build
-/// the actual webhook payload, rather than duplicating that shape here.</summary>
+/// <summary>Raised whenever a case reaches a terminal (or terminal-like) outcome — Approved,
+/// Declined, or Cancelled (a FAC withdrawal, §6 #10, which isn't really "decided" but is still the
+/// end of the case) — from any of the pipeline's several possible trigger points (design doc §6 #9).
+/// Phase 10's webhook dispatcher listens for this — kept minimal (just the id) since the handler
+/// re-loads the aggregate to build the actual webhook payload, rather than duplicating that shape
+/// here.</summary>
 public record RhshfCaseDecidedEvent(Guid RhshfCreditProfileId) : DomainEvent;
+
+/// <summary>Raised when Ratify() reaches the Ratified outcome (design doc §3.6, Phase 6) — added
+/// retroactively in Phase 10, since Phase 6 built Ratify() without it. Non-terminal: the case stays
+/// UnderReview (§6 #9), but the portal needs a heads-up to send the FAC back to review the offer
+/// (§6 #10's non-terminal actionRequired: "REVIEW_OFFER" signal). Fires once per Ratified outcome,
+/// including a re-ratification after a Legal Clearance Returned within the same cycle (Phase 8) —
+/// each is its own offer the FAC must separately act on.</summary>
+public record RhshfOfferReadyEvent(Guid RhshfCreditProfileId) : DomainEvent;

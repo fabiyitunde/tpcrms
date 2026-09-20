@@ -1,0 +1,75 @@
+@using CRMS.Domain.Enums
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">groups</span>@Title</h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">@(Intent == "ReturnToFac" ? "Notes (required)" : "Comment (optional)")</label>
+                <textarea class="form-control" rows="3" @bind="notes" placeholder="Enter notes..."></textarea>
+            </div>
+            @if (Intent == "ReturnToFac")
+            {
+                <div class="form-group">
+                    <label class="form-label">Reopen the FAC's form at:</label>
+                    <select class="form-control" @bind="returnToStage">
+                        @foreach (var stage in Enum.GetValues<RhshfProfilingStage>())
+                        {
+                            <option value="@stage">@stage</option>
+                        }
+                    </select>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
+            {
+                <div class="alert alert-danger">@(ErrorMessage ?? clientError)</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn @ConfirmButtonClass" disabled="@IsSubmitting" @onclick="Confirm">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                @ConfirmLabel
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Intent { get; set; } = "Approve";
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<(RhshfCommitteeVoteChoice Vote, string? Comment)> OnVote { get; set; }
+    [Parameter] public EventCallback<(string Notes, RhshfProfilingStage ReturnToStage)> OnReturnToFac { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private string notes = string.Empty;
+    private string? clientError;
+    private RhshfProfilingStage returnToStage = RhshfProfilingStage.ReviewAndSubmit;
+
+    private string Title => Intent switch { "ReturnToFac" => "Return to FAC", "Reject" => "Cast Reject Vote", "Abstain" => "Cast Abstain Vote", _ => "Cast Approve Vote" };
+    private string ConfirmLabel => Intent switch { "ReturnToFac" => "Return to FAC", _ => $"Confirm {Intent}" };
+    private string ConfirmButtonClass => Intent switch { "Reject" => "btn-danger", "ReturnToFac" => "btn-warning", "Abstain" => "btn-secondary", _ => "btn-success" };
+
+    private async Task Confirm()
+    {
+        if (Intent == "ReturnToFac")
+        {
+            if (string.IsNullOrWhiteSpace(notes))
+            {
+                clientError = "Notes are required to return a case to the FAC.";
+                return;
+            }
+            clientError = null;
+            await OnReturnToFac.InvokeAsync((notes, returnToStage));
+            return;
+        }
+
+        clientError = null;
+        var vote = Enum.Parse<RhshfCommitteeVoteChoice>(Intent);
+        await OnVote.InvokeAsync((vote, string.IsNullOrWhiteSpace(notes) ? null : notes));
+    }
+}

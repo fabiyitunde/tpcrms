@@ -14,13 +14,16 @@ public class CastRhshfCommitteeVoteHandler : IRequestHandler<CastRhshfCommitteeV
 {
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfCommitteeReviewRepository _committeeRepo;
+    private readonly IStandingCommitteeRepository _standingCommitteeRepo;
     private readonly IUnitOfWork _uow;
 
     public CastRhshfCommitteeVoteHandler(
-        IRhshfCreditProfileRepository repo, IRhshfCommitteeReviewRepository committeeRepo, IUnitOfWork uow)
+        IRhshfCreditProfileRepository repo, IRhshfCommitteeReviewRepository committeeRepo,
+        IStandingCommitteeRepository standingCommitteeRepo, IUnitOfWork uow)
     {
         _repo = repo;
         _committeeRepo = committeeRepo;
+        _standingCommitteeRepo = standingCommitteeRepo;
         _uow = uow;
     }
 
@@ -35,6 +38,12 @@ public class CastRhshfCommitteeVoteHandler : IRequestHandler<CastRhshfCommitteeV
         var review = await _committeeRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
         if (review is null)
             return ApplicationResult.Failure("No committee review found for this case's current cycle.");
+
+        // Roster is resolved live (not snapshotted on the review) — same tier+branch lookup used to
+        // size the review at creation time, shared with NAMP's StandingCommittee module.
+        var standingCommittee = await _standingCommitteeRepo.GetByCommitteeTypeAndLocationAsync(review.Tier, review.BranchId, ct);
+        if (standingCommittee is null || standingCommittee.Members.All(m => m.UserId != request.UserId))
+            return ApplicationResult.Failure("You are not a member of the committee this case is routed to.");
 
         var excludedActorIds = profile.GetCurrentCycleAppraisalAndRiskActorIds();
         var voteResult = review.CastVote(request.UserId, request.Vote, request.Comment, excludedActorIds);

@@ -6,7 +6,18 @@ namespace CRMS.Application.Rhshf.Queries;
 
 public record GetRhshfOfferQuery(string Reference) : IRequest<ApplicationResult<RhshfOfferDto>>;
 
-public record RhshfOfferDto(int CycleNumber, DateTime GeneratedAt, string OfferDocumentPath, RhshfOfferStatus Status);
+public record RhshfOfferDocumentDto(Guid Id, string FileName, long SizeBytes, DateTime UploadedAt);
+
+/// <summary>Used by both the staff-side workspace (Phase 6) and the FAC-facing offer-acceptance
+/// page (Phase 7) — same underlying data, two different audiences.</summary>
+public record RhshfOfferDto(
+    int CycleNumber,
+    DateTime GeneratedAt,
+    string OfferDocumentPath,
+    RhshfOfferStatus Status,
+    DateTime? FacRespondedAt,
+    string? FacResponseNotes,
+    List<RhshfOfferDocumentDto> SignedDocuments);
 
 public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, ApplicationResult<RhshfOfferDto>>
 {
@@ -29,7 +40,9 @@ public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, Applicat
         if (offer is null)
             return ApplicationResult<RhshfOfferDto>.Failure("No offer has been generated for this case's current cycle.");
 
-        return ApplicationResult<RhshfOfferDto>.Success(
-            new RhshfOfferDto(offer.CycleNumber, offer.GeneratedAt, offer.OfferDocumentPath, offer.Status));
+        return ApplicationResult<RhshfOfferDto>.Success(new RhshfOfferDto(
+            offer.CycleNumber, offer.GeneratedAt, offer.OfferDocumentPath, offer.Status,
+            offer.FacRespondedAt, offer.FacResponseNotes,
+            offer.Documents.Select(d => new RhshfOfferDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt)).ToList()));
     }
 }

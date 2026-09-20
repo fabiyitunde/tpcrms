@@ -4,7 +4,8 @@ public enum LoanProductType
 {
     Retail,
     Corporate,
-    Namp
+    Namp,
+    Rhshf
 }
 
 public enum ProductStatus

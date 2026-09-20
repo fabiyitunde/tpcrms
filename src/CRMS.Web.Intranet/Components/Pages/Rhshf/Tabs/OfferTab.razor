@@ -1,0 +1,117 @@
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
+
+<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3 class="card-title">Offer</h3>
+                <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">Read-only — accepting/rejecting the offer is the FAC's own action on their offer-acceptance page.</div>
+            </div>
+            @if (Offer is not null)
+            {
+                <span class="badge @StatusBadgeClass(Offer.Status)">@Offer.Status</span>
+            }
+        </div>
+
+        @if (Offer is null)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">request_quote</span></div>
+                <div class="empty-state-title">No offer yet</div>
+                <div class="empty-state-text">No offer has been generated for this cycle yet.</div>
+            </div>
+        }
+        else
+        {
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    @FieldChip("Approved Amount", $"{Currency} {TotalEopValue:N2}")
+                    @FieldChip("Generated", Offer.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
+                    @FieldChip("FAC Responded", Offer.FacRespondedAt?.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
+                </div>
+                @if (!string.IsNullOrEmpty(Offer.FacResponseNotes))
+                {
+                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-100);">
+                        <div class="field-chip-label" style="margin-bottom: 0.35rem;">FAC Notes</div>
+                        <div style="font-size: 0.875rem; color: var(--gray-700);">@Offer.FacResponseNotes</div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    @if (Offer is not null)
+    {
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Signed Copies</h3>
+                <span class="badge badge-gray">@Offer.SignedDocuments.Count</span>
+            </div>
+            @if (Offer.SignedDocuments.Count == 0)
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon"><span class="material-symbols-outlined">draw</span></div>
+                    <div class="empty-state-title">Not uploaded yet</div>
+                    <div class="empty-state-text">The FAC has not uploaded a signed copy yet.</div>
+                </div>
+            }
+            else
+            {
+                <div class="table-wrapper">
+                    <table class="table">
+                        <thead><tr><th>File</th><th style="text-align: right;">Size</th><th>Uploaded</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var doc in Offer.SignedDocuments)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: var(--gray-500);">attach_file</span>
+                                        @doc.FileName
+                                    </td>
+                                    <td style="text-align: right; font-size: 0.8rem; color: var(--gray-500);">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</td>
+                                    <td style="font-size: 0.8rem; color: var(--gray-500);">@doc.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td>
+                                        <button class="btn btn-ghost btn-sm" title="Download" @onclick='() => OnDownload.InvokeAsync(doc.Id)'>
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public RhshfOfferDto? Offer { get; set; }
+    [Parameter] public string Currency { get; set; } = "NGN";
+    [Parameter] public decimal TotalEopValue { get; set; }
+    [Parameter] public EventCallback<Guid> OnDownload { get; set; }
+
+    private static RenderFragment FieldChip(string label, string? value) => __builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "field-chip");
+        __builder.OpenElement(2, "div");
+        __builder.AddAttribute(3, "class", "field-chip-label");
+        __builder.AddContent(4, label);
+        __builder.CloseElement();
+        __builder.OpenElement(5, "div");
+        __builder.AddAttribute(6, "class", "field-chip-value");
+        __builder.AddContent(7, value);
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
+
+    private static string StatusBadgeClass(RhshfOfferStatus status) => status switch
+    {
+        RhshfOfferStatus.Accepted => "badge-success",
+        RhshfOfferStatus.Rejected or RhshfOfferStatus.Expired => "badge-danger",
+        _ => "badge-warning",
+    };
+}

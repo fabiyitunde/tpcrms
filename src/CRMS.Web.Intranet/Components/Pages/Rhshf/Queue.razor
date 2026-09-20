@@ -4,6 +4,7 @@
 @using CRMS.Domain.Enums
 @inject ApplicationService AppService
 @inject AuthService AuthService
+@inject NavigationManager Navigation
 
 <PageTitle>RH-SHF Queue - CRMS</PageTitle>
 
@@ -63,6 +64,26 @@
             }
         </div>
     }
+    @if (CanClearLegally)
+    {
+        <div class="tab @(activeStage == RhshfInternalStage.LegalClearance ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.LegalClearance)'>
+            Legal Clearance
+            @if (queue.Count > 0 && activeStage == RhshfInternalStage.LegalClearance)
+            {
+                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
+            }
+        </div>
+    }
+    @if (CanBookDisbursement)
+    {
+        <div class="tab @(activeStage == RhshfInternalStage.Disbursement ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Disbursement)'>
+            Disbursement
+            @if (queue.Count > 0 && activeStage == RhshfInternalStage.Disbursement)
+            {
+                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
+            }
+        </div>
+    }
 </div>
 
 <div class="card">
@@ -82,7 +103,7 @@
                     <tr>
                         <th>Reference</th>
                         <th>Company</th>
-                        <th class="text-end">Total EOP Value</th>
+                        <th style="text-align: right;">Total EOP Value</th>
                         <th>Cycle</th>
                         <th>Updated</th>
                     </tr>
@@ -93,7 +114,7 @@
                         <tr style="cursor: pointer;" @onclick="() => OpenReview(item.Reference)">
                             <td><code>@item.Reference</code></td>
                             <td>@item.CompanyName</td>
-                            <td class="text-end">@item.Currency @item.TotalEopValue.ToString("N2")</td>
+                            <td style="text-align: right;">@item.Currency @item.TotalEopValue.ToString("N2")</td>
                             <td>@item.CurrentCycleNumber</td>
                             <td>@item.UpdatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
                         </tr>
@@ -104,22 +125,18 @@
     </div>
 </div>
 
-@if (selectedReference is not null)
-{
-    <RhshfReviewModal Reference="@selectedReference" Stage="@activeStage" OnClose="CloseReview" OnDecided="OnDecided" />
-}
-
 @code {
     private RhshfInternalStage activeStage = RhshfInternalStage.Appraisal;
     private List<RhshfQueueItemDto> queue = [];
     private bool isLoading;
     private string? pageError;
-    private string? selectedReference;
 
     private bool CanAppraise => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer") ?? false;
     private bool CanReviewRisk => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager") ?? false;
     private bool CanVoteOnCommittee => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CommitteeMember") ?? false;
     private bool CanRatify => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "FinalApprover") ?? false;
+    private bool CanClearLegally => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "LegalOfficer") ?? false;
+    private bool CanBookDisbursement => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "DisbursementOfficer") ?? false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -129,6 +146,10 @@
             activeStage = RhshfInternalStage.CommitteeVoting;
         else if (!CanAppraise && !CanReviewRisk && !CanVoteOnCommittee && CanRatify)
             activeStage = RhshfInternalStage.Ratification;
+        else if (!CanAppraise && !CanReviewRisk && !CanVoteOnCommittee && !CanRatify && CanClearLegally)
+            activeStage = RhshfInternalStage.LegalClearance;
+        else if (!CanAppraise && !CanReviewRisk && !CanVoteOnCommittee && !CanRatify && !CanClearLegally && CanBookDisbursement)
+            activeStage = RhshfInternalStage.Disbursement;
 
         await LoadQueue();
     }
@@ -161,12 +182,5 @@
         }
     }
 
-    private void OpenReview(string reference) => selectedReference = reference;
-    private void CloseReview() => selectedReference = null;
-
-    private async Task OnDecided()
-    {
-        selectedReference = null;
-        await LoadQueue();
-    }
+    private void OpenReview(string reference) => Navigation.NavigateTo($"/rhshf/detail/{reference}");
 }

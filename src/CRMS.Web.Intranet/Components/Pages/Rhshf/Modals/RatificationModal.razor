@@ -1,0 +1,78 @@
+@using CRMS.Domain.Enums
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">task_alt</span>@Title</h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body">
+            @if (Intent == "Ratified")
+            {
+                <p class="text-muted">Approved amount must equal the total EOP value exactly — <strong>@Currency @TotalEopValue.ToString("N2")</strong>.</p>
+            }
+            <div class="form-group">
+                <label class="form-label">Notes @(RequiresNotes ? "(required)" : "(optional)")</label>
+                <textarea class="form-control" rows="3" @bind="notes" placeholder="Enter notes..."></textarea>
+            </div>
+            @if (Intent == "ReturnToFac")
+            {
+                <div class="form-group">
+                    <label class="form-label">Reopen the FAC's form at:</label>
+                    <select class="form-control" @bind="returnToStage">
+                        @foreach (var stage in Enum.GetValues<RhshfProfilingStage>())
+                        {
+                            <option value="@stage">@stage</option>
+                        }
+                    </select>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
+            {
+                <div class="alert alert-danger">@(ErrorMessage ?? clientError)</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn @ConfirmButtonClass" disabled="@IsSubmitting" @onclick="Confirm">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                @ConfirmLabel
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Intent { get; set; } = "Ratified";
+    [Parameter] public decimal TotalEopValue { get; set; }
+    [Parameter] public string Currency { get; set; } = "NGN";
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<(RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage)> OnConfirm { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private string notes = string.Empty;
+    private string? clientError;
+    private RhshfProfilingStage returnToStage = RhshfProfilingStage.ReviewAndSubmit;
+
+    private bool RequiresNotes => Intent != "Ratified";
+    private string Title => Intent switch { "ReturnToFac" => "Return to FAC", "Declined" => "Decline Ratification", _ => "Ratify Case" };
+    private string ConfirmLabel => Intent switch { "ReturnToFac" => "Return to FAC", "Declined" => "Confirm Decline", _ => $"Ratify ({Currency} {TotalEopValue:N2})" };
+    private string ConfirmButtonClass => Intent switch { "Declined" => "btn-danger", "ReturnToFac" => "btn-warning", _ => "btn-success" };
+
+    private async Task Confirm()
+    {
+        if (RequiresNotes && string.IsNullOrWhiteSpace(notes))
+        {
+            clientError = "Notes are required for this decision.";
+            return;
+        }
+        clientError = null;
+        var outcome = Enum.Parse<RhshfRatificationOutcome>(Intent);
+        await OnConfirm.InvokeAsync((
+            outcome,
+            outcome == RhshfRatificationOutcome.Ratified ? TotalEopValue : null,
+            string.IsNullOrWhiteSpace(notes) ? null : notes,
+            Intent == "ReturnToFac" ? returnToStage : null));
+    }
+}

@@ -488,6 +488,53 @@ a:hover {
     border-top: 1px solid var(--gray-100);
 }
 
+/* Reusable info chip — label + value pair inside a card, laid out in a grid by the caller */
+.field-chip {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-100);
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field-chip:hover {
+    border-color: var(--primary-200);
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.field-chip-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gray-500);
+    margin-bottom: 0.2rem;
+}
+
+.field-chip-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--gray-900);
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+/* Reusable sidebar summary row — label/value pair, dashed divider */
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    font-size: 0.875rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px dashed var(--gray-200);
+}
+
+.summary-row:last-child { border-bottom: none; padding-bottom: 0; }
+.summary-row-label { color: var(--gray-500); }
+.summary-row-value { font-weight: 700; color: var(--gray-900); text-align: right; }
+
 /* Stat Cards */
 .stat-card {
     background: white;
@@ -627,6 +674,35 @@ a:hover {
     background: var(--gray-100);
 }
 
+.btn-warning {
+    background: var(--warning-500);
+    color: #1f2937;
+}
+
+.btn-warning:hover:not(:disabled) {
+    background: var(--warning-600);
+}
+
+.btn-outline-success {
+    background: transparent;
+    border: 1px solid var(--success-500);
+    color: var(--success-600);
+}
+
+.btn-outline-success:hover:not(:disabled) {
+    background: var(--success-50);
+}
+
+.btn-outline-danger {
+    background: transparent;
+    border: 1px solid var(--danger-500);
+    color: var(--danger-600);
+}
+
+.btn-outline-danger:hover:not(:disabled) {
+    background: var(--danger-50);
+}
+
 .btn-sm {
     padding: var(--space-1) var(--space-3);
     font-size: var(--text-xs);
@@ -754,6 +830,8 @@ a:hover {
 .badge-warning { background: var(--warning-50); color: var(--warning-600); }
 .badge-danger { background: var(--danger-50); color: var(--danger-600); }
 .badge-gray { background: var(--gray-100); color: var(--gray-600); }
+.badge-secondary { background: var(--gray-100); color: var(--gray-600); }
+.badge-info { background: var(--primary-100); color: var(--primary-700); }
 
 .status-dot {
     width: 8px;

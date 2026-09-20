@@ -15,6 +15,7 @@ public class RhshfCommitteeReviewConfiguration : IEntityTypeConfiguration<RhshfC
 
         builder.Property(x => x.FinalDecision).HasConversion<string>().HasMaxLength(20);
         builder.Property(x => x.Notes).HasColumnType("longtext");
+        builder.Property(x => x.Tier).IsRequired().HasConversion<string>().HasMaxLength(30);
 
         builder.HasIndex(x => new { x.RhshfCreditProfileId, x.CycleNumber }).IsUnique();
 

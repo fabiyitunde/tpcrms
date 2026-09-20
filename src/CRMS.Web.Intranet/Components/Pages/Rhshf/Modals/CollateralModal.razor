@@ -1,0 +1,105 @@
+@using CRMS.Application.Rhshf.Commands
+@using CRMS.Domain.Enums
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 520px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">security</span>Record Collateral Instrument</h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body" style="overflow-y: auto; flex: 1;">
+            <div class="form-group">
+                <label class="form-label">Instrument Type</label>
+                <select class="form-control" @bind="type">
+                    <option value="@RhshfCollateralType.BankGuarantee">Bank Guarantee</option>
+                    <option value="@RhshfCollateralType.NirsalCrg">NIRSAL Credit Risk Guarantee</option>
+                    <option value="@RhshfCollateralType.LegalMortgage">Legal Mortgage</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Reference Number</label>
+                <input class="form-control" @bind="referenceNumber" />
+            </div>
+
+            @if (type == RhshfCollateralType.BankGuarantee)
+            {
+                <div class="form-group"><label class="form-label">Guarantor Bank Name</label><input class="form-control" @bind="guarantorBankName" /></div>
+                <div class="form-group"><label class="form-label">Guarantee Amount</label><input type="number" class="form-control" @bind="guaranteeAmount" /></div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" @bind="isUnconditional" />
+                        <span>100% unconditional</span>
+                    </label>
+                </div>
+            }
+            else if (type == RhshfCollateralType.NirsalCrg)
+            {
+                <div class="form-group"><label class="form-label">CRG Coverage (%)</label><input type="number" class="form-control" @bind="crgCoveragePercentage" /></div>
+            }
+            else if (type == RhshfCollateralType.LegalMortgage)
+            {
+                <div class="form-group"><label class="form-label">Property Description</label><textarea class="form-control" rows="2" @bind="propertyDescription"></textarea></div>
+                <div class="form-group"><label class="form-label">Property Value</label><input type="number" class="form-control" @bind="propertyValue" /></div>
+                <div class="form-group"><label class="form-label">Title Reference Number</label><input class="form-control" @bind="titleReferenceNumber" /></div>
+                <div class="form-group"><label class="form-label">Registration Authority</label><input class="form-control" @bind="registrationAuthority" /></div>
+                <div class="form-group">
+                    <label class="form-label">Perfection Status</label>
+                    <select class="form-control" @bind="perfectionStatus">
+                        <option value="@RhshfCollateralPerfectionStatus.Pending">Pending</option>
+                        <option value="@RhshfCollateralPerfectionStatus.Perfected">Perfected</option>
+                    </select>
+                </div>
+            }
+
+            <div class="form-group"><label class="form-label">Notes (optional)</label><textarea class="form-control" rows="2" @bind="notes"></textarea></div>
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="alert alert-danger">@ErrorMessage</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn btn-primary" disabled="@IsSubmitting" @onclick="Submit">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                Record Instrument
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<RecordRhshfCollateralCommand> OnConfirm { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private RhshfCollateralType type = RhshfCollateralType.BankGuarantee;
+    private string? referenceNumber;
+    private string? notes;
+    private string? guarantorBankName;
+    private decimal? guaranteeAmount;
+    private bool isUnconditional = true;
+    private decimal? crgCoveragePercentage;
+    private string? propertyDescription;
+    private decimal? propertyValue;
+    private string? titleReferenceNumber;
+    private string? registrationAuthority;
+    private RhshfCollateralPerfectionStatus perfectionStatus = RhshfCollateralPerfectionStatus.Pending;
+
+    private async Task Submit()
+    {
+        // Reference is filled in by the container, which is the only thing that actually knows it.
+        await OnConfirm.InvokeAsync(new RecordRhshfCollateralCommand(
+            string.Empty, Guid.Empty, type, notes,
+            referenceNumber, null, null,
+            type == RhshfCollateralType.BankGuarantee ? guarantorBankName : null,
+            type == RhshfCollateralType.BankGuarantee ? guaranteeAmount : null,
+            type == RhshfCollateralType.BankGuarantee ? isUnconditional : null,
+            type == RhshfCollateralType.NirsalCrg ? crgCoveragePercentage : null,
+            type == RhshfCollateralType.LegalMortgage ? propertyDescription : null,
+            type == RhshfCollateralType.LegalMortgage ? propertyValue : null,
+            type == RhshfCollateralType.LegalMortgage ? titleReferenceNumber : null,
+            type == RhshfCollateralType.LegalMortgage ? registrationAuthority : null,
+            type == RhshfCollateralType.LegalMortgage ? perfectionStatus : null));
+    }
+}

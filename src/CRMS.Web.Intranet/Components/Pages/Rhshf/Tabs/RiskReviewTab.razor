@@ -1,0 +1,45 @@
+@using CRMS.Application.Rhshf.DTOs
+@using CRMS.Domain.Enums
+
+<div class="card">
+    <div class="card-header"><h3 class="card-title">Risk Review</h3></div>
+
+    @if (RiskReviews.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">shield_person</span></div>
+            <div class="empty-state-title">No risk review yet</div>
+            <div class="empty-state-text">No risk review has been recorded for this case yet.</div>
+        </div>
+    }
+    else
+    {
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
+            @foreach (var (r, i) in RiskReviews.Select((r, i) => (r, i)))
+            {
+                <div style="@(i > 0 ? "border-top: 1px solid var(--gray-100); padding-top: 1rem;" : "")">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="badge @OutcomeBadgeClass(r.Outcome)">@r.Outcome</span>
+                        <span style="font-size: 0.8rem; color: var(--gray-500);">Cycle @r.CycleNumber &middot; @r.ReviewedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(r.Notes))
+                    {
+                        <div style="font-size: 0.875rem; margin-top: 0.4rem; color: var(--gray-700);">@r.Notes</div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<RhshfRiskReviewDto> RiskReviews { get; set; } = [];
+
+    private static string OutcomeBadgeClass(RhshfRiskReviewOutcome outcome) => outcome switch
+    {
+        RhshfRiskReviewOutcome.Cleared => "badge-success",
+        RhshfRiskReviewOutcome.Decline => "badge-danger",
+        RhshfRiskReviewOutcome.ReturnToFac => "badge-warning",
+        _ => "badge-gray",
+    };
+}

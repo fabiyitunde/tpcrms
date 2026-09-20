@@ -6,13 +6,13 @@ namespace CRMS.Domain.Tests.Aggregates.Rhshf;
 public class RhshfCommitteeReviewTests
 {
     private static RhshfCommitteeReview CreateReview(int requiredVotes = 3, int minimumApprovalVotes = 2)
-        => RhshfCommitteeReview.Create(Guid.NewGuid(), cycleNumber: 1, requiredVotes, minimumApprovalVotes).Value;
+        => RhshfCommitteeReview.Create(Guid.NewGuid(), cycleNumber: 1, requiredVotes, minimumApprovalVotes, CommitteeType.BranchCredit, null).Value;
 
     [Fact]
     public void Create_WithInvalidThresholds_Fails()
     {
-        Assert.True(RhshfCommitteeReview.Create(Guid.NewGuid(), 1, requiredVotes: 0, minimumApprovalVotes: 1).IsFailure);
-        Assert.True(RhshfCommitteeReview.Create(Guid.NewGuid(), 1, requiredVotes: 3, minimumApprovalVotes: 4).IsFailure);
+        Assert.True(RhshfCommitteeReview.Create(Guid.NewGuid(), 1, requiredVotes: 0, minimumApprovalVotes: 1, CommitteeType.BranchCredit, null).IsFailure);
+        Assert.True(RhshfCommitteeReview.Create(Guid.NewGuid(), 1, requiredVotes: 3, minimumApprovalVotes: 4, CommitteeType.BranchCredit, null).IsFailure);
     }
 
     [Fact]

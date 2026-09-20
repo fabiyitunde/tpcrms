@@ -153,6 +153,14 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<RH.RhshfCommitteeVote> RhshfCommitteeVotes => Set<RH.RhshfCommitteeVote>();
     public DbSet<RH.RhshfRatification> RhshfRatifications => Set<RH.RhshfRatification>();
     public DbSet<RH.RhshfOffer> RhshfOffers => Set<RH.RhshfOffer>();
+    public DbSet<RH.RhshfOfferDocument> RhshfOfferDocuments => Set<RH.RhshfOfferDocument>();
+    public DbSet<RH.RhshfLegalClearance> RhshfLegalClearances => Set<RH.RhshfLegalClearance>();
+    public DbSet<RH.RhshfDisbursement> RhshfDisbursements => Set<RH.RhshfDisbursement>();
+    public DbSet<RH.RhshfCallbackAttempt> RhshfCallbackAttempts => Set<RH.RhshfCallbackAttempt>();
+    public DbSet<RH.RhshfEligibilityCheck> RhshfEligibilityChecks => Set<RH.RhshfEligibilityCheck>();
+    public DbSet<RH.RhshfCollateral> RhshfCollaterals => Set<RH.RhshfCollateral>();
+    public DbSet<RH.RhshfCollateralDocument> RhshfCollateralDocuments => Set<RH.RhshfCollateralDocument>();
+    public DbSet<RH.RhshfRoutingConfig> RhshfRoutingConfigs => Set<RH.RhshfRoutingConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -188,16 +196,25 @@ public class CRMSDbContext : DbContext, IUnitOfWork
         // RhshfIssuedToken is NOT append-only like the others here — Consume() legitimately
         // UPDATEs an existing row's ConsumedAt. A blanket Modified->Added flip (like the ones
         // above) would wrongly re-INSERT that already-existing row, causing a duplicate-key error
-        // (confirmed live: "Duplicate entry ... for key 'rhshfissuedtokens.PRIMARY'"). Distinguish
-        // the two cases instead: a genuinely NEW token mis-tracked via navigation-discovery has no
-        // real DB snapshot to diff against, so EF marks every property modified; a genuinely
-        // EXISTING token that was actually loaded (via GetByReferenceAsync's Include) and then
-        // Consume()'d only has the properties that really changed (ConsumedAt + audit fields)
-        // marked modified.
+        // (confirmed live: "Duplicate entry ... for key 'rhshfissuedtokens.PRIMARY'"). An earlier
+        // fix tried distinguishing the two cases via e.Properties.All(p => p.IsModified) — reasoning
+        // that a genuinely new token mis-tracked via navigation-discovery has no real DB snapshot to
+        // diff against, so EF would mark every property modified, while a genuinely EXISTING token
+        // loaded then Consume()'d would only show the properties that really changed. That heuristic
+        // turned out unreliable in practice (confirmed live: resubmitting the same submissionId in
+        // SubmitConsolidatedEopHandler — which loads the existing profile with its existing token
+        // already tracked, then calls IssueToken() to append a second, genuinely new token — threw
+        // DbUpdateConcurrencyException, "0 rows affected", because EF still reported every property
+        // on the new token as modified AND left it in the Modified state). Ask the database directly
+        // instead — deterministic regardless of how EF's change tracker happens to snapshot the
+        // entity, at the cost of one extra indexed lookup only for the (normally at most one)
+        // ambiguous entry per SaveChanges call.
         foreach (var entry in ChangeTracker.Entries<RH.RhshfIssuedToken>()
-            .Where(e => e.State == EntityState.Modified && e.Properties.All(p => p.IsModified)))
+            .Where(e => e.State == EntityState.Modified))
         {
-            entry.State = EntityState.Added;
+            var existsInDb = await RhshfIssuedTokens.AnyAsync(t => t.Id == entry.Entity.Id, cancellationToken);
+            if (!existsInDb)
+                entry.State = EntityState.Added;
         }
         foreach (var entry in ChangeTracker.Entries<RH.RhshfEopLine>()
             .Where(e => e.State == EntityState.Modified))
@@ -234,6 +251,27 @@ public class CRMSDbContext : DbContext, IUnitOfWork
         // RhshfRatification is genuinely append-only (never updated after creation). RhshfOffer is
         // NOT in this list — own aggregate root, own DbSet, same reasoning as RhshfCommitteeReview.
         foreach (var entry in ChangeTracker.Entries<RH.RhshfRatification>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        // RhshfOfferDocument is genuinely append-only (never updated after creation).
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfOfferDocument>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        // RhshfDisbursement is genuinely append-only (never updated after creation) — a retry
+        // creates a NEW row, same reasoning as RhshfAppraisal/RhshfRiskReview above.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfDisbursement>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        // RhshfCollateralDocument is genuinely append-only (never updated after creation) — same
+        // navigation-discovery mis-tracking risk as RhshfOfferDocument when a document is added to
+        // an already-loaded, already-tracked RhshfCollateral.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfCollateralDocument>()
             .Where(e => e.State == EntityState.Modified))
         {
             entry.State = EntityState.Added;

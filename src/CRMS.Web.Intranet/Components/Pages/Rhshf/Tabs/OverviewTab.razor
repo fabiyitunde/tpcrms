@@ -1,0 +1,189 @@
+@using CRMS.Application.Rhshf.DTOs
+@using CRMS.Domain.Enums
+
+<div style="display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start;">
+
+    <!-- LEFT COLUMN -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">Case Summary</h3></div>
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    @FieldChip("Reference", Workspace.Reference)
+                    @FieldChip("Submission ID", Workspace.SubmissionId.ToString())
+                    @FieldChip("Company", Workspace.CompanyName)
+                    @FieldChip("RC Number", Workspace.RcNumber)
+                    @FieldChip("TIN", Workspace.Tin)
+                    @FieldChip("BOA Account", Workspace.BoaAccountNumber)
+                    @FieldChip("Location", $"{Workspace.Lga}, {Workspace.State}")
+                    @FieldChip("Farmer Count", Workspace.FarmerCount?.ToString("N0"))
+                    @FieldChip("Received", Workspace.ReceivedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
+                    @FieldChip("Last Updated", Workspace.UpdatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">EOP Breakdown</h3></div>
+            @if (Workspace.EopLines.Count == 0)
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon"><span class="material-symbols-outlined">agriculture</span></div>
+                    <div class="empty-state-title">No EOP lines</div>
+                    <div class="empty-state-text">No commodity lines were submitted for this cycle.</div>
+                </div>
+            }
+            else
+            {
+                <div class="table-wrapper">
+                    <table class="table">
+                        <thead>
+                            <tr><th>Commodity</th><th style="text-align: right;">Qty (kg)</th><th style="text-align: right;">Unit Price</th><th style="text-align: right;">Line Value</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var line in Workspace.EopLines)
+                            {
+                                <tr>
+                                    <td>@line.Commodity</td>
+                                    <td style="text-align: right;">@line.QuantityKg.ToString("N0")</td>
+                                    <td style="text-align: right;">@line.UnitPricePerKg.ToString("N2")</td>
+                                    <td style="text-align: right; font-weight: 600;">@line.LineValue.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: var(--gray-700);">Total EOP Value</span>
+                    <span style="font-weight: 700; font-size: 1.05rem; color: var(--primary-700);">@Workspace.Currency @Workspace.TotalEopValue.ToString("N2")</span>
+                </div>
+            }
+        </div>
+
+        @if (Workspace.DecisionOutcome is not null || Workspace.Status is RhshfCaseStatus.Cancelled)
+        {
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">Decision</h3></div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        @FieldChip("Outcome", Workspace.DecisionOutcome?.ToString() ?? "— (withdrawal, not a bank decision)")
+                        @if (Workspace.ApprovedAmount is not null)
+                        {
+                            @FieldChip("Approved Amount", $"{Workspace.Currency} {Workspace.ApprovedAmount.Value:N2}")
+                        }
+                        @FieldChip("Decided At", Workspace.DecidedAt?.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
+                        @FieldChip("Decided By", Workspace.DecidedBy)
+                    </div>
+                    @if (!string.IsNullOrEmpty(Workspace.DecisionNotes))
+                    {
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-100);">
+                            <div class="field-chip-label" style="margin-bottom: 0.35rem;">Notes</div>
+                            <div style="font-size: 0.875rem; color: var(--gray-700);">@Workspace.DecisionNotes</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">Case Status</h3></div>
+            <div class="card-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div class="summary-row"><span class="summary-row-label">Status</span><span class="summary-row-value"><span class="badge @StatusBadgeClass(Workspace.Status)">@Workspace.Status</span></span></div>
+                @if (Workspace.InternalStage is not null)
+                {
+                    <div class="summary-row"><span class="summary-row-label">Internal Stage</span><span class="summary-row-value">@Workspace.InternalStage</span></div>
+                }
+                <div class="summary-row"><span class="summary-row-label">Cycle</span><span class="summary-row-value">@Workspace.CurrentCycleNumber</span></div>
+                <div class="summary-row"><span class="summary-row-label">Bureau Outcome</span><span class="summary-row-value">@Workspace.BureauCheckOutcome</span></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">Stage Progression</h3></div>
+            <div class="card-body" style="padding: 0;">
+                @foreach (var stage in StageProgression)
+                {
+                    var completed = IsStageCompleted(stage.Ordinal);
+                    var current = IsStageCurrent(stage.Ordinal);
+                    <div style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.65rem 1rem; border-bottom: 1px solid var(--gray-100); @(current ? "background: var(--primary-50);" : "")">
+                        <div style="width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 700;
+                            background: @(completed ? "var(--success-500)" : current ? "var(--primary-500)" : "var(--gray-200)");
+                            color: @(completed || current ? "white" : "var(--gray-500)");">
+                            @if (completed)
+                            { <span class="material-symbols-outlined" style="font-size: 14px;">check</span> }
+                            else
+                            { <span>@stage.Order</span> }
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; font-size: 0.8rem; @(current ? "color: var(--primary-700);" : "")">@stage.Name</div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">@stage.Role</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RhshfCaseWorkspaceDto Workspace { get; set; } = null!;
+
+    private record StageInfo(int Order, string Name, string Role, int Ordinal);
+
+    // Ordinal buckets line up with RhshfInternalStage's own declaration order (Appraisal=0 .. Completed=8);
+    // -1 represents "before any internal stage has been assigned" (FAC submission/profiling).
+    private static readonly List<StageInfo> StageProgression =
+    [
+        new(1, "Received & FAC Profiling", "FAC / Loan Officer", -1),
+        new(2, "Appraisal", "Credit Officer", (int)RhshfInternalStage.Appraisal),
+        new(3, "Risk Review", "Risk Officer", (int)RhshfInternalStage.RiskReview),
+        new(4, "Committee Voting", "Committee Members", (int)RhshfInternalStage.CommitteeVoting),
+        new(5, "Ratification", "Final Approver", (int)RhshfInternalStage.Ratification),
+        new(6, "Offer Letter", "FAC (Offer Acceptance)", (int)RhshfInternalStage.OfferGenerated),
+        new(7, "Legal Clearance", "Legal Officer", (int)RhshfInternalStage.LegalClearance),
+        new(8, "Disbursement", "Disbursement Officer", (int)RhshfInternalStage.Disbursement),
+    ];
+
+    private int CurrentOrdinal => Workspace.Status == RhshfCaseStatus.Approved
+        ? (int)RhshfInternalStage.Completed
+        : Workspace.InternalStage.HasValue
+            ? (int)Workspace.InternalStage.Value
+            : -1;
+
+    private bool IsStageCompleted(int stageOrdinal) => CurrentOrdinal > stageOrdinal
+        || (stageOrdinal == (int)RhshfInternalStage.OfferGenerated && CurrentOrdinal > (int)RhshfInternalStage.AwaitingOfferAcceptance);
+
+    private bool IsStageCurrent(int stageOrdinal) => stageOrdinal == -1
+        ? CurrentOrdinal == -1
+        : CurrentOrdinal == stageOrdinal || (stageOrdinal == (int)RhshfInternalStage.OfferGenerated && CurrentOrdinal == (int)RhshfInternalStage.AwaitingOfferAcceptance);
+
+    private static RenderFragment FieldChip(string label, string? value) => __builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "field-chip");
+        __builder.OpenElement(2, "div");
+        __builder.AddAttribute(3, "class", "field-chip-label");
+        __builder.AddContent(4, label);
+        __builder.CloseElement();
+        __builder.OpenElement(5, "div");
+        __builder.AddAttribute(6, "class", "field-chip-value");
+        __builder.AddContent(7, value);
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
+
+    private static string StatusBadgeClass(RhshfCaseStatus status) => status switch
+    {
+        RhshfCaseStatus.Approved => "badge-success",
+        RhshfCaseStatus.Declined => "badge-danger",
+        RhshfCaseStatus.Cancelled or RhshfCaseStatus.Expired => "badge-gray",
+        RhshfCaseStatus.UnderReview => "badge-warning",
+        _ => "badge-gray",
+    };
+}

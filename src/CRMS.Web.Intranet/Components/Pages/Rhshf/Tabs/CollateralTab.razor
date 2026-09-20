@@ -1,0 +1,132 @@
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
+
+<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+    @if (Records.Count == 0)
+    {
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">Collateral</h3></div>
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">security</span></div>
+                <div class="empty-state-title">No collateral recorded</div>
+                <div class="empty-state-text">No collateral instruments have been recorded for this cycle yet.</div>
+            </div>
+        </div>
+    }
+    else
+    {
+        @foreach (var record in Records)
+        {
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">@FormatType(record.Type)</h3>
+                        <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;"><code>@record.ReferenceNumber</code></div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        @if (record.Type == RhshfCollateralType.BankGuarantee)
+                        {
+                            @FieldChip("Guarantor Bank", record.GuarantorBankName)
+                            @FieldChip("Guarantee Amount", record.GuaranteeAmount?.ToString("N2"))
+                            @FieldChip("Unconditional", record.IsUnconditional == true ? "Yes" : "No")
+                        }
+                        else if (record.Type == RhshfCollateralType.NirsalCrg)
+                        {
+                            @FieldChip("CRG Coverage", record.CrgCoveragePercentage.HasValue ? $"{record.CrgCoveragePercentage:N1}%" : null)
+                        }
+                        else if (record.Type == RhshfCollateralType.LegalMortgage)
+                        {
+                            @FieldChip("Property", record.PropertyDescription)
+                            @FieldChip("Value", record.PropertyValue?.ToString("N2"))
+                            @FieldChip("Title Reference", record.TitleReferenceNumber)
+                            @FieldChip("Registration Authority", record.RegistrationAuthority)
+                            @FieldChip("Perfection Status", record.PerfectionStatus?.ToString())
+                        }
+                        @FieldChip("Issued", record.IssuedDate?.ToLocalTime().ToString("MMM dd, yyyy"))
+                        @FieldChip("Expiry", record.ExpiryDate?.ToLocalTime().ToString("MMM dd, yyyy"))
+                    </div>
+                    @if (!string.IsNullOrEmpty(record.Notes))
+                    {
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-100);">
+                            <div class="field-chip-label" style="margin-bottom: 0.35rem;">Notes</div>
+                            <div style="font-size: 0.875rem; color: var(--gray-700);">@record.Notes</div>
+                        </div>
+                    }
+                </div>
+
+                @if (record.Documents.Count > 0)
+                {
+                    <div class="table-wrapper">
+                        <table class="table">
+                            <thead><tr><th>File</th><th style="text-align: right;">Size</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var doc in record.Documents)
+                                {
+                                    <tr>
+                                        <td>
+                                            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: var(--gray-500);">attach_file</span>
+                                            @doc.FileName
+                                        </td>
+                                        <td style="text-align: right; font-size: 0.8rem; color: var(--gray-500);">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</td>
+                                        <td>
+                                            <button class="btn btn-ghost btn-sm" title="Download" @onclick='() => OnDownloadDocument.InvokeAsync(doc.Id)'>
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @if (CanUpload)
+                {
+                    <div class="card-footer">
+                        <InputFile OnChange="e => UploadFile(record.Id, e)" class="form-control" />
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<RhshfCollateralDto> Records { get; set; } = [];
+    [Parameter] public bool CanUpload { get; set; }
+    [Parameter] public EventCallback<(Guid CollateralId, string FileName, string ContentType, byte[] Content)> OnUploadDocument { get; set; }
+    [Parameter] public EventCallback<Guid> OnDownloadDocument { get; set; }
+
+    private static RenderFragment FieldChip(string label, string? value) => __builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "field-chip");
+        __builder.OpenElement(2, "div");
+        __builder.AddAttribute(3, "class", "field-chip-label");
+        __builder.AddContent(4, label);
+        __builder.CloseElement();
+        __builder.OpenElement(5, "div");
+        __builder.AddAttribute(6, "class", "field-chip-value");
+        __builder.AddContent(7, value);
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
+
+    private static string FormatType(RhshfCollateralType type) => type switch
+    {
+        RhshfCollateralType.BankGuarantee => "Bank Guarantee",
+        RhshfCollateralType.NirsalCrg => "NIRSAL Credit Risk Guarantee",
+        RhshfCollateralType.LegalMortgage => "Legal Mortgage",
+        _ => type.ToString(),
+    };
+
+    private async Task UploadFile(Guid collateralId, InputFileChangeEventArgs e)
+    {
+        using var stream = e.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        await OnUploadDocument.InvokeAsync((collateralId, e.File.Name, e.File.ContentType, ms.ToArray()));
+    }
+}

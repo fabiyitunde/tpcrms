@@ -1,0 +1,52 @@
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">account_balance</span>Book Disbursement</h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted">Books against the admin-configured RH-SHF Fineract product. Interest rate and tenor are always pulled live from that product — not entered here.</p>
+            <div class="form-group">
+                <label class="form-label">Input-supplier account number (required)</label>
+                <input class="form-control" @bind="supplierAccountNumber" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Supplier name (optional)</label>
+                <input class="form-control" @bind="supplierName" />
+            </div>
+            @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
+            {
+                <div class="alert alert-danger">@(ErrorMessage ?? clientError)</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn btn-success" disabled="@IsSubmitting" @onclick="Confirm">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                Book Disbursement
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<(string SupplierAccountNumber, string? SupplierName)> OnConfirm { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private string supplierAccountNumber = string.Empty;
+    private string supplierName = string.Empty;
+    private string? clientError;
+
+    private async Task Confirm()
+    {
+        if (string.IsNullOrWhiteSpace(supplierAccountNumber))
+        {
+            clientError = "The input-supplier account number is required.";
+            return;
+        }
+        clientError = null;
+        await OnConfirm.InvokeAsync((supplierAccountNumber, string.IsNullOrWhiteSpace(supplierName) ? null : supplierName));
+    }
+}

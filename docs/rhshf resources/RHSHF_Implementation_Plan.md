@@ -25,7 +25,7 @@ Not a build phase — a checklist. Do not start Phase 1 until these are answered
 - [ ] Which roles fill Credit Officer / Risk Officer / Final Approver / Legal Officer / Disbursement Officer for RH-SHF — confirmed as reuse of the existing generic `Roles.cs` constants (recommended) rather than new role names.
 - [ ] Portal team has acknowledged the `RHSHF-{year}-{seq}` reference format (FYI, not a blocking approval).
 
-Everything below assumes these are answered. #1 and #11 affect Phases 1 and 5; #9 affects Phases 9-10; role confirmation affects Phases 4-9. §6 #10 (how the FAC accepts the offer) is a separate open item that only blocks Phase 7 specifically — the rest of the build can proceed without it.
+Everything below assumes these are answered. #1 affects Phase 1; #9 affects Phases 9-10; role confirmation affects Phases 4-9. §6 #10 (how the FAC accepts the offer) and §6 #11 (committee tiering) are both **resolved** now — #11 as a single flat committee (Phase 5), #10 as its own page reusing the profiling token/cookie mechanism plus a hard signed-document-upload gate (Phase 7) — see the design doc for both. #10's portal-facing `actionRequired` field still needs sign-off before Phase 10 ships it, same as #9.
 
 ---
 
@@ -263,32 +263,73 @@ immediately after Ratified.
 
 ---
 
-## Phase 7 — Offer acceptance by the FAC (design doc §6 #10 — needs its own short design pass first)
+## Phase 7 — Offer acceptance by the FAC (design doc §6 #10 — resolved 2026-08-31)
 
-**Do not start this phase's code until §6 #10 has an actual answer** — "reuse the profiling form's mechanism" is a direction, not a spec. Before writing the prompt below, decide: is this a single-page accept/reject action, or does it need document review/e-signature? Confirm with the credit/legal team.
+**Design is settled — proceed.** Summary of the resolved design (full detail in the design doc §3.6/§5/§6 #10):
+- Reuses the profiling form's token/cookie-session mechanism (§4.6 refresh, same `RhshfIssuedToken`), but on its **own page** (`/rhshf/offer/{reference}`) — not folded into the 5-stage profiling wizard, a different shape of interaction. Factor the token-verify/cookie-check logic out of `ProfilingModel` so it's shared, not copy-pasted a second time.
+- The FAC must upload a signed copy of the offer (new `RhshfOfferDocument`, child of `RhshfOffer`, own container path) before `Accept` succeeds — a **hard server-side precondition**, not a UI-only nudge.
+- `Reject` maps the case to `Cancelled`, not `Declined` — a withdrawal, not a bank decision; `DecisionOutcome` stays null. `Accept` advances `InternalStage` to `LegalClearance`.
+- No auto-expiry in v1 — deliberately deferred, not built.
+- A non-terminal `actionRequired: "REVIEW_OFFER"` field goes out on both the outcome webhook and the status-poll response when the offer is generated — **this specific field still needs portal sign-off** before Phase 10 ships it for real; everything else in this phase is CRMS-internal and unblocked.
 
-**Prompt (once #10 is answered):**
+**Prompt:**
 ```
 Continuing the RH-SHF build (Phases 1-6 merged). Implement FAC offer
-acceptance per the answer to design doc §6 #10.
+acceptance per design doc §3.6/§5/§6 #10.
 
-1. A token-authenticated, anonymous, Razor Pages route (same hosting
-   rule as Phase 3 — no Blazor Server circuit) where the FAC views the
-   generated RhshfOffer and accepts or rejects it.
-2. AcceptOffer()/RejectOffer() on RhshfOffer: Accepted -> internal stage
-   advances to LegalClearance (Phase 8). Rejected or expired -> case
-   Status -> Declined/Cancelled (terminal — raise RhshfCaseDecidedEvent;
-   confirm with Phase 0 #9 whether this needs a distinct webhook status
-   given the portal was never told Approved at this point).
-3. Reuse Phase 2's token issuing pattern for this route's own token
-   (same RhshfIssuedToken shape, scoped to the offer rather than the
-   profiling session) — do not reuse a profiling-stage token for this.
+1. Add RhshfOfferDocument (child entity of RhshfOffer, own table):
+   RhshfOfferId, FileName, ContentType, StoragePath, SizeBytes,
+   UploadedAt — same shape as RhshfSupportingDocument, but scoped to the
+   offer/cycle, not the flat profiling-stage document list.
+2. Add UploadSignedOfferCommand (Application) — uploads via the same
+   generic IFileStorageService, own container (e.g. "rhshf-offer-signed"),
+   creates the RhshfOfferDocument. No stage-order guard needed beyond
+   "the offer exists and hasn't been decided yet."
+3. Add RhshfOffer.Accept(notes?) and RhshfOffer.Reject(notes?):
+   - Accept: fails if no RhshfOfferDocument has been uploaded yet (hard
+     precondition — check the collection, don't just trust the caller).
+     On success: Status -> Accepted, FacRespondedAt set.
+   - Reject: Status -> Rejected, FacRespondedAt set. No document
+     requirement.
+4. Add AcceptRhshfOfferCommand / RejectRhshfOfferCommand (Application) —
+   after calling RhshfOffer.Accept()/Reject() successfully, also update
+   RhshfCreditProfile:
+   - Accept -> profile.InternalStage = LegalClearance (add this
+     transition method to RhshfCreditProfile, guarded on
+     InternalStage == AwaitingOfferAcceptance, same pattern as
+     AdvanceToRatification).
+   - Reject -> profile.Status = Cancelled (NOT Declined), DecisionOutcome
+     stays null, DecidedBy = "FAC" or similar, still raise
+     RhshfCaseDecidedEvent so Phase 10's webhook tells the portal.
+   Both aggregates (RhshfOffer, RhshfCreditProfile) save in one
+   transaction, same pattern as Phase 5/6's cross-aggregate handlers.
+5. Add a Razor Pages route /rhshf/offer/{reference} (Pages/Rhshf/), same
+   hosting rule as Phase 3 (no Blazor Server circuit). Extract the
+   token-verify + "RhshfProfiling" cookie-check logic out of
+   ProfilingModel into something shared (a small base class or static
+   helper) rather than duplicating it. Page shows: approved amount, a
+   link to view/download the generated offer PDF (new document-serving
+   endpoint mirroring the existing /api/documents/{id}/view pattern,
+   gated by the same cookie session), an upload control for the signed
+   copy, and Accept/Reject actions. If the case isn't at
+   AwaitingOfferAcceptance (already decided, or not there yet), show a
+   plain read-only status instead of erroring — same defensive pattern
+   as Profiling.cshtml's "already submitted" branch.
+6. Do NOT touch the outbound webhook yet (that's Phase 10) — but DO add
+   the `actionRequired: "REVIEW_OFFER"` field to GET /v1/credit-profiles/
+   {reference}/status (§4.5) now, alongside the existing fields, since
+   that endpoint already exists (Phase 6... actually Phase 11 builds
+   this — if Phase 11 isn't built yet, just note the field needs adding
+   there later; don't build the status endpoint early just for this).
 
-Tests: accepting advances to LegalClearance; rejecting is terminal and
-fires the correct event; an expired offer cannot be accepted.
+Tests: Accept without an uploaded document fails; Accept with one
+succeeds and advances to LegalClearance; Reject sets case status to
+Cancelled (not Declined) with DecisionOutcome null and fires
+RhshfCaseDecidedEvent; re-opening the page after a decision shows the
+read-only outcome instead of the accept/reject form.
 ```
 
-**Done when:** the FAC can accept or reject a generated offer through a token-authenticated, non-circuit-holding page, and both outcomes transition the case correctly.
+**Done when:** the FAC can view the offer, upload a signed copy, and accept (blocked until uploaded) or reject it through a token-authenticated, non-circuit-holding page — and both outcomes transition `RhshfCreditProfile` correctly (`LegalClearance` vs `Cancelled`).
 
 ---
 
@@ -351,15 +392,25 @@ case's prior ratification/legal-clearance state.
 
 ---
 
-## Phase 10 — Outcome webhook (§4.4)
+## Phase 10 — Outcome webhook (§4.4) + the non-terminal offer-ready signal (§6 #10)
+
+**Portal sign-off checkpoint:** this phase adds a real (if small) field to the external contract — `actionRequired: "REVIEW_OFFER"` — on top of the terminal outcome webhook. Confirm with the portal team before this ships to production; the CRMS-side mechanics can still be built and tested now.
 
 **Prompt:**
 ```
 Continuing the RH-SHF build (Phases 1-9 merged). Implement §4.4 — this
-phase reacts to RhshfCaseDecidedEvent (now fired from multiple possible
-points: early Decline at Phases 4/5/6, offer rejection at Phase 7, legal
-decline at Phase 8, or successful Disbursement at Phase 9). It does not
-itself decide anything.
+phase reacts to two different domain events, not just one:
+
+- RhshfCaseDecidedEvent (terminal — fired from multiple possible points:
+  early Decline at Phases 4/5/6, offer rejection at Phase 7 (Cancelled,
+  not Declined — decision stays null), legal decline at Phase 8, or
+  successful Disbursement at Phase 9).
+- RhshfOfferReadyEvent (NEW, non-terminal — add this event and raise it
+  from RhshfCreditProfile.Ratify()'s Ratified branch, which was built in
+  Phase 6 without it; this is a small retroactive addition to that
+  method, not a new phase of its own).
+
+Neither handler decides anything — they only react and call out.
 
 1. Add RhshfCallbackAttempt (child entity) — EventId, AttemptNumber,
    SentAt, ResponseStatusCode, Succeeded, NextRetryAt.
@@ -376,16 +427,26 @@ itself decide anything.
    decidedBy}, eventId, occurredAt). decidedBy should reflect which
    stage actually produced the terminal outcome (e.g. "CRMS Disbursement"
    for a completed booking, "CRMS Credit Committee" for an early
-   decline at Phase 5) rather than a hardcoded string.
+   decline at Phase 5) rather than a hardcoded string. A Cancelled
+   outcome (Phase 7 rejection) sends decision: null — nothing was
+   adjudicated.
+4. Handler on RhshfOfferReadyEvent calls the SAME callback service with
+   the same envelope shape but status: "UNDER_REVIEW", decision: null,
+   plus the new actionRequired: "REVIEW_OFFER" field. Same signing/retry
+   mechanics — this is not a second, different delivery pipeline.
 
 Tests: signature is verifiable against a known secret and known body;
 webhook is retried on a simulated non-2xx response and stops retrying on
 2xx; the payload JSON matches the brief's example field-for-field; an
 Approved webhook only ever fires from Phase 9's booking completion, never
-from Ratification alone (regression test against §6 #9).
+from Ratification alone (regression test against §6 #9); the
+actionRequired call fires exactly once per Ratified cycle, with status
+UNDER_REVIEW and decision null, distinct from the terminal call; a
+Cancelled (FAC-rejected) webhook carries decision: null, not a Declined
+shape.
 ```
 
-**Done when:** every terminal path from Phases 4-9 fires exactly one webhook call (or the correct retry count against a failing mock) with a valid signature, and a test specifically proves Ratification alone does NOT trigger it.
+**Done when:** every terminal path from Phases 4-9 fires exactly one webhook call (or the correct retry count against a failing mock) with a valid signature; a test specifically proves Ratification alone does NOT trigger the terminal call; and a separate test proves the non-terminal actionRequired call fires at offer-generation time with the case status still UNDER_REVIEW.
 
 ---
 
@@ -396,19 +457,25 @@ from Ratification alone (regression test against §6 #9).
 Continuing the RH-SHF build (Phases 1-10 merged). Implement §4.5:
 GET /v1/credit-profiles/{reference}/status, returning reference,
 submissionId, status, stage{current,index,total}, decision (null until
-decided, same shape as §4.4's payload once populated), and updatedAt.
-Match the brief's example response exactly. status must stay UnderReview
-throughout Phases 4-8 (Appraisal through Legal Clearance) per §6 #9 —
-only Phase 9's successful booking flips it to Approved.
+decided, same shape as §4.4's payload once populated), updatedAt, and
+the new actionRequired field (§6 #10) — "REVIEW_OFFER" whenever
+InternalStage == AwaitingOfferAcceptance and no RhshfOffer response has
+been recorded yet, null otherwise. Match the brief's example response
+exactly for the existing fields. status must stay UnderReview throughout
+Phases 4-8 (Appraisal through Legal Clearance) per §6 #9 — only Phase 9's
+successful booking flips it to Approved. A Cancelled case (Phase 7
+rejection) reports decision: null, not a Declined shape.
 
 Test: status reflects RECEIVED right after Phase 1 submit,
 PROFILING_IN_PROGRESS during Phase 3's stages (and again during any
 InfoRequired round-trip), UNDER_REVIEW from Appraisal all the way
 through Legal Clearance, and the decision object populates only once
-Phase 9's booking completes.
+Phase 9's booking completes; actionRequired is "REVIEW_OFFER" only while
+AwaitingOfferAcceptance and unresolved, null before and after; a
+Cancelled case's decision stays null.
 ```
 
-**Done when:** polling this endpoint at any point in a case's life — including mid-pipeline, post-Ratification, pre-Disbursement — returns `UNDER_REVIEW` with `decision: null`, and only flips after booking.
+**Done when:** polling this endpoint at any point in a case's life — including mid-pipeline, post-Ratification, pre-Disbursement — returns `UNDER_REVIEW` with `decision: null`, only flips after booking, and correctly surfaces `actionRequired` while an offer is awaiting the FAC's response.
 
 ---
 
@@ -418,8 +485,8 @@ Not a code-generation prompt — coordination + config work:
 
 1. Confirm the portal→CRMS auth mechanism. Recommendation: **API key** (matching the existing `X-Api-Key` pattern in `NampWebhookController`, reused as an independent implementation) — this platform has no OAuth2 token-issuing infrastructure today, and mTLS is a poor fit given the current ALB/EC2 deploy topology. Raise this recommendation with the portal team rather than defaulting to OAuth2 by habit.
 2. Stand up sandbox `Rhshf:*` config (separate signing secrets, DB, base URLs) from production — never share NAMP's config section.
-3. Send the portal team: confirmation of `profilingUrl` shape, the webhook signing secret (out-of-band), the `RHSHF-` reference format (FYI) — **and explicitly negotiate design doc §6 #9** (portal is told "Approved" only at disbursement, not at ratification). This is a real behavioral commitment the portal needs to design their own downstream flow around, not a footnote.
-4. Run the full pipeline end-to-end with them in sandbox before production cutover (brief §9, acceptance criterion 6) — including at least one early-decline path (e.g. Phase 5) and the full happy path through Phase 9, not just a single happy-path call.
+3. Send the portal team: confirmation of `profilingUrl` shape, the webhook signing secret (out-of-band), the `RHSHF-` reference format (FYI) — **and explicitly negotiate design doc §6 #9** (portal is told "Approved" only at disbursement, not at ratification) **and §6 #10's new `actionRequired: "REVIEW_OFFER"` field** (a non-terminal signal telling the portal to send the FAC back to review/accept their offer). Both are real behavioral/contract commitments the portal needs to design around, not footnotes.
+4. Run the full pipeline end-to-end with them in sandbox before production cutover (brief §9, acceptance criterion 6) — including at least one early-decline path (e.g. Phase 5), a FAC-side offer rejection (Cancelled, Phase 7), and the full happy path through Phase 9, not just a single happy-path call.
 
 ---
 
@@ -428,7 +495,7 @@ Not a code-generation prompt — coordination + config work:
 - Replaced the flat two-actor "maker-checker" model with the **full Appraisal → Risk Review → Committee → Ratification → Offer → Legal Clearance → Disbursement pipeline** (Phases 4-9), per direct instruction — this mirrors NAMP's and Corporate's own lifecycle shape and is what the brief's own webhook example (`decidedBy: "CRMS Credit Committee"`) already implied.
 - Introduced **design doc §6 #9**: the portal is told "Approved" only once Disbursement completes (Phase 9), not at Ratification (Phase 6) — because the case can still die at offer-acceptance or legal-clearance after ratification, and telling the portal "Approved" early risks triggering their downstream EOP processing on a loan that never actually gets disbursed. This is a real behavior change from the brief's implied assumption and needs explicit portal sign-off (Phase 0, Phase 12).
 - `RhshfCommitteeReview` and `RhshfLegalClearance` are modeled as their **own aggregates**, not child entities — confirmed by reading `CommitteeReview.cs` that the generic version is hard-FK'd to Corporate's `LoanApplicationId` and isn't reusable, the same reason NAMP built `NampCommitteeReview` independently.
-- Flagged **offer acceptance (Phase 7) as needing its own design pass** before coding — "reuse the profiling form's mechanism" is a direction, not yet a spec.
+- Flagged **offer acceptance (Phase 7) as needing its own design pass** before coding — "reuse the profiling form's mechanism" is a direction, not yet a spec. **Resolved 2026-08-31:** own page reusing the profiling token/cookie mechanism, a hard signed-document-upload gate before Accept, Reject mapped to `Cancelled` (not `Declined`, since it's a withdrawal not a bank decision), no auto-expiry in v1, and a new non-terminal `actionRequired: "REVIEW_OFFER"` field on the webhook and status endpoint — the last one is a real (if small) portal-contract addition, flagged for sign-off same as §6 #9.
 - Replaced the generic **FormDefinition/FormStage/FormField** schema-driven engine with fixed, typed entities and stage view-models (Phase 1, Phase 3) — still holds from the earlier review.
 - Fixed the public form's hosting to **Razor Pages, not interactive Blazor Server** (Phases 3, 7) — still holds from the earlier review.
 - Kept the original reference plan's strongest ideas: phased delivery with a merge gate between phases, a concrete test list per phase, and a closing coordination phase for auth/sandbox/portal handoff.

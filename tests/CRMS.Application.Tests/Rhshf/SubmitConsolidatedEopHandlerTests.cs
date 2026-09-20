@@ -103,6 +103,7 @@ public class SubmitConsolidatedEopHandlerTests
         public Task<IReadOnlyList<RhshfCreditProfile>> GetQueueAsync(RhshfInternalStage stage, Guid? branchId, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<RhshfCreditProfile>>(
                 Added.Where(x => x.InternalStage == stage && (branchId == null || x.ResolvedBranchId == branchId)).ToList());
+        public Task<RhshfSupportingDocument?> GetSupportingDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private class FakeTokenService : IRhshfTokenService

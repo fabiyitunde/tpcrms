@@ -1,0 +1,89 @@
+@using CRMS.Application.Rhshf.DTOs
+@using CRMS.Domain.Enums
+
+<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Credit Bureau Check</h3>
+            @if (Workspace.BureauCheckOutcome != RhshfBureauOutcome.NotRun)
+            {
+                <span class="badge @BadgeClass(Workspace.BureauCheckOutcome)">@Workspace.BureauCheckOutcome</span>
+            }
+        </div>
+
+        @if (Workspace.BureauCheckOutcome == RhshfBureauOutcome.NotRun)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">account_balance_wallet</span></div>
+                <div class="empty-state-title">Not yet run</div>
+                <div class="empty-state-text">The credit bureau check has not yet run for this case.</div>
+            </div>
+        }
+        else
+        {
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    @FieldChip("Total Facilities on Record", (Workspace.BureauTotalLoans ?? 0).ToString("N0"))
+                    @FieldChip("Active Facilities", (Workspace.BureauActiveLoans ?? 0).ToString("N0"))
+                    @FieldChip("Delinquent Facilities", (Workspace.BureauDelinquentFacilities ?? 0).ToString("N0"))
+                    @FieldChip("Total Outstanding", Workspace.BureauTotalOutstanding?.ToString("N2"))
+                    @FieldChip("Total Overdue", Workspace.BureauTotalOverdue?.ToString("N2"))
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Workspace.BureauRawJson))
+    {
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">Raw Report</h3></div>
+            <div class="card-body">
+                <pre style="white-space: pre-wrap; background: var(--gray-50); border: 1px solid var(--gray-100); padding: 1rem; border-radius: 8px; max-height: 400px; overflow-y: auto; font-size: 0.8rem; margin: 0;">@FormattedJson</pre>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RhshfCaseWorkspaceDto Workspace { get; set; } = null!;
+
+    private string FormattedJson => TryFormat(Workspace.BureauRawJson);
+
+    private static string TryFormat(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return string.Empty;
+        try
+        {
+            var parsed = System.Text.Json.JsonDocument.Parse(json);
+            return System.Text.Json.JsonSerializer.Serialize(parsed, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+
+    private static RenderFragment FieldChip(string label, string? value) => __builder =>
+    {
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "field-chip");
+        __builder.OpenElement(2, "div");
+        __builder.AddAttribute(3, "class", "field-chip-label");
+        __builder.AddContent(4, label);
+        __builder.CloseElement();
+        __builder.OpenElement(5, "div");
+        __builder.AddAttribute(6, "class", "field-chip-value");
+        __builder.AddContent(7, string.IsNullOrWhiteSpace(value) ? "—" : value);
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
+
+    private static string BadgeClass(RhshfBureauOutcome outcome) => outcome switch
+    {
+        RhshfBureauOutcome.Cleared => "badge-success",
+        RhshfBureauOutcome.Flagged => "badge-warning",
+        RhshfBureauOutcome.Failed => "badge-gray",
+        _ => "badge-gray",
+    };
+}

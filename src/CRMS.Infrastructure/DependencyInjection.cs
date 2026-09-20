@@ -715,7 +715,11 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Queries.GetRhshfStaffQueueHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCaseWorkspaceHandler>();
         services.AddScoped<IRhshfCommitteeReviewRepository, RhshfCommitteeReviewRepository>();
-        services.AddScoped<Application.Rhshf.Interfaces.IRhshfCommitteeConfig, RhshfCommitteeConfig>();
+        services.AddScoped<IRhshfRoutingConfigRepository, Persistence.Repositories.Rhshf.RhshfRoutingConfigRepository>();
+        services.AddScoped<Application.Rhshf.Commands.CreateRhshfRoutingConfigHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UpdateRhshfRoutingConfigHandler>();
+        services.AddScoped<Application.Rhshf.Commands.ToggleRhshfRoutingConfigHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfRoutingConfigsHandler>();
         services.AddScoped<Application.Rhshf.Commands.CastRhshfCommitteeVoteHandler>();
         services.AddScoped<Application.Rhshf.Commands.ReturnRhshfCommitteeToFacHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCommitteeReviewHandler>();
@@ -723,6 +727,52 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Interfaces.IRhshfOfferLetterPdfGenerator, Documents.RhshfOfferLetterPdfGenerator>();
         services.AddScoped<Application.Rhshf.Commands.RatifyRhshfCaseHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfOfferHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UploadSignedOfferHandler>();
+        services.AddScoped<Application.Rhshf.Commands.AcceptRhshfOfferHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RejectRhshfOfferHandler>();
+        services.AddScoped<IRhshfLegalClearanceRepository, RhshfLegalClearanceRepository>();
+        services.AddScoped<Application.Rhshf.Commands.ClearRhshfLegalHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfLegalClearanceHistoryHandler>();
+        services.AddScoped<Application.Rhshf.Commands.BookRhshfDisbursementHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfDisbursementHistoryHandler>();
+
+        // RH-SHF — outcome webhook (Phase 10, design doc §4.4). Enqueue handlers write to the
+        // persistent RhshfCallbackAttempt outbox; RhshfCallbackBackgroundService delivers/retries
+        // off it — same shape as the Credit Check outbox above, not NAMP's in-process Polly policy,
+        // because the brief's ~30-minute retry window must survive an app restart mid-window.
+        services.AddScoped<IRhshfCallbackAttemptRepository, RhshfCallbackAttemptRepository>();
+        services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfCaseDecidedEvent>, RhshfCaseDecidedCallbackHandler>();
+        services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfOfferReadyEvent>, RhshfOfferReadyCallbackHandler>();
+        services.AddScoped<RhshfCallbackDispatcher>();
+        services.AddHostedService<RhshfCallbackBackgroundService>();
+
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfCaseStatusHandler>();
+
+        // RH-SHF — Eligibility (S/N 15) and Collateral (S/N 16), per RSHSF_Programme_Details.docx
+        services.AddScoped<IRhshfEligibilityCheckRepository, RhshfEligibilityCheckRepository>();
+        services.AddScoped<Application.Rhshf.Commands.RecordRhshfEligibilityChecklistHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfEligibilityChecklistHandler>();
+        services.AddScoped<IRhshfCollateralRepository, RhshfCollateralRepository>();
+        services.AddScoped<Application.Rhshf.Commands.RecordRhshfCollateralHandler>();
+        services.AddScoped<Application.Rhshf.Commands.AddRhshfCollateralDocumentHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfCollateralHandler>();
+        services.AddScoped<Application.Rhshf.Queries.DownloadRhshfSupportingDocumentHandler>();
+        services.AddScoped<Application.Rhshf.Queries.DownloadRhshfOfferDocumentHandler>();
+        services.AddScoped<Application.Rhshf.Queries.DownloadRhshfCollateralDocumentHandler>();
+
+        var rhshfCallbackSection = configuration.GetSection(RhshfSettings.SectionName);
+        if (rhshfCallbackSection.Exists() && !rhshfCallbackSection.GetValue<bool>("CallbackUseMock"))
+        {
+            services.AddHttpClient<IRhshfCallbackService, RhshfCallbackService>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(rhshfCallbackSection.GetValue<int>("CallbackTimeoutSeconds", 30));
+            })
+            .AddHttpMessageHandler<ThirdPartyApiLoggingHandler>();
+        }
+        else
+        {
+            services.AddScoped<IRhshfCallbackService, MockRhshfCallbackService>();
+        }
 
         // Approval Gate
         services.Configure<WorkflowApprovalGateSettings>(configuration.GetSection(WorkflowApprovalGateSettings.SectionName));

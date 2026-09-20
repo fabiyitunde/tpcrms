@@ -7,7 +7,12 @@ namespace CRMS.Domain.Aggregates.Rhshf;
 /// Committee voting stage (design doc §3.6, Phase 5) — its own aggregate root, own table, own
 /// repository. Deliberately NOT the generic CommitteeReview (hard, non-nullable FK to Corporate's
 /// LoanApplicationId — confirmed by reading the class, not reusable as-is) and NOT NampCommitteeReview.
-/// A single flat committee for v1 (design doc §6 #11) — no value-based tiers.
+/// Tiered by TotalEopValue via RhshfRoutingConfig (superseding the original v1 flat-committee design,
+/// design doc §6 #11) — Tier/BranchId are resolved once at creation and snapshotted here for audit;
+/// they are NOT re-resolved later even if routing config or committee membership changes mid-flight.
+/// Membership itself is NOT stored on this aggregate (unlike NAMP's shared CommitteeReview, which
+/// snapshots members) — eligible voters are resolved live from StandingCommittee via Tier+BranchId at
+/// vote-cast time, a deliberate simplification given RH-SHF's existing minimal footprint.
 /// </summary>
 public class RhshfCommitteeReview : AggregateRoot
 {
@@ -15,6 +20,8 @@ public class RhshfCommitteeReview : AggregateRoot
     public int CycleNumber { get; private set; }
     public int RequiredVotes { get; private set; }
     public int MinimumApprovalVotes { get; private set; }
+    public CommitteeType Tier { get; private set; }
+    public Guid? BranchId { get; private set; }
     public RhshfCommitteeDecision? FinalDecision { get; private set; }
     public DateTime? DecidedAt { get; private set; }
     public string? Notes { get; private set; }
@@ -26,7 +33,9 @@ public class RhshfCommitteeReview : AggregateRoot
 
     protected RhshfCommitteeReview() { }
 
-    public static Result<RhshfCommitteeReview> Create(Guid rhshfCreditProfileId, int cycleNumber, int requiredVotes, int minimumApprovalVotes)
+    public static Result<RhshfCommitteeReview> Create(
+        Guid rhshfCreditProfileId, int cycleNumber, int requiredVotes, int minimumApprovalVotes,
+        CommitteeType tier, Guid? branchId)
     {
         if (requiredVotes <= 0)
             return Result.Failure<RhshfCommitteeReview>("requiredVotes must be greater than zero.");
@@ -39,6 +48,8 @@ public class RhshfCommitteeReview : AggregateRoot
             CycleNumber = cycleNumber,
             RequiredVotes = requiredVotes,
             MinimumApprovalVotes = minimumApprovalVotes,
+            Tier = tier,
+            BranchId = branchId,
         });
     }
 

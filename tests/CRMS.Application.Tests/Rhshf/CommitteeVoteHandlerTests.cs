@@ -1,6 +1,7 @@
 using CRMS.Application.Rhshf.Commands;
 using CRMS.Application.Rhshf.Interfaces;
 using CRMS.Application.Rhshf.Queries;
+using CRMS.Domain.Aggregates.Committee;
 using CRMS.Domain.Aggregates.Rhshf;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
@@ -64,7 +65,7 @@ public class CommitteeVoteHandlerTests
 
         var profileRepo = new FakeProfileRepository(profile);
         var committeeRepo = new FakeCommitteeRepository();
-        var handler = new ReviewRhshfRiskHandler(profileRepo, committeeRepo, new FakeCommitteeConfig(), new FakeUnitOfWork());
+        var handler = new ReviewRhshfRiskHandler(profileRepo, committeeRepo, new FakeRoutingConfigRepository(), new FakeStandingCommitteeRepository(), new FakeUnitOfWork());
 
         var result2 = await handler.Handle(new ReviewRhshfRiskCommand(profile.Reference, Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null, null));
 
@@ -77,10 +78,11 @@ public class CommitteeVoteHandlerTests
     public async Task CastVote_BelowQuorum_DoesNotAdvanceProfile()
     {
         var profile = MakeProfileAtCommitteeVoting(out _, out _);
-        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 3, minimumApprovalVotes: 2).Value;
-        var handler = new CastRhshfCommitteeVoteHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeUnitOfWork());
+        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 3, minimumApprovalVotes: 2, CommitteeType.BranchCredit, null).Value;
+        var voterId = Guid.NewGuid();
+        var handler = new CastRhshfCommitteeVoteHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeStandingCommitteeRepository(memberIds: voterId), new FakeUnitOfWork());
 
-        var result = await handler.Handle(new CastRhshfCommitteeVoteCommand(profile.Reference, Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null));
+        var result = await handler.Handle(new CastRhshfCommitteeVoteCommand(profile.Reference, voterId, RhshfCommitteeVoteChoice.Approve, null));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfInternalStage.CommitteeVoting, profile.InternalStage);
@@ -90,10 +92,11 @@ public class CommitteeVoteHandlerTests
     public async Task CastVote_QuorumApproved_AdvancesProfileToRatification()
     {
         var profile = MakeProfileAtCommitteeVoting(out _, out _);
-        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 1, minimumApprovalVotes: 1).Value;
-        var handler = new CastRhshfCommitteeVoteHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeUnitOfWork());
+        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 1, minimumApprovalVotes: 1, CommitteeType.BranchCredit, null).Value;
+        var voterId = Guid.NewGuid();
+        var handler = new CastRhshfCommitteeVoteHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeStandingCommitteeRepository(memberIds: voterId), new FakeUnitOfWork());
 
-        var result = await handler.Handle(new CastRhshfCommitteeVoteCommand(profile.Reference, Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null));
+        var result = await handler.Handle(new CastRhshfCommitteeVoteCommand(profile.Reference, voterId, RhshfCommitteeVoteChoice.Approve, null));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfInternalStage.Ratification, profile.InternalStage);
@@ -103,10 +106,11 @@ public class CommitteeVoteHandlerTests
     public async Task CastVote_QuorumRejected_DeclinesProfile()
     {
         var profile = MakeProfileAtCommitteeVoting(out _, out _);
-        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 1, minimumApprovalVotes: 1).Value;
-        var handler = new CastRhshfCommitteeVoteHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeUnitOfWork());
+        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 1, minimumApprovalVotes: 1, CommitteeType.BranchCredit, null).Value;
+        var voterId = Guid.NewGuid();
+        var handler = new CastRhshfCommitteeVoteHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeStandingCommitteeRepository(memberIds: voterId), new FakeUnitOfWork());
 
-        var result = await handler.Handle(new CastRhshfCommitteeVoteCommand(profile.Reference, Guid.NewGuid(), RhshfCommitteeVoteChoice.Reject, null));
+        var result = await handler.Handle(new CastRhshfCommitteeVoteCommand(profile.Reference, voterId, RhshfCommitteeVoteChoice.Reject, null));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfCaseStatus.Declined, profile.Status);
@@ -117,8 +121,8 @@ public class CommitteeVoteHandlerTests
     public async Task CastVote_ByCreditOfficerFromThisCycle_Fails()
     {
         var profile = MakeProfileAtCommitteeVoting(out var creditOfficerId, out _);
-        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 3, minimumApprovalVotes: 2).Value;
-        var handler = new CastRhshfCommitteeVoteHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeUnitOfWork());
+        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 3, minimumApprovalVotes: 2, CommitteeType.BranchCredit, null).Value;
+        var handler = new CastRhshfCommitteeVoteHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeStandingCommitteeRepository(memberIds: creditOfficerId), new FakeUnitOfWork());
 
         var result = await handler.Handle(new CastRhshfCommitteeVoteCommand(profile.Reference, creditOfficerId, RhshfCommitteeVoteChoice.Approve, null));
 
@@ -129,7 +133,7 @@ public class CommitteeVoteHandlerTests
     public async Task ReturnToFac_ResetsBothAggregates()
     {
         var profile = MakeProfileAtCommitteeVoting(out _, out _);
-        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 3, minimumApprovalVotes: 2).Value;
+        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 3, minimumApprovalVotes: 2, CommitteeType.BranchCredit, null).Value;
         var handler = new ReturnRhshfCommitteeToFacHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ReturnRhshfCommitteeToFacCommand(profile.Reference, "need more info", RhshfProfilingStage.SupportingDocuments));
@@ -143,7 +147,7 @@ public class CommitteeVoteHandlerTests
     public async Task GetCommitteeReview_ReturnsTallyAndVotes()
     {
         var profile = MakeProfileAtCommitteeVoting(out _, out _);
-        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 3, minimumApprovalVotes: 2).Value;
+        var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 3, minimumApprovalVotes: 2, CommitteeType.BranchCredit, null).Value;
         review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, "looks good", []);
         var handler = new GetRhshfCommitteeReviewHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review));
 
@@ -169,6 +173,7 @@ public class CommitteeVoteHandlerTests
         public Task<IReadOnlyList<RhshfCreditProfile>> GetQueueAsync(RhshfInternalStage stage, Guid? branchId, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<RhshfCreditProfile>>(
                 _profile is not null && _profile.InternalStage == stage ? [_profile] : []);
+        public Task<RhshfSupportingDocument?> GetSupportingDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private class FakeCommitteeRepository : IRhshfCommitteeReviewRepository
@@ -188,10 +193,32 @@ public class CommitteeVoteHandlerTests
         }
     }
 
-    private class FakeCommitteeConfig : IRhshfCommitteeConfig
+    private class FakeRoutingConfigRepository : IRhshfRoutingConfigRepository
     {
-        public int RequiredVotes => 3;
-        public int MinimumApprovalVotes => 2;
+        public Task<IReadOnlyList<RhshfRoutingConfig>> GetAllAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<RhshfRoutingConfig>>([]);
+        public Task<IReadOnlyList<RhshfRoutingConfig>> GetActiveConfigsAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<RhshfRoutingConfig>>([]);
+        public Task<RhshfRoutingConfig?> ResolveAsync(decimal totalEopValue, CancellationToken ct = default)
+            => Task.FromResult<RhshfRoutingConfig?>(RhshfRoutingConfig.Create(CommitteeType.BranchCredit, 0, 999_999_999_999m, 0).Value);
+        public Task<RhshfRoutingConfig?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task AddAsync(RhshfRoutingConfig config, CancellationToken ct = default) => Task.CompletedTask;
+        public void Update(RhshfRoutingConfig config) { }
+    }
+
+    private class FakeStandingCommitteeRepository : IStandingCommitteeRepository
+    {
+        private readonly StandingCommittee _committee;
+        public FakeStandingCommitteeRepository(int requiredVotes = 3, int minimumApprovalVotes = 2, params Guid[] memberIds)
+        {
+            _committee = StandingCommittee.Create("Branch Credit Committee", CommitteeType.BranchCredit, requiredVotes, minimumApprovalVotes, 48, 0, null).Value;
+            foreach (var id in memberIds) _committee.AddMember(id, "Test Member", "Member", false);
+        }
+        public Task<StandingCommittee?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<StandingCommittee?> GetByCommitteeTypeAsync(CommitteeType type, CancellationToken ct = default) => Task.FromResult<StandingCommittee?>(_committee);
+        public Task<StandingCommittee?> GetByCommitteeTypeAndLocationAsync(CommitteeType type, Guid? locationId, CancellationToken ct = default) => Task.FromResult<StandingCommittee?>(_committee);
+        public Task<StandingCommittee?> GetForAmountAsync(decimal amount, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<StandingCommittee>> GetAllAsync(bool includeInactive = false, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task AddAsync(StandingCommittee committee, CancellationToken ct = default) => Task.CompletedTask;
+        public void Update(StandingCommittee committee) { }
     }
 
     private class FakeUnitOfWork : IUnitOfWork

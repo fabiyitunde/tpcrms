@@ -22,4 +22,16 @@ public class RhshfSettings
     /// Branch/Zonal/Regional/HO ladder. Quorum/majority thresholds for every RH-SHF committee vote.</summary>
     public int CommitteeRequiredVotes { get; set; } = 3;
     public int CommitteeMinimumApprovalVotes { get; set; } = 2;
+
+    /// <summary>HMAC secret for signing the §4.4 outcome webhook. Independent of TokenSigningSecret
+    /// above — a different purpose, exchanged with the portal out-of-band, same as the brief's own
+    /// security summary treats them as separate concerns.</summary>
+    public string CallbackSigningSecret { get; set; } = string.Empty;
+
+    public int CallbackTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>True in local/dev environments without a reachable portal callbackUrl — logs
+    /// instead of making a real HTTP call, mirroring every other external-service mock in this
+    /// codebase (Fineract, CoreBanking, NAMP's own callback).</summary>
+    public bool CallbackUseMock { get; set; } = true;
 }

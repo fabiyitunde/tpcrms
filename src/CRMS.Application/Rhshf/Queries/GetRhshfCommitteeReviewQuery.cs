@@ -12,6 +12,7 @@ public record RhshfCommitteeReviewDto(
     int CycleNumber,
     int RequiredVotes,
     int MinimumApprovalVotes,
+    CommitteeType Tier,
     RhshfCommitteeDecision? FinalDecision,
     List<RhshfCommitteeVoteDto> Votes);
 
@@ -37,7 +38,7 @@ public class GetRhshfCommitteeReviewHandler : IRequestHandler<GetRhshfCommitteeR
             return ApplicationResult<RhshfCommitteeReviewDto>.Failure("No committee review found for this case's current cycle.");
 
         var dto = new RhshfCommitteeReviewDto(
-            review.CycleNumber, review.RequiredVotes, review.MinimumApprovalVotes, review.FinalDecision,
+            review.CycleNumber, review.RequiredVotes, review.MinimumApprovalVotes, review.Tier, review.FinalDecision,
             review.Votes.Select(v => new RhshfCommitteeVoteDto(v.UserId, v.Vote, v.VotedAt, v.Comment)).ToList());
 
         return ApplicationResult<RhshfCommitteeReviewDto>.Success(dto);

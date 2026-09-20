@@ -152,6 +152,7 @@ public class TokenHandlerTests
         public Task<IReadOnlyList<RhshfCreditProfile>> GetQueueAsync(RhshfInternalStage stage, Guid? branchId, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<RhshfCreditProfile>>(
                 _profile is not null && _profile.InternalStage == stage ? [_profile] : []);
+        public Task<RhshfSupportingDocument?> GetSupportingDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private class FakeTokenService : IRhshfTokenService

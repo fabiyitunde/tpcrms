@@ -226,7 +226,7 @@
         "BranchRiskOfficer", "ZonalRiskOfficer", "RegionalRiskOfficer", "HORiskOfficer") ?? false;
     // RH-SHF is its own loan track — reuses the same generic CreditOfficer/RiskManager roles NAMP
     // and Corporate already use, but is otherwise independent (own queue, own domain).
-    private bool CanViewRhshf => User?.HasAnyRole("SystemAdmin", "CreditOfficer", "RiskManager", "CommitteeMember", "FinalApprover") ?? false;
+    private bool CanViewRhshf => User?.HasAnyRole("SystemAdmin", "CreditOfficer", "RiskManager", "CommitteeMember", "FinalApprover", "LegalOfficer", "DisbursementOfficer") ?? false;
 
     protected override async Task OnInitializedAsync()
     {

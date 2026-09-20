@@ -1,26 +1,18 @@
-using System.Security.Claims;
 using CRMS.Application.Rhshf.Commands;
 using CRMS.Application.Rhshf.DTOs;
 using CRMS.Application.Rhshf.Queries;
 using CRMS.Domain.Enums;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace CRMS.Web.Intranet.Pages.Rhshf;
 
 /// <summary>
-/// The FAC-facing profiling form (§4.3 of the integration brief). Token-authenticated on first
-/// load only; the rest of the multi-stage session runs on the "RhshfProfiling" cookie scheme
-/// (design doc §6 #5) — completely independent of staff login (AuthService/
-/// AuthenticationStateProvider are never referenced here).
+/// The FAC-facing profiling form (§4.3 of the integration brief). Token/cookie-session auth is
+/// shared via RhshfPublicPageModel (design doc §6 #5) — this class only handles profiling's own
+/// 5-stage content.
 /// </summary>
-public class ProfilingModel : PageModel
+public class ProfilingModel : RhshfPublicPageModel
 {
-    private const string SchemeName = "RhshfProfiling";
-    private const string ReferenceClaimType = "reference";
-
-    private readonly VerifyRhshfProfilingTokenHandler _verifyHandler;
     private readonly GetRhshfProfilingSessionHandler _sessionHandler;
     private readonly EnsureRhshfBureauCheckHandler _bureauHandler;
     private readonly AdvanceRhshfProfilingStageHandler _advanceHandler;
@@ -32,8 +24,8 @@ public class ProfilingModel : PageModel
         EnsureRhshfBureauCheckHandler bureauHandler,
         AdvanceRhshfProfilingStageHandler advanceHandler,
         UploadRhshfSupportingDocumentHandler uploadHandler)
+        : base(verifyHandler)
     {
-        _verifyHandler = verifyHandler;
         _sessionHandler = sessionHandler;
         _bureauHandler = bureauHandler;
         _advanceHandler = advanceHandler;
@@ -41,7 +33,6 @@ public class ProfilingModel : PageModel
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
-    public bool IsExpired { get; private set; }
 
     [TempData]
     public string? ErrorMessage { get; set; }
@@ -51,28 +42,9 @@ public class ProfilingModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(string reference, string? token, CancellationToken ct)
     {
-        if (!await IsAuthorizedForReferenceAsync(reference))
-        {
-            if (string.IsNullOrEmpty(token))
-            {
-                IsExpired = true;
-                return Page();
-            }
-
-            var verifyResult = await _verifyHandler.Handle(new VerifyRhshfProfilingTokenCommand(reference, token), ct);
-            if (!verifyResult.IsSuccess)
-            {
-                IsExpired = true;
-                return Page();
-            }
-
-            var identity = new ClaimsIdentity([new Claim(ReferenceClaimType, reference)], SchemeName);
-            await HttpContext.SignInAsync(SchemeName, new ClaimsPrincipal(identity));
-
-            // Redirect so ?token=... never lingers in the address bar / browser history beyond
-            // the single request that consumed it (design doc §6 #5).
-            return RedirectToPage(new { reference });
-        }
+        var entryResult = await TryEnterAsync(reference, token, ct);
+        if (entryResult is not null)
+            return entryResult;
 
         var loaded = await LoadSessionAsync(reference, ct);
         if (!loaded)
@@ -136,17 +108,5 @@ public class ProfilingModel : PageModel
 
         Session = result.Data;
         return true;
-    }
-
-    /// <summary>A cookie for case A must never authorize an action against case B's route — this
-    /// is checked on every GET and every POST, not just the initial token verification.</summary>
-    private async Task<bool> IsAuthorizedForReferenceAsync(string reference)
-    {
-        var authResult = await HttpContext.AuthenticateAsync(SchemeName);
-        if (!authResult.Succeeded || authResult.Principal is null)
-            return false;
-
-        var claimReference = authResult.Principal.FindFirst(ReferenceClaimType)?.Value;
-        return string.Equals(claimReference, reference, StringComparison.Ordinal);
     }
 }

@@ -1,0 +1,447 @@
+@page "/rhshf/detail/{Reference}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using CRMS.Application.Rhshf.Commands
+@using CRMS.Application.Rhshf.DTOs
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
+@using CRMS.Web.Intranet.Components.Pages.Rhshf.Tabs
+@using CRMS.Web.Intranet.Components.Pages.Rhshf.Modals
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>RH-SHF @Reference - CRMS</PageTitle>
+
+@if (isLoading)
+{
+    <div class="p-6 text-center"><div class="spinner" style="margin: 0 auto;"></div></div>
+}
+else if (workspace is null)
+{
+    <div class="alert alert-danger">Could not load this case.</div>
+}
+else
+{
+    <div class="page-header">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <button class="btn btn-ghost btn-sm" @onclick='() => Navigation.NavigateTo("/rhshf")'>
+                <span class="material-symbols-outlined" style="font-size: 18px;">arrow_back</span>
+            </button>
+            <div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <h1 class="page-title" style="margin: 0;">@workspace.CompanyName</h1>
+                    <span class="badge @StatusBadgeClass(workspace.Status)" style="font-size: 0.8rem;">@workspace.Status</span>
+                    @if (workspace.InternalStage is not null)
+                    {
+                        <span class="badge badge-secondary" style="font-size: 0.8rem;">@workspace.InternalStage</span>
+                    }
+                </div>
+                <p class="page-subtitle" style="margin: 0;"><code>@workspace.Reference</code> &middot; Cycle @workspace.CurrentCycleNumber</p>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            @if (CanAppraise && workspace.InternalStage == RhshfInternalStage.Appraisal)
+            {
+                @if (eligibilityChecks.Count == 0)
+                {
+                    <button class="btn btn-outline" @onclick='() => openModal = "eligibility"'>
+                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">checklist</span> Eligibility Checklist
+                    </button>
+                }
+                <button class="btn btn-warning" @onclick='() => OpenAppraisalModal("ReturnToFac")'>Return to FAC</button>
+                <button class="btn btn-danger" @onclick='() => OpenAppraisalModal("Decline")'>Decline</button>
+                <button class="btn btn-success" @onclick='() => OpenAppraisalModal("Proceed")'>Proceed</button>
+            }
+            @if (CanReviewRisk && workspace.InternalStage == RhshfInternalStage.RiskReview)
+            {
+                <button class="btn btn-warning" @onclick='() => OpenRiskReviewModal("ReturnToFac")'>Return to FAC</button>
+                <button class="btn btn-danger" @onclick='() => OpenRiskReviewModal("Decline")'>Decline</button>
+                <button class="btn btn-success" @onclick='() => OpenRiskReviewModal("Cleared")'>Clear</button>
+            }
+            @if (CanVoteOnCommittee && workspace.InternalStage == RhshfInternalStage.CommitteeVoting && CanActuallyVote)
+            {
+                <button class="btn btn-warning" @onclick='() => OpenCommitteeModal("ReturnToFac")'>Return to FAC</button>
+                <button class="btn btn-outline-secondary" @onclick='() => OpenCommitteeModal("Abstain")'>Abstain</button>
+                <button class="btn btn-danger" @onclick='() => OpenCommitteeModal("Reject")'>Reject</button>
+                <button class="btn btn-success" @onclick='() => OpenCommitteeModal("Approve")'>Approve</button>
+            }
+            @if (CanRatify && workspace.InternalStage == RhshfInternalStage.Ratification)
+            {
+                <button class="btn btn-warning" @onclick='() => OpenRatificationModal("ReturnToFac")'>Return to FAC</button>
+                <button class="btn btn-danger" @onclick='() => OpenRatificationModal("Declined")'>Decline</button>
+                <button class="btn btn-success" @onclick='() => OpenRatificationModal("Ratified")'>Ratify</button>
+            }
+            @if (CanClearLegally && workspace.InternalStage == RhshfInternalStage.LegalClearance)
+            {
+                <button class="btn btn-outline" @onclick='() => openModal = "collateral"'>
+                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">security</span> Record Collateral
+                </button>
+                <button class="btn btn-warning" @onclick='() => OpenLegalClearanceModal("Returned")'>Return to Ratification</button>
+                <button class="btn btn-danger" @onclick='() => OpenLegalClearanceModal("Declined")'>Decline</button>
+                <button class="btn btn-success" @onclick='() => OpenLegalClearanceModal("Granted")'>Grant</button>
+            }
+            @if (CanBookDisbursement && workspace.InternalStage == RhshfInternalStage.Disbursement && !disbursementHistory.Any(d => d.Status == RhshfDisbursementStatus.Booked))
+            {
+                <button class="btn btn-success" @onclick='() => openModal = "disbursement"'>
+                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">account_balance</span> Book Disbursement
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(pageError))
+    {
+        <div class="alert alert-danger" style="margin-bottom: 1rem;">@pageError</div>
+    }
+
+    <div class="tabs" style="flex-wrap: wrap;">
+        <div class="tab @(activeTab == "overview" ? "active" : "")" @onclick='() => activeTab = "overview"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">summarize</span>Overview
+        </div>
+        @if (ShowEligibilityTab)
+        {
+            <div class="tab @(activeTab == "eligibility" ? "active" : "")" @onclick='() => activeTab = "eligibility"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">checklist</span>Eligibility
+            </div>
+        }
+        <div class="tab @(activeTab == "bureau" ? "active" : "")" @onclick='() => activeTab = "bureau"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span>Credit Bureau
+        </div>
+        @if (ShowCollateralTab)
+        {
+            <div class="tab @(activeTab == "collateral" ? "active" : "")" @onclick='() => activeTab = "collateral"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">security</span>Collateral
+            </div>
+        }
+        <div class="tab @(activeTab == "documents" ? "active" : "")" @onclick='() => activeTab = "documents"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">folder_open</span>Documents
+        </div>
+        @if (ShowAppraisalTab)
+        {
+            <div class="tab @(activeTab == "appraisal" ? "active" : "")" @onclick='() => activeTab = "appraisal"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology</span>Appraisal
+            </div>
+        }
+        @if (ShowRiskReviewTab)
+        {
+            <div class="tab @(activeTab == "riskreview" ? "active" : "")" @onclick='() => activeTab = "riskreview"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">shield_person</span>Risk Review
+            </div>
+        }
+        @if (ShowCommitteeTab)
+        {
+            <div class="tab @(activeTab == "committee" ? "active" : "")" @onclick='() => activeTab = "committee"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">groups</span>Committee
+            </div>
+        }
+        @if (ShowRatificationTab)
+        {
+            <div class="tab @(activeTab == "ratification" ? "active" : "")" @onclick='() => activeTab = "ratification"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">task_alt</span>Ratification
+            </div>
+        }
+        @if (ShowOfferTab)
+        {
+            <div class="tab @(activeTab == "offer" ? "active" : "")" @onclick='() => activeTab = "offer"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">mail</span>Offer
+            </div>
+        }
+        @if (ShowLegalClearanceTab)
+        {
+            <div class="tab @(activeTab == "legal" ? "active" : "")" @onclick='() => activeTab = "legal"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">gavel</span>Legal Clearance
+            </div>
+        }
+        @if (ShowDisbursementTab)
+        {
+            <div class="tab @(activeTab == "disbursement" ? "active" : "")" @onclick='() => activeTab = "disbursement"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">account_balance</span>Disbursement
+            </div>
+        }
+    </div>
+
+    @switch (activeTab)
+    {
+        case "overview":
+            <OverviewTab Workspace="workspace" />
+            break;
+        case "eligibility":
+            <EligibilityTab Checks="eligibilityChecks" />
+            break;
+        case "bureau":
+            <BureauTab Workspace="workspace" />
+            break;
+        case "collateral":
+            <CollateralTab Records="collateralRecords" CanUpload="CanClearLegally"
+                OnUploadDocument="UploadCollateralDocument" OnDownloadDocument="DownloadCollateralDocument" />
+            break;
+        case "documents":
+            <DocumentsTab Documents="workspace.SupportingDocuments" OnDownload="DownloadSupportingDocument" />
+            break;
+        case "appraisal":
+            <AppraisalTab Appraisals="workspace.Appraisals" />
+            break;
+        case "riskreview":
+            <RiskReviewTab RiskReviews="workspace.RiskReviews" />
+            break;
+        case "committee":
+            <CommitteeTab Committee="committeeReview" CurrentUserId="CurrentUserId" />
+            break;
+        case "ratification":
+            <RatificationTab Ratifications="workspace.Ratifications" Currency="workspace.Currency" />
+            break;
+        case "offer":
+            <OfferTab Offer="offer" Currency="workspace.Currency" TotalEopValue="workspace.TotalEopValue" OnDownload="DownloadOfferDocument" />
+            break;
+        case "legal":
+            <LegalClearanceTab History="legalHistory" />
+            break;
+        case "disbursement":
+            <DisbursementTab History="disbursementHistory" />
+            break;
+    }
+
+    @if (openModal == "eligibility")
+    {
+        <EligibilityChecklistModal OnClose="CloseModal" OnConfirm="SubmitEligibilityChecklist" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+    @if (openModal == "collateral")
+    {
+        <CollateralModal OnClose="CloseModal" OnConfirm="SubmitCollateral" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+    @if (openModal == "disbursement")
+    {
+        <DisbursementModal OnClose="CloseModal" OnConfirm="SubmitDisbursement" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+    @if (openModal == "appraisal")
+    {
+        <AppraisalModal Intent="modalIntent" OnClose="CloseModal" OnConfirm="SubmitAppraisal" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+    @if (openModal == "riskreview")
+    {
+        <RiskReviewModal Intent="modalIntent" OnClose="CloseModal" OnConfirm="SubmitRiskReview" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+    @if (openModal == "committee")
+    {
+        <CommitteeVoteModal Intent="modalIntent" OnClose="CloseModal" OnVote="SubmitCommitteeVote" OnReturnToFac="SubmitCommitteeReturnToFac" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+    @if (openModal == "ratification")
+    {
+        <RatificationModal Intent="modalIntent" TotalEopValue="workspace.TotalEopValue" Currency="workspace.Currency" OnClose="CloseModal" OnConfirm="SubmitRatify" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+    @if (openModal == "legal")
+    {
+        <LegalClearanceModal Intent="modalIntent" OnClose="CloseModal" OnConfirm="SubmitLegalClearance" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+}
+
+@code {
+    [Parameter] public string Reference { get; set; } = string.Empty;
+
+    private RhshfCaseWorkspaceDto? workspace;
+    private List<RhshfEligibilityCheckDto> eligibilityChecks = [];
+    private List<RhshfCollateralDto> collateralRecords = [];
+    private RhshfCommitteeReviewDto? committeeReview;
+    private RhshfOfferDto? offer;
+    private List<RhshfLegalClearanceDto> legalHistory = [];
+    private List<RhshfDisbursementDto> disbursementHistory = [];
+
+    private string activeTab = "overview";
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string? pageError;
+    private string? modalError;
+    private string? openModal;
+    private string modalIntent = string.Empty;
+
+    private Guid CurrentUserId => AuthService.CurrentUser?.Id ?? Guid.Empty;
+    private bool CanAppraise => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer") ?? false;
+    private bool CanReviewRisk => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager") ?? false;
+    private bool CanVoteOnCommittee => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CommitteeMember") ?? false;
+    private bool CanRatify => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "FinalApprover") ?? false;
+    private bool CanClearLegally => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "LegalOfficer") ?? false;
+    private bool CanBookDisbursement => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "DisbursementOfficer") ?? false;
+    private bool CanActuallyVote => !(committeeReview?.Votes.Any(v => v.UserId == CurrentUserId) ?? false);
+
+    // Tabs stay visible once the case has ever reached the relevant stage, even after moving past
+    // it — staff need the history, not just "is it my turn right now".
+    private bool ShowEligibilityTab => workspace!.InternalStage is not null || eligibilityChecks.Count > 0 || workspace.Appraisals.Count > 0;
+    private bool ShowCollateralTab => workspace!.InternalStage is RhshfInternalStage.LegalClearance or RhshfInternalStage.Disbursement or RhshfInternalStage.Completed
+        || collateralRecords.Count > 0;
+    private bool ShowAppraisalTab => workspace!.InternalStage is not null || workspace.Appraisals.Count > 0;
+    private bool ShowRiskReviewTab => workspace!.Appraisals.Count > 0;
+    private bool ShowCommitteeTab => workspace!.RiskReviews.Count > 0 || committeeReview is not null;
+    private bool ShowRatificationTab => (committeeReview?.FinalDecision == RhshfCommitteeDecision.Approved) || workspace!.Ratifications.Count > 0;
+    private bool ShowOfferTab => workspace!.Ratifications.Any(r => r.Outcome == RhshfRatificationOutcome.Ratified) || offer is not null;
+    private bool ShowLegalClearanceTab => workspace!.InternalStage is RhshfInternalStage.LegalClearance or RhshfInternalStage.Disbursement or RhshfInternalStage.Completed
+        || legalHistory.Count > 0;
+    private bool ShowDisbursementTab => workspace!.InternalStage is RhshfInternalStage.Disbursement or RhshfInternalStage.Completed
+        || disbursementHistory.Count > 0;
+
+    protected override async Task OnInitializedAsync() => await LoadAllAsync();
+
+    // Sequential, not parallel — AppService calls share one scoped DbContext per circuit; running
+    // them concurrently silently returns empty results (established gotcha in this codebase).
+    private async Task LoadAllAsync()
+    {
+        isLoading = true;
+        pageError = null;
+        try
+        {
+            workspace = await AppService.GetRhshfCaseWorkspaceAsync(Reference);
+            if (workspace is null)
+                return;
+
+            eligibilityChecks = await AppService.GetRhshfEligibilityChecklistAsync(Reference);
+            collateralRecords = await AppService.GetRhshfCollateralAsync(Reference);
+            committeeReview = await AppService.GetRhshfCommitteeReviewAsync(Reference);
+            offer = await AppService.GetRhshfOfferAsync(Reference);
+            legalHistory = await AppService.GetRhshfLegalClearanceHistoryAsync(Reference);
+            disbursementHistory = await AppService.GetRhshfDisbursementHistoryAsync(Reference);
+        }
+        catch (Exception ex)
+        {
+            pageError = $"Failed to load case: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenAppraisalModal(string intent) { openModal = "appraisal"; modalIntent = intent; modalError = null; }
+    private void OpenRiskReviewModal(string intent) { openModal = "riskreview"; modalIntent = intent; modalError = null; }
+    private void OpenCommitteeModal(string intent) { openModal = "committee"; modalIntent = intent; modalError = null; }
+    private void OpenRatificationModal(string intent) { openModal = "ratification"; modalIntent = intent; modalError = null; }
+    private void OpenLegalClearanceModal(string intent) { openModal = "legal"; modalIntent = intent; modalError = null; }
+    private void CloseModal() { openModal = null; modalError = null; }
+
+    private async Task SubmitEligibilityChecklist(List<RhshfEligibilityCriterionInput> criteria)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.RecordRhshfEligibilityChecklistAsync(Reference, CurrentUserId, criteria);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitCollateral(RecordRhshfCollateralCommand command)
+    {
+        isSubmitting = true;
+        modalError = null;
+        // The modal has no knowledge of the case reference or current user — the container fills
+        // in the two things it actually owns.
+        var result = await AppService.RecordRhshfCollateralAsync(command with { Reference = Reference, RecordedBy = CurrentUserId });
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task UploadCollateralDocument((Guid CollateralId, string FileName, string ContentType, byte[] Content) upload)
+    {
+        var result = await AppService.AddRhshfCollateralDocumentAsync(upload.CollateralId, upload.FileName, upload.ContentType, upload.Content);
+        if (!result.Success) { pageError = result.Error; return; }
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitAppraisal((RhshfAppraisalOutcome Outcome, string? Notes, RhshfProfilingStage? ReturnToStage) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.AppraiseRhshfCaseAsync(Reference, CurrentUserId, input.Outcome, input.Notes, input.ReturnToStage);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitRiskReview((RhshfRiskReviewOutcome Outcome, string? Notes, RhshfProfilingStage? ReturnToStage) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.ReviewRhshfRiskAsync(Reference, CurrentUserId, input.Outcome, input.Notes, input.ReturnToStage);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitCommitteeVote((RhshfCommitteeVoteChoice Vote, string? Comment) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.CastRhshfCommitteeVoteAsync(Reference, CurrentUserId, input.Vote, input.Comment);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitCommitteeReturnToFac((string Notes, RhshfProfilingStage ReturnToStage) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.ReturnRhshfCommitteeToFacAsync(Reference, input.Notes, input.ReturnToStage);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitRatify((RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.RatifyRhshfCaseAsync(Reference, CurrentUserId, input.Outcome, input.ApprovedAmount, input.Notes, input.ReturnToStage);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitLegalClearance((RhshfLegalClearanceOutcome Outcome, string? Comments) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.ClearRhshfLegalAsync(Reference, CurrentUserId, input.Outcome, input.Comments);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitDisbursement((string SupplierAccountNumber, string? SupplierName) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.BookRhshfDisbursementAsync(Reference, CurrentUserId, input.SupplierAccountNumber, input.SupplierName);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task DownloadSupportingDocument(Guid documentId) => await TriggerDownload(await AppService.DownloadRhshfSupportingDocumentAsync(documentId));
+    private async Task DownloadOfferDocument(Guid documentId) => await TriggerDownload(await AppService.DownloadRhshfOfferDocumentAsync(documentId));
+    private async Task DownloadCollateralDocument(Guid documentId) => await TriggerDownload(await AppService.DownloadRhshfCollateralDocumentAsync(documentId));
+
+    private async Task TriggerDownload(RhshfDownloadedFileDto? file)
+    {
+        if (file is null) { pageError = "Could not download the file."; return; }
+        await JS.InvokeVoidAsync("downloadFileFromBytes", file.FileName, file.ContentType, file.Content);
+    }
+
+    private static string StatusBadgeClass(RhshfCaseStatus status) => status switch
+    {
+        RhshfCaseStatus.Approved => "badge-success",
+        RhshfCaseStatus.Declined => "badge-danger",
+        RhshfCaseStatus.Cancelled or RhshfCaseStatus.Expired => "badge-secondary",
+        RhshfCaseStatus.UnderReview => "badge-warning",
+        _ => "badge-secondary",
+    };
+}

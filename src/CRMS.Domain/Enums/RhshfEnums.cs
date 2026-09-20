@@ -122,3 +122,65 @@ public enum RhshfOfferStatus
     Rejected,
     Expired,
 }
+
+/// <summary>Legal Officer's outcome at the LegalClearance stage (design doc §3.6, Phase 8).
+/// Returned routes back to Ratification, not Appraisal — a legal issue isn't a re-appraisal of the
+/// credit (§6 #12). Must differ from that cycle's Final Approver.</summary>
+public enum RhshfLegalClearanceOutcome
+{
+    Granted,
+    Returned,
+    Declined,
+}
+
+/// <summary>Outcome of a Disbursement Officer's booking attempt (design doc §3.6, Phase 9). Failed
+/// is retryable — the case stays at the Disbursement stage, not a terminal outcome.</summary>
+public enum RhshfDisbursementStatus
+{
+    Booked,
+    Failed,
+}
+
+/// <summary>Which outbound webhook shape an RhshfCallbackAttempt represents (design doc §4.4,
+/// Phase 10). Decided is the terminal outcome call; OfferReady is the non-terminal
+/// actionRequired: "REVIEW_OFFER" nudge (§6 #10) — same signing/retry mechanics, different payload.</summary>
+public enum RhshfCallbackEventType
+{
+    Decided,
+    OfferReady,
+}
+
+/// <summary>The 11 fixed institutional eligibility criteria from the RH-SHF programme document
+/// (RSHSF_Programme_Details.docx, S/N 15) — a fixed programme-wide checklist, not a per-product
+/// configurable rule engine like LoanProduct's EligibilityRule.</summary>
+public enum RhshfEligibilityCriterion
+{
+    CacIncorporation,
+    AggregationTrackRecord,
+    OutGrowerNetwork,
+    WarehousingAndTransport,
+    OffTakeAgreements,
+    BoaOperationalAccount,
+    AuditedFinancials,
+    CleanBureauAndCrmsReports,
+    ZeroNplHistory,
+    BoaFrameworkCompliance,
+    SmallholderBiometricRegistration,
+}
+
+/// <summary>Collateral instrument types named in the RH-SHF programme document (S/N 16) — a fixed,
+/// small set of specific instruments (unlike NAMP's generic asset-collateral shape), so
+/// RhshfCollateral models these directly rather than a free-text "collateral type" string.</summary>
+public enum RhshfCollateralType
+{
+    BankGuarantee,
+    NirsalCrg,
+    LegalMortgage,
+}
+
+/// <summary>Perfection status of a legal mortgage collateral instrument.</summary>
+public enum RhshfCollateralPerfectionStatus
+{
+    Pending,
+    Perfected,
+}

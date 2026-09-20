@@ -33,6 +33,7 @@ CRMS.Domain/Aggregates/Rhshf/
                                    pattern of NOT reusing the generic CommitteeReview, which is
                                    hard-FK'd to Corporate's LoanApplicationId)
   RhshfOffer.cs                  (own aggregate root — offer generation + FAC acceptance)
+  RhshfOfferDocument.cs           (child of RhshfOffer — the FAC's signed copy, §3.6/§6 #10)
   RhshfLegalClearance.cs         (own aggregate root)
 CRMS.Domain/Enums/RhshfEnums.cs
 CRMS.Domain/Interfaces/IRhshfCreditProfileRepository.cs
@@ -189,12 +190,25 @@ Whether this needs NAMP-style **value-based tiers** (Branch/Zonal/Regional/HO) o
 | Property | Type | Notes |
 |---|---|---|
 | `RhshfCreditProfileId` | Guid | |
+| `CycleNumber` | int | Which review cycle generated this offer — a later cycle (after a ReturnToFac loop) gets its own offer, not a reused one |
 | `GeneratedAt` | DateTime | |
-| `OfferDocumentPath` | string | Generated offer letter (same shape of concern as NAMP's offer-letter generation) |
+| `OfferDocumentPath` | string | Generated offer letter (own generator — `IRhshfOfferLetterPdfGenerator` — not NAMP's/Corporate's; their data shape assumes a term loan with tenor/interest/amortization, which doesn't exist for this product) |
 | `Status` | `Generated` \| `AwaitingFacResponse` \| `Accepted` \| `Rejected` \| `Expired` | |
 | `FacRespondedAt` | DateTime? | |
+| `FacResponseNotes` | string? | Optional freeform comment from the FAC on accept or reject — never required |
 
-How the FAC actually accepts the offer is a real, unresolved piece of the design — see §6 #10.
+Own child collection:
+
+##### `RhshfOfferDocument` (child of `RhshfOffer`, not of `RhshfCreditProfile`)
+
+The FAC must upload a signed copy of the offer letter before `Accept` succeeds (§6 #10 — hard precondition, not a nudge). Scoped to the offer/cycle that produced it, not the flat `RhshfCreditProfile.SupportingDocuments` list from the profiling stage — a different artifact from a different moment in the lifecycle, and each cycle's offer needs its own record.
+
+| Property | Type | Notes |
+|---|---|---|
+| `RhshfOfferId` | Guid | |
+| `FileName`, `ContentType`, `StoragePath`, `SizeBytes`, `UploadedAt` | | Same shape as `RhshfSupportingDocument` |
+
+§6 #10 (how the FAC actually accepts the offer) is now resolved — see §5's workflow section and §6 below.
 
 #### `RhshfLegalClearance` (own aggregate root)
 
@@ -212,13 +226,30 @@ How the FAC actually accepts the offer is a real, unresolved piece of the design
 
 | Property | Type | Notes |
 |---|---|---|
+| `CycleNumber` | int | Same cycle-scoping as every other pipeline entity |
 | `DisbursementOfficerId` | Guid | |
 | `BookedAt` | DateTime | |
-| `FineractLoanAccountNumber` | string | Same shape of concern as NAMP's Fineract-booking fields — own independent integration call, not shared code |
-| `DisbursedAmount` | decimal | |
-| `Status` | `Booked` \| `Failed` | |
+| `FineractLoanId` / `FineractLoanAccountNumber` | long? / string? | Same shape of concern as NAMP's Fineract-booking fields — own independent integration call, not shared code |
+| `DisbursedAmount` | decimal | Must equal the ratified `ApprovedAmount` |
+| `SupplierAccountNumber` / `SupplierName` | string / string? | Where the loan proceeds actually go (§6 #13) — a CRMS-side audit field, not sent to Fineract |
+| `Status` | `Booked` \| `Failed` | `Failed` is retryable — append-only, a case can accumulate more than one row per cycle |
+| `FailureReason` | string? | |
 
-This resolves the earlier open question in §7 (old draft) about whether RH-SHF becomes a real Fineract-booked facility: **yes** — the Disbursement Officer books it, same as NAMP.
+This resolves the earlier open question in §7 (old draft) about whether RH-SHF becomes a real Fineract-booked facility: **yes** — the Disbursement Officer books it, same as NAMP. See §6 #13 for how the Fineract product/rate/tenor and disbursement destination are resolved.
+
+#### `RhshfCallbackAttempt` (own aggregate root, despite the Phase 10 plan's "child entity" phrasing)
+
+| Property | Type | Notes |
+|---|---|---|
+| `RhshfCreditProfileId` | Guid | |
+| `EventId` | string | Stable across every retry of the same logical event — the portal de-dupes on this |
+| `EventType` | `Decided` \| `OfferReady` | Which payload shape this attempt builds |
+| `EventOccurredAt` | DateTime | When the underlying domain event fired — stable across retries, feeds `decidedAt`/`occurredAt` |
+| `AttemptNumber` | int | |
+| `SentAt` / `ResponseStatusCode` / `Succeeded` | DateTime? / int? / bool | |
+| `NextRetryAt` | DateTime? | Null once resolved (succeeded, or exhausted) — the due-query is just "not succeeded and past this" |
+
+Promoted from the plan's "child entity" to its own aggregate root/table for the same reason `RhshfCommitteeReview`/`RhshfOffer`/`RhshfLegalClearance` were: a background service polls due attempts across *every* profile at once, which needs a flat repository query rather than a load-one-profile-then-inspect-its-collection access pattern. One row per attempt, immutable once resolved — a failed-but-retryable attempt gets a brand new row (same `EventId`, `AttemptNumber + 1`) rather than mutating the old one, preserving full history for manual reconciliation once all attempts are exhausted.
 
 ### Routing
 
@@ -305,10 +336,14 @@ Appraisal ──(Credit Officer)──► Proceed ──► RiskReview ──(Ri
    │                                                                                              │
    │                                                                                              ▼
    │                                                                                 AwaitingOfferAcceptance
-   │                                                                  ┌─(FAC rejects/offer expires)──┤
-   │                                                                  ▼                    (FAC accepts)
-   │                                                         Declined / Cancelled                  │
-   │                                                                                                ▼
+   │                                                            (FAC must upload a signed copy of the
+   │                                                             offer first — hard gate, §6 #10)
+   │                                                                  ┌─(FAC rejects)──┤
+   │                                                                  ▼                    (FAC accepts,
+   │                                                             Cancelled              signed copy uploaded)
+   │                                                       (withdrawal, not a bank                    │
+   │                                                        decision — DecisionOutcome                ▼
+   │                                                        stays null)
    │                                                                                        LegalClearance
    │                                                          ┌─(Returned → back to Ratification)───┤
    │                                                          │                    (Declined)   (Granted)
@@ -329,8 +364,10 @@ Notes on the diagram:
 - `Appraisal`/`RiskReview`/`CommitteeVoting`/`Ratification` mirror the maker-checker floor already established (§6 #2), now expressed across four distinct actors instead of two — Credit Officer, Risk Officer, Committee members, Final Approver are all different people by construction.
 - `LegalClearance.Returned` routes back to `Ratification`, not to `Appraisal` — a legal issue isn't a re-appraisal of the credit (§3.6, §6 #12).
 - A rejection at `AwaitingOfferAcceptance` or a decline at `LegalClearance`, happening *after* the credit was already ratified, is the scenario behind §6 #9 — see below for why the external "Approved" signal is deliberately deferred past this point.
+- `AwaitingOfferAcceptance`'s rejection path is `Cancelled`, not `Declined` — the only place in this pipeline where a terminal outcome isn't `Declined`. It's the FAC withdrawing from their own offer, not the bank adjudicating anything, so `DecisionOutcome` stays null (§6 #10).
+- `Accept` at `AwaitingOfferAcceptance` has its own precondition beyond the stage-order guard every other transition uses: a signed copy of the offer (`RhshfOfferDocument`) must already be uploaded, or the action fails server-side (§6 #10).
 
-Each stage transition raises a domain event feeding `GET /status` (§4.5) directly off the aggregate's current state. The outbound callback (§4.4, via `IRhshfCallbackService`, independent of `INampCallbackService`) fires only at the points defined in §6 #9 — not on every internal stage transition.
+Each stage transition raises a domain event feeding `GET /status` (§4.5) directly off the aggregate's current state. The outbound callback (§4.4, via `IRhshfCallbackService`, independent of `INampCallbackService`) fires only at the points defined in §6 #9 — not on every internal stage transition. `AwaitingOfferAcceptance`'s onset is the one deliberate exception: a non-terminal `actionRequired: "REVIEW_OFFER"` call goes out here too (§6 #10), so the portal can prompt the FAC back — pending the same portal sign-off as #9 before it ships for real.
 
 ---
 
@@ -347,11 +384,12 @@ Each stage transition raises a domain event feeding `GET /status` (§4.5) direct
 | 7 | `InfoRequired` resume point | On `InfoRequired`, case status returns to `ProfilingInProgress` and `CurrentStage` resets to a stage carried on the decision (`InfoRequiredStage` — the maker/checker picks which stage to reopen when recording the outcome, defaulting to `ReviewAndSubmit` if unspecified). The FAC re-enters the same way as first-time entry: via the portal's "Continue on CRMS" button, which calls token-refresh (§4.6) first — no new mechanics needed there. | Decided — proceed |
 | 8 | Maker-checker on repeat rounds | A fresh pass through the pipeline (new `CycleNumber`, §3.6) is required **every time** a case re-reaches `UnderReview` after an `InfoRequired` round-trip — segregation of duties is not a one-time gate. Distinct-actor checks (Credit Officer ≠ Risk Officer, etc.) apply per cycle. How many cycles a case may take before escalation is a separate, still-open question. | Decided — proceed |
 | 9 | **When does the portal get told "Approved"?** | Recommend: **only once `Disbursement` completes**, not at `Ratification`. Reasoning: the brief's rule is that the portal's downstream EOP processing (credit paper, supplier orders, real fund commitments) starts the moment CRMS says "Approved" — but between `Ratification` and `Disbursement` the case can still die (FAC rejects the offer, Legal declines). Telling the portal "Approved" at `Ratification` risks a false positive that triggers real downstream financial activity on a loan that never actually gets disbursed. External status stays `UnderReview` throughout `OfferGenerated → LegalClearance → Disbursement`; only `Completed` maps to external `Approved`. | **Needs sign-off** from credit policy + portal — this is a real behavior change from the brief's own example (which implies `decidedBy: "CRMS Credit Committee"`, i.e. approval at committee/ratification time) and must be negotiated, not assumed |
-| 10 | How does the FAC accept the offer? | Not yet designed. Likely mirrors the profiling form's mechanism (a token-authenticated page, reached via the portal), but "accepting an offer" is a different, simpler interaction than the 5-stage profiling flow and deserves its own short design pass before Phase 7 (implementation plan) is built. | **Open — needs its own design pass**, not blocking Phases 1-6 |
-| 11 | Committee tiering | Whether `RhshfCommitteeReview` needs NAMP-style value-based tiers (Branch/Zonal/Regional/HO) or a single flat committee regardless of `TotalEopValue`. | **Open** — needs credit policy input; v1 can ship with a single flat committee and add tiers later without a rewrite (committee is already its own aggregate) |
+| 10 | How does the FAC accept the offer? | **Resolved (2026-08-31).** Reuses the profiling form's token/cookie-session mechanism (§6 #5), on a **separate** page (`/rhshf/offer/{reference}`, not folded into the profiling wizard — different shape of interaction). The FAC must upload a signed copy of the offer letter before `Accept` succeeds — a hard server-side precondition, not a UI nudge (own `RhshfOfferDocument`, scoped to the `RhshfOffer`/cycle that produced it, §3.6). Reject maps to case `Cancelled`, not `Declined` — a FAC declining their own offer is a withdrawal, not a bank decision, matching the brief's own status vocabulary ("Cancelled: case lapsed or withdrawn"); `DecisionOutcome` stays null since nothing was adjudicated. No auto-expiry in v1 (NAMP's `LapseNampOfferCommand` shows the shape a future scheduled job would take, but building one isn't blocking the core accept/reject mechanic). Portal is told to send the FAC back via a new non-terminal `actionRequired: "REVIEW_OFFER"` field on both the outcome webhook and the status-poll response (`status` stays `UNDER_REVIEW`, `decision` stays `null`) — this is a real (if small) addition to the external contract and needs portal sign-off, same as #9. | **Design resolved** — portal-facing `actionRequired` field still needs sign-off before Phase 10 ships it for real; everything else unblocks Phase 7 implementation now |
+| 11 | Committee tiering | Whether `RhshfCommitteeReview` needs NAMP-style value-based tiers (Branch/Zonal/Regional/HO) or a single flat committee regardless of `TotalEopValue`. | **Resolved (Phase 5, 2026-08-28):** single flat committee for v1 — `RhshfSettings.CommitteeRequiredVotes`/`CommitteeMinimumApprovalVotes` (default 3/2). Tiers can be added later without a rewrite (committee is already its own aggregate). |
 | 12 | Legal-return routing | `LegalClearance.Returned` routes back to `Ratification` (Final Approver), not to `Appraisal` — a legal issue isn't a re-appraisal of the credit itself. | Decided — proceed |
+| 13 | Disbursement: which Fineract product/rate/tenor, and where do proceeds go? | **Resolved (Phase 9, 2026-09-02).** Mirrors NAMP's admin-configured-product pattern: a new `LoanProductType.Rhshf` segment on the existing generic `LoanProduct` catalog (admin sets one active product with a linked `FineractProductId`, same UI as NAMP's). Interest rate and tenor are **always** pulled live from that Fineract product at booking time (`AnnualInterestRate`/`DefaultNumberOfRepayments`) — never entered or approved manually anywhere in the pipeline, specifically to avoid drift from core banking or human manipulation of the rate. Loan proceeds disburse to an input-supplier/vendor account (`DisburseToSavings=false`, same shape as NAMP's equipment-vendor path) rather than the FAC's own BOA savings — the FAC's account is only ever used for repayment collection. Fineract's plain `disburse` call takes no destination-account parameter for that path, so `SupplierAccountNumber`/`SupplierName` are CRMS-side audit fields the Disbursement Officer records manually, not sent to Fineract. | Decided — proceed |
 
-#1, #2's tiering follow-up (#11), and #9 block full pipeline completion — they change what "Approved" means externally and whether committee has tiers. #3–#8, #12 are locked in as v1 defaults. #10 blocks only the offer-acceptance phase specifically, not the rest of the build.
+#1 and #9 are the only items still blocking full pipeline completion — they change what "Approved" means externally. #2, #3–#8, #10 (CRMS-side), #11, #12, #13 are locked in and either already built (Phases 1-6, 8-9) or ready to build (Phase 7 — now also built). #10's portal-facing field and #9 both need portal sign-off before Phase 10 (the webhook) ships for real — everything up to that point can proceed without it.
 
 ---
 

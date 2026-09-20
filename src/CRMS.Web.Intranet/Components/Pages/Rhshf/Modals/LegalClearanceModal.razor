@@ -1,0 +1,55 @@
+@using CRMS.Domain.Enums
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">gavel</span>@Title</h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Comments @(RequiresNotes ? "(required)" : "(optional)")</label>
+                <textarea class="form-control" rows="3" @bind="comments" placeholder="Enter comments..."></textarea>
+            </div>
+            @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
+            {
+                <div class="alert alert-danger">@(ErrorMessage ?? clientError)</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn @ConfirmButtonClass" disabled="@IsSubmitting" @onclick="Confirm">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                @ConfirmLabel
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Intent { get; set; } = "Granted";
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<(RhshfLegalClearanceOutcome Outcome, string? Comments)> OnConfirm { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private string comments = string.Empty;
+    private string? clientError;
+
+    private bool RequiresNotes => Intent != "Granted";
+    private string Title => Intent switch { "Returned" => "Return to Ratification", "Declined" => "Decline at Legal Clearance", _ => "Grant Legal Clearance" };
+    private string ConfirmLabel => Intent switch { "Returned" => "Return to Ratification", "Declined" => "Confirm Decline", _ => "Grant" };
+    private string ConfirmButtonClass => Intent switch { "Declined" => "btn-danger", "Returned" => "btn-warning", _ => "btn-success" };
+
+    private async Task Confirm()
+    {
+        if (RequiresNotes && string.IsNullOrWhiteSpace(comments))
+        {
+            clientError = "Comments are required for this decision.";
+            return;
+        }
+        clientError = null;
+        var outcome = Enum.Parse<RhshfLegalClearanceOutcome>(Intent);
+        await OnConfirm.InvokeAsync((outcome, string.IsNullOrWhiteSpace(comments) ? null : comments));
+    }
+}
