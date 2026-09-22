@@ -87,6 +87,9 @@ public static class DependencyInjection
         
         // Identity
         services.AddScoped<IUserRepository, UserRepository>();
+        // Scoped, not singleton — the lookup must refresh between requests so renamed users show
+        // their current name (see UserNameResolver's class comment).
+        services.AddScoped<Application.Common.IUserNameResolver, Services.UserNameResolver>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IPermissionRepository, PermissionRepository>();
         services.Configure<Identity.JwtSettings>(configuration.GetSection("JwtSettings"));
@@ -720,6 +723,45 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.UpdateRhshfRoutingConfigHandler>();
         services.AddScoped<Application.Rhshf.Commands.ToggleRhshfRoutingConfigHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfRoutingConfigsHandler>();
+        services.AddScoped<IRhshfPreDeploymentChecklistTemplateRepository, Persistence.Repositories.Rhshf.RhshfPreDeploymentChecklistTemplateRepository>();
+        services.AddScoped<Application.Rhshf.Commands.ConfirmRhshfChecklistItemHandler>();
+        services.AddScoped<Application.Rhshf.Commands.CompleteRhshfPreDeploymentVerificationHandler>();
+        services.AddScoped<Application.Rhshf.Commands.CreateRhshfPreDeployTemplateHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UpdateRhshfPreDeployTemplateHandler>();
+        services.AddScoped<Application.Rhshf.Commands.ToggleRhshfPreDeployTemplateHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfPreDeploymentChecklistHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfPreDeployTemplatesHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfLoanAccountHandler>();
+        services.AddScoped<Application.Rhshf.Commands.MarkRhshfClosedHandler>();
+        // Directors + per-subject bureau (Phase B)
+        services.AddScoped<Application.Rhshf.Commands.FetchRhshfCacDetailsHandler>();
+        services.AddScoped<Application.Rhshf.Commands.AddRhshfDirectorHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UpdateRhshfDirectorHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RemoveRhshfDirectorHandler>();
+        services.AddScoped<Application.Rhshf.Commands.ProcessRhshfCreditChecksHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfDirectorsHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfBureauReportsHandler>();
+        // Crop-economics financial appraisal (Phase C)
+        services.AddScoped<IRhshfAppraisalThresholdsRepository, Persistence.Repositories.Rhshf.RhshfAppraisalThresholdsRepository>();
+        services.AddScoped<Application.Rhshf.Commands.AddRhshfFarmPlanHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UpdateRhshfFarmPlanHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RemoveRhshfFarmPlanHandler>();
+        services.AddScoped<Application.Rhshf.Commands.SaveRhshfFinancialAppraisalHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfFinancialAppraisalHandler>();
+        // FAC profiling capture (Phase D)
+        services.AddScoped<IRhshfDocumentRequirementRepository, Persistence.Repositories.Rhshf.RhshfDocumentRequirementRepository>();
+        services.AddScoped<Application.Rhshf.Commands.CreateRhshfDocumentRequirementHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UpdateRhshfDocumentRequirementHandler>();
+        services.AddScoped<Application.Rhshf.Commands.ToggleRhshfDocumentRequirementHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfDocumentRequirementsHandler>();
+        // Status history / workflow trail (Phase E)
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfStatusHistoryHandler>();
+        services.AddScoped<Application.Rhshf.Commands.AddRhshfProfilingFarmPlanHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RemoveRhshfProfilingFarmPlanHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RemoveRhshfProfilingDocumentHandler>();
+        services.AddScoped<IRhshfAdvisoryRepository, Persistence.Repositories.Rhshf.RhshfAdvisoryRepository>();
+        services.AddScoped<Application.Rhshf.Commands.GenerateRhshfAdvisoryHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfAdvisoryHandler>();
         services.AddScoped<Application.Rhshf.Commands.CastRhshfCommitteeVoteHandler>();
         services.AddScoped<Application.Rhshf.Commands.ReturnRhshfCommitteeToFacHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCommitteeReviewHandler>();

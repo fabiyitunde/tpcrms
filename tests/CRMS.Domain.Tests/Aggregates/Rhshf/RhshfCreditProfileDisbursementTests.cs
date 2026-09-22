@@ -26,10 +26,10 @@ public class RhshfCreditProfileDisbursementTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
 
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
@@ -38,7 +38,13 @@ public class RhshfCreditProfileDisbursementTests
         offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
         offer.Accept(null);
         profile.AdvanceToLegalClearance();
-        profile.AdvanceToDisbursement();
+        profile.AdvanceToDisbursement(); // lands at PreDeploymentVerification, not Disbursement directly
+
+        var template = RhshfPreDeploymentChecklistTemplate.Create("Gate Item", null, isMandatory: true, sortOrder: 10).Value;
+        profile.SeedPreDeploymentChecklist([template]);
+        var item = profile.PreDeploymentChecklist.Single(i => i.CycleNumber == profile.CurrentCycleNumber);
+        profile.ConfirmPreDeploymentChecklistItem(item.Id, Guid.NewGuid(), true, null);
+        profile.CompletePreDeploymentVerification(Guid.NewGuid(), null);
 
         return profile; // now InternalStage == Disbursement
     }
@@ -52,7 +58,7 @@ public class RhshfCreditProfileDisbursementTests
             Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.Completed, profile.InternalStage);
+        Assert.Equal(RhshfInternalStage.Active, profile.InternalStage);
         Assert.Equal(RhshfCaseStatus.Approved, profile.Status);
         Assert.Equal(RhshfDecisionOutcome.Approved, profile.DecisionOutcome);
         Assert.Equal("CRMS Disbursement", profile.DecidedBy);
@@ -112,7 +118,7 @@ public class RhshfCreditProfileDisbursementTests
             Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.Completed, profile.InternalStage);
+        Assert.Equal(RhshfInternalStage.Active, profile.InternalStage);
         Assert.Equal(RhshfCaseStatus.Approved, profile.Status);
         Assert.Equal(2, profile.Disbursements.Count);
     }

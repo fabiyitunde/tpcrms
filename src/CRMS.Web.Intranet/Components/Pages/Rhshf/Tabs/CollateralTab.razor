@@ -46,6 +46,7 @@
                         }
                         @FieldChip("Issued", record.IssuedDate?.ToLocalTime().ToString("MMM dd, yyyy"))
                         @FieldChip("Expiry", record.ExpiryDate?.ToLocalTime().ToString("MMM dd, yyyy"))
+                        @FieldChip("Recorded By", $"{record.RecordedByName} · {record.RecordedAt.ToLocalTime():MMM dd, yyyy HH:mm}")
                     </div>
                     @if (!string.IsNullOrEmpty(record.Notes))
                     {

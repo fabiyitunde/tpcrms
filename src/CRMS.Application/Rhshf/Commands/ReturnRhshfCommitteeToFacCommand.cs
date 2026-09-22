@@ -6,7 +6,7 @@ namespace CRMS.Application.Rhshf.Commands;
 
 /// <summary>An explicit chair-level action (not a vote) for sending the case back to the FAC before
 /// committee reaches a tally — design doc §3.6, Phase 5.</summary>
-public record ReturnRhshfCommitteeToFacCommand(string Reference, string? Notes, RhshfProfilingStage? ReturnToStage)
+public record ReturnRhshfCommitteeToFacCommand(string Reference, Guid UserId, string? Notes, RhshfProfilingStage? ReturnToStage)
     : IRequest<ApplicationResult>;
 
 public class ReturnRhshfCommitteeToFacHandler : IRequestHandler<ReturnRhshfCommitteeToFacCommand, ApplicationResult>
@@ -39,7 +39,7 @@ public class ReturnRhshfCommitteeToFacHandler : IRequestHandler<ReturnRhshfCommi
         if (reviewResult.IsFailure)
             return ApplicationResult.Failure(reviewResult.Error);
 
-        var profileResult = profile.ReturnToFacFromCommittee(request.ReturnToStage);
+        var profileResult = profile.ReturnToFacFromCommittee(request.ReturnToStage, request.UserId, request.Notes);
         if (profileResult.IsFailure)
             return ApplicationResult.Failure(profileResult.Error);
 

@@ -17,19 +17,28 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly EnsureRhshfBureauCheckHandler _bureauHandler;
     private readonly AdvanceRhshfProfilingStageHandler _advanceHandler;
     private readonly UploadRhshfSupportingDocumentHandler _uploadHandler;
+    private readonly AddRhshfProfilingFarmPlanHandler _addFarmPlanHandler;
+    private readonly RemoveRhshfProfilingFarmPlanHandler _removeFarmPlanHandler;
+    private readonly RemoveRhshfProfilingDocumentHandler _removeDocumentHandler;
 
     public ProfilingModel(
         VerifyRhshfProfilingTokenHandler verifyHandler,
         GetRhshfProfilingSessionHandler sessionHandler,
         EnsureRhshfBureauCheckHandler bureauHandler,
         AdvanceRhshfProfilingStageHandler advanceHandler,
-        UploadRhshfSupportingDocumentHandler uploadHandler)
+        UploadRhshfSupportingDocumentHandler uploadHandler,
+        AddRhshfProfilingFarmPlanHandler addFarmPlanHandler,
+        RemoveRhshfProfilingFarmPlanHandler removeFarmPlanHandler,
+        RemoveRhshfProfilingDocumentHandler removeDocumentHandler)
         : base(verifyHandler)
     {
         _sessionHandler = sessionHandler;
         _bureauHandler = bureauHandler;
         _advanceHandler = advanceHandler;
         _uploadHandler = uploadHandler;
+        _addFarmPlanHandler = addFarmPlanHandler;
+        _removeFarmPlanHandler = removeFarmPlanHandler;
+        _removeDocumentHandler = removeDocumentHandler;
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
@@ -68,14 +77,63 @@ public class ProfilingModel : RhshfPublicPageModel
         if (!await IsAuthorizedForReferenceAsync(reference))
             return RedirectToPage("SessionExpired");
 
-        var result = await _advanceHandler.Handle(new AdvanceRhshfProfilingStageCommand(reference, stage), ct);
+        // IP/user-agent give the stage confirmation a thin audit trail — profiling is
+        // token-authenticated against the case, so there is no individual user identity to record.
+        var result = await _advanceHandler.Handle(
+            new AdvanceRhshfProfilingStageCommand(
+                reference, stage,
+                HttpContext.Connection.RemoteIpAddress?.ToString(),
+                Request.Headers.UserAgent.ToString()),
+            ct);
         if (!result.IsSuccess)
             ErrorMessage = result.Error;
 
         return RedirectToPage(new { reference });
     }
 
-    public async Task<IActionResult> OnPostUploadAsync(string reference, IFormFile? file, CancellationToken ct)
+    public async Task<IActionResult> OnPostAddFarmPlanAsync(
+        string reference, string crop, decimal hectares, decimal yieldPerHa, decimal pricePerKg, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _addFarmPlanHandler.Handle(
+            new AddRhshfProfilingFarmPlanCommand(reference, crop, hectares, yieldPerHa, pricePerKg), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = $"\"{crop}\" added to the farm plan.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostRemoveFarmPlanAsync(string reference, Guid planId, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _removeFarmPlanHandler.Handle(new RemoveRhshfProfilingFarmPlanCommand(reference, planId), ct);
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostRemoveDocumentAsync(string reference, Guid documentId, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _removeDocumentHandler.Handle(new RemoveRhshfProfilingDocumentCommand(reference, documentId), ct);
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostUploadAsync(
+        string reference, RhshfDocumentCategory category, IFormFile? file, CancellationToken ct)
     {
         if (!await IsAuthorizedForReferenceAsync(reference))
             return RedirectToPage("SessionExpired");
@@ -90,7 +148,7 @@ public class ProfilingModel : RhshfPublicPageModel
         await file.CopyToAsync(ms, ct);
 
         var result = await _uploadHandler.Handle(
-            new UploadRhshfSupportingDocumentCommand(reference, file.FileName, file.ContentType, ms.ToArray()), ct);
+            new UploadRhshfSupportingDocumentCommand(reference, category, file.FileName, file.ContentType, ms.ToArray()), ct);
 
         if (!result.IsSuccess)
             ErrorMessage = result.Error;

@@ -6428,6 +6428,74 @@ public partial class ApplicationService
         }
     }
 
+    // ── RH-SHF Admin ──────────────────────────────────────────────────────
+
+    public async Task<List<CRMS.Application.Rhshf.DTOs.RhshfRoutingConfigDto>> GetRhshfRoutingConfigsAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfRoutingConfigsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfRoutingConfigsQuery(), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF routing configs");
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse> CreateRhshfRoutingConfigAsync(string tier, decimal minValue, decimal maxValue, int priority, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.CreateRhshfRoutingConfigHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.CreateRhshfRoutingConfigCommand(tier, minValue, maxValue, priority, userId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create routing config");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating RH-SHF routing config");
+            return ApiResponse.Fail("Failed to create routing config");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateRhshfRoutingConfigAsync(Guid id, decimal minValue, decimal maxValue, int priority, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.UpdateRhshfRoutingConfigHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.UpdateRhshfRoutingConfigCommand(id, minValue, maxValue, priority, userId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update routing config");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating RH-SHF routing config {Id}", id);
+            return ApiResponse.Fail("Failed to update routing config");
+        }
+    }
+
+    public async Task<ApiResponse> ToggleRhshfRoutingConfigAsync(Guid id, bool activate, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ToggleRhshfRoutingConfigHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.ToggleRhshfRoutingConfigCommand(id, activate, userId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to toggle routing config");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling RH-SHF routing config {Id}", id);
+            return ApiResponse.Fail("Failed to update routing config status");
+        }
+    }
+
     public async Task<List<CRMS.Application.Namp.DTOs.NampWorkflowConfigDto>> GetNampWorkflowConfigsAsync()
     {
         try
@@ -6882,13 +6950,13 @@ public partial class ApplicationService
     }
 
     public async Task<ApiResponse> ReturnRhshfCommitteeToFacAsync(
-        string reference, string? notes, CRMS.Domain.Enums.RhshfProfilingStage? returnToStage)
+        string reference, Guid userId, string? notes, CRMS.Domain.Enums.RhshfProfilingStage? returnToStage)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ReturnRhshfCommitteeToFacHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.ReturnRhshfCommitteeToFacCommand(reference, notes, returnToStage),
+                new CRMS.Application.Rhshf.Commands.ReturnRhshfCommitteeToFacCommand(reference, userId, notes, returnToStage),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Return to FAC failed");
         }
@@ -7129,6 +7197,482 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error downloading RH-SHF collateral document {DocumentId}", documentId);
             return null;
+        }
+    }
+
+    // ── RH-SHF Pre-Deployment Verification ──────────────────────────────────
+
+    public async Task<List<CRMS.Application.Rhshf.DTOs.RhshfPreDeploymentChecklistItemDto>> GetRhshfPreDeploymentChecklistAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfPreDeploymentChecklistHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfPreDeploymentChecklistQuery(reference), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF pre-deployment checklist for {Reference}", reference);
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse> ConfirmRhshfChecklistItemAsync(string reference, Guid itemId, Guid userId, bool? isConfirmed, string? notes)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ConfirmRhshfChecklistItemHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.ConfirmRhshfChecklistItemCommand(reference, itemId, userId, isConfirmed, notes),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to confirm checklist item");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error confirming RH-SHF checklist item {ItemId}", itemId);
+            return ApiResponse.Fail("Failed to confirm checklist item");
+        }
+    }
+
+    public async Task<ApiResponse> CompleteRhshfPreDeploymentVerificationAsync(string reference, Guid userId, string? note)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.CompleteRhshfPreDeploymentVerificationHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.CompleteRhshfPreDeploymentVerificationCommand(reference, userId, note),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to complete verification");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error completing RH-SHF pre-deployment verification for {Reference}", reference);
+            return ApiResponse.Fail("Failed to complete verification");
+        }
+    }
+
+    public async Task<List<CRMS.Application.Rhshf.DTOs.RhshfPreDeploymentChecklistTemplateDto>> GetRhshfPreDeployTemplatesAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfPreDeployTemplatesHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfPreDeployTemplatesQuery(), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF pre-deployment checklist templates");
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse> CreateRhshfPreDeployTemplateAsync(string title, string? description, bool isMandatory, int sortOrder)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.CreateRhshfPreDeployTemplateHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.CreateRhshfPreDeployTemplateCommand(title, description, isMandatory, sortOrder),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create checklist template");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating RH-SHF checklist template");
+            return ApiResponse.Fail("Failed to create checklist template");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateRhshfPreDeployTemplateAsync(Guid id, string title, string? description, bool isMandatory, int sortOrder)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.UpdateRhshfPreDeployTemplateHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.UpdateRhshfPreDeployTemplateCommand(id, title, description, isMandatory, sortOrder),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update checklist template");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating RH-SHF checklist template {Id}", id);
+            return ApiResponse.Fail("Failed to update checklist template");
+        }
+    }
+
+    public async Task<ApiResponse> ToggleRhshfPreDeployTemplateAsync(Guid id, bool activate)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ToggleRhshfPreDeployTemplateHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.ToggleRhshfPreDeployTemplateCommand(id, activate),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to toggle checklist template");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling RH-SHF checklist template {Id}", id);
+            return ApiResponse.Fail("Failed to update checklist template status");
+        }
+    }
+
+    // ── RH-SHF FAC required-document rules (Phase D) ────────────────────────
+
+    public async Task<List<CRMS.Application.Rhshf.Queries.RhshfStatusHistoryDto>> GetRhshfStatusHistoryAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfStatusHistoryHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfStatusHistoryQuery(reference), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF status history for {Reference}", reference);
+            return [];
+        }
+    }
+
+    public async Task<List<CRMS.Application.Rhshf.DTOs.RhshfDocumentRequirementDto>> GetRhshfDocumentRequirementsAsync(bool activeOnly = false)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfDocumentRequirementsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfDocumentRequirementsQuery(activeOnly), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF document requirements");
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse> CreateRhshfDocumentRequirementAsync(
+        CRMS.Domain.Enums.RhshfDocumentCategory category, string title, string? description, bool isMandatory, int sortOrder)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.CreateRhshfDocumentRequirementHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.CreateRhshfDocumentRequirementCommand(category, title, description, isMandatory, sortOrder),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create document requirement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating RH-SHF document requirement");
+            return ApiResponse.Fail("Failed to create document requirement");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateRhshfDocumentRequirementAsync(Guid id, string title, string? description, bool isMandatory, int sortOrder)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.UpdateRhshfDocumentRequirementHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.UpdateRhshfDocumentRequirementCommand(id, title, description, isMandatory, sortOrder),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update document requirement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating RH-SHF document requirement {Id}", id);
+            return ApiResponse.Fail("Failed to update document requirement");
+        }
+    }
+
+    public async Task<ApiResponse> ToggleRhshfDocumentRequirementAsync(Guid id, bool activate)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ToggleRhshfDocumentRequirementHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.ToggleRhshfDocumentRequirementCommand(id, activate),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to toggle document requirement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling RH-SHF document requirement {Id}", id);
+            return ApiResponse.Fail("Failed to update document requirement status");
+        }
+    }
+
+    // ── RH-SHF Post-Disbursement Monitoring ─────────────────────────────────
+
+    public async Task<CRMS.Application.Rhshf.DTOs.RhshfLoanAccountDto?> GetRhshfLoanAccountAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfLoanAccountHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfLoanAccountQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF loan account for {Reference}", reference);
+            return null;
+        }
+    }
+
+    public async Task<ApiResponse> MarkRhshfClosedAsync(string reference, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.MarkRhshfClosedHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.MarkRhshfClosedCommand(reference, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to mark case as closed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error marking RH-SHF case {Reference} as closed", reference);
+            return ApiResponse.Fail("Failed to mark case as closed");
+        }
+    }
+
+    // ── RH-SHF AI Advisory ───────────────────────────────────────────────────
+
+    public async Task<CRMS.Application.Rhshf.DTOs.RhshfAdvisoryDto?> GetRhshfAdvisoryAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfAdvisoryHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfAdvisoryQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF advisory for {Reference}", reference);
+            return null;
+        }
+    }
+
+    public async Task<ApiResponse> GenerateRhshfAdvisoryAsync(string reference, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.GenerateRhshfAdvisoryHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.GenerateRhshfAdvisoryCommand(reference, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to generate advisory");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating RH-SHF advisory for {Reference}", reference);
+            return ApiResponse.Fail("Failed to generate advisory");
+        }
+    }
+
+    // ── RH-SHF Directors & per-subject Bureau (Phase B) ──────────────────────
+
+    public async Task<CRMS.Application.Rhshf.Queries.RhshfDirectorsDto?> GetRhshfDirectorsAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfDirectorsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfDirectorsQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF directors for {Reference}", reference);
+            return null;
+        }
+    }
+
+    public async Task<ApiResponse> FetchRhshfCacDetailsAsync(string reference, Guid userId, bool forceRefresh = false)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.FetchRhshfCacDetailsHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.FetchRhshfCacDetailsCommand(reference, userId, forceRefresh), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "CAC lookup failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching CAC details for RH-SHF case {Reference}", reference);
+            return ApiResponse.Fail("CAC lookup failed");
+        }
+    }
+
+    public async Task<ApiResponse> AddRhshfDirectorAsync(
+        string reference, string fullName, string? bvn, decimal? shareholdingPercent,
+        bool isChairman, string? email, string? phoneNumber, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.AddRhshfDirectorHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.AddRhshfDirectorCommand(
+                    reference, fullName, bvn, shareholdingPercent, isChairman, email, phoneNumber, userId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to add director");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding RH-SHF director on {Reference}", reference);
+            return ApiResponse.Fail("Failed to add director");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateRhshfDirectorAsync(
+        string reference, Guid directorId, string? bvn, decimal? shareholdingPercent, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.UpdateRhshfDirectorHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.UpdateRhshfDirectorCommand(reference, directorId, bvn, shareholdingPercent, userId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update director");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating RH-SHF director {DirectorId}", directorId);
+            return ApiResponse.Fail("Failed to update director");
+        }
+    }
+
+    public async Task<ApiResponse> RemoveRhshfDirectorAsync(string reference, Guid directorId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RemoveRhshfDirectorHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.RemoveRhshfDirectorCommand(reference, directorId, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to remove director");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing RH-SHF director {DirectorId}", directorId);
+            return ApiResponse.Fail("Failed to remove director");
+        }
+    }
+
+    public async Task<List<CRMS.Application.Rhshf.Queries.RhshfBureauReportDto>> GetRhshfBureauReportsAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfBureauReportsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfBureauReportsQuery(reference), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF bureau reports for {Reference}", reference);
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse> RunRhshfCreditChecksAsync(string reference, Guid userId, bool forceRefresh = false)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ProcessRhshfCreditChecksHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.ProcessRhshfCreditChecksCommand(reference, userId, forceRefresh), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Credit checks failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error running RH-SHF credit checks for {Reference}", reference);
+            return ApiResponse.Fail("Credit checks failed");
+        }
+    }
+
+    // ── RH-SHF Financial Appraisal (Phase C) ────────────────────────────────
+
+    public async Task<(CRMS.Application.Rhshf.Queries.RhshfFinancialAppraisalDto? Data, string? Error)> GetRhshfFinancialAppraisalAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfFinancialAppraisalHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfFinancialAppraisalQuery(reference), CancellationToken.None);
+            // The error is surfaced rather than swallowed — "no thresholds configured" is a real
+            // condition the officer needs told, not an empty tab.
+            return result.IsSuccess ? (result.Data, null) : (null, result.Error);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF financial appraisal for {Reference}", reference);
+            return (null, "Failed to load the financial appraisal");
+        }
+    }
+
+    public async Task<ApiResponse> AddRhshfFarmPlanAsync(
+        string reference, string crop, decimal hectares, decimal yieldPerHa, decimal pricePerKg, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.AddRhshfFarmPlanHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.AddRhshfFarmPlanCommand(reference, crop, hectares, yieldPerHa, pricePerKg, userId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to add crop");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding RH-SHF farm plan on {Reference}", reference);
+            return ApiResponse.Fail("Failed to add crop");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateRhshfFarmPlanAsync(
+        string reference, Guid planId, decimal hectares, decimal yieldPerHa, decimal pricePerKg, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.UpdateRhshfFarmPlanHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.UpdateRhshfFarmPlanCommand(reference, planId, hectares, yieldPerHa, pricePerKg, userId),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update crop");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating RH-SHF farm plan {PlanId}", planId);
+            return ApiResponse.Fail("Failed to update crop");
+        }
+    }
+
+    public async Task<ApiResponse> RemoveRhshfFarmPlanAsync(string reference, Guid planId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RemoveRhshfFarmPlanHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.RemoveRhshfFarmPlanCommand(reference, planId, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to remove crop");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing RH-SHF farm plan {PlanId}", planId);
+            return ApiResponse.Fail("Failed to remove crop");
+        }
+    }
+
+    public async Task<ApiResponse> SaveRhshfFinancialAppraisalAsync(
+        string reference, Guid userId, decimal ownProductionCost, decimal harvestAndLogisticsCost,
+        int cycleMonths, decimal interestRatePercent, string? assumptionBasisNote,
+        string recommendation, string? summaryNotes, string? overrideJustification)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.SaveRhshfFinancialAppraisalHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.SaveRhshfFinancialAppraisalCommand(
+                    reference, userId, ownProductionCost, harvestAndLogisticsCost, cycleMonths,
+                    interestRatePercent, assumptionBasisNote, recommendation, summaryNotes, overrideJustification),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to save the appraisal");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving RH-SHF financial appraisal for {Reference}", reference);
+            return ApiResponse.Fail("Failed to save the appraisal");
         }
     }
 }

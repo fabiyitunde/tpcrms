@@ -82,10 +82,22 @@ else
                 <button class="btn btn-danger" @onclick='() => OpenLegalClearanceModal("Declined")'>Decline</button>
                 <button class="btn btn-success" @onclick='() => OpenLegalClearanceModal("Granted")'>Grant</button>
             }
+            @if (CanBookDisbursement && workspace.InternalStage == RhshfInternalStage.PreDeploymentVerification)
+            {
+                <button class="btn btn-outline" @onclick='() => openModal = "predeployment"'>
+                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">checklist</span> Pre-Deployment Gate
+                </button>
+            }
             @if (CanBookDisbursement && workspace.InternalStage == RhshfInternalStage.Disbursement && !disbursementHistory.Any(d => d.Status == RhshfDisbursementStatus.Booked))
             {
                 <button class="btn btn-success" @onclick='() => openModal = "disbursement"'>
                     <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">account_balance</span> Book Disbursement
+                </button>
+            }
+            @if (CanBookDisbursement && workspace.InternalStage == RhshfInternalStage.Active)
+            {
+                <button class="btn btn-success" @onclick="SubmitMarkClosed" disabled="@isSubmitting">
+                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">task_alt</span> Mark as Closed
                 </button>
             }
         </div>
@@ -120,8 +132,11 @@ else
         </div>
         @if (ShowAppraisalTab)
         {
+            <div class="tab @(activeTab == "financialappraisal" ? "active" : "")" @onclick='() => activeTab = "financialappraisal"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">calculate</span>Financial Appraisal
+            </div>
             <div class="tab @(activeTab == "appraisal" ? "active" : "")" @onclick='() => activeTab = "appraisal"'>
-                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology</span>Appraisal
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology</span>Appraisal Decision
             </div>
         }
         @if (ShowRiskReviewTab)
@@ -154,24 +169,49 @@ else
                 <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">gavel</span>Legal Clearance
             </div>
         }
+        @if (ShowPreDeploymentTab)
+        {
+            <div class="tab @(activeTab == "predeployment" ? "active" : "")" @onclick='() => activeTab = "predeployment"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">checklist</span>Pre-Deployment
+            </div>
+        }
         @if (ShowDisbursementTab)
         {
             <div class="tab @(activeTab == "disbursement" ? "active" : "")" @onclick='() => activeTab = "disbursement"'>
                 <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">account_balance</span>Disbursement
             </div>
         }
+        @if (ShowLoanAccountTab)
+        {
+            <div class="tab @(activeTab == "loanaccount" ? "active" : "")" @onclick='() => activeTab = "loanaccount"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">account_balance_wallet</span>Loan Account
+            </div>
+        }
+        @if (ShowAdvisoryTab)
+        {
+            <div class="tab @(activeTab == "advisory" ? "active" : "")" @onclick='() => activeTab = "advisory"'>
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology_alt</span>AI Advisory
+            </div>
+        }
+        <div class="tab @(activeTab == "workflow" ? "active" : "")" @onclick='() => activeTab = "workflow"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">history</span>Workflow
+        </div>
     </div>
 
     @switch (activeTab)
     {
         case "overview":
-            <OverviewTab Workspace="workspace" />
+            <OverviewTab Workspace="workspace" Directors="directors" CanManageDirectors="CanManageDirectors"
+                IsFetchingCac="isFetchingCac" CacError="cacError"
+                OnFetchCac="FetchCacDetails" OnAddDirector="OpenAddDirectorModal"
+                OnEditDirector="OpenEditDirectorModal" OnRemoveDirector="RemoveDirector" />
             break;
         case "eligibility":
             <EligibilityTab Checks="eligibilityChecks" />
             break;
         case "bureau":
-            <BureauTab Workspace="workspace" />
+            <BureauTab Reports="bureauReports" CanRecheck="CanRunBureauChecks" IsRechecking="isRunningBureauChecks"
+                RecheckError="bureauError" OnRecheck="RunBureauChecks" />
             break;
         case "collateral":
             <CollateralTab Records="collateralRecords" CanUpload="CanClearLegally"
@@ -179,6 +219,12 @@ else
             break;
         case "documents":
             <DocumentsTab Documents="workspace.SupportingDocuments" OnDownload="DownloadSupportingDocument" />
+            break;
+        case "financialappraisal":
+            <FinancialAppraisalTab Data="financialAppraisal" LoadError="financialAppraisalError"
+                CanEdit="CanEditFinancialAppraisal"
+                OnAddFarmPlan="OpenAddFarmPlanModal" OnEditFarmPlan="OpenEditFarmPlanModal"
+                OnRemoveFarmPlan="RemoveFarmPlan" OnOpenAppraisal="OpenFinancialAppraisalModal" />
             break;
         case "appraisal":
             <AppraisalTab Appraisals="workspace.Appraisals" />
@@ -193,13 +239,27 @@ else
             <RatificationTab Ratifications="workspace.Ratifications" Currency="workspace.Currency" />
             break;
         case "offer":
-            <OfferTab Offer="offer" Currency="workspace.Currency" TotalEopValue="workspace.TotalEopValue" OnDownload="DownloadOfferDocument" />
+            <OfferTab Offer="offer" OnDownload="DownloadOfferDocument" />
             break;
         case "legal":
             <LegalClearanceTab History="legalHistory" />
             break;
+        case "predeployment":
+            <PreDeploymentTab Checklist="preDeploymentChecklist" />
+            break;
         case "disbursement":
             <DisbursementTab History="disbursementHistory" />
+            break;
+        case "loanaccount":
+            <RhshfLoanAccountTab LoanAccount="loanAccount" LoanAccountError="loanAccountError" OnRefresh="LoadLoanAccount" />
+            break;
+        case "advisory":
+            <AdvisoryTab Advisory="advisory" IsGenerating="isGeneratingAdvisory" CanGenerate="CanGenerateAdvisory" OnGenerate="GenerateAdvisory"
+                BureauReports="bureauReports" Appraisal="financialAppraisal" />
+            break;
+        case "workflow":
+            <WorkflowTab History="statusHistory" CurrentStatus="workspace.Status"
+                CurrentInternalStage="workspace.InternalStage" CurrentProfilingStage="workspace.CurrentProfilingStage" />
             break;
     }
 
@@ -235,6 +295,26 @@ else
     {
         <LegalClearanceModal Intent="modalIntent" OnClose="CloseModal" OnConfirm="SubmitLegalClearance" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
     }
+    @if (openModal == "farmplan")
+    {
+        <FarmPlanModal Existing="editingFarmPlan" Currency="workspace.Currency" OnClose="CloseModal"
+            OnAdd="SubmitAddFarmPlan" OnUpdate="SubmitUpdateFarmPlan" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+    @if (openModal == "financialappraisal" && financialAppraisal is not null)
+    {
+        <FinancialAppraisalModal Data="financialAppraisal" OnClose="CloseModal"
+            OnConfirm="SubmitFinancialAppraisal" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+    @if (openModal == "director")
+    {
+        <DirectorModal Existing="editingDirector" OnClose="CloseModal" OnAdd="SubmitAddDirector"
+            OnUpdate="SubmitUpdateDirector" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
+    @if (openModal == "predeployment")
+    {
+        <PreDeploymentGateModal Checklist="preDeploymentChecklist" OnClose="CloseModal" OnConfirmItem="SubmitConfirmChecklistItem"
+            OnComplete="SubmitCompletePreDeployment" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+    }
 }
 
 @code {
@@ -244,9 +324,26 @@ else
     private List<RhshfEligibilityCheckDto> eligibilityChecks = [];
     private List<RhshfCollateralDto> collateralRecords = [];
     private RhshfCommitteeReviewDto? committeeReview;
+    private StandingCommitteeInfo? committeeRoster;
     private RhshfOfferDto? offer;
     private List<RhshfLegalClearanceDto> legalHistory = [];
+    private List<RhshfStatusHistoryDto> statusHistory = [];
     private List<RhshfDisbursementDto> disbursementHistory = [];
+    private List<RhshfPreDeploymentChecklistItemDto> preDeploymentChecklist = [];
+    private RhshfLoanAccountDto? loanAccount;
+    private string? loanAccountError;
+    private RhshfAdvisoryDto? advisory;
+    private bool isGeneratingAdvisory;
+    private RhshfDirectorsDto? directors;
+    private List<RhshfBureauReportDto> bureauReports = [];
+    private RhshfDirectorDto? editingDirector;
+    private bool isFetchingCac;
+    private string? cacError;
+    private bool isRunningBureauChecks;
+    private string? bureauError;
+    private RhshfFinancialAppraisalDto? financialAppraisal;
+    private string? financialAppraisalError;
+    private RhshfFarmPlanDto? editingFarmPlan;
 
     private string activeTab = "overview";
     private bool isLoading = true;
@@ -263,22 +360,51 @@ else
     private bool CanRatify => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "FinalApprover") ?? false;
     private bool CanClearLegally => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "LegalOfficer") ?? false;
     private bool CanBookDisbursement => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "DisbursementOfficer") ?? false;
-    private bool CanActuallyVote => !(committeeReview?.Votes.Any(v => v.UserId == CurrentUserId) ?? false);
+    // Director capture and bureau checks are both credit-officer work, done before the appraisal
+    // decision — same gate as NAMP's CanManageDirectors.
+    private bool CanManageDirectors => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer") ?? false;
+    private bool CanRunBureauChecks => CanManageDirectors;
+    // Only editable while the case actually sits at Appraisal — the domain enforces the same rule,
+    // this just keeps the buttons honest.
+    private bool CanEditFinancialAppraisal => CanAppraise && workspace!.InternalStage == RhshfInternalStage.Appraisal;
+    // No SystemAdmin bypass here, deliberately — a committee vote is a credit decision, and this
+    // codebase's maker-checker floor allows no single-actor exceptions, admins included.
+    private bool CanActuallyVote => !(committeeReview?.Votes.Any(v => v.UserId == CurrentUserId) ?? false)
+        && (committeeRoster?.Members.Any(m => m.UserId == CurrentUserId) ?? false);
+
+    // Terminal/late-pipeline stages a "has this case ever reached X" check needs to include —
+    // PreDeploymentVerification onward. Completed is the legacy terminal marker (pre-Active/Closed).
+    private static readonly RhshfInternalStage[] PostLegalStages =
+    [
+        RhshfInternalStage.LegalClearance, RhshfInternalStage.PreDeploymentVerification, RhshfInternalStage.Disbursement,
+        RhshfInternalStage.Completed, RhshfInternalStage.Active, RhshfInternalStage.Closed,
+    ];
 
     // Tabs stay visible once the case has ever reached the relevant stage, even after moving past
     // it — staff need the history, not just "is it my turn right now".
     private bool ShowEligibilityTab => workspace!.InternalStage is not null || eligibilityChecks.Count > 0 || workspace.Appraisals.Count > 0;
-    private bool ShowCollateralTab => workspace!.InternalStage is RhshfInternalStage.LegalClearance or RhshfInternalStage.Disbursement or RhshfInternalStage.Completed
+    private bool ShowCollateralTab => (workspace!.InternalStage is not null && PostLegalStages.Contains(workspace.InternalStage.Value))
         || collateralRecords.Count > 0;
     private bool ShowAppraisalTab => workspace!.InternalStage is not null || workspace.Appraisals.Count > 0;
     private bool ShowRiskReviewTab => workspace!.Appraisals.Count > 0;
     private bool ShowCommitteeTab => workspace!.RiskReviews.Count > 0 || committeeReview is not null;
     private bool ShowRatificationTab => (committeeReview?.FinalDecision == RhshfCommitteeDecision.Approved) || workspace!.Ratifications.Count > 0;
     private bool ShowOfferTab => workspace!.Ratifications.Any(r => r.Outcome == RhshfRatificationOutcome.Ratified) || offer is not null;
-    private bool ShowLegalClearanceTab => workspace!.InternalStage is RhshfInternalStage.LegalClearance or RhshfInternalStage.Disbursement or RhshfInternalStage.Completed
+    private bool ShowLegalClearanceTab => (workspace!.InternalStage is not null && PostLegalStages.Contains(workspace.InternalStage.Value))
         || legalHistory.Count > 0;
+    private bool ShowPreDeploymentTab => workspace!.InternalStage is RhshfInternalStage.PreDeploymentVerification or RhshfInternalStage.Disbursement
+            or RhshfInternalStage.Completed or RhshfInternalStage.Active or RhshfInternalStage.Closed
+        || preDeploymentChecklist.Count > 0;
     private bool ShowDisbursementTab => workspace!.InternalStage is RhshfInternalStage.Disbursement or RhshfInternalStage.Completed
+            or RhshfInternalStage.Active or RhshfInternalStage.Closed
         || disbursementHistory.Count > 0;
+    private bool ShowLoanAccountTab => workspace!.InternalStage is RhshfInternalStage.Active or RhshfInternalStage.Closed;
+    // Advisory tab shows once the case has at least an appraisal and a bureau check to draw on —
+    // it's meaningful earlier than Active/Closed, matching NAMP's own "once financial appraisal
+    // exists" gating.
+    private bool ShowAdvisoryTab => workspace!.Appraisals.Count > 0;
+    private bool CanGenerateAdvisory => (AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer") ?? false)
+        && workspace!.BureauCheckOutcome != RhshfBureauOutcome.NotRun;
 
     protected override async Task OnInitializedAsync() => await LoadAllAsync();
 
@@ -294,12 +420,25 @@ else
             if (workspace is null)
                 return;
 
+            directors = await AppService.GetRhshfDirectorsAsync(Reference);
+            bureauReports = await AppService.GetRhshfBureauReportsAsync(Reference);
+            var appraisalResult = await AppService.GetRhshfFinancialAppraisalAsync(Reference);
+            financialAppraisal = appraisalResult.Data;
+            financialAppraisalError = appraisalResult.Error;
             eligibilityChecks = await AppService.GetRhshfEligibilityChecklistAsync(Reference);
             collateralRecords = await AppService.GetRhshfCollateralAsync(Reference);
             committeeReview = await AppService.GetRhshfCommitteeReviewAsync(Reference);
+            committeeRoster = committeeReview is not null
+                ? await AppService.GetStandingCommitteeByTypeAsync(committeeReview.Tier.ToString(), committeeReview.BranchId)
+                : null;
             offer = await AppService.GetRhshfOfferAsync(Reference);
             legalHistory = await AppService.GetRhshfLegalClearanceHistoryAsync(Reference);
+            preDeploymentChecklist = await AppService.GetRhshfPreDeploymentChecklistAsync(Reference);
             disbursementHistory = await AppService.GetRhshfDisbursementHistoryAsync(Reference);
+            if (workspace.InternalStage is RhshfInternalStage.Active or RhshfInternalStage.Closed)
+                await LoadLoanAccount();
+            advisory = await AppService.GetRhshfAdvisoryAsync(Reference);
+            statusHistory = await AppService.GetRhshfStatusHistoryAsync(Reference);
         }
         catch (Exception ex)
         {
@@ -386,7 +525,7 @@ else
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.ReturnRhshfCommitteeToFacAsync(Reference, input.Notes, input.ReturnToStage);
+        var result = await AppService.ReturnRhshfCommitteeToFacAsync(Reference, CurrentUserId, input.Notes, input.ReturnToStage);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();
@@ -424,6 +563,170 @@ else
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();
         await LoadAllAsync();
+    }
+
+    // ── Farm plan & financial appraisal (Phase C) ─────────────────────────
+
+    private void OpenAddFarmPlanModal() { editingFarmPlan = null; openModal = "farmplan"; modalError = null; }
+    private void OpenEditFarmPlanModal(RhshfFarmPlanDto p) { editingFarmPlan = p; openModal = "farmplan"; modalError = null; }
+    private void OpenFinancialAppraisalModal() { openModal = "financialappraisal"; modalError = null; }
+
+    private async Task SubmitAddFarmPlan((string Crop, decimal Hectares, decimal YieldPerHa, decimal PricePerKg) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.AddRhshfFarmPlanAsync(
+            Reference, input.Crop, input.Hectares, input.YieldPerHa, input.PricePerKg, CurrentUserId);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitUpdateFarmPlan((Guid PlanId, decimal Hectares, decimal YieldPerHa, decimal PricePerKg) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.UpdateRhshfFarmPlanAsync(
+            Reference, input.PlanId, input.Hectares, input.YieldPerHa, input.PricePerKg, CurrentUserId);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task RemoveFarmPlan(Guid planId)
+    {
+        pageError = null;
+        var result = await AppService.RemoveRhshfFarmPlanAsync(Reference, planId, CurrentUserId);
+        if (!result.Success) { pageError = result.Error; return; }
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitFinancialAppraisal(
+        (decimal OwnProductionCost, decimal HarvestAndLogisticsCost, int CycleMonths, decimal InterestRatePercent,
+         string? AssumptionBasisNote, string Recommendation, string? SummaryNotes, string? OverrideJustification) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.SaveRhshfFinancialAppraisalAsync(
+            Reference, CurrentUserId, input.OwnProductionCost, input.HarvestAndLogisticsCost,
+            input.CycleMonths, input.InterestRatePercent, input.AssumptionBasisNote,
+            input.Recommendation, input.SummaryNotes, input.OverrideJustification);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    // ── Directors & bureau (Phase B) ──────────────────────────────────────
+
+    private void OpenAddDirectorModal() { editingDirector = null; openModal = "director"; modalError = null; }
+    private void OpenEditDirectorModal(RhshfDirectorDto d) { editingDirector = d; openModal = "director"; modalError = null; }
+
+    private async Task FetchCacDetails()
+    {
+        isFetchingCac = true;
+        cacError = null;
+        // Force a refresh when data already exists — the button reads "Refresh from CAC" at that
+        // point, so a silent no-op from the cost guard would look like a broken button.
+        var force = directors?.CacFetchedAt is not null;
+        var result = await AppService.FetchRhshfCacDetailsAsync(Reference, CurrentUserId, force);
+        isFetchingCac = false;
+        if (!result.Success) { cacError = result.Error; return; }
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitAddDirector(
+        (string FullName, string? Bvn, decimal? ShareholdingPercent, bool IsChairman, string? Email, string? PhoneNumber) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.AddRhshfDirectorAsync(
+            Reference, input.FullName, input.Bvn, input.ShareholdingPercent,
+            input.IsChairman, input.Email, input.PhoneNumber, CurrentUserId);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitUpdateDirector((Guid DirectorId, string? Bvn, decimal? ShareholdingPercent) input)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.UpdateRhshfDirectorAsync(Reference, input.DirectorId, input.Bvn, input.ShareholdingPercent, CurrentUserId);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task RemoveDirector(Guid directorId)
+    {
+        pageError = null;
+        var result = await AppService.RemoveRhshfDirectorAsync(Reference, directorId, CurrentUserId);
+        if (!result.Success) { pageError = result.Error; return; }
+        await LoadAllAsync();
+    }
+
+    private async Task RunBureauChecks()
+    {
+        isRunningBureauChecks = true;
+        bureauError = null;
+        // Force refresh: the button is an explicit "run these again" action, so completed reports
+        // should be re-pulled rather than skipped as they are on the automatic path.
+        var result = await AppService.RunRhshfCreditChecksAsync(Reference, CurrentUserId, forceRefresh: true);
+        isRunningBureauChecks = false;
+        if (!result.Success) { bureauError = result.Error; return; }
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitConfirmChecklistItem((Guid ItemId, bool? IsConfirmed, string? Notes) input)
+    {
+        modalError = null;
+        var result = await AppService.ConfirmRhshfChecklistItemAsync(Reference, input.ItemId, CurrentUserId, input.IsConfirmed, input.Notes);
+        if (!result.Success) { modalError = result.Error; return; }
+        preDeploymentChecklist = await AppService.GetRhshfPreDeploymentChecklistAsync(Reference);
+    }
+
+    private async Task SubmitCompletePreDeployment(string? note)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.CompleteRhshfPreDeploymentVerificationAsync(Reference, CurrentUserId, note);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        CloseModal();
+        await LoadAllAsync();
+    }
+
+    private async Task SubmitMarkClosed()
+    {
+        isSubmitting = true;
+        pageError = null;
+        var result = await AppService.MarkRhshfClosedAsync(Reference, CurrentUserId);
+        isSubmitting = false;
+        if (!result.Success) { pageError = result.Error; return; }
+        await LoadAllAsync();
+    }
+
+    private async Task LoadLoanAccount()
+    {
+        loanAccountError = null;
+        loanAccount = await AppService.GetRhshfLoanAccountAsync(Reference);
+        if (loanAccount is null)
+            loanAccountError = "Could not load the Core Banking loan account for this case.";
+    }
+
+    private async Task GenerateAdvisory()
+    {
+        isGeneratingAdvisory = true;
+        pageError = null;
+        var result = await AppService.GenerateRhshfAdvisoryAsync(Reference, CurrentUserId);
+        isGeneratingAdvisory = false;
+        if (!result.Success) { pageError = result.Error; return; }
+        advisory = await AppService.GetRhshfAdvisoryAsync(Reference);
     }
 
     private async Task DownloadSupportingDocument(Guid documentId) => await TriggerDownload(await AppService.DownloadRhshfSupportingDocumentAsync(documentId));

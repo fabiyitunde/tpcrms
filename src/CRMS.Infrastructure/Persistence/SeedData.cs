@@ -38,6 +38,9 @@ public static class SeedData
         // System-generated and required in every environment — idempotent (skips if already seeded).
         await NampWorkflowSeeder.SeedAsync(context, logger);
 
+        // RH-SHF committee routing bands — same idempotent, every-environment pattern as NAMP above.
+        await RhshfWorkflowSeeder.SeedAsync(context, logger);
+
         // Loan products and committees are configured by the admin via the UI in production.
         // In development they are seeded with mock data for testing convenience.
         if (isDevelopment)

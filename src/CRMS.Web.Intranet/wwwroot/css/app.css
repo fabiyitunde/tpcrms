@@ -535,6 +535,83 @@ a:hover {
 .summary-row-label { color: var(--gray-500); }
 .summary-row-value { font-weight: 700; color: var(--gray-900); text-align: right; }
 
+/* ============================================
+   Components - Credit Bureau Cards
+   ============================================ */
+.bureau-card {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: white;
+}
+
+.bureau-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.bureau-card-body {
+    padding: var(--space-4);
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+}
+
+.bureau-card-footer {
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--gray-100);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.bureau-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: flex-start;
+}
+
+.bureau-stat-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gray-500);
+}
+
+.bureau-stat-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--gray-900);
+}
+
+/* Score circle. Bands are kept in step with the server-side grade derivation
+   (ProcessRhshfCreditChecksHandler.GetScoreGrade) — do not fork these thresholds. */
+.bureau-score {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+    background: var(--gray-400);
+}
+
+.bureau-score.excellent { background: var(--success-600); }
+.bureau-score.good      { background: var(--success-500); }
+.bureau-score.fair      { background: var(--warning-500); }
+.bureau-score.poor      { background: var(--danger-500); }
+
 /* Stat Cards */
 .stat-card {
     background: white;

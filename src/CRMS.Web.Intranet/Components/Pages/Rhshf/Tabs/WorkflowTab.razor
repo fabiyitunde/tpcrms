@@ -1,0 +1,258 @@
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
+
+@* The chronological record of how the case moved. OverviewTab's stage ladder answers "where is it
+   now"; this answers "how did it get here" — including the round trips back to the FAC and the
+   prior cycles, which the ladder collapses away entirely. *@
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Workflow History</h3>
+        <span class="badge badge-primary">Current: @CurrentStateLabel()</span>
+    </div>
+    <div class="card-body">
+        @if (History.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">history</span></div>
+                <div class="empty-state-title">No workflow history</div>
+                <div class="empty-state-text">
+                    Nothing has been recorded for this case yet. Cases submitted before the audit
+                    trail was introduced have no entries — their current state is still shown above.
+                </div>
+            </div>
+        }
+        else
+        {
+            @* Newest first: the question being asked of this tab is almost always "what happened
+               most recently", and a long-running case can carry three cycles of entries. *@
+            @foreach (var cycle in History.GroupBy(h => h.CycleNumber).OrderByDescending(g => g.Key))
+            {
+                <div class="trail-cycle-heading">
+                    <span class="trail-cycle-label">Cycle @cycle.Key</span>
+                    <span class="trail-cycle-rule"></span>
+                    <span class="trail-cycle-count">@cycle.Count() @(cycle.Count() == 1 ? "entry" : "entries")</span>
+                </div>
+
+                <div class="timeline">
+                    @foreach (var (item, index) in cycle.OrderByDescending(h => h.ChangedAt).Select((h, i) => (h, i)))
+                    {
+                        var isLatest = index == 0 && cycle.Key == History.Max(h => h.CycleNumber);
+                        <div class="timeline-item @(isLatest ? "current" : "")">
+                            <div class="timeline-marker">
+                                <span class="material-symbols-outlined">@ActionIcon(item)</span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-header">
+                                    <span class="timeline-action">@item.Action</span>
+                                    <span class="badge @StateBadgeClass(item)" style="font-size: 10px;">@StateLabel(item)</span>
+                                </div>
+                                <div class="timeline-meta">
+                                    <span class="@(item.IsSystemActor ? "trail-actor-system" : "trail-actor")">@item.Actor</span>
+                                    <span>&bull;</span>
+                                    <span>@item.ChangedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</span>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(item.Note))
+                                {
+                                    <div class="timeline-comments">@item.Note</div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<style>
+    .timeline {
+        position: relative;
+        padding-left: var(--space-8);
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--gray-200);
+    }
+
+    .timeline-item {
+        position: relative;
+        padding-bottom: var(--space-6);
+    }
+
+    .timeline-item:last-child {
+        padding-bottom: 0;
+    }
+
+    .timeline-marker {
+        position: absolute;
+        left: calc(-1 * var(--space-8) + 4px);
+        width: 24px;
+        height: 24px;
+        background: white;
+        border: 2px solid var(--gray-300);
+        border-radius: var(--radius-full);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .timeline-marker .material-symbols-outlined {
+        font-size: 14px;
+        color: var(--gray-500);
+    }
+
+    .timeline-item.current .timeline-marker {
+        background: var(--primary-500);
+        border-color: var(--primary-500);
+    }
+
+    .timeline-item.current .timeline-marker .material-symbols-outlined {
+        color: white;
+    }
+
+    .timeline-content {
+        background: var(--gray-50);
+        border-radius: var(--radius-lg);
+        padding: var(--space-4);
+    }
+
+    .timeline-item.current .timeline-content {
+        background: var(--primary-50);
+        border: 1px solid var(--primary-100);
+    }
+
+    .timeline-header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-1);
+        flex-wrap: wrap;
+    }
+
+    .timeline-action {
+        font-weight: 600;
+    }
+
+    .timeline-meta {
+        font-size: var(--text-sm);
+        color: var(--gray-500);
+        display: flex;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+    }
+
+    .timeline-comments {
+        margin-top: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        background: white;
+        border-radius: var(--radius-md);
+        font-size: var(--text-sm);
+        font-style: italic;
+        color: var(--gray-600);
+    }
+
+    /* A named person and "the system did it" should not look like the same claim. */
+    .trail-actor {
+        font-weight: 600;
+        color: var(--gray-700);
+    }
+
+    .trail-actor-system {
+        font-style: italic;
+    }
+
+    .trail-cycle-heading {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        margin: var(--space-5) 0 var(--space-4);
+    }
+
+    .trail-cycle-heading:first-child {
+        margin-top: 0;
+    }
+
+    .trail-cycle-label {
+        font-size: var(--text-sm);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--gray-600);
+    }
+
+    .trail-cycle-rule {
+        flex: 1;
+        height: 1px;
+        background: var(--gray-200);
+    }
+
+    .trail-cycle-count {
+        font-size: var(--text-sm);
+        color: var(--gray-400);
+    }
+</style>
+
+@code {
+    [Parameter, EditorRequired] public List<RhshfStatusHistoryDto> History { get; set; } = [];
+    [Parameter] public RhshfCaseStatus CurrentStatus { get; set; }
+    [Parameter] public RhshfInternalStage? CurrentInternalStage { get; set; }
+    [Parameter] public RhshfProfilingStage? CurrentProfilingStage { get; set; }
+
+    private string CurrentStateLabel() =>
+        CurrentInternalStage is not null ? Humanise(CurrentInternalStage.ToString()!)
+        : CurrentProfilingStage is not null ? $"Profiling — {Humanise(CurrentProfilingStage.ToString()!)}"
+        : Humanise(CurrentStatus.ToString());
+
+    // The badge names where the case *landed*, which is the more specific of the two axes: an
+    // internal stage if it has one, the profiling stage while the FAC holds it, the external
+    // status only when neither applies (terminal states).
+    private static string StateLabel(RhshfStatusHistoryDto h) =>
+        h.InternalStage is not null ? Humanise(h.InternalStage.ToString()!)
+        : h.ProfilingStage is not null ? Humanise(h.ProfilingStage.ToString()!)
+        : Humanise(h.Status.ToString());
+
+    private static string StateBadgeClass(RhshfStatusHistoryDto h) => h.Status switch
+    {
+        RhshfCaseStatus.Approved => "badge-success",
+        RhshfCaseStatus.Declined => "badge-danger",
+        RhshfCaseStatus.Cancelled or RhshfCaseStatus.Expired => "badge-gray",
+        RhshfCaseStatus.ProfilingPending or RhshfCaseStatus.ProfilingInProgress => "badge-warning",
+        _ => "badge-primary",
+    };
+
+    private static string ActionIcon(RhshfStatusHistoryDto h) => h.Status switch
+    {
+        RhshfCaseStatus.Approved => "check_circle",
+        RhshfCaseStatus.Declined => "cancel",
+        RhshfCaseStatus.Cancelled => "do_not_disturb_on",
+        RhshfCaseStatus.ProfilingPending => "inbox",
+        // Landing back in profiling from a staff stage is a return; the FAC working forward
+        // through the form is not.
+        RhshfCaseStatus.ProfilingInProgress => h.ProfilingStage == RhshfProfilingStage.CompanyVerification
+            ? "edit_note" : "undo",
+        _ => h.InternalStage switch
+        {
+            RhshfInternalStage.Appraisal => "send",
+            RhshfInternalStage.RiskReview => "shield",
+            RhshfInternalStage.CommitteeVoting => "groups",
+            RhshfInternalStage.Ratification => "verified",
+            RhshfInternalStage.AwaitingOfferAcceptance => "description",
+            RhshfInternalStage.LegalClearance => "gavel",
+            RhshfInternalStage.PreDeploymentVerification => "fact_check",
+            RhshfInternalStage.Disbursement => "payments",
+            RhshfInternalStage.Active => "trending_up",
+            RhshfInternalStage.Closed => "task_alt",
+            _ => "radio_button_checked",
+        },
+    };
+
+    private static string Humanise(string value) =>
+        System.Text.RegularExpressions.Regex.Replace(value, "(?<!^)([A-Z])", " $1");
+}

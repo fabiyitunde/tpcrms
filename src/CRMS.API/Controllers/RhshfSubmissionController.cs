@@ -62,7 +62,14 @@ public class RhshfSubmissionController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.CallbackUrl))
             return BadRequest(new { error = "missing_field", message = "callbackUrl is required." });
 
-        var rawPayload = JsonSerializer.Serialize(request);
+        // The ACTUAL request body, not a re-serialisation of the model-bound DTO.
+        //
+        // This previously did JsonSerializer.Serialize(request), which round-tripped through the
+        // binder and silently discarded every property not on SubmitConsolidatedEopRequest. That
+        // made RawSubmissionPayload useless for its one purpose: if the portal ever sent a field the
+        // contract didn't yet know about (agronomic data, directors, financials), it was gone
+        // beyond recovery. Reading the buffered body keeps the original verbatim.
+        var rawPayload = await ReadRawBodyAsync(ct) ?? JsonSerializer.Serialize(request);
         var result = await _submitHandler.Handle(new SubmitConsolidatedEopCommand(request, rawPayload), ct);
 
         if (!result.IsSuccess)
@@ -103,6 +110,31 @@ public class RhshfSubmissionController : ControllerBase
             return NotFound(new { error = "not_found", message = result.Error });
 
         return Ok(result.Data);
+    }
+
+    /// <summary>
+    /// Reads the raw request body. Requires EnableBuffering (set below before model binding has
+    /// consumed the stream) — returns null rather than throwing if the body can't be re-read, so a
+    /// traceability nicety can never fail a submission.
+    /// </summary>
+    private async Task<string?> ReadRawBodyAsync(CancellationToken ct)
+    {
+        try
+        {
+            if (!Request.Body.CanSeek)
+                return null;
+
+            Request.Body.Position = 0;
+            using var reader = new StreamReader(Request.Body, leaveOpen: true);
+            var body = await reader.ReadToEndAsync(ct);
+            Request.Body.Position = 0;
+            return string.IsNullOrWhiteSpace(body) ? null : body;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "RH-SHF submit: could not read the raw request body for traceability.");
+            return null;
+        }
     }
 
     private bool IsAuthorized()

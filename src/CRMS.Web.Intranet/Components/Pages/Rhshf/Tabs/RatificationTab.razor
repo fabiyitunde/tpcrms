@@ -20,6 +20,7 @@
                 <div style="@(i > 0 ? "border-top: 1px solid var(--gray-100); padding-top: 1rem;" : "")">
                     <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                         <span class="badge @OutcomeBadgeClass(r.Outcome)">@r.Outcome</span>
+                        <strong style="font-size: 0.875rem;">@r.FinalApproverName</strong>
                         <span style="font-size: 0.8rem; color: var(--gray-500);">Cycle @r.CycleNumber &middot; @r.RatifiedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</span>
                         @if (r.ApprovedAmount is not null)
                         {

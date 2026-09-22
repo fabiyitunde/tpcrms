@@ -1627,6 +1627,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("RequestedByUserId")
                         .HasColumnType("char(36)");
 
+                    b.Property<Guid?>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
                     b.Property<string>("ScoreGrade")
                         .HasMaxLength(10)
                         .HasColumnType("varchar(10)");
@@ -1678,6 +1681,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("RequestReference");
 
                     b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("RhshfCreditProfileId");
 
                     b.HasIndex("Status");
 
@@ -5788,6 +5793,102 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("PricingTiers", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfAdvisory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ConditionsJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CovenantsJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ExecutiveSummary")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("GeneratedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<bool>("HasCriticalRedFlags")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("KeyRisks")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("MitigatingFactors")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("OverallRating")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<decimal>("OverallScore")
+                        .HasColumnType("decimal(6,2)");
+
+                    b.Property<string>("Recommendation")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<decimal?>("RecommendedAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("RedFlagsJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("RiskScoresJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("StrengthsAnalysis")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("WeaknessesAnalysis")
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RhshfCreditProfileId");
+
+                    b.ToTable("RhshfAdvisories", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfAppraisal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5832,6 +5933,52 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("RhshfCreditProfileId");
 
                     b.ToTable("RhshfAppraisals", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfAppraisalThresholds", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal>("HurdleRatePercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<decimal>("MinDscr")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("MinGrossMarginPercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("MinPriceHeadroomPercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("MinYieldHeadroomPercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("RhshfAppraisalThresholds", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfCallbackAttempt", b =>
@@ -6036,6 +6183,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("char(36)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -6070,6 +6220,11 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("RhshfCreditProfileId")
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
 
                     b.HasKey("Id");
 
@@ -6166,6 +6321,46 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<decimal?>("BureauTotalOverdue")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CacAddress")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("CacCity")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<long?>("CacCompanyId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CacEntityType")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("CacFetchedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CacNatureOfBusiness")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("CacRawJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CacRegistrationDate")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<decimal?>("CacShareCapital")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CacState")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("CacStatus")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("CallbackUrl")
                         .IsRequired()
@@ -6326,6 +6521,131 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("RhshfCreditProfiles", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfDirector", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("AffiliateType")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Bvn")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<long?>("CacDirectorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("DateOfAppointment")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("DateOfBirth")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("Gender")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("IdentityNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<bool>("IsChairman")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Nationality")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<long?>("NumSharesAllotted")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Occupation")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("OtherName")
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("RoleStatus")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal?>("ShareholdingPercent")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<bool>("SourcedFromCac")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("State")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Surname")
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("TypeOfShares")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Bvn");
+
+                    b.HasIndex("RhshfCreditProfileId");
+
+                    b.ToTable("RhshfDirectors", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfDisbursement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6389,6 +6709,59 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("RhshfCreditProfileId");
 
                     b.ToTable("RhshfDisbursements", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfDocumentRequirement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("longtext");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsMandatory")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("RhshfDocumentRequirements", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfEligibilityCheck", b =>
@@ -6481,6 +6854,222 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("RhshfCreditProfileId");
 
                     b.ToTable("RhshfEopLines", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFarmPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Crop")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<int>("CycleNumber")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("ExpectedPricePerKg")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ExpectedYieldKgPerHectare")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("Hectares")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("RecordedBy")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RhshfCreditProfileId", "CycleNumber");
+
+                    b.ToTable("RhshfFarmPlans", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFinancialAppraisalReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("AmountDueAtHarvest")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("AssumptionBasisNote")
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("BlendedPricePerKg")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("BlendedYieldKgPerHectare")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal?>("BreakEvenPricePerKg")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("BreakEvenYieldKgPerHectare")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("CashAvailableForDebtService")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("CreditOfficerRecommendation")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<int>("CycleMonths")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CycleNumber")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Dscr")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<bool>("DscrPass")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<decimal>("FinancedInputCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("GrossMargin")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("GrossMarginPass")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<decimal>("GrossMarginPercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("GrossRevenue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("HarvestAndLogisticsCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("InterestCharge")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("InterestRatePercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal?>("Irr")
+                        .HasColumnType("decimal(12,6)");
+
+                    b.Property<bool>("IrrPass")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal>("NetPresentValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("NetReturnToFarmer")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("OverrideJustification")
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("OwnCashCosts")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OwnProductionCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("PreparedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<bool>("PriceHeadroomPass")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<decimal?>("PriceHeadroomPercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<string>("RepaymentCapacityRating")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("SavedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("SummaryNotes")
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("ThresholdHurdleRatePercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("ThresholdMinDscr")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("ThresholdMinGrossMarginPercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("ThresholdMinPriceHeadroomPercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("ThresholdMinYieldHeadroomPercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalHectares")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<bool>("YieldHeadroomPass")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<decimal?>("YieldHeadroomPercent")
+                        .HasColumnType("decimal(10,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RhshfCreditProfileId", "CycleNumber")
+                        .IsUnique();
+
+                    b.ToTable("RhshfFinancialAppraisalReports", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfIssuedToken", b =>
@@ -6676,6 +7265,114 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("RhshfOfferDocuments", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfPreDeploymentChecklistItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("ConfirmedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("CycleNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("longtext");
+
+                    b.Property<bool?>("IsConfirmed")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsMandatory")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TemplateItemId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RhshfCreditProfileId", "CycleNumber");
+
+                    b.ToTable("RhshfPreDeploymentChecklistItems", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfPreDeploymentChecklistTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("longtext");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsMandatory")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("RhshfPreDeploymentChecklistTemplates", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfRatification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6771,11 +7468,184 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("RhshfRiskReviews", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfRoutingConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<decimal>("MaxEopValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("MinEopValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("Priority")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("IsActive", "Priority");
+
+                    b.ToTable("RhshfRoutingConfigs", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfStageConfirmation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("ConfirmedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("ConfirmedByFacId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("CycleNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("varchar(45)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(400)
+                        .HasColumnType("varchar(400)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RhshfCreditProfileId", "CycleNumber");
+
+                    b.ToTable("RhshfStageConfirmations", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ActorLabel")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("CycleNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("InternalStage")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("ProfilingStage")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RhshfCreditProfileId", "ChangedAt");
+
+                    b.ToTable("RhshfStatusHistory", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfSupportingDocument", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -8563,6 +9433,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfDirector", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany("Directors")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfDisbursement", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
@@ -8576,6 +9455,24 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
                         .WithMany("EopLines")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFarmPlan", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany("FarmPlans")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFinancialAppraisalReport", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany("FinancialAppraisals")
                         .HasForeignKey("RhshfCreditProfileId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -8599,6 +9496,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfPreDeploymentChecklistItem", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany("PreDeploymentChecklist")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfRatification", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
@@ -8612,6 +9518,24 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
                         .WithMany("RiskReviews")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfStageConfirmation", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany("StageConfirmations")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfStatusHistory", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany("StatusHistory")
                         .HasForeignKey("RhshfCreditProfileId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -8981,15 +9905,27 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("Appraisals");
 
+                    b.Navigation("Directors");
+
                     b.Navigation("Disbursements");
 
                     b.Navigation("EopLines");
 
+                    b.Navigation("FarmPlans");
+
+                    b.Navigation("FinancialAppraisals");
+
                     b.Navigation("IssuedTokens");
+
+                    b.Navigation("PreDeploymentChecklist");
 
                     b.Navigation("Ratifications");
 
                     b.Navigation("RiskReviews");
+
+                    b.Navigation("StageConfirmations");
+
+                    b.Navigation("StatusHistory");
 
                     b.Navigation("SupportingDocuments");
                 });

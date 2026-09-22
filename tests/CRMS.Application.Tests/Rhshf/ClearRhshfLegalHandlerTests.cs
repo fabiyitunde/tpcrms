@@ -28,10 +28,10 @@ public class ClearRhshfLegalHandlerTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
 
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         var finalApproverId = Guid.NewGuid();
@@ -46,19 +46,36 @@ public class ClearRhshfLegalHandlerTests
     }
 
     [Fact]
-    public async Task Clear_Granted_AdvancesToDisbursement_RecordsClearance()
+    public async Task Clear_Granted_AdvancesToPreDeploymentVerification_RecordsClearance()
     {
         var (profile, finalApproverId) = MakeProfileAtLegalClearance();
         var legalRepo = new FakeLegalClearanceRepository();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, new FakeUnitOfWork());
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, new FakeTemplateRepository(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Granted, "all clear"));
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.Disbursement, profile.InternalStage);
+        Assert.Equal(RhshfInternalStage.PreDeploymentVerification, profile.InternalStage);
         Assert.NotNull(legalRepo.Added);
         Assert.Equal(RhshfLegalClearanceOutcome.Granted, legalRepo.Added!.Outcome);
+    }
+
+    [Fact]
+    public async Task Clear_Granted_SeedsPreDeploymentChecklistFromActiveTemplates()
+    {
+        var (profile, _) = MakeProfileAtLegalClearance();
+        var template = RhshfPreDeploymentChecklistTemplate.Create("Gate Item", null, isMandatory: true, sortOrder: 10).Value;
+        var handler = new ClearRhshfLegalHandler(
+            new FakeProfileRepository(profile), new FakeLegalClearanceRepository(),
+            new FakeTemplateRepository([template]), new FakeUnitOfWork());
+
+        var result = await handler.Handle(new ClearRhshfLegalCommand(
+            profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Granted, "all clear"));
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(profile.PreDeploymentChecklist);
+        Assert.Equal("Gate Item", profile.PreDeploymentChecklist.Single().Title);
     }
 
     [Fact]
@@ -66,7 +83,7 @@ public class ClearRhshfLegalHandlerTests
     {
         var (profile, finalApproverId) = MakeProfileAtLegalClearance();
         var legalRepo = new FakeLegalClearanceRepository();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, new FakeUnitOfWork());
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, new FakeTemplateRepository(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, finalApproverId, RhshfLegalClearanceOutcome.Granted, null));
@@ -80,7 +97,7 @@ public class ClearRhshfLegalHandlerTests
     public async Task Clear_Returned_RoutesBackToRatification_NotAppraisal()
     {
         var (profile, _) = MakeProfileAtLegalClearance();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeUnitOfWork());
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeTemplateRepository(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Returned, "fix the deed"));
@@ -94,7 +111,7 @@ public class ClearRhshfLegalHandlerTests
     public async Task Clear_Declined_IsTerminal()
     {
         var (profile, _) = MakeProfileAtLegalClearance();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeUnitOfWork());
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeTemplateRepository(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Declined, "title dispute"));
@@ -131,6 +148,18 @@ public class ClearRhshfLegalHandlerTests
             Added = clearance;
             return Task.CompletedTask;
         }
+    }
+
+    private class FakeTemplateRepository : IRhshfPreDeploymentChecklistTemplateRepository
+    {
+        private readonly IReadOnlyList<RhshfPreDeploymentChecklistTemplate> _active;
+        public FakeTemplateRepository(IReadOnlyList<RhshfPreDeploymentChecklistTemplate>? active = null) => _active = active ?? [];
+
+        public Task<IReadOnlyList<RhshfPreDeploymentChecklistTemplate>> GetAllAsync(CancellationToken ct = default) => Task.FromResult(_active);
+        public Task<IReadOnlyList<RhshfPreDeploymentChecklistTemplate>> GetActiveAsync(CancellationToken ct = default) => Task.FromResult(_active);
+        public Task<RhshfPreDeploymentChecklistTemplate?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task AddAsync(RhshfPreDeploymentChecklistTemplate template, CancellationToken ct = default) => Task.CompletedTask;
+        public void Update(RhshfPreDeploymentChecklistTemplate template) { }
     }
 
     private class FakeUnitOfWork : IUnitOfWork

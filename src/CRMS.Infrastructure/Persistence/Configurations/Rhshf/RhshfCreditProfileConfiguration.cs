@@ -56,6 +56,17 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
         builder.Property(x => x.InternalStage).HasConversion<string>().HasMaxLength(30);
         builder.Property(x => x.DecisionNotes).HasColumnType("longtext");
 
+        // CAC company profile (Phase B)
+        builder.Property(x => x.CacStatus).HasMaxLength(100);
+        builder.Property(x => x.CacEntityType).HasMaxLength(100);
+        builder.Property(x => x.CacRegistrationDate).HasMaxLength(50);
+        builder.Property(x => x.CacNatureOfBusiness).HasMaxLength(500);
+        builder.Property(x => x.CacShareCapital).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.CacAddress).HasMaxLength(500);
+        builder.Property(x => x.CacCity).HasMaxLength(100);
+        builder.Property(x => x.CacState).HasMaxLength(100);
+        builder.Property(x => x.CacRawJson).HasColumnType("longtext");
+
         builder.HasMany(x => x.EopLines)
             .WithOne()
             .HasForeignKey(x => x.RhshfCreditProfileId)
@@ -87,6 +98,36 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasMany(x => x.Disbursements)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.PreDeploymentChecklist)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.Directors)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.FarmPlans)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.StageConfirmations)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.FinancialAppraisals)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.StatusHistory)
             .WithOne()
             .HasForeignKey(x => x.RhshfCreditProfileId)
             .OnDelete(DeleteBehavior.Cascade);
@@ -153,6 +194,9 @@ public class RhshfSupportingDocumentConfiguration : IEntityTypeConfiguration<Rhs
         builder.ToTable("RhshfSupportingDocuments");
         builder.HasKey(x => x.Id);
 
+        // Stored by name, like every other enum in this schema — an int here would make the
+        // column meaningless the moment a category is inserted into the middle of the enum.
+        builder.Property(x => x.Category).IsRequired().HasConversion<string>().HasMaxLength(50);
         builder.Property(x => x.FileName).IsRequired().HasMaxLength(255);
         builder.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
         builder.Property(x => x.StoragePath).IsRequired().HasMaxLength(500);

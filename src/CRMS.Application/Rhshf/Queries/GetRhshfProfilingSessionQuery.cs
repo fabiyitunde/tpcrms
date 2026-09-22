@@ -9,10 +9,13 @@ public record GetRhshfProfilingSessionQuery(string Reference) : IRequest<Applica
 public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfilingSessionQuery, ApplicationResult<RhshfProfilingSessionDto>>
 {
     private readonly IRhshfCreditProfileRepository _repo;
+    private readonly IRhshfDocumentRequirementRepository _requirementRepo;
 
-    public GetRhshfProfilingSessionHandler(IRhshfCreditProfileRepository repo)
+    public GetRhshfProfilingSessionHandler(
+        IRhshfCreditProfileRepository repo, IRhshfDocumentRequirementRepository requirementRepo)
     {
         _repo = repo;
+        _requirementRepo = requirementRepo;
     }
 
     public async Task<ApplicationResult<RhshfProfilingSessionDto>> Handle(
@@ -21,6 +24,11 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
         var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
         if (profile is null)
             return ApplicationResult<RhshfProfilingSessionDto>.Failure("Case not found.");
+
+        var requirements = await _requirementRepo.GetActiveAsync(ct);
+        var attachedByCategory = profile.SupportingDocuments
+            .GroupBy(d => d.Category)
+            .ToDictionary(g => g.Key, g => g.Count());
 
         var dto = new RhshfProfilingSessionDto(
             Reference: profile.Reference,
@@ -43,7 +51,18 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
             BureauTotalOutstanding: profile.BureauTotalOutstanding,
             BureauTotalOverdue: profile.BureauTotalOverdue,
             SupportingDocuments: profile.SupportingDocuments
-                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt))
+                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt) { Category = d.Category })
+                .ToList(),
+            DocumentRequirements: requirements
+                .Select(r => new RhshfDocumentRequirementStatusDto(
+                    r.Category, r.Title, r.Description, r.IsMandatory, r.SortOrder,
+                    IsSatisfied: attachedByCategory.ContainsKey(r.Category),
+                    AttachedCount: attachedByCategory.GetValueOrDefault(r.Category)))
+                .ToList(),
+            FarmPlans: profile.GetTargetCycleFarmPlans()
+                .Select(p => new RhshfProfilingFarmPlanDto(
+                    p.Id, p.Crop, p.Hectares, p.ExpectedYieldKgPerHectare, p.ExpectedPricePerKg,
+                    p.ExpectedOutputKg, p.ExpectedRevenue))
                 .ToList());
 
         return ApplicationResult<RhshfProfilingSessionDto>.Success(dto);

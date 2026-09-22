@@ -18,8 +18,9 @@
             @foreach (var (lc, i) in History.Select((lc, i) => (lc, i)))
             {
                 <div style="@(i > 0 ? "border-top: 1px solid var(--gray-100); padding-top: 1rem;" : "")">
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                         <span class="badge @OutcomeBadgeClass(lc.Outcome)">@lc.Outcome</span>
+                        <strong style="font-size: 0.875rem;">@lc.LegalOfficerName</strong>
                         <span style="font-size: 0.8rem; color: var(--gray-500);">Cycle @lc.CycleNumber &middot; @lc.ClearedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</span>
                     </div>
                     @if (!string.IsNullOrEmpty(lc.Comments))

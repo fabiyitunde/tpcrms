@@ -29,7 +29,7 @@ public class AppraisalAndRiskReviewHandlerTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
 
         return profile;
@@ -49,13 +49,27 @@ public class AppraisalAndRiskReviewHandlerTests
     public async Task Appraise_ValidCase_Succeeds_AndPersists()
     {
         var profile = MakeProfileUnderReview();
+        var creditOfficerId = Guid.NewGuid();
+        profile.SeedViableAppraisal(creditOfficerId); // Proceed now requires a saved financial appraisal
         var repo = new FakeRepository(profile);
         var handler = new AppraiseRhshfCaseHandler(repo, new FakeUnitOfWork());
 
-        var result = await handler.Handle(new AppraiseRhshfCaseCommand(profile.Reference, Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, "ok", null));
+        var result = await handler.Handle(new AppraiseRhshfCaseCommand(profile.Reference, creditOfficerId, RhshfAppraisalOutcome.Proceed, "ok", null));
 
         Assert.True(result.IsSuccess);
         Assert.Single(profile.Appraisals);
+    }
+
+    [Fact]
+    public async Task Appraise_Proceed_WithoutFinancialAppraisal_IsRejectedByTheHandler()
+    {
+        var profile = MakeProfileUnderReview();
+        var handler = new AppraiseRhshfCaseHandler(new FakeRepository(profile), new FakeUnitOfWork());
+
+        var result = await handler.Handle(new AppraiseRhshfCaseCommand(profile.Reference, Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, "ok", null));
+
+        Assert.False(result.IsSuccess);
+        Assert.Empty(profile.Appraisals);
     }
 
     [Fact]
@@ -63,7 +77,7 @@ public class AppraisalAndRiskReviewHandlerTests
     {
         var profile = MakeProfileUnderReview();
         var creditOfficerId = Guid.NewGuid();
-        profile.Appraise(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
         var repo = new FakeRepository(profile);
         var handler = new ReviewRhshfRiskHandler(repo, new FakeCommitteeRepository(), new FakeRoutingConfigRepository(), new FakeStandingCommitteeRepository(), new FakeUnitOfWork());
 
@@ -95,7 +109,7 @@ public class AppraisalAndRiskReviewHandlerTests
     {
         var profile = MakeProfileUnderReview();
         var repo = new FakeRepository(profile);
-        var handler = new GetRhshfCaseWorkspaceHandler(repo);
+        var handler = new GetRhshfCaseWorkspaceHandler(repo, new FakeUserNameResolver());
 
         var result = await handler.Handle(new GetRhshfCaseWorkspaceQuery(profile.Reference));
 
@@ -103,6 +117,31 @@ public class AppraisalAndRiskReviewHandlerTests
         Assert.Equal(profile.CompanyName, result.Data!.CompanyName);
         Assert.Equal(RhshfInternalStage.Appraisal, result.Data.InternalStage);
         Assert.Equal(1, result.Data.CurrentCycleNumber);
+    }
+
+    [Fact]
+    public async Task GetCaseWorkspace_ResolvesActorNames_NotRawGuids()
+    {
+        var profile = MakeProfileUnderReview();
+        var creditOfficerId = Guid.NewGuid();
+        var riskOfficerId = Guid.NewGuid();
+        profile.AppraiseWithFinancials(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
+        profile.ReviewRisk(riskOfficerId, RhshfRiskReviewOutcome.Cleared, null);
+
+        var resolver = new FakeUserNameResolver(new Dictionary<Guid, string>
+        {
+            [creditOfficerId] = "Chukwuemeka Obi",
+            [riskOfficerId] = "Adaeze Nwosu",
+        });
+        var handler = new GetRhshfCaseWorkspaceHandler(new FakeRepository(profile), resolver);
+
+        var result = await handler.Handle(new GetRhshfCaseWorkspaceQuery(profile.Reference));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Chukwuemeka Obi", result.Data!.Appraisals.Single().CreditOfficerName);
+        Assert.Equal("Adaeze Nwosu", result.Data.RiskReviews.Single().RiskOfficerName);
+        // The raw id stays available for "is this me?" comparisons — it just isn't what renders.
+        Assert.Equal(creditOfficerId, result.Data.Appraisals.Single().CreditOfficerId);
     }
 
     private class FakeRepository : IRhshfCreditProfileRepository

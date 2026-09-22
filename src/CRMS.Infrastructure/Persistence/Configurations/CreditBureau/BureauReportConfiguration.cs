@@ -84,6 +84,7 @@ public class BureauReportConfiguration : IEntityTypeConfiguration<BureauReport>
         builder.HasIndex(x => x.PartyId);
         builder.HasIndex(x => x.LoanApplicationId);
         builder.HasIndex(x => x.NampApplicationId);
+        builder.HasIndex(x => x.RhshfCreditProfileId);
         builder.HasIndex(x => x.RequestedByUserId);
 
         builder.HasMany(x => x.Accounts)

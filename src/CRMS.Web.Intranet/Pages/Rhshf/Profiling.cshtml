@@ -123,7 +123,7 @@ else
 
                 case RhshfProfilingStage.EopReview:
                     <h4 class="mb-3">Review your Estimate of Production (EOP)</h4>
-                    <p class="text-muted">Confirm the commodity breakdown submitted by the portal.</p>
+                    <p class="text-muted">Confirm the input package submitted by the portal, then tell us what you expect to produce with it.</p>
                     <table class="table table-sm">
                         <thead><tr><th>Commodity</th><th class="text-end">Quantity (kg)</th><th class="text-end">Unit price</th><th class="text-end">Line value</th></tr></thead>
                         <tbody>
@@ -141,38 +141,188 @@ else
                             <tr class="fw-bold"><td colspan="3">Total EOP value</td><td class="text-end">@Model.Session.Currency @Model.Session.TotalEopValue.ToString("N2")</td></tr>
                         </tfoot>
                     </table>
+
+                    <hr class="my-4" />
+
+                    <h5>Your farm plan</h5>
+                    <p class="text-muted">
+                        The bank assesses repayment against what this land is expected to produce, so this section is
+                        required. Add one row per crop.
+                    </p>
+
+                    @if (Model.Session.FarmPlans.Count > 0)
+                    {
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Crop</th>
+                                    <th class="text-end">Hectares</th>
+                                    <th class="text-end">Yield (kg/ha)</th>
+                                    <th class="text-end">Price (@Model.Session.Currency/kg)</th>
+                                    <th class="text-end">Expected revenue</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var plan in Model.Session.FarmPlans)
+                            {
+                                <tr>
+                                    <td>@plan.Crop</td>
+                                    <td class="text-end">@plan.Hectares.ToString("N2")</td>
+                                    <td class="text-end">@plan.ExpectedYieldKgPerHectare.ToString("N0")</td>
+                                    <td class="text-end">@plan.ExpectedPricePerKg.ToString("N2")</td>
+                                    <td class="text-end fw-semibold">@plan.ExpectedRevenue.ToString("N2")</td>
+                                    <td class="text-end">
+                                        <form method="post" asp-page-handler="RemoveFarmPlan">
+                                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                            <input type="hidden" name="planId" value="@plan.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                            <tfoot>
+                                <tr class="fw-bold">
+                                    <td>@Model.Session.FarmPlans.Sum(p => p.Hectares).ToString("N2") ha total</td>
+                                    <td colspan="3"></td>
+                                    <td class="text-end">@Model.Session.Currency @Model.Session.FarmPlans.Sum(p => p.ExpectedRevenue).ToString("N2")</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning">No crops added yet. At least one is needed before you can submit.</div>
+                    }
+
+                    <form method="post" asp-page-handler="AddFarmPlan" class="row g-2 align-items-end mb-4">
+                        <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                        <div class="col-md-3">
+                            <label class="form-label small">Crop</label>
+                            <input name="crop" class="form-control" placeholder="e.g. Maize" required />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Hectares</label>
+                            <input name="hectares" type="number" step="0.01" min="0.01" class="form-control" required />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Expected yield (kg/ha)</label>
+                            <input name="yieldPerHa" type="number" step="1" min="1" class="form-control" required />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Price (@Model.Session.Currency/kg)</label>
+                            <input name="pricePerKg" type="number" step="0.01" min="0.01" class="form-control" required />
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-outline-success w-100">Add crop</button>
+                        </div>
+                    </form>
+
                     <form method="post" asp-page-handler="Confirm">
                         <input type="hidden" name="reference" value="@Model.Session.Reference" />
                         <input type="hidden" name="stage" value="@RhshfProfilingStage.EopReview" />
-                        <button type="submit" class="btn btn-success">This is correct — continue</button>
+                        <button type="submit" class="btn btn-success" disabled="@(Model.Session.FarmPlans.Count == 0)">
+                            This is correct — continue
+                        </button>
                     </form>
                     break;
 
                 case RhshfProfilingStage.SupportingDocuments:
-                    <h4 class="mb-3">Supporting documents</h4>
-                    <p class="text-muted">Attach any supporting documents (optional).</p>
-                    @if (Model.Session.SupportingDocuments.Count > 0)
                     {
-                        <ul class="list-group mb-3">
-                            @foreach (var doc in Model.Session.SupportingDocuments)
+                        var missingMandatory = Model.Session.DocumentRequirements
+                            .Where(r => r.IsMandatory && !r.IsSatisfied).ToList();
+
+                        <h4 class="mb-3">Supporting documents</h4>
+                        <p class="text-muted">
+                            Attach the documents below. Items marked <span class="badge bg-danger">Required</span>
+                            must be supplied before you can submit.
+                        </p>
+
+                        <table class="table table-sm align-middle">
+                            <thead><tr><th>Document</th><th>Status</th><th class="text-end">Attach</th></tr></thead>
+                            <tbody>
+                            @foreach (var req in Model.Session.DocumentRequirements.OrderBy(r => r.SortOrder))
                             {
-                                <li class="list-group-item d-flex justify-content-between">
-                                    <span>@doc.FileName</span>
-                                    <span class="text-muted">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</span>
-                                </li>
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">
+                                            @req.Title
+                                            @if (req.IsMandatory)
+                                            {
+                                                <span class="badge bg-danger ms-1">Required</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary ms-1">Optional</span>
+                                            }
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(req.Description))
+                                        {
+                                            <div class="small text-muted">@req.Description</div>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (req.IsSatisfied)
+                                        {
+                                            <span class="badge bg-success">@req.AttachedCount attached</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-dark border">Not attached</span>
+                                        }
+                                    </td>
+                                    <td class="text-end" style="min-width: 320px;">
+                                        <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="d-flex gap-2 justify-content-end">
+                                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                            <input type="hidden" name="category" value="@req.Category" />
+                                            <input type="file" name="file" class="form-control form-control-sm" required />
+                                            <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Upload</button>
+                                        </form>
+                                    </td>
+                                </tr>
                             }
-                        </ul>
+                            </tbody>
+                        </table>
+
+                        @if (Model.Session.SupportingDocuments.Count > 0)
+                        {
+                            <h6 class="mt-4">Attached files</h6>
+                            <ul class="list-group mb-3">
+                                @foreach (var doc in Model.Session.SupportingDocuments)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>
+                                            @doc.FileName
+                                            <span class="badge bg-light text-dark border ms-1">@doc.Category</span>
+                                        </span>
+                                        <span class="d-flex gap-2 align-items-center">
+                                            <span class="text-muted small">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</span>
+                                            <form method="post" asp-page-handler="RemoveDocument">
+                                                <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                <input type="hidden" name="documentId" value="@doc.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                            </form>
+                                        </span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+
+                        @if (missingMandatory.Count > 0)
+                        {
+                            <div class="alert alert-warning">
+                                Still required: @string.Join(", ", missingMandatory.Select(r => r.Title))
+                            </div>
+                        }
+
+                        <form method="post" asp-page-handler="Confirm">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <input type="hidden" name="stage" value="@RhshfProfilingStage.SupportingDocuments" />
+                            <button type="submit" class="btn btn-success" disabled="@(missingMandatory.Count > 0)">Continue</button>
+                        </form>
                     }
-                    <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="mb-3 d-flex gap-2">
-                        <input type="hidden" name="reference" value="@Model.Session.Reference" />
-                        <input type="file" name="file" class="form-control" required />
-                        <button type="submit" class="btn btn-outline-success text-nowrap">Upload</button>
-                    </form>
-                    <form method="post" asp-page-handler="Confirm">
-                        <input type="hidden" name="reference" value="@Model.Session.Reference" />
-                        <input type="hidden" name="stage" value="@RhshfProfilingStage.SupportingDocuments" />
-                        <button type="submit" class="btn btn-success">Continue</button>
-                    </form>
                     break;
 
                 case RhshfProfilingStage.ReviewAndSubmit:
@@ -181,6 +331,8 @@ else
                     <dl class="row">
                         <dt class="col-sm-4">Company</dt><dd class="col-sm-8">@Model.Session.CompanyName</dd>
                         <dt class="col-sm-4">Total EOP value</dt><dd class="col-sm-8">@Model.Session.Currency @Model.Session.TotalEopValue.ToString("N2")</dd>
+                        <dt class="col-sm-4">Land under cultivation</dt><dd class="col-sm-8">@Model.Session.FarmPlans.Sum(p => p.Hectares).ToString("N2") ha across @Model.Session.FarmPlans.Count crop(s)</dd>
+                        <dt class="col-sm-4">Expected revenue</dt><dd class="col-sm-8">@Model.Session.Currency @Model.Session.FarmPlans.Sum(p => p.ExpectedRevenue).ToString("N2")</dd>
                         <dt class="col-sm-4">Documents attached</dt><dd class="col-sm-8">@Model.Session.SupportingDocuments.Count</dd>
                     </dl>
                     <form method="post" asp-page-handler="Confirm">

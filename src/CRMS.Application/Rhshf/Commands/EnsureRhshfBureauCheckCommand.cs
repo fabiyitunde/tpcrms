@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CRMS.Application.Common;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
@@ -49,6 +50,12 @@ public class EnsureRhshfBureauCheckHandler : IRequestHandler<EnsureRhshfBureauCh
         // Same "has credit issues" rule already used elsewhere in this codebase (ProcessLoanCreditChecksCommand).
         var outcome = summary.TotalNoOfDelinquentFacilities > 0 ? RhshfBureauOutcome.Flagged : RhshfBureauOutcome.Cleared;
 
+        // The parsed report, not the provider's literal wire response (no raw-JSON field on
+        // SmartComplyBusinessCreditReport, and a second round-trip just for a debug panel isn't
+        // worth it) — this was previously hardcoded to null, so the Bureau tab's Raw Report card
+        // never rendered anything at all.
+        var rawJson = JsonSerializer.Serialize(reportResult.Value, new JsonSerializerOptions { WriteIndented = true });
+
         profile.RecordBureauCheck(
             outcome: outcome,
             totalLoans: summary.TotalNoOfLoans,
@@ -56,7 +63,7 @@ public class EnsureRhshfBureauCheckHandler : IRequestHandler<EnsureRhshfBureauCh
             delinquentFacilities: summary.TotalNoOfDelinquentFacilities,
             totalOutstanding: summary.TotalOutstanding,
             totalOverdue: summary.TotalOverdue,
-            rawJson: null);
+            rawJson: rawJson);
 
         await _uow.SaveChangesAsync(ct);
         return ApplicationResult.Success();

@@ -1,0 +1,243 @@
+@page "/admin/rhshf-document-requirements"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@using CRMS.Application.Rhshf.DTOs
+@using CRMS.Domain.Enums
+@inject ApplicationService AppService
+
+<PageTitle>RH-SHF Document Requirements - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">RH-SHF Document Requirements</h1>
+        <p class="page-subtitle">Documents the FAC must attach before a case can be submitted for credit review</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal" disabled="@(AvailableCategories().Count == 0)">
+        <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
+        Add Requirement
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(pageError))
+{
+    <div class="alert alert-danger">@pageError</div>
+}
+
+<div class="alert alert-info" style="margin-bottom: 1rem;">
+    <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: -4px;">info</span>
+    Mandatory requirements are enforced server-side: the FAC cannot leave the Supporting Documents
+    stage until every active mandatory category has a file attached. Deactivate a rule rather than
+    deleting it — cases submitted under it stay explicable.
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        @if (isLoading)
+        {
+            <div class="p-6 text-center"><div class="spinner" style="margin: 0 auto;"></div></div>
+        }
+        else if (requirements.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">description</span></div>
+                <div class="empty-state-title">No document requirements</div>
+                <div class="empty-state-text">Add a requirement to start gating FAC submissions.</div>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table class="table" style="margin-bottom: 0;">
+                    <thead>
+                        <tr><th>Document</th><th>Category</th><th>Requirement</th><th>Sort</th><th>Status</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in requirements.OrderBy(r => r.SortOrder).ThenBy(r => r.Title))
+                        {
+                            <tr>
+                                <td>
+                                    <div style="font-weight: 500;">@r.Title</div>
+                                    @if (!string.IsNullOrEmpty(r.Description))
+                                    {
+                                        <div style="font-size: 0.8rem; color: var(--gray-500);">@r.Description</div>
+                                    }
+                                </td>
+                                <td><span class="badge badge-primary">@Humanise(r.Category)</span></td>
+                                <td><span class="badge @(r.IsMandatory ? "badge-warning" : "badge-gray")">@(r.IsMandatory ? "Mandatory" : "Optional")</span></td>
+                                <td>@r.SortOrder</td>
+                                <td><span class="badge @(r.IsActive ? "badge-success" : "badge-gray")">@(r.IsActive ? "Active" : "Inactive")</span></td>
+                                <td style="white-space: nowrap;">
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => OpenEditModal(r)">Edit</button>
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => ToggleRequirement(r)">@(r.IsActive ? "Deactivate" : "Activate")</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal-backdrop show" @onclick="CloseModal">
+        <div class="modal" style="max-width: 520px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@(isEditing ? "Edit Document Requirement" : "Add Document Requirement")</h3>
+                <button class="modal-close" @onclick="CloseModal"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Category *</label>
+                    @if (isEditing)
+                    {
+                        <input class="form-control" value="@Humanise(form.Category)" disabled />
+                        <div style="font-size: 0.78rem; color: var(--gray-500); margin-top: 0.25rem;">
+                            The category is fixed once created — cases already judged against this rule
+                            must keep meaning what they meant.
+                        </div>
+                    }
+                    else
+                    {
+                        <select class="form-control" @bind="form.Category">
+                            @foreach (var c in AvailableCategories())
+                            {
+                                <option value="@c">@Humanise(c)</option>
+                            }
+                        </select>
+                    }
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Title *</label>
+                    <input class="form-control" @bind="form.Title" placeholder="e.g. Certificate of incorporation (CAC)" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" rows="2" @bind="form.Description"
+                              placeholder="Guidance shown to the FAC alongside the upload slot"></textarea>
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" @bind="form.IsMandatory" />
+                        <span>Mandatory (blocks submission until attached)</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sort Order</label>
+                    <input type="number" class="form-control" @bind="form.SortOrder" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                @if (!string.IsNullOrEmpty(saveError))
+                {
+                    <div class="alert alert-danger" style="margin: 0; flex: 1; font-size: 0.85rem;">@saveError</div>
+                }
+                <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="Save" disabled="@isSaving">
+                    @if (isSaving) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                    @(isEditing ? "Update" : "Create")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<RhshfDocumentRequirementDto> requirements = [];
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showModal;
+    private bool isEditing;
+    private string? saveError;
+    private string? pageError;
+    private Guid editingId;
+    private FormModel form = new();
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        isLoading = true;
+        pageError = null;
+        try { requirements = await AppService.GetRhshfDocumentRequirementsAsync(); }
+        finally { isLoading = false; }
+    }
+
+    // One rule per category, so only unclaimed categories can be added.
+    private List<RhshfDocumentCategory> AvailableCategories() =>
+        Enum.GetValues<RhshfDocumentCategory>()
+            .Where(c => c != RhshfDocumentCategory.Other && requirements.All(r => r.Category != c))
+            .ToList();
+
+    private void OpenCreateModal()
+    {
+        var available = AvailableCategories();
+        if (available.Count == 0) return;
+
+        form = new()
+        {
+            Category = available[0],
+            SortOrder = requirements.Count == 0 ? 1 : requirements.Max(r => r.SortOrder) + 1,
+        };
+        editingId = Guid.Empty;
+        isEditing = false;
+        saveError = null;
+        showModal = true;
+    }
+
+    private void OpenEditModal(RhshfDocumentRequirementDto r)
+    {
+        form = new()
+        {
+            Category = r.Category,
+            Title = r.Title,
+            Description = r.Description ?? string.Empty,
+            IsMandatory = r.IsMandatory,
+            SortOrder = r.SortOrder,
+        };
+        editingId = r.Id;
+        isEditing = true;
+        saveError = null;
+        showModal = true;
+    }
+
+    private void CloseModal() { showModal = false; saveError = null; }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(form.Title))
+        { saveError = "Title is required."; return; }
+
+        isSaving = true;
+        saveError = null;
+        try
+        {
+            var result = isEditing
+                ? await AppService.UpdateRhshfDocumentRequirementAsync(editingId, form.Title, form.Description, form.IsMandatory, form.SortOrder)
+                : await AppService.CreateRhshfDocumentRequirementAsync(form.Category, form.Title, form.Description, form.IsMandatory, form.SortOrder);
+
+            if (result.Success) { CloseModal(); await Load(); }
+            else saveError = result.Error ?? "Failed to save";
+        }
+        finally { isSaving = false; }
+    }
+
+    private async Task ToggleRequirement(RhshfDocumentRequirementDto r)
+    {
+        var result = await AppService.ToggleRhshfDocumentRequirementAsync(r.Id, !r.IsActive);
+        if (result.Success) await Load();
+        else pageError = result.Error ?? "Failed to update status";
+    }
+
+    private static string Humanise(RhshfDocumentCategory category) =>
+        System.Text.RegularExpressions.Regex.Replace(category.ToString(), "(?<!^)([A-Z])", " $1");
+
+    private class FormModel
+    {
+        public RhshfDocumentCategory Category { get; set; } = RhshfDocumentCategory.CacCertificate;
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public bool IsMandatory { get; set; } = true;
+        public int SortOrder { get; set; }
+    }
+}

@@ -67,9 +67,9 @@ public class GetRhshfCaseStatusHandlerTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
@@ -97,9 +97,9 @@ public class GetRhshfCaseStatusHandlerTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
@@ -123,9 +123,9 @@ public class GetRhshfCaseStatusHandlerTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
@@ -150,9 +150,9 @@ public class GetRhshfCaseStatusHandlerTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
@@ -160,7 +160,12 @@ public class GetRhshfCaseStatusHandlerTests
         offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
         offer.Accept(null);
         profile.AdvanceToLegalClearance();
-        profile.AdvanceToDisbursement();
+        profile.AdvanceToDisbursement(); // lands at PreDeploymentVerification
+        var template = RhshfPreDeploymentChecklistTemplate.Create("Gate Item", null, isMandatory: true, sortOrder: 10).Value;
+        profile.SeedPreDeploymentChecklist([template]);
+        var item = profile.PreDeploymentChecklist.Single(i => i.CycleNumber == profile.CurrentCycleNumber);
+        profile.ConfirmPreDeploymentChecklistItem(item.Id, Guid.NewGuid(), true, null);
+        profile.CompletePreDeploymentVerification(Guid.NewGuid(), null);
         profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 9001L, "LN-009001", null);
         var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer));
 
@@ -183,9 +188,9 @@ public class GetRhshfCaseStatusHandlerTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);

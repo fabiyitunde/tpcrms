@@ -18,8 +18,9 @@
             @foreach (var (r, i) in RiskReviews.Select((r, i) => (r, i)))
             {
                 <div style="@(i > 0 ? "border-top: 1px solid var(--gray-100); padding-top: 1rem;" : "")">
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                         <span class="badge @OutcomeBadgeClass(r.Outcome)">@r.Outcome</span>
+                        <strong style="font-size: 0.875rem;">@r.RiskOfficerName</strong>
                         <span style="font-size: 0.8rem; color: var(--gray-500);">Cycle @r.CycleNumber &middot; @r.ReviewedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</span>
                     </div>
                     @if (!string.IsNullOrEmpty(r.Notes))

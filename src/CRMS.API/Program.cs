@@ -159,6 +159,20 @@ if (app.Environment.IsDevelopment())
 
 app.UseRateLimiter();
 
+// RH-SHF submissions persist the verbatim request body for traceability, which means the body has
+// to survive model binding. Scoped to that one path — buffering every request would hold whole
+// payloads in memory for no reason.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/v1/credit-profiles", StringComparison.OrdinalIgnoreCase)
+        && HttpMethods.IsPost(context.Request.Method))
+    {
+        context.Request.EnableBuffering();
+    }
+
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 

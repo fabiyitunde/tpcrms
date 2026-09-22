@@ -54,9 +54,11 @@ public class CastRhshfCommitteeVoteHandler : IRequestHandler<CastRhshfCommitteeV
         {
             var propagateResult = review.FinalDecision switch
             {
-                RhshfCommitteeDecision.Approved => profile.AdvanceToRatification(),
-                RhshfCommitteeDecision.Rejected => profile.DeclineAtCommittee(
+                RhshfCommitteeDecision.Approved => profile.AdvanceToRatification(request.UserId,
                     $"Committee vote: {review.Votes.Count(v => v.Vote == RhshfCommitteeVoteChoice.Approve)}/{review.Votes.Count} approved."),
+                RhshfCommitteeDecision.Rejected => profile.DeclineAtCommittee(
+                    $"Committee vote: {review.Votes.Count(v => v.Vote == RhshfCommitteeVoteChoice.Approve)}/{review.Votes.Count} approved.",
+                    request.UserId),
                 _ => Domain.Common.Result.Failure($"Unexpected committee decision '{review.FinalDecision}' from a vote tally."),
             };
 

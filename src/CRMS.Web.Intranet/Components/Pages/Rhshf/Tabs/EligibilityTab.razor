@@ -21,7 +21,7 @@
     {
         <div class="table-wrapper">
             <table class="table">
-                <thead><tr><th>Criterion</th><th>Status</th><th>Notes</th></tr></thead>
+                <thead><tr><th>Criterion</th><th>Status</th><th>Notes</th><th>Verified By</th></tr></thead>
                 <tbody>
                 @foreach (var check in Checks)
                 {
@@ -38,13 +38,14 @@
                             }
                         </td>
                         <td style="font-size: 0.85rem; color: var(--gray-600);">@(check.Notes ?? "—")</td>
+                        <td style="font-size: 0.8rem; color: var(--gray-500); white-space: nowrap;">
+                            <div style="font-weight: 500; color: var(--gray-700);">@check.VerifiedByName</div>
+                            <div>@check.VerifiedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</div>
+                        </td>
                     </tr>
                 }
                 </tbody>
             </table>
-        </div>
-        <div class="card-footer" style="font-size: 0.8rem; color: var(--gray-500);">
-            Verified <code>@Checks.First().VerifiedBy</code> on @Checks.First().VerifiedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
         </div>
     }
 </div>

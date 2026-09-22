@@ -24,6 +24,24 @@ public record RhshfProfilingSessionDto(
     int? BureauDelinquentFacilities,
     decimal? BureauTotalOutstanding,
     decimal? BureauTotalOverdue,
-    List<RhshfSupportingDocumentDto> SupportingDocuments);
+    List<RhshfSupportingDocumentDto> SupportingDocuments,
+    /// <summary>The configured required-document checklist, each marked with whether this case has
+    /// satisfied it. Drives both the upload UI and the submission gate's error message.</summary>
+    List<RhshfDocumentRequirementStatusDto> DocumentRequirements,
+    /// <summary>Farm plan for the cycle being prepared — the agronomic basis the appraisal needs.</summary>
+    List<RhshfProfilingFarmPlanDto> FarmPlans);
 
-public record RhshfSupportingDocumentDto(Guid Id, string FileName, long SizeBytes, DateTime UploadedAt);
+public record RhshfSupportingDocumentDto(Guid Id, string FileName, long SizeBytes, DateTime UploadedAt)
+{
+    /// <summary>Defaulted so existing staff-side callers that don't care about categories are
+    /// unaffected.</summary>
+    public RhshfDocumentCategory Category { get; init; } = RhshfDocumentCategory.Other;
+}
+
+public record RhshfDocumentRequirementStatusDto(
+    RhshfDocumentCategory Category, string Title, string? Description,
+    bool IsMandatory, int SortOrder, bool IsSatisfied, int AttachedCount);
+
+public record RhshfProfilingFarmPlanDto(
+    Guid Id, string Crop, decimal Hectares, decimal ExpectedYieldKgPerHectare,
+    decimal ExpectedPricePerKg, decimal ExpectedOutputKg, decimal ExpectedRevenue);

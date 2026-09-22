@@ -29,12 +29,12 @@ public class CommitteeVoteHandlerTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
 
         creditOfficerId = Guid.NewGuid();
         riskOfficerId = Guid.NewGuid();
-        profile.Appraise(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(riskOfficerId, RhshfRiskReviewOutcome.Cleared, null);
 
         return profile;
@@ -59,9 +59,9 @@ public class CommitteeVoteHandlerTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
 
         var profileRepo = new FakeProfileRepository(profile);
         var committeeRepo = new FakeCommitteeRepository();
@@ -136,7 +136,7 @@ public class CommitteeVoteHandlerTests
         var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 3, minimumApprovalVotes: 2, CommitteeType.BranchCredit, null).Value;
         var handler = new ReturnRhshfCommitteeToFacHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeUnitOfWork());
 
-        var result = await handler.Handle(new ReturnRhshfCommitteeToFacCommand(profile.Reference, "need more info", RhshfProfilingStage.SupportingDocuments));
+        var result = await handler.Handle(new ReturnRhshfCommitteeToFacCommand(profile.Reference, Guid.NewGuid(), "need more info", RhshfProfilingStage.SupportingDocuments));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
@@ -149,7 +149,7 @@ public class CommitteeVoteHandlerTests
         var profile = MakeProfileAtCommitteeVoting(out _, out _);
         var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, requiredVotes: 3, minimumApprovalVotes: 2, CommitteeType.BranchCredit, null).Value;
         review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, "looks good", []);
-        var handler = new GetRhshfCommitteeReviewHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review));
+        var handler = new GetRhshfCommitteeReviewHandler(new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeUserNameResolver());
 
         var result = await handler.Handle(new GetRhshfCommitteeReviewQuery(profile.Reference));
 

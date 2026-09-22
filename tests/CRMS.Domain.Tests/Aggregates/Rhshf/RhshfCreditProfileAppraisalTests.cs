@@ -24,7 +24,7 @@ public class RhshfCreditProfileAppraisalTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
 
         return profile; // now UnderReview, CurrentCycleNumber == 1, InternalStage == Appraisal
@@ -45,6 +45,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
         var creditOfficerId = Guid.NewGuid();
+        profile.SeedViableAppraisal(creditOfficerId);
 
         var result = profile.Appraise(creditOfficerId, RhshfAppraisalOutcome.Proceed, "Looks fine");
 
@@ -55,13 +56,42 @@ public class RhshfCreditProfileAppraisalTests
     }
 
     [Fact]
+    public void Appraise_Proceed_WithoutFinancialAppraisal_IsBlocked()
+    {
+        // The guard NAMP declares (FinDecisionBlocked) and never binds to anything — there, a stage
+        // decision can be submitted with no appraisal report at all.
+        var profile = CreateProfileUnderReview();
+
+        var result = profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, "Looks fine");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(RhshfInternalStage.Appraisal, profile.InternalStage);
+        Assert.Empty(profile.Appraisals);
+    }
+
+    [Theory]
+    [InlineData(RhshfAppraisalOutcome.Decline)]
+    [InlineData(RhshfAppraisalOutcome.ReturnToFac)]
+    public void Appraise_NegativeOutcomes_DoNotRequireAFinancialAppraisal(RhshfAppraisalOutcome outcome)
+    {
+        // An officer must always be able to reject or send a case back without first modelling it —
+        // requiring a full appraisal to say "no" would be perverse.
+        var profile = CreateProfileUnderReview();
+
+        var result = profile.AppraiseWithFinancials(Guid.NewGuid(), outcome, "insufficient information",
+            outcome == RhshfAppraisalOutcome.ReturnToFac ? RhshfProfilingStage.SupportingDocuments : null);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
     public void Appraise_CalledTwiceForSameCycle_SecondCallFails()
     {
         var profile = CreateProfileUnderReview();
         var creditOfficerId = Guid.NewGuid();
-        profile.Appraise(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
 
-        var second = profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        var second = profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
 
         Assert.True(second.IsFailure);
     }
@@ -71,7 +101,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
 
-        var result = profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.ReturnToFac, "Need clearer EOP breakdown",
+        var result = profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.ReturnToFac, "Need clearer EOP breakdown",
             returnToStage: RhshfProfilingStage.EopReview);
 
         Assert.True(result.IsSuccess);
@@ -85,7 +115,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
 
-        var result = profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Decline, "Ineligible");
+        var result = profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Decline, "Ineligible");
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfCaseStatus.Declined, profile.Status);
@@ -109,7 +139,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
         var sameUser = Guid.NewGuid();
-        profile.Appraise(sameUser, RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(sameUser, RhshfAppraisalOutcome.Proceed, null);
 
         var result = profile.ReviewRisk(sameUser, RhshfRiskReviewOutcome.Cleared, null);
 
@@ -121,7 +151,7 @@ public class RhshfCreditProfileAppraisalTests
     public void ReviewRisk_ByDifferentUser_Cleared_AdvancesToCommitteeVoting()
     {
         var profile = CreateProfileUnderReview();
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
 
         var result = profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
 
@@ -133,7 +163,7 @@ public class RhshfCreditProfileAppraisalTests
     public void ReviewRisk_CalledTwiceForSameCycle_SecondCallFails()
     {
         var profile = CreateProfileUnderReview();
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
 
         var second = profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
@@ -145,7 +175,7 @@ public class RhshfCreditProfileAppraisalTests
     public void ReviewRisk_Decline_IsTerminal()
     {
         var profile = CreateProfileUnderReview();
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
 
         var result = profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Decline, "Fraud flag");
 
@@ -158,7 +188,7 @@ public class RhshfCreditProfileAppraisalTests
     public void AdvanceToRatification_WhenAtCommitteeVoting_Succeeds()
     {
         var profile = CreateProfileUnderReview();
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
 
         var result = profile.AdvanceToRatification();
@@ -181,7 +211,7 @@ public class RhshfCreditProfileAppraisalTests
     public void DeclineAtCommittee_IsTerminal()
     {
         var profile = CreateProfileUnderReview();
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
 
         var result = profile.DeclineAtCommittee("Committee rejected");
@@ -196,7 +226,7 @@ public class RhshfCreditProfileAppraisalTests
     public void ReturnToFacFromCommittee_ResetsToProfiling()
     {
         var profile = CreateProfileUnderReview();
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
 
         var result = profile.ReturnToFacFromCommittee(RhshfProfilingStage.SupportingDocuments);
@@ -213,7 +243,7 @@ public class RhshfCreditProfileAppraisalTests
         var profile = CreateProfileUnderReview();
         var creditOfficerId = Guid.NewGuid();
         var riskOfficerId = Guid.NewGuid();
-        profile.Appraise(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(riskOfficerId, RhshfRiskReviewOutcome.Cleared, null);
 
         var ids = profile.GetCurrentCycleAppraisalAndRiskActorIds();
@@ -227,7 +257,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
         var creditOfficerId = Guid.NewGuid();
-        profile.Appraise(creditOfficerId, RhshfAppraisalOutcome.ReturnToFac, "Fix documents", RhshfProfilingStage.SupportingDocuments);
+        profile.AppraiseWithFinancials(creditOfficerId, RhshfAppraisalOutcome.ReturnToFac, "Fix documents", RhshfProfilingStage.SupportingDocuments);
 
         // FAC resumes and resubmits
         profile.AdvanceStage(RhshfProfilingStage.SupportingDocuments);
@@ -237,12 +267,40 @@ public class RhshfCreditProfileAppraisalTests
         Assert.Equal(RhshfInternalStage.Appraisal, profile.InternalStage);
 
         // Same credit officer CAN appraise cycle 2 (only checker-distinctness matters, not maker)
-        var secondAppraisal = profile.Appraise(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
+        var secondAppraisal = profile.AppraiseWithFinancials(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
         Assert.True(secondAppraisal.IsSuccess);
         Assert.Equal(2, profile.Appraisals.Count);
 
         // But the checker for cycle 2 must still differ from cycle 2's maker
         var sameUserAsChecker = profile.ReviewRisk(creditOfficerId, RhshfRiskReviewOutcome.Cleared, null);
         Assert.True(sameUserAsChecker.IsFailure);
+    }
+
+    [Fact]
+    public void ReturnToFac_CarriesTheFarmPlanIntoTheNewCycle_SoTheFacNeedNotRetypeIt()
+    {
+        var profile = CreateProfileUnderReview();
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.ReturnToFac, "Missing off-take agreement", RhshfProfilingStage.SupportingDocuments);
+
+        var carried = profile.GetTargetCycleFarmPlans();
+
+        Assert.Single(carried);
+        Assert.Equal(2, carried[0].CycleNumber);
+        // The appraised cycle keeps its own copy — the audit trail must still show what was appraised.
+        Assert.Equal(2, profile.FarmPlans.Count);
+        Assert.Contains(profile.FarmPlans, p => p.CycleNumber == 1);
+    }
+
+    [Fact]
+    public void ReturnToFac_EditingTheCarriedPlan_LeavesTheAppraisedCycleUntouched()
+    {
+        var profile = CreateProfileUnderReview();
+        var appraisedPrice = profile.GetCurrentCycleFarmPlans().Single().ExpectedPricePerKg;
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.ReturnToFac, "Revise", RhshfProfilingStage.EopReview);
+
+        var carriedPlan = profile.GetTargetCycleFarmPlans().Single();
+        carriedPlan.Update(carriedPlan.Hectares, carriedPlan.ExpectedYieldKgPerHectare, appraisedPrice / 2m);
+
+        Assert.Equal(appraisedPrice, profile.FarmPlans.Single(p => p.CycleNumber == 1).ExpectedPricePerKg);
     }
 }

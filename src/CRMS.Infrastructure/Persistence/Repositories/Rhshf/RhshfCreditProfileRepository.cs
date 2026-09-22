@@ -35,7 +35,13 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
             .Include(x => x.Appraisals)
             .Include(x => x.RiskReviews)
             .Include(x => x.Ratifications)
-            .Include(x => x.Disbursements);
+            .Include(x => x.Disbursements)
+            .Include(x => x.PreDeploymentChecklist)
+            .Include(x => x.Directors)
+            .Include(x => x.FarmPlans)
+            .Include(x => x.FinancialAppraisals)
+            .Include(x => x.StageConfirmations)
+            .Include(x => x.StatusHistory);
 
     public async Task AddAsync(RhshfCreditProfile profile, CancellationToken ct = default)
         => await _context.RhshfCreditProfiles.AddAsync(profile, ct);

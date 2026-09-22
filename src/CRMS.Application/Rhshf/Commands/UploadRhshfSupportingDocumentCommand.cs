@@ -1,15 +1,17 @@
 using CRMS.Application.Common;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Rhshf.Commands;
 
 /// <summary>
-/// §4 SupportingDocuments stage — no fixed required-document checklist in v1 (design doc §6);
-/// the FAC can attach any number of files. Uses IFileStorageService directly, the same generic
-/// storage abstraction every other document upload in CRMS already uses.
+/// §4 SupportingDocuments stage. Uploads are categorised as of Phase D, so the required-document
+/// checklist can tell what has actually been supplied. Uses IFileStorageService directly, the same
+/// generic storage abstraction every other document upload in CRMS already uses.
 /// </summary>
 public record UploadRhshfSupportingDocumentCommand(
-    string Reference, string FileName, string ContentType, byte[] Content) : IRequest<ApplicationResult>;
+    string Reference, RhshfDocumentCategory Category, string FileName, string ContentType, byte[] Content)
+    : IRequest<ApplicationResult>;
 
 public class UploadRhshfSupportingDocumentHandler : IRequestHandler<UploadRhshfSupportingDocumentCommand, ApplicationResult>
 {
@@ -44,7 +46,8 @@ public class UploadRhshfSupportingDocumentHandler : IRequestHandler<UploadRhshfS
         var storagePath = await _fileStorage.UploadAsync(
             ContainerName, $"{profile.Reference}/{Guid.NewGuid()}-{request.FileName}", request.Content, request.ContentType, ct);
 
-        var result = profile.AddSupportingDocument(request.FileName, request.ContentType, storagePath, request.Content.Length);
+        var result = profile.AddSupportingDocument(
+            request.Category, request.FileName, request.ContentType, storagePath, request.Content.Length);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

@@ -1,0 +1,131 @@
+@using CRMS.Application.Rhshf.Queries
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 520px;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">person_add</span>
+                @(IsEditing ? "Complete Director Details" : "Add Director / Shareholder")
+            </h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body">
+            @if (IsEditing)
+            {
+                <p class="text-muted" style="font-size: 0.85rem;">
+                    Editing <strong>@Existing!.FullName</strong>. Only BVN and shareholding can be changed — the rest
+                    comes from CAC and is overwritten on refresh. These two are preserved across refreshes.
+                </p>
+            }
+            else
+            {
+                <div class="form-group">
+                    <label class="form-label">Full Name *</label>
+                    <input class="form-control" @bind="fullName" />
+                </div>
+            }
+
+            <div class="form-group">
+                <label class="form-label">BVN</label>
+                <input class="form-control" maxlength="11" @bind="bvn" placeholder="11 digits" />
+                <small class="form-hint">Required for this person to be included in credit bureau checks.</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Shareholding (%)</label>
+                <input type="number" class="form-control" min="0" max="100" step="0.01" @bind="shareholdingPercent" />
+            </div>
+
+            @if (!IsEditing)
+            {
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" @bind="isChairman" />
+                        <span>Is Chairman</span>
+                    </label>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input class="form-control" @bind="email" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input class="form-control" @bind="phoneNumber" />
+                    </div>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
+            {
+                <div class="alert alert-danger">@(ErrorMessage ?? clientError)</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn btn-primary" disabled="@IsSubmitting" @onclick="Submit">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                @(IsEditing ? "Save" : "Add Director")
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>Null = add mode; set = edit mode (BVN/shareholding only).</summary>
+    [Parameter] public RhshfDirectorDto? Existing { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<(string FullName, string? Bvn, decimal? ShareholdingPercent, bool IsChairman, string? Email, string? PhoneNumber)> OnAdd { get; set; }
+    [Parameter] public EventCallback<(Guid DirectorId, string? Bvn, decimal? ShareholdingPercent)> OnUpdate { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private bool IsEditing => Existing is not null;
+
+    private string fullName = string.Empty;
+    private string? bvn;
+    private decimal? shareholdingPercent;
+    private bool isChairman;
+    private string? email;
+    private string? phoneNumber;
+    private string? clientError;
+
+    protected override void OnParametersSet()
+    {
+        if (Existing is not null)
+            shareholdingPercent ??= Existing.ShareholdingPercent;
+    }
+
+    private async Task Submit()
+    {
+        clientError = null;
+
+        // Mirrors the domain rule so the user gets told before a round trip.
+        var trimmedBvn = string.IsNullOrWhiteSpace(bvn) ? null : bvn.Trim();
+        if (trimmedBvn is not null && (trimmedBvn.Length != 11 || !trimmedBvn.All(char.IsDigit)))
+        {
+            clientError = "BVN must be exactly 11 digits.";
+            return;
+        }
+        if (shareholdingPercent is < 0 or > 100)
+        {
+            clientError = "Shareholding must be between 0 and 100.";
+            return;
+        }
+
+        if (IsEditing)
+        {
+            await OnUpdate.InvokeAsync((Existing!.Id, trimmedBvn, shareholdingPercent));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            clientError = "Full name is required.";
+            return;
+        }
+
+        await OnAdd.InvokeAsync((fullName.Trim(), trimmedBvn, shareholdingPercent, isChairman,
+            string.IsNullOrWhiteSpace(email) ? null : email, string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber));
+    }
+}

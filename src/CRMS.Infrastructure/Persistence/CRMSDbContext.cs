@@ -161,6 +161,16 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<RH.RhshfCollateral> RhshfCollaterals => Set<RH.RhshfCollateral>();
     public DbSet<RH.RhshfCollateralDocument> RhshfCollateralDocuments => Set<RH.RhshfCollateralDocument>();
     public DbSet<RH.RhshfRoutingConfig> RhshfRoutingConfigs => Set<RH.RhshfRoutingConfig>();
+    public DbSet<RH.RhshfPreDeploymentChecklistTemplate> RhshfPreDeploymentChecklistTemplates => Set<RH.RhshfPreDeploymentChecklistTemplate>();
+    public DbSet<RH.RhshfPreDeploymentChecklistItem> RhshfPreDeploymentChecklistItems => Set<RH.RhshfPreDeploymentChecklistItem>();
+    public DbSet<RH.RhshfAdvisory> RhshfAdvisories => Set<RH.RhshfAdvisory>();
+    public DbSet<RH.RhshfDirector> RhshfDirectors => Set<RH.RhshfDirector>();
+    public DbSet<RH.RhshfFarmPlan> RhshfFarmPlans => Set<RH.RhshfFarmPlan>();
+    public DbSet<RH.RhshfFinancialAppraisalReport> RhshfFinancialAppraisalReports => Set<RH.RhshfFinancialAppraisalReport>();
+    public DbSet<RH.RhshfAppraisalThresholds> RhshfAppraisalThresholds => Set<RH.RhshfAppraisalThresholds>();
+    public DbSet<RH.RhshfDocumentRequirement> RhshfDocumentRequirements => Set<RH.RhshfDocumentRequirement>();
+    public DbSet<RH.RhshfStageConfirmation> RhshfStageConfirmations => Set<RH.RhshfStageConfirmation>();
+    public DbSet<RH.RhshfStatusHistory> RhshfStatusHistory => Set<RH.RhshfStatusHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -275,6 +285,55 @@ public class CRMSDbContext : DbContext, IUnitOfWork
             .Where(e => e.State == EntityState.Modified))
         {
             entry.State = EntityState.Added;
+        }
+        // RhshfPreDeploymentChecklistItem is NOT append-only — SeedPreDeploymentChecklist creates it,
+        // then ConfirmPreDeploymentChecklistItem legitimately UPDATEs it one or more times afterward.
+        // Same ambiguity as RhshfIssuedToken above, same fix: ask the database directly.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfPreDeploymentChecklistItem>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            var existsInDb = await RhshfPreDeploymentChecklistItems.AnyAsync(i => i.Id == entry.Entity.Id, cancellationToken);
+            if (!existsInDb)
+                entry.State = EntityState.Added;
+        }
+        // RhshfDirector is likewise NOT append-only — RefreshCacFields/UpdateBvn/UpdateShareholding
+        // legitimately UPDATE existing rows, so the same DB existence check applies rather than a
+        // blanket Modified->Added flip.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfDirector>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            var existsInDb = await RhshfDirectors.AnyAsync(d => d.Id == entry.Entity.Id, cancellationToken);
+            if (!existsInDb)
+                entry.State = EntityState.Added;
+        }
+        // Farm plans and appraisal reports are both edited in place (Update / re-save for the same
+        // cycle), so they take the same DB existence check rather than a blanket Modified->Added flip.
+        // RhshfStageConfirmation is genuinely append-only — a confirmation is never revised.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfStageConfirmation>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        // Status history is append-only for the same reason, and more strongly: an audit
+        // trail whose rows can be rewritten is not an audit trail.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfStatusHistory>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfFarmPlan>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            var existsInDb = await RhshfFarmPlans.AnyAsync(p => p.Id == entry.Entity.Id, cancellationToken);
+            if (!existsInDb)
+                entry.State = EntityState.Added;
+        }
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfFinancialAppraisalReport>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            var existsInDb = await RhshfFinancialAppraisalReports.AnyAsync(r => r.Id == entry.Entity.Id, cancellationToken);
+            if (!existsInDb)
+                entry.State = EntityState.Added;
         }
 
         return await base.SaveChangesAsync(cancellationToken);

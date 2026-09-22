@@ -26,7 +26,7 @@
         {
             <div class="card-body">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                    @FieldChip("Approved Amount", $"{Currency} {TotalEopValue:N2}")
+                    @FieldChip("Approved Amount", Offer.ApprovedAmount is not null ? $"{Offer.Currency} {Offer.ApprovedAmount.Value:N2}" : null)
                     @FieldChip("Generated", Offer.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
                     @FieldChip("FAC Responded", Offer.FacRespondedAt?.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
                 </div>
@@ -88,8 +88,8 @@
 
 @code {
     [Parameter] public RhshfOfferDto? Offer { get; set; }
-    [Parameter] public string Currency { get; set; } = "NGN";
-    [Parameter] public decimal TotalEopValue { get; set; }
+    // Currency/TotalEopValue used to be passed in so this tab could synthesise the approved amount
+    // from the case total. The offer now carries its own amount and currency, so they're gone.
     [Parameter] public EventCallback<Guid> OnDownload { get; set; }
 
     private static RenderFragment FieldChip(string label, string? value) => __builder =>

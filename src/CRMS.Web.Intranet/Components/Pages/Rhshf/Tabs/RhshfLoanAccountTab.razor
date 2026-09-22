@@ -1,0 +1,145 @@
+@using CRMS.Application.Rhshf.DTOs
+
+<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Loan Account</h3>
+            <button class="btn btn-ghost btn-sm" @onclick="() => OnRefresh.InvokeAsync()" title="Refresh">
+                <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span>
+            </button>
+        </div>
+
+        @if (LoanAccount is null)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">account_balance_wallet</span></div>
+                <div class="empty-state-title">Not available</div>
+                <div class="empty-state-text">@(LoanAccountError ?? "No Core Banking loan account is linked to this case.")</div>
+            </div>
+        }
+        else
+        {
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    @FieldChip("Account Number", LoanAccount.AccountNo)
+                    @FieldChip("Product", LoanAccount.ProductName)
+                    @FieldChip("Status", LoanAccount.Status)
+                    @FieldChip("Disbursement Date", LoanAccount.DisbursementDate?.ToLocalTime().ToString("MMM dd, yyyy"))
+                    @FieldChip("Maturity Date", LoanAccount.MaturityDate?.ToLocalTime().ToString("MMM dd, yyyy"))
+                </div>
+            </div>
+
+            <div class="card-footer">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem;">
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        @SummaryRow("Principal Disbursed", LoanAccount.PrincipalDisbursed)
+                        @SummaryRow("Principal Paid", LoanAccount.PrincipalPaid)
+                        @SummaryRow("Principal Outstanding", LoanAccount.PrincipalOutstanding)
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        @SummaryRow("Interest Charged", LoanAccount.InterestCharged)
+                        @SummaryRow("Interest Paid", LoanAccount.InterestPaid)
+                        @SummaryRow("Interest Outstanding", LoanAccount.InterestOutstanding)
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        @SummaryRow("Total Expected", LoanAccount.TotalExpectedRepayment)
+                        @SummaryRow("Total Repaid", LoanAccount.TotalRepayment)
+                        @SummaryRow("Total Outstanding", LoanAccount.TotalOutstanding)
+                        @if (LoanAccount.PenaltyChargesOutstanding > 0)
+                        {
+                            @SummaryRow("Penalty Outstanding", LoanAccount.PenaltyChargesOutstanding)
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (LoanAccount is not null && LoanAccount.Schedule.Count > 0)
+    {
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">Repayment Schedule</h3></div>
+            <div class="table-wrapper">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>#</th><th>Due Date</th>
+                            <th style="text-align: right;">Principal Due</th>
+                            <th style="text-align: right;">Interest Due</th>
+                            <th style="text-align: right;">Total Due</th>
+                            <th style="text-align: right;">Total Paid</th>
+                            <th style="text-align: right;">Outstanding</th>
+                            <th style="text-align: center;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var period in LoanAccount.Schedule)
+                        {
+                            var rowStyle = period.IsOverdue ? "background: var(--warning-50);" : period.Complete ? "opacity: 0.7;" : "";
+                            <tr style="@rowStyle">
+                                <td>@period.Period</td>
+                                <td>@period.DueDate.ToString("MMM dd, yyyy")</td>
+                                <td style="text-align: right;">@period.PrincipalDue.ToString("N2")</td>
+                                <td style="text-align: right;">@period.InterestDue.ToString("N2")</td>
+                                <td style="text-align: right; font-weight: 600;">@period.TotalDue.ToString("N2")</td>
+                                <td style="text-align: right; color: var(--success-700);">@period.TotalPaid.ToString("N2")</td>
+                                <td style="text-align: right; @(period.TotalOutstanding > 0 ? "color: var(--danger-600); font-weight: 600;" : "")">@period.TotalOutstanding.ToString("N2")</td>
+                                <td style="text-align: center;">
+                                    @if (period.Complete)
+                                    {
+                                        <span class="badge badge-success">Paid</span>
+                                    }
+                                    else if (period.IsOverdue)
+                                    {
+                                        <span class="badge badge-warning">Overdue</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-gray">Pending</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public RhshfLoanAccountDto? LoanAccount { get; set; }
+    [Parameter] public string? LoanAccountError { get; set; }
+    [Parameter] public EventCallback OnRefresh { get; set; }
+
+    private static RenderFragment FieldChip(string label, string? value) => __builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "field-chip");
+        __builder.OpenElement(2, "div");
+        __builder.AddAttribute(3, "class", "field-chip-label");
+        __builder.AddContent(4, label);
+        __builder.CloseElement();
+        __builder.OpenElement(5, "div");
+        __builder.AddAttribute(6, "class", "field-chip-value");
+        __builder.AddContent(7, value);
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
+
+    private static RenderFragment SummaryRow(string label, decimal value) => __builder =>
+    {
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "summary-row");
+        __builder.OpenElement(2, "span");
+        __builder.AddAttribute(3, "class", "summary-row-label");
+        __builder.AddContent(4, label);
+        __builder.CloseElement();
+        __builder.OpenElement(5, "span");
+        __builder.AddAttribute(6, "class", "summary-row-value");
+        __builder.AddContent(7, value.ToString("N2"));
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
+}

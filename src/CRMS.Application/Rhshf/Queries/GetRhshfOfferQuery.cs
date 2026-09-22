@@ -15,6 +15,12 @@ public record RhshfOfferDto(
     DateTime GeneratedAt,
     string OfferDocumentPath,
     RhshfOfferStatus Status,
+    /// <summary>The ratified amount this offer was issued for. Today the domain forces it equal to
+    /// TotalEopValue (no partial approval), but the offer must carry its own figure rather than
+    /// having the UI substitute the case total — otherwise enabling partial approval would silently
+    /// make every historical offer display the wrong number.</summary>
+    decimal? ApprovedAmount,
+    string Currency,
     DateTime? FacRespondedAt,
     string? FacResponseNotes,
     List<RhshfOfferDocumentDto> SignedDocuments);
@@ -42,6 +48,7 @@ public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, Applicat
 
         return ApplicationResult<RhshfOfferDto>.Success(new RhshfOfferDto(
             offer.CycleNumber, offer.GeneratedAt, offer.OfferDocumentPath, offer.Status,
+            profile.ApprovedAmount, profile.Currency,
             offer.FacRespondedAt, offer.FacResponseNotes,
             offer.Documents.Select(d => new RhshfOfferDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt)).ToList()));
     }

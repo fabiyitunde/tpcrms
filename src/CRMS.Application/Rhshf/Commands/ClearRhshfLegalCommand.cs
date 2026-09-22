@@ -17,12 +17,16 @@ public class ClearRhshfLegalHandler : IRequestHandler<ClearRhshfLegalCommand, Ap
 {
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfLegalClearanceRepository _legalRepo;
+    private readonly IRhshfPreDeploymentChecklistTemplateRepository _templateRepo;
     private readonly IUnitOfWork _uow;
 
-    public ClearRhshfLegalHandler(IRhshfCreditProfileRepository repo, IRhshfLegalClearanceRepository legalRepo, IUnitOfWork uow)
+    public ClearRhshfLegalHandler(
+        IRhshfCreditProfileRepository repo, IRhshfLegalClearanceRepository legalRepo,
+        IRhshfPreDeploymentChecklistTemplateRepository templateRepo, IUnitOfWork uow)
     {
         _repo = repo;
         _legalRepo = legalRepo;
+        _templateRepo = templateRepo;
         _uow = uow;
     }
 
@@ -43,13 +47,21 @@ public class ClearRhshfLegalHandler : IRequestHandler<ClearRhshfLegalCommand, Ap
 
         var transitionResult = request.Outcome switch
         {
-            RhshfLegalClearanceOutcome.Granted => profile.AdvanceToDisbursement(),
-            RhshfLegalClearanceOutcome.Returned => profile.ReturnToRatificationFromLegal(),
-            RhshfLegalClearanceOutcome.Declined => profile.DeclineAtLegalClearance(request.Comments),
+            RhshfLegalClearanceOutcome.Granted => profile.AdvanceToDisbursement(request.LegalOfficerId, request.Comments),
+            RhshfLegalClearanceOutcome.Returned => profile.ReturnToRatificationFromLegal(request.LegalOfficerId, request.Comments),
+            RhshfLegalClearanceOutcome.Declined => profile.DeclineAtLegalClearance(request.Comments, request.LegalOfficerId),
             _ => throw new ArgumentOutOfRangeException(nameof(request.Outcome)),
         };
         if (transitionResult.IsFailure)
             return ApplicationResult.Failure(transitionResult.Error);
+
+        // Granted lands the case at PreDeploymentVerification (not straight at Disbursement) — seed
+        // the gate checklist from the active templates right away, same moment NAMP seeds its own.
+        if (request.Outcome == RhshfLegalClearanceOutcome.Granted)
+        {
+            var templates = await _templateRepo.GetActiveAsync(ct);
+            profile.SeedPreDeploymentChecklist(templates);
+        }
 
         await _legalRepo.AddAsync(clearanceResult.Value, ct);
         await _uow.SaveChangesAsync(ct);

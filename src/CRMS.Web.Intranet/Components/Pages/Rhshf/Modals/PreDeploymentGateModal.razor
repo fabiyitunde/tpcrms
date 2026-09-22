@@ -1,0 +1,83 @@
+@using CRMS.Application.Rhshf.DTOs
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 640px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">checklist</span>Pre-Deployment Gate</h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body" style="overflow-y: auto; flex: 1;">
+            @if (Checklist.Count == 0)
+            {
+                <p class="text-muted">No checklist items have been recorded for this cycle.</p>
+            }
+            else
+            {
+                @foreach (var item in Checklist.OrderBy(i => i.Title))
+                {
+                    <div class="form-group" style="border: 1px solid var(--gray-200); border-radius: 6px; padding: 12px; margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 0.75rem;">
+                            <strong style="font-size: 0.9rem;">
+                                @item.Title
+                                @if (!item.IsMandatory)
+                                {
+                                    <span class="badge badge-gray" style="margin-left: 6px; font-size: 0.65rem;">Optional</span>
+                                }
+                            </strong>
+                            <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                                <button type="button" class="btn btn-sm @(item.IsConfirmed == true ? "btn-success" : "btn-outline-success")" @onclick="() => Confirm(item.Id, true)">
+                                    <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">check</span>
+                                </button>
+                                <button type="button" class="btn btn-sm @(item.IsConfirmed == false ? "btn-danger" : "btn-outline-danger")" @onclick="() => Confirm(item.Id, false)">
+                                    <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">close</span>
+                                </button>
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(item.Description))
+                        {
+                            <p class="text-muted" style="font-size: 0.8rem; margin: 0 0 6px;">@item.Description</p>
+                        }
+                        <textarea class="form-control" rows="1" placeholder="Notes (optional)" value="@item.Notes" @onchange="e => SetNotes(item.Id, e.Value?.ToString())"></textarea>
+                    </div>
+                }
+                <div class="form-group">
+                    <label class="form-label">Completion Note (optional)</label>
+                    <textarea class="form-control" rows="2" @bind="completionNote"></textarea>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="alert alert-danger">@ErrorMessage</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn btn-primary" disabled="@(IsSubmitting || Checklist.Count == 0)" @onclick="Complete">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                Complete Verification
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<RhshfPreDeploymentChecklistItemDto> Checklist { get; set; } = [];
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<(Guid ItemId, bool? IsConfirmed, string? Notes)> OnConfirmItem { get; set; }
+    [Parameter] public EventCallback<string?> OnComplete { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private string? completionNote;
+    private readonly Dictionary<Guid, string?> pendingNotes = [];
+
+    private async Task Confirm(Guid itemId, bool isConfirmed)
+    {
+        pendingNotes.TryGetValue(itemId, out var notes);
+        await OnConfirmItem.InvokeAsync((itemId, isConfirmed, notes));
+    }
+
+    private void SetNotes(Guid itemId, string? notes) => pendingNotes[itemId] = notes;
+
+    private async Task Complete() => await OnComplete.InvokeAsync(string.IsNullOrWhiteSpace(completionNote) ? null : completionNote);
+}

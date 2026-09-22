@@ -1,0 +1,305 @@
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
+
+@if (Data is null)
+{
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">Financial Appraisal</h3></div>
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">calculate</span></div>
+            <div class="empty-state-title">Not available</div>
+            <div class="empty-state-text">@(LoadError ?? "The financial appraisal could not be loaded for this case.")</div>
+        </div>
+    </div>
+}
+else
+{
+    var r = Data.Report;
+
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+        @* ── Farm plan ─────────────────────────────────────────────────── *@
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">Farm Plan</h3>
+                    <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">
+                        Land, expected yield and farm-gate price per crop — the basis for every figure below
+                    </div>
+                </div>
+                @if (CanEdit)
+                {
+                    <button class="btn btn-outline btn-sm" @onclick="() => OnAddFarmPlan.InvokeAsync()">
+                        <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">add</span> Add Crop
+                    </button>
+                }
+            </div>
+
+            @if (Data.FarmPlans.Count == 0)
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon"><span class="material-symbols-outlined">agriculture</span></div>
+                    <div class="empty-state-title">No farm plan recorded</div>
+                    <div class="empty-state-text">
+                        At least one crop must be recorded before the case can be appraised.
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="table-wrapper">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Crop</th>
+                                <th style="text-align: right;">Hectares</th>
+                                <th style="text-align: right;">Yield (kg/ha)</th>
+                                <th style="text-align: right;">Price (@Data.Currency/kg)</th>
+                                <th style="text-align: right;">Output (kg)</th>
+                                <th style="text-align: right;">Expected Revenue</th>
+                                @if (CanEdit) { <th style="width: 80px;"></th> }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in Data.FarmPlans)
+                            {
+                                <tr>
+                                    <td style="font-weight: 600;">@p.Crop</td>
+                                    <td style="text-align: right;">@p.Hectares.ToString("N2")</td>
+                                    <td style="text-align: right;">@p.ExpectedYieldKgPerHectare.ToString("N0")</td>
+                                    <td style="text-align: right;">@p.ExpectedPricePerKg.ToString("N2")</td>
+                                    <td style="text-align: right;">@p.ExpectedOutputKg.ToString("N0")</td>
+                                    <td style="text-align: right; font-weight: 600;">@p.ExpectedRevenue.ToString("N2")</td>
+                                    @if (CanEdit)
+                                    {
+                                        <td style="white-space: nowrap;">
+                                            <button class="btn btn-ghost btn-sm" title="Edit" @onclick="() => OnEditFarmPlan.InvokeAsync(p)">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+                                            </button>
+                                            <button class="btn btn-ghost btn-sm" title="Remove" style="color: var(--danger-600);" @onclick="() => OnRemoveFarmPlan.InvokeAsync(p.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                            </button>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: var(--gray-700);">
+                        @Data.FarmPlans.Sum(p => p.Hectares).ToString("N2") ha across @Data.FarmPlans.Count crop@(Data.FarmPlans.Count == 1 ? "" : "s")
+                    </span>
+                    <span style="font-weight: 700; font-size: 1.05rem; color: var(--primary-700);">
+                        @Data.Currency @Data.FarmPlans.Sum(p => p.ExpectedRevenue).ToString("N2")
+                    </span>
+                </div>
+            }
+        </div>
+
+        @* ── Appraisal action ──────────────────────────────────────────── *@
+        @if (CanEdit)
+        {
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">@(r is null ? "Run Financial Appraisal" : "Revise Financial Appraisal")</h3>
+                        <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">
+                            All metrics are computed server-side from the farm plan and these assumptions
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" disabled="@(Data.FarmPlans.Count == 0)" @onclick="() => OnOpenAppraisal.InvokeAsync()">
+                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">calculate</span>
+                        @(r is null ? "Appraise" : "Revise")
+                    </button>
+                </div>
+            </div>
+        }
+
+        @if (r is null)
+        {
+            <div class="card">
+                <div class="empty-state">
+                    <div class="empty-state-icon"><span class="material-symbols-outlined">calculate</span></div>
+                    <div class="empty-state-title">Not yet appraised</div>
+                    <div class="empty-state-text">
+                        The case cannot proceed to risk review until a financial appraisal is recorded.
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            @* ── Verdict ───────────────────────────────────────────────── *@
+            <div class="card" style="border-color: @(r.AllGatesPass ? "var(--success-500)" : "var(--warning-500)");">
+                <div class="card-header" style="background: @(r.AllGatesPass ? "var(--success-50)" : "var(--warning-50)");">
+                    <div>
+                        <h3 class="card-title">Viability Verdict</h3>
+                        <div style="font-size: 0.75rem; color: var(--gray-600); margin-top: 2px;">
+                            @r.PreparedByName &middot; @r.SavedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <span class="badge @(r.AllGatesPass ? "badge-success" : "badge-warning")">@r.GatesPassed / 5 gates passed</span>
+                        <span class="badge @RecommendationBadge(r.CreditOfficerRecommendation)">@r.CreditOfficerRecommendation</span>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem;">
+                        @Stat("Debt Service Coverage", $"{r.Dscr:N2}×", r.DscrPass, $"min {Data.Thresholds.MinDscr:N2}×")
+                        @Stat("Gross Margin", $"{r.GrossMarginPercent:N1}%", r.GrossMarginPass, $"min {Data.Thresholds.MinGrossMarginPercent:N0}%")
+                        @Stat("IRR (annualised)", r.Irr.HasValue ? $"{r.Irr.Value * 100:N1}%" : "n/a", r.IrrPass, $"hurdle {Data.Thresholds.HurdleRatePercent:N0}%")
+                        @Stat("Yield Headroom", r.YieldHeadroomPercent.HasValue ? $"{r.YieldHeadroomPercent.Value:N1}%" : "n/a", r.YieldHeadroomPass, $"min {Data.Thresholds.MinYieldHeadroomPercent:N0}%")
+                        @Stat("Price Headroom", r.PriceHeadroomPercent.HasValue ? $"{r.PriceHeadroomPercent.Value:N1}%" : "n/a", r.PriceHeadroomPass, $"min {Data.Thresholds.MinPriceHeadroomPercent:N0}%")
+                    </div>
+
+                    @if (!r.AllGatesPass && !string.IsNullOrEmpty(r.OverrideJustification))
+                    {
+                        <div class="alert alert-warning" style="margin-top: 1rem;">
+                            <strong>Override:</strong> @r.OverrideJustification
+                        </div>
+                    }
+                </div>
+
+                <div class="card-footer">
+                    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: baseline;">
+                        <span style="font-size: 0.875rem;">
+                            Repayment capacity:
+                            <strong class="@CapacityColour(r.RepaymentCapacityRating)">@r.RepaymentCapacityRating</strong>
+                        </span>
+                        <span style="font-size: 0.875rem; color: var(--gray-500);">
+                            NPV at @Data.Thresholds.HurdleRatePercent.ToString("N0")% hurdle:
+                            <strong style="color: @(r.NetPresentValue >= 0 ? "var(--success-700)" : "var(--danger-600)");">
+                                @Data.Currency @r.NetPresentValue.ToString("N2")
+                            </strong>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            @* ── Cashflow ──────────────────────────────────────────────── *@
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">Season Cashflow</h3></div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            @Row("Gross Revenue", r.GrossRevenue, Data.Currency)
+                            @Row("Financed Inputs (EOP)", r.FinancedInputCost, Data.Currency)
+                            @Row("Own Production + Harvest Costs", r.OwnCashCosts, Data.Currency)
+                            @Row("Interest Charge", r.InterestCharge, Data.Currency)
+                            @Row("Total Cost", r.TotalCost, Data.Currency)
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            @Row("Amount Due at Harvest", r.AmountDueAtHarvest, Data.Currency)
+                            @Row("Cash Available for Debt Service", r.CashAvailableForDebtService, Data.Currency)
+                            @Row("Gross Margin", r.GrossMargin, Data.Currency)
+                            @Row("Net Return to Farmer", r.NetReturnToFarmer, Data.Currency)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* ── Sensitivities ─────────────────────────────────────────── *@
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Break-Even Sensitivities</h3>
+                        <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">
+                            How far yield or price can fall before the facility stops covering itself
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        @FieldChip("Expected Yield (blended)", $"{r.BlendedYieldKgPerHectare:N0} kg/ha")
+                        @FieldChip("Break-Even Yield", r.BreakEvenYieldKgPerHectare.HasValue ? $"{r.BreakEvenYieldKgPerHectare.Value:N0} kg/ha" : null)
+                        @FieldChip("Expected Price (blended)", $"{Data.Currency} {r.BlendedPricePerKg:N2}/kg")
+                        @FieldChip("Break-Even Price", r.BreakEvenPricePerKg.HasValue ? $"{Data.Currency} {r.BreakEvenPricePerKg.Value:N2}/kg" : null)
+                        @FieldChip("Total Hectares", $"{r.TotalHectares:N2}")
+                        @FieldChip("Cycle Length", $"{r.CycleMonths} months @ {r.InterestRatePercent:N2}% p.a.")
+                    </div>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(r.AssumptionBasisNote) || !string.IsNullOrEmpty(r.SummaryNotes))
+            {
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title">Officer Notes</h3></div>
+                    <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                        @if (!string.IsNullOrEmpty(r.AssumptionBasisNote))
+                        {
+                            <div>
+                                <div class="field-chip-label">Basis for Yield / Price Assumptions</div>
+                                <div style="font-size: 0.875rem; color: var(--gray-700); margin-top: 0.25rem;">@r.AssumptionBasisNote</div>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(r.SummaryNotes))
+                        {
+                            <div style="@(!string.IsNullOrEmpty(r.AssumptionBasisNote) ? "border-top: 1px solid var(--gray-100); padding-top: 1rem;" : "")">
+                                <div class="field-chip-label">Risk Commentary for Committee</div>
+                                <div style="font-size: 0.875rem; color: var(--gray-700); margin-top: 0.25rem;">@r.SummaryNotes</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public RhshfFinancialAppraisalDto? Data { get; set; }
+    [Parameter] public string? LoadError { get; set; }
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter] public EventCallback OnAddFarmPlan { get; set; }
+    [Parameter] public EventCallback<RhshfFarmPlanDto> OnEditFarmPlan { get; set; }
+    [Parameter] public EventCallback<Guid> OnRemoveFarmPlan { get; set; }
+    [Parameter] public EventCallback OnOpenAppraisal { get; set; }
+
+    private static RenderFragment Stat(string label, string value, bool pass, string thresholdHint) => __builder =>
+    {
+        <div class="field-chip">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem;">
+                <span class="field-chip-label" style="margin-bottom: 0;">@label</span>
+                <span class="badge @(pass ? "badge-success" : "badge-danger")" style="font-size: 0.65rem;">@(pass ? "PASS" : "FAIL")</span>
+            </div>
+            <div class="field-chip-value" style="font-size: 1.05rem; margin-top: 0.2rem;">@value</div>
+            <div style="font-size: 0.7rem; color: var(--gray-500);">@thresholdHint</div>
+        </div>
+    };
+
+    private static RenderFragment Row(string label, decimal value, string currency) => __builder =>
+    {
+        <div class="summary-row">
+            <span class="summary-row-label">@label</span>
+            <span class="summary-row-value" style="@(value < 0 ? "color: var(--danger-600);" : "")">@currency @value.ToString("N2")</span>
+        </div>
+    };
+
+    private static RenderFragment FieldChip(string label, string? value) => __builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "field-chip");
+        __builder.OpenElement(2, "div");
+        __builder.AddAttribute(3, "class", "field-chip-label");
+        __builder.AddContent(4, label);
+        __builder.CloseElement();
+        __builder.OpenElement(5, "div");
+        __builder.AddAttribute(6, "class", "field-chip-value");
+        __builder.AddContent(7, value);
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
+
+    private static string RecommendationBadge(RhshfCreditRecommendation rec) =>
+        rec == RhshfCreditRecommendation.Pass ? "badge-success" : "badge-danger";
+
+    private static string CapacityColour(RhshfRepaymentCapacityRating rating) => rating switch
+    {
+        RhshfRepaymentCapacityRating.Strong or RhshfRepaymentCapacityRating.Adequate => "text-success",
+        RhshfRepaymentCapacityRating.Marginal => "text-warning",
+        _ => "text-danger",
+    };
+}

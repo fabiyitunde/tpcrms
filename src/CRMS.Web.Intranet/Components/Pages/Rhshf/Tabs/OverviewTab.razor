@@ -1,4 +1,5 @@
 @using CRMS.Application.Rhshf.DTOs
+@using CRMS.Application.Rhshf.Queries
 @using CRMS.Domain.Enums
 
 <div style="display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start;">
@@ -61,6 +62,145 @@
             }
         </div>
 
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">
+                        Directors &amp; Shareholders
+                        @if (Directors?.Directors.Count > 0)
+                        {
+                            <span class="badge badge-gray" style="margin-left: 4px;">@Directors.Directors.Count</span>
+                        }
+                    </h3>
+                    @if (Directors?.CacFetchedAt is not null)
+                    {
+                        <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">
+                            CAC data fetched @Directors.CacFetchedAt.Value.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                            @if (!string.IsNullOrEmpty(Directors.CacStatus)) { <text>&middot; @Directors.CacStatus</text> }
+                        </div>
+                    }
+                </div>
+                @if (CanManageDirectors)
+                {
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        @if (!string.IsNullOrEmpty(CacError))
+                        {
+                            <span style="font-size: 0.8rem; color: var(--danger-600);">@CacError</span>
+                        }
+                        <button class="btn btn-outline btn-sm" @onclick="() => OnFetchCac.InvokeAsync()" disabled="@IsFetchingCac">
+                            @if (IsFetchingCac)
+                            {
+                                <span class="spinner" style="width: 12px; height: 12px;"></span> <span>Fetching…</span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">cloud_download</span>
+                                <span>@(Directors?.CacFetchedAt is null ? "Fetch from CAC" : "Refresh from CAC")</span>
+                            }
+                        </button>
+                        <button class="btn btn-outline btn-sm" @onclick="() => OnAddDirector.InvokeAsync()">
+                            <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">add</span> Add Manually
+                        </button>
+                    </div>
+                }
+            </div>
+
+            @if (Directors is null || Directors.Directors.Count == 0)
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon"><span class="material-symbols-outlined">groups</span></div>
+                    <div class="empty-state-title">No directors on record</div>
+                    <div class="empty-state-text">
+                        @(CanManageDirectors
+                            ? "Use \"Fetch from CAC\" or add them manually. Credit bureau checks cover every director with a BVN."
+                            : "No directors or shareholders have been recorded for this FAC.")
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="table-wrapper">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th><th>Role</th><th>Shares</th><th>Shareholding</th><th>BVN</th><th>Source</th>
+                                @if (CanManageDirectors) { <th style="width: 80px;"></th> }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in Directors.Directors)
+                            {
+                                <tr>
+                                    <td>
+                                        <div style="font-weight: 600;">@d.FullName</div>
+                                        @if (!string.IsNullOrEmpty(d.Occupation))
+                                        {
+                                            <div style="font-size: 0.75rem; color: var(--gray-500);">@d.Occupation</div>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (d.IsChairman)
+                                        {
+                                            <span class="badge badge-primary">Chairman</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@(string.IsNullOrEmpty(d.AffiliateType) ? "Director" : d.AffiliateType)</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @(d.NumSharesAllotted?.ToString("N0") ?? "—")
+                                        @if (!string.IsNullOrEmpty(d.TypeOfShares))
+                                        {
+                                            <div style="font-size: 0.7rem; color: var(--gray-500);">@d.TypeOfShares</div>
+                                        }
+                                    </td>
+                                    <td>@(d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:0.##}%" : "—")</td>
+                                    <td>
+                                        @* Presence only — the BVN itself never reaches the browser. *@
+                                        @if (d.HasBvn)
+                                        {
+                                            <span class="badge badge-success">Provided</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-warning">Missing</span>
+                                        }
+                                    </td>
+                                    <td><span style="font-size: 0.8rem; color: var(--gray-500);">@(d.SourcedFromCac ? "CAC" : "Manual")</span></td>
+                                    @if (CanManageDirectors)
+                                    {
+                                        <td style="white-space: nowrap;">
+                                            <button class="btn btn-ghost btn-sm" title="Complete BVN / shareholding" @onclick="() => OnEditDirector.InvokeAsync(d)">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
+                                            </button>
+                                            @if (!d.SourcedFromCac)
+                                            {
+                                                <button class="btn btn-ghost btn-sm" title="Remove" style="color: var(--danger-600);" @onclick="() => OnRemoveDirector.InvokeAsync(d.Id)">
+                                                    <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                                </button>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (Directors.Directors.Any(d => !d.HasBvn))
+                {
+                    <div class="card-footer">
+                        <div class="alert alert-warning" style="margin: 0; font-size: 0.85rem;">
+                            <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">warning</span>
+                            Some directors are missing a BVN. Bureau checks cover every director with one — complete the
+                            missing BVNs, then re-run the checks from the Credit Bureau tab.
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
         @if (Workspace.DecisionOutcome is not null || Workspace.Status is RhshfCaseStatus.Cancelled)
         {
             <div class="card">
@@ -100,6 +240,13 @@
                 }
                 <div class="summary-row"><span class="summary-row-label">Cycle</span><span class="summary-row-value">@Workspace.CurrentCycleNumber</span></div>
                 <div class="summary-row"><span class="summary-row-label">Bureau Outcome</span><span class="summary-row-value">@Workspace.BureauCheckOutcome</span></div>
+                @if (!string.IsNullOrWhiteSpace(Workspace.BranchResolutionNote))
+                {
+                    <div style="padding-top: 0.5rem; border-top: 1px dashed var(--gray-200);">
+                        <div class="field-chip-label">Branch Routing</div>
+                        <div style="font-size: 0.8rem; color: var(--gray-600); margin-top: 0.2rem;">@Workspace.BranchResolutionNote</div>
+                    </div>
+                }
             </div>
         </div>
 
@@ -132,11 +279,20 @@
 
 @code {
     [Parameter, EditorRequired] public RhshfCaseWorkspaceDto Workspace { get; set; } = null!;
+    [Parameter] public RhshfDirectorsDto? Directors { get; set; }
+    [Parameter] public bool CanManageDirectors { get; set; }
+    [Parameter] public bool IsFetchingCac { get; set; }
+    [Parameter] public string? CacError { get; set; }
+    [Parameter] public EventCallback OnFetchCac { get; set; }
+    [Parameter] public EventCallback OnAddDirector { get; set; }
+    [Parameter] public EventCallback<RhshfDirectorDto> OnEditDirector { get; set; }
+    [Parameter] public EventCallback<Guid> OnRemoveDirector { get; set; }
 
     private record StageInfo(int Order, string Name, string Role, int Ordinal);
 
-    // Ordinal buckets line up with RhshfInternalStage's own declaration order (Appraisal=0 .. Completed=8);
-    // -1 represents "before any internal stage has been assigned" (FAC submission/profiling).
+    // Ordinal buckets line up with RhshfInternalStage's own declaration order — -1 represents
+    // "before any internal stage has been assigned" (FAC submission/profiling). Post-disbursement
+    // Active/Closed monitoring isn't a step here — it has its own Loan Account tab.
     private static readonly List<StageInfo> StageProgression =
     [
         new(1, "Received & FAC Profiling", "FAC / Loan Officer", -1),
@@ -146,14 +302,16 @@
         new(5, "Ratification", "Final Approver", (int)RhshfInternalStage.Ratification),
         new(6, "Offer Letter", "FAC (Offer Acceptance)", (int)RhshfInternalStage.OfferGenerated),
         new(7, "Legal Clearance", "Legal Officer", (int)RhshfInternalStage.LegalClearance),
-        new(8, "Disbursement", "Disbursement Officer", (int)RhshfInternalStage.Disbursement),
+        new(8, "Pre-Deployment Verification", "Disbursement Officer", (int)RhshfInternalStage.PreDeploymentVerification),
+        new(9, "Disbursement", "Disbursement Officer", (int)RhshfInternalStage.Disbursement),
     ];
 
-    private int CurrentOrdinal => Workspace.Status == RhshfCaseStatus.Approved
-        ? (int)RhshfInternalStage.Completed
-        : Workspace.InternalStage.HasValue
-            ? (int)Workspace.InternalStage.Value
-            : -1;
+    // InternalStage is set for every Approved case in practice (Completed/Active/Closed) — fall
+    // back to Closed (the highest ordinal) only for the edge case of an Approved case with no
+    // InternalStage recorded, so every step still reads as complete.
+    private int CurrentOrdinal => Workspace.InternalStage.HasValue
+        ? (int)Workspace.InternalStage.Value
+        : (Workspace.Status == RhshfCaseStatus.Approved ? (int)RhshfInternalStage.Closed : -1);
 
     private bool IsStageCompleted(int stageOrdinal) => CurrentOrdinal > stageOrdinal
         || (stageOrdinal == (int)RhshfInternalStage.OfferGenerated && CurrentOrdinal > (int)RhshfInternalStage.AwaitingOfferAcceptance);

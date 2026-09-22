@@ -1,0 +1,150 @@
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 620px; max-height: 88vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">calculate</span>
+                Financial Appraisal
+            </h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+
+        <div class="modal-body" style="overflow-y: auto; flex: 1;">
+            <p class="text-muted" style="font-size: 0.85rem;">
+                Expected revenue comes from the farm plan
+                (<strong>@Data.Currency @Data.FarmPlans.Sum(p => p.ExpectedRevenue).ToString("N2")</strong>) and the
+                financed input cost is the case's own EOP value
+                (<strong>@Data.Currency @Data.TotalEopValue.ToString("N2")</strong>). Enter the remaining assumptions
+                below — every ratio is computed server-side.
+            </p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">Own Production Cost (@Data.Currency) *</label>
+                    <input type="number" class="form-control" min="0" step="0.01" @bind="ownProductionCost" />
+                    <small class="form-hint">Land prep, planting, weeding — funded by the FAC.</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Harvest &amp; Logistics (@Data.Currency) *</label>
+                    <input type="number" class="form-control" min="0" step="0.01" @bind="harvestAndLogisticsCost" />
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">Cycle Length (months) *</label>
+                    <input type="number" class="form-control" min="1" max="24" @bind="cycleMonths" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Interest Rate (% p.a.) *</label>
+                    <input type="number" class="form-control" min="0" step="0.01" @bind="interestRatePercent" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Basis for Yield / Price Assumptions</label>
+                <textarea class="form-control" rows="2" @bind="assumptionBasisNote"
+                          placeholder="Off-take agreement, prior season actuals, extension service advice…"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Risk Commentary for Committee</label>
+                <textarea class="form-control" rows="3" @bind="summaryNotes"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Recommendation *</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button type="button" class="btn @(recommendation == "Pass" ? "btn-success" : "btn-outline-success")"
+                            style="flex: 1;" @onclick='() => recommendation = "Pass"'>
+                        Pass — recommend for risk review
+                    </button>
+                    <button type="button" class="btn @(recommendation == "Fail" ? "btn-danger" : "btn-outline-danger")"
+                            style="flex: 1;" @onclick='() => recommendation = "Fail"'>
+                        Fail — decline at appraisal
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Override Justification</label>
+                <textarea class="form-control" rows="2" @bind="overrideJustification"
+                          placeholder="Required only if recommending Pass while one or more viability gates fail."></textarea>
+                <small class="form-hint">
+                    A Pass with failing gates is permitted but must be justified in writing — the system will
+                    reject it otherwise.
+                </small>
+            </div>
+
+            @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
+            {
+                <div class="alert alert-danger">@(ErrorMessage ?? clientError)</div>
+            }
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn btn-primary" disabled="@IsSubmitting" @onclick="Submit">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                Save Appraisal
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RhshfFinancialAppraisalDto Data { get; set; } = null!;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<(decimal OwnProductionCost, decimal HarvestAndLogisticsCost, int CycleMonths,
+        decimal InterestRatePercent, string? AssumptionBasisNote, string Recommendation,
+        string? SummaryNotes, string? OverrideJustification)> OnConfirm { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private decimal ownProductionCost;
+    private decimal harvestAndLogisticsCost;
+    private int cycleMonths = 6;
+    private decimal interestRatePercent;
+    private string? assumptionBasisNote;
+    private string? summaryNotes;
+    private string? overrideJustification;
+    private string recommendation = "Pass";
+    private string? clientError;
+    private bool initialised;
+
+    protected override void OnParametersSet()
+    {
+        // Pre-fill from the existing appraisal when revising, so the officer edits rather than retypes.
+        if (initialised) return;
+        if (Data.Report is { } r)
+        {
+            ownProductionCost = r.OwnProductionCost;
+            harvestAndLogisticsCost = r.HarvestAndLogisticsCost;
+            cycleMonths = r.CycleMonths;
+            interestRatePercent = r.InterestRatePercent;
+            assumptionBasisNote = r.AssumptionBasisNote;
+            summaryNotes = r.SummaryNotes;
+            overrideJustification = r.OverrideJustification;
+            recommendation = r.CreditOfficerRecommendation.ToString();
+        }
+        initialised = true;
+    }
+
+    private async Task Submit()
+    {
+        clientError = null;
+
+        if (cycleMonths <= 0) { clientError = "Cycle length must be at least one month."; return; }
+        if (ownProductionCost < 0 || harvestAndLogisticsCost < 0) { clientError = "Costs cannot be negative."; return; }
+        if (interestRatePercent < 0) { clientError = "Interest rate cannot be negative."; return; }
+
+        await OnConfirm.InvokeAsync((
+            ownProductionCost, harvestAndLogisticsCost, cycleMonths, interestRatePercent,
+            string.IsNullOrWhiteSpace(assumptionBasisNote) ? null : assumptionBasisNote,
+            recommendation,
+            string.IsNullOrWhiteSpace(summaryNotes) ? null : summaryNotes,
+            string.IsNullOrWhiteSpace(overrideJustification) ? null : overrideJustification));
+    }
+}

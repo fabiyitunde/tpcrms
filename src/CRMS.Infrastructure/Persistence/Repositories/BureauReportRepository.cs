@@ -71,6 +71,11 @@ public class BureauReportRepository : IBureauReportRepository
             .Where(r => r.NampApplicationId == nampApplicationId)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<BureauReport>> GetByRhshfCreditProfileIdAsync(Guid rhshfCreditProfileId, CancellationToken ct = default)
+        => await _context.BureauReports
+            .Where(r => r.RhshfCreditProfileId == rhshfCreditProfileId)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<BureauReport>> GetByNampApplicationIdWithDetailsAsync(Guid nampApplicationId, CancellationToken ct = default)
         => await _context.BureauReports
             .Include(r => r.Accounts)

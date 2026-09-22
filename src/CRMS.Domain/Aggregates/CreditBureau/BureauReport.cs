@@ -5,8 +5,12 @@ namespace CRMS.Domain.Aggregates.CreditBureau;
 
 public class BureauReport : AggregateRoot
 {
+    // One nullable FK per product track. RH-SHF joined these in Phase B of the NAMP-alignment work:
+    // it previously kept a single flat bureau result on RhshfCreditProfile, which capped it at one
+    // company-level subject and no score/grade/fraud data.
     public Guid? LoanApplicationId { get; private set; }
     public Guid? NampApplicationId { get; private set; }
+    public Guid? RhshfCreditProfileId { get; private set; }
     public CreditBureauProvider Provider { get; private set; }
     public SubjectType SubjectType { get; private set; }
     public BureauReportStatus Status { get; private set; }
@@ -71,7 +75,8 @@ public class BureauReport : AggregateRoot
         Guid? nampApplicationId = null,
         string? taxId = null,
         Guid? partyId = null,
-        string? partyType = null)
+        string? partyType = null,
+        Guid? rhshfCreditProfileId = null)
     {
         if (string.IsNullOrWhiteSpace(subjectName))
             return Result.Failure<BureauReport>("Subject name is required");
@@ -91,6 +96,7 @@ public class BureauReport : AggregateRoot
             RequestedAt = DateTime.UtcNow,
             LoanApplicationId = loanApplicationId,
             NampApplicationId = nampApplicationId,
+            RhshfCreditProfileId = rhshfCreditProfileId,
             RequestReference = GenerateRequestReference(),
             PartyId = partyId,
             PartyType = partyType

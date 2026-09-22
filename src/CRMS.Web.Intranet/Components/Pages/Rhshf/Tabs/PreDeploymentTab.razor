@@ -1,0 +1,72 @@
+@using CRMS.Application.Rhshf.DTOs
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Pre-Deployment Verification</h3>
+        @if (Checklist.Count > 0)
+        {
+            var confirmed = Checklist.Count(i => i.IsConfirmed == true);
+            <span class="badge @(confirmed == Checklist.Count ? "badge-success" : "badge-warning")">@confirmed / @Checklist.Count confirmed</span>
+        }
+    </div>
+
+    @if (Checklist.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">checklist</span></div>
+            <div class="empty-state-title">Not yet started</div>
+            <div class="empty-state-text">The pre-deployment gate has not been recorded for this cycle yet.</div>
+        </div>
+    }
+    else
+    {
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
+            @foreach (var (item, i) in Checklist.OrderBy(x => x.Title).Select((x, i) => (x, i)))
+            {
+                <div style="@(i > 0 ? "border-top: 1px solid var(--gray-100); padding-top: 1rem;" : "")">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <span class="badge @StatusBadgeClass(item.IsConfirmed)">@StatusLabel(item.IsConfirmed)</span>
+                        <strong style="font-size: 0.9rem;">@item.Title</strong>
+                        @if (!item.IsMandatory)
+                        {
+                            <span class="badge badge-gray" style="font-size: 0.65rem;">Optional</span>
+                        }
+                    </div>
+                    @if (!string.IsNullOrEmpty(item.Description))
+                    {
+                        <p class="text-muted" style="font-size: 0.8rem; margin: 4px 0 0;">@item.Description</p>
+                    }
+                    @if (!string.IsNullOrEmpty(item.Notes))
+                    {
+                        <p style="font-size: 0.85rem; margin: 4px 0 0; color: var(--gray-700);">@item.Notes</p>
+                    }
+                    @if (item.ConfirmedAt is not null)
+                    {
+                        <p style="font-size: 0.75rem; color: var(--gray-500); margin: 4px 0 0;">
+                            Confirmed by <strong style="color: var(--gray-700);">@(item.ConfirmedByName ?? "—")</strong>
+                            &middot; @item.ConfirmedAt.Value.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                        </p>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<RhshfPreDeploymentChecklistItemDto> Checklist { get; set; } = [];
+
+    private static string StatusBadgeClass(bool? isConfirmed) => isConfirmed switch
+    {
+        true => "badge-success",
+        false => "badge-danger",
+        _ => "badge-gray",
+    };
+
+    private static string StatusLabel(bool? isConfirmed) => isConfirmed switch
+    {
+        true => "Confirmed",
+        false => "Not Confirmed",
+        _ => "Pending",
+    };
+}

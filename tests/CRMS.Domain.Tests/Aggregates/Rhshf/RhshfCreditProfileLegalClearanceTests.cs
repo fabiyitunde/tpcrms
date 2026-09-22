@@ -26,10 +26,10 @@ public class RhshfCreditProfileLegalClearanceTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
 
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         finalApproverId = Guid.NewGuid();
@@ -52,14 +52,14 @@ public class RhshfCreditProfileLegalClearanceTests
     }
 
     [Fact]
-    public void AdvanceToDisbursement_FromLegalClearance_Succeeds()
+    public void AdvanceToDisbursement_FromLegalClearance_LandsAtPreDeploymentVerification()
     {
         var profile = CreateProfileAtLegalClearance(out _);
 
         var result = profile.AdvanceToDisbursement();
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.Disbursement, profile.InternalStage);
+        Assert.Equal(RhshfInternalStage.PreDeploymentVerification, profile.InternalStage);
         Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
     }
 

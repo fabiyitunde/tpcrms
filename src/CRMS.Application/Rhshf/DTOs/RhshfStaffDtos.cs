@@ -20,6 +20,9 @@ public record RhshfCaseWorkspaceDto(
     Guid SubmissionId,
     RhshfCaseStatus Status,
     RhshfInternalStage? InternalStage,
+    /// <summary>Where the FAC is in the profiling form, when the case is with them. Null once it
+    /// has been submitted — Status/InternalStage carry the position from then on.</summary>
+    RhshfProfilingStage? CurrentProfilingStage,
     int CurrentCycleNumber,
     string CompanyName,
     string RcNumber,
@@ -47,14 +50,114 @@ public record RhshfCaseWorkspaceDto(
     DateTime? DecidedAt,
     string? DecidedBy,
     string? DecisionNotes,
+    /// <summary>Why this case landed on the branch it did (resolved from the BOA account via
+    /// Fineract at submission). Written since day one and displayed nowhere until now — staff had
+    /// no way to see, or challenge, the routing decision.</summary>
+    string? BranchResolutionNote,
     DateTime ReceivedAt,
     DateTime UpdatedAt);
 
-public record RhshfAppraisalDto(int CycleNumber, Guid CreditOfficerId, DateTime AppraisedAt, RhshfAppraisalOutcome Outcome, string? Notes);
+// Every actor-carrying DTO below gets a resolved *Name companion alongside the raw id. The id stays
+// (callers still need it for "is this me?" comparisons); the name is what the UI renders. Populated
+// via IUserNameResolver in the query handler — see Phase A of the RH-SHF/NAMP alignment plan.
+public record RhshfAppraisalDto(int CycleNumber, Guid CreditOfficerId, string CreditOfficerName, DateTime AppraisedAt, RhshfAppraisalOutcome Outcome, string? Notes);
 
-public record RhshfRiskReviewDto(int CycleNumber, Guid RiskOfficerId, DateTime ReviewedAt, RhshfRiskReviewOutcome Outcome, string? Notes);
+public record RhshfRiskReviewDto(int CycleNumber, Guid RiskOfficerId, string RiskOfficerName, DateTime ReviewedAt, RhshfRiskReviewOutcome Outcome, string? Notes);
 
-public record RhshfRatificationDto(int CycleNumber, Guid FinalApproverId, DateTime RatifiedAt, RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes);
+public record RhshfRatificationDto(int CycleNumber, Guid FinalApproverId, string FinalApproverName, DateTime RatifiedAt, RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes);
+
+public record RhshfAdvisoryDto(
+    Guid Id,
+    Guid RhshfCreditProfileId,
+    string Status,
+    decimal OverallScore,
+    string OverallRating,
+    string Recommendation,
+    decimal? RecommendedAmount,
+    string? ExecutiveSummary,
+    string? StrengthsAnalysis,
+    string? WeaknessesAnalysis,
+    string? MitigatingFactors,
+    string? KeyRisks,
+    bool HasCriticalRedFlags,
+    string ModelVersion,
+    DateTime GeneratedAt,
+    string? ErrorMessage,
+    List<RhshfAdvisoryRiskScoreDto> RiskScores,
+    List<string> RedFlags,
+    List<string> Conditions,
+    List<string> Covenants
+);
+
+public record RhshfAdvisoryRiskScoreDto(
+    string Category, decimal Score, decimal Weight, decimal WeightedScore, string Rating, string Rationale,
+    List<string> RedFlags, List<string> PositiveIndicators);
+
+public record RhshfLoanAccountDto(
+    long LoanId,
+    string AccountNo,
+    string ProductName,
+    string Status,
+    DateTime? DisbursementDate,
+    DateTime? MaturityDate,
+    decimal TotalExpectedRepayment,
+    decimal TotalRepayment,
+    decimal TotalOutstanding,
+    decimal PrincipalDisbursed,
+    decimal PrincipalPaid,
+    decimal PrincipalOutstanding,
+    decimal InterestCharged,
+    decimal InterestPaid,
+    decimal InterestOutstanding,
+    decimal PenaltyChargesOutstanding,
+    IReadOnlyList<RhshfLoanSchedulePeriodDto> Schedule
+);
+
+public record RhshfLoanSchedulePeriodDto(
+    int Period,
+    DateTime DueDate,
+    decimal PrincipalDue,
+    decimal PrincipalPaid,
+    decimal InterestDue,
+    decimal InterestPaid,
+    decimal TotalDue,
+    decimal TotalPaid,
+    decimal TotalOutstanding,
+    bool Complete,
+    bool IsOverdue
+);
+
+public record RhshfPreDeploymentChecklistItemDto(
+    Guid Id,
+    string Title,
+    string? Description,
+    bool IsMandatory,
+    bool? IsConfirmed,
+    Guid? ConfirmedByUserId,
+    string? ConfirmedByName,
+    DateTime? ConfirmedAt,
+    string? Notes);
+
+public record RhshfPreDeploymentChecklistTemplateDto(
+    Guid Id,
+    string Title,
+    string? Description,
+    bool IsMandatory,
+    int SortOrder,
+    bool IsActive
+);
+
+/// <summary>Admin view of one FAC required-document rule. Category is shown but never edited
+/// after creation — cases already judged against it must stay explicable.</summary>
+public record RhshfDocumentRequirementDto(
+    Guid Id,
+    RhshfDocumentCategory Category,
+    string Title,
+    string? Description,
+    bool IsMandatory,
+    int SortOrder,
+    bool IsActive
+);
 
 public record RhshfRoutingConfigDto(
     Guid Id,

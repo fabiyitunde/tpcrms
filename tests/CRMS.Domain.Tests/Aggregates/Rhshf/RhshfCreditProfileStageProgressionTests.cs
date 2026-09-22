@@ -32,7 +32,7 @@ public class RhshfCreditProfileStageProgressionTests
         foreach (var stage in stages)
         {
             Assert.Equal(stage, profile.CurrentStage);
-            var result = profile.AdvanceStage(stage);
+            var result = profile.AdvanceStageForTest(stage);
             Assert.True(result.IsSuccess);
         }
 
@@ -102,7 +102,7 @@ public class RhshfCreditProfileStageProgressionTests
     {
         var profile = CreateValidProfile(); // on CompanyVerification
 
-        var result = profile.AddSupportingDocument("cac.pdf", "application/pdf", "path/cac.pdf", 1024);
+        var result = profile.AddSupportingDocument(RhshfDocumentCategory.Other, "cac.pdf", "application/pdf", "path/cac.pdf", 1024);
 
         Assert.True(result.IsFailure);
         Assert.Empty(profile.SupportingDocuments);
@@ -116,12 +116,155 @@ public class RhshfCreditProfileStageProgressionTests
         profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck);
         profile.AdvanceStage(RhshfProfilingStage.EopReview); // now on SupportingDocuments
 
-        var first = profile.AddSupportingDocument("cac.pdf", "application/pdf", "path/cac.pdf", 1024);
-        var second = profile.AddSupportingDocument("bank-statement.pdf", "application/pdf", "path/bs.pdf", 2048);
+        var first = profile.AddSupportingDocument(RhshfDocumentCategory.Other, "cac.pdf", "application/pdf", "path/cac.pdf", 1024);
+        var second = profile.AddSupportingDocument(RhshfDocumentCategory.Other, "bank-statement.pdf", "application/pdf", "path/bs.pdf", 2048);
 
         Assert.True(first.IsSuccess);
         Assert.True(second.IsSuccess);
         Assert.Equal(2, profile.SupportingDocuments.Count);
         Assert.Equal(RhshfProfilingStage.SupportingDocuments, profile.CurrentStage); // adding a doc doesn't advance
     }
+
+    // ── Phase D gates: profiling is now attested and gated, not just traversed ────────────
+
+    [Fact]
+    public void AdvanceStage_FromReviewAndSubmit_WithoutAFarmPlan_IsBlocked()
+    {
+        // The Credit Officer's appraisal is built on the crop economics. A case submitted without
+        // them arrives unmodellable, which is how the old form let cases through.
+        var profile = CreateValidProfile();
+        foreach (var stage in new[]
+        {
+            RhshfProfilingStage.CompanyVerification, RhshfProfilingStage.CreditBureauCheck,
+            RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments,
+        })
+        {
+            profile.AdvanceStage(stage);
+        }
+
+        var result = profile.AdvanceStage(RhshfProfilingStage.ReviewAndSubmit);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("farm plan", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(RhshfProfilingStage.ReviewAndSubmit, profile.CurrentStage);
+        Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
+    }
+
+    [Fact]
+    public void AddFarmPlanDuringProfiling_FilesUnderTheCycleTheCaseIsAboutToEnter()
+    {
+        // CurrentCycleNumber is still 0 during profiling and only increments on submit, so a plan
+        // filed under it would be invisible to the appraisal that reads the current cycle.
+        var profile = CreateValidProfile();
+        profile.AdvanceStage(RhshfProfilingStage.CompanyVerification);
+        profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck); // now on EopReview
+
+        var added = profile.AddFarmPlanDuringProfiling("Maize", 100m, 3_000m, 515m);
+
+        Assert.True(added.IsSuccess);
+        Assert.Equal(0, profile.CurrentCycleNumber);
+        Assert.Equal(1, profile.FarmPlans.Single().CycleNumber);
+
+        profile.AdvanceStage(RhshfProfilingStage.EopReview);
+        profile.AdvanceStage(RhshfProfilingStage.SupportingDocuments);
+        profile.AdvanceStage(RhshfProfilingStage.ReviewAndSubmit);
+
+        Assert.Equal(1, profile.CurrentCycleNumber);
+        Assert.Single(profile.GetCurrentCycleFarmPlans());
+    }
+
+    [Fact]
+    public void AddFarmPlanDuringProfiling_OutsideTheEopReviewStage_Fails()
+    {
+        var profile = CreateValidProfile(); // still on CompanyVerification
+
+        var result = profile.AddFarmPlanDuringProfiling("Maize", 100m, 3_000m, 515m);
+
+        Assert.True(result.IsFailure);
+        Assert.Empty(profile.FarmPlans);
+    }
+
+    [Fact]
+    public void AdvanceStage_FromSupportingDocuments_WithAMandatoryCategoryMissing_IsBlocked()
+    {
+        var profile = ProfileOnSupportingDocuments();
+        profile.AddSupportingDocument(RhshfDocumentCategory.CacCertificate, "cac.pdf", "application/pdf", "p/cac.pdf", 1024);
+
+        var result = profile.AdvanceStage(RhshfProfilingStage.SupportingDocuments, MandatoryCacAndOffTake());
+
+        Assert.True(result.IsFailure);
+        Assert.Contains(nameof(RhshfDocumentCategory.OffTakeAgreement), result.Error);
+        Assert.Equal(RhshfProfilingStage.SupportingDocuments, profile.CurrentStage);
+    }
+
+    [Fact]
+    public void AdvanceStage_FromSupportingDocuments_WithEveryMandatoryCategorySatisfied_Succeeds()
+    {
+        var profile = ProfileOnSupportingDocuments();
+        profile.AddSupportingDocument(RhshfDocumentCategory.CacCertificate, "cac.pdf", "application/pdf", "p/cac.pdf", 1024);
+        profile.AddSupportingDocument(RhshfDocumentCategory.OffTakeAgreement, "offtake.pdf", "application/pdf", "p/ot.pdf", 2048);
+
+        var result = profile.AdvanceStage(RhshfProfilingStage.SupportingDocuments, MandatoryCacAndOffTake());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfProfilingStage.ReviewAndSubmit, profile.CurrentStage);
+    }
+
+    [Fact]
+    public void AdvanceStage_InactiveOrOptionalRequirements_DoNotBlockSubmission()
+    {
+        var profile = ProfileOnSupportingDocuments();
+        var optional = RhshfDocumentRequirement.Create(
+            RhshfDocumentCategory.BankStatement, "Bank statement", null, isMandatory: false, sortOrder: 1).Value;
+        var retired = RhshfDocumentRequirement.Create(
+            RhshfDocumentCategory.LandDocumentation, "Land documentation", null, isMandatory: true, sortOrder: 2).Value;
+        retired.Deactivate();
+
+        var result = profile.AdvanceStage(RhshfProfilingStage.SupportingDocuments, [optional, retired]);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void AdvanceStage_RecordsAStageConfirmation_WithTheRequestContext()
+    {
+        var profile = CreateValidProfile();
+
+        profile.AdvanceStage(RhshfProfilingStage.CompanyVerification, null, "102.89.41.7", "Mozilla/5.0");
+
+        var confirmation = profile.StageConfirmations.Single();
+        Assert.Equal(RhshfProfilingStage.CompanyVerification, confirmation.Stage);
+        Assert.Equal(profile.FacId, confirmation.ConfirmedByFacId);
+        Assert.Equal("102.89.41.7", confirmation.IpAddress);
+        Assert.Equal(1, confirmation.CycleNumber); // the cycle being assembled, not the completed one
+    }
+
+    [Fact]
+    public void AdvanceStage_BlockedByAGate_RecordsNoConfirmation()
+    {
+        var profile = ProfileOnSupportingDocuments();
+
+        profile.AdvanceStage(RhshfProfilingStage.SupportingDocuments, MandatoryCacAndOffTake());
+
+        Assert.DoesNotContain(
+            profile.StageConfirmations, c => c.Stage == RhshfProfilingStage.SupportingDocuments);
+    }
+
+    private static RhshfCreditProfile ProfileOnSupportingDocuments()
+    {
+        var profile = CreateValidProfile();
+        profile.AdvanceStage(RhshfProfilingStage.CompanyVerification);
+        profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck);
+        profile.AddFarmPlanDuringProfiling("Maize", 100m, 3_000m, 515m);
+        profile.AdvanceStage(RhshfProfilingStage.EopReview);
+        return profile;
+    }
+
+    private static RhshfDocumentRequirement[] MandatoryCacAndOffTake() =>
+    [
+        RhshfDocumentRequirement.Create(
+            RhshfDocumentCategory.CacCertificate, "CAC certificate", null, isMandatory: true, sortOrder: 1).Value,
+        RhshfDocumentRequirement.Create(
+            RhshfDocumentCategory.OffTakeAgreement, "Off-take agreement", null, isMandatory: true, sortOrder: 2).Value,
+    ];
 }

@@ -9,17 +9,22 @@ namespace CRMS.Application.Rhshf.Commands;
 /// including the final ReviewAndSubmit, which completes profiling (external status → UnderReview).
 /// ExpectedCurrentStage guards against skipping/replaying a stage via direct requests.
 /// </summary>
-public record AdvanceRhshfProfilingStageCommand(string Reference, RhshfProfilingStage ExpectedCurrentStage)
+public record AdvanceRhshfProfilingStageCommand(
+    string Reference, RhshfProfilingStage ExpectedCurrentStage,
+    string? IpAddress = null, string? UserAgent = null)
     : IRequest<ApplicationResult>;
 
 public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfProfilingStageCommand, ApplicationResult>
 {
     private readonly IRhshfCreditProfileRepository _repo;
+    private readonly IRhshfDocumentRequirementRepository _requirementRepo;
     private readonly IUnitOfWork _uow;
 
-    public AdvanceRhshfProfilingStageHandler(IRhshfCreditProfileRepository repo, IUnitOfWork uow)
+    public AdvanceRhshfProfilingStageHandler(
+        IRhshfCreditProfileRepository repo, IRhshfDocumentRequirementRepository requirementRepo, IUnitOfWork uow)
     {
         _repo = repo;
+        _requirementRepo = requirementRepo;
         _uow = uow;
     }
 
@@ -29,7 +34,12 @@ public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfPro
         if (profile is null)
             return ApplicationResult.Failure("Case not found.");
 
-        var result = profile.AdvanceStage(request.ExpectedCurrentStage);
+        // Only loaded where it's actually needed — the domain skips the check when null is passed.
+        var requirements = request.ExpectedCurrentStage == RhshfProfilingStage.SupportingDocuments
+            ? await _requirementRepo.GetActiveAsync(ct)
+            : null;
+
+        var result = profile.AdvanceStage(request.ExpectedCurrentStage, requirements, request.IpAddress, request.UserAgent);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

@@ -33,10 +33,10 @@ public class BookRhshfDisbursementHandlerTests
             RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
         })
         {
-            profile.AdvanceStage(stage);
+            profile.AdvanceStageForTest(stage);
         }
 
-        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
@@ -45,7 +45,12 @@ public class BookRhshfDisbursementHandlerTests
         offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
         offer.Accept(null);
         profile.AdvanceToLegalClearance();
-        profile.AdvanceToDisbursement();
+        profile.AdvanceToDisbursement(); // lands at PreDeploymentVerification
+        var template = RhshfPreDeploymentChecklistTemplate.Create("Gate Item", null, isMandatory: true, sortOrder: 10).Value;
+        profile.SeedPreDeploymentChecklist([template]);
+        var item = profile.PreDeploymentChecklist.Single(i => i.CycleNumber == profile.CurrentCycleNumber);
+        profile.ConfirmPreDeploymentChecklistItem(item.Id, Guid.NewGuid(), true, null);
+        profile.CompletePreDeploymentVerification(Guid.NewGuid(), null);
 
         return profile;
     }
@@ -88,7 +93,7 @@ public class BookRhshfDisbursementHandlerTests
         var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.Completed, profile.InternalStage);
+        Assert.Equal(RhshfInternalStage.Active, profile.InternalStage);
         Assert.Equal(RhshfCaseStatus.Approved, profile.Status);
         Assert.NotNull(fineract.LastBookingRequest);
         Assert.Equal(9.5m, fineract.LastBookingRequest!.InterestRatePerAnnum);

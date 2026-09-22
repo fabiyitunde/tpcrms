@@ -1,89 +1,282 @@
-@using CRMS.Application.Rhshf.DTOs
-@using CRMS.Domain.Enums
+@using CRMS.Application.Rhshf.Queries
 
 <div style="display: flex; flex-direction: column; gap: 1.5rem;">
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">Credit Bureau Check</h3>
-            @if (Workspace.BureauCheckOutcome != RhshfBureauOutcome.NotRun)
+            <div>
+                <h3 class="card-title">Credit Bureau</h3>
+                <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">
+                    @Reports.Count report@(Reports.Count == 1 ? "" : "s") on file
+                </div>
+            </div>
+            @if (CanRecheck)
             {
-                <span class="badge @BadgeClass(Workspace.BureauCheckOutcome)">@Workspace.BureauCheckOutcome</span>
+                <button class="btn btn-outline btn-sm" @onclick="() => OnRecheck.InvokeAsync()" disabled="@IsRechecking">
+                    @if (IsRechecking)
+                    {
+                        <span class="spinner" style="width: 12px; height: 12px;"></span> <span>Running…</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">refresh</span>
+                        <span>Run Bureau Checks</span>
+                    }
+                </button>
             }
         </div>
 
-        @if (Workspace.BureauCheckOutcome == RhshfBureauOutcome.NotRun)
+        @if (!string.IsNullOrEmpty(RecheckError))
         {
-            <div class="empty-state">
-                <div class="empty-state-icon"><span class="material-symbols-outlined">account_balance_wallet</span></div>
-                <div class="empty-state-title">Not yet run</div>
-                <div class="empty-state-text">The credit bureau check has not yet run for this case.</div>
+            <div class="card-body" style="padding-bottom: 0;">
+                <div class="alert alert-danger" style="margin: 0;">@RecheckError</div>
             </div>
         }
-        else
+
+        @if (Reports.Count == 0)
         {
-            <div class="card-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                    @FieldChip("Total Facilities on Record", (Workspace.BureauTotalLoans ?? 0).ToString("N0"))
-                    @FieldChip("Active Facilities", (Workspace.BureauActiveLoans ?? 0).ToString("N0"))
-                    @FieldChip("Delinquent Facilities", (Workspace.BureauDelinquentFacilities ?? 0).ToString("N0"))
-                    @FieldChip("Total Outstanding", Workspace.BureauTotalOutstanding?.ToString("N2"))
-                    @FieldChip("Total Overdue", Workspace.BureauTotalOverdue?.ToString("N2"))
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">fact_check</span></div>
+                <div class="empty-state-title">No credit bureau reports yet</div>
+                <div class="empty-state-text">
+                    Checks cover the company and every director with a recorded BVN.
+                    @if (CanRecheck) { <text>Add directors on the Overview tab, then run the checks.</text> }
                 </div>
             </div>
         }
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(Workspace.BureauRawJson))
+    @if (CompanyReports.Count > 0)
     {
-        <div class="card">
-            <div class="card-header"><h3 class="card-title">Raw Report</h3></div>
-            <div class="card-body">
-                <pre style="white-space: pre-wrap; background: var(--gray-50); border: 1px solid var(--gray-100); padding: 1rem; border-radius: 8px; max-height: 400px; overflow-y: auto; font-size: 0.8rem; margin: 0;">@FormattedJson</pre>
+        <div>
+            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.875rem; font-weight: 600; color: var(--gray-700);">
+                <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">domain</span>
+                Company (Business Credit)
+            </h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem;">
+                @foreach (var r in CompanyReports)
+                {
+                    @BureauCard(r, isBusiness: true)
+                }
+            </div>
+        </div>
+    }
+
+    @if (DirectorReports.Count > 0)
+    {
+        <div>
+            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.875rem; font-weight: 600; color: var(--gray-700);">
+                <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">groups</span>
+                Directors &amp; Shareholders (@DirectorReports.Count)
+            </h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem;">
+                @foreach (var r in DirectorReports)
+                {
+                    @BureauCard(r, isBusiness: false)
+                }
             </div>
         </div>
     }
 </div>
 
 @code {
-    [Parameter, EditorRequired] public RhshfCaseWorkspaceDto Workspace { get; set; } = null!;
+    [Parameter, EditorRequired] public List<RhshfBureauReportDto> Reports { get; set; } = [];
+    [Parameter] public bool CanRecheck { get; set; }
+    [Parameter] public bool IsRechecking { get; set; }
+    [Parameter] public string? RecheckError { get; set; }
+    [Parameter] public EventCallback OnRecheck { get; set; }
 
-    private string FormattedJson => TryFormat(Workspace.BureauRawJson);
+    private List<RhshfBureauReportDto> CompanyReports => Reports.Where(r => r.SubjectType == "RhshfCompany").ToList();
+    private List<RhshfBureauReportDto> DirectorReports => Reports.Where(r => r.SubjectType != "RhshfCompany").ToList();
 
-    private static string TryFormat(string? json)
+    private RenderFragment BureauCard(RhshfBureauReportDto r, bool isBusiness) => __builder =>
     {
-        if (string.IsNullOrWhiteSpace(json))
-            return string.Empty;
+        <div class="bureau-card">
+            <div class="bureau-card-header">
+                <div>
+                    <div style="font-weight: 600;">@r.SubjectName</div>
+                    <div style="font-size: 0.75rem; color: var(--gray-500);">
+                        @(isBusiness ? "Business credit history (CRC)" : (string.IsNullOrEmpty(r.Bvn) ? "No BVN on file" : $"BVN: {r.Bvn}"))
+                    </div>
+                </div>
+                @* Business CRC returns no individual score, so no circle for company cards. *@
+                @if (!isBusiness)
+                {
+                    @if (r.Status == "NotFound")
+                    {
+                        <div class="bureau-score" style="background: transparent; border: 2px dashed var(--gray-300); color: var(--gray-400);">
+                            <span class="material-symbols-outlined" style="font-size: 24px;">person_search</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="bureau-score @ScoreClass(r.CreditScore)">@(r.CreditScore?.ToString() ?? "N/A")</div>
+                    }
+                }
+            </div>
+
+            <div class="bureau-card-body">
+                @if (r.Status == "NotFound")
+                {
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 0.75rem 0.25rem;">
+                        <span class="material-symbols-outlined" style="font-size: 36px; color: var(--gray-300); display: block; margin-bottom: 0.5rem;">manage_search</span>
+                        <div style="font-weight: 600; font-size: 0.8rem; color: var(--gray-600); margin-bottom: 0.25rem;">No Credit File Registered</div>
+                        <div style="font-size: 0.75rem; color: var(--gray-500); line-height: 1.5;">
+                            No formal @(isBusiness ? "business " : "")credit history found in CRC. Assessment must rely on the appraisal and collateral.
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    @if (!isBusiness)
+                    {
+                        <div class="bureau-stat">
+                            <span class="bureau-stat-label">Score Grade</span>
+                            @if (!string.IsNullOrEmpty(r.ScoreGrade))
+                            {
+                                <span class="badge @GradeBadgeClass(r.ScoreGrade)">@r.ScoreGrade</span>
+                            }
+                            else
+                            {
+                                <span class="bureau-stat-value">—</span>
+                            }
+                        </div>
+                    }
+                    <div class="bureau-stat">
+                        <span class="bureau-stat-label">Delinquent Facilities</span>
+                        @if (r.DelinquentFacilities > 0)
+                        {
+                            <span class="badge badge-danger">@r.DelinquentFacilities</span>
+                        }
+                        else
+                        {
+                            <span class="bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "None" : "—")</span>
+                        }
+                    </div>
+                    <div class="bureau-stat">
+                        <span class="bureau-stat-label">Active Facilities</span>
+                        <span class="bureau-stat-value">@(r.Status == "Completed" ? r.ActiveLoans.ToString("N0") : "—")</span>
+                    </div>
+                    <div class="bureau-stat">
+                        <span class="bureau-stat-label">Total Outstanding</span>
+                        <span class="bureau-stat-value">@(r.TotalOutstanding > 0 ? FormatAmount(r.TotalOutstanding) : (r.Status == "Completed" ? "None" : "—"))</span>
+                    </div>
+                    <div class="bureau-stat">
+                        <span class="bureau-stat-label">Total Overdue</span>
+                        <span class="bureau-stat-value" style="@(r.TotalOverdue > 0 ? "color: var(--danger-600); font-weight: 700;" : "")">
+                            @(r.TotalOverdue > 0 ? FormatAmount(r.TotalOverdue) : (r.Status == "Completed" ? "None" : "—"))
+                        </span>
+                    </div>
+                    @if (r.MaxDelinquencyDays > 0)
+                    {
+                        <div class="bureau-stat">
+                            <span class="bureau-stat-label">Worst Delinquency</span>
+                            <span class="bureau-stat-value" style="color: var(--danger-600); font-weight: 700;">@r.MaxDelinquencyDays days</span>
+                        </div>
+                    }
+                    @if (r.HasLegalActions)
+                    {
+                        <div class="bureau-stat">
+                            <span class="bureau-stat-label">Legal Actions</span>
+                            <span class="badge badge-danger">On record</span>
+                        </div>
+                    }
+                    @if (!isBusiness)
+                    {
+                        <div class="bureau-stat">
+                            <span class="bureau-stat-label">Fraud Check</span>
+                            @if (!string.IsNullOrEmpty(r.FraudRecommendation))
+                            {
+                                <span class="badge badge-danger" title="@r.FraudRecommendation">@r.FraudRecommendation</span>
+                            }
+                            else
+                            {
+                                <span class="bureau-stat-value" style="color: var(--success-600);">@(r.Status == "Completed" ? "Clear" : "—")</span>
+                            }
+                        </div>
+                    }
+                    <div class="bureau-stat">
+                        <span class="bureau-stat-label">Check Date</span>
+                        <span class="bureau-stat-value">@r.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</span>
+                    </div>
+                }
+            </div>
+
+            <div class="bureau-card-footer">
+                @switch (r.Status)
+                {
+                    case "Completed":
+                        <span class="badge badge-success">
+                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">check_circle</span> Completed
+                        </span>
+                        break;
+                    case "Failed":
+                        <span class="badge badge-danger" title="@r.ErrorMessage">
+                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">error</span> Failed
+                        </span>
+                        break;
+                    case "NotFound":
+                        <span class="badge badge-warning">
+                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">info</span> No Credit File
+                        </span>
+                        break;
+                    default:
+                        <span class="badge badge-warning">@r.Status</span>
+                        break;
+                }
+                @if (!string.IsNullOrEmpty(r.ErrorMessage))
+                {
+                    <span style="font-size: 0.75rem; color: var(--danger-600); margin-left: 0.5rem;" title="@r.ErrorMessage">
+                        @Truncate(ReadableError(r.ErrorMessage), 80)
+                    </span>
+                }
+            </div>
+        </div>
+    };
+
+    // Bands match ProcessRhshfCreditChecksHandler.GetScoreGrade exactly — A+/A green, B amber, C
+    // and below red. NAMP keeps a second, different set of thresholds in its Razor file; that
+    // divergence is the bug this avoids.
+    private static string ScoreClass(int? score) => score switch
+    {
+        null => "",
+        >= 750 => "excellent",
+        >= 700 => "good",
+        >= 650 => "fair",
+        _ => "poor",
+    };
+
+    private static string GradeBadgeClass(string grade) => grade switch
+    {
+        "A+" or "A" => "badge-success",
+        "B" => "badge-warning",
+        _ => "badge-danger",
+    };
+
+    private static string FormatAmount(decimal value) => value switch
+    {
+        >= 1_000_000 => $"{value / 1_000_000:0.##}M",
+        >= 1_000 => $"{value / 1_000:0.#}K",
+        _ => value.ToString("N0"),
+    };
+
+    private static string Truncate(string s, int max) => s.Length > max ? s[..(max - 1)] + "…" : s;
+
+    /// <summary>Bureau errors often arrive as a JSON envelope; surface the human part when we can.</summary>
+    private static string ReadableError(string raw)
+    {
         try
         {
-            var parsed = System.Text.Json.JsonDocument.Parse(json);
-            return System.Text.Json.JsonSerializer.Serialize(parsed, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            using var doc = System.Text.Json.JsonDocument.Parse(raw);
+            foreach (var key in new[] { "message", "error", "description", "detail", "msg" })
+            {
+                if (doc.RootElement.TryGetProperty(key, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String)
+                    return v.GetString() ?? raw;
+            }
+            return "An error occurred during the credit check. See tooltip for details.";
         }
         catch
         {
-            return json;
+            return raw;
         }
     }
-
-    private static RenderFragment FieldChip(string label, string? value) => __builder =>
-    {
-        __builder.OpenElement(0, "div");
-        __builder.AddAttribute(1, "class", "field-chip");
-        __builder.OpenElement(2, "div");
-        __builder.AddAttribute(3, "class", "field-chip-label");
-        __builder.AddContent(4, label);
-        __builder.CloseElement();
-        __builder.OpenElement(5, "div");
-        __builder.AddAttribute(6, "class", "field-chip-value");
-        __builder.AddContent(7, string.IsNullOrWhiteSpace(value) ? "—" : value);
-        __builder.CloseElement();
-        __builder.CloseElement();
-    };
-
-    private static string BadgeClass(RhshfBureauOutcome outcome) => outcome switch
-    {
-        RhshfBureauOutcome.Cleared => "badge-success",
-        RhshfBureauOutcome.Flagged => "badge-warning",
-        RhshfBureauOutcome.Failed => "badge-gray",
-        _ => "badge-gray",
-    };
 }

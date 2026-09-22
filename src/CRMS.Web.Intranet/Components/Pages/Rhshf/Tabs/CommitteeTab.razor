@@ -7,7 +7,9 @@
             <h3 class="card-title">Committee Vote</h3>
             @if (Committee is not null)
             {
-                <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">Cycle @Committee.CycleNumber</div>
+                <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">
+                    Cycle @Committee.CycleNumber &middot; <span class="badge badge-primary" style="font-size: 0.65rem;">@FormatTier(Committee.Tier)</span>
+                </div>
             }
         </div>
         @if (Committee is not null)
@@ -45,11 +47,9 @@
                         <tr>
                             <td>
                                 <div style="display: flex; align-items: center; gap: 0.6rem;">
-                                    <div class="user-avatar" style="width: 28px; height: 28px; font-size: 0.65rem;">
-                                        <span class="material-symbols-outlined" style="font-size: 16px;">person</span>
-                                    </div>
+                                    <div class="user-avatar" style="width: 28px; height: 28px; font-size: 0.65rem;">@Initials(v.UserName)</div>
                                     <span>
-                                        <code style="font-size: 0.75rem;">@v.UserId</code>
+                                        <span style="font-weight: 500;">@v.UserName</span>
                                         @if (v.UserId == CurrentUserId)
                                         {
                                             <span class="badge badge-primary" style="margin-left: 6px; font-size: 0.65rem;">You</span>
@@ -99,6 +99,25 @@
         RhshfCommitteeVoteChoice.Approve => "check_circle",
         RhshfCommitteeVoteChoice.Reject => "cancel",
         _ => "remove_circle",
+    };
+
+    // Mirrors NAMP's GetInitials (Namp/Detail.razor) — first char of first and last name parts.
+    private static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}"
+            : name.Trim()[..Math.Min(2, name.Trim().Length)].ToUpperInvariant();
+    }
+
+    private static string FormatTier(CommitteeType tier) => tier switch
+    {
+        CommitteeType.BranchCredit => "Branch",
+        CommitteeType.ZonalCredit => "Zonal",
+        CommitteeType.RegionalCredit => "Regional",
+        CommitteeType.HeadOfficeCredit => "Head Office",
+        _ => tier.ToString(),
     };
 
     private static string DecisionBadgeClass(RhshfCommitteeDecision decision) => decision switch

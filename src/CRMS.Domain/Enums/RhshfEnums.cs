@@ -53,6 +53,49 @@ public enum RhshfBureauOutcome
 /// <summary>Internal-only granularity behind the external UnderReview status (design doc §4/§5) —
 /// tracks where a case sits in the post-profiling staff pipeline. Null before the case first
 /// reaches UnderReview, and reset to null on any ReturnToFac or terminal Decline.</summary>
+/// <summary>
+/// Category of a document the FAC attaches during profiling. Replaces the original v1 behaviour of
+/// accepting any number of uncategorised files with no notion of what was actually required — which
+/// meant a case could be submitted for credit review with nothing attached at all.
+/// </summary>
+public enum RhshfDocumentCategory
+{
+    /// <summary>Anything that doesn't fit a defined requirement.</summary>
+    Other = 0,
+    CacCertificate,
+    /// <summary>Audited financial statements (eligibility criterion S/N 15).</summary>
+    AuditedFinancials,
+    /// <summary>Signed off-take / market linkage agreement.</summary>
+    OffTakeAgreement,
+    /// <summary>Evidence of the out-grower network and farmer register.</summary>
+    FarmerRegister,
+    /// <summary>Proof of warehousing and transport capacity.</summary>
+    WarehousingEvidence,
+    /// <summary>Board/partnership resolution authorising the facility.</summary>
+    BoardResolution,
+    /// <summary>Bank statements for the BOA operational account.</summary>
+    BankStatement,
+    /// <summary>Land title, lease or usage rights for the cultivated hectares.</summary>
+    LandDocumentation,
+}
+
+/// <summary>Repayment capacity band, derived from DSCR relative to the configured minimum.</summary>
+public enum RhshfRepaymentCapacityRating
+{
+    Strong,
+    Adequate,
+    Marginal,
+    Insufficient,
+}
+
+/// <summary>Credit Officer's conclusion on the financial appraisal. Binary like NAMP's — the
+/// nuance lives in the gate outcomes and the override justification, not in a third enum value.</summary>
+public enum RhshfCreditRecommendation
+{
+    Pass,
+    Fail,
+}
+
 public enum RhshfInternalStage
 {
     Appraisal,
@@ -62,8 +105,14 @@ public enum RhshfInternalStage
     OfferGenerated,
     AwaitingOfferAcceptance,
     LegalClearance,
+    PreDeploymentVerification,
     Disbursement,
+    /// <summary>Legacy terminal marker — pre-dates Active/Closed monitoring. New disbursements set
+    /// Active instead; kept for backward compatibility with rows already in this state (this enum is
+    /// persisted by name, not ordinal, so old rows keep reading back correctly either way).</summary>
     Completed,
+    Active,
+    Closed,
 }
 
 /// <summary>Credit Officer's outcome at the Appraisal stage (design doc §3.6).</summary>
