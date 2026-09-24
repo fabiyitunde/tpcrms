@@ -53,10 +53,17 @@ jobs:
           # Pass the secret as a shell env var so the value is written verbatim,
           # even if it contains '$', backslashes, or other special characters.
           DEFAULTDB_CONNECTION: ${{ secrets.DEFAULTDB_CONNECTION }}
+          # RH-SHF integration config. These override the gitignored appsettings.Production.json
+          # (which never reaches the box via CI), so they MUST be supplied here as secrets.
+          RHSHF_PUBLIC_BASE_URL: ${{ secrets.RHSHF_PUBLIC_BASE_URL }}
+          RHSHF_API_KEY: ${{ secrets.RHSHF_API_KEY }}
         run: |
           # One shared connection string for BOTH apps (CRMS.API + CRMS.Web.Intranet).
           cat > crms.env << EOF
           ConnectionStrings__DefaultConnection=$DEFAULTDB_CONNECTION
+          Rhshf__PublicBaseUrl=$RHSHF_PUBLIC_BASE_URL
+          Rhshf__ApiKey=$RHSHF_API_KEY
+          Rhshf__CallbackUseMock=false
           EOF
 
       - name: Deploy to EC2
