@@ -706,6 +706,7 @@ public static class DependencyInjection
         services.Configure<RhshfSettings>(configuration.GetSection(RhshfSettings.SectionName));
         services.AddScoped<IRhshfCreditProfileRepository, RhshfCreditProfileRepository>();
         services.AddScoped<IRhshfTokenService, RhshfTokenService>();
+        services.AddScoped<Application.Rhshf.Interfaces.IRhshfPublicUrlProvider, ExternalServices.Rhshf.RhshfPublicUrlProvider>();
         services.AddScoped<Application.Rhshf.Commands.SubmitConsolidatedEopHandler>();
         services.AddScoped<Application.Rhshf.Commands.RefreshRhshfTokenHandler>();
         services.AddScoped<Application.Rhshf.Commands.VerifyRhshfProfilingTokenHandler>();

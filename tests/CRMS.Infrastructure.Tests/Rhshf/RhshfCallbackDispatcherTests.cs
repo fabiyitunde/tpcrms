@@ -56,7 +56,8 @@ public class RhshfCallbackDispatcherTests
     }
 
     private static RhshfCallbackDispatcher MakeDispatcher(CRMSDbContext db, FakeCallbackService fakeCallback)
-        => new(db, new RhshfCreditProfileRepository(db), new RhshfCallbackAttemptRepository(db), fakeCallback, db, NullLogger<RhshfCallbackDispatcher>.Instance);
+        => new(db, new RhshfCreditProfileRepository(db), new RhshfCallbackAttemptRepository(db), fakeCallback, db,
+            new FakeRhshfPublicUrlProvider(), NullLogger<RhshfCallbackDispatcher>.Instance);
 
     [Fact]
     public async Task ProcessDueAttempts_Success_ResolvesAttempt_NoRetryScheduled()

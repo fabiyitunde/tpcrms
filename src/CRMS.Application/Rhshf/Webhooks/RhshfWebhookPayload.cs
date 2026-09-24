@@ -20,7 +20,10 @@ public record RhshfWebhookPayload(
     RhshfWebhookDecisionPayload? Decision,
     string EventId,
     DateTime OccurredAt,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActionRequired = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActionRequired = null,
+    /// <summary>Where the FAC must go to satisfy ActionRequired — the portal appends its own freshly
+    /// minted token. Omitted from the JSON when null, same as ActionRequired.</summary>
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActionUrl = null);
 
 public record RhshfWebhookDecisionPayload(
     string Outcome,
@@ -35,7 +38,11 @@ public record RhshfWebhookDecisionPayload(
 /// terminal; OfferReady's Ratification outcome doesn't change while a retry is pending).</summary>
 public static class RhshfWebhookPayloadBuilder
 {
-    public static RhshfWebhookPayload Build(RhshfCreditProfile profile, RhshfCallbackEventType eventType, string eventId, DateTime eventOccurredAt)
+    /// <param name="offerUrl">The FAC-facing offer page for this case, resolved by the caller (which
+    /// has the configured public host). Only meaningful for OfferReady; null omits it.</param>
+    public static RhshfWebhookPayload Build(
+        RhshfCreditProfile profile, RhshfCallbackEventType eventType, string eventId, DateTime eventOccurredAt,
+        string? offerUrl = null)
     {
         if (eventType == RhshfCallbackEventType.OfferReady)
         {
@@ -46,7 +53,8 @@ public static class RhshfWebhookPayloadBuilder
                 Decision: null,
                 EventId: eventId,
                 OccurredAt: eventOccurredAt,
-                ActionRequired: "REVIEW_OFFER");
+                ActionRequired: "REVIEW_OFFER",
+                ActionUrl: offerUrl);
         }
 
         return new RhshfWebhookPayload(

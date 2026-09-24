@@ -129,4 +129,66 @@ public class RhshfWebhookPayloadBuilderTests
         Assert.Equal("REVIEW_OFFER", root.GetProperty("actionRequired").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("decision").ValueKind);
     }
+
+    [Fact]
+    public void Build_OfferReady_CarriesActionUrl_WhenTheCallerResolvesOne()
+    {
+        var profile = AtAwaitingOfferAcceptance();
+        var offerUrl = $"https://crms.test/rhshf/offer/{profile.Reference}";
+
+        var payload = RhshfWebhookPayloadBuilder.Build(
+            profile, RhshfCallbackEventType.OfferReady, "evt_offer", DateTime.UtcNow, offerUrl);
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(payload, RhshfCallbackService.JsonOptions));
+
+        Assert.Equal("REVIEW_OFFER", doc.RootElement.GetProperty("actionRequired").GetString());
+        Assert.Equal(offerUrl, doc.RootElement.GetProperty("actionUrl").GetString());
+    }
+
+    [Fact]
+    public void Build_OfferReady_OmitsActionUrl_WhenNoPublicHostIsConfigured()
+    {
+        // Omitted rather than serialised as null — same treatment actionRequired already gets on
+        // the terminal payload, so the portal sees an absent field, not an empty one.
+        var profile = AtAwaitingOfferAcceptance();
+
+        var payload = RhshfWebhookPayloadBuilder.Build(
+            profile, RhshfCallbackEventType.OfferReady, "evt_offer", DateTime.UtcNow, offerUrl: null);
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(payload, RhshfCallbackService.JsonOptions));
+
+        Assert.False(doc.RootElement.TryGetProperty("actionUrl", out _));
+    }
+
+    [Fact]
+    public void Build_Decided_NeverCarriesActionUrl()
+    {
+        // A terminal outcome has nothing for the FAC to action; an actionUrl there would invite the
+        // portal to route them into an offer page for a case that is already closed.
+        var profile = AtAwaitingOfferAcceptance();
+
+        var payload = RhshfWebhookPayloadBuilder.Build(
+            profile, RhshfCallbackEventType.Decided, "evt_decided", DateTime.UtcNow,
+            offerUrl: $"https://crms.test/rhshf/offer/{profile.Reference}");
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(payload, RhshfCallbackService.JsonOptions));
+
+        Assert.False(doc.RootElement.TryGetProperty("actionUrl", out _));
+        Assert.False(doc.RootElement.TryGetProperty("actionRequired", out _));
+    }
+
+    private static RhshfCreditProfile AtAwaitingOfferAcceptance()
+    {
+        var profile = MakeProfile();
+        foreach (var stage in new[]
+        {
+            RhshfProfilingStage.CompanyVerification, RhshfProfilingStage.CreditBureauCheck,
+            RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
+        })
+        {
+            profile.AdvanceStageForTest(stage);
+        }
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
+        profile.AdvanceToRatification();
+        profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
+        return profile;
+    }
 }

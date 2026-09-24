@@ -1,3 +1,4 @@
+using CRMS.Application.Rhshf.Interfaces;
 using CRMS.Application.Rhshf.Webhooks;
 using CRMS.Domain.Interfaces;
 using CRMS.Infrastructure.Persistence;
@@ -32,6 +33,7 @@ public class RhshfCallbackDispatcher
     private readonly IRhshfCallbackAttemptRepository _attemptRepo;
     private readonly IRhshfCallbackService _callbackService;
     private readonly IUnitOfWork _uow;
+    private readonly IRhshfPublicUrlProvider _urls;
     private readonly ILogger<RhshfCallbackDispatcher> _logger;
 
     public RhshfCallbackDispatcher(
@@ -40,6 +42,7 @@ public class RhshfCallbackDispatcher
         IRhshfCallbackAttemptRepository attemptRepo,
         IRhshfCallbackService callbackService,
         IUnitOfWork uow,
+        IRhshfPublicUrlProvider urls,
         ILogger<RhshfCallbackDispatcher> logger)
     {
         _db = db;
@@ -47,6 +50,7 @@ public class RhshfCallbackDispatcher
         _attemptRepo = attemptRepo;
         _callbackService = callbackService;
         _uow = uow;
+        _urls = urls;
         _logger = logger;
     }
 
@@ -76,7 +80,11 @@ public class RhshfCallbackDispatcher
             return;
         }
 
-        var payload = RhshfWebhookPayloadBuilder.Build(profile, attempt.EventType, attempt.EventId, attempt.EventOccurredAt);
+        // Resolved here rather than in the builder: the public host is Infrastructure configuration,
+        // and the builder lives in Application.
+        var payload = RhshfWebhookPayloadBuilder.Build(
+            profile, attempt.EventType, attempt.EventId, attempt.EventOccurredAt,
+            offerUrl: _urls.OfferUrl(profile.Reference));
         var result = await _callbackService.SendAsync(profile.CallbackUrl, payload, ct);
 
         attempt.RecordResult(result.Succeeded, result.StatusCode);

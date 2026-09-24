@@ -15,7 +15,7 @@
                     @FieldChip("Submission ID", Workspace.SubmissionId.ToString())
                     @FieldChip("Company", Workspace.CompanyName)
                     @FieldChip("RC Number", Workspace.RcNumber)
-                    @FieldChip("TIN", Workspace.Tin)
+                    @FieldChip("TIN", string.IsNullOrWhiteSpace(Workspace.Tin) ? "Not provided" : Workspace.Tin)
                     @FieldChip("BOA Account", Workspace.BoaAccountNumber)
                     @FieldChip("Location", $"{Workspace.Lga}, {Workspace.State}")
                     @FieldChip("Farmer Count", Workspace.FarmerCount?.ToString("N0"))
@@ -40,21 +40,39 @@
                 <div class="table-wrapper">
                     <table class="table">
                         <thead>
-                            <tr><th>Commodity</th><th style="text-align: right;">Qty (kg)</th><th style="text-align: right;">Unit Price</th><th style="text-align: right;">Line Value</th></tr>
+                            <tr>
+                                <th>Commodity</th>
+                                @if (ShowEopQuantities)
+                                {
+                                    <th style="text-align: right;">Qty (kg)</th>
+                                    <th style="text-align: right;">Unit Price</th>
+                                }
+                                <th style="text-align: right;">Line Value</th>
+                            </tr>
                         </thead>
                         <tbody>
                             @foreach (var line in Workspace.EopLines)
                             {
                                 <tr>
                                     <td>@line.Commodity</td>
-                                    <td style="text-align: right;">@line.QuantityKg.ToString("N0")</td>
-                                    <td style="text-align: right;">@line.UnitPricePerKg.ToString("N2")</td>
+                                    @if (ShowEopQuantities)
+                                    {
+                                        <td style="text-align: right;">@(line.QuantityKg > 0 ? line.QuantityKg.ToString("N0") : "—")</td>
+                                        <td style="text-align: right;">@(line.UnitPricePerKg > 0 ? line.UnitPricePerKg.ToString("N2") : "—")</td>
+                                    }
                                     <td style="text-align: right; font-weight: 600;">@line.LineValue.ToString("N2")</td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
+                @if (!ShowEopQuantities)
+                {
+                    <div style="padding: 0 1rem 0.75rem; font-size: 0.8rem; color: var(--gray-500);">
+                        The portal records input quantities per item (bags, litres), not a tonnage of
+                        the commodity grown, so no per-commodity quantity is available. Values are exact.
+                    </div>
+                }
                 <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-weight: 600; color: var(--gray-700);">Total EOP Value</span>
                     <span style="font-weight: 700; font-size: 1.05rem; color: var(--primary-700);">@Workspace.Currency @Workspace.TotalEopValue.ToString("N2")</span>
@@ -278,6 +296,11 @@
 </div>
 
 @code {
+    // The portal sends quantityKg/unitPricePerKg as 0 by design — it holds quantities per input
+    // (bags, litres), never a tonnage of the commodity being grown. Rendering a "0 kg" measurement
+    // invites a credit officer to treat the whole EOP as nonsense, so the columns are dropped
+    // entirely when nothing carries a quantity.
+    private bool ShowEopQuantities => Workspace.EopLines.Any(l => l.QuantityKg > 0 || l.UnitPricePerKg > 0);
     [Parameter, EditorRequired] public RhshfCaseWorkspaceDto Workspace { get; set; } = null!;
     [Parameter] public RhshfDirectorsDto? Directors { get; set; }
     [Parameter] public bool CanManageDirectors { get; set; }

@@ -159,4 +159,77 @@ public class RhshfCreditProfileTests
         Assert.Equal(2, result.Value.EopLines.Count);
         Assert.Contains(result.Value.EopLines, l => l.Commodity == "Maize" && l.LineValue == 34_000_000.00m);
     }
+
+    // ── fac.tin is optional (portal integration note §4.5) ───────────────────
+    //
+    // The RH-SHF portal has never captured a TIN. BOA accepted that a case can be assessed without
+    // one rather than block every existing FAC behind a collection exercise, so the guard that used
+    // to reject a missing TIN is gone. Every other identity field stays required.
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Create_WithoutATin_Succeeds(string? tin)
+    {
+        var a = ValidArgs();
+
+        var result = RhshfCreditProfile.Create(
+            a.submissionId, a.programmeCode, a.programmeName, a.sessionCode, a.sessionName, a.facId,
+            a.companyName, a.rcNumber, tin, a.boaAccountNumber, a.contactEmail, a.contactPhone, a.state, a.lga,
+            a.totalEopValue, a.currency, a.farmerCount, a.callbackUrl, a.certifiedByAdmin, a.certifiedAt,
+            a.rawSubmissionPayload, a.eopLines, a.resolvedBranchId, a.resolvedOfficeId);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Create_WithATin_StillRetainsIt()
+    {
+        var a = ValidArgs();
+
+        var result = RhshfCreditProfile.Create(
+            a.submissionId, a.programmeCode, a.programmeName, a.sessionCode, a.sessionName, a.facId,
+            a.companyName, a.rcNumber, "20481936-0001", a.boaAccountNumber, a.contactEmail, a.contactPhone,
+            a.state, a.lga, a.totalEopValue, a.currency, a.farmerCount, a.callbackUrl, a.certifiedByAdmin,
+            a.certifiedAt, a.rawSubmissionPayload, a.eopLines, a.resolvedBranchId, a.resolvedOfficeId);
+
+        Assert.Equal("20481936-0001", result.Value.Tin);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Create_WithMissingRcNumber_StillFails(string rcNumber)
+    {
+        // Relaxing the TIN must not quietly relax the rest of the FAC's identity — the RC number is
+        // what the CAC lookup and the company bureau check are keyed on.
+        var a = ValidArgs();
+
+        var result = RhshfCreditProfile.Create(
+            a.submissionId, a.programmeCode, a.programmeName, a.sessionCode, a.sessionName, a.facId,
+            a.companyName, rcNumber, a.tin, a.boaAccountNumber, a.contactEmail, a.contactPhone, a.state, a.lga,
+            a.totalEopValue, a.currency, a.farmerCount, a.callbackUrl, a.certifiedByAdmin, a.certifiedAt,
+            a.rawSubmissionPayload, a.eopLines, a.resolvedBranchId, a.resolvedOfficeId);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("rcNumber", result.Error);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Create_WithMissingBoaAccountNumber_StillFails(string boaAccountNumber)
+    {
+        var a = ValidArgs();
+
+        var result = RhshfCreditProfile.Create(
+            a.submissionId, a.programmeCode, a.programmeName, a.sessionCode, a.sessionName, a.facId,
+            a.companyName, a.rcNumber, a.tin, boaAccountNumber, a.contactEmail, a.contactPhone, a.state, a.lga,
+            a.totalEopValue, a.currency, a.farmerCount, a.callbackUrl, a.certifiedByAdmin, a.certifiedAt,
+            a.rawSubmissionPayload, a.eopLines, a.resolvedBranchId, a.resolvedOfficeId);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("boaAccountNumber", result.Error);
+    }
 }

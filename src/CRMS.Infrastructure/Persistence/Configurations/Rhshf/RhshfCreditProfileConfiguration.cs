@@ -26,7 +26,8 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
         builder.Property(x => x.FacId).IsRequired();
         builder.Property(x => x.CompanyName).IsRequired().HasMaxLength(200);
         builder.Property(x => x.RcNumber).IsRequired().HasMaxLength(50);
-        builder.Property(x => x.Tin).IsRequired().HasMaxLength(50);
+        // Optional — the portal does not capture a TIN. See RhshfCreditProfile.Tin.
+        builder.Property(x => x.Tin).HasMaxLength(50);
         builder.Property(x => x.BoaAccountNumber).IsRequired().HasMaxLength(50);
         builder.Property(x => x.ContactEmail).HasMaxLength(200);
         builder.Property(x => x.ContactPhone).HasMaxLength(30);

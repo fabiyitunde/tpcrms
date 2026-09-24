@@ -47,7 +47,13 @@ public class RhshfTokenService : IRhshfTokenService
             signingCredentials: credentials);
 
         var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-        var profilingUrl = $"{_settings.ProfilingBaseUrl.TrimEnd('/')}/{reference}?token={tokenString}";
+
+        // Route shape comes from RhshfSettings so the profiling and offer URLs cannot drift onto
+        // different hosts. Null means no public host is configured — hand back an empty string
+        // rather than a URL built on a placeholder, which is what shipped "crms.example.com" to the
+        // portal and left FACs with a link that resolves nowhere.
+        var baseUrl = _settings.BuildProfilingUrl(reference);
+        var profilingUrl = baseUrl is null ? string.Empty : $"{baseUrl}?token={tokenString}";
 
         return new RhshfIssuedTokenResult(tokenString, jti, expiresAt, profilingUrl);
     }

@@ -24,7 +24,12 @@ public class RhshfCreditProfile : AggregateRoot
     public Guid FacId { get; private set; }
     public string CompanyName { get; private set; } = string.Empty;
     public string RcNumber { get; private set; } = string.Empty;
-    public string Tin { get; private set; } = string.Empty;
+    /// <summary>
+    /// Optional. The RH-SHF portal has never captured a TIN, and BOA accepted that a case can be
+    /// assessed without one rather than block every existing FAC behind a collection exercise. It is
+    /// still worth having, so it is surfaced as explicitly missing rather than quietly blank.
+    /// </summary>
+    public string? Tin { get; private set; }
     public string BoaAccountNumber { get; private set; } = string.Empty;
     public string ContactEmail { get; private set; } = string.Empty;
     public string ContactPhone { get; private set; } = string.Empty;
@@ -159,7 +164,7 @@ public class RhshfCreditProfile : AggregateRoot
         Guid facId,
         string companyName,
         string rcNumber,
-        string tin,
+        string? tin,
         string boaAccountNumber,
         string contactEmail,
         string contactPhone,
@@ -180,8 +185,6 @@ public class RhshfCreditProfile : AggregateRoot
             return Result.Failure<RhshfCreditProfile>("fac.companyName is required.");
         if (string.IsNullOrWhiteSpace(rcNumber))
             return Result.Failure<RhshfCreditProfile>("fac.rcNumber is required.");
-        if (string.IsNullOrWhiteSpace(tin))
-            return Result.Failure<RhshfCreditProfile>("fac.tin is required.");
         if (string.IsNullOrWhiteSpace(boaAccountNumber))
             return Result.Failure<RhshfCreditProfile>("fac.boaAccountNumber is required.");
         if (string.IsNullOrWhiteSpace(programmeCode))

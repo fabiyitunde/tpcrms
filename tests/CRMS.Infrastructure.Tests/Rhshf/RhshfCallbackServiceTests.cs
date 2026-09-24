@@ -16,12 +16,16 @@ public class RhshfCallbackServiceTests
     {
         public string? CapturedBody { get; private set; }
         public string? CapturedSignatureHeader { get; private set; }
+        public string? CapturedTimestampHeader { get; private set; }
+        public string? CapturedSignatureV2Header { get; private set; }
         public HttpStatusCode ResponseStatus { get; set; } = HttpStatusCode.OK;
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             CapturedBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
             CapturedSignatureHeader = request.Headers.TryGetValues("X-CRMS-Signature", out var values) ? values.First() : null;
+            CapturedTimestampHeader = request.Headers.TryGetValues("X-CRMS-Timestamp", out var ts) ? ts.First() : null;
+            CapturedSignatureV2Header = request.Headers.TryGetValues("X-CRMS-Signature-V2", out var v2) ? v2.First() : null;
             return new HttpResponseMessage(ResponseStatus);
         }
     }
@@ -76,5 +80,82 @@ public class RhshfCallbackServiceTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(503, result.StatusCode);
+    }
+
+    // ── X-CRMS-Timestamp + V2 signature (portal integration note §4.4) ───────
+    //
+    // A timestamp only prevents replay if it is signed — otherwise an attacker replaying a captured
+    // callback just rewrites the header. But the portal verifies sha256(body) today, so V1 keeps its
+    // exact meaning and V2 carries the timestamped variant until they migrate.
+
+    [Fact]
+    public async Task SendAsync_SendsATimestampHeader()
+    {
+        var handler = new CapturingHandler();
+        var service = new RhshfCallbackService(
+            new HttpClient(handler), Options.Create(new RhshfSettings { CallbackSigningSecret = Secret }),
+            NullLogger<RhshfCallbackService>.Instance);
+        var before = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        await service.SendAsync("https://portal.example.gov.ng/webhook", new { reference = "RHSHF-2026-000123" });
+
+        Assert.NotNull(handler.CapturedTimestampHeader);
+        var sent = long.Parse(handler.CapturedTimestampHeader!);
+        Assert.InRange(sent, before - 5, DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 5);
+    }
+
+    [Fact]
+    public async Task SendAsync_V2Signature_CoversTheTimestampAndTheBody()
+    {
+        var handler = new CapturingHandler();
+        var service = new RhshfCallbackService(
+            new HttpClient(handler), Options.Create(new RhshfSettings { CallbackSigningSecret = Secret }),
+            NullLogger<RhshfCallbackService>.Instance);
+
+        await service.SendAsync("https://portal.example.gov.ng/webhook", new { reference = "RHSHF-2026-000123" });
+
+        var expected = $"sha256={RhshfCallbackService.ComputeTimestampedSignature(
+            handler.CapturedTimestampHeader!, handler.CapturedBody!, Secret)}";
+        Assert.Equal(expected, handler.CapturedSignatureV2Header);
+    }
+
+    [Fact]
+    public async Task SendAsync_V1Signature_IsUnchanged_SoTheExistingReceiverKeepsWorking()
+    {
+        var handler = new CapturingHandler();
+        var service = new RhshfCallbackService(
+            new HttpClient(handler), Options.Create(new RhshfSettings { CallbackSigningSecret = Secret }),
+            NullLogger<RhshfCallbackService>.Instance);
+
+        await service.SendAsync("https://portal.example.gov.ng/webhook", new { reference = "RHSHF-2026-000123" });
+
+        // Body only — no timestamp mixed in. This is the compatibility guarantee.
+        Assert.Equal(
+            $"sha256={RhshfCallbackService.ComputeSignature(handler.CapturedBody!, Secret)}",
+            handler.CapturedSignatureHeader);
+        Assert.NotEqual(handler.CapturedSignatureHeader, handler.CapturedSignatureV2Header);
+    }
+
+    [Fact]
+    public void TimestampedSignature_ChangesWithTheTimestamp_EvenForAnIdenticalBody()
+    {
+        // The property that makes replay detectable: the same captured body re-sent at a different
+        // time cannot reuse the old signature.
+        const string body = "{\"reference\":\"RHSHF-2026-000123\"}";
+
+        var a = RhshfCallbackService.ComputeTimestampedSignature("1700000000", body, Secret);
+        var b = RhshfCallbackService.ComputeTimestampedSignature("1700000060", body, Secret);
+
+        Assert.NotEqual(a, b);
+    }
+
+    [Fact]
+    public void TimestampedSignature_IsUnambiguous_BetweenTimestampAndBody()
+    {
+        // Without a separator, ("170", "0.body") and ("1700", ".body") would sign identical bytes.
+        var a = RhshfCallbackService.ComputeTimestampedSignature("170", "0.body", Secret);
+        var b = RhshfCallbackService.ComputeTimestampedSignature("1700", ".body", Secret);
+
+        Assert.NotEqual(a, b);
     }
 }

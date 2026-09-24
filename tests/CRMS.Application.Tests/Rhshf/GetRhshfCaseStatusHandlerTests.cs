@@ -27,7 +27,7 @@ public class GetRhshfCaseStatusHandlerTests
     public async Task Status_RightAfterCreate_IsProfilingPending_WithFirstStage()
     {
         var profile = MakeProfile();
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -48,7 +48,7 @@ public class GetRhshfCaseStatusHandlerTests
         profile.AdvanceStage(RhshfProfilingStage.CompanyVerification);
         profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck);
         profile.AdvanceStage(RhshfProfilingStage.EopReview);
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -77,7 +77,7 @@ public class GetRhshfCaseStatusHandlerTests
         offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
         offer.Accept(null);
         profile.AdvanceToLegalClearance();
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer));
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -104,12 +104,13 @@ public class GetRhshfCaseStatusHandlerTests
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
         var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer));
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
         Assert.Equal("UNDER_REVIEW", result.Data!.Status);
         Assert.Equal("REVIEW_OFFER", result.Data.ActionRequired);
+        Assert.Equal($"https://crms.test/rhshf/offer/{profile.Reference}", result.Data.ActionUrl);
         Assert.Null(result.Data.Decision);
     }
 
@@ -133,7 +134,7 @@ public class GetRhshfCaseStatusHandlerTests
         offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
         offer.Accept(null);
         profile.AdvanceToLegalClearance();
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer));
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -167,7 +168,7 @@ public class GetRhshfCaseStatusHandlerTests
         profile.ConfirmPreDeploymentChecklistItem(item.Id, Guid.NewGuid(), true, null);
         profile.CompletePreDeploymentVerification(Guid.NewGuid(), null);
         profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 9001L, "LN-009001", null);
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer));
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -197,7 +198,7 @@ public class GetRhshfCaseStatusHandlerTests
         var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
         offer.Reject("not interested");
         profile.CancelDueToOfferRejection("not interested");
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer));
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -209,7 +210,7 @@ public class GetRhshfCaseStatusHandlerTests
     [Fact]
     public async Task Status_CaseNotFound_Fails()
     {
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(null), new FakeOfferRepository());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(null), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery("RHSHF-2026-999999"));
 
@@ -241,5 +242,75 @@ public class GetRhshfCaseStatusHandlerTests
             => Task.FromResult(_offer is not null && _offer.RhshfCreditProfileId == rhshfCreditProfileId && _offer.CycleNumber == cycleNumber ? _offer : null);
         public Task AddAsync(RhshfOffer offer, CancellationToken ct = default) => Task.CompletedTask;
         public Task<RhshfOfferDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    // ── actionUrl (portal integration note §4.1) ─────────────────────────────
+    //
+    // The portal holds only the profilingUrl from submit, which points at a completed wizard with
+    // no route onward. Without a URL beside actionRequired, a FAC with an offer waiting has nowhere
+    // to go and the case stalls — so these assert the pairing, not just the flag.
+
+    [Fact]
+    public async Task ActionUrl_IsNull_WhenNoActionIsPending()
+    {
+        var profile = MakeProfile();
+        var handler = new GetRhshfCaseStatusHandler(
+            new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider());
+
+        var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
+
+        Assert.Null(result.Data!.ActionRequired);
+        Assert.Null(result.Data.ActionUrl);
+    }
+
+    [Fact]
+    public async Task ActionUrl_IsNull_WhenNoPublicHostIsConfigured()
+    {
+        // Better the portal sees a missing URL it can detect than a plausible one built on a
+        // placeholder host — that is exactly what shipped "crms.example.com" to them.
+        var profile = AwaitingOfferAcceptance(out var offer);
+        var handler = new GetRhshfCaseStatusHandler(
+            new FakeProfileRepository(profile), new FakeOfferRepository(offer),
+            new FakeRhshfPublicUrlProvider(host: null));
+
+        var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
+
+        Assert.Equal("REVIEW_OFFER", result.Data!.ActionRequired);
+        Assert.Null(result.Data.ActionUrl);
+    }
+
+    [Fact]
+    public async Task ActionUrl_PointsAtTheOfferPage_NotTheProfilingPage()
+    {
+        var profile = AwaitingOfferAcceptance(out var offer);
+        var handler = new GetRhshfCaseStatusHandler(
+            new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
+
+        var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
+
+        Assert.Contains("/rhshf/offer/", result.Data!.ActionUrl);
+        Assert.DoesNotContain("/rhshf/profiling/", result.Data.ActionUrl);
+        Assert.EndsWith(profile.Reference, result.Data.ActionUrl);
+        // No token: the portal mints its own via /token and appends it.
+        Assert.DoesNotContain("token=", result.Data.ActionUrl);
+    }
+
+    private static RhshfCreditProfile AwaitingOfferAcceptance(out RhshfOffer offer)
+    {
+        var profile = MakeProfile();
+        foreach (var stage in new[]
+        {
+            RhshfProfilingStage.CompanyVerification, RhshfProfilingStage.CreditBureauCheck,
+            RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
+        })
+        {
+            profile.AdvanceStageForTest(stage);
+        }
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
+        profile.AdvanceToRatification();
+        profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
+        offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
+        return profile;
     }
 }

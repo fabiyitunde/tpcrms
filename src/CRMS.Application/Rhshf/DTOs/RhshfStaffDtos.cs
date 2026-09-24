@@ -26,7 +26,7 @@ public record RhshfCaseWorkspaceDto(
     int CurrentCycleNumber,
     string CompanyName,
     string RcNumber,
-    string Tin,
+    string? Tin,
     string BoaAccountNumber,
     string State,
     string Lga,

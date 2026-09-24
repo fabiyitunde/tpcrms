@@ -27,7 +27,7 @@ public record RhshfFacDto(
     Guid FacId,
     string CompanyName,
     string RcNumber,
-    string Tin,
+    string? Tin,
     string BoaAccountNumber,
     RhshfFacContactDto? Contact,
     string? State,

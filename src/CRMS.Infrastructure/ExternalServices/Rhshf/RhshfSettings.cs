@@ -15,8 +15,44 @@ public class RhshfSettings
 
     public int TokenExpiryMinutes { get; set; } = 20;
 
-    /// <summary>Base URL the FAC opens the profiling form at; token is appended as a query string.</summary>
+    /// <summary>
+    /// Scheme + host CRMS is reachable at from the FAC's browser, e.g. "https://crms.boa.gov.ng".
+    /// No path — the routes below are CRMS's own and get appended to it.
+    ///
+    /// One host setting rather than one full URL per page: the portal asked for an actionUrl beside
+    /// actionRequired precisely so it need not hardcode our route shape, and two independently
+    /// configured base URLs that must agree on a host will eventually disagree in exactly one
+    /// environment.
+    /// </summary>
+    public string PublicBaseUrl { get; set; } = string.Empty;
+
+    /// <summary>Legacy full-path base for the profiling form. Superseded by PublicBaseUrl, still
+    /// read as a fallback so an environment configured the old way keeps working until migrated.</summary>
     public string ProfilingBaseUrl { get; set; } = string.Empty;
+
+    /// <summary>CRMS-owned route shapes. They live here, not in the portal's code, so that we stay
+    /// free to change them.</summary>
+    public const string ProfilingRoute = "/rhshf/profiling";
+    public const string OfferRoute = "/rhshf/offer";
+
+    /// <summary>
+    /// Absolute URL of the FAC-facing profiling form for a case, without a token — callers append
+    /// one. Falls back to the legacy ProfilingBaseUrl, and returns null when neither is configured
+    /// so a placeholder host is never handed to the portal as though it were real.
+    /// </summary>
+    public string? BuildProfilingUrl(string reference) =>
+        !string.IsNullOrWhiteSpace(PublicBaseUrl)
+            ? $"{PublicBaseUrl.TrimEnd('/')}{ProfilingRoute}/{reference}"
+            : !string.IsNullOrWhiteSpace(ProfilingBaseUrl)
+                ? $"{ProfilingBaseUrl.TrimEnd('/')}/{reference}"
+                : null;
+
+    /// <summary>Absolute URL of the FAC-facing offer acceptance page for a case, without a token.
+    /// Null when PublicBaseUrl is unconfigured — there is no legacy setting to fall back to.</summary>
+    public string? BuildOfferUrl(string reference) =>
+        !string.IsNullOrWhiteSpace(PublicBaseUrl)
+            ? $"{PublicBaseUrl.TrimEnd('/')}{OfferRoute}/{reference}"
+            : null;
 
     /// <summary>Single flat committee for v1 (design doc §6 #11) — no value-based tiers like NAMP's
     /// Branch/Zonal/Regional/HO ladder. Quorum/majority thresholds for every RH-SHF committee vote.</summary>

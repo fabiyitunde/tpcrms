@@ -1,5 +1,7 @@
 using CRMS.Application.Common;
 using CRMS.Application.Rhshf.DTOs;
+using CRMS.Domain.Aggregates.Rhshf;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Rhshf.Queries;
@@ -10,12 +12,15 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
 {
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfDocumentRequirementRepository _requirementRepo;
+    private readonly IRhshfOfferRepository _offerRepo;
 
     public GetRhshfProfilingSessionHandler(
-        IRhshfCreditProfileRepository repo, IRhshfDocumentRequirementRepository requirementRepo)
+        IRhshfCreditProfileRepository repo, IRhshfDocumentRequirementRepository requirementRepo,
+        IRhshfOfferRepository offerRepo)
     {
         _repo = repo;
         _requirementRepo = requirementRepo;
+        _offerRepo = offerRepo;
     }
 
     public async Task<ApplicationResult<RhshfProfilingSessionDto>> Handle(
@@ -63,8 +68,20 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
                 .Select(p => new RhshfProfilingFarmPlanDto(
                     p.Id, p.Crop, p.Hectares, p.ExpectedYieldKgPerHectare, p.ExpectedPricePerKg,
                     p.ExpectedOutputKg, p.ExpectedRevenue))
-                .ToList());
+                .ToList(),
+            IsAwaitingOfferAcceptance: await IsAwaitingOfferAcceptanceAsync(profile, ct));
 
         return ApplicationResult<RhshfProfilingSessionDto>.Success(dto);
+    }
+
+    /// <summary>Same condition the status endpoint reports as REVIEW_OFFER: an offer exists for this
+    /// cycle and is still Generated (neither accepted nor rejected).</summary>
+    private async Task<bool> IsAwaitingOfferAcceptanceAsync(RhshfCreditProfile profile, CancellationToken ct)
+    {
+        if (profile.InternalStage != RhshfInternalStage.AwaitingOfferAcceptance)
+            return false;
+
+        var offer = await _offerRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
+        return offer is not null && offer.Status == RhshfOfferStatus.Generated;
     }
 }
