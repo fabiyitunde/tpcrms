@@ -1,0 +1,38 @@
+{
+  "submissionId": "c5440913-97c1-453e-813a-d7a978d44028",
+  "programme": {
+    "code": "RH-SHF-DRY-2026",
+    "name": "Renewed Hope Smallholder Farmer Dry Season Input Financing"
+  },
+  "session": {
+    "code": "2026-DRY-NORTH",
+    "name": "Dry Season (North) 2026"
+  },
+  "fac": {
+    "facId": "66588067-b3f4-4386-840f-14ea3e5198e3",
+    "companyName": "Kano Agro Aggregators Limited",
+    "rcNumber": "RC552013",
+    "tin": "20481936-0001",
+    "boaAccountNumber": "0000000029",
+    "contact": {
+      "email": "operations@kanoagro.ng",
+      "phone": "+2348030001122"
+    },
+    "state": "Kano",
+    "lga": "Dawakin Kudu"
+  },
+  "totalEopValue": 18500000.00,
+  "currency": "NGN",
+  "farmerCount": 1400,
+  "eopLines": [
+    { "commodity": "Hybrid Maize Seed (SAMMAZ 52)", "quantityKg": 0, "unitPricePerKg": 0, "lineValue": 7500000.00 },
+    { "commodity": "NPK 20:10:10 Fertiliser",        "quantityKg": 0, "unitPricePerKg": 0, "lineValue": 8000000.00 },
+    { "commodity": "Urea (46% N)",                    "quantityKg": 0, "unitPricePerKg": 0, "lineValue": 3000000.00 }
+  ],
+  "callbackUrl": "https://portal.renewedhope.gov.ng/api/integrations/crms/webhook",
+  "metadata": {
+    "certifiedByAdmin": "programme.admin@boa.gov.ng",
+    "certifiedAt": "2026-09-25T08:00:00Z",
+    "clusterName": "Dawakin Kudu Maize Cluster"
+  }
+}
