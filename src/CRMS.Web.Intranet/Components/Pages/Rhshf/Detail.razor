@@ -246,7 +246,7 @@ else
             break;
         case "directors":
             <DirectorsTab Directors="directors" CanManageDirectors="CanManageDirectors"
-                IsFetchingCac="isFetchingCac" CacError="cacError"
+                IsFetchingCac="isFetchingCac" CacError="@cacError"
                 OnFetchCac="FetchCacDetails" OnAddDirector="OpenAddDirectorModal"
                 OnEditDirector="OpenEditDirectorModal" OnRemoveDirector="RemoveDirector" />
             break;
@@ -255,7 +255,7 @@ else
             break;
         case "bureau":
             <BureauTab Reports="bureauReports" CanRecheck="CanRunBureauChecks" IsRechecking="isRunningBureauChecks"
-                RecheckError="bureauError" OnRecheck="RunBureauChecks" />
+                RecheckError="@bureauError" OnRecheck="RunBureauChecks" />
             break;
         case "collateral":
             <CollateralTab Records="collateralRecords" CanUpload="CanClearLegally"
@@ -266,7 +266,7 @@ else
                 OnFetchBytes="AppService.DownloadRhshfSupportingDocumentAsync" />
             break;
         case "financialappraisal":
-            <FinancialAppraisalTab Data="financialAppraisal" LoadError="financialAppraisalError"
+            <FinancialAppraisalTab Data="financialAppraisal" LoadError="@financialAppraisalError"
                 CanEdit="CanEditFinancialAppraisal"
                 OnAddFarmPlan="OpenAddFarmPlanModal" OnEditFarmPlan="OpenEditFarmPlanModal"
                 OnRemoveFarmPlan="RemoveFarmPlan" OnOpenAppraisal="OpenFinancialAppraisalModal" />
@@ -281,7 +281,7 @@ else
             <CommitteeTab Committee="committeeReview" CurrentUserId="CurrentUserId" />
             break;
         case "ratification":
-            <RatificationTab Ratifications="workspace.Ratifications" Currency="workspace.Currency" />
+            <RatificationTab Ratifications="workspace.Ratifications" Currency="@workspace.Currency" />
             break;
         case "offer":
             <OfferTab Offer="offer" OnDownload="DownloadOfferDocument" />
@@ -296,7 +296,7 @@ else
             <DisbursementTab History="disbursementHistory" />
             break;
         case "loanaccount":
-            <RhshfLoanAccountTab LoanAccount="loanAccount" LoanAccountError="loanAccountError" OnRefresh="LoadLoanAccount" />
+            <RhshfLoanAccountTab LoanAccount="loanAccount" LoanAccountError="@loanAccountError" OnRefresh="LoadLoanAccount" />
             break;
         case "advisory":
             <AdvisoryTab Advisory="advisory" IsGenerating="isGeneratingAdvisory" CanGenerate="CanGenerateAdvisory" OnGenerate="GenerateAdvisory"
@@ -310,55 +310,55 @@ else
 
     @if (openModal == "eligibility")
     {
-        <EligibilityChecklistModal OnClose="CloseModal" OnConfirm="SubmitEligibilityChecklist" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+        <EligibilityChecklistModal OnClose="CloseModal" OnConfirm="SubmitEligibilityChecklist" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "collateral")
     {
-        <CollateralModal OnClose="CloseModal" OnConfirm="SubmitCollateral" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+        <CollateralModal OnClose="CloseModal" OnConfirm="SubmitCollateral" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "disbursement")
     {
-        <DisbursementModal OnClose="CloseModal" OnConfirm="SubmitDisbursement" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+        <DisbursementModal OnClose="CloseModal" OnConfirm="SubmitDisbursement" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "appraisal")
     {
-        <AppraisalModal Intent="modalIntent" OnClose="CloseModal" OnConfirm="SubmitAppraisal" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+        <AppraisalModal Intent="@modalIntent" OnClose="CloseModal" OnConfirm="SubmitAppraisal" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "riskreview")
     {
-        <RiskReviewModal Intent="modalIntent" OnClose="CloseModal" OnConfirm="SubmitRiskReview" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+        <RiskReviewModal Intent="@modalIntent" OnClose="CloseModal" OnConfirm="SubmitRiskReview" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "committee")
     {
-        <CommitteeVoteModal Intent="modalIntent" OnClose="CloseModal" OnVote="SubmitCommitteeVote" OnReturnToFac="SubmitCommitteeReturnToFac" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+        <CommitteeVoteModal Intent="@modalIntent" OnClose="CloseModal" OnVote="SubmitCommitteeVote" OnReturnToFac="SubmitCommitteeReturnToFac" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "ratification")
     {
-        <RatificationModal Intent="modalIntent" TotalEopValue="workspace.TotalEopValue" Currency="workspace.Currency" OnClose="CloseModal" OnConfirm="SubmitRatify" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+        <RatificationModal Intent="@modalIntent" TotalEopValue="workspace.TotalEopValue" Currency="@workspace.Currency" OnClose="CloseModal" OnConfirm="SubmitRatify" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "legal")
     {
-        <LegalClearanceModal Intent="modalIntent" OnClose="CloseModal" OnConfirm="SubmitLegalClearance" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+        <LegalClearanceModal Intent="@modalIntent" OnClose="CloseModal" OnConfirm="SubmitLegalClearance" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "farmplan")
     {
-        <FarmPlanModal Existing="editingFarmPlan" Currency="workspace.Currency" OnClose="CloseModal"
-            OnAdd="SubmitAddFarmPlan" OnUpdate="SubmitUpdateFarmPlan" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+        <FarmPlanModal Existing="editingFarmPlan" Currency="@workspace.Currency" OnClose="CloseModal"
+            OnAdd="SubmitAddFarmPlan" OnUpdate="SubmitUpdateFarmPlan" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "financialappraisal" && financialAppraisal is not null)
     {
         <FinancialAppraisalModal Data="financialAppraisal" OnClose="CloseModal"
-            OnConfirm="SubmitFinancialAppraisal" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+            OnConfirm="SubmitFinancialAppraisal" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "director")
     {
         <DirectorModal Existing="editingDirector" OnClose="CloseModal" OnAdd="SubmitAddDirector"
-            OnUpdate="SubmitUpdateDirector" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+            OnUpdate="SubmitUpdateDirector" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "predeployment")
     {
         <PreDeploymentGateModal Checklist="preDeploymentChecklist" OnClose="CloseModal" OnConfirmItem="SubmitConfirmChecklistItem"
-            OnComplete="SubmitCompletePreDeployment" IsSubmitting="isSubmitting" ErrorMessage="modalError" />
+            OnComplete="SubmitCompletePreDeployment" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
 }
 
