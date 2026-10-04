@@ -109,7 +109,7 @@ public class AppraisalAndRiskReviewHandlerTests
     {
         var profile = MakeProfileUnderReview();
         var repo = new FakeRepository(profile);
-        var handler = new GetRhshfCaseWorkspaceHandler(repo, new FakeUserNameResolver());
+        var handler = new GetRhshfCaseWorkspaceHandler(repo, new FakeUserNameResolver(), new FakeRoutingConfigRepository());
 
         var result = await handler.Handle(new GetRhshfCaseWorkspaceQuery(profile.Reference));
 
@@ -133,7 +133,7 @@ public class AppraisalAndRiskReviewHandlerTests
             [creditOfficerId] = "Chukwuemeka Obi",
             [riskOfficerId] = "Adaeze Nwosu",
         });
-        var handler = new GetRhshfCaseWorkspaceHandler(new FakeRepository(profile), resolver);
+        var handler = new GetRhshfCaseWorkspaceHandler(new FakeRepository(profile), resolver, new FakeRoutingConfigRepository());
 
         var result = await handler.Handle(new GetRhshfCaseWorkspaceQuery(profile.Reference));
 

@@ -2,369 +2,301 @@
 @using CRMS.Application.Rhshf.Queries
 @using CRMS.Domain.Enums
 
-<div style="display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start;">
+@* Mirrors Corporate's OverviewTab structure: two side-by-side info cards + a full-width summary
+   stat row, using the same info-grid / summary-stat layout. RH-SHF peculiarities (the EOP
+   breakdown, the directors capture, the decision record) are kept as additional full-width cards
+   below, which Corporate's Overview has no equivalent for. Status lives in the page header badge
+   and the Workflow tab, same as Corporate — the old Case Status / Stage Progression side column is
+   gone. Directors management stays here for now; it moves to its own tab (mirroring Corporate's
+   Directors & Signatories) in the next step. *@
 
-    <!-- LEFT COLUMN -->
-    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-
-        <div class="card">
-            <div class="card-header"><h3 class="card-title">Case Summary</h3></div>
-            <div class="card-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                    @FieldChip("Reference", Workspace.Reference)
-                    @FieldChip("Submission ID", Workspace.SubmissionId.ToString())
-                    @FieldChip("Company", Workspace.CompanyName)
-                    @FieldChip("RC Number", Workspace.RcNumber)
-                    @FieldChip("TIN", string.IsNullOrWhiteSpace(Workspace.Tin) ? "Not provided" : Workspace.Tin)
-                    @FieldChip("BOA Account", Workspace.BoaAccountNumber)
-                    @FieldChip("Location", $"{Workspace.Lga}, {Workspace.State}")
-                    @FieldChip("Farmer Count", Workspace.FarmerCount?.ToString("N0"))
-                    @FieldChip("Received", Workspace.ReceivedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
-                    @FieldChip("Last Updated", Workspace.UpdatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
+<div class="grid grid-cols-2 gap-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">FAC Information</h3>
+        </div>
+        <div class="card-body">
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Company Name</span>
+                    <span class="info-value">@Workspace.CompanyName</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">BOA Account</span>
+                    <span class="info-value">@Workspace.BoaAccountNumber</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">RC Number</span>
+                    <span class="info-value">@Workspace.RcNumber</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">TIN</span>
+                    <span class="info-value">@(string.IsNullOrWhiteSpace(Workspace.Tin) ? "Not provided" : Workspace.Tin)</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Location</span>
+                    <span class="info-value">@Workspace.Lga, @Workspace.State</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Farmers Served</span>
+                    <span class="info-value">@(Workspace.FarmerCount?.ToString("N0") ?? "N/A")</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Received</span>
+                    <span class="info-value">@Workspace.ReceivedAt.ToLocalTime().ToString("MMM dd, yyyy")</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Submission ID</span>
+                    <span class="info-value" style="font-size: var(--text-xs);">@Workspace.SubmissionId</span>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="card">
-            <div class="card-header"><h3 class="card-title">EOP Breakdown</h3></div>
-            @if (Workspace.EopLines.Count == 0)
-            {
-                <div class="empty-state">
-                    <div class="empty-state-icon"><span class="material-symbols-outlined">agriculture</span></div>
-                    <div class="empty-state-title">No EOP lines</div>
-                    <div class="empty-state-text">No commodity lines were submitted for this cycle.</div>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Facility Details</h3>
+        </div>
+        <div class="card-body">
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Product</span>
+                    <span class="info-value">RH-SHF Dry Season Input Financing</span>
                 </div>
-            }
-            else
-            {
-                <div class="table-wrapper">
-                    <table class="table">
-                        <thead>
+                <div class="info-item">
+                    <span class="info-label">Requested Amount</span>
+                    <span class="info-value" style="color: var(--primary-600); font-weight: 600;">@Workspace.Currency @Workspace.TotalEopValue.ToString("N2")</span>
+                </div>
+                @if (Workspace.ApprovedAmount.HasValue)
+                {
+                    <div class="info-item">
+                        <span class="info-label">Approved Amount</span>
+                        <span class="info-value" style="color: var(--success-600); font-weight: 600;">@Workspace.Currency @Workspace.ApprovedAmount.Value.ToString("N2")</span>
+                    </div>
+                }
+                <div class="info-item">
+                    <span class="info-label">Committee Tier</span>
+                    <span class="info-value">
+                        @if (Workspace.CommitteeTier is not null)
+                        {
+                            <span class="badge badge-primary">@Workspace.CommitteeTier</span>
+                            <span style="font-size: var(--text-xs); color: var(--gray-500);"> routed by @Workspace.Currency @Workspace.TotalEopValue.ToString("N0") (@Workspace.CommitteeTierBand)</span>
+                        }
+                        else
+                        {
+                            <text>—</text>
+                        }
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Currency</span>
+                    <span class="info-value">@Workspace.Currency</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Cycle</span>
+                    <span class="info-value">@Workspace.CurrentCycleNumber</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Bureau Outcome</span>
+                    <span class="info-value">@Workspace.BureauCheckOutcome</span>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Workspace.BranchResolutionNote))
+                {
+                    <div class="info-item full-width">
+                        <span class="info-label">Branch Routing</span>
+                        <span class="info-value">@Workspace.BranchResolutionNote</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="grid-column: span 2;">
+        <div class="card-header">
+            <h3 class="card-title">Application Summary</h3>
+        </div>
+        <div class="card-body">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-6);">
+                <div class="summary-stat">
+                    <div class="summary-stat-value">@(Directors?.Directors.Count ?? 0)</div>
+                    <div class="summary-stat-label">Directors</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-stat-value">@Workspace.SupportingDocuments.Count</div>
+                    <div class="summary-stat-label">Documents</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-stat-value">@Workspace.EopLines.Count</div>
+                    <div class="summary-stat-label">EOP Lines</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-stat-value">@(Workspace.FarmerCount?.ToString("N0") ?? "0")</div>
+                    <div class="summary-stat-label">Farmers</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- EOP Breakdown — RH-SHF peculiarity; no Corporate equivalent -->
+    <div class="card" style="grid-column: span 2;">
+        <div class="card-header"><h3 class="card-title">EOP Breakdown</h3></div>
+        @if (Workspace.EopLines.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">agriculture</span></div>
+                <div class="empty-state-title">No EOP lines</div>
+                <div class="empty-state-text">No commodity lines were submitted for this cycle.</div>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Commodity</th>
+                            @if (ShowEopQuantities)
+                            {
+                                <th style="text-align: right;">Qty (kg)</th>
+                                <th style="text-align: right;">Unit Price</th>
+                            }
+                            <th style="text-align: right;">Line Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var line in Workspace.EopLines)
+                        {
                             <tr>
-                                <th>Commodity</th>
+                                <td>@line.Commodity</td>
                                 @if (ShowEopQuantities)
                                 {
-                                    <th style="text-align: right;">Qty (kg)</th>
-                                    <th style="text-align: right;">Unit Price</th>
+                                    <td style="text-align: right;">@(line.QuantityKg > 0 ? line.QuantityKg.ToString("N0") : "—")</td>
+                                    <td style="text-align: right;">@(line.UnitPricePerKg > 0 ? line.UnitPricePerKg.ToString("N2") : "—")</td>
                                 }
-                                <th style="text-align: right;">Line Value</th>
+                                <td style="text-align: right; font-weight: 600;">@line.LineValue.ToString("N2")</td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var line in Workspace.EopLines)
-                            {
-                                <tr>
-                                    <td>@line.Commodity</td>
-                                    @if (ShowEopQuantities)
-                                    {
-                                        <td style="text-align: right;">@(line.QuantityKg > 0 ? line.QuantityKg.ToString("N0") : "—")</td>
-                                        <td style="text-align: right;">@(line.UnitPricePerKg > 0 ? line.UnitPricePerKg.ToString("N2") : "—")</td>
-                                    }
-                                    <td style="text-align: right; font-weight: 600;">@line.LineValue.ToString("N2")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                @if (!ShowEopQuantities)
-                {
-                    <div style="padding: 0 1rem 0.75rem; font-size: 0.8rem; color: var(--gray-500);">
-                        The portal records input quantities per item (bags, litres), not a tonnage of
-                        the commodity grown, so no per-commodity quantity is available. Values are exact.
-                    </div>
-                }
-                <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 600; color: var(--gray-700);">Total EOP Value</span>
-                    <span style="font-weight: 700; font-size: 1.05rem; color: var(--primary-700);">@Workspace.Currency @Workspace.TotalEopValue.ToString("N2")</span>
-                </div>
-            }
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <div>
-                    <h3 class="card-title">
-                        Directors &amp; Shareholders
-                        @if (Directors?.Directors.Count > 0)
-                        {
-                            <span class="badge badge-gray" style="margin-left: 4px;">@Directors.Directors.Count</span>
                         }
-                    </h3>
-                    @if (Directors?.CacFetchedAt is not null)
-                    {
-                        <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">
-                            CAC data fetched @Directors.CacFetchedAt.Value.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
-                            @if (!string.IsNullOrEmpty(Directors.CacStatus)) { <text>&middot; @Directors.CacStatus</text> }
-                        </div>
-                    }
-                </div>
-                @if (CanManageDirectors)
-                {
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        @if (!string.IsNullOrEmpty(CacError))
-                        {
-                            <span style="font-size: 0.8rem; color: var(--danger-600);">@CacError</span>
-                        }
-                        <button class="btn btn-outline btn-sm" @onclick="() => OnFetchCac.InvokeAsync()" disabled="@IsFetchingCac">
-                            @if (IsFetchingCac)
-                            {
-                                <span class="spinner" style="width: 12px; height: 12px;"></span> <span>Fetching…</span>
-                            }
-                            else
-                            {
-                                <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">cloud_download</span>
-                                <span>@(Directors?.CacFetchedAt is null ? "Fetch from CAC" : "Refresh from CAC")</span>
-                            }
-                        </button>
-                        <button class="btn btn-outline btn-sm" @onclick="() => OnAddDirector.InvokeAsync()">
-                            <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">add</span> Add Manually
-                        </button>
-                    </div>
-                }
+                    </tbody>
+                </table>
             </div>
-
-            @if (Directors is null || Directors.Directors.Count == 0)
+            @if (!ShowEopQuantities)
             {
-                <div class="empty-state">
-                    <div class="empty-state-icon"><span class="material-symbols-outlined">groups</span></div>
-                    <div class="empty-state-title">No directors on record</div>
-                    <div class="empty-state-text">
-                        @(CanManageDirectors
-                            ? "Use \"Fetch from CAC\" or add them manually. Credit bureau checks cover every director with a BVN."
-                            : "No directors or shareholders have been recorded for this FAC.")
-                    </div>
+                <div style="padding: 0 1rem 0.75rem; font-size: 0.8rem; color: var(--gray-500);">
+                    The portal records input quantities per item (bags, litres), not a tonnage of the
+                    commodity grown, so no per-commodity quantity is available. Values are exact.
                 </div>
             }
-            else
-            {
-                <div class="table-wrapper">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Name</th><th>Role</th><th>Shares</th><th>Shareholding</th><th>BVN</th><th>Source</th>
-                                @if (CanManageDirectors) { <th style="width: 80px;"></th> }
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var d in Directors.Directors)
-                            {
-                                <tr>
-                                    <td>
-                                        <div style="font-weight: 600;">@d.FullName</div>
-                                        @if (!string.IsNullOrEmpty(d.Occupation))
-                                        {
-                                            <div style="font-size: 0.75rem; color: var(--gray-500);">@d.Occupation</div>
-                                        }
-                                    </td>
-                                    <td>
-                                        @if (d.IsChairman)
-                                        {
-                                            <span class="badge badge-primary">Chairman</span>
-                                        }
-                                        else
-                                        {
-                                            <span>@(string.IsNullOrEmpty(d.AffiliateType) ? "Director" : d.AffiliateType)</span>
-                                        }
-                                    </td>
-                                    <td>
-                                        @(d.NumSharesAllotted?.ToString("N0") ?? "—")
-                                        @if (!string.IsNullOrEmpty(d.TypeOfShares))
-                                        {
-                                            <div style="font-size: 0.7rem; color: var(--gray-500);">@d.TypeOfShares</div>
-                                        }
-                                    </td>
-                                    <td>@(d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:0.##}%" : "—")</td>
-                                    <td>
-                                        @* Presence only — the BVN itself never reaches the browser. *@
-                                        @if (d.HasBvn)
-                                        {
-                                            <span class="badge badge-success">Provided</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge badge-warning">Missing</span>
-                                        }
-                                    </td>
-                                    <td><span style="font-size: 0.8rem; color: var(--gray-500);">@(d.SourcedFromCac ? "CAC" : "Manual")</span></td>
-                                    @if (CanManageDirectors)
-                                    {
-                                        <td style="white-space: nowrap;">
-                                            <button class="btn btn-ghost btn-sm" title="Complete BVN / shareholding" @onclick="() => OnEditDirector.InvokeAsync(d)">
-                                                <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
-                                            </button>
-                                            @if (!d.SourcedFromCac)
-                                            {
-                                                <button class="btn btn-ghost btn-sm" title="Remove" style="color: var(--danger-600);" @onclick="() => OnRemoveDirector.InvokeAsync(d.Id)">
-                                                    <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
-                                                </button>
-                                            }
-                                        </td>
-                                    }
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                @if (Directors.Directors.Any(d => !d.HasBvn))
-                {
-                    <div class="card-footer">
-                        <div class="alert alert-warning" style="margin: 0; font-size: 0.85rem;">
-                            <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">warning</span>
-                            Some directors are missing a BVN. Bureau checks cover every director with one — complete the
-                            missing BVNs, then re-run the checks from the Credit Bureau tab.
-                        </div>
-                    </div>
-                }
-            }
-        </div>
-
-        @if (Workspace.DecisionOutcome is not null || Workspace.Status is RhshfCaseStatus.Cancelled)
-        {
-            <div class="card">
-                <div class="card-header"><h3 class="card-title">Decision</h3></div>
-                <div class="card-body">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                        @FieldChip("Outcome", Workspace.DecisionOutcome?.ToString() ?? "— (withdrawal, not a bank decision)")
-                        @if (Workspace.ApprovedAmount is not null)
-                        {
-                            @FieldChip("Approved Amount", $"{Workspace.Currency} {Workspace.ApprovedAmount.Value:N2}")
-                        }
-                        @FieldChip("Decided At", Workspace.DecidedAt?.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
-                        @FieldChip("Decided By", Workspace.DecidedBy)
-                    </div>
-                    @if (!string.IsNullOrEmpty(Workspace.DecisionNotes))
-                    {
-                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-100);">
-                            <div class="field-chip-label" style="margin-bottom: 0.35rem;">Notes</div>
-                            <div style="font-size: 0.875rem; color: var(--gray-700);">@Workspace.DecisionNotes</div>
-                        </div>
-                    }
-                </div>
+            <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 600; color: var(--gray-700);">Total EOP Value</span>
+                <span style="font-weight: 700; font-size: 1.05rem; color: var(--primary-700);">@Workspace.Currency @Workspace.TotalEopValue.ToString("N2")</span>
             </div>
         }
     </div>
 
-    <!-- RIGHT COLUMN -->
-    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-
-        <div class="card">
-            <div class="card-header"><h3 class="card-title">Case Status</h3></div>
-            <div class="card-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                <div class="summary-row"><span class="summary-row-label">Status</span><span class="summary-row-value"><span class="badge @StatusBadgeClass(Workspace.Status)">@Workspace.Status</span></span></div>
-                @if (Workspace.InternalStage is not null)
-                {
-                    <div class="summary-row"><span class="summary-row-label">Internal Stage</span><span class="summary-row-value">@Workspace.InternalStage</span></div>
-                }
-                <div class="summary-row"><span class="summary-row-label">Cycle</span><span class="summary-row-value">@Workspace.CurrentCycleNumber</span></div>
-                <div class="summary-row"><span class="summary-row-label">Bureau Outcome</span><span class="summary-row-value">@Workspace.BureauCheckOutcome</span></div>
-                @if (!string.IsNullOrWhiteSpace(Workspace.BranchResolutionNote))
-                {
-                    <div style="padding-top: 0.5rem; border-top: 1px dashed var(--gray-200);">
-                        <div class="field-chip-label">Branch Routing</div>
-                        <div style="font-size: 0.8rem; color: var(--gray-600); margin-top: 0.2rem;">@Workspace.BranchResolutionNote</div>
+    @if (Workspace.DecisionOutcome is not null || Workspace.Status is RhshfCaseStatus.Cancelled)
+    {
+        <div class="card" style="grid-column: span 2;">
+            <div class="card-header"><h3 class="card-title">Decision</h3></div>
+            <div class="card-body">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Outcome</span>
+                        <span class="info-value">
+                            <span class="badge @DecisionBadgeClass()">@(Workspace.DecisionOutcome?.ToString() ?? "Cancelled")</span>
+                        </span>
                     </div>
-                }
+                    @if (Workspace.ApprovedAmount.HasValue)
+                    {
+                        <div class="info-item">
+                            <span class="info-label">Approved Amount</span>
+                            <span class="info-value">@Workspace.Currency @Workspace.ApprovedAmount.Value.ToString("N2")</span>
+                        </div>
+                    }
+                    <div class="info-item">
+                        <span class="info-label">Decided At</span>
+                        <span class="info-value">@(Workspace.DecidedAt?.ToLocalTime().ToString("MMM dd, yyyy HH:mm") ?? "—")</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Decided By</span>
+                        <span class="info-value">@(Workspace.DecidedBy ?? "—")</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(Workspace.DecisionNotes))
+                    {
+                        <div class="info-item full-width">
+                            <span class="info-label">Notes</span>
+                            <span class="info-value">@Workspace.DecisionNotes</span>
+                        </div>
+                    }
+                </div>
             </div>
         </div>
-
-        <div class="card">
-            <div class="card-header"><h3 class="card-title">Stage Progression</h3></div>
-            <div class="card-body" style="padding: 0;">
-                @foreach (var stage in StageProgression)
-                {
-                    var completed = IsStageCompleted(stage.Ordinal);
-                    var current = IsStageCurrent(stage.Ordinal);
-                    <div style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.65rem 1rem; border-bottom: 1px solid var(--gray-100); @(current ? "background: var(--primary-50);" : "")">
-                        <div style="width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 700;
-                            background: @(completed ? "var(--success-500)" : current ? "var(--primary-500)" : "var(--gray-200)");
-                            color: @(completed || current ? "white" : "var(--gray-500)");">
-                            @if (completed)
-                            { <span class="material-symbols-outlined" style="font-size: 14px;">check</span> }
-                            else
-                            { <span>@stage.Order</span> }
-                        </div>
-                        <div>
-                            <div style="font-weight: 600; font-size: 0.8rem; @(current ? "color: var(--primary-700);" : "")">@stage.Name</div>
-                            <div style="font-size: 0.75rem; color: var(--gray-500);">@stage.Role</div>
-                        </div>
-                    </div>
-                }
-            </div>
-        </div>
-    </div>
+    }
 </div>
 
+<style>
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-4);
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+    }
+
+    .info-item.full-width {
+        grid-column: span 2;
+    }
+
+    .info-label {
+        font-size: var(--text-xs);
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .info-value {
+        font-size: var(--text-sm);
+        color: var(--gray-800);
+    }
+
+    .summary-stat {
+        text-align: center;
+        padding: var(--space-4);
+        background: var(--gray-50);
+        border-radius: var(--radius-lg);
+    }
+
+    .summary-stat-value {
+        font-size: var(--text-3xl);
+        font-weight: 700;
+        color: var(--primary-600);
+    }
+
+    .summary-stat-label {
+        font-size: var(--text-sm);
+        color: var(--gray-500);
+        margin-top: var(--space-1);
+    }
+</style>
+
 @code {
-    // The portal sends quantityKg/unitPricePerKg as 0 by design — it holds quantities per input
-    // (bags, litres), never a tonnage of the commodity being grown. Rendering a "0 kg" measurement
-    // invites a credit officer to treat the whole EOP as nonsense, so the columns are dropped
-    // entirely when nothing carries a quantity.
-    private bool ShowEopQuantities => Workspace.EopLines.Any(l => l.QuantityKg > 0 || l.UnitPricePerKg > 0);
     [Parameter, EditorRequired] public RhshfCaseWorkspaceDto Workspace { get; set; } = null!;
+    // Directors list is passed for the Application Summary count only — management lives on the
+    // Directors & Signatories tab now (mirroring Corporate's Parties tab).
     [Parameter] public RhshfDirectorsDto? Directors { get; set; }
-    [Parameter] public bool CanManageDirectors { get; set; }
-    [Parameter] public bool IsFetchingCac { get; set; }
-    [Parameter] public string? CacError { get; set; }
-    [Parameter] public EventCallback OnFetchCac { get; set; }
-    [Parameter] public EventCallback OnAddDirector { get; set; }
-    [Parameter] public EventCallback<RhshfDirectorDto> OnEditDirector { get; set; }
-    [Parameter] public EventCallback<Guid> OnRemoveDirector { get; set; }
 
-    private record StageInfo(int Order, string Name, string Role, int Ordinal);
+    // The portal sends quantityKg/unitPricePerKg as 0 by design — it holds quantities per input
+    // (bags, litres), never a tonnage of the commodity grown. Rendering a "0 kg" measurement invites
+    // a credit officer to treat the whole EOP as nonsense, so the columns drop when none carry one.
+    private bool ShowEopQuantities => Workspace.EopLines.Any(l => l.QuantityKg > 0 || l.UnitPricePerKg > 0);
 
-    // Ordinal buckets line up with RhshfInternalStage's own declaration order — -1 represents
-    // "before any internal stage has been assigned" (FAC submission/profiling). Post-disbursement
-    // Active/Closed monitoring isn't a step here — it has its own Loan Account tab.
-    private static readonly List<StageInfo> StageProgression =
-    [
-        new(1, "Received & FAC Profiling", "FAC / Loan Officer", -1),
-        new(2, "Appraisal", "Credit Officer", (int)RhshfInternalStage.Appraisal),
-        new(3, "Risk Review", "Risk Officer", (int)RhshfInternalStage.RiskReview),
-        new(4, "Committee Voting", "Committee Members", (int)RhshfInternalStage.CommitteeVoting),
-        new(5, "Ratification", "Final Approver", (int)RhshfInternalStage.Ratification),
-        new(6, "Offer Letter", "FAC (Offer Acceptance)", (int)RhshfInternalStage.OfferGenerated),
-        new(7, "Legal Clearance", "Legal Officer", (int)RhshfInternalStage.LegalClearance),
-        new(8, "Pre-Deployment Verification", "Disbursement Officer", (int)RhshfInternalStage.PreDeploymentVerification),
-        new(9, "Disbursement", "Disbursement Officer", (int)RhshfInternalStage.Disbursement),
-    ];
-
-    // InternalStage is set for every Approved case in practice (Completed/Active/Closed) — fall
-    // back to Closed (the highest ordinal) only for the edge case of an Approved case with no
-    // InternalStage recorded, so every step still reads as complete.
-    private int CurrentOrdinal => Workspace.InternalStage.HasValue
-        ? (int)Workspace.InternalStage.Value
-        : (Workspace.Status == RhshfCaseStatus.Approved ? (int)RhshfInternalStage.Closed : -1);
-
-    private bool IsStageCompleted(int stageOrdinal) => CurrentOrdinal > stageOrdinal
-        || (stageOrdinal == (int)RhshfInternalStage.OfferGenerated && CurrentOrdinal > (int)RhshfInternalStage.AwaitingOfferAcceptance);
-
-    private bool IsStageCurrent(int stageOrdinal) => stageOrdinal == -1
-        ? CurrentOrdinal == -1
-        : CurrentOrdinal == stageOrdinal || (stageOrdinal == (int)RhshfInternalStage.OfferGenerated && CurrentOrdinal == (int)RhshfInternalStage.AwaitingOfferAcceptance);
-
-    private static RenderFragment FieldChip(string label, string? value) => __builder =>
+    private string DecisionBadgeClass() => Workspace.DecisionOutcome switch
     {
-        if (string.IsNullOrWhiteSpace(value)) return;
-        __builder.OpenElement(0, "div");
-        __builder.AddAttribute(1, "class", "field-chip");
-        __builder.OpenElement(2, "div");
-        __builder.AddAttribute(3, "class", "field-chip-label");
-        __builder.AddContent(4, label);
-        __builder.CloseElement();
-        __builder.OpenElement(5, "div");
-        __builder.AddAttribute(6, "class", "field-chip-value");
-        __builder.AddContent(7, value);
-        __builder.CloseElement();
-        __builder.CloseElement();
-    };
-
-    private static string StatusBadgeClass(RhshfCaseStatus status) => status switch
-    {
-        RhshfCaseStatus.Approved => "badge-success",
-        RhshfCaseStatus.Declined => "badge-danger",
-        RhshfCaseStatus.Cancelled or RhshfCaseStatus.Expired => "badge-gray",
-        RhshfCaseStatus.UnderReview => "badge-warning",
+        RhshfDecisionOutcome.Approved => "badge-success",
+        RhshfDecisionOutcome.Declined => "badge-danger",
         _ => "badge-gray",
     };
 }

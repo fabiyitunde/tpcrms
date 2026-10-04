@@ -1,69 +1,145 @@
 @using CRMS.Application.Rhshf.Queries
 @using CRMS.Domain.Enums
 
-<div style="display: flex; flex-direction: column; gap: 1.5rem;">
-    @if (Records.Count == 0)
-    {
-        <div class="card">
-            <div class="card-header"><h3 class="card-title">Collateral</h3></div>
+@* Mirrors Corporate's CollateralTab idiom: a single "Collateral" card with a table (Type, details,
+   value, status, recorded, actions) and a totals footer, plus a View-details modal like Corporate's
+   ViewCollateralModal. RH-SHF collateral is heterogeneous (bank guarantee / NIRSAL CRG / legal
+   mortgage) with no valuation / approval / FSV / LTV lifecycle, so those columns and the
+   edit/delete/valuation/approve actions Corporate carries are deliberately absent — the detail
+   modal shows the type-specific fields instead. *@
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Collateral</h3>
+        <span class="badge badge-primary">@Records.Count</span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        @if (Records.Count == 0)
+        {
             <div class="empty-state">
                 <div class="empty-state-icon"><span class="material-symbols-outlined">security</span></div>
-                <div class="empty-state-title">No collateral recorded</div>
-                <div class="empty-state-text">No collateral instruments have been recorded for this cycle yet.</div>
+                <div class="empty-state-title">No collateral registered</div>
+                <div class="empty-state-text">Collateral instruments recorded during legal clearance appear here.</div>
             </div>
-        </div>
-    }
-    else
-    {
-        @foreach (var record in Records)
+        }
+        else
         {
-            <div class="card">
-                <div class="card-header">
-                    <div>
-                        <h3 class="card-title">@FormatType(record.Type)</h3>
-                        <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;"><code>@record.ReferenceNumber</code></div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                        @if (record.Type == RhshfCollateralType.BankGuarantee)
-                        {
-                            @FieldChip("Guarantor Bank", record.GuarantorBankName)
-                            @FieldChip("Guarantee Amount", record.GuaranteeAmount?.ToString("N2"))
-                            @FieldChip("Unconditional", record.IsUnconditional == true ? "Yes" : "No")
-                        }
-                        else if (record.Type == RhshfCollateralType.NirsalCrg)
-                        {
-                            @FieldChip("CRG Coverage", record.CrgCoveragePercentage.HasValue ? $"{record.CrgCoveragePercentage:N1}%" : null)
-                        }
-                        else if (record.Type == RhshfCollateralType.LegalMortgage)
-                        {
-                            @FieldChip("Property", record.PropertyDescription)
-                            @FieldChip("Value", record.PropertyValue?.ToString("N2"))
-                            @FieldChip("Title Reference", record.TitleReferenceNumber)
-                            @FieldChip("Registration Authority", record.RegistrationAuthority)
-                            @FieldChip("Perfection Status", record.PerfectionStatus?.ToString())
-                        }
-                        @FieldChip("Issued", record.IssuedDate?.ToLocalTime().ToString("MMM dd, yyyy"))
-                        @FieldChip("Expiry", record.ExpiryDate?.ToLocalTime().ToString("MMM dd, yyyy"))
-                        @FieldChip("Recorded By", $"{record.RecordedByName} · {record.RecordedAt.ToLocalTime():MMM dd, yyyy HH:mm}")
-                    </div>
-                    @if (!string.IsNullOrEmpty(record.Notes))
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Details</th>
+                        <th style="text-align: right;">Value</th>
+                        <th>Status</th>
+                        <th>Recorded</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var record in Records)
                     {
-                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-100);">
-                            <div class="field-chip-label" style="margin-bottom: 0.35rem;">Notes</div>
-                            <div style="font-size: 0.875rem; color: var(--gray-700);">@record.Notes</div>
-                        </div>
+                        var current = record;
+                        <tr>
+                            <td><span class="badge badge-gray">@FormatType(record.Type)</span></td>
+                            <td>
+                                <div style="font-weight: 500;">@PrimaryDetail(record)</div>
+                                @if (!string.IsNullOrEmpty(record.ReferenceNumber))
+                                {
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);"><code>@record.ReferenceNumber</code></div>
+                                }
+                            </td>
+                            <td style="text-align: right; font-weight: 600;">
+                                @(SecuredValue(record) is decimal v ? v.ToString("N2") : "—")
+                            </td>
+                            <td>@StatusBadge(record)</td>
+                            <td>
+                                <div style="font-size: var(--text-sm);">@record.RecordedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">by @record.RecordedByName</div>
+                            </td>
+                            <td>
+                                <div style="display: flex; gap: var(--space-2);">
+                                    <button type="button" class="btn btn-ghost btn-sm" title="View details" @onclick="() => View(current)">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                    </button>
+                                    @if (record.Documents.Count > 0)
+                                    {
+                                        <span class="badge badge-gray" title="@record.Documents.Count document(s)" style="align-self: center;">
+                                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">attach_file</span> @record.Documents.Count
+                                        </span>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
                     }
-                </div>
+                </tbody>
+            </table>
 
-                @if (record.Documents.Count > 0)
+            @if (Records.Any(r => SecuredValue(r) is not null))
+            {
+                <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: var(--gray-700);">Total Secured Value</span>
+                    <span style="font-weight: 700; font-size: 1.05rem; color: var(--primary-700);">
+                        @Records.Sum(r => SecuredValue(r) ?? 0).ToString("N2")
+                    </span>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@if (_selected is not null)
+{
+    <div class="modal-backdrop show" @onclick="Close">
+        <div class="modal" style="max-width: 640px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@FormatType(_selected.Type)</h3>
+                <button class="modal-close" @onclick="Close"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    @FieldChip("Reference", _selected.ReferenceNumber)
+                    @if (_selected.Type == RhshfCollateralType.BankGuarantee)
+                    {
+                        @FieldChip("Guarantor Bank", _selected.GuarantorBankName)
+                        @FieldChip("Guarantee Amount", _selected.GuaranteeAmount?.ToString("N2"))
+                        @FieldChip("Unconditional", _selected.IsUnconditional == true ? "Yes" : "No")
+                    }
+                    else if (_selected.Type == RhshfCollateralType.NirsalCrg)
+                    {
+                        @FieldChip("CRG Coverage", _selected.CrgCoveragePercentage.HasValue ? $"{_selected.CrgCoveragePercentage:N1}%" : null)
+                    }
+                    else if (_selected.Type == RhshfCollateralType.LegalMortgage)
+                    {
+                        @FieldChip("Property", _selected.PropertyDescription)
+                        @FieldChip("Value", _selected.PropertyValue?.ToString("N2"))
+                        @FieldChip("Title Reference", _selected.TitleReferenceNumber)
+                        @FieldChip("Registration Authority", _selected.RegistrationAuthority)
+                        @FieldChip("Perfection Status", _selected.PerfectionStatus?.ToString())
+                    }
+                    @FieldChip("Issued", _selected.IssuedDate?.ToLocalTime().ToString("MMM dd, yyyy"))
+                    @FieldChip("Expiry", _selected.ExpiryDate?.ToLocalTime().ToString("MMM dd, yyyy"))
+                    @FieldChip("Recorded By", $"{_selected.RecordedByName} · {_selected.RecordedAt.ToLocalTime():MMM dd, yyyy HH:mm}")
+                </div>
+                @if (!string.IsNullOrEmpty(_selected.Notes))
                 {
-                    <div class="table-wrapper">
+                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-100);">
+                        <div class="field-chip-label" style="margin-bottom: 0.35rem;">Notes</div>
+                        <div style="font-size: 0.875rem; color: var(--gray-700);">@_selected.Notes</div>
+                    </div>
+                }
+
+                <div style="margin-top: 1.25rem;">
+                    <div class="field-chip-label" style="margin-bottom: 0.5rem;">Documents</div>
+                    @if (_selected.Documents.Count == 0)
+                    {
+                        <div style="font-size: var(--text-sm); color: var(--gray-500);">No documents attached.</div>
+                    }
+                    else
+                    {
                         <table class="table">
                             <thead><tr><th>File</th><th style="text-align: right;">Size</th><th></th></tr></thead>
                             <tbody>
-                                @foreach (var doc in record.Documents)
+                                @foreach (var doc in _selected.Documents)
                                 {
                                     <tr>
                                         <td>
@@ -72,7 +148,7 @@
                                         </td>
                                         <td style="text-align: right; font-size: 0.8rem; color: var(--gray-500);">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</td>
                                         <td>
-                                            <button class="btn btn-ghost btn-sm" title="Download" @onclick='() => OnDownloadDocument.InvokeAsync(doc.Id)'>
+                                            <button class="btn btn-ghost btn-sm" title="Download" @onclick="() => OnDownloadDocument.InvokeAsync(doc.Id)">
                                                 <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
                                             </button>
                                         </td>
@@ -80,24 +156,74 @@
                                 }
                             </tbody>
                         </table>
-                    </div>
-                }
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
                 @if (CanUpload)
                 {
-                    <div class="card-footer">
-                        <InputFile OnChange="e => UploadFile(record.Id, e)" class="form-control" />
-                    </div>
+                    <InputFile OnChange="e => UploadFile(_selected.Id, e)" class="form-control" style="flex: 1;" />
                 }
+                <button class="btn btn-secondary" @onclick="Close">Close</button>
             </div>
-        }
-    }
-</div>
+        </div>
+    </div>
+}
 
 @code {
     [Parameter, EditorRequired] public List<RhshfCollateralDto> Records { get; set; } = [];
     [Parameter] public bool CanUpload { get; set; }
     [Parameter] public EventCallback<(Guid CollateralId, string FileName, string ContentType, byte[] Content)> OnUploadDocument { get; set; }
     [Parameter] public EventCallback<Guid> OnDownloadDocument { get; set; }
+
+    private RhshfCollateralDto? _selected;
+
+    private void View(RhshfCollateralDto c) => _selected = c;
+    private void Close() => _selected = null;
+
+    private static string FormatType(RhshfCollateralType type) => type switch
+    {
+        RhshfCollateralType.BankGuarantee => "Bank Guarantee",
+        RhshfCollateralType.NirsalCrg => "NIRSAL Credit Risk Guarantee",
+        RhshfCollateralType.LegalMortgage => "Legal Mortgage",
+        _ => type.ToString(),
+    };
+
+    // The one line that best identifies the instrument in the table row.
+    private static string PrimaryDetail(RhshfCollateralDto r) => r.Type switch
+    {
+        RhshfCollateralType.BankGuarantee => r.GuarantorBankName ?? "Bank guarantee",
+        RhshfCollateralType.NirsalCrg => r.CrgCoveragePercentage.HasValue ? $"CRG — {r.CrgCoveragePercentage:N1}% cover" : "NIRSAL CRG",
+        RhshfCollateralType.LegalMortgage => r.PropertyDescription ?? "Legal mortgage",
+        _ => FormatType(r.Type),
+    };
+
+    private static decimal? SecuredValue(RhshfCollateralDto r) => r.Type switch
+    {
+        RhshfCollateralType.BankGuarantee => r.GuaranteeAmount,
+        RhshfCollateralType.LegalMortgage => r.PropertyValue,
+        _ => null, // NIRSAL CRG is expressed as a coverage %, not a standalone secured amount
+    };
+
+    private static RenderFragment StatusBadge(RhshfCollateralDto r) => __builder =>
+    {
+        // Only the legal mortgage carries a perfection lifecycle; the others are simply "recorded".
+        if (r.Type == RhshfCollateralType.LegalMortgage && r.PerfectionStatus is not null)
+        {
+            var cls = r.PerfectionStatus == RhshfCollateralPerfectionStatus.Perfected ? "badge-success" : "badge-warning";
+            __builder.OpenElement(0, "span");
+            __builder.AddAttribute(1, "class", $"badge {cls}");
+            __builder.AddContent(2, r.PerfectionStatus.ToString());
+            __builder.CloseElement();
+        }
+        else
+        {
+            __builder.OpenElement(0, "span");
+            __builder.AddAttribute(1, "class", "badge badge-gray");
+            __builder.AddContent(2, "Recorded");
+            __builder.CloseElement();
+        }
+    };
 
     private static RenderFragment FieldChip(string label, string? value) => __builder =>
     {
@@ -113,14 +239,6 @@
         __builder.AddContent(7, value);
         __builder.CloseElement();
         __builder.CloseElement();
-    };
-
-    private static string FormatType(RhshfCollateralType type) => type switch
-    {
-        RhshfCollateralType.BankGuarantee => "Bank Guarantee",
-        RhshfCollateralType.NirsalCrg => "NIRSAL Credit Risk Guarantee",
-        RhshfCollateralType.LegalMortgage => "Legal Mortgage",
-        _ => type.ToString(),
     };
 
     private async Task UploadFile(Guid collateralId, InputFileChangeEventArgs e)

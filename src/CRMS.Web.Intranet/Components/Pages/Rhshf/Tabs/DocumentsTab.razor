@@ -1,49 +1,200 @@
 @using CRMS.Application.Rhshf.DTOs
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
+@inject IJSRuntime JS
+
+@* Mirrors Corporate's DocumentsTab: a single card with the document table (icon + name, category,
+   uploaded, size, actions) and an in-page viewer modal. RH-SHF documents are attached by the FAC
+   during profiling, so there is no verify / reject / delete workflow here — the actions are
+   download and view only. The viewer uses a blob URL (RH-SHF streams bytes, not a view URL). *@
 
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">Supporting Documents</h3>
-        <span class="badge badge-gray">@Documents.Count</span>
+        <h3 class="card-title">Documents</h3>
+        <span class="badge badge-primary">@Documents.Count</span>
     </div>
-    @if (Documents.Count == 0)
-    {
-        <div class="empty-state">
-            <div class="empty-state-icon"><span class="material-symbols-outlined">folder_open</span></div>
-            <div class="empty-state-title">No documents</div>
-            <div class="empty-state-text">No documents were attached during profiling.</div>
-        </div>
-    }
-    else
-    {
-        <div class="table-wrapper">
+    <div class="card-body" style="padding: 0;">
+        @if (!Documents.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">folder_open</span></div>
+                <div class="empty-state-title">No documents uploaded</div>
+                <div class="empty-state-text">Documents attached by the FAC during profiling appear here.</div>
+            </div>
+        }
+        else
+        {
             <table class="table">
                 <thead>
-                    <tr><th>File</th><th style="text-align: right;">Size</th><th>Uploaded</th><th></th></tr>
+                    <tr>
+                        <th>Document</th>
+                        <th>Category</th>
+                        <th>Uploaded</th>
+                        <th>Size</th>
+                        <th></th>
+                    </tr>
                 </thead>
                 <tbody>
                     @foreach (var doc in Documents)
                     {
+                        var currentDoc = doc;
                         <tr>
                             <td>
-                                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: var(--gray-500);">attach_file</span>
-                                @doc.FileName
+                                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                    <div style="width: 40px; height: 40px; background: var(--gray-100); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+                                        <span class="material-symbols-outlined" style="color: var(--gray-500);">@GetDocIcon(doc.FileName)</span>
+                                    </div>
+                                    <span style="font-weight: 500;">@doc.FileName</span>
+                                </div>
                             </td>
-                            <td style="text-align: right; font-size: 0.8rem; color: var(--gray-500);">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</td>
-                            <td style="font-size: 0.8rem; color: var(--gray-500);">@doc.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
+                            <td>@FormatCategory(doc.Category)</td>
                             <td>
-                                <button class="btn btn-ghost btn-sm" title="Download" @onclick='() => OnDownload.InvokeAsync(doc.Id)'>
-                                    <span class="material-symbols-outlined" style="font-size: 16px;">download</span>
-                                </button>
+                                <div style="font-size: var(--text-sm);">@doc.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                            </td>
+                            <td style="font-size: var(--text-sm); color: var(--gray-500);">@FormatSize(doc.SizeBytes)</td>
+                            <td>
+                                <div style="display: flex; gap: var(--space-2);">
+                                    <button class="btn btn-ghost btn-sm" title="Download" @onclick="() => OnDownload.InvokeAsync(currentDoc.Id)">
+                                        <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                                    </button>
+                                    <button class="btn btn-ghost btn-sm" title="View" @onclick="() => ViewDocument(currentDoc)" disabled="@(_loadingView == currentDoc.Id)">
+                                        @if (_loadingView == currentDoc.Id)
+                                        {
+                                            <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                        }
+                                        else
+                                        {
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                        }
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
-        </div>
-    }
+        }
+    </div>
 </div>
+
+@if (_viewerOpen && _selected is not null)
+{
+    <div class="modal-backdrop show" @onclick="CloseViewer">
+        <div class="modal" style="max-width: 1000px; height: 92vh; max-height: 92vh;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@_selected.FileName</h3>
+                <button class="modal-close" @onclick="CloseViewer">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 0; flex: 1; overflow: hidden; min-height: 0;">
+                @if (_blobUrl is not null && IsViewableInBrowser(_selected.FileName))
+                {
+                    <iframe src="@_blobUrl" style="width: 100%; height: 100%; border: none;"></iframe>
+                }
+                else
+                {
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: var(--space-4);">
+                        <span class="material-symbols-outlined" style="font-size: 64px; color: var(--gray-400);">@GetDocIcon(_selected.FileName)</span>
+                        <div style="text-align: center;">
+                            <div style="font-weight: 600; font-size: var(--text-lg);">@_selected.FileName</div>
+                            <div style="color: var(--gray-500); font-size: var(--text-sm); margin-top: var(--space-2);">
+                                This file type cannot be previewed in the browser.
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" @onclick="() => OnDownload.InvokeAsync(_selected.Id)">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                            Download File
+                        </button>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <div style="display: flex; gap: var(--space-2); align-items: center;">
+                    <span class="badge badge-gray">@FormatCategory(_selected.Category)</span>
+                    <span style="font-size: var(--text-sm); color: var(--gray-500);">
+                        Uploaded @_selected.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm") &middot; @FormatSize(_selected.SizeBytes)
+                    </span>
+                </div>
+                <button class="btn btn-secondary" @onclick="CloseViewer">Close</button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     [Parameter, EditorRequired] public List<RhshfSupportingDocumentDto> Documents { get; set; } = [];
     [Parameter] public EventCallback<Guid> OnDownload { get; set; }
+    /// <summary>Fetches the document bytes for the in-page viewer. Returns null if the file can't be
+    /// read; the viewer then shows the download fallback.</summary>
+    [Parameter] public Func<Guid, Task<RhshfDownloadedFileDto?>>? OnFetchBytes { get; set; }
+
+    private bool _viewerOpen;
+    private RhshfSupportingDocumentDto? _selected;
+    private string? _blobUrl;
+    private Guid? _loadingView;
+
+    private async Task ViewDocument(RhshfSupportingDocumentDto doc)
+    {
+        if (OnFetchBytes is null) { await OnDownload.InvokeAsync(doc.Id); return; }
+
+        _loadingView = doc.Id;
+        try
+        {
+            var file = await OnFetchBytes(doc.Id);
+            await ReleaseBlobAsync();
+            _selected = doc;
+            _blobUrl = file is not null && IsViewableInBrowser(doc.FileName)
+                ? await JS.InvokeAsync<string>("createBlobUrl", file.Content, file.ContentType)
+                : null;
+            _viewerOpen = true;
+        }
+        finally
+        {
+            _loadingView = null;
+        }
+    }
+
+    private async Task CloseViewer()
+    {
+        _viewerOpen = false;
+        _selected = null;
+        await ReleaseBlobAsync();
+    }
+
+    private async Task ReleaseBlobAsync()
+    {
+        if (_blobUrl is not null)
+        {
+            await JS.InvokeVoidAsync("revokeBlobUrl", _blobUrl);
+            _blobUrl = null;
+        }
+    }
+
+    private static bool IsViewableInBrowser(string name)
+    {
+        var ext = Path.GetExtension(name).ToLowerInvariant();
+        return ext is ".pdf" or ".png" or ".jpg" or ".jpeg" or ".gif" or ".txt";
+    }
+
+    private static string GetDocIcon(string name)
+    {
+        if (name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return "picture_as_pdf";
+        if (name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)) return "table_chart";
+        if (name.EndsWith(".docx", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".doc", StringComparison.OrdinalIgnoreCase)) return "description";
+        if (name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)) return "image";
+        return "insert_drive_file";
+    }
+
+    // "OffTakeAgreement" -> "Off Take Agreement". Keeps the category human-readable without a lookup
+    // table that would drift from the enum.
+    private static string FormatCategory(RhshfDocumentCategory category) =>
+        System.Text.RegularExpressions.Regex.Replace(category.ToString(), "(?<!^)([A-Z])", " $1");
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes >= 1_000_000) return $"{bytes / 1_000_000.0:0.#} MB";
+        if (bytes >= 1_000) return $"{bytes / 1_000.0:0.#} KB";
+        return $"{bytes} B";
+    }
 }

@@ -1,5 +1,6 @@
 using CRMS.Application.Common;
 using CRMS.Application.Rhshf.DTOs;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Rhshf.Queries;
@@ -10,12 +11,28 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
 {
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IUserNameResolver _names;
+    private readonly IRhshfRoutingConfigRepository _routing;
 
-    public GetRhshfCaseWorkspaceHandler(IRhshfCreditProfileRepository repo, IUserNameResolver names)
+    public GetRhshfCaseWorkspaceHandler(
+        IRhshfCreditProfileRepository repo, IUserNameResolver names, IRhshfRoutingConfigRepository routing)
     {
         _repo = repo;
         _names = names;
+        _routing = routing;
     }
+
+    /// <summary>Friendly label for a committee tier — the same mapping the Committee tab will use so
+    /// the two never disagree.</summary>
+    private static string TierLabel(CommitteeType tier) => tier switch
+    {
+        CommitteeType.BranchCredit => "Branch",
+        CommitteeType.ZonalCredit => "Zonal",
+        CommitteeType.RegionalCredit => "Regional",
+        CommitteeType.HeadOfficeCredit => "Head Office",
+        CommitteeType.ManagementCredit => "Management",
+        CommitteeType.BoardCredit => "Board",
+        _ => tier.ToString(),
+    };
 
     public async Task<ApplicationResult<RhshfCaseWorkspaceDto>> Handle(GetRhshfCaseWorkspaceQuery request, CancellationToken ct = default)
     {
@@ -29,6 +46,13 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
                 .Concat(profile.RiskReviews.Select(r => r.RiskOfficerId))
                 .Concat(profile.Ratifications.Select(r => r.FinalApproverId)), ct);
         string Name(Guid id) => actorNames.TryGetValue(id, out var n) ? n : "—";
+
+        // Resolve the committee tier from the EOP value up front — this is the same band table the
+        // committee review is sized against later, so showing it now matches where the case will land.
+        var routing = await _routing.ResolveAsync(profile.TotalEopValue, ct);
+        string? tierLabel = routing is null ? null : TierLabel(routing.Tier);
+        string? tierBand = routing is null ? null
+            : $"{profile.Currency} {routing.MinEopValue:N0} – {(routing.MaxEopValue >= 999_999_999_999m ? "above" : $"{profile.Currency} {routing.MaxEopValue:N0}")}";
 
         var dto = new RhshfCaseWorkspaceDto(
             Reference: profile.Reference,
@@ -55,7 +79,7 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
             BureauTotalOverdue: profile.BureauTotalOverdue,
             BureauRawJson: profile.BureauRawJson,
             SupportingDocuments: profile.SupportingDocuments
-                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt)).ToList(),
+                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt) { Category = d.Category }).ToList(),
             Appraisals: profile.Appraisals
                 .Select(a => new RhshfAppraisalDto(a.CycleNumber, a.CreditOfficerId, Name(a.CreditOfficerId), a.AppraisedAt, a.Outcome, a.Notes)).ToList(),
             RiskReviews: profile.RiskReviews
@@ -69,7 +93,9 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
             DecisionNotes: profile.DecisionNotes,
             BranchResolutionNote: profile.BranchResolutionNote,
             ReceivedAt: profile.ReceivedAt,
-            UpdatedAt: profile.UpdatedAt);
+            UpdatedAt: profile.UpdatedAt,
+            CommitteeTier: tierLabel,
+            CommitteeTierBand: tierBand);
 
         return ApplicationResult<RhshfCaseWorkspaceDto>.Success(dto);
     }

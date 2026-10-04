@@ -55,7 +55,13 @@ public record RhshfCaseWorkspaceDto(
     /// no way to see, or challenge, the routing decision.</summary>
     string? BranchResolutionNote,
     DateTime ReceivedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    /// <summary>The committee tier the facility routes to, resolved from TotalEopValue against the
+    /// RhshfRoutingConfig bands — available from submission, before any committee review exists, so
+    /// the header/Overview can show it up front. Null only if no band matches (misconfiguration).
+    /// "Regional", "Branch", etc. — the friendly label, with CommitteeTierBand carrying the range.</summary>
+    string? CommitteeTier = null,
+    string? CommitteeTierBand = null);
 
 // Every actor-carrying DTO below gets a resolved *Name companion alongside the raw id. The id stays
 // (callers still need it for "is this me?" comparisons); the name is what the UI renders. Populated

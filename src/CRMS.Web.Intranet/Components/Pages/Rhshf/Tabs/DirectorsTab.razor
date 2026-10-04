@@ -1,0 +1,180 @@
+@using CRMS.Application.Rhshf.DTOs
+@using CRMS.Application.Rhshf.Queries
+
+@* Mirrors Corporate's PartiesTab: two side-by-side cards (Directors | Signatories), each a
+   count-badged table. RH-SHF has no separate signatory capture — directors are the parties of
+   record — so the Signatories card carries a not-applicable state, keeping structural parity with
+   Corporate. The Directors card keeps RH-SHF's richer management (CAC fetch, manual add, BVN /
+   shareholding completion) that Corporate's Parties tab doesn't need. *@
+
+<div class="grid grid-cols-2 gap-6">
+    <!-- DIRECTORS -->
+    <div class="card">
+        <div class="card-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <h3 class="card-title">Directors &amp; Shareholders</h3>
+                <span class="badge badge-primary">@(Directors?.Directors.Count ?? 0)</span>
+            </div>
+            @if (CanManageDirectors)
+            {
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    @if (!string.IsNullOrEmpty(CacError))
+                    {
+                        <span style="font-size: 0.8rem; color: var(--danger-600);">@CacError</span>
+                    }
+                    <button class="btn btn-outline btn-sm" @onclick="() => OnFetchCac.InvokeAsync()" disabled="@IsFetchingCac">
+                        @if (IsFetchingCac)
+                        {
+                            <span class="spinner" style="width: 12px; height: 12px;"></span> <span>Fetching…</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">cloud_download</span>
+                            <span>@(Directors?.CacFetchedAt is null ? "Fetch from CAC" : "Refresh from CAC")</span>
+                        }
+                    </button>
+                    <button class="btn btn-outline btn-sm" @onclick="() => OnAddDirector.InvokeAsync()">
+                        <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">add</span> Add Manually
+                    </button>
+                </div>
+            }
+        </div>
+
+        @if (Directors?.CacFetchedAt is not null)
+        {
+            <div style="padding: 6px 18px; font-size: 0.75rem; color: var(--gray-500); border-bottom: 1px solid var(--border, var(--gray-100));">
+                CAC data fetched @Directors.CacFetchedAt.Value.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                @if (!string.IsNullOrEmpty(Directors.CacStatus)) { <text>&middot; @Directors.CacStatus</text> }
+            </div>
+        }
+
+        @if (Directors is null || Directors.Directors.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">groups</span></div>
+                <div class="empty-state-title">No directors on record</div>
+                <div class="empty-state-text">
+                    @(CanManageDirectors
+                        ? "Use \"Fetch from CAC\" or add them manually. Credit bureau checks cover every director with a BVN."
+                        : "No directors or shareholders have been recorded for this FAC.")
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card-body" style="padding: 0;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Position</th>
+                            <th>Shareholding</th>
+                            <th>BVN</th>
+                            @if (CanManageDirectors) { <th></th> }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in Directors.Directors)
+                        {
+                            <tr>
+                                <td>
+                                    <div style="font-weight: 500;">@d.FullName</div>
+                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                                        @(string.IsNullOrEmpty(d.Occupation) ? (d.SourcedFromCac ? "From CAC" : "Manual entry") : d.Occupation)
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (d.IsChairman)
+                                    {
+                                        <span class="badge badge-primary">Chairman</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@(string.IsNullOrEmpty(d.AffiliateType) ? "Director" : d.AffiliateType)</span>
+                                    }
+                                </td>
+                                <td>
+                                    @(d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:0.##}%" : "—")
+                                    @if (d.NumSharesAllotted.HasValue)
+                                    {
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">@d.NumSharesAllotted.Value.ToString("N0") @d.TypeOfShares</div>
+                                    }
+                                </td>
+                                <td>
+                                    @* Presence only — the BVN itself never reaches the browser. *@
+                                    @if (d.HasBvn)
+                                    {
+                                        <span class="badge badge-success">Provided</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-warning">Missing</span>
+                                    }
+                                </td>
+                                @if (CanManageDirectors)
+                                {
+                                    <td>
+                                        <div style="display: flex; gap: var(--space-2);">
+                                            <button class="btn btn-ghost btn-sm" title="Complete BVN / shareholding" @onclick="() => OnEditDirector.InvokeAsync(d)">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">edit_note</span>
+                                            </button>
+                                            @if (!d.SourcedFromCac)
+                                            {
+                                                <button class="btn btn-ghost btn-sm" title="Remove" style="color: var(--danger-600);" @onclick="() => OnRemoveDirector.InvokeAsync(d.Id)">
+                                                    <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (Directors.Directors.Any(d => !d.HasBvn))
+            {
+                <div class="card-footer">
+                    <div class="alert alert-warning" style="margin: 0; font-size: 0.85rem;">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">warning</span>
+                        Some directors are missing a BVN. Bureau checks cover every director with one — complete the
+                        missing BVNs, then re-run the checks from the Credit Bureau tab.
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <!-- SIGNATORIES (not applicable for RH-SHF) -->
+    <div class="card">
+        <div class="card-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <h3 class="card-title">Signatories</h3>
+                <span class="badge badge-gray">0</span>
+            </div>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">draw</span></div>
+                <div class="empty-state-title">Not applicable to RH-SHF</div>
+                <div class="empty-state-text">
+                    RH-SHF does not capture a separate signatory mandate — the directors above are the parties of
+                    record, and BOA account signatories live in the core-banking record. Kept for parity with the
+                    Corporate layout.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public RhshfDirectorsDto? Directors { get; set; }
+    [Parameter] public bool CanManageDirectors { get; set; }
+    [Parameter] public bool IsFetchingCac { get; set; }
+    [Parameter] public string? CacError { get; set; }
+    [Parameter] public EventCallback OnFetchCac { get; set; }
+    [Parameter] public EventCallback OnAddDirector { get; set; }
+    [Parameter] public EventCallback<RhshfDirectorDto> OnEditDirector { get; set; }
+    [Parameter] public EventCallback<Guid> OnRemoveDirector { get; set; }
+}

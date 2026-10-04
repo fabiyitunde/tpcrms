@@ -29,15 +29,19 @@ else
                 <span class="material-symbols-outlined" style="font-size: 18px;">arrow_back</span>
             </button>
             <div>
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <h1 class="page-title" style="margin: 0;">@workspace.CompanyName</h1>
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                    <h1 class="page-title" style="margin: 0; font-family: var(--font-mono, ui-monospace, monospace);">@workspace.Reference</h1>
                     <span class="badge @StatusBadgeClass(workspace.Status)" style="font-size: 0.8rem;">@workspace.Status</span>
+                    @if (workspace.CommitteeTier is not null)
+                    {
+                        <span class="badge badge-primary" style="font-size: 0.8rem;" title="Routed by EOP value (@workspace.CommitteeTierBand)">@workspace.CommitteeTier Tier</span>
+                    }
                     @if (workspace.InternalStage is not null)
                     {
                         <span class="badge badge-secondary" style="font-size: 0.8rem;">@workspace.InternalStage</span>
                     }
                 </div>
-                <p class="page-subtitle" style="margin: 0;"><code>@workspace.Reference</code> &middot; Cycle @workspace.CurrentCycleNumber</p>
+                <p class="page-subtitle" style="margin: 0;">@workspace.CompanyName &middot; Cycle @workspace.CurrentCycleNumber</p>
             </div>
         </div>
 
@@ -103,6 +107,44 @@ else
         </div>
     </div>
 
+    <!-- Summary strip (mirrors Corporate's under-header card) -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-body" style="padding: var(--space-4) var(--space-6);">
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-6);">
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Product</div>
+                    <div style="font-weight: 500; margin-top: var(--space-1);">RH-SHF Dry Season</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Requested Amount</div>
+                    <div style="font-weight: 600; margin-top: var(--space-1); color: var(--primary-600);">@workspace.Currency @workspace.TotalEopValue.ToString("N0")</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Committee Tier</div>
+                    <div style="font-weight: 500; margin-top: var(--space-1);">
+                        @if (workspace.CommitteeTier is not null)
+                        {
+                            <span class="badge badge-primary">@workspace.CommitteeTier</span>
+                            <span style="font-size: var(--text-xs); color: var(--gray-500);">@workspace.CommitteeTierBand</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Farmers</div>
+                    <div style="font-weight: 500; margin-top: var(--space-1);">@(workspace.FarmerCount?.ToString("N0") ?? "—")</div>
+                </div>
+                <div>
+                    <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Received</div>
+                    <div style="font-weight: 500; margin-top: var(--space-1);">@workspace.ReceivedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     @if (!string.IsNullOrEmpty(pageError))
     {
         <div class="alert alert-danger" style="margin-bottom: 1rem;">@pageError</div>
@@ -112,29 +154,33 @@ else
         <div class="tab @(activeTab == "overview" ? "active" : "")" @onclick='() => activeTab = "overview"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">summarize</span>Overview
         </div>
-        @if (ShowEligibilityTab)
-        {
-            <div class="tab @(activeTab == "eligibility" ? "active" : "")" @onclick='() => activeTab = "eligibility"'>
-                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">checklist</span>Eligibility
-            </div>
-        }
+        <div class="tab @(activeTab == "directors" ? "active" : "")" @onclick='() => activeTab = "directors"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">groups</span>Directors &amp; Signatories
+        </div>
+        @* Every tab is always present (mirroring Corporate): case information is visible to all
+           actors so anyone can make or support a decision. Action BUTTONS inside each tab stay
+           role- and stage-gated, so maker-checker still holds — seeing the Committee tab is not the
+           same as being able to vote on it. Tabs whose stage hasn't been reached show an empty /
+           "not yet" state. *@
+        <div class="tab @(activeTab == "eligibility" ? "active" : "")" @onclick='() => activeTab = "eligibility"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">checklist</span>Eligibility
+        </div>
         <div class="tab @(activeTab == "bureau" ? "active" : "")" @onclick='() => activeTab = "bureau"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span>Credit Bureau
         </div>
-        @if (ShowCollateralTab)
-        {
-            <div class="tab @(activeTab == "collateral" ? "active" : "")" @onclick='() => activeTab = "collateral"'>
-                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">security</span>Collateral
-            </div>
-        }
+        <div class="tab @(activeTab == "collateral" ? "active" : "")" @onclick='() => activeTab = "collateral"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">security</span>Collateral
+        </div>
         <div class="tab @(activeTab == "documents" ? "active" : "")" @onclick='() => activeTab = "documents"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">folder_open</span>Documents
         </div>
+        <div class="tab @(activeTab == "financialappraisal" ? "active" : "")" @onclick='() => activeTab = "financialappraisal"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">calculate</span>Financial Appraisal
+        </div>
+        @* Conditional — appears once its stage/action is reached (history stays visible afterward).
+           Action buttons inside remain role+stage gated regardless. *@
         @if (ShowAppraisalTab)
         {
-            <div class="tab @(activeTab == "financialappraisal" ? "active" : "")" @onclick='() => activeTab = "financialappraisal"'>
-                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">calculate</span>Financial Appraisal
-            </div>
             <div class="tab @(activeTab == "appraisal" ? "active" : "")" @onclick='() => activeTab = "appraisal"'>
                 <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology</span>Appraisal Decision
             </div>
@@ -145,12 +191,10 @@ else
                 <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">shield_person</span>Risk Review
             </div>
         }
-        @if (ShowCommitteeTab)
-        {
-            <div class="tab @(activeTab == "committee" ? "active" : "")" @onclick='() => activeTab = "committee"'>
-                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">groups</span>Committee
-            </div>
-        }
+        @* Committee stays always-present (informational), mirroring Corporate. *@
+        <div class="tab @(activeTab == "committee" ? "active" : "")" @onclick='() => activeTab = "committee"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">groups</span>Committee
+        </div>
         @if (ShowRatificationTab)
         {
             <div class="tab @(activeTab == "ratification" ? "active" : "")" @onclick='() => activeTab = "ratification"'>
@@ -187,12 +231,9 @@ else
                 <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">account_balance_wallet</span>Loan Account
             </div>
         }
-        @if (ShowAdvisoryTab)
-        {
-            <div class="tab @(activeTab == "advisory" ? "active" : "")" @onclick='() => activeTab = "advisory"'>
-                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology_alt</span>AI Advisory
-            </div>
-        }
+        <div class="tab @(activeTab == "advisory" ? "active" : "")" @onclick='() => activeTab = "advisory"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology_alt</span>AI Advisory
+        </div>
         <div class="tab @(activeTab == "workflow" ? "active" : "")" @onclick='() => activeTab = "workflow"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">history</span>Workflow
         </div>
@@ -201,7 +242,10 @@ else
     @switch (activeTab)
     {
         case "overview":
-            <OverviewTab Workspace="workspace" Directors="directors" CanManageDirectors="CanManageDirectors"
+            <OverviewTab Workspace="workspace" Directors="directors" />
+            break;
+        case "directors":
+            <DirectorsTab Directors="directors" CanManageDirectors="CanManageDirectors"
                 IsFetchingCac="isFetchingCac" CacError="cacError"
                 OnFetchCac="FetchCacDetails" OnAddDirector="OpenAddDirectorModal"
                 OnEditDirector="OpenEditDirectorModal" OnRemoveDirector="RemoveDirector" />
@@ -218,7 +262,8 @@ else
                 OnUploadDocument="UploadCollateralDocument" OnDownloadDocument="DownloadCollateralDocument" />
             break;
         case "documents":
-            <DocumentsTab Documents="workspace.SupportingDocuments" OnDownload="DownloadSupportingDocument" />
+            <DocumentsTab Documents="workspace.SupportingDocuments" OnDownload="DownloadSupportingDocument"
+                OnFetchBytes="AppService.DownloadRhshfSupportingDocumentAsync" />
             break;
         case "financialappraisal":
             <FinancialAppraisalTab Data="financialAppraisal" LoadError="financialAppraisalError"

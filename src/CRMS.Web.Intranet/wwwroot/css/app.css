@@ -612,6 +612,11 @@ a:hover {
 .bureau-score.fair      { background: var(--warning-500); }
 .bureau-score.poor      { background: var(--danger-500); }
 
+/* Business (company) bureau card — distinct tinted treatment, mirroring Corporate's. */
+.bureau-card-business { border-color: var(--primary-200); background: linear-gradient(to bottom, var(--primary-50), var(--surface, white)); }
+.bureau-card-business .bureau-card-header { background: var(--primary-50); border-bottom-color: var(--primary-100); }
+.bureau-card-business .bureau-card-footer { background: var(--primary-50); border-top-color: var(--primary-100); }
+
 /* Stat Cards */
 .stat-card {
     background: white;

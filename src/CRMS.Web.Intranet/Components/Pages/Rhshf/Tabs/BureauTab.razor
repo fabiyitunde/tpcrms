@@ -90,7 +90,7 @@
 
     private RenderFragment BureauCard(RhshfBureauReportDto r, bool isBusiness) => __builder =>
     {
-        <div class="bureau-card">
+        <div class="bureau-card @(isBusiness ? "bureau-card-business" : "")">
             <div class="bureau-card-header">
                 <div>
                     <div style="font-weight: 600;">@r.SubjectName</div>
