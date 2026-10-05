@@ -17,7 +17,12 @@ public record RhshfFinancialAnalysisDto(
     decimal TotalTurnover,
     decimal LatestRevenue,
     decimal? RevenueCagrPercent,
-    decimal AverageNetMarginPercent);
+    decimal AverageNetMarginPercent,
+    // Business-rule readiness: the requested facility against the captured turnover. The threshold
+    // (e.g. loan <= 1.5x turnover) is pending the bank's confirmation, so this is surfaced as the raw
+    // data point the forthcoming rule will act on — not yet enforced.
+    decimal FacilityAmount,
+    decimal? LoanToTurnoverCoverage);
 
 public record RhshfFinancialStatementDto(
     Guid Id,
@@ -110,6 +115,11 @@ public class GetRhshfFinancialAnalysisHandler : IRequestHandler<GetRhshfFinancia
 
         var avgNetMargin = years.Count > 0 ? years.Average(y => y.Ratios.NetProfitMarginPercent) : 0m;
 
+        // The facility is the requested EOP value; coverage = facility ÷ turnover is the raw number the
+        // forthcoming loan-to-turnover rule will threshold.
+        var facility = profile.TotalEopValue;
+        decimal? coverage = totalTurnover > 0 ? facility / totalTurnover : null;
+
         var dto = new RhshfFinancialAnalysisDto(
             years,
             DefaultRequiredYears,
@@ -117,7 +127,9 @@ public class GetRhshfFinancialAnalysisHandler : IRequestHandler<GetRhshfFinancia
             totalTurnover,
             latest?.TotalRevenue ?? 0,
             cagr,
-            avgNetMargin);
+            avgNetMargin,
+            facility,
+            coverage);
 
         return ApplicationResult<RhshfFinancialAnalysisDto>.Success(dto);
     }

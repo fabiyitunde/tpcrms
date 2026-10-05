@@ -67,6 +67,40 @@ else
             </div>
         }
 
+        @* Business-rule readiness — the facility against turnover. The threshold is pending the bank's
+           confirmation, so this shows the raw coverage, not an enforced pass/fail. *@
+        @if (Analysis.Years.Count > 0)
+        {
+            <div class="card" style="background: var(--gray-50);">
+                <div class="card-header">
+                    <h3 class="card-title">Financial Business Rules</h3>
+                    <span class="badge badge-gray">Thresholds pending bank confirmation</span>
+                </div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.75rem;">
+                        <div class="field-chip">
+                            <div class="field-chip-label">Requested Facility</div>
+                            <div class="field-chip-value">@Currency @Analysis.FacilityAmount.ToString("N0")</div>
+                        </div>
+                        <div class="field-chip">
+                            <div class="field-chip-label">3-Year Turnover</div>
+                            <div class="field-chip-value">@Currency @Analysis.TotalTurnover.ToString("N0")</div>
+                        </div>
+                        <div class="field-chip">
+                            <div class="field-chip-label">Loan ÷ Turnover</div>
+                            <div class="field-chip-value">
+                                @(Analysis.LoanToTurnoverCoverage is null ? "—" : $"{Analysis.LoanToTurnoverCoverage.Value:N2}×")
+                            </div>
+                        </div>
+                    </div>
+                    <div style="font-size: var(--text-sm); color: var(--gray-500); margin-top: 0.75rem;">
+                        The bank intends to cap the facility at a multiple of turnover (e.g. 1.5×). Once the exact
+                        threshold and other financial rules are confirmed, they'll be enforced here as pass/fail checks.
+                    </div>
+                </div>
+            </div>
+        }
+
         <div class="card">
             <div class="card-header">
                 <h3 class="card-title">Financial Statements</h3>

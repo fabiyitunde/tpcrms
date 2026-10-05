@@ -79,7 +79,7 @@ public class GenerateRhshfAdvisoryHandlerTests
         var ai = new CapturingAdvisoryService();
         var handler = new GenerateRhshfAdvisoryHandler(
             new FakeProfileRepo(profile), new FakeAdvisoryRepo(), new FakeCollateralRepo(),
-            new FakeBureauRepo(reports ?? []), ai, new FakeUow());
+            new FakeFinancialStatementRepo(), new FakeBureauRepo(reports ?? []), ai, new FakeUow());
         return (handler, ai);
     }
 
@@ -402,6 +402,18 @@ public class GenerateRhshfAdvisoryHandlerTests
         public Task<RhshfCollateral?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddAsync(RhshfCollateral collateral, CancellationToken ct = default) => Task.CompletedTask;
         public Task<RhshfCollateralDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private class FakeFinancialStatementRepo : IRhshfFinancialStatementRepository
+    {
+        public Task<IReadOnlyList<RhshfFinancialStatement>> GetByProfileIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<RhshfFinancialStatement>>([]);
+        public Task<RhshfFinancialStatement?> GetByProfileAndYearAsync(Guid id, int year, CancellationToken ct = default)
+            => Task.FromResult<RhshfFinancialStatement?>(null);
+        public Task<RhshfFinancialStatement?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<RhshfFinancialStatement?>(null);
+        public Task AddAsync(RhshfFinancialStatement statement, CancellationToken ct = default) => Task.CompletedTask;
+        public void Remove(RhshfFinancialStatement statement) { }
     }
 
 

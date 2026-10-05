@@ -30,6 +30,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfAdvisoryRepository _advisoryRepo;
     private readonly IRhshfCollateralRepository _collateralRepo;
+    private readonly IRhshfFinancialStatementRepository _financialRepo;
     private readonly IBureauReportRepository _bureauRepo;
     private readonly IAIAdvisoryService _aiService;
     private readonly IUnitOfWork _uow;
@@ -37,12 +38,14 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
     public GenerateRhshfAdvisoryHandler(
         IRhshfCreditProfileRepository repo, IRhshfAdvisoryRepository advisoryRepo,
         IRhshfCollateralRepository collateralRepo,
+        IRhshfFinancialStatementRepository financialRepo,
         IBureauReportRepository bureauRepo,
         IAIAdvisoryService aiService, IUnitOfWork uow)
     {
         _repo = repo;
         _advisoryRepo = advisoryRepo;
         _collateralRepo = collateralRepo;
+        _financialRepo = financialRepo;
         _bureauRepo = bureauRepo;
         _aiService = aiService;
         _uow = uow;
@@ -61,6 +64,9 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
         var bureauReports = await _bureauRepo.GetByRhshfCreditProfileIdAsync(profile.Id, ct);
         var appraisal = profile.GetCurrentCycleFinancialAppraisal();
         var farmPlans = profile.GetCurrentCycleFarmPlans();
+        // Institutional financials: total turnover across captured years, for the loan-to-turnover signal.
+        var financials = await _financialRepo.GetByProfileIdAsync(profile.Id, ct);
+        var threeYearTurnover = financials.Sum(s => s.Revenue ?? 0);
 
         var advisoryResult = RhshfAdvisory.Create(profile.Id, request.GeneratedByUserId, _aiService.GetModelVersion());
         if (advisoryResult.IsFailure)
@@ -71,7 +77,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
 
         try
         {
-            var aiRequest = BuildAIRequest(profile, bureauReports, appraisal, farmPlans, collateral);
+            var aiRequest = BuildAIRequest(profile, bureauReports, appraisal, farmPlans, collateral, threeYearTurnover);
             var aiResponse = await _aiService.GenerateAdvisoryAsync(aiRequest, ct);
 
             if (!aiResponse.Success)
@@ -137,7 +143,8 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
         IReadOnlyList<BureauReport> bureauReports,
         RhshfFinancialAppraisalReport? appraisal,
         IReadOnlyList<RhshfFarmPlan> farmPlans,
-        IReadOnlyList<RhshfCollateral> collateral)
+        IReadOnlyList<RhshfCollateral> collateral,
+        decimal threeYearTurnover)
     {
         var completedReports = bureauReports.Where(r => r.Status == BureauReportStatus.Completed).ToList();
 
@@ -156,7 +163,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
             Guarantors: [],
             ExistingExposure: completedReports.Sum(r => r.TotalOutstandingBalance),
             ExistingFacilitiesCount: completedReports.Sum(r => r.ActiveLoans),
-            AdditionalContext: BuildApplicationContext(profile, appraisal, farmPlans));
+            AdditionalContext: BuildApplicationContext(profile, appraisal, farmPlans, threeYearTurnover));
     }
 
     /// <summary>
@@ -299,7 +306,8 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
     private static string BuildApplicationContext(
         RhshfCreditProfile profile,
         RhshfFinancialAppraisalReport? appraisal,
-        IReadOnlyList<RhshfFarmPlan> farmPlans)
+        IReadOnlyList<RhshfFarmPlan> farmPlans,
+        decimal threeYearTurnover)
     {
         var lines = new List<string>
         {
@@ -367,6 +375,17 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
                 (withoutBvn > 0
                     ? $", of which {withoutBvn} have no BVN and were therefore not credit-checked."
                     : ", all credit-checked."));
+        }
+
+        if (threeYearTurnover > 0)
+        {
+            var coverage = profile.TotalEopValue / threeYearTurnover;
+            lines.Add($"Institutional financials: {profile.Currency} {threeYearTurnover:N0} total turnover across the FAC's captured " +
+                $"financial-statement years; the requested facility is {coverage:N2}x that turnover.");
+        }
+        else
+        {
+            lines.Add("No financial statements have been captured for the FAC, so the facility cannot be weighed against turnover.");
         }
 
         return string.Join(" ", lines);
