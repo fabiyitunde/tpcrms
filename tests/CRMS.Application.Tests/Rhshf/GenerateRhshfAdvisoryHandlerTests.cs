@@ -79,7 +79,7 @@ public class GenerateRhshfAdvisoryHandlerTests
         var ai = new CapturingAdvisoryService();
         var handler = new GenerateRhshfAdvisoryHandler(
             new FakeProfileRepo(profile), new FakeAdvisoryRepo(), new FakeCollateralRepo(),
-            new FakeEligibilityRepo(), new FakeBureauRepo(reports ?? []), ai, new FakeUow());
+            new FakeBureauRepo(reports ?? []), ai, new FakeUow());
         return (handler, ai);
     }
 
@@ -404,12 +404,6 @@ public class GenerateRhshfAdvisoryHandlerTests
         public Task<RhshfCollateralDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
-    private class FakeEligibilityRepo : IRhshfEligibilityCheckRepository
-    {
-        public Task<IReadOnlyList<RhshfEligibilityCheck>> GetByProfileAndCycleAsync(Guid id, int cycle, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<RhshfEligibilityCheck>>([]);
-        public Task AddAsync(RhshfEligibilityCheck check, CancellationToken ct = default) => Task.CompletedTask;
-    }
 
     private class FakeUow : IUnitOfWork
     {

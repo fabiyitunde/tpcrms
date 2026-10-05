@@ -30,21 +30,19 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfAdvisoryRepository _advisoryRepo;
     private readonly IRhshfCollateralRepository _collateralRepo;
-    private readonly IRhshfEligibilityCheckRepository _eligibilityRepo;
     private readonly IBureauReportRepository _bureauRepo;
     private readonly IAIAdvisoryService _aiService;
     private readonly IUnitOfWork _uow;
 
     public GenerateRhshfAdvisoryHandler(
         IRhshfCreditProfileRepository repo, IRhshfAdvisoryRepository advisoryRepo,
-        IRhshfCollateralRepository collateralRepo, IRhshfEligibilityCheckRepository eligibilityRepo,
+        IRhshfCollateralRepository collateralRepo,
         IBureauReportRepository bureauRepo,
         IAIAdvisoryService aiService, IUnitOfWork uow)
     {
         _repo = repo;
         _advisoryRepo = advisoryRepo;
         _collateralRepo = collateralRepo;
-        _eligibilityRepo = eligibilityRepo;
         _bureauRepo = bureauRepo;
         _aiService = aiService;
         _uow = uow;
@@ -60,7 +58,6 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
             return ApplicationResult<RhshfAdvisoryDto>.Failure("The credit bureau check must run before generating an advisory.");
 
         var collateral = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
-        var eligibility = await _eligibilityRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
         var bureauReports = await _bureauRepo.GetByRhshfCreditProfileIdAsync(profile.Id, ct);
         var appraisal = profile.GetCurrentCycleFinancialAppraisal();
         var farmPlans = profile.GetCurrentCycleFarmPlans();
@@ -74,7 +71,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
 
         try
         {
-            var aiRequest = BuildAIRequest(profile, bureauReports, appraisal, farmPlans, collateral, eligibility);
+            var aiRequest = BuildAIRequest(profile, bureauReports, appraisal, farmPlans, collateral);
             var aiResponse = await _aiService.GenerateAdvisoryAsync(aiRequest, ct);
 
             if (!aiResponse.Success)
@@ -140,8 +137,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
         IReadOnlyList<BureauReport> bureauReports,
         RhshfFinancialAppraisalReport? appraisal,
         IReadOnlyList<RhshfFarmPlan> farmPlans,
-        IReadOnlyList<RhshfCollateral> collateral,
-        IReadOnlyList<RhshfEligibilityCheck> eligibility)
+        IReadOnlyList<RhshfCollateral> collateral)
     {
         var completedReports = bureauReports.Where(r => r.Status == BureauReportStatus.Completed).ToList();
 
@@ -160,7 +156,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
             Guarantors: [],
             ExistingExposure: completedReports.Sum(r => r.TotalOutstandingBalance),
             ExistingFacilitiesCount: completedReports.Sum(r => r.ActiveLoans),
-            AdditionalContext: BuildApplicationContext(profile, appraisal, farmPlans, eligibility));
+            AdditionalContext: BuildApplicationContext(profile, appraisal, farmPlans));
     }
 
     /// <summary>
@@ -303,8 +299,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
     private static string BuildApplicationContext(
         RhshfCreditProfile profile,
         RhshfFinancialAppraisalReport? appraisal,
-        IReadOnlyList<RhshfFarmPlan> farmPlans,
-        IReadOnlyList<RhshfEligibilityCheck> eligibility)
+        IReadOnlyList<RhshfFarmPlan> farmPlans)
     {
         var lines = new List<string>
         {
@@ -372,14 +367,6 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
                 (withoutBvn > 0
                     ? $", of which {withoutBvn} have no BVN and were therefore not credit-checked."
                     : ", all credit-checked."));
-        }
-
-        if (eligibility.Count > 0)
-        {
-            var unsatisfied = eligibility.Where(e => !e.IsSatisfied).Select(e => e.Criterion.ToString()).ToList();
-            lines.Add(unsatisfied.Count == 0
-                ? "All institutional eligibility criteria were satisfied."
-                : $"Eligibility criteria NOT satisfied: {string.Join(", ", unsatisfied)}.");
         }
 
         return string.Join(" ", lines);

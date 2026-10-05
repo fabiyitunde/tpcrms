@@ -9,20 +9,6 @@
                     @Reports.Count report@(Reports.Count == 1 ? "" : "s") on file
                 </div>
             </div>
-            @if (CanRecheck)
-            {
-                <button class="btn btn-outline btn-sm" @onclick="() => OnRecheck.InvokeAsync()" disabled="@IsRechecking">
-                    @if (IsRechecking)
-                    {
-                        <span class="spinner" style="width: 12px; height: 12px;"></span> <span>Running…</span>
-                    }
-                    else
-                    {
-                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">refresh</span>
-                        <span>Run Bureau Checks</span>
-                    }
-                </button>
-            }
         </div>
 
         @if (!string.IsNullOrEmpty(RecheckError))
@@ -39,7 +25,7 @@
                 <div class="empty-state-title">No credit bureau reports yet</div>
                 <div class="empty-state-text">
                     Checks cover the company and every director with a recorded BVN.
-                    @if (CanRecheck) { <text>Add directors on the Overview tab, then run the checks.</text> }
+                    @if (CanRecheck) { <text>Add directors on the Directors tab, then use <strong>Re-run Credit Checks</strong> in the header.</text> }
                 </div>
             </div>
         }
@@ -81,9 +67,7 @@
 @code {
     [Parameter, EditorRequired] public List<RhshfBureauReportDto> Reports { get; set; } = [];
     [Parameter] public bool CanRecheck { get; set; }
-    [Parameter] public bool IsRechecking { get; set; }
     [Parameter] public string? RecheckError { get; set; }
-    [Parameter] public EventCallback OnRecheck { get; set; }
 
     private List<RhshfBureauReportDto> CompanyReports => Reports.Where(r => r.SubjectType == "RhshfCompany").ToList();
     private List<RhshfBureauReportDto> DirectorReports => Reports.Where(r => r.SubjectType != "RhshfCompany").ToList();

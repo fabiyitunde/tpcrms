@@ -1,0 +1,74 @@
+@using CRMS.Application.Rhshf.DTOs
+@using CRMS.Application.Rhshf.Queries
+
+@* EOP (Enterprise Operating Plan) breakdown — a genuine RH-SHF peculiarity with no Corporate
+   equivalent, so it gets its own tab rather than riding along inside Overview. It is the commodity /
+   input composition of the requested facility, and the input to the crop-economics Financial
+   Appraisal. Informational, always present. *@
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">EOP Breakdown</h3>
+        <span class="badge badge-primary">@Workspace.EopLines.Count line@(Workspace.EopLines.Count == 1 ? "" : "s")</span>
+    </div>
+    @if (Workspace.EopLines.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">agriculture</span></div>
+            <div class="empty-state-title">No EOP lines</div>
+            <div class="empty-state-text">No commodity lines were submitted for this cycle.</div>
+        </div>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Commodity</th>
+                        @if (ShowEopQuantities)
+                        {
+                            <th style="text-align: right;">Qty (kg)</th>
+                            <th style="text-align: right;">Unit Price</th>
+                        }
+                        <th style="text-align: right;">Line Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in Workspace.EopLines)
+                    {
+                        <tr>
+                            <td>@line.Commodity</td>
+                            @if (ShowEopQuantities)
+                            {
+                                <td style="text-align: right;">@(line.QuantityKg > 0 ? line.QuantityKg.ToString("N0") : "—")</td>
+                                <td style="text-align: right;">@(line.UnitPricePerKg > 0 ? line.UnitPricePerKg.ToString("N2") : "—")</td>
+                            }
+                            <td style="text-align: right; font-weight: 600;">@line.LineValue.ToString("N2")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (!ShowEopQuantities)
+        {
+            <div style="padding: 0 1rem 0.75rem; font-size: 0.8rem; color: var(--gray-500);">
+                The portal records input quantities per item (bags, litres), not a tonnage of the
+                commodity grown, so no per-commodity quantity is available. Values are exact.
+            </div>
+        }
+        <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: 600; color: var(--gray-700);">Total EOP Value</span>
+            <span style="font-weight: 700; font-size: 1.05rem; color: var(--primary-700);">@Workspace.Currency @Workspace.TotalEopValue.ToString("N2")</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RhshfCaseWorkspaceDto Workspace { get; set; } = null!;
+
+    // The portal sends quantityKg/unitPricePerKg as 0 by design — it holds quantities per input
+    // (bags, litres), never a tonnage of the commodity grown. Rendering a "0 kg" measurement invites
+    // a credit officer to treat the whole EOP as nonsense, so the columns drop when none carry one.
+    private bool ShowEopQuantities => Workspace.EopLines.Any(l => l.QuantityKg > 0 || l.UnitPricePerKg > 0);
+}

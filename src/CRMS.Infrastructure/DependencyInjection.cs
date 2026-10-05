@@ -791,10 +791,7 @@ public static class DependencyInjection
 
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCaseStatusHandler>();
 
-        // RH-SHF — Eligibility (S/N 15) and Collateral (S/N 16), per RSHSF_Programme_Details.docx
-        services.AddScoped<IRhshfEligibilityCheckRepository, RhshfEligibilityCheckRepository>();
-        services.AddScoped<Application.Rhshf.Commands.RecordRhshfEligibilityChecklistHandler>();
-        services.AddScoped<Application.Rhshf.Queries.GetRhshfEligibilityChecklistHandler>();
+        // RH-SHF — Collateral (S/N 16), per RSHSF_Programme_Details.docx
         services.AddScoped<IRhshfCollateralRepository, RhshfCollateralRepository>();
         services.AddScoped<Application.Rhshf.Commands.RecordRhshfCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfCollateralDocumentHandler>();

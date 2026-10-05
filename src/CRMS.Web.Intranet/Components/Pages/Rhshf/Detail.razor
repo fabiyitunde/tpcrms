@@ -46,14 +46,24 @@ else
         </div>
 
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            @* Re-run Credit Checks lives in the header action bar (mirroring Corporate), not inside
+               the Bureau tab — it's an action, and actions belong with the other stage buttons. *@
+            @if (CanRunBureauChecks)
+            {
+                <button class="btn btn-secondary" @onclick="RunBureauChecks" disabled="@isRunningBureauChecks">
+                    @if (isRunningBureauChecks)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span>
+                    }
+                    Re-run Credit Checks
+                </button>
+            }
             @if (CanAppraise && workspace.InternalStage == RhshfInternalStage.Appraisal)
             {
-                @if (eligibilityChecks.Count == 0)
-                {
-                    <button class="btn btn-outline" @onclick='() => openModal = "eligibility"'>
-                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">checklist</span> Eligibility Checklist
-                    </button>
-                }
                 <button class="btn btn-warning" @onclick='() => OpenAppraisalModal("ReturnToFac")'>Return to FAC</button>
                 <button class="btn btn-danger" @onclick='() => OpenAppraisalModal("Decline")'>Decline</button>
                 <button class="btn btn-success" @onclick='() => OpenAppraisalModal("Proceed")'>Proceed</button>
@@ -150,26 +160,26 @@ else
         <div class="alert alert-danger" style="margin-bottom: 1rem;">@pageError</div>
     }
 
+    @* Tab order mirrors Corporate (Applications/Detail.razor) exactly for the tabs they share:
+       Overview, Directors & Signatories, Documents, Financial, Credit Bureau, Collateral, AI Advisory,
+       then the stage block, then Workflow. RH-SHF-only tabs are slotted in workflow-logical places:
+       Eligibility sits in the informational block (where Corporate's Guarantors is); Risk Review,
+       Ratification, Offer, Legal Clearance, Pre-Deployment and Disbursement are the extra stages RH-SHF
+       has beyond Corporate, kept next to their Corporate-equivalent siblings.
+       Informational tabs are always present (case info is visible to every actor so anyone can make or
+       support a decision); conditional (@if Show*) tabs appear once their stage is reached and then stay
+       for history. Action BUTTONS inside each tab remain role- and stage-gated, so maker-checker holds. *@
     <div class="tabs" style="flex-wrap: wrap;">
         <div class="tab @(activeTab == "overview" ? "active" : "")" @onclick='() => activeTab = "overview"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">summarize</span>Overview
         </div>
+        @* EOP Breakdown — RH-SHF peculiarity, no Corporate equivalent; sits right after Overview as the
+           defining artifact of the case (what is being financed) and the input to Financial Appraisal. *@
+        <div class="tab @(activeTab == "eop" ? "active" : "")" @onclick='() => activeTab = "eop"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">receipt_long</span>EOP Breakdown
+        </div>
         <div class="tab @(activeTab == "directors" ? "active" : "")" @onclick='() => activeTab = "directors"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">groups</span>Directors &amp; Signatories
-        </div>
-        @* Every tab is always present (mirroring Corporate): case information is visible to all
-           actors so anyone can make or support a decision. Action BUTTONS inside each tab stay
-           role- and stage-gated, so maker-checker still holds — seeing the Committee tab is not the
-           same as being able to vote on it. Tabs whose stage hasn't been reached show an empty /
-           "not yet" state. *@
-        <div class="tab @(activeTab == "eligibility" ? "active" : "")" @onclick='() => activeTab = "eligibility"'>
-            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">checklist</span>Eligibility
-        </div>
-        <div class="tab @(activeTab == "bureau" ? "active" : "")" @onclick='() => activeTab = "bureau"'>
-            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span>Credit Bureau
-        </div>
-        <div class="tab @(activeTab == "collateral" ? "active" : "")" @onclick='() => activeTab = "collateral"'>
-            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">security</span>Collateral
         </div>
         <div class="tab @(activeTab == "documents" ? "active" : "")" @onclick='() => activeTab = "documents"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">folder_open</span>Documents
@@ -177,8 +187,16 @@ else
         <div class="tab @(activeTab == "financialappraisal" ? "active" : "")" @onclick='() => activeTab = "financialappraisal"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">calculate</span>Financial Appraisal
         </div>
-        @* Conditional — appears once its stage/action is reached (history stays visible afterward).
-           Action buttons inside remain role+stage gated regardless. *@
+        <div class="tab @(activeTab == "bureau" ? "active" : "")" @onclick='() => activeTab = "bureau"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span>Credit Bureau
+        </div>
+        <div class="tab @(activeTab == "collateral" ? "active" : "")" @onclick='() => activeTab = "collateral"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">security</span>Collateral
+        </div>
+        <div class="tab @(activeTab == "advisory" ? "active" : "")" @onclick='() => activeTab = "advisory"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology_alt</span>AI Advisory
+        </div>
+        @* ── Stage block (mirrors Corporate: Credit Appraisal → Committee → … → Loan Account) ── *@
         @if (ShowAppraisalTab)
         {
             <div class="tab @(activeTab == "appraisal" ? "active" : "")" @onclick='() => activeTab = "appraisal"'>
@@ -231,9 +249,6 @@ else
                 <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">account_balance_wallet</span>Loan Account
             </div>
         }
-        <div class="tab @(activeTab == "advisory" ? "active" : "")" @onclick='() => activeTab = "advisory"'>
-            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology_alt</span>AI Advisory
-        </div>
         <div class="tab @(activeTab == "workflow" ? "active" : "")" @onclick='() => activeTab = "workflow"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">history</span>Workflow
         </div>
@@ -244,18 +259,17 @@ else
         case "overview":
             <OverviewTab Workspace="workspace" Directors="directors" />
             break;
+        case "eop":
+            <EopTab Workspace="workspace" />
+            break;
         case "directors":
             <DirectorsTab Directors="directors" CanManageDirectors="CanManageDirectors"
                 IsFetchingCac="isFetchingCac" CacError="@cacError"
                 OnFetchCac="FetchCacDetails" OnAddDirector="OpenAddDirectorModal"
                 OnEditDirector="OpenEditDirectorModal" OnRemoveDirector="RemoveDirector" />
             break;
-        case "eligibility":
-            <EligibilityTab Checks="eligibilityChecks" />
-            break;
         case "bureau":
-            <BureauTab Reports="bureauReports" CanRecheck="CanRunBureauChecks" IsRechecking="isRunningBureauChecks"
-                RecheckError="@bureauError" OnRecheck="RunBureauChecks" />
+            <BureauTab Reports="bureauReports" CanRecheck="CanRunBureauChecks" RecheckError="@bureauError" />
             break;
         case "collateral":
             <CollateralTab Records="collateralRecords" CanUpload="CanClearLegally"
@@ -308,10 +322,6 @@ else
             break;
     }
 
-    @if (openModal == "eligibility")
-    {
-        <EligibilityChecklistModal OnClose="CloseModal" OnConfirm="SubmitEligibilityChecklist" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
-    }
     @if (openModal == "collateral")
     {
         <CollateralModal OnClose="CloseModal" OnConfirm="SubmitCollateral" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
@@ -366,7 +376,6 @@ else
     [Parameter] public string Reference { get; set; } = string.Empty;
 
     private RhshfCaseWorkspaceDto? workspace;
-    private List<RhshfEligibilityCheckDto> eligibilityChecks = [];
     private List<RhshfCollateralDto> collateralRecords = [];
     private RhshfCommitteeReviewDto? committeeReview;
     private StandingCommitteeInfo? committeeRoster;
@@ -427,7 +436,6 @@ else
 
     // Tabs stay visible once the case has ever reached the relevant stage, even after moving past
     // it — staff need the history, not just "is it my turn right now".
-    private bool ShowEligibilityTab => workspace!.InternalStage is not null || eligibilityChecks.Count > 0 || workspace.Appraisals.Count > 0;
     private bool ShowCollateralTab => (workspace!.InternalStage is not null && PostLegalStages.Contains(workspace.InternalStage.Value))
         || collateralRecords.Count > 0;
     private bool ShowAppraisalTab => workspace!.InternalStage is not null || workspace.Appraisals.Count > 0;
@@ -470,7 +478,6 @@ else
             var appraisalResult = await AppService.GetRhshfFinancialAppraisalAsync(Reference);
             financialAppraisal = appraisalResult.Data;
             financialAppraisalError = appraisalResult.Error;
-            eligibilityChecks = await AppService.GetRhshfEligibilityChecklistAsync(Reference);
             collateralRecords = await AppService.GetRhshfCollateralAsync(Reference);
             committeeReview = await AppService.GetRhshfCommitteeReviewAsync(Reference);
             committeeRoster = committeeReview is not null
@@ -501,17 +508,6 @@ else
     private void OpenRatificationModal(string intent) { openModal = "ratification"; modalIntent = intent; modalError = null; }
     private void OpenLegalClearanceModal(string intent) { openModal = "legal"; modalIntent = intent; modalError = null; }
     private void CloseModal() { openModal = null; modalError = null; }
-
-    private async Task SubmitEligibilityChecklist(List<RhshfEligibilityCriterionInput> criteria)
-    {
-        isSubmitting = true;
-        modalError = null;
-        var result = await AppService.RecordRhshfEligibilityChecklistAsync(Reference, CurrentUserId, criteria);
-        isSubmitting = false;
-        if (!result.Success) { modalError = result.Error; return; }
-        CloseModal();
-        await LoadAllAsync();
-    }
 
     private async Task SubmitCollateral(RecordRhshfCollateralCommand command)
     {

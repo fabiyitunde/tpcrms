@@ -199,24 +199,6 @@ public enum RhshfCallbackEventType
     OfferReady,
 }
 
-/// <summary>The 11 fixed institutional eligibility criteria from the RH-SHF programme document
-/// (RSHSF_Programme_Details.docx, S/N 15) — a fixed programme-wide checklist, not a per-product
-/// configurable rule engine like LoanProduct's EligibilityRule.</summary>
-public enum RhshfEligibilityCriterion
-{
-    CacIncorporation,
-    AggregationTrackRecord,
-    OutGrowerNetwork,
-    WarehousingAndTransport,
-    OffTakeAgreements,
-    BoaOperationalAccount,
-    AuditedFinancials,
-    CleanBureauAndCrmsReports,
-    ZeroNplHistory,
-    BoaFrameworkCompliance,
-    SmallholderBiometricRegistration,
-}
-
 /// <summary>Collateral instrument types named in the RH-SHF programme document (S/N 16) — a fixed,
 /// small set of specific instruments (unlike NAMP's generic asset-collateral shape), so
 /// RhshfCollateral models these directly rather than a free-text "collateral type" string.</summary>

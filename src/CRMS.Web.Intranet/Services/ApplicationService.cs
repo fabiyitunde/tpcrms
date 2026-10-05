@@ -7075,39 +7075,6 @@ public partial class ApplicationService
 
     // ── RH-SHF Full-page Detail view (RSHSF_Programme_Details.docx S/N 15-16) ──────────────────
 
-    public async Task<List<CRMS.Application.Rhshf.Queries.RhshfEligibilityCheckDto>> GetRhshfEligibilityChecklistAsync(string reference)
-    {
-        try
-        {
-            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfEligibilityChecklistHandler>();
-            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfEligibilityChecklistQuery(reference), CancellationToken.None);
-            return result.IsSuccess ? result.Data ?? [] : [];
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error loading RH-SHF eligibility checklist for {Reference}", reference);
-            return [];
-        }
-    }
-
-    public async Task<ApiResponse> RecordRhshfEligibilityChecklistAsync(
-        string reference, Guid verifiedBy, List<CRMS.Application.Rhshf.Commands.RhshfEligibilityCriterionInput> criteria)
-    {
-        try
-        {
-            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RecordRhshfEligibilityChecklistHandler>();
-            var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.RecordRhshfEligibilityChecklistCommand(reference, verifiedBy, criteria),
-                CancellationToken.None);
-            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Recording the eligibility checklist failed");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error recording RH-SHF eligibility checklist for {Reference}", reference);
-            return ApiResponse.Fail(ex.Message);
-        }
-    }
-
     public async Task<List<CRMS.Application.Rhshf.Queries.RhshfCollateralDto>> GetRhshfCollateralAsync(string reference)
     {
         try
