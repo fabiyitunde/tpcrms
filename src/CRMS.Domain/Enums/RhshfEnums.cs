@@ -215,3 +215,11 @@ public enum RhshfCollateralPerfectionStatus
     Pending,
     Perfected,
 }
+
+/// <summary>A guarantor is either a person (credit-checked individually by BVN) or a company
+/// (checked as a business by RC number) — which determines the bureau path and the identifier shown.</summary>
+public enum RhshfGuarantorType
+{
+    Individual,
+    Corporate,
+}

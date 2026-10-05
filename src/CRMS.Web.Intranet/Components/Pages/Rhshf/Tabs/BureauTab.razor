@@ -62,6 +62,24 @@
             </div>
         </div>
     }
+
+    @if (GuarantorReports.Count > 0)
+    {
+        <div>
+            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.875rem; font-weight: 600; color: var(--gray-700);">
+                <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">handshake</span>
+                Guarantors (@GuarantorReports.Count)
+            </h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem;">
+                @foreach (var r in GuarantorReports)
+                {
+                    @* A corporate guarantor was checked as a business (no BVN, no individual score);
+                       an individual guarantor carries a BVN and a score. *@
+                    @BureauCard(r, isBusiness: string.IsNullOrEmpty(r.Bvn))
+                }
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -70,7 +88,8 @@
     [Parameter] public string? RecheckError { get; set; }
 
     private List<RhshfBureauReportDto> CompanyReports => Reports.Where(r => r.SubjectType == "RhshfCompany").ToList();
-    private List<RhshfBureauReportDto> DirectorReports => Reports.Where(r => r.SubjectType != "RhshfCompany").ToList();
+    private List<RhshfBureauReportDto> GuarantorReports => Reports.Where(r => r.SubjectType == "RhshfGuarantor").ToList();
+    private List<RhshfBureauReportDto> DirectorReports => Reports.Where(r => r.SubjectType != "RhshfCompany" && r.SubjectType != "RhshfGuarantor").ToList();
 
     private RenderFragment BureauCard(RhshfBureauReportDto r, bool isBusiness) => __builder =>
     {

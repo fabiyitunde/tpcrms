@@ -28,20 +28,25 @@ public class ProcessRhshfCreditChecksHandler
 {
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IBureauReportRepository _bureauRepo;
+    private readonly IRhshfGuarantorRepository _guarantorRepo;
     private readonly ISmartComplyProvider _smartComply;
     private readonly IUnitOfWork _uow;
     private readonly ILogger<ProcessRhshfCreditChecksHandler> _logger;
 
     public ProcessRhshfCreditChecksHandler(
         IRhshfCreditProfileRepository repo, IBureauReportRepository bureauRepo,
+        IRhshfGuarantorRepository guarantorRepo,
         ISmartComplyProvider smartComply, IUnitOfWork uow, ILogger<ProcessRhshfCreditChecksHandler> logger)
     {
         _repo = repo;
         _bureauRepo = bureauRepo;
+        _guarantorRepo = guarantorRepo;
         _smartComply = smartComply;
         _uow = uow;
         _logger = logger;
     }
+
+    private enum CheckOutcome { Success, Failed, Skipped }
 
     public async Task<ApplicationResult<RhshfCreditCheckBatchDto>> Handle(
         ProcessRhshfCreditChecksCommand request, CancellationToken ct = default)
@@ -60,83 +65,52 @@ public class ProcessRhshfCreditChecksHandler
             existing = [];
         }
 
-        // Subject list: every director with a BVN, deduped (a person listed twice keeps one check).
-        var subjects = profile.GetDirectorsWithBvn()
-            .Select(d => (Name: d.FullName, Bvn: d.Bvn!.Trim(), PartyId: (Guid?)d.Id))
+        // Individual subjects: directors + individual guarantors with a BVN, deduped by BVN (the same
+        // person listed twice — e.g. a director who is also a guarantor — keeps a single check).
+        var guarantors = await _guarantorRepo.GetByProfileIdAsync(profile.Id, ct);
+
+        var individualSubjects = profile.GetDirectorsWithBvn()
+            .Select(d => (Name: d.FullName, Bvn: d.Bvn!.Trim(), PartyId: (Guid?)d.Id, PartyType: "RhshfDirector"))
+            .Concat(guarantors
+                .Where(g => g.GuarantorType == RhshfGuarantorType.Individual && !string.IsNullOrWhiteSpace(g.Bvn))
+                .Select(g => (Name: g.FullName, Bvn: g.Bvn!.Trim(), PartyId: (Guid?)g.Id, PartyType: "RhshfGuarantor")))
             .GroupBy(s => s.Bvn, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .ToList();
 
+        // Corporate guarantors checked as businesses by RC number, deduped by RC.
+        var corporateGuarantorSubjects = guarantors
+            .Where(g => g.GuarantorType == RhshfGuarantorType.Corporate && !string.IsNullOrWhiteSpace(g.RcNumber))
+            .Select(g => (Name: g.FullName, Rc: g.RcNumber!.Trim()))
+            .GroupBy(s => s.Rc, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
         var hasBusinessCheck = !string.IsNullOrWhiteSpace(profile.RcNumber);
-        if (subjects.Count == 0 && !hasBusinessCheck)
+        if (individualSubjects.Count == 0 && corporateGuarantorSubjects.Count == 0 && !hasBusinessCheck)
             return ApplicationResult<RhshfCreditCheckBatchDto>.Success(new RhshfCreditCheckBatchDto(0, 0, 0, 0));
 
         int successful = 0, failed = 0, skipped = 0;
 
-        // ── Directors (individual, CRC by BVN) ────────────────────────────
-        foreach (var (name, bvn, partyId) in subjects)
+        // ── Individuals (directors + individual guarantors), CRC by BVN ────
+        foreach (var (name, bvn, partyId, partyType) in individualSubjects)
         {
-            // Idempotent: a completed report for this BVN already satisfies the requirement.
-            if (existing.Any(r => string.Equals(r.BVN, bvn, StringComparison.OrdinalIgnoreCase)
-                                  && r.Status == BureauReportStatus.Completed))
+            switch (await RunIndividualCreditCheckAsync(name, bvn, partyId, partyType, profile.Id, existing, request.SystemUserId, ct))
             {
-                skipped++;
-                continue;
+                case CheckOutcome.Success: successful++; break;
+                case CheckOutcome.Skipped: skipped++; break;
+                default: failed++; break;
             }
+        }
 
-            try
+        // ── Corporate guarantors, CRC by RC number (business) ─────────────
+        foreach (var (name, rc) in corporateGuarantorSubjects)
+        {
+            switch (await RunGuarantorBusinessCheckAsync(name, rc, profile.Id, existing, request.SystemUserId, ct))
             {
-                var reportResult = BureauReport.Create(
-                    CreditBureauProvider.CRC, SubjectType.Individual, name, bvn, request.SystemUserId,
-                    loanApplicationId: null, nampApplicationId: null,
-                    partyId: partyId, partyType: "RhshfDirector", rhshfCreditProfileId: profile.Id);
-
-                if (reportResult.IsFailure) { failed++; continue; }
-
-                var bureauReport = reportResult.Value;
-                bureauReport.MarkProcessing();
-                await _bureauRepo.AddAsync(bureauReport, ct);
-                await _uow.SaveChangesAsync(ct);
-
-                var checkResult = await _smartComply.GetCRCFullAsync(bvn, ct);
-                if (checkResult.IsSuccess)
-                {
-                    var report = checkResult.Value;
-                    var summary = report.Summary;
-
-                    // Score is best-effort. If the bureau has no score for this BVN we record null
-                    // rather than inventing one — see this class's doc comment.
-                    int? creditScore = null;
-                    string? scoreGrade = null;
-                    var scoreResult = await _smartComply.GetCRCScoreAsync(bvn, ct);
-                    if (scoreResult.IsSuccess && scoreResult.Value.Score > 0)
-                    {
-                        creditScore = scoreResult.Value.Score;
-                        scoreGrade = scoreResult.Value.Grade ?? GetScoreGrade(scoreResult.Value.Score);
-                    }
-
-                    bureauReport.CompleteWithData(
-                        report.Id ?? bvn, creditScore, scoreGrade,
-                        report.SearchedDate ?? DateTime.UtcNow,
-                        JsonSerializer.Serialize(report), null,
-                        summary.TotalNoOfLoans, summary.TotalNoOfActiveLoans, summary.TotalNoOfPerformingLoans,
-                        summary.TotalNoOfDelinquentFacilities, summary.TotalNoOfClosedLoans,
-                        summary.TotalOutstanding, summary.TotalOverdue, summary.HighestLoanAmount,
-                        summary.MaxNoOfDays, false);
-                    successful++;
-                }
-                else
-                {
-                    MarkOutcome(bureauReport, checkResult.Error);
-                    failed++;
-                }
-
-                await _uow.SaveChangesAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error running RH-SHF credit check for {Name} ({BVN})", name, bvn);
-                failed++;
+                case CheckOutcome.Success: successful++; break;
+                case CheckOutcome.Skipped: skipped++; break;
+                default: failed++; break;
             }
         }
 
@@ -217,7 +191,123 @@ public class ProcessRhshfCreditChecksHandler
         }
 
         return ApplicationResult<RhshfCreditCheckBatchDto>.Success(
-            new RhshfCreditCheckBatchDto(subjects.Count + (hasBusinessCheck ? 1 : 0), successful, failed, skipped));
+            new RhshfCreditCheckBatchDto(
+                individualSubjects.Count + corporateGuarantorSubjects.Count + (hasBusinessCheck ? 1 : 0),
+                successful, failed, skipped));
+    }
+
+    /// <summary>One individual CRC check by BVN — used for directors and individual guarantors; the
+    /// partyType tags which. Idempotent on a completed report for the same BVN.</summary>
+    private async Task<CheckOutcome> RunIndividualCreditCheckAsync(
+        string name, string bvn, Guid? partyId, string partyType, Guid profileId,
+        IReadOnlyList<BureauReport> existing, Guid systemUserId, CancellationToken ct)
+    {
+        if (existing.Any(r => string.Equals(r.BVN, bvn, StringComparison.OrdinalIgnoreCase)
+                              && r.Status == BureauReportStatus.Completed))
+            return CheckOutcome.Skipped;
+
+        try
+        {
+            var reportResult = BureauReport.Create(
+                CreditBureauProvider.CRC, SubjectType.Individual, name, bvn, systemUserId,
+                loanApplicationId: null, nampApplicationId: null,
+                partyId: partyId, partyType: partyType, rhshfCreditProfileId: profileId);
+
+            if (reportResult.IsFailure) return CheckOutcome.Failed;
+
+            var bureauReport = reportResult.Value;
+            bureauReport.MarkProcessing();
+            await _bureauRepo.AddAsync(bureauReport, ct);
+            await _uow.SaveChangesAsync(ct);
+
+            var checkResult = await _smartComply.GetCRCFullAsync(bvn, ct);
+            if (checkResult.IsSuccess)
+            {
+                var report = checkResult.Value;
+                var summary = report.Summary;
+
+                // Score is best-effort; an unavailable score stays null rather than invented.
+                int? creditScore = null;
+                string? scoreGrade = null;
+                var scoreResult = await _smartComply.GetCRCScoreAsync(bvn, ct);
+                if (scoreResult.IsSuccess && scoreResult.Value.Score > 0)
+                {
+                    creditScore = scoreResult.Value.Score;
+                    scoreGrade = scoreResult.Value.Grade ?? GetScoreGrade(scoreResult.Value.Score);
+                }
+
+                bureauReport.CompleteWithData(
+                    report.Id ?? bvn, creditScore, scoreGrade,
+                    report.SearchedDate ?? DateTime.UtcNow,
+                    JsonSerializer.Serialize(report), null,
+                    summary.TotalNoOfLoans, summary.TotalNoOfActiveLoans, summary.TotalNoOfPerformingLoans,
+                    summary.TotalNoOfDelinquentFacilities, summary.TotalNoOfClosedLoans,
+                    summary.TotalOutstanding, summary.TotalOverdue, summary.HighestLoanAmount,
+                    summary.MaxNoOfDays, false);
+                await _uow.SaveChangesAsync(ct);
+                return CheckOutcome.Success;
+            }
+
+            MarkOutcome(bureauReport, checkResult.Error);
+            await _uow.SaveChangesAsync(ct);
+            return CheckOutcome.Failed;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error running RH-SHF credit check for {Name} ({BVN})", name, bvn);
+            return CheckOutcome.Failed;
+        }
+    }
+
+    /// <summary>A corporate guarantor's business CRC check by RC number. Unlike the FAC company check,
+    /// it does NOT write back to the profile's flat bureau summary — that summary is the FAC's own
+    /// record, not a guarantor's. Idempotent on a completed report for the same RC.</summary>
+    private async Task<CheckOutcome> RunGuarantorBusinessCheckAsync(
+        string name, string rc, Guid profileId, IReadOnlyList<BureauReport> existing, Guid systemUserId, CancellationToken ct)
+    {
+        if (existing.Any(r => string.Equals(r.TaxId, rc, StringComparison.OrdinalIgnoreCase)
+                              && r.Status == BureauReportStatus.Completed))
+            return CheckOutcome.Skipped;
+
+        try
+        {
+            var reportResult = BureauReport.Create(
+                CreditBureauProvider.CRC, SubjectType.Business, name, null, systemUserId,
+                loanApplicationId: null, nampApplicationId: null, taxId: rc,
+                partyId: null, partyType: "RhshfGuarantor", rhshfCreditProfileId: profileId);
+
+            if (reportResult.IsFailure) return CheckOutcome.Failed;
+
+            var bureauReport = reportResult.Value;
+            bureauReport.MarkProcessing();
+            await _bureauRepo.AddAsync(bureauReport, ct);
+            await _uow.SaveChangesAsync(ct);
+
+            var checkResult = await _smartComply.GetCRCBusinessHistoryAsync(rc, ct);
+            if (checkResult.IsSuccess)
+            {
+                var report = checkResult.Value;
+                var summary = report.Summary;
+                bureauReport.CompleteWithData(
+                    report.Id ?? rc, null, null, // business CRC returns no individual score/grade
+                    report.SearchedDate ?? DateTime.UtcNow,
+                    JsonSerializer.Serialize(report), null,
+                    summary.TotalNoOfLoans, summary.TotalNoOfActiveLoans, summary.TotalNoOfPerformingLoans,
+                    summary.TotalNoOfDelinquentFacilities, summary.TotalNoOfClosedLoans,
+                    summary.TotalOutstanding, summary.TotalOverdue, summary.HighestLoanAmount, 0, false);
+                await _uow.SaveChangesAsync(ct);
+                return CheckOutcome.Success;
+            }
+
+            MarkOutcome(bureauReport, checkResult.Error);
+            await _uow.SaveChangesAsync(ct);
+            return CheckOutcome.Failed;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error running RH-SHF guarantor business check for {Name} ({Rc})", name, rc);
+            return CheckOutcome.Failed;
+        }
     }
 
     /// <summary>"Not found" means the bureau has no file for this subject — a legitimate, displayable

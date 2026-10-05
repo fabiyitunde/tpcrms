@@ -802,6 +802,13 @@ public static class DependencyInjection
         // Core-banking account statement — reused by the RH-SHF Bank Statements tab to pull the
         // FAC's BOA account transactions (registered concretely so the Intranet AppService resolves it).
         services.AddScoped<Application.CoreBanking.Queries.GetAccountStatementHandler>();
+
+        // RH-SHF — guarantors (staff-captured; bureau-checked via ProcessRhshfCreditChecks)
+        services.AddScoped<IRhshfGuarantorRepository, RhshfGuarantorRepository>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfGuarantorsHandler>();
+        services.AddScoped<Application.Rhshf.Commands.AddRhshfGuarantorHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UpdateRhshfGuarantorHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RemoveRhshfGuarantorHandler>();
         services.AddScoped<Application.Rhshf.Commands.RecordRhshfCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfCollateralDocumentHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCollateralHandler>();

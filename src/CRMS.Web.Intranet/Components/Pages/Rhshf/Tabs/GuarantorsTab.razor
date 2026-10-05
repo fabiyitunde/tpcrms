@@ -1,0 +1,119 @@
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
+
+@* Guarantors backing the facility — captured by staff (the portal sends none). Individuals carry a
+   BVN and corporates an RC number; both are credit-checked when "Re-run Credit Checks" runs, and the
+   results appear on the Credit Bureau tab. Mirrors the Directors tab idiom. *@
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Guarantors</h3>
+        <div style="display: flex; align-items: center; gap: var(--space-2);">
+            <span class="badge badge-primary">@Guarantors.Count</span>
+            @if (CanManage)
+            {
+                <button class="btn btn-primary btn-sm" @onclick="() => OnAdd.InvokeAsync()">
+                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">add</span> Add Guarantor
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (Guarantors.Any(g => g.GuarantorType == RhshfGuarantorType.Individual && !g.HasBvn)
+         || Guarantors.Any(g => g.GuarantorType == RhshfGuarantorType.Corporate && string.IsNullOrWhiteSpace(g.RcNumber)))
+    {
+        <div class="card-body" style="padding-bottom: 0;">
+            <div class="alert alert-warning" style="margin: 0;">
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">warning</span>
+                Some guarantors have no bureau identifier (BVN for individuals, RC for corporates) and will be skipped by credit checks until it's added.
+            </div>
+        </div>
+    }
+
+    <div class="card-body" style="padding: 0;">
+        @if (Guarantors.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">handshake</span></div>
+                <div class="empty-state-title">No guarantors recorded</div>
+                <div class="empty-state-text">
+                    @(CanManage ? "Add the individuals or companies guaranteeing this facility." : "Guarantors backing this facility appear here.")
+                </div>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Guarantor</th>
+                        <th>Type</th>
+                        <th>Bureau ID</th>
+                        <th>Relationship</th>
+                        <th style="text-align: right;">Guarantee</th>
+                        <th>Contact</th>
+                        @if (CanManage) { <th></th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in Guarantors)
+                    {
+                        var current = g;
+                        <tr>
+                            <td style="font-weight: 500;">@g.FullName</td>
+                            <td><span class="badge badge-gray">@g.GuarantorType</span></td>
+                            <td>
+                                @if (g.GuarantorType == RhshfGuarantorType.Individual)
+                                {
+                                    @if (g.HasBvn)
+                                    {
+                                        <span class="badge badge-success">BVN provided</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-warning">BVN missing</span>
+                                    }
+                                }
+                                else
+                                {
+                                    @(string.IsNullOrWhiteSpace(g.RcNumber)
+                                        ? (MarkupString)"<span class=\"badge badge-warning\">RC missing</span>"
+                                        : (MarkupString)$"<code>{g.RcNumber}</code>")
+                                }
+                            </td>
+                            <td style="font-size: var(--text-sm); color: var(--gray-600);">@(string.IsNullOrWhiteSpace(g.Relationship) ? "—" : g.Relationship)</td>
+                            <td style="text-align: right; font-weight: 600;">@(g.GuaranteeAmount is decimal v ? $"{Currency} {v:N2}" : "—")</td>
+                            <td style="font-size: var(--text-xs); color: var(--gray-500);">
+                                @if (!string.IsNullOrWhiteSpace(g.PhoneNumber)) { <div>@g.PhoneNumber</div> }
+                                @if (!string.IsNullOrWhiteSpace(g.Email)) { <div>@g.Email</div> }
+                                @if (string.IsNullOrWhiteSpace(g.PhoneNumber) && string.IsNullOrWhiteSpace(g.Email)) { <text>—</text> }
+                            </td>
+                            @if (CanManage)
+                            {
+                                <td>
+                                    <div style="display: flex; gap: var(--space-2);">
+                                        <button class="btn btn-ghost btn-sm" title="Edit" @onclick="() => OnEdit.InvokeAsync(current)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                                        </button>
+                                        <button class="btn btn-ghost btn-sm" title="Remove" @onclick="() => OnRemove.InvokeAsync(current.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px; color: var(--danger-600);">delete</span>
+                                        </button>
+                                    </div>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<RhshfGuarantorDto> Guarantors { get; set; } = [];
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public string Currency { get; set; } = "NGN";
+    [Parameter] public EventCallback OnAdd { get; set; }
+    [Parameter] public EventCallback<RhshfGuarantorDto> OnEdit { get; set; }
+    [Parameter] public EventCallback<Guid> OnRemove { get; set; }
+}

@@ -1,0 +1,166 @@
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 560px;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">handshake</span>
+                @(IsEditing ? "Edit Guarantor" : "Add Guarantor")
+            </h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Guarantor Type *</label>
+                <select class="form-control" @bind="type">
+                    <option value="@RhshfGuarantorType.Individual">Individual</option>
+                    <option value="@RhshfGuarantorType.Corporate">Corporate</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">@(type == RhshfGuarantorType.Corporate ? "Company Name *" : "Full Name *")</label>
+                <input class="form-control" @bind="fullName" />
+            </div>
+
+            @if (type == RhshfGuarantorType.Individual)
+            {
+                <div class="form-group">
+                    <label class="form-label">BVN</label>
+                    <input class="form-control" maxlength="11" @bind="bvn" placeholder="@(IsEditing && Existing!.HasBvn ? "On file — leave blank to keep" : "11 digits")" />
+                    <small class="form-hint">Required for this guarantor to be included in credit bureau checks.</small>
+                </div>
+            }
+            else
+            {
+                <div class="form-group">
+                    <label class="form-label">RC Number</label>
+                    <input class="form-control" @bind="rcNumber" placeholder="Corporate registration number" />
+                    <small class="form-hint">Required for the corporate guarantor's business bureau check.</small>
+                </div>
+            }
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">Relationship to FAC</label>
+                    <input class="form-control" @bind="relationship" placeholder="e.g. Director, Third Party" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Guarantee Amount</label>
+                    <input type="number" class="form-control" min="0" step="0.01" @bind="guaranteeAmount" />
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">Phone</label>
+                    <input class="form-control" @bind="phoneNumber" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input class="form-control" @bind="email" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Address</label>
+                <input class="form-control" @bind="address" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-control" rows="2" @bind="notes"></textarea>
+            </div>
+
+            @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
+            {
+                <div class="alert alert-danger">@(ErrorMessage ?? clientError)</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn btn-primary" disabled="@IsSubmitting" @onclick="Submit">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                @(IsEditing ? "Save" : "Add Guarantor")
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>Null = add mode; set = edit mode.</summary>
+    [Parameter] public RhshfGuarantorDto? Existing { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<GuarantorFormData> OnSave { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    public record GuarantorFormData(
+        RhshfGuarantorType Type, string FullName, string? Bvn, string? RcNumber, string? Relationship,
+        string? PhoneNumber, string? Email, string? Address, decimal? GuaranteeAmount, string? Notes);
+
+    private bool IsEditing => Existing is not null;
+
+    private RhshfGuarantorType type = RhshfGuarantorType.Individual;
+    private string fullName = string.Empty;
+    private string? bvn;
+    private string? rcNumber;
+    private string? relationship;
+    private string? phoneNumber;
+    private string? email;
+    private string? address;
+    private decimal? guaranteeAmount;
+    private string? notes;
+    private string? clientError;
+    private bool _initialised;
+
+    protected override void OnParametersSet()
+    {
+        if (_initialised || Existing is null) return;
+        type = Existing.GuarantorType;
+        fullName = Existing.FullName;
+        rcNumber = Existing.RcNumber;
+        relationship = Existing.Relationship;
+        phoneNumber = Existing.PhoneNumber;
+        email = Existing.Email;
+        address = Existing.Address;
+        guaranteeAmount = Existing.GuaranteeAmount;
+        notes = Existing.Notes;
+        _initialised = true;
+    }
+
+    private async Task Submit()
+    {
+        clientError = null;
+
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            clientError = "Name is required.";
+            return;
+        }
+
+        var trimmedBvn = string.IsNullOrWhiteSpace(bvn) ? null : bvn.Trim();
+        if (type == RhshfGuarantorType.Individual && trimmedBvn is not null
+            && (trimmedBvn.Length != 11 || !trimmedBvn.All(char.IsDigit)))
+        {
+            clientError = "BVN must be exactly 11 digits.";
+            return;
+        }
+        if (guaranteeAmount is < 0)
+        {
+            clientError = "Guarantee amount cannot be negative.";
+            return;
+        }
+
+        await OnSave.InvokeAsync(new GuarantorFormData(
+            type, fullName.Trim(), trimmedBvn,
+            string.IsNullOrWhiteSpace(rcNumber) ? null : rcNumber.Trim(),
+            string.IsNullOrWhiteSpace(relationship) ? null : relationship,
+            string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber,
+            string.IsNullOrWhiteSpace(email) ? null : email,
+            string.IsNullOrWhiteSpace(address) ? null : address,
+            guaranteeAmount,
+            string.IsNullOrWhiteSpace(notes) ? null : notes));
+    }
+}

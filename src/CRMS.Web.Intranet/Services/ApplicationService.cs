@@ -7130,6 +7130,66 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<List<CRMS.Application.Rhshf.Queries.RhshfGuarantorDto>> GetRhshfGuarantorsAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfGuarantorsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfGuarantorsQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data ?? [] : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF guarantors for {Reference}", reference);
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse> AddRhshfGuarantorAsync(CRMS.Application.Rhshf.Commands.AddRhshfGuarantorCommand command)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.AddRhshfGuarantorHandler>();
+            var result = await handler.Handle(command, CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to add guarantor");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding RH-SHF guarantor for {Reference}", command.Reference);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse> UpdateRhshfGuarantorAsync(CRMS.Application.Rhshf.Commands.UpdateRhshfGuarantorCommand command)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.UpdateRhshfGuarantorHandler>();
+            var result = await handler.Handle(command, CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update guarantor");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating RH-SHF guarantor {Id}", command.GuarantorId);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse> RemoveRhshfGuarantorAsync(Guid guarantorId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RemoveRhshfGuarantorHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.RemoveRhshfGuarantorCommand(guarantorId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to remove guarantor");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing RH-SHF guarantor {Id}", guarantorId);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
     public async Task<List<CRMS.Application.Rhshf.Queries.RhshfCollateralDto>> GetRhshfCollateralAsync(string reference)
     {
         try
