@@ -1,124 +1,146 @@
 @using CRMS.Application.Rhshf.DTOs
 @using CRMS.Application.Rhshf.Queries
 
-<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+@* Colour treatment mirrors Corporate's AdvisoryTab (dark gradient hero + SVG score ring, colour-coded
+   breakdown cards and callout boxes), bound to RH-SHF's advisory data. The RH-SHF-only "Advisory
+   Inputs" panel (what the score was actually computed from, with the crop-economics gates) is kept —
+   it has no Corporate equivalent and is the single most useful thing for spotting a thin advisory. *@
+
+@if (Advisory is null)
+{
     <div class="card">
-        <div class="card-header">
-            <div>
-                <h3 class="card-title">AI Advisory</h3>
-                @if (Advisory is not null)
-                {
-                    <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">
-                        Model @Advisory.ModelVersion &middot; Generated @Advisory.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
-                    </div>
-                }
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">psychology_alt</span></div>
+            <div class="empty-state-title">No advisory yet</div>
+            <div class="empty-state-text">
+                @(CanGenerate ? "Generate an AI-assisted credit recommendation from the bureau, farm plan and viability appraisal." : "An advisory has not been generated for this case yet.")
             </div>
             @if (CanGenerate)
             {
-                <button class="btn btn-outline btn-sm" @onclick="() => OnGenerate.InvokeAsync()" disabled="@IsGenerating">
-                    @if (IsGenerating) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
-                    else { <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">auto_awesome</span> }
-                    @(Advisory is null ? "Generate Advisory" : "Regenerate")
+                <button class="btn btn-primary" @onclick="() => OnGenerate.InvokeAsync()" disabled="@IsGenerating">
+                    @if (IsGenerating) { <span class="spinner"></span> <span>Generating…</span> }
+                    else { <span class="material-symbols-outlined" style="font-size: 18px;">auto_awesome</span> <span>Generate Advisory</span> }
                 </button>
             }
         </div>
+    </div>
+}
+else if (IsGenerating)
+{
+    <div class="card">
+        <div class="card-body" style="padding: 2rem; text-align: center;">
+            <div class="spinner" style="margin: 0 auto;"></div>
+            <div style="margin-top: 0.75rem; color: var(--gray-500);">Generating AI Advisory — this may take up to 30 seconds…</div>
+        </div>
+    </div>
+}
+else if (Advisory.Status == "Failed")
+{
+    <div class="card">
+        <div class="card-body"><div class="alert alert-danger" style="margin: 0;">@(Advisory.ErrorMessage ?? "Advisory generation failed.")</div></div>
+    </div>
+}
+else
+{
+    var circleCircumference = 2 * Math.PI * 32;
+    var scoreFill = (double)Advisory.OverallScore / 100.0;
+    var circleDashOffset = circleCircumference * (1 - Math.Clamp(scoreFill, 0, 1));
+    var scoreArcColor = RatingHex(Advisory.OverallRating);
+    var recColor = RecommendationHex(Advisory.Recommendation);
+    var recLabel = Advisory.Recommendation == "ConditionalApprove" ? "Conditional Approve" : Advisory.Recommendation;
 
-        @if (Advisory is null)
-        {
-            <div class="empty-state">
-                <div class="empty-state-icon"><span class="material-symbols-outlined">psychology_alt</span></div>
-                <div class="empty-state-title">No advisory yet</div>
-                <div class="empty-state-text">
-                    @(CanGenerate ? "Click Generate Advisory to produce an AI-assisted credit recommendation." : "An advisory has not been generated for this case yet.")
-                </div>
-            </div>
-        }
-        else if (Advisory.Status == "Failed")
-        {
-            <div class="card-body">
-                <div class="alert alert-danger">@(Advisory.ErrorMessage ?? "Advisory generation failed.")</div>
-            </div>
-        }
-        else
-        {
-            <div class="card-body">
-                <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 2rem; font-weight: 700; color: var(--primary-700);">@Advisory.OverallScore.ToString("N0")</div>
-                        <div style="font-size: 0.7rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Overall Score</div>
+    <!-- ── Hero header ── -->
+    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 12px; padding: 1.5rem 1.75rem; margin-bottom: 1.5rem; color: white;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 1.5rem;">
+                <div style="position: relative; width: 80px; height: 80px; flex-shrink: 0;">
+                    <svg viewBox="0 0 80 80" style="width: 80px; height: 80px; transform: rotate(-90deg);">
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="7"/>
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="@scoreArcColor" stroke-width="7"
+                                stroke-dasharray="@circleCircumference.ToString("N1")"
+                                stroke-dashoffset="@circleDashOffset.ToString("N1")" stroke-linecap="round"/>
+                    </svg>
+                    <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; color: white;">
+                        <span style="font-size: 1.3rem; font-weight: 800;">@Advisory.OverallScore.ToString("N0")</span>
+                        <span style="font-size: 0.6rem; opacity: 0.5; margin-top: 1px;">/100</span>
                     </div>
-                    <span class="badge @RatingBadgeClass(Advisory.OverallRating)" style="font-size: 0.85rem;">@Advisory.OverallRating</span>
-                    <span class="badge @RecommendationBadgeClass(Advisory.Recommendation)" style="font-size: 0.85rem;">@Advisory.Recommendation</span>
-                    @if (Advisory.HasCriticalRedFlags)
-                    {
-                        <span class="badge badge-danger" style="font-size: 0.85rem;">
-                            <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">warning</span> Critical Red Flags
-                        </span>
-                    }
-                    @if (Advisory.RecommendedAmount is not null)
-                    {
-                        <div class="field-chip" style="margin-left: auto;">
-                            <div class="field-chip-label">Recommended Amount</div>
-                            <div class="field-chip-value">@Advisory.RecommendedAmount.Value.ToString("N2")</div>
-                        </div>
-                    }
+                </div>
+                <div>
+                    <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.5; margin-bottom: 3px;">AI Credit Advisory</div>
+                    <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: 8px;">@FormatRating(Advisory.OverallRating) Risk Profile</div>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                        @if (!string.IsNullOrEmpty(recLabel))
+                        {
+                            <span style="background: @recColor; color: white; padding: 3px 12px; border-radius: 20px; font-size: 0.72rem; font-weight: 700;">@recLabel</span>
+                        }
+                        @if (Advisory.HasCriticalRedFlags)
+                        {
+                            <span style="background: #ef4444; color: white; padding: 3px 12px; border-radius: 20px; font-size: 0.72rem; font-weight: 700;">⚠ Critical Red Flags</span>
+                        }
+                    </div>
                 </div>
             </div>
-        }
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.625rem;">
+                @if (CanGenerate)
+                {
+                    <button @onclick="() => OnGenerate.InvokeAsync()" disabled="@IsGenerating"
+                            style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 5px 12px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                        <span class="material-symbols-outlined" style="font-size: 14px;">refresh</span> Regenerate
+                    </button>
+                }
+                <div style="font-size: 0.68rem; opacity: 0.4; text-align: right; line-height: 1.6;">
+                    @Advisory.GeneratedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")<br/>@Advisory.ModelVersion
+                </div>
+            </div>
+        </div>
     </div>
 
-    @* What the advisory was actually generated from. A score is only as good as its inputs, and
-       until Phase F these were a bureau stub and an empty financial list — with nothing on screen
-       to reveal that. The officer can now see the basis, and spot when it is thin. *@
-    <div class="card">
+    <!-- ── Recommended amount ── -->
+    @if (Advisory.RecommendedAmount.HasValue)
+    {
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
+            <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 10px; padding: 1rem; text-align: center;">
+                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--gray-500); margin-bottom: 4px;">AI-Recommended Amount</div>
+                <div style="font-size: 1.05rem; font-weight: 700;">@Currency @Advisory.RecommendedAmount.Value.ToString("N0")</div>
+            </div>
+        </div>
+    }
+
+    <!-- ── Advisory inputs (RH-SHF peculiarity — what the score was computed from) ── -->
+    <div class="card" style="margin-bottom: 1.5rem;">
         <div class="card-header">
-            <h3 class="card-title">Advisory Inputs</h3>
-            <span class="badge @(HasFullInputs ? "badge-success" : "badge-warning")">
-                @(HasFullInputs ? "Complete" : "Partial")
-            </span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="material-symbols-outlined" style="font-size: 18px; color: var(--primary-600);">fact_check</span>
+                <h3 class="card-title" style="margin: 0;">Advisory Inputs</h3>
+            </div>
+            <span class="badge @(HasFullInputs ? "badge-success" : "badge-warning")">@(HasFullInputs ? "Complete" : "Partial")</span>
         </div>
         <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem;">
                 <div class="field-chip">
                     <div class="field-chip-label">Bureau Subjects</div>
-                    <div class="field-chip-value">
-                        @CompletedBureauCount of @BureauReports.Count
-                        <span style="font-weight: 400; font-size: 0.78rem; color: var(--gray-500);">returned data</span>
-                    </div>
+                    <div class="field-chip-value">@CompletedBureauCount of @BureauReports.Count <span style="font-weight: 400; font-size: 0.78rem; color: var(--gray-500);">returned data</span></div>
                 </div>
                 <div class="field-chip">
                     <div class="field-chip-label">Farm Plan</div>
                     <div class="field-chip-value">
                         @if (Appraisal?.FarmPlans.Count > 0)
-                        {
-                            @($"{Appraisal.FarmPlans.Count} crop{(Appraisal.FarmPlans.Count == 1 ? "" : "s")}, {Appraisal.FarmPlans.Sum(p => p.Hectares):N1}ha")
-                        }
-                        else
-                        {
-                            <span style="color: var(--warning-600, var(--gray-500));">Not recorded</span>
-                        }
+                        { @($"{Appraisal.FarmPlans.Count} crop{(Appraisal.FarmPlans.Count == 1 ? "" : "s")}, {Appraisal.FarmPlans.Sum(p => p.Hectares):N1}ha") }
+                        else { <span style="color: var(--warning-600, var(--gray-500));">Not recorded</span> }
                     </div>
                 </div>
                 <div class="field-chip">
                     <div class="field-chip-label">Financial Appraisal</div>
                     <div class="field-chip-value">
-                        @if (Report is not null)
-                        {
-                            @($"{Report.CycleMonths}-month cycle")
-                        }
-                        else
-                        {
-                            <span style="color: var(--warning-600, var(--gray-500));">Not saved</span>
-                        }
+                        @if (Report is not null) { @($"{Report.CycleMonths}-month cycle") }
+                        else { <span style="color: var(--warning-600, var(--gray-500));">Not saved</span> }
                     </div>
                 </div>
                 @if (Report is not null)
                 {
                     <div class="field-chip">
                         <div class="field-chip-label">Viability Gates</div>
-                        <div class="field-chip-value">
-                            @Report.GatesPassed of 5 passed
-                        </div>
+                        <div class="field-chip-value">@Report.GatesPassed of 5 passed</div>
                     </div>
                 }
             </div>
@@ -126,59 +148,17 @@
             @if (Report is not null)
             {
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.75rem;">
-                    <div class="field-chip">
-                        <div class="field-chip-label">DSCR</div>
-                        <div class="field-chip-value">
-                            @Report.Dscr.ToString("N2")
-                            <span class="badge @(Report.DscrPass ? "badge-success" : "badge-danger")" style="font-size: 10px; margin-left: 4px;">
-                                @(Report.DscrPass ? "Pass" : "Fail")
-                            </span>
-                        </div>
-                    </div>
-                    <div class="field-chip">
-                        <div class="field-chip-label">Gross Margin</div>
-                        <div class="field-chip-value">
-                            @Report.GrossMarginPercent.ToString("N1")%
-                            <span class="badge @(Report.GrossMarginPass ? "badge-success" : "badge-danger")" style="font-size: 10px; margin-left: 4px;">
-                                @(Report.GrossMarginPass ? "Pass" : "Fail")
-                            </span>
-                        </div>
-                    </div>
-                    <div class="field-chip">
-                        <div class="field-chip-label">IRR</div>
-                        <div class="field-chip-value">
-                            @(Report.Irr is null ? "n/a" : $"{Report.Irr.Value:N1}%")
-                            <span class="badge @(Report.IrrPass ? "badge-success" : "badge-danger")" style="font-size: 10px; margin-left: 4px;">
-                                @(Report.IrrPass ? "Pass" : "Fail")
-                            </span>
-                        </div>
-                    </div>
-                    <div class="field-chip">
-                        <div class="field-chip-label">Yield Headroom</div>
-                        <div class="field-chip-value">
-                            @(Report.YieldHeadroomPercent is null ? "n/a" : $"{Report.YieldHeadroomPercent.Value:N1}%")
-                            <span class="badge @(Report.YieldHeadroomPass ? "badge-success" : "badge-danger")" style="font-size: 10px; margin-left: 4px;">
-                                @(Report.YieldHeadroomPass ? "Pass" : "Fail")
-                            </span>
-                        </div>
-                    </div>
-                    <div class="field-chip">
-                        <div class="field-chip-label">Price Headroom</div>
-                        <div class="field-chip-value">
-                            @(Report.PriceHeadroomPercent is null ? "n/a" : $"{Report.PriceHeadroomPercent.Value:N1}%")
-                            <span class="badge @(Report.PriceHeadroomPass ? "badge-success" : "badge-danger")" style="font-size: 10px; margin-left: 4px;">
-                                @(Report.PriceHeadroomPass ? "Pass" : "Fail")
-                            </span>
-                        </div>
-                    </div>
+                    @GateChip("DSCR", Report.Dscr.ToString("N2"), Report.DscrPass)
+                    @GateChip("Gross Margin", $"{Report.GrossMarginPercent:N1}%", Report.GrossMarginPass)
+                    @GateChip("IRR", Report.Irr is null ? "n/a" : $"{Report.Irr.Value:N1}%", Report.IrrPass)
+                    @GateChip("Yield Headroom", Report.YieldHeadroomPercent is null ? "n/a" : $"{Report.YieldHeadroomPercent.Value:N1}%", Report.YieldHeadroomPass)
+                    @GateChip("Price Headroom", Report.PriceHeadroomPercent is null ? "n/a" : $"{Report.PriceHeadroomPercent.Value:N1}%", Report.PriceHeadroomPass)
                 </div>
 
                 @if (!string.IsNullOrWhiteSpace(Report.OverrideJustification))
                 {
                     <div class="alert alert-warning" style="margin: 0;">
-                        <strong>Officer override.</strong> The Credit Officer recommended
-                        @Report.CreditOfficerRecommendation despite failing gates:
-                        &ldquo;@Report.OverrideJustification&rdquo;
+                        <strong>Officer override.</strong> The Credit Officer recommended @Report.CreditOfficerRecommendation despite failing gates: &ldquo;@Report.OverrideJustification&rdquo;
                     </div>
                 }
             }
@@ -186,126 +166,124 @@
             @if (!HasFullInputs)
             {
                 <div class="alert alert-warning" style="margin: 0;">
-                    This advisory was generated without
-                    @(string.Join(" and ", MissingInputs())).
-                    Treat the affected risk categories as unscored rather than favourable, and
-                    regenerate once the missing work is done.
+                    This advisory was generated without @(string.Join(" and ", MissingInputs())). Treat the affected
+                    risk categories as unscored rather than favourable, and regenerate once the missing work is done.
                 </div>
             }
         </div>
     </div>
 
-    @if (Advisory is not null && Advisory.Status != "Failed")
+    <!-- ── Risk category breakdown ── -->
+    @if (Advisory.RiskScores.Count > 0)
     {
-        @if (Advisory.RiskScores.Count > 0)
-        {
-            <div class="card">
-                <div class="card-header"><h3 class="card-title">Risk Category Breakdown</h3></div>
-                <div class="card-body" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem;">
-                    @foreach (var score in Advisory.RiskScores)
-                    {
-                        <div class="field-chip">
-                            <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                                <span class="field-chip-label" style="margin-bottom: 0;">@score.Category</span>
-                                <span style="font-weight: 700;">@score.Score.ToString("N0")</span>
-                            </div>
-                            <div style="height: 6px; background: var(--gray-100); border-radius: 3px; margin: 6px 0;">
-                                <div style="height: 100%; border-radius: 3px; width: @(Math.Min(100, score.Score))%; background: @RatingColor(score.Rating);"></div>
-                            </div>
-                            <div style="font-size: 0.75rem; color: var(--gray-500);">@score.Rating</div>
-                            @if (!string.IsNullOrEmpty(score.Rationale))
-                            {
-                                <p style="font-size: 0.8rem; color: var(--gray-700); margin: 6px 0 0;">@score.Rationale</p>
-                            }
+        <div style="margin-bottom: 1.5rem;">
+            <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--gray-500); margin-bottom: 0.75rem;">Risk Category Breakdown</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0.75rem;">
+                @foreach (var score in Advisory.RiskScores)
+                {
+                    var s = (double)score.Score;
+                    var cardColor  = s >= 65 ? "#16a34a" : s >= 40 ? "#d97706" : "#dc2626";
+                    var cardBg     = s >= 65 ? "#f0fdf4" : s >= 40 ? "#fffbeb" : "#fef2f2";
+                    var cardBorder = s >= 65 ? "#bbf7d0" : s >= 40 ? "#fde68a" : "#fecaca";
+                    var cardText   = s >= 65 ? "#14532d" : s >= 40 ? "#78350f" : "#7f1d1d";
+                    <div style="background: @cardBg; border: 1px solid @cardBorder; border-radius: 10px; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                            <span style="font-size: 0.75rem; font-weight: 600; color: var(--gray-600);">@score.Category</span>
+                            <span style="font-size: 1.15rem; font-weight: 800; color: @cardColor;">@score.Score.ToString("N0")</span>
                         </div>
-                    }
-                </div>
-            </div>
-        }
-
-        @if (Advisory.RedFlags.Count > 0)
-        {
-            <div class="card" style="border-color: var(--danger-200, var(--gray-200));">
-                <div class="card-header"><h3 class="card-title" style="color: var(--danger-700);">Red Flags</h3></div>
-                <div class="card-body">
-                    <ul style="margin: 0; padding-left: 1.25rem;">
-                        @foreach (var flag in Advisory.RedFlags)
+                        <div style="height: 5px; background: rgba(0,0,0,0.07); border-radius: 3px; overflow: hidden; margin-bottom: 6px;">
+                            <div style="height: 100%; width: @(Math.Min(100, s))%; background: @cardColor; border-radius: 3px;"></div>
+                        </div>
+                        <div style="font-size: 0.7rem; font-weight: 700; color: @cardColor; margin-bottom: @(!string.IsNullOrEmpty(score.Rationale) ? "6px" : "0");">@score.Rating Risk</div>
+                        @if (!string.IsNullOrEmpty(score.Rationale))
                         {
-                            <li style="font-size: 0.875rem; color: var(--gray-700); margin-bottom: 4px;">@flag</li>
+                            <div style="font-size: 0.72rem; color: @cardText; line-height: 1.45; opacity: 0.85;">@score.Rationale</div>
                         }
-                    </ul>
-                </div>
+                    </div>
+                }
             </div>
-        }
+        </div>
+    }
 
-        @if (!string.IsNullOrEmpty(Advisory.ExecutiveSummary))
-        {
-            <div class="card">
-                <div class="card-header"><h3 class="card-title">Executive Summary</h3></div>
-                <div class="card-body"><p style="margin: 0; font-size: 0.9rem; line-height: 1.5;">@Advisory.ExecutiveSummary</p></div>
+    <!-- ── Red flags ── -->
+    @if (Advisory.HasCriticalRedFlags && Advisory.RedFlags.Count > 0)
+    {
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 0.5rem;">
+                <span class="material-symbols-outlined" style="font-size: 16px; color: #991b1b;">warning</span>
+                <span style="font-size: 0.78rem; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.05em;">Critical Red Flags</span>
             </div>
-        }
+            <ul style="margin: 0; padding-left: 18px; font-size: 0.85rem; color: #7f1d1d; line-height: 1.8;">@foreach (var f in Advisory.RedFlags) { <li>@f</li> }</ul>
+        </div>
+    }
+    else if (Advisory.RedFlags.Count > 0)
+    {
+        <div style="background: #fff7ed; border: 1px solid #fed7aa; border-left: 4px solid #f97316; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 0.5rem;">
+                <span class="material-symbols-outlined" style="font-size: 16px; color: #c2410c;">flag</span>
+                <span style="font-size: 0.78rem; font-weight: 700; color: #c2410c; text-transform: uppercase; letter-spacing: 0.05em;">Red Flags</span>
+            </div>
+            <ul style="margin: 0; padding-left: 18px; font-size: 0.85rem; color: #7c2d12; line-height: 1.8;">@foreach (var f in Advisory.RedFlags) { <li>@f</li> }</ul>
+        </div>
+    }
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <!-- ── Executive summary ── -->
+    @if (!string.IsNullOrEmpty(Advisory.ExecutiveSummary))
+    {
+        <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem;">
+                <span class="material-symbols-outlined" style="font-size: 17px; color: #6366f1;">summarize</span>
+                <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6366f1;">Executive Summary</span>
+            </div>
+            <div style="font-size: 0.9rem; line-height: 1.75; color: var(--gray-800);">@Advisory.ExecutiveSummary</div>
+        </div>
+    }
+
+    <!-- ── Strengths & weaknesses ── -->
+    @if (!string.IsNullOrEmpty(Advisory.StrengthsAnalysis) || !string.IsNullOrEmpty(Advisory.WeaknessesAnalysis))
+    {
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
             @if (!string.IsNullOrEmpty(Advisory.StrengthsAnalysis))
             {
-                <div class="card">
-                    <div class="card-header"><h3 class="card-title">Strengths</h3></div>
-                    <div class="card-body"><p style="margin: 0; font-size: 0.875rem;">@Advisory.StrengthsAnalysis</p></div>
-                </div>
+                @AnalysisBox("#f0fdf4", "#bbf7d0", "#16a34a", "#166534", "thumb_up", "Strengths", Advisory.StrengthsAnalysis!)
             }
             @if (!string.IsNullOrEmpty(Advisory.WeaknessesAnalysis))
             {
-                <div class="card">
-                    <div class="card-header"><h3 class="card-title">Weaknesses</h3></div>
-                    <div class="card-body"><p style="margin: 0; font-size: 0.875rem;">@Advisory.WeaknessesAnalysis</p></div>
-                </div>
+                @AnalysisBox("#fef2f2", "#fecaca", "#dc2626", "#991b1b", "thumb_down", "Weaknesses", Advisory.WeaknessesAnalysis!)
             }
+        </div>
+    }
+
+    <!-- ── Mitigating factors & key risks ── -->
+    @if (!string.IsNullOrEmpty(Advisory.MitigatingFactors) || !string.IsNullOrEmpty(Advisory.KeyRisks))
+    {
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
             @if (!string.IsNullOrEmpty(Advisory.MitigatingFactors))
             {
-                <div class="card">
-                    <div class="card-header"><h3 class="card-title">Mitigating Factors</h3></div>
-                    <div class="card-body"><p style="margin: 0; font-size: 0.875rem;">@Advisory.MitigatingFactors</p></div>
-                </div>
+                @AnalysisBox("#eff6ff", "#bfdbfe", "#2563eb", "#1e3a8a", "shield", "Mitigating Factors", Advisory.MitigatingFactors!)
             }
             @if (!string.IsNullOrEmpty(Advisory.KeyRisks))
             {
-                <div class="card">
-                    <div class="card-header"><h3 class="card-title">Key Risks</h3></div>
-                    <div class="card-body"><p style="margin: 0; font-size: 0.875rem;">@Advisory.KeyRisks</p></div>
-                </div>
+                @AnalysisBox("#fffbeb", "#fde68a", "#d97706", "#78350f", "report_problem", "Key Risks", Advisory.KeyRisks!)
             }
         </div>
-
-        @if (Advisory.Conditions.Count > 0 || Advisory.Covenants.Count > 0)
-        {
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                @if (Advisory.Conditions.Count > 0)
-                {
-                    <div class="card">
-                        <div class="card-header"><h3 class="card-title">Conditions</h3></div>
-                        <div class="card-body">
-                            <ol style="margin: 0; padding-left: 1.25rem;">
-                                @foreach (var c in Advisory.Conditions) { <li style="font-size: 0.875rem; margin-bottom: 4px;">@c</li> }
-                            </ol>
-                        </div>
-                    </div>
-                }
-                @if (Advisory.Covenants.Count > 0)
-                {
-                    <div class="card">
-                        <div class="card-header"><h3 class="card-title">Covenants</h3></div>
-                        <div class="card-body">
-                            <ol style="margin: 0; padding-left: 1.25rem;">
-                                @foreach (var c in Advisory.Covenants) { <li style="font-size: 0.875rem; margin-bottom: 4px;">@c</li> }
-                            </ol>
-                        </div>
-                    </div>
-                }
-            </div>
-        }
     }
-</div>
+
+    <!-- ── Conditions & covenants ── -->
+    @if (Advisory.Conditions.Count > 0 || Advisory.Covenants.Count > 0)
+    {
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            @if (Advisory.Conditions.Count > 0)
+            {
+                @ListBox("#faf5ff", "#e9d5ff", "#7c3aed", "#6d28d9", "#4c1d95", "checklist", "Precedent Conditions", Advisory.Conditions)
+            }
+            @if (Advisory.Covenants.Count > 0)
+            {
+                @ListBox("#ecfeff", "#a5f3fc", "#0891b2", "#0e7490", "#164e63", "gavel", "Ongoing Covenants", Advisory.Covenants)
+            }
+        </div>
+    }
+}
 
 @code {
     [Parameter] public RhshfAdvisoryDto? Advisory { get; set; }
@@ -314,10 +292,10 @@
     [Parameter] public EventCallback OnGenerate { get; set; }
     [Parameter] public List<RhshfBureauReportDto> BureauReports { get; set; } = [];
     [Parameter] public RhshfFinancialAppraisalDto? Appraisal { get; set; }
+    [Parameter] public string Currency { get; set; } = "NGN";
 
     private RhshfAppraisalReportDto? Report => Appraisal?.Report;
     private int CompletedBureauCount => BureauReports.Count(r => r.Status == "Completed");
-
     private bool HasFullInputs => CompletedBureauCount > 0 && Report is not null && Appraisal?.FarmPlans.Count > 0;
 
     private List<string> MissingInputs()
@@ -329,24 +307,56 @@
         return missing;
     }
 
-    private static string RatingBadgeClass(string rating) => rating switch
+    private static string RatingHex(string rating) => rating switch
     {
-        "VeryLow" or "Low" => "badge-success",
-        "Medium" => "badge-warning",
-        _ => "badge-danger",
+        "VeryLow" or "Low" => "#22c55e",
+        "Medium" => "#f59e0b",
+        _ => "#ef4444",
     };
 
-    private static string RecommendationBadgeClass(string recommendation) => recommendation switch
+    private static string RecommendationHex(string recommendation) => recommendation switch
     {
-        "Approve" => "badge-success",
-        "Decline" => "badge-danger",
-        _ => "badge-warning",
+        "Approve" => "#16a34a",
+        "ConditionalApprove" => "#d97706",
+        "Decline" => "#dc2626",
+        _ => "#64748b",
     };
 
-    private static string RatingColor(string rating) => rating switch
+    private static string FormatRating(string rating) =>
+        System.Text.RegularExpressions.Regex.Replace(rating, "(?<!^)([A-Z])", " $1");
+
+    private RenderFragment GateChip(string label, string value, bool pass) => __builder =>
     {
-        "VeryLow" or "Low" => "var(--success-500)",
-        "Medium" => "var(--warning-500)",
-        _ => "var(--danger-500)",
+        <div class="field-chip">
+            <div class="field-chip-label">@label</div>
+            <div class="field-chip-value">
+                @value
+                <span class="badge @(pass ? "badge-success" : "badge-danger")" style="font-size: 10px; margin-left: 4px;">@(pass ? "Pass" : "Fail")</span>
+            </div>
+        </div>
+    };
+
+    private RenderFragment AnalysisBox(string bg, string border, string accent, string text, string icon, string title, string body) => __builder =>
+    {
+        <div style="background: @bg; border: 1px solid @border; border-radius: 10px; padding: 1.1rem;">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.625rem;">
+                <span class="material-symbols-outlined" style="font-size: 16px; color: @accent;">@icon</span>
+                <span style="font-size: 0.72rem; font-weight: 700; color: @text; text-transform: uppercase; letter-spacing: 0.06em;">@title</span>
+            </div>
+            <div style="font-size: 0.875rem; line-height: 1.65; color: @text;">@body</div>
+        </div>
+    };
+
+    private RenderFragment ListBox(string bg, string border, string accent, string titleColor, string itemColor, string icon, string title, List<string> items) => __builder =>
+    {
+        <div style="background: @bg; border: 1px solid @border; border-radius: 10px; padding: 1.1rem;">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.75rem;">
+                <span class="material-symbols-outlined" style="font-size: 16px; color: @accent;">@icon</span>
+                <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: @titleColor;">@title</span>
+            </div>
+            <ol style="margin: 0; padding-left: 18px; font-size: 0.85rem; line-height: 1.85; color: @itemColor;">
+                @foreach (var item in items) { <li>@item</li> }
+            </ol>
+        </div>
     };
 }

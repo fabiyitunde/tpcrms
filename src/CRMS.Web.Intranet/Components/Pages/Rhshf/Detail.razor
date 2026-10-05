@@ -336,7 +336,7 @@ else
             break;
         case "advisory":
             <AdvisoryTab Advisory="advisory" IsGenerating="isGeneratingAdvisory" CanGenerate="CanGenerateAdvisory" OnGenerate="GenerateAdvisory"
-                BureauReports="bureauReports" Appraisal="financialAppraisal" />
+                BureauReports="bureauReports" Appraisal="financialAppraisal" Currency="@workspace.Currency" />
             break;
         case "comments":
             <RhshfCommentsTab Comments="comments" OnAddComment="AddComment" IsSubmitting="isAddingComment" SubmitError="@commentError" />
