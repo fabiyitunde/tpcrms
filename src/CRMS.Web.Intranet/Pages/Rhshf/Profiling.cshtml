@@ -298,6 +298,15 @@ else
                                         {
                                             <div class="small text-muted">@req.Description</div>
                                         }
+                                        @if (string.Equals(req.Category.ToString(), "AuditedFinancials", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            <div class="small mt-1">
+                                                <a href="/api/financial-statements/template" target="_blank" class="text-success">
+                                                    <i class="bi bi-download"></i> Download the financial statements template (3 years)
+                                                </a>
+                                                <div class="text-muted">Fill it in and upload it here so the bank can analyse your financials.</div>
+                                            </div>
+                                        }
                                     </td>
                                     <td>
                                         @if (req.IsSatisfied)
