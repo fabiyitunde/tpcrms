@@ -1,0 +1,263 @@
+@using CRMS.Application.Rhshf.Queries
+@inject IJSRuntime JS
+
+@* Mirrors Corporate's Financial Analysis (FinancialsTab): the FAC's multi-year financial statements
+   with ratio analysis. Distinct from RH-SHF's crop-economics "Financial Appraisal" — this assesses the
+   FAC as an institution (turnover, margins, leverage), the input to the forthcoming loan-to-turnover
+   and other business rules. Capture is via the shared Excel template or manual entry. *@
+
+@if (Analysis is null)
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">analytics</span></div>
+            <div class="empty-state-title">Financial analysis unavailable</div>
+            <div class="empty-state-text">@(LoadError ?? "Could not load the FAC's financial statements.")</div>
+        </div>
+    </div>
+}
+else
+{
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+        @* Requirements box *@
+        <div class="card" style="background: var(--primary-50); border-color: var(--primary-200); margin-bottom: 0;">
+            <div class="card-body" style="padding: var(--space-4);">
+                <div style="display: flex; align-items: flex-start; gap: var(--space-3);">
+                    <span class="material-symbols-outlined" style="color: var(--primary-600); font-size: 24px;">analytics</span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; color: var(--primary-800); margin-bottom: var(--space-2);">
+                            Financial Statement Requirements
+                            <span class="badge @(Analysis.RequirementMet ? "badge-success" : "badge-warning")" style="margin-left: var(--space-2);">
+                                @Analysis.Years.Count / @Analysis.RequiredYears years
+                            </span>
+                        </div>
+                        <div style="font-size: var(--text-sm); color: var(--primary-700);">
+                            The FAC must provide @Analysis.RequiredYears years of financial statements (audited preferred). These assess
+                            the FAC's institutional strength and feed the bank's financial business rules (e.g. loan-to-turnover limits).
+                            Capture them from the shared Excel template or by manual entry.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Multi-year summary *@
+        @if (Analysis.Years.Count > 0)
+        {
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem;">
+                <div class="stat-tile">
+                    <div class="stat-label">Turnover (@Analysis.Years.Count yr)</div>
+                    <div class="stat-value">@Currency @Analysis.TotalTurnover.ToString("N0")</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-label">Latest Revenue</div>
+                    <div class="stat-value">@Currency @Analysis.LatestRevenue.ToString("N0")</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-label">Revenue CAGR</div>
+                    <div class="stat-value" style="color: @(Analysis.RevenueCagrPercent >= 0 ? "var(--success-600)" : "var(--danger-600)");">
+                        @(Analysis.RevenueCagrPercent is null ? "—" : $"{Analysis.RevenueCagrPercent.Value:N1}%")
+                    </div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-label">Avg Net Margin</div>
+                    <div class="stat-value">@Analysis.AverageNetMarginPercent.ToString("N1")%</div>
+                </div>
+            </div>
+        }
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Financial Statements</h3>
+                @if (CanManage)
+                {
+                    <div style="display: flex; gap: var(--space-2);">
+                        <button class="btn btn-ghost btn-sm" @onclick="DownloadTemplate" title="Download the blank Excel template">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Template
+                        </button>
+                        <button class="btn btn-outline btn-sm" @onclick="() => OnUploadExcel.InvokeAsync()">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span> Upload Excel
+                        </button>
+                        <button class="btn btn-primary btn-sm" @onclick="() => OnAddYear.InvokeAsync()">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">add</span> Add Year
+                        </button>
+                    </div>
+                }
+            </div>
+            <div class="card-body" style="padding: 0;">
+                @if (Analysis.Years.Count == 0)
+                {
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><span class="material-symbols-outlined">description</span></div>
+                        <div class="empty-state-title">No financial statements captured</div>
+                        <div class="empty-state-text">
+                            @(CanManage ? "Download the template for the FAC to fill, upload a completed one, or enter a year manually." : "The FAC's financial statements appear here once captured.")
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-wrapper">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Year</th>
+                                    <th>Type</th>
+                                    <th style="text-align: right;">Revenue</th>
+                                    <th style="text-align: right;">Net Profit</th>
+                                    <th style="text-align: right;">Total Assets</th>
+                                    <th style="text-align: right;">Current Ratio</th>
+                                    <th style="text-align: right;">D/E</th>
+                                    <th>Status</th>
+                                    @if (CanManage) { <th></th> }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var y in Analysis.Years)
+                                {
+                                    var current = y;
+                                    <tr>
+                                        <td style="font-weight: 600;">@y.FinancialYear@(y.IsBalanced ? "" : " ⚠")</td>
+                                        <td><span class="badge badge-gray">@y.YearType</span></td>
+                                        <td style="text-align: right;">@Currency @y.TotalRevenue.ToString("N0")</td>
+                                        <td style="text-align: right; color: @(y.NetProfit >= 0 ? "var(--gray-800)" : "var(--danger-600)");">@Currency @y.NetProfit.ToString("N0")</td>
+                                        <td style="text-align: right;">@Currency @y.TotalAssets.ToString("N0")</td>
+                                        <td style="text-align: right;">@y.Ratios.CurrentRatio.ToString("N2")</td>
+                                        <td style="text-align: right;">@y.Ratios.DebtToEquityRatio.ToString("N2")</td>
+                                        <td>@StatusBadge(y.Status)</td>
+                                        @if (CanManage)
+                                        {
+                                            <td>
+                                                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                                    <button class="btn btn-ghost btn-sm" title="View / edit" @onclick="() => OnEditYear.InvokeAsync(current)">
+                                                        <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                                    </button>
+                                                    @if (y.Status == "Draft")
+                                                    {
+                                                        <button class="btn btn-ghost btn-sm" title="Submit for review" @onclick="() => OnSubmit.InvokeAsync(current.Id)">
+                                                            <span class="material-symbols-outlined" style="font-size: 18px; color: var(--primary-600);">send</span>
+                                                        </button>
+                                                    }
+                                                    @if (y.Status is "Draft" or "PendingReview")
+                                                    {
+                                                        <button class="btn btn-ghost btn-sm" title="Verify" @onclick="() => OnVerify.InvokeAsync(current.Id)">
+                                                            <span class="material-symbols-outlined" style="font-size: 18px; color: var(--success-600);">verified</span>
+                                                        </button>
+                                                    }
+                                                    @if (y.Status == "PendingReview")
+                                                    {
+                                                        <button class="btn btn-ghost btn-sm" title="Reject" @onclick="() => OnReject.InvokeAsync(current.Id)">
+                                                            <span class="material-symbols-outlined" style="font-size: 18px; color: var(--danger-600);">cancel</span>
+                                                        </button>
+                                                    }
+                                                    @if (y.Status is "Verified" or "Rejected")
+                                                    {
+                                                        <button class="btn btn-ghost btn-sm" title="Revert to draft" @onclick="() => OnRevert.InvokeAsync(current.Id)">
+                                                            <span class="material-symbols-outlined" style="font-size: 18px;">undo</span>
+                                                        </button>
+                                                    }
+                                                    <button class="btn btn-ghost btn-sm" title="Delete" @onclick="() => OnDelete.InvokeAsync(current.Id)">
+                                                        <span class="material-symbols-outlined" style="font-size: 18px; color: var(--danger-600);">delete</span>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* Per-year ratio detail *@
+        @foreach (var y in Analysis.Years)
+        {
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">@y.FinancialYear Ratios &middot; <span style="font-weight: 400; color: var(--gray-500);">@y.YearType</span></h3>
+                    <span class="badge @OverallBadge(y.Ratios.OverallAssessment)">@y.Ratios.OverallAssessment</span>
+                </div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem;">
+                        @RatioChip("Current Ratio", y.Ratios.CurrentRatio.ToString("N2"), y.Ratios.IsLiquidityHealthy)
+                        @RatioChip("Quick Ratio", y.Ratios.QuickRatio.ToString("N2"), y.Ratios.IsLiquidityHealthy)
+                        @RatioChip("Debt / Equity", y.Ratios.DebtToEquityRatio.ToString("N2"), y.Ratios.IsLeverageHealthy)
+                        @RatioChip("Interest Cover", y.Ratios.InterestCoverageRatio.ToString("N2"), y.Ratios.IsLeverageHealthy)
+                        @RatioChip("Gross Margin", $"{y.Ratios.GrossMarginPercent:N1}%", y.Ratios.GrossMarginPercent > 0)
+                        @RatioChip("Net Margin", $"{y.Ratios.NetProfitMarginPercent:N1}%", y.Ratios.IsProfitable)
+                        @RatioChip("Return on Equity", $"{y.Ratios.ReturnOnEquity:N1}%", y.Ratios.ReturnOnEquity > 0)
+                        @RatioChip("DSCR", y.Ratios.DebtServiceCoverageRatio.ToString("N2"), y.Ratios.HasStrongCashGeneration)
+                    </div>
+                    @if (!y.IsBalanced)
+                    {
+                        <div class="alert alert-warning" style="margin: 1rem 0 0;">
+                            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">warning</span>
+                            This year's balance sheet does not balance (Assets ≠ Liabilities + Equity). Check the captured figures.
+                        </div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(y.RejectionReason))
+                    {
+                        <div class="alert alert-danger" style="margin: 1rem 0 0;"><strong>Rejected:</strong> @y.RejectionReason</div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .stat-tile { text-align: center; padding: var(--space-4); background: var(--gray-50); border-radius: var(--radius-lg); }
+    .stat-label { font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: var(--text-lg); font-weight: 700; margin-top: var(--space-1); }
+</style>
+
+@code {
+    [Parameter] public RhshfFinancialAnalysisDto? Analysis { get; set; }
+    [Parameter] public string? LoadError { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public string Currency { get; set; } = "NGN";
+    [Parameter] public EventCallback OnAddYear { get; set; }
+    [Parameter] public EventCallback OnUploadExcel { get; set; }
+    [Parameter] public EventCallback<RhshfFinancialStatementDto> OnEditYear { get; set; }
+    [Parameter] public EventCallback<Guid> OnSubmit { get; set; }
+    [Parameter] public EventCallback<Guid> OnVerify { get; set; }
+    [Parameter] public EventCallback<Guid> OnReject { get; set; }
+    [Parameter] public EventCallback<Guid> OnRevert { get; set; }
+    [Parameter] public EventCallback<Guid> OnDelete { get; set; }
+
+    private async Task DownloadTemplate() => await JS.InvokeVoidAsync("open", "/api/financial-statements/template", "_blank");
+
+    private static RenderFragment StatusBadge(string status) => __builder =>
+    {
+        var cls = status switch
+        {
+            "Verified" => "badge-success",
+            "Rejected" => "badge-danger",
+            "PendingReview" => "badge-warning",
+            _ => "badge-gray",
+        };
+        <span class="badge @cls">@(status == "PendingReview" ? "Pending" : status)</span>
+    };
+
+    private static string OverallBadge(string assessment)
+    {
+        var a = assessment.ToLowerInvariant();
+        if (a.Contains("strong") || a.Contains("healthy") || a.Contains("good")) return "badge-success";
+        if (a.Contains("weak") || a.Contains("poor") || a.Contains("concern")) return "badge-danger";
+        return "badge-warning";
+    }
+
+    private RenderFragment RatioChip(string label, string value, bool healthy) => __builder =>
+    {
+        <div class="field-chip">
+            <div class="field-chip-label">@label</div>
+            <div class="field-chip-value">
+                @value
+                <span class="badge @(healthy ? "badge-success" : "badge-warning")" style="font-size: 10px; margin-left: 4px;">@(healthy ? "OK" : "Watch")</span>
+            </div>
+        </div>
+    };
+}

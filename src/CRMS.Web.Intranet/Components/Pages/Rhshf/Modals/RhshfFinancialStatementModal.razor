@@ -1,0 +1,250 @@
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Aggregates.Rhshf
+@using CRMS.Domain.Enums
+
+@* Manual entry / edit of one financial year. Line items mirror the shared Excel template, so a year can
+   be typed in or corrected after an Excel import. Totals and ratios are derived server-side, so only
+   line items are entered here. *@
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 820px; height: 92vh; max-height: 92vh;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">description</span>
+                @(IsEditing ? $"Edit {m.Year} Financial Statement" : "Add Financial Statement")
+            </h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body" style="overflow-y: auto;">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem;">
+                <div class="form-group"><label class="form-label">Year *</label><input type="number" class="form-control" @bind="m.Year" /></div>
+                <div class="form-group"><label class="form-label">Year-End Date</label><input class="form-control" @bind="m.YearEndDate" placeholder="e.g. 31 Dec 2024" /></div>
+                <div class="form-group"><label class="form-label">Type</label>
+                    <select class="form-control" @bind="m.YearType">
+                        @foreach (var t in Enum.GetValues<RhshfFinancialYearType>()) { <option value="@t">@t</option> }
+                    </select>
+                </div>
+                <div class="form-group"><label class="form-label">Currency</label><input class="form-control" @bind="m.Currency" /></div>
+            </div>
+
+            @Section("Income Statement", new (string, Func<decimal?>, Action<decimal?>)[]
+            {
+                ("Revenue", () => m.Revenue, v => m.Revenue = v),
+                ("Other Operating Income", () => m.OtherOperatingIncome, v => m.OtherOperatingIncome = v),
+                ("Cost of Sales", () => m.CostOfSales, v => m.CostOfSales = v),
+                ("Selling Expenses", () => m.SellingExpenses, v => m.SellingExpenses = v),
+                ("Administrative Expenses", () => m.AdministrativeExpenses, v => m.AdministrativeExpenses = v),
+                ("Depreciation & Amortization", () => m.DepreciationAmortization, v => m.DepreciationAmortization = v),
+                ("Other Operating Expenses", () => m.OtherOperatingExpenses, v => m.OtherOperatingExpenses = v),
+                ("Interest Income", () => m.InterestIncome, v => m.InterestIncome = v),
+                ("Interest Expense", () => m.InterestExpense, v => m.InterestExpense = v),
+                ("Other Finance Costs", () => m.OtherFinanceCosts, v => m.OtherFinanceCosts = v),
+                ("Income Tax Expense", () => m.IncomeTaxExpense, v => m.IncomeTaxExpense = v),
+                ("Dividends Declared", () => m.DividendsDeclared, v => m.DividendsDeclared = v),
+            })
+
+            @Section("Balance Sheet — Assets", new (string, Func<decimal?>, Action<decimal?>)[]
+            {
+                ("Cash & Cash Equivalents", () => m.CashAndCashEquivalents, v => m.CashAndCashEquivalents = v),
+                ("Trade Receivables", () => m.TradeReceivables, v => m.TradeReceivables = v),
+                ("Inventory", () => m.Inventory, v => m.Inventory = v),
+                ("Prepaid Expenses", () => m.PrepaidExpenses, v => m.PrepaidExpenses = v),
+                ("Other Current Assets", () => m.OtherCurrentAssets, v => m.OtherCurrentAssets = v),
+                ("Property, Plant & Equipment", () => m.PropertyPlantEquipment, v => m.PropertyPlantEquipment = v),
+                ("Intangible Assets", () => m.IntangibleAssets, v => m.IntangibleAssets = v),
+                ("Long-Term Investments", () => m.LongTermInvestments, v => m.LongTermInvestments = v),
+                ("Deferred Tax Assets", () => m.DeferredTaxAssets, v => m.DeferredTaxAssets = v),
+                ("Other Non-Current Assets", () => m.OtherNonCurrentAssets, v => m.OtherNonCurrentAssets = v),
+            })
+
+            @Section("Balance Sheet — Liabilities", new (string, Func<decimal?>, Action<decimal?>)[]
+            {
+                ("Trade Payables", () => m.TradePayables, v => m.TradePayables = v),
+                ("Short-Term Borrowings", () => m.ShortTermBorrowings, v => m.ShortTermBorrowings = v),
+                ("Current Portion of Long-Term Debt", () => m.CurrentPortionLongTermDebt, v => m.CurrentPortionLongTermDebt = v),
+                ("Accrued Expenses", () => m.AccruedExpenses, v => m.AccruedExpenses = v),
+                ("Tax Payable", () => m.TaxPayable, v => m.TaxPayable = v),
+                ("Other Current Liabilities", () => m.OtherCurrentLiabilities, v => m.OtherCurrentLiabilities = v),
+                ("Long-Term Debt", () => m.LongTermDebt, v => m.LongTermDebt = v),
+                ("Deferred Tax Liabilities", () => m.DeferredTaxLiabilities, v => m.DeferredTaxLiabilities = v),
+                ("Provisions", () => m.Provisions, v => m.Provisions = v),
+                ("Other Non-Current Liabilities", () => m.OtherNonCurrentLiabilities, v => m.OtherNonCurrentLiabilities = v),
+            })
+
+            @Section("Balance Sheet — Equity", new (string, Func<decimal?>, Action<decimal?>)[]
+            {
+                ("Share Capital", () => m.ShareCapital, v => m.ShareCapital = v),
+                ("Share Premium", () => m.SharePremium, v => m.SharePremium = v),
+                ("Retained Earnings", () => m.RetainedEarnings, v => m.RetainedEarnings = v),
+                ("Other Reserves", () => m.OtherReserves, v => m.OtherReserves = v),
+            })
+
+            @Section("Cash Flow (optional)", new (string, Func<decimal?>, Action<decimal?>)[]
+            {
+                ("Profit Before Tax", () => m.CfProfitBeforeTax, v => m.CfProfitBeforeTax = v),
+                ("Depreciation & Amortization", () => m.CfDepreciationAmortization, v => m.CfDepreciationAmortization = v),
+                ("Interest Expense Add-Back", () => m.CfInterestExpenseAddBack, v => m.CfInterestExpenseAddBack = v),
+                ("Changes in Working Capital", () => m.CfChangesInWorkingCapital, v => m.CfChangesInWorkingCapital = v),
+                ("Tax Paid", () => m.CfTaxPaid, v => m.CfTaxPaid = v),
+                ("Other Operating Adjustments", () => m.CfOtherOperatingAdjustments, v => m.CfOtherOperatingAdjustments = v),
+                ("Purchase of PPE", () => m.CfPurchaseOfPpe, v => m.CfPurchaseOfPpe = v),
+                ("Sale of PPE", () => m.CfSaleOfPpe, v => m.CfSaleOfPpe = v),
+                ("Proceeds from Borrowings", () => m.CfProceedsFromBorrowings, v => m.CfProceedsFromBorrowings = v),
+                ("Repayment of Borrowings", () => m.CfRepaymentOfBorrowings, v => m.CfRepaymentOfBorrowings = v),
+                ("Interest Paid", () => m.CfInterestPaid, v => m.CfInterestPaid = v),
+                ("Opening Cash Balance", () => m.CfOpeningCashBalance, v => m.CfOpeningCashBalance = v),
+            })
+
+            @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
+            {
+                <div class="alert alert-danger" style="margin-top: 1rem;">@(ErrorMessage ?? clientError)</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            <button class="btn btn-primary" disabled="@IsSubmitting" @onclick="Submit">
+                @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                @(IsEditing ? "Save" : "Add Year")
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public RhshfFinancialStatementDto? Existing { get; set; }
+    [Parameter] public int DefaultYear { get; set; }
+    [Parameter] public string DefaultCurrency { get; set; } = "NGN";
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<RhshfFinancialStatementFormData> OnSave { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    public record RhshfFinancialStatementFormData(
+        Guid? StatementId, int Year, string? YearEndDate, RhshfFinancialYearType YearType, string Currency,
+        RhshfFinancialStatementFigures Figures);
+
+    private bool IsEditing => Existing is not null;
+    private readonly Model m = new();
+    private string? clientError;
+    private bool _initialised;
+
+    protected override void OnParametersSet()
+    {
+        if (_initialised) return;
+        if (Existing is not null)
+        {
+            var f = Existing.Figures;
+            m.Year = Existing.FinancialYear;
+            m.YearEndDate = Existing.YearEndDate;
+            m.YearType = Enum.TryParse<RhshfFinancialYearType>(Existing.YearType, out var t) ? t : RhshfFinancialYearType.Audited;
+            m.Currency = Existing.Currency;
+            m.LoadFrom(f);
+        }
+        else
+        {
+            m.Year = DefaultYear > 0 ? DefaultYear : DateTime.UtcNow.Year - 1;
+            m.Currency = DefaultCurrency;
+        }
+        _initialised = true;
+    }
+
+    private async Task Submit()
+    {
+        clientError = null;
+        if (m.Year < 2000 || m.Year > DateTime.UtcNow.Year + 1)
+        {
+            clientError = "Enter a valid financial year.";
+            return;
+        }
+        await OnSave.InvokeAsync(new RhshfFinancialStatementFormData(
+            Existing?.Id, m.Year, string.IsNullOrWhiteSpace(m.YearEndDate) ? null : m.YearEndDate,
+            m.YearType, string.IsNullOrWhiteSpace(m.Currency) ? "NGN" : m.Currency, m.ToFigures()));
+    }
+
+    private RenderFragment Section(string title, (string Label, Func<decimal?> Get, Action<decimal?> Set)[] fields) => __builder =>
+    {
+        <div style="margin-top: 1.25rem;">
+            <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray-500); margin-bottom: 0.5rem;">@title</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0.5rem 0.75rem;">
+                @foreach (var field in fields)
+                {
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-size: 0.75rem;">@field.Label</label>
+                        <input type="number" step="any" class="form-control"
+                               value="@field.Get()"
+                               @onchange="e => field.Set(ParseDecimal(e.Value?.ToString()))" />
+                    </div>
+                }
+            </div>
+        </div>
+    };
+
+    private static decimal? ParseDecimal(string? s) =>
+        decimal.TryParse(s, out var v) ? v : null;
+
+    // Local mutable model with all line items + meta.
+    private class Model
+    {
+        public int Year { get; set; }
+        public string? YearEndDate { get; set; }
+        public RhshfFinancialYearType YearType { get; set; } = RhshfFinancialYearType.Audited;
+        public string Currency { get; set; } = "NGN";
+
+        public decimal? Revenue, OtherOperatingIncome, CostOfSales, SellingExpenses, AdministrativeExpenses,
+            DepreciationAmortization, OtherOperatingExpenses, InterestIncome, InterestExpense, OtherFinanceCosts,
+            IncomeTaxExpense, DividendsDeclared;
+        public decimal? CashAndCashEquivalents, TradeReceivables, Inventory, PrepaidExpenses, OtherCurrentAssets,
+            PropertyPlantEquipment, IntangibleAssets, LongTermInvestments, DeferredTaxAssets, OtherNonCurrentAssets;
+        public decimal? TradePayables, ShortTermBorrowings, CurrentPortionLongTermDebt, AccruedExpenses, TaxPayable,
+            OtherCurrentLiabilities, LongTermDebt, DeferredTaxLiabilities, Provisions, OtherNonCurrentLiabilities;
+        public decimal? ShareCapital, SharePremium, RetainedEarnings, OtherReserves;
+        public decimal? CfProfitBeforeTax, CfDepreciationAmortization, CfInterestExpenseAddBack, CfChangesInWorkingCapital,
+            CfTaxPaid, CfOtherOperatingAdjustments, CfPurchaseOfPpe, CfSaleOfPpe, CfProceedsFromBorrowings,
+            CfRepaymentOfBorrowings, CfInterestPaid, CfOpeningCashBalance;
+        public string? AuditorName, AuditorFirm, AuditDate, AuditOpinion;
+
+        public void LoadFrom(RhshfFinancialStatementFigures f)
+        {
+            Revenue = f.Revenue; OtherOperatingIncome = f.OtherOperatingIncome; CostOfSales = f.CostOfSales;
+            SellingExpenses = f.SellingExpenses; AdministrativeExpenses = f.AdministrativeExpenses;
+            DepreciationAmortization = f.DepreciationAmortization; OtherOperatingExpenses = f.OtherOperatingExpenses;
+            InterestIncome = f.InterestIncome; InterestExpense = f.InterestExpense; OtherFinanceCosts = f.OtherFinanceCosts;
+            IncomeTaxExpense = f.IncomeTaxExpense; DividendsDeclared = f.DividendsDeclared;
+            CashAndCashEquivalents = f.CashAndCashEquivalents; TradeReceivables = f.TradeReceivables; Inventory = f.Inventory;
+            PrepaidExpenses = f.PrepaidExpenses; OtherCurrentAssets = f.OtherCurrentAssets;
+            PropertyPlantEquipment = f.PropertyPlantEquipment; IntangibleAssets = f.IntangibleAssets;
+            LongTermInvestments = f.LongTermInvestments; DeferredTaxAssets = f.DeferredTaxAssets;
+            OtherNonCurrentAssets = f.OtherNonCurrentAssets;
+            TradePayables = f.TradePayables; ShortTermBorrowings = f.ShortTermBorrowings;
+            CurrentPortionLongTermDebt = f.CurrentPortionLongTermDebt; AccruedExpenses = f.AccruedExpenses;
+            TaxPayable = f.TaxPayable; OtherCurrentLiabilities = f.OtherCurrentLiabilities; LongTermDebt = f.LongTermDebt;
+            DeferredTaxLiabilities = f.DeferredTaxLiabilities; Provisions = f.Provisions;
+            OtherNonCurrentLiabilities = f.OtherNonCurrentLiabilities;
+            ShareCapital = f.ShareCapital; SharePremium = f.SharePremium; RetainedEarnings = f.RetainedEarnings;
+            OtherReserves = f.OtherReserves;
+            CfProfitBeforeTax = f.CfProfitBeforeTax; CfDepreciationAmortization = f.CfDepreciationAmortization;
+            CfInterestExpenseAddBack = f.CfInterestExpenseAddBack; CfChangesInWorkingCapital = f.CfChangesInWorkingCapital;
+            CfTaxPaid = f.CfTaxPaid; CfOtherOperatingAdjustments = f.CfOtherOperatingAdjustments;
+            CfPurchaseOfPpe = f.CfPurchaseOfPpe; CfSaleOfPpe = f.CfSaleOfPpe;
+            CfProceedsFromBorrowings = f.CfProceedsFromBorrowings; CfRepaymentOfBorrowings = f.CfRepaymentOfBorrowings;
+            CfInterestPaid = f.CfInterestPaid; CfOpeningCashBalance = f.CfOpeningCashBalance;
+            AuditorName = f.AuditorName; AuditorFirm = f.AuditorFirm; AuditDate = f.AuditDate; AuditOpinion = f.AuditOpinion;
+        }
+
+        public RhshfFinancialStatementFigures ToFigures() => new(
+            Revenue, OtherOperatingIncome, CostOfSales, SellingExpenses, AdministrativeExpenses,
+            DepreciationAmortization, OtherOperatingExpenses, InterestIncome, InterestExpense, OtherFinanceCosts,
+            IncomeTaxExpense, DividendsDeclared,
+            CashAndCashEquivalents, TradeReceivables, Inventory, PrepaidExpenses, OtherCurrentAssets,
+            PropertyPlantEquipment, IntangibleAssets, LongTermInvestments, DeferredTaxAssets, OtherNonCurrentAssets,
+            TradePayables, ShortTermBorrowings, CurrentPortionLongTermDebt, AccruedExpenses, TaxPayable,
+            OtherCurrentLiabilities, LongTermDebt, DeferredTaxLiabilities, Provisions, OtherNonCurrentLiabilities,
+            ShareCapital, SharePremium, RetainedEarnings, OtherReserves,
+            CfProfitBeforeTax, CfDepreciationAmortization, CfInterestExpenseAddBack, CfChangesInWorkingCapital,
+            CfTaxPaid, CfOtherOperatingAdjustments, CfPurchaseOfPpe, CfSaleOfPpe,
+            CfPurchaseOfInvestments: null, CfSaleOfInvestments: null, CfInterestReceived: null, CfDividendsReceived: null,
+            CfOtherInvestingActivities: null, CfProceedsFromBorrowings, CfRepaymentOfBorrowings, CfInterestPaid,
+            CfDividendsPaid: null, CfProceedsFromShareIssue: null, CfOtherFinancingActivities: null, CfOpeningCashBalance,
+            AuditorName, AuditorFirm, AuditDate, AuditOpinion);
+    }
+}

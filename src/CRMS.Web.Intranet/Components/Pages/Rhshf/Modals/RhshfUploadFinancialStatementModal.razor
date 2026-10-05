@@ -1,0 +1,138 @@
+@using CRMS.Web.Intranet.Services
+@using CRMS.Domain.Enums
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject IJSRuntime JS
+
+@* Reuses the shared FinancialStatementExcelService (same template + parser as Corporate). Download the
+   template, fill it offline, upload, preview the parsed years, then import — each year is saved through
+   the RH-SHF SaveRhshfFinancialStatement command via the mapper. *@
+
+<div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
+    <div class="modal" style="max-width: 680px;" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">upload_file</span>
+                Upload Financial Statements
+            </h3>
+            <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="modal-body">
+            <div class="alert" style="background: var(--primary-50); border-color: var(--primary-200); color: var(--primary-800);">
+                <strong>Step 1:</strong> Download the template, fill in the FAC's figures (one sheet per statement, a column per year), then upload it here.
+            </div>
+
+            <div style="display: flex; gap: 0.75rem; margin: 1rem 0;">
+                <button class="btn btn-outline btn-sm" @onclick='() => JS.InvokeVoidAsync("open", "/api/financial-statements/template", "_blank")'>
+                    <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Blank Template
+                </button>
+                <button class="btn btn-ghost btn-sm" @onclick='() => JS.InvokeVoidAsync("open", "/api/financial-statements/sample", "_blank")'>
+                    <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Sample (with data)
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Step 2: Upload completed template (.xlsx)</label>
+                <InputFile OnChange="HandleFileSelected" accept=".xlsx" class="form-control" />
+            </div>
+
+            @if (parseError is not null)
+            {
+                <div class="alert alert-danger">@parseError</div>
+            }
+
+            @if (parsedData is not null)
+            {
+                <div class="alert alert-success"><strong>@parsedData.Count year(s) parsed.</strong> Review, then import.</div>
+                <div class="table-wrapper">
+                    <table class="table">
+                        <thead><tr><th>Year</th><th>Type</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Total Assets</th></tr></thead>
+                        <tbody>
+                            @foreach (var s in parsedData.OrderByDescending(s => s.Year))
+                            {
+                                <tr>
+                                    <td><strong>@s.Year</strong></td>
+                                    <td><span class="badge badge-gray">@s.YearType</span></td>
+                                    <td style="text-align:right;">@s.IncomeStatement.Revenue.ToString("N0")</td>
+                                    <td style="text-align:right;">@((s.BalanceSheet.TotalCurrentAssets + s.BalanceSheet.TotalNonCurrentAssets).ToString("N0"))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
+            @if (parsedData is not null)
+            {
+                <button class="btn btn-primary" disabled="@isImporting" @onclick="Import">
+                    @if (isImporting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                    Import @parsedData.Count Year(s)
+                </button>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Reference { get; set; } = string.Empty;
+    [Parameter] public string Currency { get; set; } = "NGN";
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnImported { get; set; }
+
+    private readonly FinancialStatementExcelService _excel = new();
+    private List<FinancialStatementUploadData>? parsedData;
+    private string? parseError;
+    private bool isImporting;
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        parseError = null;
+        parsedData = null;
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+            var result = _excel.ParseUploadedFile(ms);
+            if (result.Success && result.Data is not null)
+                parsedData = result.Data;
+            else
+                parseError = result.Error ?? "Could not parse the uploaded file.";
+        }
+        catch (Exception ex)
+        {
+            parseError = $"Error reading file: {ex.Message}";
+        }
+    }
+
+    private async Task Import()
+    {
+        if (parsedData is null || parsedData.Count == 0) return;
+        isImporting = true;
+        parseError = null;
+        var actor = AuthService.CurrentUser?.Id ?? Guid.Empty;
+
+        foreach (var s in parsedData)
+        {
+            var command = new CRMS.Application.Rhshf.Commands.SaveRhshfFinancialStatementCommand(
+                Reference, StatementId: null, ActorUserId: actor,
+                FinancialYear: s.Year, YearEndDate: null, YearType: RhshfFinancialStatementMapper.ParseYearType(s.YearType),
+                Currency: Currency, InputMethod: RhshfFinancialInputMethod.ExcelUpload,
+                Figures: RhshfFinancialStatementMapper.ToFigures(s));
+
+            var result = await AppService.SaveRhshfFinancialStatementAsync(command);
+            if (!result.Success)
+            {
+                parseError = $"Error importing {s.Year}: {result.Error}";
+                isImporting = false;
+                return;
+            }
+        }
+
+        isImporting = false;
+        await OnImported.InvokeAsync();
+        await OnClose.InvokeAsync();
+    }
+}
