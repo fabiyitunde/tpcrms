@@ -160,6 +160,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<RH.RhshfCollateral> RhshfCollaterals => Set<RH.RhshfCollateral>();
     public DbSet<RH.RhshfComment> RhshfComments => Set<RH.RhshfComment>();
     public DbSet<RH.RhshfGuarantor> RhshfGuarantors => Set<RH.RhshfGuarantor>();
+    public DbSet<RH.RhshfFinancialStatement> RhshfFinancialStatements => Set<RH.RhshfFinancialStatement>();
     public DbSet<RH.RhshfCollateralDocument> RhshfCollateralDocuments => Set<RH.RhshfCollateralDocument>();
     public DbSet<RH.RhshfRoutingConfig> RhshfRoutingConfigs => Set<RH.RhshfRoutingConfig>();
     public DbSet<RH.RhshfPreDeploymentChecklistTemplate> RhshfPreDeploymentChecklistTemplates => Set<RH.RhshfPreDeploymentChecklistTemplate>();

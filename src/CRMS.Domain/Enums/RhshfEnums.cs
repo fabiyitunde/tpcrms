@@ -223,3 +223,30 @@ public enum RhshfGuarantorType
     Individual,
     Corporate,
 }
+
+/// <summary>Review lifecycle of a captured financial statement year (mirrors Corporate's
+/// FinancialStatementStatus): entered as Draft, Submitted for review, then Verified or Rejected.</summary>
+public enum RhshfFinancialStatementStatus
+{
+    Draft,
+    PendingReview,
+    Verified,
+    Rejected,
+}
+
+/// <summary>How a financial statement year was captured — pasted/typed in CRMS, or parsed from the
+/// uploaded Excel template the FAC filled.</summary>
+public enum RhshfFinancialInputMethod
+{
+    ManualEntry,
+    ExcelUpload,
+}
+
+/// <summary>Reliability tier of a financial statement year (audited carries most weight).</summary>
+public enum RhshfFinancialYearType
+{
+    Audited,
+    Management,
+    Draft,
+    Projected,
+}

@@ -809,6 +809,9 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.AddRhshfGuarantorHandler>();
         services.AddScoped<Application.Rhshf.Commands.UpdateRhshfGuarantorHandler>();
         services.AddScoped<Application.Rhshf.Commands.RemoveRhshfGuarantorHandler>();
+
+        // RH-SHF — financial statements (3-year financial analysis)
+        services.AddScoped<IRhshfFinancialStatementRepository, RhshfFinancialStatementRepository>();
         services.AddScoped<Application.Rhshf.Commands.RecordRhshfCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfCollateralDocumentHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCollateralHandler>();
