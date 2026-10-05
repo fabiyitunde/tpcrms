@@ -7107,6 +7107,29 @@ public partial class ApplicationService
         }
     }
 
+    // Pulls the FAC's BOA operational-account statement from core banking (mirrors how Corporate's
+    // Bank Statements tab pulls the customer's transactions). Returns the error so the tab can show
+    // why a pull failed (no account on file, CBS unreachable) rather than a blank table.
+    public async Task<(CRMS.Application.CoreBanking.DTOs.AccountStatementDto? Statement, string? Error)> GetRhshfBankStatementAsync(
+        string accountNumber, DateTime fromDate, DateTime toDate)
+    {
+        if (string.IsNullOrWhiteSpace(accountNumber))
+            return (null, "No BOA account number is on file for this FAC.");
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CoreBanking.Queries.GetAccountStatementHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.CoreBanking.Queries.GetAccountStatementQuery(accountNumber, fromDate, toDate),
+                CancellationToken.None);
+            return result.IsSuccess ? (result.Data, null) : (null, result.Error ?? "Could not retrieve the account statement.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF BOA statement for account {Account}", accountNumber);
+            return (null, ex.Message);
+        }
+    }
+
     public async Task<List<CRMS.Application.Rhshf.Queries.RhshfCollateralDto>> GetRhshfCollateralAsync(string reference)
     {
         try

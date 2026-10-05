@@ -3,6 +3,7 @@
 @using CRMS.Application.Rhshf.Commands
 @using CRMS.Application.Rhshf.DTOs
 @using CRMS.Application.Rhshf.Queries
+@using CRMS.Application.CoreBanking.DTOs
 @using CRMS.Domain.Enums
 @using CRMS.Web.Intranet.Components.Pages.Rhshf.Tabs
 @using CRMS.Web.Intranet.Components.Pages.Rhshf.Modals
@@ -187,6 +188,11 @@ else
         <div class="tab @(activeTab == "financialappraisal" ? "active" : "")" @onclick='() => activeTab = "financialappraisal"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">calculate</span>Financial Appraisal
         </div>
+        @* Bank Statements — pulls BOA account transactions from core banking (lazy-loaded on open) plus
+           shows uploaded other-bank statements; mirrors Corporate's position after Financial. *@
+        <div class="tab @(activeTab == "statements" ? "active" : "")" @onclick='async () => { activeTab = "statements"; await EnsureBankStatementLoaded(); }'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">receipt_long</span>Bank Statements
+        </div>
         <div class="tab @(activeTab == "bureau" ? "active" : "")" @onclick='() => activeTab = "bureau"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span>Credit Bureau
         </div>
@@ -270,6 +276,12 @@ else
                 IsFetchingCac="isFetchingCac" CacError="@cacError"
                 OnFetchCac="FetchCacDetails" OnAddDirector="OpenAddDirectorModal"
                 OnEditDirector="OpenEditDirectorModal" OnRemoveDirector="RemoveDirector" />
+            break;
+        case "statements":
+            <RhshfBankStatementsTab BoaAccountNumber="@workspace.BoaAccountNumber" Statement="bankStatement"
+                StatementError="@bankStatementError" IsFetching="isFetchingStatement" OnRefresh="RefreshBankStatement"
+                UploadedStatements="BankStatementDocs" OnDownload="DownloadSupportingDocument"
+                OnFetchBytes="AppService.DownloadRhshfSupportingDocumentAsync" Currency="@workspace.Currency" />
             break;
         case "bureau":
             <BureauTab Reports="bureauReports" CanRecheck="CanRunBureauChecks" RecheckError="@bureauError" />
@@ -388,6 +400,10 @@ else
     private RhshfOfferDto? offer;
     private List<RhshfLegalClearanceDto> legalHistory = [];
     private List<RhshfStatusHistoryDto> statusHistory = [];
+    private AccountStatementDto? bankStatement;
+    private string? bankStatementError;
+    private bool isFetchingStatement;
+    private bool bankStatementLoaded;
     private List<RhshfCommentDto> comments = [];
     private bool isAddingComment;
     private string? commentError;
@@ -527,6 +543,36 @@ else
         isAddingComment = false;
         if (!result.Success) { commentError = result.Error; return; }
         comments = await AppService.GetRhshfCommentsAsync(Reference);
+    }
+
+    // The FAC's uploaded other-bank statements, filtered from the case documents by category.
+    private List<RhshfSupportingDocumentDto> BankStatementDocs =>
+        workspace?.SupportingDocuments.Where(d => d.Category == RhshfDocumentCategory.BankStatement).ToList() ?? [];
+
+    // Core-banking pulls are slow and not always needed, so the BOA statement is fetched the first
+    // time the tab is opened (mirrors how the Loan Account tab loads), then cached until a manual refresh.
+    private async Task EnsureBankStatementLoaded()
+    {
+        if (!bankStatementLoaded)
+            await RefreshBankStatement();
+    }
+
+    private async Task RefreshBankStatement()
+    {
+        bankStatementLoaded = true;
+        if (string.IsNullOrWhiteSpace(workspace?.BoaAccountNumber))
+        {
+            bankStatement = null;
+            bankStatementError = null;
+            return;
+        }
+        isFetchingStatement = true;
+        bankStatementError = null;
+        var (statement, error) = await AppService.GetRhshfBankStatementAsync(
+            workspace.BoaAccountNumber, DateTime.UtcNow.AddMonths(-6), DateTime.UtcNow);
+        bankStatement = statement;
+        bankStatementError = error;
+        isFetchingStatement = false;
     }
 
     private async Task SubmitCollateral(RecordRhshfCollateralCommand command)

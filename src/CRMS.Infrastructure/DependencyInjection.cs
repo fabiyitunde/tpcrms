@@ -798,6 +798,10 @@ public static class DependencyInjection
         services.AddScoped<IRhshfCommentRepository, RhshfCommentRepository>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfCommentHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCommentsHandler>();
+
+        // Core-banking account statement — reused by the RH-SHF Bank Statements tab to pull the
+        // FAC's BOA account transactions (registered concretely so the Intranet AppService resolves it).
+        services.AddScoped<Application.CoreBanking.Queries.GetAccountStatementHandler>();
         services.AddScoped<Application.Rhshf.Commands.RecordRhshfCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfCollateralDocumentHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCollateralHandler>();

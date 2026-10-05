@@ -1,0 +1,292 @@
+@using CRMS.Application.CoreBanking.DTOs
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Application.Rhshf.DTOs
+@inject IJSRuntime JS
+
+@* Mirrors Corporate's Bank Statements tab: the FAC's BOA operational account transactions pulled live
+   from core banking, plus statements from other banks as uploaded. No verify/analyse lifecycle —
+   RH-SHF's repayment case is the crop-economics Financial Appraisal, so this tab is for visibility. *@
+
+<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3 class="card-title">BOA Operational Account</h3>
+                <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">
+                    Live transactions from core banking@(string.IsNullOrWhiteSpace(BoaAccountNumber) ? "" : $" · {BoaAccountNumber}")
+                </div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(BoaAccountNumber))
+            {
+                <button class="btn btn-outline btn-sm" @onclick="() => OnRefresh.InvokeAsync()" disabled="@IsFetching">
+                    @if (IsFetching)
+                    {
+                        <span class="spinner" style="width: 12px; height: 12px;"></span> <span>Fetching…</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">refresh</span>
+                        <span>Refresh</span>
+                    }
+                </button>
+            }
+        </div>
+
+        @if (string.IsNullOrWhiteSpace(BoaAccountNumber))
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">account_balance</span></div>
+                <div class="empty-state-title">No BOA account on file</div>
+                <div class="empty-state-text">This FAC has no BOA operational account number recorded, so no statement can be pulled.</div>
+            </div>
+        }
+        else if (IsFetching && Statement is null)
+        {
+            <div class="card-body" style="text-align: center; padding: 2rem;">
+                <div class="spinner" style="margin: 0 auto;"></div>
+                <div style="font-size: var(--text-sm); color: var(--gray-500); margin-top: 0.75rem;">Pulling transactions from core banking…</div>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(StatementError))
+        {
+            <div class="card-body">
+                <div class="alert alert-danger" style="margin: 0;">@StatementError</div>
+            </div>
+        }
+        else if (Statement is not null)
+        {
+            <div class="card-body">
+                <div style="font-size: var(--text-sm); color: var(--gray-500); margin-bottom: var(--space-4);">
+                    Period: @Statement.FromDate.ToLocalTime().ToString("MMM dd, yyyy") – @Statement.ToDate.ToLocalTime().ToString("MMM dd, yyyy")
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4);">
+                    <div class="stat-tile">
+                        <div class="stat-label">Opening Balance</div>
+                        <div class="stat-value">@Currency @Statement.OpeningBalance.ToString("N2")</div>
+                    </div>
+                    <div class="stat-tile">
+                        <div class="stat-label">Total Credits</div>
+                        <div class="stat-value" style="color: var(--success-600);">@Currency @Statement.TotalCredits.ToString("N2")</div>
+                    </div>
+                    <div class="stat-tile">
+                        <div class="stat-label">Total Debits</div>
+                        <div class="stat-value" style="color: var(--danger-600);">@Currency @Statement.TotalDebits.ToString("N2")</div>
+                    </div>
+                    <div class="stat-tile">
+                        <div class="stat-label">Closing Balance</div>
+                        <div class="stat-value" style="color: var(--primary-700);">@Currency @Statement.ClosingBalance.ToString("N2")</div>
+                    </div>
+                </div>
+            </div>
+
+            @if (Statement.Transactions.Count == 0)
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon"><span class="material-symbols-outlined">receipt_long</span></div>
+                    <div class="empty-state-title">No transactions in this period</div>
+                    <div class="empty-state-text">The account had no activity over the statement window.</div>
+                </div>
+            }
+            else
+            {
+                <div class="table-wrapper">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Reference</th>
+                                <th>Type</th>
+                                <th style="text-align: right;">Amount</th>
+                                <th style="text-align: right;">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var tx in Statement.Transactions.OrderByDescending(t => t.Date))
+                            {
+                                var isCredit = tx.Type.Equals("Credit", StringComparison.OrdinalIgnoreCase);
+                                <tr>
+                                    <td style="white-space: nowrap;">@tx.Date.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                                    <td>@tx.Description</td>
+                                    <td style="font-size: var(--text-xs); color: var(--gray-500);">@(string.IsNullOrWhiteSpace(tx.Reference) ? "—" : tx.Reference)</td>
+                                    <td><span class="badge @(isCredit ? "badge-success" : "badge-gray")">@tx.Type</span></td>
+                                    <td style="text-align: right; font-weight: 600; color: @(isCredit ? "var(--success-600)" : "var(--danger-600)");">
+                                        @(isCredit ? "+" : "−")@Currency @tx.Amount.ToString("N2")
+                                    </td>
+                                    <td style="text-align: right;">@Currency @tx.RunningBalance.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Uploaded Statements (Other Banks)</h3>
+            <span class="badge badge-gray">@UploadedStatements.Count</span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            @if (UploadedStatements.Count == 0)
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon"><span class="material-symbols-outlined">upload_file</span></div>
+                    <div class="empty-state-title">No uploaded statements</div>
+                    <div class="empty-state-text">Bank statements the FAC attached for accounts held at other banks appear here.</div>
+                </div>
+            }
+            else
+            {
+                <table class="table">
+                    <thead>
+                        <tr><th>File</th><th style="text-align: right;">Size</th><th>Uploaded</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in UploadedStatements.OrderByDescending(d => d.UploadedAt))
+                        {
+                            var currentDoc = doc;
+                            <tr>
+                                <td>
+                                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: var(--gray-500);">description</span>
+                                    @doc.FileName
+                                </td>
+                                <td style="text-align: right; font-size: 0.8rem; color: var(--gray-500);">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</td>
+                                <td style="font-size: var(--text-sm);">@doc.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                                <td>
+                                    <div style="display: flex; gap: var(--space-2);">
+                                        <button class="btn btn-ghost btn-sm" title="Download" @onclick="() => OnDownload.InvokeAsync(currentDoc.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                                        </button>
+                                        <button class="btn btn-ghost btn-sm" title="View" @onclick="() => ViewDocument(currentDoc)" disabled="@(_loadingView == currentDoc.Id)">
+                                            @if (_loadingView == currentDoc.Id)
+                                            {
+                                                <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                            }
+                                            else
+                                            {
+                                                <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                                            }
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@if (_viewerOpen && _selected is not null)
+{
+    <div class="modal-backdrop show" @onclick="CloseViewer">
+        <div class="modal" style="max-width: 1000px; height: 92vh; max-height: 92vh;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@_selected.FileName</h3>
+                <button class="modal-close" @onclick="CloseViewer"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body" style="padding: 0; flex: 1; overflow: hidden; min-height: 0;">
+                @if (_blobUrl is not null && IsViewableInBrowser(_selected.FileName))
+                {
+                    <iframe src="@_blobUrl" style="width: 100%; height: 100%; border: none;"></iframe>
+                }
+                else
+                {
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: var(--space-4);">
+                        <span class="material-symbols-outlined" style="font-size: 64px; color: var(--gray-400);">description</span>
+                        <div style="text-align: center;">
+                            <div style="font-weight: 600; font-size: var(--text-lg);">@_selected.FileName</div>
+                            <div style="color: var(--gray-500); font-size: var(--text-sm); margin-top: var(--space-2);">This file type cannot be previewed in the browser.</div>
+                        </div>
+                        <button class="btn btn-primary" @onclick="() => OnDownload.InvokeAsync(_selected.Id)">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">download</span> Download File
+                        </button>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <span style="font-size: var(--text-sm); color: var(--gray-500);">
+                    Uploaded @_selected.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                </span>
+                <button class="btn btn-secondary" @onclick="CloseViewer">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .stat-tile {
+        text-align: center;
+        padding: var(--space-4);
+        background: var(--gray-50);
+        border-radius: var(--radius-lg);
+    }
+    .stat-label { font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: var(--text-lg); font-weight: 700; margin-top: var(--space-1); }
+</style>
+
+@code {
+    [Parameter] public string? BoaAccountNumber { get; set; }
+    [Parameter] public AccountStatementDto? Statement { get; set; }
+    [Parameter] public string? StatementError { get; set; }
+    [Parameter] public bool IsFetching { get; set; }
+    [Parameter] public EventCallback OnRefresh { get; set; }
+    [Parameter, EditorRequired] public List<RhshfSupportingDocumentDto> UploadedStatements { get; set; } = [];
+    [Parameter] public EventCallback<Guid> OnDownload { get; set; }
+    /// <summary>Fetches the document bytes for the in-app viewer. Returns null if the file can't be
+    /// read; the viewer then shows the download fallback.</summary>
+    [Parameter] public Func<Guid, Task<RhshfDownloadedFileDto?>>? OnFetchBytes { get; set; }
+    [Parameter] public string Currency { get; set; } = "NGN";
+
+    private bool _viewerOpen;
+    private RhshfSupportingDocumentDto? _selected;
+    private string? _blobUrl;
+    private Guid? _loadingView;
+
+    private async Task ViewDocument(RhshfSupportingDocumentDto doc)
+    {
+        if (OnFetchBytes is null) { await OnDownload.InvokeAsync(doc.Id); return; }
+
+        _loadingView = doc.Id;
+        try
+        {
+            var file = await OnFetchBytes(doc.Id);
+            await ReleaseBlobAsync();
+            _selected = doc;
+            _blobUrl = file is not null && IsViewableInBrowser(doc.FileName)
+                ? await JS.InvokeAsync<string>("createBlobUrl", file.Content, file.ContentType)
+                : null;
+            _viewerOpen = true;
+        }
+        finally
+        {
+            _loadingView = null;
+        }
+    }
+
+    private async Task CloseViewer()
+    {
+        _viewerOpen = false;
+        _selected = null;
+        await ReleaseBlobAsync();
+    }
+
+    private async Task ReleaseBlobAsync()
+    {
+        if (_blobUrl is not null)
+        {
+            await JS.InvokeVoidAsync("revokeBlobUrl", _blobUrl);
+            _blobUrl = null;
+        }
+    }
+
+    private static bool IsViewableInBrowser(string name)
+    {
+        var ext = Path.GetExtension(name).ToLowerInvariant();
+        return ext is ".pdf" or ".png" or ".jpg" or ".jpeg" or ".gif" or ".txt";
+    }
+}
