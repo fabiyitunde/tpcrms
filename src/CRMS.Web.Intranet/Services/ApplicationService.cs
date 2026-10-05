@@ -7075,6 +7075,38 @@ public partial class ApplicationService
 
     // ── RH-SHF Full-page Detail view (RSHSF_Programme_Details.docx S/N 15-16) ──────────────────
 
+    public async Task<List<CRMS.Application.Rhshf.Queries.RhshfCommentDto>> GetRhshfCommentsAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfCommentsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfCommentsQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data ?? [] : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF comments for {Reference}", reference);
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse> AddRhshfCommentAsync(string reference, Guid authorUserId, string content)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.AddRhshfCommentHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.AddRhshfCommentCommand(reference, authorUserId, content),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to add comment");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding RH-SHF comment for {Reference}", reference);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
     public async Task<List<CRMS.Application.Rhshf.Queries.RhshfCollateralDto>> GetRhshfCollateralAsync(string reference)
     {
         try

@@ -793,6 +793,11 @@ public static class DependencyInjection
 
         // RH-SHF — Collateral (S/N 16), per RSHSF_Programme_Details.docx
         services.AddScoped<IRhshfCollateralRepository, RhshfCollateralRepository>();
+
+        // RH-SHF — per-case comment thread (mirrors Corporate's Comments tab)
+        services.AddScoped<IRhshfCommentRepository, RhshfCommentRepository>();
+        services.AddScoped<Application.Rhshf.Commands.AddRhshfCommentHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfCommentsHandler>();
         services.AddScoped<Application.Rhshf.Commands.RecordRhshfCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfCollateralDocumentHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCollateralHandler>();

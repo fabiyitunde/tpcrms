@@ -249,6 +249,9 @@ else
                 <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">account_balance_wallet</span>Loan Account
             </div>
         }
+        <div class="tab @(activeTab == "comments" ? "active" : "")" @onclick='() => activeTab = "comments"'>
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">forum</span>Comments
+        </div>
         <div class="tab @(activeTab == "workflow" ? "active" : "")" @onclick='() => activeTab = "workflow"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">history</span>Workflow
         </div>
@@ -316,6 +319,9 @@ else
             <AdvisoryTab Advisory="advisory" IsGenerating="isGeneratingAdvisory" CanGenerate="CanGenerateAdvisory" OnGenerate="GenerateAdvisory"
                 BureauReports="bureauReports" Appraisal="financialAppraisal" />
             break;
+        case "comments":
+            <RhshfCommentsTab Comments="comments" OnAddComment="AddComment" IsSubmitting="isAddingComment" SubmitError="@commentError" />
+            break;
         case "workflow":
             <WorkflowTab History="statusHistory" CurrentStatus="workspace.Status"
                 CurrentInternalStage="workspace.InternalStage" CurrentProfilingStage="workspace.CurrentProfilingStage" />
@@ -382,6 +388,9 @@ else
     private RhshfOfferDto? offer;
     private List<RhshfLegalClearanceDto> legalHistory = [];
     private List<RhshfStatusHistoryDto> statusHistory = [];
+    private List<RhshfCommentDto> comments = [];
+    private bool isAddingComment;
+    private string? commentError;
     private List<RhshfDisbursementDto> disbursementHistory = [];
     private List<RhshfPreDeploymentChecklistItemDto> preDeploymentChecklist = [];
     private RhshfLoanAccountDto? loanAccount;
@@ -491,6 +500,7 @@ else
                 await LoadLoanAccount();
             advisory = await AppService.GetRhshfAdvisoryAsync(Reference);
             statusHistory = await AppService.GetRhshfStatusHistoryAsync(Reference);
+            comments = await AppService.GetRhshfCommentsAsync(Reference);
         }
         catch (Exception ex)
         {
@@ -508,6 +518,16 @@ else
     private void OpenRatificationModal(string intent) { openModal = "ratification"; modalIntent = intent; modalError = null; }
     private void OpenLegalClearanceModal(string intent) { openModal = "legal"; modalIntent = intent; modalError = null; }
     private void CloseModal() { openModal = null; modalError = null; }
+
+    private async Task AddComment(string content)
+    {
+        isAddingComment = true;
+        commentError = null;
+        var result = await AppService.AddRhshfCommentAsync(Reference, CurrentUserId, content);
+        isAddingComment = false;
+        if (!result.Success) { commentError = result.Error; return; }
+        comments = await AppService.GetRhshfCommentsAsync(Reference);
+    }
 
     private async Task SubmitCollateral(RecordRhshfCollateralCommand command)
     {

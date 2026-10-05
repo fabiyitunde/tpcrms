@@ -158,6 +158,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<RH.RhshfDisbursement> RhshfDisbursements => Set<RH.RhshfDisbursement>();
     public DbSet<RH.RhshfCallbackAttempt> RhshfCallbackAttempts => Set<RH.RhshfCallbackAttempt>();
     public DbSet<RH.RhshfCollateral> RhshfCollaterals => Set<RH.RhshfCollateral>();
+    public DbSet<RH.RhshfComment> RhshfComments => Set<RH.RhshfComment>();
     public DbSet<RH.RhshfCollateralDocument> RhshfCollateralDocuments => Set<RH.RhshfCollateralDocument>();
     public DbSet<RH.RhshfRoutingConfig> RhshfRoutingConfigs => Set<RH.RhshfRoutingConfig>();
     public DbSet<RH.RhshfPreDeploymentChecklistTemplate> RhshfPreDeploymentChecklistTemplates => Set<RH.RhshfPreDeploymentChecklistTemplate>();
