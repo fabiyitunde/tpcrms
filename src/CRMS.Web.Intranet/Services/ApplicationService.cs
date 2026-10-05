@@ -7107,6 +7107,68 @@ public partial class ApplicationService
         }
     }
 
+    // ── RH-SHF Financial Statements (3-year financial analysis) ──────────────
+    public async Task<CRMS.Application.Rhshf.Queries.RhshfFinancialAnalysisDto?> GetRhshfFinancialAnalysisAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfFinancialAnalysisHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfFinancialAnalysisQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF financial analysis for {Reference}", reference);
+            return null;
+        }
+    }
+
+    public async Task<ApiResponse> SaveRhshfFinancialStatementAsync(CRMS.Application.Rhshf.Commands.SaveRhshfFinancialStatementCommand command)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.SaveRhshfFinancialStatementHandler>();
+            var result = await handler.Handle(command, CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to save financial statement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving RH-SHF financial statement for {Reference}", command.Reference);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse> SubmitRhshfFinancialStatementAsync(Guid statementId)
+        => await RunRhshfStatementLifecycle(h => h.Handle(new CRMS.Application.Rhshf.Commands.SubmitRhshfFinancialStatementCommand(statementId), CancellationToken.None), statementId);
+
+    public async Task<ApiResponse> VerifyRhshfFinancialStatementAsync(Guid statementId, Guid actorUserId, string? notes)
+        => await RunRhshfStatementLifecycle(h => h.Handle(new CRMS.Application.Rhshf.Commands.VerifyRhshfFinancialStatementCommand(statementId, actorUserId, notes), CancellationToken.None), statementId);
+
+    public async Task<ApiResponse> RejectRhshfFinancialStatementAsync(Guid statementId, string reason)
+        => await RunRhshfStatementLifecycle(h => h.Handle(new CRMS.Application.Rhshf.Commands.RejectRhshfFinancialStatementCommand(statementId, reason), CancellationToken.None), statementId);
+
+    public async Task<ApiResponse> RevertRhshfFinancialStatementAsync(Guid statementId)
+        => await RunRhshfStatementLifecycle(h => h.Handle(new CRMS.Application.Rhshf.Commands.RevertRhshfFinancialStatementCommand(statementId), CancellationToken.None), statementId);
+
+    public async Task<ApiResponse> DeleteRhshfFinancialStatementAsync(Guid statementId)
+        => await RunRhshfStatementLifecycle(h => h.Handle(new CRMS.Application.Rhshf.Commands.DeleteRhshfFinancialStatementCommand(statementId), CancellationToken.None), statementId);
+
+    private async Task<ApiResponse> RunRhshfStatementLifecycle(
+        Func<CRMS.Application.Rhshf.Commands.RhshfFinancialStatementLifecycleHandler, Task<CRMS.Application.Common.ApplicationResult>> action, Guid statementId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RhshfFinancialStatementLifecycleHandler>();
+            var result = await action(handler);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Operation failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in RH-SHF financial statement lifecycle for {Id}", statementId);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
     // Pulls the FAC's BOA operational-account statement from core banking (mirrors how Corporate's
     // Bank Statements tab pulls the customer's transactions). Returns the error so the tab can show
     // why a pull failed (no account on file, CBS unreachable) rather than a blank table.

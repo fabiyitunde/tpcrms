@@ -812,6 +812,9 @@ public static class DependencyInjection
 
         // RH-SHF — financial statements (3-year financial analysis)
         services.AddScoped<IRhshfFinancialStatementRepository, RhshfFinancialStatementRepository>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfFinancialAnalysisHandler>();
+        services.AddScoped<Application.Rhshf.Commands.SaveRhshfFinancialStatementHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RhshfFinancialStatementLifecycleHandler>();
         services.AddScoped<Application.Rhshf.Commands.RecordRhshfCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfCollateralDocumentHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCollateralHandler>();
