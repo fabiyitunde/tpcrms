@@ -95,6 +95,13 @@ jobs:
             sudo chown $USER:$USER /opt/crms
             cd /opt/crms
 
+            # Clear the previous checkout before extracting, so files DELETED since the last deploy
+            # don't linger and get compiled by the Docker build. (This bit us once: a source file that
+            # had been removed in git stayed on the box and failed the build against a deleted type.)
+            # Safe: the .env is re-created below, and uploaded documents live in the crms-storage Docker
+            # volume — not under /opt/crms — so they are untouched.
+            sudo find /opt/crms -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} +
+
             # Extract new code
             tar -xzf /tmp/deploy.tar.gz
             rm /tmp/deploy.tar.gz
