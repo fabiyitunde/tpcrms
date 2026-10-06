@@ -11,7 +11,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
+            // DESTRUCTIVE-APPROVED: RH-SHF eligibility feature removed by design decision (2026-10-04).
+            // The RhshfEligibilityChecks table is a work-in-progress table that was never deployed to
+            // production, so dropping it loses no production data. See the eligibility rip-out commit.
+            migrationBuilder.DropTable( // DESTRUCTIVE-APPROVED: RhshfEligibilityChecks is WIP, never in production — no data loss.
                 name: "RhshfEligibilityChecks");
         }
 
