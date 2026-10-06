@@ -7,6 +7,7 @@
 @using CRMS.Domain.Enums
 @using CRMS.Web.Intranet.Components.Pages.Rhshf.Tabs
 @using CRMS.Web.Intranet.Components.Pages.Rhshf.Modals
+@using CRMS.Web.Intranet.Services
 @inject ApplicationService AppService
 @inject AuthService AuthService
 @inject NavigationManager Navigation
@@ -288,7 +289,8 @@ else
         case "financialanalysis":
             <RhshfFinancialAnalysisTab Analysis="financialAnalysis" LoadError="@financialAnalysisLoadError"
                 CanManage="CanManageFinancials" Currency="@workspace.Currency"
-                OnAddYear="OpenAddFinancialStatement" OnUploadExcel="OpenUploadFinancials"
+                HasUploadedFinancials="HasUploadedFinancials" ImportMessage="@financialImportMessage" IsImporting="isImportingFinancials"
+                OnAddYear="OpenAddFinancialStatement" OnUploadExcel="OpenUploadFinancials" OnImportFromUpload="ImportFinancialsFromUpload"
                 OnEditYear="OpenEditFinancialStatement" OnSubmit="SubmitFinancialStatementForReview"
                 OnVerify="VerifyFinancialStatement" OnReject="RejectFinancialStatement"
                 OnRevert="RevertFinancialStatement" OnDelete="DeleteFinancialStatement" />
@@ -443,6 +445,8 @@ else
     private string? financialAnalysisLoadError;
     private bool financialAnalysisLoaded;
     private RhshfFinancialStatementDto? editingFinancialStatement;
+    private string? financialImportMessage;
+    private bool isImportingFinancials;
     private List<RhshfCommentDto> comments = [];
     private bool isAddingComment;
     private string? commentError;
@@ -646,6 +650,61 @@ else
     private void OpenAddFinancialStatement() { editingFinancialStatement = null; openModal = "financialstatement"; modalError = null; }
     private void OpenEditFinancialStatement(RhshfFinancialStatementDto s) { editingFinancialStatement = s; openModal = "financialstatement"; modalError = null; }
     private void OpenUploadFinancials() { openModal = "uploadfinancials"; modalError = null; }
+
+    // Whether the FAC has attached an audited-financials document on the case — the source the one-click
+    // import parses, so officers don't have to download and re-upload it through the Excel modal.
+    private bool HasUploadedFinancials =>
+        workspace?.SupportingDocuments.Any(d => d.Category == RhshfDocumentCategory.AuditedFinancials) ?? false;
+
+    private async Task ImportFinancialsFromUpload()
+    {
+        financialImportMessage = null;
+        var doc = workspace!.SupportingDocuments
+            .Where(d => d.Category == RhshfDocumentCategory.AuditedFinancials)
+            .OrderByDescending(d => d.UploadedAt)
+            .FirstOrDefault();
+        if (doc is null)
+        {
+            financialImportMessage = "No audited-financials document has been uploaded by the FAC.";
+            return;
+        }
+
+        isImportingFinancials = true;
+        try
+        {
+            var file = await AppService.DownloadRhshfSupportingDocumentAsync(doc.Id);
+            if (file is null) { financialImportMessage = "Could not read the uploaded financials file."; return; }
+
+            using var ms = new MemoryStream(file.Content);
+            var parsed = new FinancialStatementExcelService().ParseUploadedFile(ms);
+            if (!parsed.Success || parsed.Data is null)
+            {
+                financialImportMessage = $"Could not parse \"{doc.FileName}\" — is it the filled financial statements template? ({parsed.Error})";
+                return;
+            }
+
+            int imported = 0, skipped = 0;
+            string? firstError = null;
+            foreach (var s in parsed.Data)
+            {
+                var result = await AppService.SaveRhshfFinancialStatementAsync(new SaveRhshfFinancialStatementCommand(
+                    Reference, null, CurrentUserId, s.Year, null, RhshfFinancialStatementMapper.ParseYearType(s.YearType),
+                    workspace.Currency, RhshfFinancialInputMethod.ExcelUpload, RhshfFinancialStatementMapper.ToFigures(s), doc.FileName));
+                if (result.Success) imported++;
+                else if ((result.Error ?? "").Contains("already", StringComparison.OrdinalIgnoreCase)) skipped++;
+                else firstError ??= result.Error;
+            }
+
+            await RefreshFinancialAnalysis();
+            financialImportMessage = firstError is not null
+                ? $"Imported {imported} year(s); stopped on an error: {firstError}"
+                : $"Imported {imported} year(s) from \"{doc.FileName}\"" + (skipped > 0 ? $"; {skipped} already present (skipped — delete first to replace)." : ".");
+        }
+        finally
+        {
+            isImportingFinancials = false;
+        }
+    }
 
     private async Task SaveFinancialStatement(RhshfFinancialStatementModal.RhshfFinancialStatementFormData data)
     {

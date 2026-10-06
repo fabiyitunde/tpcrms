@@ -113,12 +113,27 @@ else
                         <button class="btn btn-outline btn-sm" @onclick="() => OnUploadExcel.InvokeAsync()">
                             <span class="material-symbols-outlined" style="font-size: 16px;">upload_file</span> Upload Excel
                         </button>
+                        @if (HasUploadedFinancials)
+                        {
+                            <button class="btn btn-outline btn-sm" @onclick="() => OnImportFromUpload.InvokeAsync()" disabled="@IsImporting"
+                                    title="Parse the financials the FAC uploaded during profiling">
+                                @if (IsImporting) { <span class="spinner" style="width: 12px; height: 12px;"></span> }
+                                else { <span class="material-symbols-outlined" style="font-size: 16px;">sync</span> }
+                                Import from FAC Upload
+                            </button>
+                        }
                         <button class="btn btn-primary btn-sm" @onclick="() => OnAddYear.InvokeAsync()">
                             <span class="material-symbols-outlined" style="font-size: 16px;">add</span> Add Year
                         </button>
                     </div>
                 }
             </div>
+            @if (!string.IsNullOrEmpty(ImportMessage))
+            {
+                <div class="card-body" style="padding-bottom: 0;">
+                    <div class="alert alert-info" style="margin: 0;">@ImportMessage</div>
+                </div>
+            }
             <div class="card-body" style="padding: 0;">
                 @if (Analysis.Years.Count == 0)
                 {
@@ -253,6 +268,10 @@ else
     [Parameter] public string? LoadError { get; set; }
     [Parameter] public bool CanManage { get; set; }
     [Parameter] public string Currency { get; set; } = "NGN";
+    [Parameter] public bool HasUploadedFinancials { get; set; }
+    [Parameter] public bool IsImporting { get; set; }
+    [Parameter] public string? ImportMessage { get; set; }
+    [Parameter] public EventCallback OnImportFromUpload { get; set; }
     [Parameter] public EventCallback OnAddYear { get; set; }
     [Parameter] public EventCallback OnUploadExcel { get; set; }
     [Parameter] public EventCallback<RhshfFinancialStatementDto> OnEditYear { get; set; }
