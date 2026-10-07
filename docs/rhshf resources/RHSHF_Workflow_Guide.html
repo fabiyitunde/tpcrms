@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RH-SHF Credit Workflow — End-to-End Guide</title>
+<style>
+  :root {
+    --bg: #f6f8f6;
+    --surface: #ffffff;
+    --surface-2: #f0f4f1;
+    --ink: #16231b;
+    --ink-soft: #4b5a51;
+    --ink-faint: #76867c;
+    --line: #dde6e0;
+    --primary: #167a3c;
+    --primary-dark: #0f5c2e;
+    --primary-50: #e8f4ec;
+    --primary-200: #b9ddc6;
+    --fac: #b45309;
+    --fac-bg: #fef3e2;
+    --fac-line: #f6d9ae;
+    --danger: #b91c1c;
+    --warn-bg: #fff8e6;
+    --warn-line: #f3e0a6;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(16,35,27,.05), 0 8px 24px rgba(16,35,27,.06);
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1511; --surface: #141d18; --surface-2: #19241d;
+      --ink: #e7efe9; --ink-soft: #a9b8af; --ink-faint: #7e8f84;
+      --line: #263329; --primary: #45b571; --primary-dark: #2f9557;
+      --primary-50: #16281d; --primary-200: #2d5a3c;
+      --fac: #f0a955; --fac-bg: #2a1f10; --fac-line: #4a3617;
+      --danger: #f0736f; --warn-bg: #241e0c; --warn-line: #43380f;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  header.doc { border-bottom: 1px solid var(--line); padding-bottom: 28px; margin-bottom: 36px; }
+  .eyebrow { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--primary); font-weight: 700; }
+  h1 { font-size: 2rem; line-height: 1.15; margin: 10px 0 8px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { color: var(--ink-soft); font-size: 1.02rem; max-width: 62ch; margin: 0; }
+
+  .journey { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 22px; font-size: .78rem; }
+  .journey .chip { background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; color: var(--ink-soft); font-weight: 600; }
+  .journey .chip.start { border-color: var(--fac-line); background: var(--fac-bg); color: var(--fac); }
+  .journey .chip.end { border-color: var(--primary-200); background: var(--primary-50); color: var(--primary-dark); }
+  .journey .arr { color: var(--ink-faint); }
+
+  .note { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--primary); border-radius: 10px; padding: 16px 18px; margin: 0 0 40px; box-shadow: var(--shadow); }
+  .note strong { color: var(--primary-dark); }
+  .note.warn { border-left-color: var(--fac); }
+  .note.warn strong { color: var(--fac); }
+
+  h2.section { font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; margin: 44px 0 18px; }
+
+  /* Stage cards as a numbered rail */
+  .stage { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px 22px 70px; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .stage .num { position: absolute; left: 20px; top: 22px; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: .95rem; background: var(--primary); color: #fff; }
+  .stage.fac .num { background: var(--fac); }
+  .stage .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 14px; margin-bottom: 4px; }
+  .stage h3 { font-size: 1.12rem; margin: 0; letter-spacing: -.01em; }
+  .pill { font-size: .68rem; font-weight: 700; letter-spacing: .03em; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill.stageid { background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-faint); font-family: var(--mono); }
+  .pill.status { background: var(--primary-50); border: 1px solid var(--primary-200); color: var(--primary-dark); }
+
+  .actor { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: .9rem; color: var(--primary-dark); background: var(--primary-50); border: 1px solid var(--primary-200); border-radius: 8px; padding: 3px 10px; margin: 8px 0 14px; }
+  .stage.fac .actor { color: var(--fac); background: var(--fac-bg); border-color: var(--fac-line); }
+  .actor .login { font-family: var(--mono); font-weight: 500; font-size: .8rem; opacity: .85; }
+
+  .stage dl { margin: 0; display: grid; grid-template-columns: 128px 1fr; gap: 8px 16px; }
+  .stage dt { font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; padding-top: 2px; }
+  .stage dd { margin: 0; color: var(--ink-soft); }
+  .stage dd b { color: var(--ink); font-weight: 650; }
+  .btn { display: inline-block; font-family: var(--mono); font-size: .82rem; background: var(--primary-50); border: 1px solid var(--primary-200); color: var(--primary-dark); border-radius: 6px; padding: 1px 7px; font-weight: 600; }
+  .stage.fac .btn { background: var(--fac-bg); border-color: var(--fac-line); color: var(--fac); }
+  ol.sub { margin: 4px 0 0; padding-left: 20px; color: var(--ink-soft); }
+  ol.sub li { margin-bottom: 3px; }
+  ol.sub b { color: var(--ink); }
+  .alt { color: var(--ink-faint); font-size: .86rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  thead th { text-align: left; background: var(--surface-2); color: var(--ink-faint); font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--line); color: var(--ink-soft); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  td code, .mono { font-family: var(--mono); font-size: .84rem; color: var(--ink); }
+
+  .rules { list-style: none; margin: 0; padding: 0; }
+  .rules li { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 13px 16px; margin-bottom: 10px; box-shadow: var(--shadow); }
+  .rules li b { color: var(--primary-dark); }
+
+  footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: .8rem; }
+  @media (max-width: 560px) {
+    .stage { padding-left: 24px; } .stage .num { position: static; margin-bottom: 10px; }
+    .stage dl { grid-template-columns: 1fr; gap: 2px 0; } .stage dt { padding-top: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="doc">
+    <div class="eyebrow">Bank of Agriculture · RH-SHF</div>
+    <h1>RH-SHF Credit Workflow — End-to-End Guide</h1>
+    <p class="lede">Every stage of a Renewed Hope Smallholder Farmer (dry-season input financing) case, from the FAC's profiling submission through to disbursement — who acts, what they do, and the action that moves it to the next stage.</p>
+    <div class="journey">
+      <span class="chip start">FAC Profiling</span><span class="arr">→</span>
+      <span class="chip">Appraisal</span><span class="arr">→</span>
+      <span class="chip">Risk Review</span><span class="arr">→</span>
+      <span class="chip">Committee</span><span class="arr">→</span>
+      <span class="chip">Ratification</span><span class="arr">→</span>
+      <span class="chip start">Offer Acceptance</span><span class="arr">→</span>
+      <span class="chip">Legal Clearance</span><span class="arr">→</span>
+      <span class="chip">Pre-Deployment</span><span class="arr">→</span>
+      <span class="chip">Disbursement</span><span class="arr">→</span>
+      <span class="chip end">Approved / Active</span>
+    </div>
+  </header>
+
+  <div class="note">
+    <strong>Two things to know before you start.</strong>
+    (1) The external <em>status</em> is a long plateau: it flips to <b>Under Review</b> the moment the FAC submits profiling and stays there through the entire internal pipeline — what actually moves is the <em>internal stage</em> shown on each card. (2) Two stages are <b>FAC-side</b> (orange) and happen on token-protected pages, not with a staff login: <b>Profiling</b> and <b>Offer Acceptance</b>.
+  </div>
+
+  <h2 class="section">The stages, in order</h2>
+
+  <!-- FAC PROFILING -->
+  <div class="stage fac">
+    <div class="num">0</div>
+    <div class="top">
+      <h3>FAC Profiling</h3>
+      <span class="pill stageid">status: ProfilingPending → ProfilingInProgress</span>
+    </div>
+    <div class="actor">🌾 FAC (applicant) <span class="login">· token link: /rhshf/profiling/{ref}?token=…</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>Open the profiling link and work through the five steps, confirming/entering data and attaching the required documents:
+        <ol class="sub">
+          <li><b>Company Verification</b> — confirm CAC / company details.</li>
+          <li><b>Credit Bureau Check</b> — consent / company lookup.</li>
+          <li><b>EOP Review</b> — confirm the Economics-of-Production input lines.</li>
+          <li><b>Supporting Documents</b> — upload the mandatory items (CAC, off-take, farmer register, warehousing, <b>audited financials</b> — a 3-year template is offered here to download, fill, and upload).</li>
+          <li><b>Review &amp; Submit</b> — final review, then submit.</li>
+        </ol>
+      </dd>
+      <dt>Advances when</dt>
+      <dd>The FAC <b>submits</b> the final step. External status flips to <b>Under Review</b> and the internal stage becomes <b>Appraisal</b> — the case now appears in the Credit Officer's RH-SHF queue.</dd>
+    </dl>
+  </div>
+
+  <!-- APPRAISAL -->
+  <div class="stage">
+    <div class="num">1</div>
+    <div class="top"><h3>Appraisal</h3><span class="pill stageid">stage: Appraisal</span><span class="pill status">Under Review</span></div>
+    <div class="actor">👤 Credit Officer <span class="login">· uche.eze@crms.ng</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>Open the case and build the credit picture: run <span class="btn">Re-run Credit Checks</span> (bureau for the company + every director/guarantor with a BVN); capture <b>Directors</b> &amp; <b>Guarantors</b> as needed; complete the <b>Financial Appraisal</b> (crop-economics viability — DSCR, margins, IRR, break-even); optionally capture the <b>Financial Analysis</b> (3-year statements). Review Documents, Collateral and the AI Advisory.</dd>
+      <dt>Advances when</dt>
+      <dd>Credit Officer clicks <span class="btn">Proceed</span> → <b>Risk Review</b>.</dd>
+      <dt>Other outcomes</dt>
+      <dd class="alt"><span class="btn">Return to FAC</span> (reopens profiling) · <span class="btn">Decline</span> (terminal).</dd>
+    </dl>
+  </div>
+
+  <!-- RISK REVIEW -->
+  <div class="stage">
+    <div class="num">2</div>
+    <div class="top"><h3>Risk Review</h3><span class="pill stageid">stage: RiskReview</span><span class="pill status">Under Review</span></div>
+    <div class="actor">👤 Risk Manager <span class="login">· chukwuemeka.obi@crms.ng</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>Independently review the appraisal, bureau results and advisory for risk concerns.</dd>
+      <dt>Advances when</dt>
+      <dd>Risk Manager clicks <span class="btn">Clear</span> → <b>Committee Voting</b>.</dd>
+      <dt>Other outcomes</dt>
+      <dd class="alt"><span class="btn">Return to FAC</span> · <span class="btn">Decline</span> (terminal).</dd>
+    </dl>
+  </div>
+
+  <!-- COMMITTEE -->
+  <div class="stage">
+    <div class="num">3</div>
+    <div class="top"><h3>Committee Voting</h3><span class="pill stageid">stage: CommitteeVoting</span><span class="pill status">Under Review</span></div>
+    <div class="actor">👥 Committee Members <span class="login">· tier depends on EOP value (Branch / Zonal / Regional / Head Office)</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>Each member of the routed committee opens the case and casts a vote: <span class="btn">Approve</span>, <span class="btn">Reject</span>, <span class="btn">Abstain</span>, or <span class="btn">Return to FAC</span>. The <b>Committee</b> tab shows the required number of votes and minimum approvals for that tier. Members must be distinct people (maker-checker).</dd>
+      <dt>Advances when</dt>
+      <dd>The required <b>Approve</b> threshold is reached — the case then advances to <b>Ratification</b> <b>automatically</b> on the deciding vote.</dd>
+      <dt>Other outcomes</dt>
+      <dd class="alt">Tally reaches Reject → <span class="btn">Declined</span> (terminal) · committee <span class="btn">Return to FAC</span>.</dd>
+    </dl>
+  </div>
+
+  <!-- RATIFICATION -->
+  <div class="stage">
+    <div class="num">4</div>
+    <div class="top"><h3>Ratification</h3><span class="pill stageid">stage: Ratification → OfferGenerated</span><span class="pill status">Under Review</span></div>
+    <div class="actor">👤 Final Approver <span class="login">· yusuf.mohammed@crms.ng</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>Final sign-off. Must be a <b>different person</b> from the appraiser, risk officer and approving committee members.</dd>
+      <dt>Advances when</dt>
+      <dd>Final Approver clicks <span class="btn">Ratify</span> with the approved amount <b>equal to the Total EOP value exactly</b> (no partial approval). This generates the offer letter PDF and moves the case to <b>Awaiting Offer Acceptance</b>.</dd>
+      <dt>Other outcomes</dt>
+      <dd class="alt"><span class="btn">Return to FAC</span> · <span class="btn">Decline</span> (terminal).</dd>
+    </dl>
+  </div>
+
+  <!-- OFFER ACCEPTANCE -->
+  <div class="stage fac">
+    <div class="num">5</div>
+    <div class="top"><h3>Offer Acceptance</h3><span class="pill stageid">stage: AwaitingOfferAcceptance</span></div>
+    <div class="actor">🌾 FAC (applicant) <span class="login">· token link: /rhshf/offer/{ref}?token=…</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>On the token-protected offer page, the FAC <b>downloads the offer</b>, <b>uploads the signed copy</b>, and <b>accepts</b>. <em>This is not a staff action — the CRMS Offer tab is view-only.</em></dd>
+      <dt>Advances when</dt>
+      <dd>The FAC <b>accepts</b> the offer → <b>Legal Clearance</b>.</dd>
+      <dt>Other outcomes</dt>
+      <dd class="alt">FAC rejects the offer → <span class="btn">Cancelled</span> (a withdrawal, not a bank decision).</dd>
+    </dl>
+  </div>
+
+  <!-- LEGAL -->
+  <div class="stage">
+    <div class="num">6</div>
+    <div class="top"><h3>Legal Clearance</h3><span class="pill stageid">stage: LegalClearance</span><span class="pill status">Under Review</span></div>
+    <div class="actor">👤 Legal Officer <span class="login">· adaeze.nwosu@crms.ng</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>Review the legal/security position; optionally <span class="btn">Record Collateral</span> (bank guarantee / NIRSAL CRG / legal mortgage).</dd>
+      <dt>Advances when</dt>
+      <dd>Legal Officer clicks <span class="btn">Grant</span> → <b>Pre-Deployment Verification</b>.</dd>
+      <dt>Other outcomes</dt>
+      <dd class="alt"><span class="btn">Return to Ratification</span> · <span class="btn">Decline</span> (terminal).</dd>
+    </dl>
+  </div>
+
+  <!-- PRE-DEPLOYMENT -->
+  <div class="stage">
+    <div class="num">7</div>
+    <div class="top"><h3>Pre-Deployment Verification</h3><span class="pill stageid">stage: PreDeploymentVerification</span><span class="pill status">Under Review</span></div>
+    <div class="actor">👤 Disbursement Officer <span class="login">· folake.balogun@crms.ng</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>Open the <span class="btn">Pre-Deployment Gate</span> and confirm each checklist item (final conditions before funds move).</dd>
+      <dt>Advances when</dt>
+      <dd>All checklist items are confirmed → the gate completes → <b>Disbursement</b>.</dd>
+    </dl>
+  </div>
+
+  <!-- DISBURSEMENT -->
+  <div class="stage">
+    <div class="num">8</div>
+    <div class="top"><h3>Disbursement</h3><span class="pill stageid">stage: Disbursement → Active</span><span class="pill status">Under Review → Approved</span></div>
+    <div class="actor">👤 Disbursement Officer <span class="login">· folake.balogun@crms.ng</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>Click <span class="btn">Book Disbursement</span>, enter the input-supplier account, and book the loan in the core banking / Fineract system. The disbursed amount must equal the ratified amount.</dd>
+      <dt>Advances when</dt>
+      <dd>Booking succeeds → external status flips to <b>Approved</b> (the credit decision, permanent) and the internal stage becomes <b>Active</b>.</dd>
+    </dl>
+  </div>
+
+  <!-- ACTIVE / CLOSED -->
+  <div class="stage">
+    <div class="num">9</div>
+    <div class="top"><h3>Active → Closed</h3><span class="pill stageid">stage: Active → Closed</span><span class="pill status">Approved</span></div>
+    <div class="actor">👤 Disbursement Officer / Operations <span class="login">· folake.balogun@crms.ng</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>Monitor the live facility on the <b>Loan Account</b> tab through the season.</dd>
+      <dt>Advances when</dt>
+      <dd>When the facility is settled, click <span class="btn">Mark as Closed</span> → <b>Closed</b>. End of lifecycle.</dd>
+    </dl>
+  </div>
+
+  <h2 class="section">Rules that will block you if missed</h2>
+  <ul class="rules">
+    <li><b>Maker-checker (distinct people).</b> The ratifier must differ from the appraiser, risk officer and approving committee members; the committee needs a quorum of <em>distinct</em> members. Don't use one admin account for the decision stages.</li>
+    <li><b>Exact amounts.</b> The ratification amount must equal the Total EOP value exactly, and the disbursed amount must equal the ratified amount — no rounding, no partial approval.</li>
+    <li><b>The two FAC steps aren't staff actions.</b> Profiling (step 0) and Offer Acceptance (step 5) happen on token-protected pages; there's no staff button for them. Use the FAC links.</li>
+    <li><b>External status is a plateau.</b> From FAC submission to disbursement the external status reads <em>Under Review</em> — track progress by the internal stage, not the status.</li>
+  </ul>
+
+  <h2 class="section">Local test credentials</h2>
+  <p class="lede" style="font-size:.9rem;margin-bottom:14px;">On a <b>Development</b> instance these role accounts are seeded automatically. On a <b>Production / sandbox</b> instance only <code>admin@crms.ng</code> exists — create the rest via Admin → Users.</p>
+  <table>
+    <thead><tr><th>Stage</th><th>Role</th><th>Login</th><th>Password</th></tr></thead>
+    <tbody>
+      <tr><td>Oversight / admin</td><td>SystemAdmin</td><td><code>admin@crms.ng</code></td><td><code>Admin@CRMS2026!</code></td></tr>
+      <tr><td>1 · Appraisal</td><td>Credit Officer</td><td><code>uche.eze@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+      <tr><td>2 · Risk Review</td><td>Risk Manager</td><td><code>chukwuemeka.obi@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+      <tr><td>3 · Committee</td><td>Committee Member</td><td><code>emeka.nnamdi@crms.ng</code>, <code>blessing.okafor@crms.ng</code>, <code>tunde.bakare@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+      <tr><td>4 · Ratification</td><td>Final Approver</td><td><code>yusuf.mohammed@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+      <tr><td>6 · Legal Clearance</td><td>Legal Officer</td><td><code>adaeze.nwosu@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+      <tr><td>7–9 · Disbursement</td><td>Disbursement Officer</td><td><code>folake.balogun@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+    </tbody>
+  </table>
+
+  <footer>
+    RH-SHF credit-profiling workflow. Committee tier is routed by the case's total EOP value. Terminal outcomes: <b>Approved</b> (disbursed), <b>Declined</b> (bank rejected at any review stage), <b>Cancelled</b> (FAC withdrew from the offer).
+  </footer>
+
+</div>
+</body>
+</html>
