@@ -44,7 +44,17 @@ public class GetRhshfProfilingSessionHandlerTests
     }
 
     private static GetRhshfProfilingSessionHandler Handler(RhshfCreditProfile profile, RhshfOffer? offer = null)
-        => new(new FakeProfileRepo(profile), new FakeRequirementRepo(), new FakeOfferRepo(offer));
+        => new(new FakeProfileRepo(profile), new FakeRequirementRepo(), new FakeOfferRepo(offer), new FakeGuarantorRepo());
+
+    private class FakeGuarantorRepo : CRMS.Domain.Interfaces.IRhshfGuarantorRepository
+    {
+        public Task<IReadOnlyList<CRMS.Domain.Aggregates.Rhshf.RhshfGuarantor>> GetByProfileIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<CRMS.Domain.Aggregates.Rhshf.RhshfGuarantor>>([]);
+        public Task<CRMS.Domain.Aggregates.Rhshf.RhshfGuarantor?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<CRMS.Domain.Aggregates.Rhshf.RhshfGuarantor?>(null);
+        public Task AddAsync(CRMS.Domain.Aggregates.Rhshf.RhshfGuarantor g, CancellationToken ct = default) => Task.CompletedTask;
+        public void Remove(CRMS.Domain.Aggregates.Rhshf.RhshfGuarantor g) { }
+    }
 
     [Fact]
     public async Task IsAwaitingOfferAcceptance_IsFalse_WhileTheFacIsStillProfiling()

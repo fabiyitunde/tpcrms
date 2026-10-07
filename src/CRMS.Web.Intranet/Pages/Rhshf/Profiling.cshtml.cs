@@ -23,6 +23,8 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly AddRhshfDirectorHandler _addDirectorHandler;
     private readonly RemoveRhshfDirectorHandler _removeDirectorHandler;
     private readonly PullRhshfDirectorsFromCbsHandler _pullDirectorsHandler;
+    private readonly AddRhshfGuarantorHandler _addGuarantorHandler;
+    private readonly RemoveRhshfGuarantorHandler _removeGuarantorHandler;
 
     public ProfilingModel(
         VerifyRhshfProfilingTokenHandler verifyHandler,
@@ -35,7 +37,9 @@ public class ProfilingModel : RhshfPublicPageModel
         RemoveRhshfProfilingDocumentHandler removeDocumentHandler,
         AddRhshfDirectorHandler addDirectorHandler,
         RemoveRhshfDirectorHandler removeDirectorHandler,
-        PullRhshfDirectorsFromCbsHandler pullDirectorsHandler)
+        PullRhshfDirectorsFromCbsHandler pullDirectorsHandler,
+        AddRhshfGuarantorHandler addGuarantorHandler,
+        RemoveRhshfGuarantorHandler removeGuarantorHandler)
         : base(verifyHandler)
     {
         _sessionHandler = sessionHandler;
@@ -48,6 +52,8 @@ public class ProfilingModel : RhshfPublicPageModel
         _addDirectorHandler = addDirectorHandler;
         _removeDirectorHandler = removeDirectorHandler;
         _pullDirectorsHandler = pullDirectorsHandler;
+        _addGuarantorHandler = addGuarantorHandler;
+        _removeGuarantorHandler = removeGuarantorHandler;
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
@@ -184,6 +190,37 @@ public class ProfilingModel : RhshfPublicPageModel
             SuccessMessage = result.Data > 0
                 ? $"{result.Data} director(s) pulled from core banking — please confirm their BVNs."
                 : "No new directors with a BVN were found on the core-banking record.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostAddGuarantorAsync(
+        string reference, RhshfGuarantorType guarantorType, string fullName, string? bvn, string? rcNumber,
+        string? relationship, decimal? guaranteeAmount, string? phoneNumber, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _addGuarantorHandler.Handle(
+            new AddRhshfGuarantorCommand(reference, Guid.Empty, guarantorType, fullName, bvn, rcNumber,
+                relationship, phoneNumber, null, null, guaranteeAmount, null), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = $"Guarantor \"{fullName}\" added.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostRemoveGuarantorAsync(string reference, Guid guarantorId, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _removeGuarantorHandler.Handle(new RemoveRhshfGuarantorCommand(guarantorId), ct);
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
 
         return RedirectToPage(new { reference });
     }

@@ -33,6 +33,8 @@ public record RhshfProfilingSessionDto(
     /// <summary>Directors the FAC declares (with BVN) during profiling — the source the bureau checks
     /// use. BVN is presence-only on the wire. Moved from officer-entered to FAC-supplied (control fix).</summary>
     List<RhshfProfilingDirectorDto> Directors,
+    /// <summary>Guarantors the FAC declares during profiling (also moved from officer-entered).</summary>
+    List<RhshfProfilingGuarantorDto> Guarantors,
     /// <summary>
     /// True when an offer is generated and awaiting the FAC's response. Profiling itself is
     /// finished at that point, so the wizard shows a completed panel — but the case is not done
@@ -58,3 +60,7 @@ public record RhshfProfilingFarmPlanDto(
 
 public record RhshfProfilingDirectorDto(
     Guid Id, string FullName, bool HasBvn, decimal? ShareholdingPercent, bool IsChairman);
+
+public record RhshfProfilingGuarantorDto(
+    Guid Id, string FullName, RhshfGuarantorType GuarantorType, bool HasBvn, string? RcNumber,
+    string? Relationship, decimal? GuaranteeAmount);

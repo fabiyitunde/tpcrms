@@ -13,14 +13,16 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfDocumentRequirementRepository _requirementRepo;
     private readonly IRhshfOfferRepository _offerRepo;
+    private readonly IRhshfGuarantorRepository _guarantorRepo;
 
     public GetRhshfProfilingSessionHandler(
         IRhshfCreditProfileRepository repo, IRhshfDocumentRequirementRepository requirementRepo,
-        IRhshfOfferRepository offerRepo)
+        IRhshfOfferRepository offerRepo, IRhshfGuarantorRepository guarantorRepo)
     {
         _repo = repo;
         _requirementRepo = requirementRepo;
         _offerRepo = offerRepo;
+        _guarantorRepo = guarantorRepo;
     }
 
     public async Task<ApplicationResult<RhshfProfilingSessionDto>> Handle(
@@ -31,6 +33,7 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
             return ApplicationResult<RhshfProfilingSessionDto>.Failure("Case not found.");
 
         var requirements = await _requirementRepo.GetActiveAsync(ct);
+        var guarantors = await _guarantorRepo.GetByProfileIdAsync(profile.Id, ct);
         var attachedByCategory = profile.SupportingDocuments
             .GroupBy(d => d.Category)
             .ToDictionary(g => g.Key, g => g.Count());
@@ -73,6 +76,12 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
                 .OrderByDescending(d => d.IsChairman).ThenBy(d => d.FullName)
                 .Select(d => new RhshfProfilingDirectorDto(
                     d.Id, d.FullName, !string.IsNullOrWhiteSpace(d.Bvn), d.ShareholdingPercent, d.IsChairman))
+                .ToList(),
+            Guarantors: guarantors
+                .OrderBy(g => g.FullName)
+                .Select(g => new RhshfProfilingGuarantorDto(
+                    g.Id, g.FullName, g.GuarantorType, !string.IsNullOrWhiteSpace(g.Bvn), g.RcNumber,
+                    g.Relationship, g.GuaranteeAmount))
                 .ToList(),
             IsAwaitingOfferAcceptance: await IsAwaitingOfferAcceptanceAsync(profile, ct));
 
