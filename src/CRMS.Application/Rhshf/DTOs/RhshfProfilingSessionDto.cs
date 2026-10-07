@@ -74,4 +74,7 @@ public record RhshfProfilingGuarantorDto(
 public record RhshfProfilingCollateralDto(
     Guid Id, RhshfCollateralType Type, string? ReferenceNumber,
     string? GuarantorBankName, decimal? GuaranteeAmount, decimal? CrgCoveragePercentage,
-    string? PropertyDescription, decimal? PropertyValue, string? Notes);
+    string? PropertyDescription, decimal? PropertyValue, string? Notes,
+    List<RhshfProfilingCollateralDocumentDto> Documents);
+
+public record RhshfProfilingCollateralDocumentDto(Guid Id, string FileName, long SizeBytes);

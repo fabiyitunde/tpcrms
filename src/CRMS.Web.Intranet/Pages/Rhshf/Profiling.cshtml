@@ -280,12 +280,12 @@ else
 
                         <hr class="my-4" />
                         <h5 class="mb-1">Collateral / Security</h5>
-                        <p class="text-muted small">Declare the security you are offering for this facility. The Bank's Legal Officer verifies and perfects it later &mdash; you supply the instrument and its reference here, and upload supporting evidence at the Documents stage.</p>
+                        <p class="text-muted small">Declare the security you are offering for this facility. The Bank's Legal Officer verifies and perfects it later &mdash; you supply the instrument and its reference here, then attach the supporting document (guarantee letter, CRG certificate, title deed) to each one below.</p>
 
                         @if (Model.Session.Collateral.Count > 0)
                         {
                             <table class="table table-sm align-middle">
-                                <thead><tr><th>Type</th><th>Details</th><th>Reference</th><th class="text-end">Value / Cover</th><th></th></tr></thead>
+                                <thead><tr><th>Type</th><th>Details</th><th>Reference</th><th class="text-end">Value / Cover</th><th>Evidence</th><th></th></tr></thead>
                                 <tbody>
                                 @foreach (var c in Model.Session.Collateral)
                                 {
@@ -319,6 +319,27 @@ else
                                                     @(c.PropertyValue.HasValue ? $"{Model.Session.Currency} {c.PropertyValue:N0}" : "—")
                                                     break;
                                             }
+                                        </td>
+                                        <td style="min-width: 260px;">
+                                            @if (c.Documents.Count > 0)
+                                            {
+                                                <ul class="list-unstyled small mb-1">
+                                                    @foreach (var doc in c.Documents)
+                                                    {
+                                                        <li><i class="bi bi-paperclip"></i> @doc.FileName <span class="text-muted">(@((doc.SizeBytes / 1024.0).ToString("N0")) KB)</span></li>
+                                                    }
+                                                </ul>
+                                            }
+                                            else
+                                            {
+                                                <div class="small text-danger mb-1">No document attached</div>
+                                            }
+                                            <form method="post" asp-page-handler="UploadCollateralDocument" enctype="multipart/form-data" class="d-flex gap-1">
+                                                <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                <input type="hidden" name="collateralId" value="@c.Id" />
+                                                <input type="file" name="file" class="form-control form-control-sm" required />
+                                                <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Upload</button>
+                                            </form>
                                         </td>
                                         <td class="text-end">
                                             <form method="post" asp-page-handler="RemoveCollateral" onsubmit="return confirm('Remove this collateral item?');">

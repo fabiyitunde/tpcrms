@@ -29,6 +29,7 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly RemoveRhshfGuarantorHandler _removeGuarantorHandler;
     private readonly AddRhshfProfilingCollateralHandler _addCollateralHandler;
     private readonly RemoveRhshfProfilingCollateralHandler _removeCollateralHandler;
+    private readonly UploadRhshfProfilingCollateralDocumentHandler _uploadCollateralDocHandler;
 
     public ProfilingModel(
         VerifyRhshfProfilingTokenHandler verifyHandler,
@@ -47,7 +48,8 @@ public class ProfilingModel : RhshfPublicPageModel
         AddRhshfGuarantorHandler addGuarantorHandler,
         RemoveRhshfGuarantorHandler removeGuarantorHandler,
         AddRhshfProfilingCollateralHandler addCollateralHandler,
-        RemoveRhshfProfilingCollateralHandler removeCollateralHandler)
+        RemoveRhshfProfilingCollateralHandler removeCollateralHandler,
+        UploadRhshfProfilingCollateralDocumentHandler uploadCollateralDocHandler)
         : base(verifyHandler)
     {
         _sessionHandler = sessionHandler;
@@ -66,6 +68,7 @@ public class ProfilingModel : RhshfPublicPageModel
         _removeGuarantorHandler = removeGuarantorHandler;
         _addCollateralHandler = addCollateralHandler;
         _removeCollateralHandler = removeCollateralHandler;
+        _uploadCollateralDocHandler = uploadCollateralDocHandler;
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
@@ -286,6 +289,32 @@ public class ProfilingModel : RhshfPublicPageModel
             ErrorMessage = result.Error;
         else
             SuccessMessage = "Collateral added.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostUploadCollateralDocumentAsync(
+        string reference, Guid collateralId, IFormFile? file, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        if (file is null || file.Length == 0)
+        {
+            ErrorMessage = "Please choose a file to upload.";
+            return RedirectToPage(new { reference });
+        }
+
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms, ct);
+
+        var result = await _uploadCollateralDocHandler.Handle(
+            new UploadRhshfProfilingCollateralDocumentCommand(reference, collateralId, file.FileName, file.ContentType, ms.ToArray()), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = $"\"{file.FileName}\" attached to the collateral.";
 
         return RedirectToPage(new { reference });
     }

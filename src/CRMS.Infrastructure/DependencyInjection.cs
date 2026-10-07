@@ -820,6 +820,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.RecordRhshfCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfProfilingCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.RemoveRhshfProfilingCollateralHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UploadRhshfProfilingCollateralDocumentHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfCollateralDocumentHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCollateralHandler>();
         services.AddScoped<Application.Rhshf.Queries.DownloadRhshfSupportingDocumentHandler>();

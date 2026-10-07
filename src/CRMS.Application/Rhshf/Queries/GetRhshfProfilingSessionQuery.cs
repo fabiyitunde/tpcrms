@@ -91,7 +91,8 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
             Collateral: collateral
                 .Select(c => new RhshfProfilingCollateralDto(
                     c.Id, c.Type, c.ReferenceNumber, c.GuarantorBankName, c.GuaranteeAmount,
-                    c.CrgCoveragePercentage, c.PropertyDescription, c.PropertyValue, c.Notes))
+                    c.CrgCoveragePercentage, c.PropertyDescription, c.PropertyValue, c.Notes,
+                    c.Documents.Select(d => new RhshfProfilingCollateralDocumentDto(d.Id, d.FileName, d.SizeBytes)).ToList()))
                 .ToList(),
             IsAwaitingOfferAcceptance: await IsAwaitingOfferAcceptanceAsync(profile, ct));
 
