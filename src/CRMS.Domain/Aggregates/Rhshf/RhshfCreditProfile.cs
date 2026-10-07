@@ -374,6 +374,13 @@ public class RhshfCreditProfile : AggregateRoot
             && !_farmPlans.Any(p => p.CycleNumber == ProfilingTargetCycleNumber))
             return Result.Failure("At least one crop must be recorded in the farm plan before submitting.");
 
+        // Every director must carry a BVN — the credit bureau is run per director, and one without a
+        // BVN is a subject the bank cannot check. Blank is tolerated during data entry (above), but
+        // not at the point the case leaves the FAC for credit review.
+        if (expectedCurrentStage == RhshfProfilingStage.ReviewAndSubmit
+            && _directors.Any(d => string.IsNullOrWhiteSpace(d.Bvn)))
+            return Result.Failure("Every director must have a BVN before submitting — the bank runs a credit check on each one.");
+
         // Captured before the status flip below, which would otherwise shift ProfilingTargetCycleNumber.
         var targetCycle = ProfilingTargetCycleNumber;
 

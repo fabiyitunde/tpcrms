@@ -327,6 +327,33 @@ public class RhshfCreditProfileStageProgressionTests
         Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
     }
 
+    [Fact]
+    public void AdvanceStage_AtSubmit_WithADirectorMissingBvn_IsBlocked_ThenProceedsOnceAdded()
+    {
+        var profile = CreateValidProfile();
+        profile.AdvanceStage(RhshfProfilingStage.CompanyVerification); // on CreditBureauCheck
+        var director = RhshfDirector.CreateManual(
+            profile.Id, "Jane Doe", bvn: null, shareholdingPercent: null, isChairman: false, email: null, phoneNumber: null).Value;
+        profile.AddDirector(director);
+        profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck); // on EopReview
+        profile.AddFarmPlanDuringProfiling("Maize", 100m, 3_000m, 515m);
+        profile.AdvanceStage(RhshfProfilingStage.EopReview);
+        profile.AdvanceStage(RhshfProfilingStage.SupportingDocuments);
+
+        var blocked = profile.AdvanceStage(RhshfProfilingStage.ReviewAndSubmit);
+
+        Assert.True(blocked.IsFailure);
+        Assert.Contains("BVN", blocked.Error);
+        Assert.Equal(RhshfProfilingStage.ReviewAndSubmit, profile.CurrentStage);
+        Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
+
+        director.UpdateBvn("12345678901");
+        var ok = profile.AdvanceStage(RhshfProfilingStage.ReviewAndSubmit);
+
+        Assert.True(ok.IsSuccess);
+        Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
+    }
+
     private static RhshfCreditProfile ProfileOnSupportingDocuments()
     {
         var profile = CreateValidProfile();

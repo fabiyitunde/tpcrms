@@ -153,7 +153,7 @@ else
 
                         <hr class="my-4" />
                         <h5 class="mb-1">Company directors</h5>
-                        <p class="text-muted small">We run a credit-bureau check on each director, so please list every director with their <strong>BVN</strong>. You can pull them from your Bank of Agriculture account record, then confirm.</p>
+                        <p class="text-muted small">We run a credit-bureau check on each director, so every director must be listed with their <strong>BVN</strong> (required before you can submit). You can pull them from your Bank of Agriculture account record, then confirm.</p>
 
                         <form method="post" asp-page-handler="PullDirectors" class="mb-3">
                             <input type="hidden" name="reference" value="@Model.Session.Reference" />
@@ -169,7 +169,22 @@ else
                                 {
                                     <tr>
                                         <td>@d.FullName @if (d.IsChairman) { <span class="badge bg-secondary ms-1">Chairman</span> }</td>
-                                        <td>@if (d.HasBvn) { <span class="badge bg-success">Provided</span> } else { <span class="badge bg-danger">Missing</span> }</td>
+                                        <td>
+                                            @if (d.HasBvn)
+                                            {
+                                                <span class="badge bg-success">Provided</span>
+                                            }
+                                            else
+                                            {
+                                                <form method="post" asp-page-handler="UpdateDirectorBvn" class="d-flex gap-1 align-items-center">
+                                                    <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                    <input type="hidden" name="directorId" value="@d.Id" />
+                                                    <input type="hidden" name="shareholdingPercent" value="@d.ShareholdingPercent" />
+                                                    <input name="bvn" maxlength="11" pattern="\d{11}" title="11 digits" required class="form-control form-control-sm" style="max-width: 130px;" placeholder="Add BVN (11 digits)" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-success">Save</button>
+                                                </form>
+                                            }
+                                        </td>
                                         <td class="text-end">@(d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:N1}%" : "—")</td>
                                         <td class="text-end">
                                             <form method="post" asp-page-handler="RemoveDirector" onsubmit="return confirm('Remove this director?');">
@@ -184,7 +199,7 @@ else
                             </table>
                             @if (Model.Session.Directors.Any(d => !d.HasBvn))
                             {
-                                <div class="alert alert-warning py-2 small">Some directors have no BVN. They won't be included in the credit-bureau checks until a BVN is added.</div>
+                                <div class="alert alert-warning py-2 small">Every director needs a BVN before you can submit — the bank runs a credit check on each one. Add the missing BVN(s) above.</div>
                             }
                         }
                         else
@@ -195,7 +210,7 @@ else
                         <form method="post" asp-page-handler="AddDirector" class="row g-2 align-items-end mb-2">
                             <input type="hidden" name="reference" value="@Model.Session.Reference" />
                             <div class="col-md-4"><label class="form-label small mb-0">Full name</label><input name="fullName" class="form-control form-control-sm" required /></div>
-                            <div class="col-md-3"><label class="form-label small mb-0">BVN</label><input name="bvn" maxlength="11" class="form-control form-control-sm" placeholder="11 digits" /></div>
+                            <div class="col-md-3"><label class="form-label small mb-0">BVN <span class="text-danger">*</span></label><input name="bvn" maxlength="11" pattern="\d{11}" title="11 digits" required class="form-control form-control-sm" placeholder="11 digits" /></div>
                             <div class="col-md-2"><label class="form-label small mb-0">Shareholding %</label><input name="shareholdingPercent" type="number" step="0.01" min="0" max="100" class="form-control form-control-sm" /></div>
                             <div class="col-md-2"><div class="form-check mt-3"><input type="checkbox" name="isChairman" value="true" class="form-check-input" id="chairCheck" /><label class="form-check-label small" for="chairCheck">Chairman</label></div></div>
                             <div class="col-md-1"><button type="submit" class="btn btn-sm btn-success w-100">Add</button></div>
@@ -326,32 +341,53 @@ else
                             <input type="hidden" name="reference" value="@Model.Session.Reference" />
                             <div class="row g-2 align-items-end">
                                 <div class="col-md-3"><label class="form-label small mb-0">Type</label>
-                                    <select name="collateralType" class="form-select form-select-sm">
+                                    <select name="collateralType" id="collateralTypeSelect" class="form-select form-select-sm">
                                         @foreach (var t in Enum.GetValues<CRMS.Domain.Enums.RhshfCollateralType>()) { <option value="@t">@t</option> }
                                     </select>
                                 </div>
                                 <div class="col-md-3"><label class="form-label small mb-0">Reference no.</label><input name="referenceNumber" class="form-control form-control-sm" placeholder="Instrument / title ref" /></div>
                                 <div class="col-md-6"><label class="form-label small mb-0">Notes</label><input name="notes" class="form-control form-control-sm" /></div>
                             </div>
-                            <div class="row g-2 align-items-end mt-1">
-                                <div class="col-12"><span class="badge bg-secondary">Bank Guarantee</span></div>
+
+                            <div class="row g-2 align-items-end mt-1 collateral-block" data-collateral-block="BankGuarantee">
                                 <div class="col-md-5"><label class="form-label small mb-0">Guarantor bank</label><input name="guarantorBankName" class="form-control form-control-sm" /></div>
                                 <div class="col-md-4"><label class="form-label small mb-0">Guarantee amount</label><input name="guaranteeAmount" type="number" step="0.01" min="0" class="form-control form-control-sm" /></div>
                                 <div class="col-md-3"><div class="form-check mt-3"><input type="checkbox" name="isUnconditional" value="true" class="form-check-input" id="uncondCheck" /><label class="form-check-label small" for="uncondCheck">Unconditional</label></div></div>
                             </div>
-                            <div class="row g-2 align-items-end mt-1">
-                                <div class="col-12"><span class="badge bg-secondary">NIRSAL CRG</span></div>
+
+                            <div class="row g-2 align-items-end mt-1 collateral-block" data-collateral-block="NirsalCrg">
                                 <div class="col-md-4"><label class="form-label small mb-0">Coverage %</label><input name="crgCoveragePercentage" type="number" step="0.01" min="0" max="100" class="form-control form-control-sm" /></div>
                             </div>
-                            <div class="row g-2 align-items-end mt-1">
-                                <div class="col-12"><span class="badge bg-secondary">Legal Mortgage</span></div>
+
+                            <div class="row g-2 align-items-end mt-1 collateral-block" data-collateral-block="LegalMortgage">
                                 <div class="col-md-5"><label class="form-label small mb-0">Property description</label><input name="propertyDescription" class="form-control form-control-sm" /></div>
                                 <div class="col-md-4"><label class="form-label small mb-0">Property value</label><input name="propertyValue" type="number" step="0.01" min="0" class="form-control form-control-sm" /></div>
                                 <div class="col-md-3"><label class="form-label small mb-0">Title reference</label><input name="titleReferenceNumber" class="form-control form-control-sm" /></div>
                             </div>
-                            <div class="mt-2"><button type="submit" class="btn btn-sm btn-success">Add collateral</button>
-                                <span class="text-muted small ms-2">Fill only the block matching the type you selected.</span></div>
+
+                            <div class="mt-3"><button type="submit" class="btn btn-sm btn-success">Add collateral</button>
+                                <span class="text-muted small ms-2">Add as many instruments as you need — each one is listed above.</span></div>
                         </form>
+                        <script>
+                            (function () {
+                                var sel = document.getElementById('collateralTypeSelect');
+                                if (!sel) return;
+                                var blocks = document.querySelectorAll('.collateral-block');
+                                function sync() {
+                                    blocks.forEach(function (b) {
+                                        var show = b.getAttribute('data-collateral-block') === sel.value;
+                                        b.style.display = show ? '' : 'none';
+                                        if (!show) {
+                                            b.querySelectorAll('input').forEach(function (i) {
+                                                if (i.type === 'checkbox') { i.checked = false; } else { i.value = ''; }
+                                            });
+                                        }
+                                    });
+                                }
+                                sel.addEventListener('change', sync);
+                                sync();
+                            })();
+                        </script>
 
                         <hr class="my-4" />
                         <form method="post" asp-page-handler="Confirm">
@@ -674,8 +710,12 @@ else
                     <form method="post" asp-page-handler="Confirm">
                         <input type="hidden" name="reference" value="@Model.Session.Reference" />
                         <input type="hidden" name="stage" value="@RhshfProfilingStage.ReviewAndSubmit" />
-                        <button type="submit" class="btn btn-success btn-lg">Submit for credit review</button>
+                        <button type="submit" class="btn btn-success btn-lg" disabled="@(missingBvnDirectors > 0)">Submit for credit review</button>
                     </form>
+                    @if (missingBvnDirectors > 0)
+                    {
+                        <p class="small text-danger mt-2 mb-0">You can't submit yet: @missingBvnDirectors director(s) still need a BVN. Use <strong>Edit</strong> on the directors section to add it.</p>
+                    }
                     break;
             }
         </div>

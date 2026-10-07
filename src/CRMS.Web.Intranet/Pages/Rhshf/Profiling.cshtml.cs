@@ -22,6 +22,7 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly RemoveRhshfProfilingFarmPlanHandler _removeFarmPlanHandler;
     private readonly RemoveRhshfProfilingDocumentHandler _removeDocumentHandler;
     private readonly AddRhshfDirectorHandler _addDirectorHandler;
+    private readonly UpdateRhshfDirectorHandler _updateDirectorHandler;
     private readonly RemoveRhshfDirectorHandler _removeDirectorHandler;
     private readonly PullRhshfDirectorsFromCbsHandler _pullDirectorsHandler;
     private readonly AddRhshfGuarantorHandler _addGuarantorHandler;
@@ -40,6 +41,7 @@ public class ProfilingModel : RhshfPublicPageModel
         RemoveRhshfProfilingFarmPlanHandler removeFarmPlanHandler,
         RemoveRhshfProfilingDocumentHandler removeDocumentHandler,
         AddRhshfDirectorHandler addDirectorHandler,
+        UpdateRhshfDirectorHandler updateDirectorHandler,
         RemoveRhshfDirectorHandler removeDirectorHandler,
         PullRhshfDirectorsFromCbsHandler pullDirectorsHandler,
         AddRhshfGuarantorHandler addGuarantorHandler,
@@ -57,6 +59,7 @@ public class ProfilingModel : RhshfPublicPageModel
         _removeFarmPlanHandler = removeFarmPlanHandler;
         _removeDocumentHandler = removeDocumentHandler;
         _addDirectorHandler = addDirectorHandler;
+        _updateDirectorHandler = updateDirectorHandler;
         _removeDirectorHandler = removeDirectorHandler;
         _pullDirectorsHandler = pullDirectorsHandler;
         _addGuarantorHandler = addGuarantorHandler;
@@ -183,6 +186,24 @@ public class ProfilingModel : RhshfPublicPageModel
             ErrorMessage = result.Error;
         else
             SuccessMessage = $"Director \"{fullName}\" added.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostUpdateDirectorBvnAsync(
+        string reference, Guid directorId, string? bvn, decimal? shareholdingPercent, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        // Shareholding is carried through from the row so setting the BVN doesn't wipe it.
+        var result = await _updateDirectorHandler.Handle(
+            new UpdateRhshfDirectorCommand(reference, directorId, bvn, shareholdingPercent, Guid.Empty), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = "Director BVN updated.";
 
         return RedirectToPage(new { reference });
     }
