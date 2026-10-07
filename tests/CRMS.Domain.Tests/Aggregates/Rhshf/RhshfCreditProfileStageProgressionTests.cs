@@ -250,6 +250,83 @@ public class RhshfCreditProfileStageProgressionTests
             profile.StageConfirmations, c => c.Stage == RhshfProfilingStage.SupportingDocuments);
     }
 
+    // ── Back/forward navigation: the FAC can revisit a reached stage to correct a record ─────
+
+    [Fact]
+    public void GoToStage_BackToAnEarlierReachedStage_Succeeds()
+    {
+        var profile = CreateValidProfile();
+        profile.AdvanceStage(RhshfProfilingStage.CompanyVerification);
+        profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck); // now on EopReview
+
+        var result = profile.GoToStage(RhshfProfilingStage.CompanyVerification);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfProfilingStage.CompanyVerification, profile.CurrentStage);
+        Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
+    }
+
+    [Fact]
+    public void GoToStage_BeyondTheHighWaterMark_Fails()
+    {
+        var profile = CreateValidProfile();
+        profile.AdvanceStage(RhshfProfilingStage.CompanyVerification); // reached CreditBureauCheck only
+
+        var result = profile.GoToStage(RhshfProfilingStage.ReviewAndSubmit);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(RhshfProfilingStage.CreditBureauCheck, profile.CurrentStage);
+    }
+
+    [Fact]
+    public void FurthestProfilingStageReached_HoldsTheHighWaterMark_AfterNavigatingBack()
+    {
+        var profile = CreateValidProfile();
+        profile.AdvanceStage(RhshfProfilingStage.CompanyVerification);
+        profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck);
+        profile.AdvanceStage(RhshfProfilingStage.EopReview); // furthest = SupportingDocuments
+
+        profile.GoToStage(RhshfProfilingStage.CompanyVerification);
+
+        Assert.Equal(RhshfProfilingStage.SupportingDocuments, profile.FurthestProfilingStageReached());
+        // and can jump forward again to anything within the frontier without re-confirming each step
+        var forward = profile.GoToStage(RhshfProfilingStage.SupportingDocuments);
+        Assert.True(forward.IsSuccess);
+        Assert.Equal(RhshfProfilingStage.SupportingDocuments, profile.CurrentStage);
+    }
+
+    [Fact]
+    public void AdvanceStage_ReConfirmingAfterNavigatingBack_DoesNotDuplicateTheConfirmation()
+    {
+        var profile = CreateValidProfile();
+        profile.AdvanceStage(RhshfProfilingStage.CompanyVerification);
+        profile.GoToStage(RhshfProfilingStage.CompanyVerification);
+
+        var reconfirm = profile.AdvanceStage(RhshfProfilingStage.CompanyVerification);
+
+        Assert.True(reconfirm.IsSuccess);
+        Assert.Equal(RhshfProfilingStage.CreditBureauCheck, profile.CurrentStage);
+        Assert.Single(profile.StageConfirmations, c => c.Stage == RhshfProfilingStage.CompanyVerification);
+    }
+
+    [Fact]
+    public void AdvanceStage_AtSubmit_ReChecksMandatoryDocuments_InCaseOneWasRemovedAfterNavigatingBack()
+    {
+        // Reach ReviewAndSubmit having left the documents stage without the gate running (null
+        // requirements) — the shape of a doc removed on a back-visit then a forward jump to submit.
+        var profile = ProfileOnSupportingDocuments();
+        profile.AddSupportingDocument(RhshfDocumentCategory.CacCertificate, "cac.pdf", "application/pdf", "p/cac.pdf", 1024);
+        profile.AdvanceStage(RhshfProfilingStage.SupportingDocuments); // null reqs — no gate
+        Assert.Equal(RhshfProfilingStage.ReviewAndSubmit, profile.CurrentStage);
+
+        var result = profile.AdvanceStage(RhshfProfilingStage.ReviewAndSubmit, MandatoryCacAndOffTake());
+
+        Assert.True(result.IsFailure);
+        Assert.Contains(nameof(RhshfDocumentCategory.OffTakeAgreement), result.Error);
+        Assert.Equal(RhshfProfilingStage.ReviewAndSubmit, profile.CurrentStage);
+        Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
+    }
+
     private static RhshfCreditProfile ProfileOnSupportingDocuments()
     {
         var profile = CreateValidProfile();

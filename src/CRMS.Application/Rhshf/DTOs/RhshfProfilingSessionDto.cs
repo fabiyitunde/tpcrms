@@ -8,6 +8,9 @@ public record RhshfProfilingSessionDto(
     string Reference,
     RhshfCaseStatus Status,
     RhshfProfilingStage? CurrentStage,
+    /// <summary>Highest stage the FAC has reached this cycle — the bound on back/forward navigation.
+    /// Steps up to and including this are navigable; beyond it is locked. Null when profiling is done.</summary>
+    RhshfProfilingStage? FurthestStage,
     string CompanyName,
     string RcNumber,
     string? Tin,

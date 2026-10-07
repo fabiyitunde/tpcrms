@@ -355,9 +355,13 @@ public class RhshfCreditProfile : AggregateRoot
         if (CurrentStage != expectedCurrentStage)
             return Result.Failure("Stage mismatch — cannot skip or replay a profiling stage.");
 
-        // Leaving the documents stage requires every mandatory category to be satisfied. Enforced
-        // here rather than in the page so a direct POST can't walk straight past it.
-        if (expectedCurrentStage == RhshfProfilingStage.SupportingDocuments && documentRequirements is not null)
+        // Mandatory documents are re-checked both on leaving the documents stage AND at final submit.
+        // The submit re-check matters now that the FAC can navigate back (GoToStage): a document
+        // removed on a revisited stage must not slip through a forward jump straight to submit.
+        // Enforced here rather than in the page so a direct POST can't walk straight past it.
+        if ((expectedCurrentStage == RhshfProfilingStage.SupportingDocuments
+             || expectedCurrentStage == RhshfProfilingStage.ReviewAndSubmit)
+            && documentRequirements is not null)
         {
             var missing = MissingMandatoryDocuments(documentRequirements);
             if (missing.Count > 0)
@@ -376,9 +380,12 @@ public class RhshfCreditProfile : AggregateRoot
         if (Status == RhshfCaseStatus.ProfilingPending)
             Status = RhshfCaseStatus.ProfilingInProgress;
 
-        // Each stage is now attested, not merely traversed.
-        _stageConfirmations.Add(new RhshfStageConfirmation(
-            Id, targetCycle, expectedCurrentStage, FacId, ipAddress, userAgent));
+        // Each stage is now attested, not merely traversed. Idempotent per stage per cycle: when the
+        // FAC navigates back and re-continues through an already-attested stage, the original
+        // attestation stands rather than stacking duplicates.
+        if (!_stageConfirmations.Any(c => c.CycleNumber == targetCycle && c.Stage == expectedCurrentStage))
+            _stageConfirmations.Add(new RhshfStageConfirmation(
+                Id, targetCycle, expectedCurrentStage, FacId, ipAddress, userAgent));
 
         if (expectedCurrentStage == RhshfProfilingStage.ReviewAndSubmit)
         {
@@ -401,6 +408,51 @@ public class RhshfCreditProfile : AggregateRoot
                 : $"Profiling stage confirmed: {Humanise(expectedCurrentStage)}",
             actorUserId: null, actorLabel: "FAC");
 
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>The furthest profiling stage the FAC has legitimately reached this cycle — the
+    /// high-water mark that bounds navigation. It is at least the current stage, and at least one
+    /// past every stage already attested (a confirmation for stage N means N+1 was reached). Taking
+    /// the max of both keeps it correct after a staff ReturnToFac, which can set CurrentStage forward
+    /// without a confirmation in the new cycle. Null once profiling is complete.</summary>
+    public RhshfProfilingStage? FurthestProfilingStageReached()
+    {
+        if (CurrentStage is null)
+            return null;
+
+        var frontier = (int)CurrentStage.Value;
+        var cycle = ProfilingTargetCycleNumber;
+        foreach (var c in _stageConfirmations.Where(c => c.CycleNumber == cycle))
+        {
+            var reached = c.Stage == RhshfProfilingStage.ReviewAndSubmit
+                ? (int)RhshfProfilingStage.ReviewAndSubmit
+                : (int)c.Stage + 1;
+            if (reached > frontier)
+                frontier = reached;
+        }
+        return (RhshfProfilingStage)frontier;
+    }
+
+    /// <summary>Backward/forward navigation within the stages the FAC has already reached, so they can
+    /// revisit and correct a record set at an earlier stage. Distinct from AdvanceStage: it attests
+    /// nothing and runs no gate, and it cannot cross the high-water mark — the frontier is only
+    /// extended by confirming a stage (which does run that stage's gate). The staff ReturnToFac path
+    /// is the equivalent after submission.</summary>
+    public Result GoToStage(RhshfProfilingStage target)
+    {
+        if (Status != RhshfCaseStatus.ProfilingPending && Status != RhshfCaseStatus.ProfilingInProgress)
+            return Result.Failure("Profiling is not currently in progress for this case.");
+
+        var furthest = FurthestProfilingStageReached();
+        if (furthest is null)
+            return Result.Failure("Profiling is not currently in progress for this case.");
+
+        if ((int)target < (int)RhshfProfilingStage.CompanyVerification || (int)target > (int)furthest.Value)
+            return Result.Failure("Cannot navigate to a profiling stage you have not reached yet.");
+
+        CurrentStage = target;
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }

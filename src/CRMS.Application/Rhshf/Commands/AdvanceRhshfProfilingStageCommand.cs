@@ -34,8 +34,11 @@ public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfPro
         if (profile is null)
             return ApplicationResult.Failure("Case not found.");
 
-        // Only loaded where it's actually needed — the domain skips the check when null is passed.
-        var requirements = request.ExpectedCurrentStage == RhshfProfilingStage.SupportingDocuments
+        // Loaded for the two stages whose transition the domain gates on documents: leaving
+        // SupportingDocuments, and final submit (ReviewAndSubmit) — the latter re-checks in case a
+        // required document was removed after a back-navigation. Null elsewhere skips the check.
+        var requirements = request.ExpectedCurrentStage is RhshfProfilingStage.SupportingDocuments
+            or RhshfProfilingStage.ReviewAndSubmit
             ? await _requirementRepo.GetActiveAsync(ct)
             : null;
 

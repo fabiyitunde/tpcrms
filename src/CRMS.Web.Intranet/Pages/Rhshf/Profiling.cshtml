@@ -63,11 +63,38 @@ else
         RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit
     };
     var currentIndex = Array.IndexOf(stages, Model.Session.CurrentStage.Value);
+    var furthest = Model.Session.FurthestStage ?? Model.Session.CurrentStage.Value;
+    var stageLabels = new Dictionary<RhshfProfilingStage, string>
+    {
+        [RhshfProfilingStage.CompanyVerification] = "Company",
+        [RhshfProfilingStage.CreditBureauCheck] = "Bureau & Parties",
+        [RhshfProfilingStage.EopReview] = "EOP & Farm Plan",
+        [RhshfProfilingStage.SupportingDocuments] = "Documents",
+        [RhshfProfilingStage.ReviewAndSubmit] = "Review & Submit",
+    };
 
-    <p class="rhshf-stage-label mb-1">Step @(currentIndex + 1) of @stages.Length</p>
-    <div class="progress mb-4" style="height: 6px;">
-        <div class="progress-bar bg-success" style="width: @((currentIndex + 1) * 100 / stages.Length)%"></div>
-    </div>
+    <p class="rhshf-stage-label mb-2">Step @(currentIndex + 1) of @stages.Length</p>
+    <form method="post" asp-page-handler="GoToStage" class="rhshf-stepper d-flex flex-wrap gap-2 mb-4">
+        <input type="hidden" name="reference" value="@Model.Session.Reference" />
+        @for (var i = 0; i < stages.Length; i++)
+        {
+            var s = stages[i];
+            var isCurrent = s == Model.Session.CurrentStage.Value;
+            var isNavigable = (int)s <= (int)furthest && !isCurrent;
+            var isDone = (int)s < (int)furthest;
+            var baseCls = "btn btn-sm text-start flex-grow-1 d-flex align-items-center gap-2";
+            var cls = isCurrent ? $"{baseCls} btn-success"
+                : isNavigable ? $"{baseCls} btn-outline-success"
+                : $"{baseCls} btn-outline-secondary disabled";
+            <button type="submit" name="stage" value="@s" class="@cls"
+                    disabled="@(!isNavigable)" title="@(isNavigable ? "Go back to this step to edit" : null)">
+                <span class="badge rounded-pill @(isCurrent ? "bg-light text-success" : isDone ? "bg-success" : "bg-secondary")">
+                    @(isDone ? "✓" : (i + 1).ToString())
+                </span>
+                <span class="small">@stageLabels[s]</span>
+            </button>
+        }
+    </form>
 
     @if (!string.IsNullOrEmpty(Model.ErrorMessage))
     {
@@ -575,19 +602,79 @@ else
                     break;
 
                 case RhshfProfilingStage.ReviewAndSubmit:
-                    <h4 class="mb-3">Review and submit</h4>
-                    <p class="text-muted">Please confirm the summary below before submitting for credit review.</p>
-                    <dl class="row">
-                        <dt class="col-sm-4">Company</dt><dd class="col-sm-8">@Model.Session.CompanyName</dd>
+                    <h4 class="mb-1">Review and submit</h4>
+                    <p class="text-muted">Check everything below before submitting for credit review. Use <strong>Edit</strong> on any section to go back and correct it &mdash; you'll return here.</p>
+
+                    var missingBvnDirectors = Model.Session.Directors.Count(d => !d.HasBvn);
+
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
+                        <h6 class="mb-0">Company</h6>
+                        <form method="post" asp-page-handler="GoToStage" class="d-inline">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <button type="submit" name="stage" value="@RhshfProfilingStage.CompanyVerification" class="btn btn-sm btn-link p-0">Edit</button>
+                        </form>
+                    </div>
+                    <dl class="row mb-4">
+                        <dt class="col-sm-4">Company</dt><dd class="col-sm-8">@Model.Session.CompanyName (@Model.Session.RcNumber)</dd>
+                        <dt class="col-sm-4">BOA account</dt><dd class="col-sm-8">@Model.Session.BoaAccountNumber</dd>
+                    </dl>
+
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
+                        <h6 class="mb-0">Directors, guarantors &amp; collateral</h6>
+                        <form method="post" asp-page-handler="GoToStage" class="d-inline">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <button type="submit" name="stage" value="@RhshfProfilingStage.CreditBureauCheck" class="btn btn-sm btn-link p-0">Edit</button>
+                        </form>
+                    </div>
+                    <dl class="row mb-1">
+                        <dt class="col-sm-4">Directors</dt>
+                        <dd class="col-sm-8">
+                            @Model.Session.Directors.Count listed
+                            @if (missingBvnDirectors > 0)
+                            {
+                                <span class="badge bg-danger ms-1">@missingBvnDirectors missing BVN</span>
+                            }
+                        </dd>
+                        <dt class="col-sm-4">Guarantors</dt><dd class="col-sm-8">@Model.Session.Guarantors.Count listed</dd>
+                        <dt class="col-sm-4">Collateral</dt><dd class="col-sm-8">@Model.Session.Collateral.Count declared</dd>
+                    </dl>
+                    @if (missingBvnDirectors > 0)
+                    {
+                        <div class="alert alert-warning py-2 small mb-4">One or more directors have no BVN &mdash; the bank cannot run their credit check. Please add it before submitting.</div>
+                    }
+                    else
+                    {
+                        <div class="mb-4"></div>
+                    }
+
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
+                        <h6 class="mb-0">EOP &amp; farm plan</h6>
+                        <form method="post" asp-page-handler="GoToStage" class="d-inline">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <button type="submit" name="stage" value="@RhshfProfilingStage.EopReview" class="btn btn-sm btn-link p-0">Edit</button>
+                        </form>
+                    </div>
+                    <dl class="row mb-4">
                         <dt class="col-sm-4">Total EOP value</dt><dd class="col-sm-8">@Model.Session.Currency @Model.Session.TotalEopValue.ToString("N2")</dd>
                         <dt class="col-sm-4">Land under cultivation</dt><dd class="col-sm-8">@Model.Session.FarmPlans.Sum(p => p.Hectares).ToString("N2") ha across @Model.Session.FarmPlans.Count crop(s)</dd>
                         <dt class="col-sm-4">Expected revenue</dt><dd class="col-sm-8">@Model.Session.Currency @Model.Session.FarmPlans.Sum(p => p.ExpectedRevenue).ToString("N2")</dd>
+                    </dl>
+
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
+                        <h6 class="mb-0">Supporting documents</h6>
+                        <form method="post" asp-page-handler="GoToStage" class="d-inline">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <button type="submit" name="stage" value="@RhshfProfilingStage.SupportingDocuments" class="btn btn-sm btn-link p-0">Edit</button>
+                        </form>
+                    </div>
+                    <dl class="row mb-4">
                         <dt class="col-sm-4">Documents attached</dt><dd class="col-sm-8">@Model.Session.SupportingDocuments.Count</dd>
                     </dl>
+
                     <form method="post" asp-page-handler="Confirm">
                         <input type="hidden" name="reference" value="@Model.Session.Reference" />
                         <input type="hidden" name="stage" value="@RhshfProfilingStage.ReviewAndSubmit" />
-                        <button type="submit" class="btn btn-success">Submit for credit review</button>
+                        <button type="submit" class="btn btn-success btn-lg">Submit for credit review</button>
                     </form>
                     break;
             }

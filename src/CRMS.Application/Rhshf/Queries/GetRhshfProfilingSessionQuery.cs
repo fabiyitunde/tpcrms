@@ -46,6 +46,7 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
             Reference: profile.Reference,
             Status: profile.Status,
             CurrentStage: profile.CurrentStage,
+            FurthestStage: profile.FurthestProfilingStageReached(),
             CompanyName: profile.CompanyName,
             RcNumber: profile.RcNumber,
             Tin: profile.Tin,

@@ -16,6 +16,7 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly GetRhshfProfilingSessionHandler _sessionHandler;
     private readonly EnsureRhshfBureauCheckHandler _bureauHandler;
     private readonly AdvanceRhshfProfilingStageHandler _advanceHandler;
+    private readonly GoToRhshfProfilingStageHandler _goToStageHandler;
     private readonly UploadRhshfSupportingDocumentHandler _uploadHandler;
     private readonly AddRhshfProfilingFarmPlanHandler _addFarmPlanHandler;
     private readonly RemoveRhshfProfilingFarmPlanHandler _removeFarmPlanHandler;
@@ -33,6 +34,7 @@ public class ProfilingModel : RhshfPublicPageModel
         GetRhshfProfilingSessionHandler sessionHandler,
         EnsureRhshfBureauCheckHandler bureauHandler,
         AdvanceRhshfProfilingStageHandler advanceHandler,
+        GoToRhshfProfilingStageHandler goToStageHandler,
         UploadRhshfSupportingDocumentHandler uploadHandler,
         AddRhshfProfilingFarmPlanHandler addFarmPlanHandler,
         RemoveRhshfProfilingFarmPlanHandler removeFarmPlanHandler,
@@ -49,6 +51,7 @@ public class ProfilingModel : RhshfPublicPageModel
         _sessionHandler = sessionHandler;
         _bureauHandler = bureauHandler;
         _advanceHandler = advanceHandler;
+        _goToStageHandler = goToStageHandler;
         _uploadHandler = uploadHandler;
         _addFarmPlanHandler = addFarmPlanHandler;
         _removeFarmPlanHandler = removeFarmPlanHandler;
@@ -106,6 +109,18 @@ public class ProfilingModel : RhshfPublicPageModel
                 HttpContext.Connection.RemoteIpAddress?.ToString(),
                 Request.Headers.UserAgent.ToString()),
             ct);
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostGoToStageAsync(string reference, RhshfProfilingStage stage, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _goToStageHandler.Handle(new GoToRhshfProfilingStageCommand(reference, stage), ct);
         if (!result.IsSuccess)
             ErrorMessage = result.Error;
 
