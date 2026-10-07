@@ -284,74 +284,69 @@ else
 
                         @if (Model.Session.Collateral.Count > 0)
                         {
-                            <table class="table table-sm align-middle">
-                                <thead><tr><th>Type</th><th>Details</th><th>Reference</th><th class="text-end">Value / Cover</th><th>Evidence</th><th></th></tr></thead>
-                                <tbody>
-                                @foreach (var c in Model.Session.Collateral)
+                            @foreach (var c in Model.Session.Collateral)
+                            {
+                                var detail = c.Type switch
                                 {
-                                    <tr>
-                                        <td><span class="badge bg-light text-dark border">@c.Type</span></td>
-                                        <td class="small">
-                                            @switch (c.Type)
+                                    CRMS.Domain.Enums.RhshfCollateralType.BankGuarantee => c.GuarantorBankName,
+                                    CRMS.Domain.Enums.RhshfCollateralType.LegalMortgage => c.PropertyDescription,
+                                    _ => null,
+                                };
+                                var cover = c.Type switch
+                                {
+                                    CRMS.Domain.Enums.RhshfCollateralType.BankGuarantee => c.GuaranteeAmount.HasValue ? $"{Model.Session.Currency} {c.GuaranteeAmount:N0}" : null,
+                                    CRMS.Domain.Enums.RhshfCollateralType.NirsalCrg => c.CrgCoveragePercentage.HasValue ? $"{c.CrgCoveragePercentage:0.##}% cover" : null,
+                                    CRMS.Domain.Enums.RhshfCollateralType.LegalMortgage => c.PropertyValue.HasValue ? $"{Model.Session.Currency} {c.PropertyValue:N0}" : null,
+                                    _ => null,
+                                };
+
+                                <div class="border rounded p-3 mb-2">
+                                    <div class="d-flex justify-content-between align-items-start gap-2">
+                                        <div>
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle">@c.Type</span>
+                                            @if (!string.IsNullOrWhiteSpace(cover))
                                             {
-                                                case CRMS.Domain.Enums.RhshfCollateralType.BankGuarantee:
-                                                    @(string.IsNullOrWhiteSpace(c.GuarantorBankName) ? "—" : c.GuarantorBankName)
-                                                    break;
-                                                case CRMS.Domain.Enums.RhshfCollateralType.LegalMortgage:
-                                                    @(string.IsNullOrWhiteSpace(c.PropertyDescription) ? "—" : c.PropertyDescription)
-                                                    break;
-                                                default:
-                                                    @(string.IsNullOrWhiteSpace(c.Notes) ? "—" : c.Notes)
-                                                    break;
+                                                <span class="fw-semibold ms-1">@cover</span>
                                             }
-                                        </td>
-                                        <td class="small text-muted">@(string.IsNullOrWhiteSpace(c.ReferenceNumber) ? "—" : c.ReferenceNumber)</td>
-                                        <td class="text-end small">
-                                            @switch (c.Type)
+                                            <div class="small text-muted mt-1">
+                                                @if (!string.IsNullOrWhiteSpace(detail)) { <span>@detail</span> }
+                                                @if (!string.IsNullOrWhiteSpace(c.ReferenceNumber)) { <span class="ms-2">Ref: <code>@c.ReferenceNumber</code></span> }
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(c.Notes))
                                             {
-                                                case CRMS.Domain.Enums.RhshfCollateralType.BankGuarantee:
-                                                    @(c.GuaranteeAmount.HasValue ? $"{Model.Session.Currency} {c.GuaranteeAmount:N0}" : "—")
-                                                    break;
-                                                case CRMS.Domain.Enums.RhshfCollateralType.NirsalCrg:
-                                                    @(c.CrgCoveragePercentage.HasValue ? $"{c.CrgCoveragePercentage:0.##}%" : "—")
-                                                    break;
-                                                case CRMS.Domain.Enums.RhshfCollateralType.LegalMortgage:
-                                                    @(c.PropertyValue.HasValue ? $"{Model.Session.Currency} {c.PropertyValue:N0}" : "—")
-                                                    break;
+                                                <div class="small text-muted fst-italic">@c.Notes</div>
                                             }
-                                        </td>
-                                        <td style="min-width: 260px;">
-                                            @if (c.Documents.Count > 0)
-                                            {
-                                                <ul class="list-unstyled small mb-1">
-                                                    @foreach (var doc in c.Documents)
-                                                    {
-                                                        <li><i class="bi bi-paperclip"></i> @doc.FileName <span class="text-muted">(@((doc.SizeBytes / 1024.0).ToString("N0")) KB)</span></li>
-                                                    }
-                                                </ul>
-                                            }
-                                            else
-                                            {
-                                                <div class="small text-danger mb-1">No document attached</div>
-                                            }
-                                            <form method="post" asp-page-handler="UploadCollateralDocument" enctype="multipart/form-data" class="d-flex gap-1">
-                                                <input type="hidden" name="reference" value="@Model.Session.Reference" />
-                                                <input type="hidden" name="collateralId" value="@c.Id" />
-                                                <input type="file" name="file" class="form-control form-control-sm" required />
-                                                <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Upload</button>
-                                            </form>
-                                        </td>
-                                        <td class="text-end">
-                                            <form method="post" asp-page-handler="RemoveCollateral" onsubmit="return confirm('Remove this collateral item?');">
-                                                <input type="hidden" name="reference" value="@Model.Session.Reference" />
-                                                <input type="hidden" name="collateralId" value="@c.Id" />
-                                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                }
-                                </tbody>
-                            </table>
+                                        </div>
+                                        <form method="post" asp-page-handler="RemoveCollateral" onsubmit="return confirm('Remove this collateral item?');">
+                                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                            <input type="hidden" name="collateralId" value="@c.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                        </form>
+                                    </div>
+
+                                    <div class="border-top mt-2 pt-2">
+                                        @if (c.Documents.Count > 0)
+                                        {
+                                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                                @foreach (var doc in c.Documents)
+                                                {
+                                                    <span class="badge bg-light text-dark border fw-normal"><i class="bi bi-paperclip"></i> @doc.FileName <span class="text-muted">(@((doc.SizeBytes / 1024.0).ToString("N0")) KB)</span></span>
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="small text-danger mb-2"><i class="bi bi-exclamation-circle"></i> No supporting document attached yet.</div>
+                                        }
+                                        <form method="post" asp-page-handler="UploadCollateralDocument" enctype="multipart/form-data" class="row g-2 align-items-center">
+                                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                            <input type="hidden" name="collateralId" value="@c.Id" />
+                                            <div class="col-sm-8 col-md-6"><input type="file" name="file" class="form-control form-control-sm" required /></div>
+                                            <div class="col-auto"><button type="submit" class="btn btn-sm btn-outline-success">@(c.Documents.Count > 0 ? "Add another file" : "Attach document")</button></div>
+                                        </form>
+                                    </div>
+                                </div>
+                            }
                         }
                         else
                         {
