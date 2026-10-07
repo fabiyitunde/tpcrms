@@ -44,7 +44,7 @@ public class GetRhshfProfilingSessionHandlerTests
     }
 
     private static GetRhshfProfilingSessionHandler Handler(RhshfCreditProfile profile, RhshfOffer? offer = null)
-        => new(new FakeProfileRepo(profile), new FakeRequirementRepo(), new FakeOfferRepo(offer), new FakeGuarantorRepo());
+        => new(new FakeProfileRepo(profile), new FakeRequirementRepo(), new FakeOfferRepo(offer), new FakeGuarantorRepo(), new FakeCollateralRepo());
 
     private class FakeGuarantorRepo : CRMS.Domain.Interfaces.IRhshfGuarantorRepository
     {
@@ -54,6 +54,18 @@ public class GetRhshfProfilingSessionHandlerTests
             => Task.FromResult<CRMS.Domain.Aggregates.Rhshf.RhshfGuarantor?>(null);
         public Task AddAsync(CRMS.Domain.Aggregates.Rhshf.RhshfGuarantor g, CancellationToken ct = default) => Task.CompletedTask;
         public void Remove(CRMS.Domain.Aggregates.Rhshf.RhshfGuarantor g) { }
+    }
+
+    private class FakeCollateralRepo : IRhshfCollateralRepository
+    {
+        public Task<IReadOnlyList<RhshfCollateral>> GetByProfileAndCycleAsync(Guid profileId, int cycleNumber, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<RhshfCollateral>>([]);
+        public Task<RhshfCollateral?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<RhshfCollateral?>(null);
+        public Task AddAsync(RhshfCollateral collateral, CancellationToken ct = default) => Task.CompletedTask;
+        public void Remove(RhshfCollateral collateral) { }
+        public Task<RhshfCollateralDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
+            => Task.FromResult<RhshfCollateralDocument?>(null);
     }
 
     [Fact]

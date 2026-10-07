@@ -126,6 +126,7 @@ public class RecordRhshfCollateralHandlerTests
             Added.Add(collateral);
             return Task.CompletedTask;
         }
+        public void Remove(RhshfCollateral collateral) => Added.Remove(collateral);
         public Task<RhshfCollateralDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 

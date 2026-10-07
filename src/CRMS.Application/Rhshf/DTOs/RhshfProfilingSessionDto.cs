@@ -35,6 +35,9 @@ public record RhshfProfilingSessionDto(
     List<RhshfProfilingDirectorDto> Directors,
     /// <summary>Guarantors the FAC declares during profiling (also moved from officer-entered).</summary>
     List<RhshfProfilingGuarantorDto> Guarantors,
+    /// <summary>Collateral the FAC declares during profiling — the Legal Officer verifies and perfects
+    /// it later rather than scouting for it (control fix). Filed under the profiling target cycle.</summary>
+    List<RhshfProfilingCollateralDto> Collateral,
     /// <summary>
     /// True when an offer is generated and awaiting the FAC's response. Profiling itself is
     /// finished at that point, so the wizard shows a completed panel — but the case is not done
@@ -64,3 +67,8 @@ public record RhshfProfilingDirectorDto(
 public record RhshfProfilingGuarantorDto(
     Guid Id, string FullName, RhshfGuarantorType GuarantorType, bool HasBvn, string? RcNumber,
     string? Relationship, decimal? GuaranteeAmount);
+
+public record RhshfProfilingCollateralDto(
+    Guid Id, RhshfCollateralType Type, string? ReferenceNumber,
+    string? GuarantorBankName, decimal? GuaranteeAmount, decimal? CrgCoveragePercentage,
+    string? PropertyDescription, decimal? PropertyValue, string? Notes);

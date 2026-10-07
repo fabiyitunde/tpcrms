@@ -26,6 +26,9 @@ public class RhshfCollateralRepository : IRhshfCollateralRepository
     public async Task AddAsync(RhshfCollateral collateral, CancellationToken ct = default)
         => await _context.RhshfCollaterals.AddAsync(collateral, ct);
 
+    public void Remove(RhshfCollateral collateral)
+        => _context.RhshfCollaterals.Remove(collateral);
+
     public async Task<RhshfCollateralDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
         => await _context.RhshfCollateralDocuments.FirstOrDefaultAsync(x => x.Id == documentId, ct);
 }

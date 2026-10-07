@@ -14,15 +14,18 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
     private readonly IRhshfDocumentRequirementRepository _requirementRepo;
     private readonly IRhshfOfferRepository _offerRepo;
     private readonly IRhshfGuarantorRepository _guarantorRepo;
+    private readonly IRhshfCollateralRepository _collateralRepo;
 
     public GetRhshfProfilingSessionHandler(
         IRhshfCreditProfileRepository repo, IRhshfDocumentRequirementRepository requirementRepo,
-        IRhshfOfferRepository offerRepo, IRhshfGuarantorRepository guarantorRepo)
+        IRhshfOfferRepository offerRepo, IRhshfGuarantorRepository guarantorRepo,
+        IRhshfCollateralRepository collateralRepo)
     {
         _repo = repo;
         _requirementRepo = requirementRepo;
         _offerRepo = offerRepo;
         _guarantorRepo = guarantorRepo;
+        _collateralRepo = collateralRepo;
     }
 
     public async Task<ApplicationResult<RhshfProfilingSessionDto>> Handle(
@@ -34,6 +37,7 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
 
         var requirements = await _requirementRepo.GetActiveAsync(ct);
         var guarantors = await _guarantorRepo.GetByProfileIdAsync(profile.Id, ct);
+        var collateral = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.ProfilingTargetCycleNumber, ct);
         var attachedByCategory = profile.SupportingDocuments
             .GroupBy(d => d.Category)
             .ToDictionary(g => g.Key, g => g.Count());
@@ -82,6 +86,11 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
                 .Select(g => new RhshfProfilingGuarantorDto(
                     g.Id, g.FullName, g.GuarantorType, !string.IsNullOrWhiteSpace(g.Bvn), g.RcNumber,
                     g.Relationship, g.GuaranteeAmount))
+                .ToList(),
+            Collateral: collateral
+                .Select(c => new RhshfProfilingCollateralDto(
+                    c.Id, c.Type, c.ReferenceNumber, c.GuarantorBankName, c.GuaranteeAmount,
+                    c.CrgCoveragePercentage, c.PropertyDescription, c.PropertyValue, c.Notes))
                 .ToList(),
             IsAwaitingOfferAcceptance: await IsAwaitingOfferAcceptanceAsync(profile, ct));
 

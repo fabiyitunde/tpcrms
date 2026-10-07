@@ -401,6 +401,7 @@ public class GenerateRhshfAdvisoryHandlerTests
             => Task.FromResult<IReadOnlyList<RhshfCollateral>>([]);
         public Task<RhshfCollateral?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddAsync(RhshfCollateral collateral, CancellationToken ct = default) => Task.CompletedTask;
+        public void Remove(RhshfCollateral collateral) { }
         public Task<RhshfCollateralDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 

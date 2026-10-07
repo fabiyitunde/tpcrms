@@ -25,6 +25,8 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly PullRhshfDirectorsFromCbsHandler _pullDirectorsHandler;
     private readonly AddRhshfGuarantorHandler _addGuarantorHandler;
     private readonly RemoveRhshfGuarantorHandler _removeGuarantorHandler;
+    private readonly AddRhshfProfilingCollateralHandler _addCollateralHandler;
+    private readonly RemoveRhshfProfilingCollateralHandler _removeCollateralHandler;
 
     public ProfilingModel(
         VerifyRhshfProfilingTokenHandler verifyHandler,
@@ -39,7 +41,9 @@ public class ProfilingModel : RhshfPublicPageModel
         RemoveRhshfDirectorHandler removeDirectorHandler,
         PullRhshfDirectorsFromCbsHandler pullDirectorsHandler,
         AddRhshfGuarantorHandler addGuarantorHandler,
-        RemoveRhshfGuarantorHandler removeGuarantorHandler)
+        RemoveRhshfGuarantorHandler removeGuarantorHandler,
+        AddRhshfProfilingCollateralHandler addCollateralHandler,
+        RemoveRhshfProfilingCollateralHandler removeCollateralHandler)
         : base(verifyHandler)
     {
         _sessionHandler = sessionHandler;
@@ -54,6 +58,8 @@ public class ProfilingModel : RhshfPublicPageModel
         _pullDirectorsHandler = pullDirectorsHandler;
         _addGuarantorHandler = addGuarantorHandler;
         _removeGuarantorHandler = removeGuarantorHandler;
+        _addCollateralHandler = addCollateralHandler;
+        _removeCollateralHandler = removeCollateralHandler;
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
@@ -219,6 +225,41 @@ public class ProfilingModel : RhshfPublicPageModel
             return RedirectToPage("SessionExpired");
 
         var result = await _removeGuarantorHandler.Handle(new RemoveRhshfGuarantorCommand(guarantorId), ct);
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostAddCollateralAsync(
+        string reference, RhshfCollateralType collateralType, string? referenceNumber, string? notes,
+        string? guarantorBankName, decimal? guaranteeAmount, bool isUnconditional,
+        decimal? crgCoveragePercentage,
+        string? propertyDescription, decimal? propertyValue, string? titleReferenceNumber, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _addCollateralHandler.Handle(
+            new AddRhshfProfilingCollateralCommand(
+                reference, collateralType, referenceNumber, notes,
+                guarantorBankName, guaranteeAmount, isUnconditional,
+                crgCoveragePercentage, propertyDescription, propertyValue, titleReferenceNumber), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = "Collateral added.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostRemoveCollateralAsync(string reference, Guid collateralId, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _removeCollateralHandler.Handle(new RemoveRhshfProfilingCollateralCommand(reference, collateralId), ct);
         if (!result.IsSuccess)
             ErrorMessage = result.Error;
 

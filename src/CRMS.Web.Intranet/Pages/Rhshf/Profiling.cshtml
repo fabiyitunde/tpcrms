@@ -237,6 +237,96 @@ else
                         </form>
 
                         <hr class="my-4" />
+                        <h5 class="mb-1">Collateral / Security</h5>
+                        <p class="text-muted small">Declare the security you are offering for this facility. The Bank's Legal Officer verifies and perfects it later &mdash; you supply the instrument and its reference here, and upload supporting evidence at the Documents stage.</p>
+
+                        @if (Model.Session.Collateral.Count > 0)
+                        {
+                            <table class="table table-sm align-middle">
+                                <thead><tr><th>Type</th><th>Details</th><th>Reference</th><th class="text-end">Value / Cover</th><th></th></tr></thead>
+                                <tbody>
+                                @foreach (var c in Model.Session.Collateral)
+                                {
+                                    <tr>
+                                        <td><span class="badge bg-light text-dark border">@c.Type</span></td>
+                                        <td class="small">
+                                            @switch (c.Type)
+                                            {
+                                                case CRMS.Domain.Enums.RhshfCollateralType.BankGuarantee:
+                                                    @(string.IsNullOrWhiteSpace(c.GuarantorBankName) ? "—" : c.GuarantorBankName)
+                                                    break;
+                                                case CRMS.Domain.Enums.RhshfCollateralType.LegalMortgage:
+                                                    @(string.IsNullOrWhiteSpace(c.PropertyDescription) ? "—" : c.PropertyDescription)
+                                                    break;
+                                                default:
+                                                    @(string.IsNullOrWhiteSpace(c.Notes) ? "—" : c.Notes)
+                                                    break;
+                                            }
+                                        </td>
+                                        <td class="small text-muted">@(string.IsNullOrWhiteSpace(c.ReferenceNumber) ? "—" : c.ReferenceNumber)</td>
+                                        <td class="text-end small">
+                                            @switch (c.Type)
+                                            {
+                                                case CRMS.Domain.Enums.RhshfCollateralType.BankGuarantee:
+                                                    @(c.GuaranteeAmount.HasValue ? $"{Model.Session.Currency} {c.GuaranteeAmount:N0}" : "—")
+                                                    break;
+                                                case CRMS.Domain.Enums.RhshfCollateralType.NirsalCrg:
+                                                    @(c.CrgCoveragePercentage.HasValue ? $"{c.CrgCoveragePercentage:0.##}%" : "—")
+                                                    break;
+                                                case CRMS.Domain.Enums.RhshfCollateralType.LegalMortgage:
+                                                    @(c.PropertyValue.HasValue ? $"{Model.Session.Currency} {c.PropertyValue:N0}" : "—")
+                                                    break;
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <form method="post" asp-page-handler="RemoveCollateral" onsubmit="return confirm('Remove this collateral item?');">
+                                                <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                <input type="hidden" name="collateralId" value="@c.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        }
+                        else
+                        {
+                            <p class="text-muted small fst-italic">No collateral declared.</p>
+                        }
+
+                        <form method="post" asp-page-handler="AddCollateral" class="border rounded p-3 bg-light-subtle mb-2">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-3"><label class="form-label small mb-0">Type</label>
+                                    <select name="collateralType" class="form-select form-select-sm">
+                                        @foreach (var t in Enum.GetValues<CRMS.Domain.Enums.RhshfCollateralType>()) { <option value="@t">@t</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-3"><label class="form-label small mb-0">Reference no.</label><input name="referenceNumber" class="form-control form-control-sm" placeholder="Instrument / title ref" /></div>
+                                <div class="col-md-6"><label class="form-label small mb-0">Notes</label><input name="notes" class="form-control form-control-sm" /></div>
+                            </div>
+                            <div class="row g-2 align-items-end mt-1">
+                                <div class="col-12"><span class="badge bg-secondary">Bank Guarantee</span></div>
+                                <div class="col-md-5"><label class="form-label small mb-0">Guarantor bank</label><input name="guarantorBankName" class="form-control form-control-sm" /></div>
+                                <div class="col-md-4"><label class="form-label small mb-0">Guarantee amount</label><input name="guaranteeAmount" type="number" step="0.01" min="0" class="form-control form-control-sm" /></div>
+                                <div class="col-md-3"><div class="form-check mt-3"><input type="checkbox" name="isUnconditional" value="true" class="form-check-input" id="uncondCheck" /><label class="form-check-label small" for="uncondCheck">Unconditional</label></div></div>
+                            </div>
+                            <div class="row g-2 align-items-end mt-1">
+                                <div class="col-12"><span class="badge bg-secondary">NIRSAL CRG</span></div>
+                                <div class="col-md-4"><label class="form-label small mb-0">Coverage %</label><input name="crgCoveragePercentage" type="number" step="0.01" min="0" max="100" class="form-control form-control-sm" /></div>
+                            </div>
+                            <div class="row g-2 align-items-end mt-1">
+                                <div class="col-12"><span class="badge bg-secondary">Legal Mortgage</span></div>
+                                <div class="col-md-5"><label class="form-label small mb-0">Property description</label><input name="propertyDescription" class="form-control form-control-sm" /></div>
+                                <div class="col-md-4"><label class="form-label small mb-0">Property value</label><input name="propertyValue" type="number" step="0.01" min="0" class="form-control form-control-sm" /></div>
+                                <div class="col-md-3"><label class="form-label small mb-0">Title reference</label><input name="titleReferenceNumber" class="form-control form-control-sm" /></div>
+                            </div>
+                            <div class="mt-2"><button type="submit" class="btn btn-sm btn-success">Add collateral</button>
+                                <span class="text-muted small ms-2">Fill only the block matching the type you selected.</span></div>
+                        </form>
+
+                        <hr class="my-4" />
                         <form method="post" asp-page-handler="Confirm">
                             <input type="hidden" name="reference" value="@Model.Session.Reference" />
                             <input type="hidden" name="stage" value="@RhshfProfilingStage.CreditBureauCheck" />
