@@ -69,6 +69,11 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
                     p.Id, p.Crop, p.Hectares, p.ExpectedYieldKgPerHectare, p.ExpectedPricePerKg,
                     p.ExpectedOutputKg, p.ExpectedRevenue))
                 .ToList(),
+            Directors: profile.Directors
+                .OrderByDescending(d => d.IsChairman).ThenBy(d => d.FullName)
+                .Select(d => new RhshfProfilingDirectorDto(
+                    d.Id, d.FullName, !string.IsNullOrWhiteSpace(d.Bvn), d.ShareholdingPercent, d.IsChairman))
+                .ToList(),
             IsAwaitingOfferAcceptance: await IsAwaitingOfferAcceptanceAsync(profile, ct));
 
         return ApplicationResult<RhshfProfilingSessionDto>.Success(dto);

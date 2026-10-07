@@ -30,6 +30,9 @@ public record RhshfProfilingSessionDto(
     List<RhshfDocumentRequirementStatusDto> DocumentRequirements,
     /// <summary>Farm plan for the cycle being prepared — the agronomic basis the appraisal needs.</summary>
     List<RhshfProfilingFarmPlanDto> FarmPlans,
+    /// <summary>Directors the FAC declares (with BVN) during profiling — the source the bureau checks
+    /// use. BVN is presence-only on the wire. Moved from officer-entered to FAC-supplied (control fix).</summary>
+    List<RhshfProfilingDirectorDto> Directors,
     /// <summary>
     /// True when an offer is generated and awaiting the FAC's response. Profiling itself is
     /// finished at that point, so the wizard shows a completed panel — but the case is not done
@@ -52,3 +55,6 @@ public record RhshfDocumentRequirementStatusDto(
 public record RhshfProfilingFarmPlanDto(
     Guid Id, string Crop, decimal Hectares, decimal ExpectedYieldKgPerHectare,
     decimal ExpectedPricePerKg, decimal ExpectedOutputKg, decimal ExpectedRevenue);
+
+public record RhshfProfilingDirectorDto(
+    Guid Id, string FullName, bool HasBvn, decimal? ShareholdingPercent, bool IsChairman);

@@ -20,6 +20,9 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly AddRhshfProfilingFarmPlanHandler _addFarmPlanHandler;
     private readonly RemoveRhshfProfilingFarmPlanHandler _removeFarmPlanHandler;
     private readonly RemoveRhshfProfilingDocumentHandler _removeDocumentHandler;
+    private readonly AddRhshfDirectorHandler _addDirectorHandler;
+    private readonly RemoveRhshfDirectorHandler _removeDirectorHandler;
+    private readonly PullRhshfDirectorsFromCbsHandler _pullDirectorsHandler;
 
     public ProfilingModel(
         VerifyRhshfProfilingTokenHandler verifyHandler,
@@ -29,7 +32,10 @@ public class ProfilingModel : RhshfPublicPageModel
         UploadRhshfSupportingDocumentHandler uploadHandler,
         AddRhshfProfilingFarmPlanHandler addFarmPlanHandler,
         RemoveRhshfProfilingFarmPlanHandler removeFarmPlanHandler,
-        RemoveRhshfProfilingDocumentHandler removeDocumentHandler)
+        RemoveRhshfProfilingDocumentHandler removeDocumentHandler,
+        AddRhshfDirectorHandler addDirectorHandler,
+        RemoveRhshfDirectorHandler removeDirectorHandler,
+        PullRhshfDirectorsFromCbsHandler pullDirectorsHandler)
         : base(verifyHandler)
     {
         _sessionHandler = sessionHandler;
@@ -39,6 +45,9 @@ public class ProfilingModel : RhshfPublicPageModel
         _addFarmPlanHandler = addFarmPlanHandler;
         _removeFarmPlanHandler = removeFarmPlanHandler;
         _removeDocumentHandler = removeDocumentHandler;
+        _addDirectorHandler = addDirectorHandler;
+        _removeDirectorHandler = removeDirectorHandler;
+        _pullDirectorsHandler = pullDirectorsHandler;
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
@@ -128,6 +137,53 @@ public class ProfilingModel : RhshfPublicPageModel
         var result = await _removeDocumentHandler.Handle(new RemoveRhshfProfilingDocumentCommand(reference, documentId), ct);
         if (!result.IsSuccess)
             ErrorMessage = result.Error;
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostAddDirectorAsync(
+        string reference, string fullName, string? bvn, decimal? shareholdingPercent, bool isChairman,
+        string? email, string? phoneNumber, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        // The FAC is token-authenticated against the case, not an individual user — no UserId to record.
+        var result = await _addDirectorHandler.Handle(
+            new AddRhshfDirectorCommand(reference, fullName, bvn, shareholdingPercent, isChairman, email, phoneNumber, Guid.Empty), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = $"Director \"{fullName}\" added.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostRemoveDirectorAsync(string reference, Guid directorId, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _removeDirectorHandler.Handle(new RemoveRhshfDirectorCommand(reference, directorId, Guid.Empty), ct);
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostPullDirectorsAsync(string reference, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _pullDirectorsHandler.Handle(new PullRhshfDirectorsFromCbsCommand(reference), ct);
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = result.Data > 0
+                ? $"{result.Data} director(s) pulled from core banking — please confirm their BVNs."
+                : "No new directors with a BVN were found on the core-banking record.";
 
         return RedirectToPage(new { reference });
     }

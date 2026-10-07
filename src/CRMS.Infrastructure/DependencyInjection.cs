@@ -739,6 +739,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.AddRhshfDirectorHandler>();
         services.AddScoped<Application.Rhshf.Commands.UpdateRhshfDirectorHandler>();
         services.AddScoped<Application.Rhshf.Commands.RemoveRhshfDirectorHandler>();
+        services.AddScoped<Application.Rhshf.Commands.PullRhshfDirectorsFromCbsHandler>();
         services.AddScoped<Application.Rhshf.Commands.ProcessRhshfCreditChecksHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfDirectorsHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfBureauReportsHandler>();

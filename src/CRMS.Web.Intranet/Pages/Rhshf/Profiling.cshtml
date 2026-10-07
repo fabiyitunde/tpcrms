@@ -123,6 +123,58 @@ else
                             <dt class="col-sm-6">Active facilities</dt><dd class="col-sm-6">@(Model.Session.BureauActiveLoans ?? 0)</dd>
                             <dt class="col-sm-6">Delinquent facilities</dt><dd class="col-sm-6">@(Model.Session.BureauDelinquentFacilities ?? 0)</dd>
                         </dl>
+
+                        <hr class="my-4" />
+                        <h5 class="mb-1">Company directors</h5>
+                        <p class="text-muted small">We run a credit-bureau check on each director, so please list every director with their <strong>BVN</strong>. You can pull them from your Bank of Agriculture account record, then confirm.</p>
+
+                        <form method="post" asp-page-handler="PullDirectors" class="mb-3">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i> Pull directors from Bank of Agriculture record</button>
+                        </form>
+
+                        @if (Model.Session.Directors.Count > 0)
+                        {
+                            <table class="table table-sm align-middle">
+                                <thead><tr><th>Name</th><th>BVN</th><th class="text-end">Shareholding</th><th></th></tr></thead>
+                                <tbody>
+                                @foreach (var d in Model.Session.Directors)
+                                {
+                                    <tr>
+                                        <td>@d.FullName @if (d.IsChairman) { <span class="badge bg-secondary ms-1">Chairman</span> }</td>
+                                        <td>@if (d.HasBvn) { <span class="badge bg-success">Provided</span> } else { <span class="badge bg-danger">Missing</span> }</td>
+                                        <td class="text-end">@(d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:N1}%" : "—")</td>
+                                        <td class="text-end">
+                                            <form method="post" asp-page-handler="RemoveDirector" onsubmit="return confirm('Remove this director?');">
+                                                <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                <input type="hidden" name="directorId" value="@d.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                            @if (Model.Session.Directors.Any(d => !d.HasBvn))
+                            {
+                                <div class="alert alert-warning py-2 small">Some directors have no BVN. They won't be included in the credit-bureau checks until a BVN is added.</div>
+                            }
+                        }
+                        else
+                        {
+                            <p class="text-muted small fst-italic">No directors added yet.</p>
+                        }
+
+                        <form method="post" asp-page-handler="AddDirector" class="row g-2 align-items-end mb-2">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <div class="col-md-4"><label class="form-label small mb-0">Full name</label><input name="fullName" class="form-control form-control-sm" required /></div>
+                            <div class="col-md-3"><label class="form-label small mb-0">BVN</label><input name="bvn" maxlength="11" class="form-control form-control-sm" placeholder="11 digits" /></div>
+                            <div class="col-md-2"><label class="form-label small mb-0">Shareholding %</label><input name="shareholdingPercent" type="number" step="0.01" min="0" max="100" class="form-control form-control-sm" /></div>
+                            <div class="col-md-2"><div class="form-check mt-3"><input type="checkbox" name="isChairman" value="true" class="form-check-input" id="chairCheck" /><label class="form-check-label small" for="chairCheck">Chairman</label></div></div>
+                            <div class="col-md-1"><button type="submit" class="btn btn-sm btn-success w-100">Add</button></div>
+                        </form>
+
+                        <hr class="my-4" />
                         <form method="post" asp-page-handler="Confirm">
                             <input type="hidden" name="reference" value="@Model.Session.Reference" />
                             <input type="hidden" name="stage" value="@RhshfProfilingStage.CreditBureauCheck" />
