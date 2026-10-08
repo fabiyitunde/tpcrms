@@ -26,6 +26,10 @@ public class NampApplicationRepository : INampApplicationRepository
             .Include(x => x.FinancialStatements)
             .Include(x => x.PreDeploymentChecklist.OrderBy(i => i.SortOrder))
             .Include(x => x.Directors)
+            // 7 collection Includes in one query produce a cartesian product (de-duplicated
+            // client-side); split into one query per collection. See the RH-SHF equivalent and
+            // [[feedback_ef_multi_include_cartesian]]. Tracking + append-tracking fix are unaffected.
+            .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == id, ct);
 
     public async Task<NampApplication?> GetByCommitteeReviewIdAsync(Guid committeeReviewId, CancellationToken ct = default)
@@ -37,6 +41,7 @@ public class NampApplicationRepository : INampApplicationRepository
             .Include(x => x.FinancialStatements)
             .Include(x => x.PreDeploymentChecklist.OrderBy(i => i.SortOrder))
             .Include(x => x.Directors)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.CurrentCommitteeReviewId == committeeReviewId, ct);
 
     public async Task<NampApplication?> GetByApplicationReferenceAsync(string applicationReference, CancellationToken ct = default)
