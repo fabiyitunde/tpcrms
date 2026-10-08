@@ -136,8 +136,23 @@ public class RhshfCreditProfileDirectorTests
     }
 
     [Fact]
-    public void RemoveDirector_ManuallyAdded_Succeeds()
+    public void RemoveDirector_FacDeclared_IsRejected()
     {
+        // Staff must not be able to delete what the FAC submitted (manipulation guard).
+        var profile = MakeProfile();
+        var fac = RhshfDirector.CreateManual(profile.Id, "FAC Declared", "12345678901", null, false, null, null, declaredByFac: true).Value;
+        profile.AddDirector(fac);
+
+        var result = profile.RemoveDirector(fac.Id);
+
+        Assert.True(result.IsFailure);
+        Assert.Single(profile.Directors);
+    }
+
+    [Fact]
+    public void RemoveDirector_StaffAdded_Succeeds()
+    {
+        // A director a staff member added manually (not FAC-declared) is theirs to remove.
         var profile = MakeProfile();
         var manual = RhshfDirector.CreateManual(profile.Id, "Manual Entry", null, null, false, null, null).Value;
         profile.AddDirector(manual);

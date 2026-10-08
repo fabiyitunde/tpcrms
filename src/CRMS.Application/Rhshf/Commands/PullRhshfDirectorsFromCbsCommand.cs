@@ -63,7 +63,8 @@ public class PullRhshfDirectorsFromCbsHandler : IRequestHandler<PullRhshfDirecto
             if (existingBvns.Contains(bvn))
                 continue;
 
-            var result = RhshfDirector.CreateManual(profile.Id, c.Name, bvn, c.Shareholding, isChairman: false, email: null, phoneNumber: null);
+            // The FAC initiated this pull during profiling — these are FAC-declared, protected from staff deletion.
+            var result = RhshfDirector.CreateManual(profile.Id, c.Name, bvn, c.Shareholding, isChairman: false, email: null, phoneNumber: null, declaredByFac: true);
             if (result.IsFailure)
                 continue;
 

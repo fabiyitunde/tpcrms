@@ -125,9 +125,12 @@ public class AddRhshfDirectorHandler : IRequestHandler<AddRhshfDirectorCommand, 
         if (profile is null)
             return ApplicationResult.Failure("Case not found.");
 
+        // Profiling adds carry no individual user (token-auth) and pass Guid.Empty — those are the
+        // FAC declaring, and are protected from staff deletion. A real UserId means a staff addition.
+        var declaredByFac = request.UserId == Guid.Empty;
         var result = RhshfDirector.CreateManual(
             profile.Id, request.FullName, request.Bvn, request.ShareholdingPercent,
-            request.IsChairman, request.Email, request.PhoneNumber);
+            request.IsChairman, request.Email, request.PhoneNumber, declaredByFac);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

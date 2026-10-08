@@ -104,13 +104,21 @@
                             @if (CanManageDirectors)
                             {
                                 <td>
-                                    <div style="display: flex; gap: var(--space-2);">
+                                    <div style="display: flex; gap: var(--space-2); align-items: center;">
                                         <button class="btn btn-ghost btn-sm" title="Complete BVN / shareholding" @onclick="() => OnEditDirector.InvokeAsync(d)">
                                             <span class="material-symbols-outlined" style="font-size: 16px;">edit_note</span>
                                         </button>
-                                        <button class="btn btn-ghost btn-sm" title="Remove" style="color: var(--danger-600);" @onclick="() => OnRemoveDirector.InvokeAsync(d.Id)">
-                                            <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
-                                        </button>
+                                        @if (d.DeclaredByFac)
+                                        {
+                                            <span class="material-symbols-outlined" style="font-size: 16px; color: var(--gray-400);"
+                                                  title="Declared by the FAC — staff cannot delete it, only verify.">lock</span>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-ghost btn-sm" title="Remove" style="color: var(--danger-600);" @onclick="() => OnRemoveDirector.InvokeAsync(d.Id)">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                            </button>
+                                        }
                                     </div>
                                 </td>
                             }

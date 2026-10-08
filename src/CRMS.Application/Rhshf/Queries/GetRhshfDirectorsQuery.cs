@@ -30,6 +30,8 @@ public record RhshfDirectorDto(
     /// Provided/Missing badge rather than rendering a BVN in a table anyone can screenshot.</summary>
     bool HasBvn,
     bool SourcedFromCac,
+    /// <summary>Declared by the FAC (during profiling) — staff cannot delete these, only verify.</summary>
+    bool DeclaredByFac,
     string? Email,
     string? PhoneNumber);
 
@@ -52,7 +54,7 @@ public class GetRhshfDirectorsHandler : IRequestHandler<GetRhshfDirectorsQuery, 
             .Select(d => new RhshfDirectorDto(
                 d.Id, d.FullName, d.Occupation, d.IsChairman, d.AffiliateType,
                 d.NumSharesAllotted, d.TypeOfShares, d.ShareholdingPercent,
-                !string.IsNullOrWhiteSpace(d.Bvn), d.SourcedFromCac, d.Email, d.PhoneNumber))
+                !string.IsNullOrWhiteSpace(d.Bvn), d.SourcedFromCac, d.DeclaredByFac, d.Email, d.PhoneNumber))
             .ToList();
 
         return ApplicationResult<RhshfDirectorsDto>.Success(new RhshfDirectorsDto(

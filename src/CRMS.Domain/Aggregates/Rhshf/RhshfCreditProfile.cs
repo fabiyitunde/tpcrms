@@ -924,10 +924,12 @@ public class RhshfCreditProfile : AggregateRoot
         if (director is null)
             return Result.Failure("Director not found.");
 
-        // Any director may be removed. The old "CAC-sourced directors cannot be removed" guard assumed
-        // CAC refresh/prune owned those rows — but CAC is no longer merged into the case list (it is a
-        // read-only cross-check now), so the only way to clear a stale CAC- or CBS-origin row left over
-        // from the old merging behaviour is to delete it here.
+        // Staff may not delete what the FAC declared — that would let an officer quietly remove a
+        // submitted director (manipulation). Removable: CAC/stale rows left over from the old merging
+        // behaviour, and the officer's own manual additions. FAC-declared rows are protected.
+        if (director.DeclaredByFac)
+            return Result.Failure("Directors declared by the FAC cannot be removed by staff.");
+
         _directors.Remove(director);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();

@@ -56,6 +56,11 @@ public class RhshfDirector : Entity
     public string? Bvn { get; private set; }
     public string? IdentityNumber { get; private set; }
 
+    /// <summary>True when this director was declared by the FAC (during profiling, incl. its own
+    /// core-banking pull). Staff may not delete these — only CAC/stale rows and their own manual
+    /// additions — so an officer cannot quietly remove what the applicant submitted.</summary>
+    public bool DeclaredByFac { get; private set; }
+
     protected RhshfDirector() { }
 
     /// <summary>Creates a director from a SmartComply CAC record.</summary>
@@ -96,7 +101,7 @@ public class RhshfDirector : Entity
     /// <summary>Creates a director/shareholder entered manually (CAC returned nothing for them).</summary>
     public static Result<RhshfDirector> CreateManual(
         Guid rhshfCreditProfileId, string fullName, string? bvn, decimal? shareholdingPercent,
-        bool isChairman, string? email, string? phoneNumber)
+        bool isChairman, string? email, string? phoneNumber, bool declaredByFac = false)
     {
         if (string.IsNullOrWhiteSpace(fullName))
             return Result.Failure<RhshfDirector>("Director full name is required.");
@@ -115,6 +120,7 @@ public class RhshfDirector : Entity
             IsChairman = isChairman,
             Email = email,
             PhoneNumber = phoneNumber,
+            DeclaredByFac = declaredByFac,
         });
     }
 
