@@ -304,7 +304,8 @@ else
             <CommitteeTab Committee="committeeReview" Roster="committeeRoster" CurrentUserId="CurrentUserId" />
             break;
         case "offer":
-            <OfferTab Offer="offer" Reference="Reference" OnDownload="DownloadOfferDocument" />
+            <OfferTab Offer="offer" Reference="Reference" OnDownload="DownloadOfferDocument"
+                CanRegenerate="CanRegenerateOffer" IsRegenerating="isRegeneratingOffer" OnRegenerate="RegenerateOffer" />
             break;
         case "predeployment":
             <PreDeploymentTab Checklist="preDeploymentChecklist" />
@@ -1029,6 +1030,22 @@ else
 
     private async Task DownloadSupportingDocument(Guid documentId) => await TriggerDownload(await AppService.DownloadRhshfSupportingDocumentAsync(documentId));
     private async Task DownloadOfferDocument(Guid documentId) => await TriggerDownload(await AppService.DownloadRhshfOfferDocumentAsync(documentId));
+
+    // Final Approver / admin can regenerate the letter — but only before the FAC has responded, so an
+    // accepted (contractual) offer is never silently replaced.
+    private bool CanRegenerateOffer => CanRatify && offer is not null
+        && offer.Status is RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse;
+    private bool isRegeneratingOffer;
+
+    private async Task RegenerateOffer()
+    {
+        isRegeneratingOffer = true;
+        pageError = null;
+        var result = await AppService.RegenerateRhshfOfferLetterAsync(Reference, CurrentUserId);
+        isRegeneratingOffer = false;
+        if (!result.Success) { pageError = result.Error; return; }
+        offer = await AppService.GetRhshfOfferAsync(Reference);
+    }
     private async Task DownloadCollateralDocument(Guid documentId) => await TriggerDownload(await AppService.DownloadRhshfCollateralDocumentAsync(documentId));
 
     private async Task TriggerDownload(RhshfDownloadedFileDto? file)

@@ -21,4 +21,29 @@ public class RhshfOfferTests
 
         Assert.True(result.IsFailure);
     }
+
+    [Fact]
+    public void RegenerateDocument_WhileGenerated_ReplacesThePath()
+    {
+        var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "old/path.pdf").Value;
+
+        var result = offer.RegenerateDocument("new/path.pdf");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("new/path.pdf", offer.OfferDocumentPath);
+    }
+
+    [Fact]
+    public void RegenerateDocument_AfterAccepted_IsRejected()
+    {
+        // An accepted offer is contractual — the letter must not be silently replaced.
+        var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "old/path.pdf").Value;
+        offer.AddDocument("signed.pdf", "application/pdf", "signed/path.pdf", 1024);
+        offer.Accept(null);
+
+        var result = offer.RegenerateDocument("new/path.pdf");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("old/path.pdf", offer.OfferDocumentPath);
+    }
 }

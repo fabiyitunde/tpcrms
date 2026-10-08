@@ -20,6 +20,14 @@
                             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">download</span>
                         </a>
                     }
+                    @if (CanRegenerate)
+                    {
+                        <button class="btn btn-ghost btn-sm" @onclick="() => OnRegenerate.InvokeAsync()" disabled="@IsRegenerating" title="Re-create the offer letter PDF (recovery, before the FAC responds)">
+                            @if (IsRegenerating) { <span class="spinner" style="width: 12px; height: 12px;"></span> }
+                            else { <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">sync</span> }
+                            Regenerate
+                        </button>
+                    }
                     <span class="badge @StatusBadgeClass(Offer.Status)">@Offer.Status</span>
                 </div>
             }
@@ -36,6 +44,14 @@
         else
         {
             <div class="card-body">
+                @if (string.IsNullOrEmpty(Offer.OfferDocumentPath))
+                {
+                    <div class="alert alert-warning" style="margin-bottom: 1rem; font-size: 0.875rem;">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">warning</span>
+                        The offer letter file is not available for this case.
+                        @(CanRegenerate ? "Use Regenerate above to re-create it." : "A Final Approver can regenerate it.")
+                    </div>
+                }
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
                     @FieldChip("Approved Amount", Offer.ApprovedAmount is not null ? $"{Offer.Currency} {Offer.ApprovedAmount.Value:N2}" : null)
                     @FieldChip("Generated", Offer.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm"))
@@ -100,6 +116,9 @@
 @code {
     [Parameter] public RhshfOfferDto? Offer { get; set; }
     [Parameter] public string Reference { get; set; } = "";
+    [Parameter] public bool CanRegenerate { get; set; }
+    [Parameter] public bool IsRegenerating { get; set; }
+    [Parameter] public EventCallback OnRegenerate { get; set; }
     // Currency/TotalEopValue used to be passed in so this tab could synthesise the approved amount
     // from the case total. The offer now carries its own amount and currency, so they're gone.
     [Parameter] public EventCallback<Guid> OnDownload { get; set; }

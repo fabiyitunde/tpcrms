@@ -38,6 +38,25 @@ public class RhshfOffer : AggregateRoot
         });
     }
 
+    /// <summary>
+    /// Re-points the offer at a freshly generated PDF (recovery for a missing/corrupt file). Allowed
+    /// only while the FAC has not yet decided — the letter's content is fully determined by the
+    /// ratified amount and case data, which don't change in this state, so a regenerated copy is
+    /// identical to one the FAC may already have downloaded. Once Accepted/Rejected the document is
+    /// part of the record and must not be silently replaced; changing terms is a new offer instead.
+    /// </summary>
+    public Result RegenerateDocument(string offerDocumentPath)
+    {
+        if (string.IsNullOrWhiteSpace(offerDocumentPath))
+            return Result.Failure("offerDocumentPath is required.");
+        if (Status is not (RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse))
+            return Result.Failure("The offer letter can only be regenerated before the FAC has accepted or rejected it.");
+
+        OfferDocumentPath = offerDocumentPath;
+        GeneratedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
     /// <summary>No fixed checklist beyond "at least one" — the FAC can upload more than once
     /// (e.g. a re-scan) while the offer is still undecided.</summary>
     public Result<RhshfOfferDocument> AddDocument(string fileName, string contentType, string storagePath, long sizeBytes)

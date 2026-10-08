@@ -7642,6 +7642,22 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Regenerates the offer letter PDF (recovery) — only before the FAC accepts/rejects.</summary>
+    public async Task<ApiResponse> RegenerateRhshfOfferLetterAsync(string reference, Guid actorUserId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RegenerateRhshfOfferLetterHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.RegenerateRhshfOfferLetterCommand(reference, actorUserId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Regeneration failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error regenerating RH-SHF offer letter for {Reference}", reference);
+            return ApiResponse.Fail("Regeneration failed");
+        }
+    }
+
     /// <summary>Previews the committee a case will route to on risk clearance (tier + standing roster), no writes.</summary>
     public async Task<CRMS.Application.Rhshf.Queries.RhshfCommitteeRoutingPreviewDto?> GetRhshfCommitteeRoutingPreviewAsync(string reference)
     {
