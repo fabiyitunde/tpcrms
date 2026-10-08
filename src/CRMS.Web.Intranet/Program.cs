@@ -220,6 +220,29 @@ app.MapGet("/api/collateral-documents/{id:guid}/download", async (Guid id, CRMSD
     }
 }).DisableAntiforgery();
 
+// RH-SHF collateral document file serving (evidence the FAC uploads per instrument during profiling)
+app.MapGet("/api/rhshf-collateral-documents/{id:guid}/view", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
+{
+    var document = await db.Set<CRMS.Domain.Aggregates.Rhshf.RhshfCollateralDocument>()
+        .FirstOrDefaultAsync(d => d.Id == id);
+
+    if (document == null)
+        return Results.NotFound("Document not found");
+    if (string.IsNullOrEmpty(document.StoragePath))
+        return Results.NotFound("Document file path not available");
+
+    try
+    {
+        var fileBytes = await fileStorage.DownloadAsync(document.StoragePath);
+        httpContext.Response.Headers.ContentDisposition = $"inline; filename=\"{document.FileName}\"";
+        return Results.File(fileBytes, document.ContentType ?? "application/octet-stream");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error retrieving file: {ex.Message}");
+    }
+}).DisableAntiforgery();
+
 // NAMP document file serving endpoints
 app.MapGet("/api/namp-documents/{id:guid}/view", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
 {

@@ -18,13 +18,16 @@ public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfPro
 {
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfDocumentRequirementRepository _requirementRepo;
+    private readonly IRhshfGuarantorRepository _guarantorRepo;
     private readonly IUnitOfWork _uow;
 
     public AdvanceRhshfProfilingStageHandler(
-        IRhshfCreditProfileRepository repo, IRhshfDocumentRequirementRepository requirementRepo, IUnitOfWork uow)
+        IRhshfCreditProfileRepository repo, IRhshfDocumentRequirementRepository requirementRepo,
+        IRhshfGuarantorRepository guarantorRepo, IUnitOfWork uow)
     {
         _repo = repo;
         _requirementRepo = requirementRepo;
+        _guarantorRepo = guarantorRepo;
         _uow = uow;
     }
 
@@ -33,6 +36,17 @@ public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfPro
         var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
         if (profile is null)
             return ApplicationResult.Failure("Case not found.");
+
+        // Individual guarantors are credit-checked by BVN (companies by RC), so at submit every
+        // individual guarantor must carry one — the guarantor counterpart to the director-BVN gate
+        // in RhshfCreditProfile.AdvanceStage. Enforced here because guarantors are a separate
+        // aggregate the profile doesn't own; checked before AdvanceStage so nothing is persisted.
+        if (request.ExpectedCurrentStage == RhshfProfilingStage.ReviewAndSubmit)
+        {
+            var guarantors = await _guarantorRepo.GetByProfileIdAsync(profile.Id, ct);
+            if (guarantors.Any(g => g.GuarantorType == RhshfGuarantorType.Individual && string.IsNullOrWhiteSpace(g.Bvn)))
+                return ApplicationResult.Failure("Every individual guarantor must have a BVN before submitting — the bank runs a credit check on each one.");
+        }
 
         // Loaded for the two stages whose transition the domain gates on documents: leaving
         // SupportingDocuments, and final submit (ReviewAndSubmit) — the latter re-checks in case a

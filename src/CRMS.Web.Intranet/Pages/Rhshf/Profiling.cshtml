@@ -266,17 +266,35 @@ else
                         <form method="post" asp-page-handler="AddGuarantor" class="row g-2 align-items-end mb-2">
                             <input type="hidden" name="reference" value="@Model.Session.Reference" />
                             <div class="col-md-2"><label class="form-label small mb-0">Type</label>
-                                <select name="guarantorType" class="form-select form-select-sm">
+                                <select name="guarantorType" id="guarantorTypeSelect" class="form-select form-select-sm">
                                     @foreach (var t in Enum.GetValues<CRMS.Domain.Enums.RhshfGuarantorType>()) { <option value="@t">@t</option> }
                                 </select>
                             </div>
                             <div class="col-md-3"><label class="form-label small mb-0">Full name / company</label><input name="fullName" class="form-control form-control-sm" required /></div>
-                            <div class="col-md-2"><label class="form-label small mb-0">BVN (individual)</label><input name="bvn" maxlength="11" class="form-control form-control-sm" placeholder="11 digits" /></div>
-                            <div class="col-md-2"><label class="form-label small mb-0">RC (company)</label><input name="rcNumber" class="form-control form-control-sm" /></div>
+                            <div class="col-md-2"><label class="form-label small mb-0">BVN <span class="text-danger" id="guarantorBvnStar">*</span></label><input name="bvn" id="guarantorBvn" maxlength="11" pattern="\d{11}" title="11 digits" class="form-control form-control-sm" placeholder="11 digits" /></div>
+                            <div class="col-md-2"><label class="form-label small mb-0">RC <span class="text-danger d-none" id="guarantorRcStar">*</span></label><input name="rcNumber" id="guarantorRc" class="form-control form-control-sm" /></div>
                             <div class="col-md-2"><label class="form-label small mb-0">Guarantee amount</label><input name="guaranteeAmount" type="number" step="0.01" min="0" class="form-control form-control-sm" /></div>
                             <div class="col-md-1"><button type="submit" class="btn btn-sm btn-success w-100">Add</button></div>
                             <div class="col-md-3"><input name="relationship" class="form-control form-control-sm" placeholder="Relationship (e.g. Director)" /></div>
                         </form>
+                        <script>
+                            (function () {
+                                var sel = document.getElementById('guarantorTypeSelect');
+                                if (!sel) return;
+                                var bvn = document.getElementById('guarantorBvn');
+                                var rc = document.getElementById('guarantorRc');
+                                var bvnStar = document.getElementById('guarantorBvnStar');
+                                var rcStar = document.getElementById('guarantorRcStar');
+                                function sync() {
+                                    var ind = sel.value === 'Individual';
+                                    bvn.required = ind; bvn.disabled = !ind; if (!ind) { bvn.value = ''; }
+                                    rc.required = !ind; rc.disabled = ind; if (ind) { rc.value = ''; }
+                                    bvnStar.classList.toggle('d-none', !ind);
+                                    rcStar.classList.toggle('d-none', ind);
+                                }
+                                sel.addEventListener('change', sync); sync();
+                            })();
+                        </script>
 
                         <hr class="my-4" />
                         <h5 class="mb-1">Collateral / Security</h5>
@@ -658,6 +676,7 @@ else
                     <p class="text-muted">Check everything below before submitting for credit review. Use <strong>Edit</strong> on any section to go back and correct it &mdash; you'll return here.</p>
 
                     var missingBvnDirectors = Model.Session.Directors.Count(d => !d.HasBvn);
+                    var missingBvnGuarantors = Model.Session.Guarantors.Count(g => g.GuarantorType == CRMS.Domain.Enums.RhshfGuarantorType.Individual && !g.HasBvn);
 
                     <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
                         <h6 class="mb-0">Company</h6>
@@ -687,12 +706,22 @@ else
                                 <span class="badge bg-danger ms-1">@missingBvnDirectors missing BVN</span>
                             }
                         </dd>
-                        <dt class="col-sm-4">Guarantors</dt><dd class="col-sm-8">@Model.Session.Guarantors.Count listed</dd>
+                        <dt class="col-sm-4">Guarantors</dt>
+                        <dd class="col-sm-8">
+                            @Model.Session.Guarantors.Count listed
+                            @if (missingBvnGuarantors > 0)
+                            {
+                                <span class="badge bg-danger ms-1">@missingBvnGuarantors missing BVN</span>
+                            }
+                        </dd>
                         <dt class="col-sm-4">Collateral</dt><dd class="col-sm-8">@Model.Session.Collateral.Count declared</dd>
                     </dl>
-                    @if (missingBvnDirectors > 0)
+                    @if (missingBvnDirectors > 0 || missingBvnGuarantors > 0)
                     {
-                        <div class="alert alert-warning py-2 small mb-4">One or more directors have no BVN &mdash; the bank cannot run their credit check. Please add it before submitting.</div>
+                        <div class="alert alert-warning py-2 small mb-4">
+                            @if (missingBvnDirectors > 0) { <div>One or more directors have no BVN &mdash; the bank cannot run their credit check. Add it before submitting.</div> }
+                            @if (missingBvnGuarantors > 0) { <div>One or more individual guarantors have no BVN. Add it before submitting.</div> }
+                        </div>
                     }
                     else
                     {
@@ -726,11 +755,11 @@ else
                     <form method="post" asp-page-handler="Confirm">
                         <input type="hidden" name="reference" value="@Model.Session.Reference" />
                         <input type="hidden" name="stage" value="@RhshfProfilingStage.ReviewAndSubmit" />
-                        <button type="submit" class="btn btn-success btn-lg" disabled="@(missingBvnDirectors > 0)">Submit for credit review</button>
+                        <button type="submit" class="btn btn-success btn-lg" disabled="@(missingBvnDirectors > 0 || missingBvnGuarantors > 0)">Submit for credit review</button>
                     </form>
-                    @if (missingBvnDirectors > 0)
+                    @if (missingBvnDirectors > 0 || missingBvnGuarantors > 0)
                     {
-                        <p class="small text-danger mt-2 mb-0">You can't submit yet: @missingBvnDirectors director(s) still need a BVN. Use <strong>Edit</strong> on the directors section to add it.</p>
+                        <p class="small text-danger mt-2 mb-0">You can't submit yet: BVN is missing for @missingBvnDirectors director(s) and @missingBvnGuarantors individual guarantor(s). Use <strong>Edit</strong> on the directors, guarantors &amp; collateral section to add it.</p>
                     }
                     break;
             }
