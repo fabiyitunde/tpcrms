@@ -1,180 +1,273 @@
 @using CRMS.Application.Rhshf.DTOs
 @using CRMS.Application.Rhshf.Queries
 
-@* Mirrors Corporate's PartiesTab: two side-by-side cards (Directors | Signatories), each a
-   count-badged table. RH-SHF has no separate signatory capture — directors are the parties of
-   record — so the Signatories card carries a not-applicable state, keeping structural parity with
-   Corporate. The Directors card keeps RH-SHF's richer management (CAC fetch, manual add, BVN /
-   shareholding completion) that Corporate's Parties tab doesn't need. *@
+@* Verification view. The case carries ONLY the directors the FAC declared at profiling (left card);
+   CAC and Core Banking are independent reference sources shown for cross-checking, fetched on demand
+   and never merged into the case list — merging was what produced duplicate rows and duplicate
+   (billable) bureau checks. Match flags are computed server-side; raw BVNs never reach the browser. *@
 
-<div class="grid grid-cols-2 gap-6">
-    <!-- DIRECTORS -->
-    <div class="card">
-        <div class="card-header">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <h3 class="card-title">Directors &amp; Shareholders</h3>
-                <span class="badge badge-primary">@(Directors?.Directors.Count ?? 0)</span>
-            </div>
+@{
+    // Match the cross-check's FAC view back to the managed rows by name, to badge each declared
+    // director with whether CAC / Core Banking corroborate them.
+    Dictionary<string, RhshfCrossCheckFacDto> facFlags = CrossCheck?.Fac
+        .GroupBy(f => Norm(f.FullName)).ToDictionary(g => g.Key, g => g.First())
+        ?? new();
+}
+
+<div class="card" style="margin-bottom: var(--space-6);">
+    <div class="card-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <h3 class="card-title">Directors &amp; Shareholders <span style="font-weight:400; color:var(--gray-500);">· declared by FAC</span></h3>
+            <span class="badge badge-primary">@(Directors?.Directors.Count ?? 0)</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            @if (!string.IsNullOrEmpty(CrossCheckError))
+            {
+                <span style="font-size: 0.8rem; color: var(--danger-600);">@CrossCheckError</span>
+            }
+            <button class="btn btn-outline btn-sm" @onclick="() => OnRunCrossCheck.InvokeAsync()" disabled="@IsCrossChecking"
+                    title="Fetches the CAC registry and the core-banking record for comparison. CAC is a billed lookup.">
+                @if (IsCrossChecking)
+                {
+                    <span class="spinner" style="width: 12px; height: 12px;"></span> <span>Checking…</span>
+                }
+                else
+                {
+                    <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">fact_check</span>
+                    <span>@(CrossCheck is null ? "Cross-check CAC & Core Banking" : "Re-run cross-check")</span>
+                }
+            </button>
             @if (CanManageDirectors)
             {
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    @if (!string.IsNullOrEmpty(CacError))
-                    {
-                        <span style="font-size: 0.8rem; color: var(--danger-600);">@CacError</span>
-                    }
-                    <button class="btn btn-outline btn-sm" @onclick="() => OnFetchCac.InvokeAsync()" disabled="@IsFetchingCac">
-                        @if (IsFetchingCac)
-                        {
-                            <span class="spinner" style="width: 12px; height: 12px;"></span> <span>Fetching…</span>
-                        }
-                        else
-                        {
-                            <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">cloud_download</span>
-                            <span>@(Directors?.CacFetchedAt is null ? "Fetch from CAC" : "Refresh from CAC")</span>
-                        }
-                    </button>
-                    <button class="btn btn-outline btn-sm" @onclick="() => OnAddDirector.InvokeAsync()">
-                        <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">add</span> Add Manually
-                    </button>
-                </div>
+                <button class="btn btn-outline btn-sm" @onclick="() => OnAddDirector.InvokeAsync()">
+                    <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">add</span> Add Manually
+                </button>
             }
         </div>
+    </div>
 
-        @if (Directors?.CacFetchedAt is not null)
-        {
-            <div style="padding: 6px 18px; font-size: 0.75rem; color: var(--gray-500); border-bottom: 1px solid var(--border, var(--gray-100));">
-                CAC data fetched @Directors.CacFetchedAt.Value.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
-                @if (!string.IsNullOrEmpty(Directors.CacStatus)) { <text>&middot; @Directors.CacStatus</text> }
+    @if (Directors is null || Directors.Directors.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">groups</span></div>
+            <div class="empty-state-title">No directors on record</div>
+            <div class="empty-state-text">
+                @(CanManageDirectors
+                    ? "The FAC declares directors during profiling. Add one here only if something was missed — bureau checks cover every director with a BVN."
+                    : "No directors have been declared for this FAC.")
             </div>
-        }
-
-        @if (Directors is null || Directors.Directors.Count == 0)
-        {
-            <div class="empty-state">
-                <div class="empty-state-icon"><span class="material-symbols-outlined">groups</span></div>
-                <div class="empty-state-title">No directors on record</div>
-                <div class="empty-state-text">
-                    @(CanManageDirectors
-                        ? "Use \"Fetch from CAC\" or add them manually. Credit bureau checks cover every director with a BVN."
-                        : "No directors or shareholders have been recorded for this FAC.")
-                </div>
-            </div>
-        }
-        else
-        {
-            <div class="card-body" style="padding: 0;">
-                <table class="table">
-                    <thead>
+        </div>
+    }
+    else
+    {
+        <div class="card-body" style="padding: 0;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Position</th>
+                        <th>Shareholding</th>
+                        <th>BVN</th>
+                        @if (CrossCheck is not null) { <th>Cross-check</th> }
+                        @if (CanManageDirectors) { <th></th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in Directors.Directors)
+                    {
+                        facFlags.TryGetValue(Norm(d.FullName), out var flag);
                         <tr>
-                            <th>Name</th>
-                            <th>Position</th>
-                            <th>Shareholding</th>
-                            <th>BVN</th>
-                            @if (CanManageDirectors) { <th></th> }
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var d in Directors.Directors)
-                        {
-                            <tr>
+                            <td>
+                                <div style="font-weight: 500;">@d.FullName</div>
+                                <div style="font-size: var(--text-xs); color: var(--gray-500);">
+                                    @(string.IsNullOrEmpty(d.Occupation) ? "FAC-declared" : d.Occupation)
+                                </div>
+                            </td>
+                            <td>
+                                @if (d.IsChairman) { <span class="badge badge-primary">Chairman</span> }
+                                else { <span>@(string.IsNullOrEmpty(d.AffiliateType) ? "Director" : d.AffiliateType)</span> }
+                            </td>
+                            <td>@(d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:0.##}%" : "—")</td>
+                            <td>
+                                @if (d.HasBvn) { <span class="badge badge-success">Provided</span> }
+                                else { <span class="badge badge-warning">Missing</span> }
+                            </td>
+                            @if (CrossCheck is not null)
+                            {
                                 <td>
-                                    <div style="font-weight: 500;">@d.FullName</div>
-                                    <div style="font-size: var(--text-xs); color: var(--gray-500);">
-                                        @(string.IsNullOrEmpty(d.Occupation) ? (d.SourcedFromCac ? "From CAC" : "Manual entry") : d.Occupation)
+                                    <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                                        @MatchChip("CAC", flag?.InCac)
+                                        @MatchChip("CBS", flag?.InCbs)
                                     </div>
                                 </td>
+                            }
+                            @if (CanManageDirectors)
+                            {
                                 <td>
-                                    @if (d.IsChairman)
-                                    {
-                                        <span class="badge badge-primary">Chairman</span>
-                                    }
-                                    else
-                                    {
-                                        <span>@(string.IsNullOrEmpty(d.AffiliateType) ? "Director" : d.AffiliateType)</span>
-                                    }
+                                    <div style="display: flex; gap: var(--space-2);">
+                                        <button class="btn btn-ghost btn-sm" title="Complete BVN / shareholding" @onclick="() => OnEditDirector.InvokeAsync(d)">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">edit_note</span>
+                                        </button>
+                                        <button class="btn btn-ghost btn-sm" title="Remove" style="color: var(--danger-600);" @onclick="() => OnRemoveDirector.InvokeAsync(d.Id)">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                        </button>
+                                    </div>
                                 </td>
-                                <td>
-                                    @(d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:0.##}%" : "—")
-                                    @if (d.NumSharesAllotted.HasValue)
-                                    {
-                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">@d.NumSharesAllotted.Value.ToString("N0") @d.TypeOfShares</div>
-                                    }
-                                </td>
-                                <td>
-                                    @* Presence only — the BVN itself never reaches the browser. *@
-                                    @if (d.HasBvn)
-                                    {
-                                        <span class="badge badge-success">Provided</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge badge-warning">Missing</span>
-                                    }
-                                </td>
-                                @if (CanManageDirectors)
-                                {
-                                    <td>
-                                        <div style="display: flex; gap: var(--space-2);">
-                                            <button class="btn btn-ghost btn-sm" title="Complete BVN / shareholding" @onclick="() => OnEditDirector.InvokeAsync(d)">
-                                                <span class="material-symbols-outlined" style="font-size: 16px;">edit_note</span>
-                                            </button>
-                                            @if (!d.SourcedFromCac)
-                                            {
-                                                <button class="btn btn-ghost btn-sm" title="Remove" style="color: var(--danger-600);" @onclick="() => OnRemoveDirector.InvokeAsync(d.Id)">
-                                                    <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
-                                                </button>
-                                            }
-                                        </div>
-                                    </td>
-                                }
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
 
-            @if (Directors.Directors.Any(d => !d.HasBvn))
-            {
-                <div class="card-footer">
-                    <div class="alert alert-warning" style="margin: 0; font-size: 0.85rem;">
-                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">warning</span>
-                        Some directors are missing a BVN. Bureau checks cover every director with one — complete the
-                        missing BVNs, then re-run the checks from the Credit Bureau tab.
-                    </div>
+        @if (Directors.Directors.Any(d => !d.HasBvn))
+        {
+            <div class="card-footer">
+                <div class="alert alert-warning" style="margin: 0; font-size: 0.85rem;">
+                    <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">warning</span>
+                    Some directors are missing a BVN. Complete the missing BVNs, then re-run the checks from the Credit Bureau tab.
                 </div>
-            }
+            </div>
         }
-    </div>
+    }
+</div>
 
-    <!-- SIGNATORIES (not applicable for RH-SHF) -->
+@if (CrossCheck is null)
+{
     <div class="card">
-        <div class="card-header">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <h3 class="card-title">Signatories</h3>
-                <span class="badge badge-gray">0</span>
-            </div>
-        </div>
-        <div class="card-body" style="padding: 0;">
+        <div class="card-body">
             <div class="empty-state">
-                <div class="empty-state-icon"><span class="material-symbols-outlined">draw</span></div>
-                <div class="empty-state-title">Not applicable to RH-SHF</div>
+                <div class="empty-state-icon"><span class="material-symbols-outlined">fact_check</span></div>
+                <div class="empty-state-title">Verify against CAC &amp; Core Banking</div>
                 <div class="empty-state-text">
-                    RH-SHF does not capture a separate signatory mandate — the directors above are the parties of
-                    record, and BOA account signatories live in the core-banking record. Kept for parity with the
-                    Corporate layout.
+                    Run a cross-check to see the directors on the CAC registry and the bank's core-banking record
+                    beside what the FAC declared, and flag any discrepancies. Nothing is imported into the case —
+                    this is for verification only.
                 </div>
             </div>
         </div>
     </div>
-</div>
+}
+else
+{
+    <div class="grid grid-cols-2 gap-6">
+        <!-- CAC REGISTRY -->
+        <div class="card">
+            <div class="card-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <h3 class="card-title">CAC registry</h3>
+                    <span class="badge badge-gray">@CrossCheck.Cac.Count</span>
+                </div>
+                @if (!string.IsNullOrEmpty(CrossCheck.CacStatus)) { <span class="badge badge-gray">@CrossCheck.CacStatus</span> }
+            </div>
+            <div class="card-body" style="padding: 0;">
+                @if (!CrossCheck.CacOk)
+                {
+                    <div class="empty-state"><div class="empty-state-text">@(CrossCheck.CacError ?? "CAC not available.")</div></div>
+                }
+                else if (CrossCheck.Cac.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-state-text">CAC returned no directors.</div></div>
+                }
+                else
+                {
+                    @RefTable(CrossCheck.Cac, showBvn: false)
+                }
+            </div>
+        </div>
+
+        <!-- CORE BANKING -->
+        <div class="card">
+            <div class="card-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <h3 class="card-title">Core banking</h3>
+                    <span class="badge badge-gray">@(CrossCheck.CbsDirectors.Count + CrossCheck.CbsSignatories.Count)</span>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                @if (!CrossCheck.CbsOk)
+                {
+                    <div class="empty-state"><div class="empty-state-text">@(CrossCheck.CbsError ?? "Core-banking record not available.")</div></div>
+                }
+                else
+                {
+                    @if (CrossCheck.CbsDirectors.Count > 0)
+                    {
+                        <div style="padding:8px 18px 0; font-size:var(--text-xs); color:var(--gray-500); text-transform:uppercase; letter-spacing:.03em;">Directors</div>
+                        @RefTable(CrossCheck.CbsDirectors, showBvn: true)
+                    }
+                    @if (CrossCheck.CbsSignatories.Count > 0)
+                    {
+                        <div style="padding:8px 18px 0; font-size:var(--text-xs); color:var(--gray-500); text-transform:uppercase; letter-spacing:.03em;">Account signatories</div>
+                        @RefTable(CrossCheck.CbsSignatories, showBvn: true)
+                    }
+                    @if (CrossCheck.CbsDirectors.Count == 0 && CrossCheck.CbsSignatories.Count == 0)
+                    {
+                        <div class="empty-state"><div class="empty-state-text">No directors or signatories on the core-banking record.</div></div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     [Parameter] public RhshfDirectorsDto? Directors { get; set; }
     [Parameter] public bool CanManageDirectors { get; set; }
-    [Parameter] public bool IsFetchingCac { get; set; }
-    [Parameter] public string? CacError { get; set; }
-    [Parameter] public EventCallback OnFetchCac { get; set; }
+    [Parameter] public RhshfDirectorCrossCheckDto? CrossCheck { get; set; }
+    [Parameter] public bool IsCrossChecking { get; set; }
+    [Parameter] public string? CrossCheckError { get; set; }
+    [Parameter] public EventCallback OnRunCrossCheck { get; set; }
     [Parameter] public EventCallback OnAddDirector { get; set; }
     [Parameter] public EventCallback<RhshfDirectorDto> OnEditDirector { get; set; }
     [Parameter] public EventCallback<Guid> OnRemoveDirector { get; set; }
+
+    private static string Norm(string? name) =>
+        string.Join(' ', (name ?? "").Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    private RenderFragment MatchChip(string label, bool? matched) => __builder =>
+    {
+        if (matched is null) return;
+        var cls = matched.Value ? "badge badge-success" : "badge badge-warning";
+        var text = matched.Value ? $"✓ {label}" : $"⚠ {label}";
+        __builder.OpenElement(0, "span");
+        __builder.AddAttribute(1, "class", cls);
+        __builder.AddAttribute(2, "title", matched.Value ? $"Corroborated by {label}" : $"Not found in {label}");
+        __builder.AddContent(3, text);
+        __builder.CloseElement();
+    };
+
+    private RenderFragment RefTable(IReadOnlyList<RhshfCrossCheckRefDto> rows, bool showBvn) => __builder =>
+    {
+        __builder.OpenElement(0, "table");
+        __builder.AddAttribute(1, "class", "table");
+        __builder.AddMarkupContent(2, "<thead><tr><th>Name</th><th>Detail</th>" + (showBvn ? "<th>BVN</th>" : "") + "<th>vs FAC</th></tr></thead>");
+        __builder.OpenElement(3, "tbody");
+        var seq = 4;
+        foreach (var r in rows)
+        {
+            __builder.OpenElement(seq++, "tr");
+            __builder.OpenElement(seq++, "td");
+            __builder.AddContent(seq++, r.FullName);
+            __builder.CloseElement();
+            __builder.OpenElement(seq++, "td");
+            __builder.AddAttribute(seq++, "style", "font-size:var(--text-xs); color:var(--gray-500);");
+            __builder.AddContent(seq++, string.IsNullOrWhiteSpace(r.Detail) ? "—" : r.Detail);
+            __builder.CloseElement();
+            if (showBvn)
+            {
+                __builder.OpenElement(seq++, "td");
+                __builder.AddMarkupContent(seq++, r.HasBvn ? "<span class=\"badge badge-success\">Provided</span>" : "<span class=\"badge badge-gray\">—</span>");
+                __builder.CloseElement();
+            }
+            __builder.OpenElement(seq++, "td");
+            __builder.AddMarkupContent(seq++, r.DeclaredByFac
+                ? "<span class=\"badge badge-success\" title=\"Matches a director the FAC declared\">✓ declared</span>"
+                : "<span class=\"badge badge-warning\" title=\"The FAC did not declare this party\">⚠ not declared</span>");
+            __builder.CloseElement();
+            __builder.CloseElement();
+        }
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
 }

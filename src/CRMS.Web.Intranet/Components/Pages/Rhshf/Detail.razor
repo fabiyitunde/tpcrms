@@ -282,8 +282,8 @@ else
             break;
         case "directors":
             <DirectorsTab Directors="directors" CanManageDirectors="CanManageDirectors"
-                IsFetchingCac="isFetchingCac" CacError="@cacError"
-                OnFetchCac="FetchCacDetails" OnAddDirector="OpenAddDirectorModal"
+                CrossCheck="directorCrossCheck" IsCrossChecking="isCrossChecking" CrossCheckError="@crossCheckError"
+                OnRunCrossCheck="RunDirectorCrossCheck" OnAddDirector="OpenAddDirectorModal"
                 OnEditDirector="OpenEditDirectorModal" OnRemoveDirector="RemoveDirector" />
             break;
         case "financialanalysis":
@@ -461,8 +461,9 @@ else
     private RhshfDirectorsDto? directors;
     private List<RhshfBureauReportDto> bureauReports = [];
     private RhshfDirectorDto? editingDirector;
-    private bool isFetchingCac;
-    private string? cacError;
+    private CRMS.Application.Rhshf.Queries.RhshfDirectorCrossCheckDto? directorCrossCheck;
+    private bool isCrossChecking;
+    private string? crossCheckError;
     private bool isRunningBureauChecks;
     private string? bureauError;
     private RhshfFinancialAppraisalDto? financialAppraisal;
@@ -939,17 +940,17 @@ else
     private void OpenAddDirectorModal() { editingDirector = null; openModal = "director"; modalError = null; }
     private void OpenEditDirectorModal(RhshfDirectorDto d) { editingDirector = d; openModal = "director"; modalError = null; }
 
-    private async Task FetchCacDetails()
+    // Verification only — fetches the CAC registry + core-banking record for side-by-side comparison
+    // with the FAC-declared directors. Nothing is merged into the case list (that merge caused
+    // duplicate rows and duplicate billable bureau checks). CAC is a billed lookup, so it's on demand.
+    private async Task RunDirectorCrossCheck()
     {
-        isFetchingCac = true;
-        cacError = null;
-        // Force a refresh when data already exists — the button reads "Refresh from CAC" at that
-        // point, so a silent no-op from the cost guard would look like a broken button.
-        var force = directors?.CacFetchedAt is not null;
-        var result = await AppService.FetchRhshfCacDetailsAsync(Reference, CurrentUserId, force);
-        isFetchingCac = false;
-        if (!result.Success) { cacError = result.Error; return; }
-        await LoadAllAsync();
+        isCrossChecking = true;
+        crossCheckError = null;
+        var (data, error) = await AppService.GetRhshfDirectorCrossCheckAsync(Reference);
+        isCrossChecking = false;
+        if (data is null) { crossCheckError = error ?? "Cross-check failed."; return; }
+        directorCrossCheck = data;
     }
 
     private async Task SubmitAddDirector(

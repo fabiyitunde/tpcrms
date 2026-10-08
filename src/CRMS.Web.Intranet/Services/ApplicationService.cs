@@ -7626,6 +7626,21 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<(CRMS.Application.Rhshf.Queries.RhshfDirectorCrossCheckDto? Data, string? Error)> GetRhshfDirectorCrossCheckAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfDirectorCrossCheckHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfDirectorCrossCheckQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? (result.Data, null) : (null, result.Error);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error running RH-SHF director cross-check for {Reference}", reference);
+            return (null, "Cross-check failed.");
+        }
+    }
+
     public async Task<ApiResponse> FetchRhshfCacDetailsAsync(string reference, Guid userId, bool forceRefresh = false)
     {
         try

@@ -737,6 +737,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.MarkRhshfClosedHandler>();
         // Directors + per-subject bureau (Phase B)
         services.AddScoped<Application.Rhshf.Commands.FetchRhshfCacDetailsHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfDirectorCrossCheckHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfDirectorHandler>();
         services.AddScoped<Application.Rhshf.Commands.UpdateRhshfDirectorHandler>();
         services.AddScoped<Application.Rhshf.Commands.RemoveRhshfDirectorHandler>();
