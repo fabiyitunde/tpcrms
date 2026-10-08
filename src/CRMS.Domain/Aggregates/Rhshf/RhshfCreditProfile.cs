@@ -923,9 +923,11 @@ public class RhshfCreditProfile : AggregateRoot
         var director = _directors.FirstOrDefault(d => d.Id == directorId);
         if (director is null)
             return Result.Failure("Director not found.");
-        if (director.SourcedFromCac)
-            return Result.Failure("CAC-sourced directors cannot be removed — refresh from CAC instead.");
 
+        // Any director may be removed. The old "CAC-sourced directors cannot be removed" guard assumed
+        // CAC refresh/prune owned those rows — but CAC is no longer merged into the case list (it is a
+        // read-only cross-check now), so the only way to clear a stale CAC- or CBS-origin row left over
+        // from the old merging behaviour is to delete it here.
         _directors.Remove(director);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();

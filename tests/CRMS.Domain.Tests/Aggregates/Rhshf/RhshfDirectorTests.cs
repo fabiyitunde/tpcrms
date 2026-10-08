@@ -120,16 +120,19 @@ public class RhshfCreditProfileDirectorTests
     }
 
     [Fact]
-    public void RemoveDirector_CacSourced_IsRejected()
+    public void RemoveDirector_CacSourced_Succeeds()
     {
+        // CAC is no longer merged into the case director list (it is a read-only cross-check), so the
+        // old "CAC-sourced directors cannot be removed" guard is gone — stale CAC/CBS rows left over
+        // from the previous merging behaviour must be manually removable.
         var profile = MakeProfile();
         var cac = Cac(profile.Id, 1, "From CAC");
         profile.AddDirector(cac);
 
         var result = profile.RemoveDirector(cac.Id);
 
-        Assert.True(result.IsFailure);
-        Assert.Single(profile.Directors);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(profile.Directors);
     }
 
     [Fact]
