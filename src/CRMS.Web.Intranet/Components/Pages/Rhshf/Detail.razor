@@ -218,22 +218,10 @@ else
         <div class="tab @(activeTab == "committee" ? "active" : "")" @onclick='() => activeTab = "committee"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">groups</span>Committee
         </div>
-        @if (ShowRatificationTab)
-        {
-            <div class="tab @(activeTab == "ratification" ? "active" : "")" @onclick='() => activeTab = "ratification"'>
-                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">task_alt</span>Ratification
-            </div>
-        }
         @if (ShowOfferTab)
         {
             <div class="tab @(activeTab == "offer" ? "active" : "")" @onclick='() => activeTab = "offer"'>
                 <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">mail</span>Offer
-            </div>
-        }
-        @if (ShowLegalClearanceTab)
-        {
-            <div class="tab @(activeTab == "legal" ? "active" : "")" @onclick='() => activeTab = "legal"'>
-                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">gavel</span>Legal Clearance
             </div>
         }
         @if (ShowPreDeploymentTab)
@@ -315,14 +303,8 @@ else
         case "committee":
             <CommitteeTab Committee="committeeReview" CurrentUserId="CurrentUserId" />
             break;
-        case "ratification":
-            <RatificationTab Ratifications="workspace.Ratifications" Currency="@workspace.Currency" />
-            break;
         case "offer":
             <OfferTab Offer="offer" OnDownload="DownloadOfferDocument" />
-            break;
-        case "legal":
-            <LegalClearanceTab History="legalHistory" />
             break;
         case "predeployment":
             <PreDeploymentTab Checklist="preDeploymentChecklist" />
@@ -419,7 +401,6 @@ else
     private RhshfCommitteeReviewDto? committeeReview;
     private StandingCommitteeInfo? committeeRoster;
     private RhshfOfferDto? offer;
-    private List<RhshfLegalClearanceDto> legalHistory = [];
     private List<RhshfStatusHistoryDto> statusHistory = [];
     private AccountStatementDto? bankStatement;
     private string? bankStatementError;
@@ -497,10 +478,7 @@ else
     private bool ShowCollateralTab => (workspace!.InternalStage is not null && PostLegalStages.Contains(workspace.InternalStage.Value))
         || collateralRecords.Count > 0;
     private bool ShowCommitteeTab => workspace!.RiskReviews.Count > 0 || committeeReview is not null;
-    private bool ShowRatificationTab => (committeeReview?.FinalDecision == RhshfCommitteeDecision.Approved) || workspace!.Ratifications.Count > 0;
     private bool ShowOfferTab => workspace!.Ratifications.Any(r => r.Outcome == RhshfRatificationOutcome.Ratified) || offer is not null;
-    private bool ShowLegalClearanceTab => (workspace!.InternalStage is not null && PostLegalStages.Contains(workspace.InternalStage.Value))
-        || legalHistory.Count > 0;
     private bool ShowPreDeploymentTab => workspace!.InternalStage is RhshfInternalStage.PreDeploymentVerification or RhshfInternalStage.Disbursement
             or RhshfInternalStage.Completed or RhshfInternalStage.Active or RhshfInternalStage.Closed
         || preDeploymentChecklist.Count > 0;
@@ -540,7 +518,6 @@ else
                 ? await AppService.GetStandingCommitteeByTypeAsync(committeeReview.Tier.ToString(), committeeReview.BranchId)
                 : null;
             offer = await AppService.GetRhshfOfferAsync(Reference);
-            legalHistory = await AppService.GetRhshfLegalClearanceHistoryAsync(Reference);
             preDeploymentChecklist = await AppService.GetRhshfPreDeploymentChecklistAsync(Reference);
             disbursementHistory = await AppService.GetRhshfDisbursementHistoryAsync(Reference);
             if (workspace.InternalStage is RhshfInternalStage.Active or RhshfInternalStage.Closed)
