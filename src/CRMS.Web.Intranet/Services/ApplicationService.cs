@@ -7626,6 +7626,22 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Previews the committee a case will route to on risk clearance (tier + standing roster), no writes.</summary>
+    public async Task<CRMS.Application.Rhshf.Queries.RhshfCommitteeRoutingPreviewDto?> GetRhshfCommitteeRoutingPreviewAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfCommitteeRoutingPreviewHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfCommitteeRoutingPreviewQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error previewing RH-SHF committee routing for {Reference}", reference);
+            return null;
+        }
+    }
+
     /// <summary>Reads the saved cross-check snapshot — free, never calls CAC/CBS. Null data = never run.</summary>
     public async Task<(CRMS.Application.Rhshf.Queries.RhshfDirectorCrossCheckDto? Data, string? Error)> GetRhshfDirectorCrossCheckAsync(string reference)
     {

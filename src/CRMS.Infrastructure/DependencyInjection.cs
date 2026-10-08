@@ -771,6 +771,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.CastRhshfCommitteeVoteHandler>();
         services.AddScoped<Application.Rhshf.Commands.ReturnRhshfCommitteeToFacHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCommitteeReviewHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfCommitteeRoutingPreviewHandler>();
         services.AddScoped<IRhshfOfferRepository, RhshfOfferRepository>();
         services.AddScoped<Application.Rhshf.Interfaces.IRhshfOfferLetterPdfGenerator, Documents.RhshfOfferLetterPdfGenerator>();
         services.AddScoped<Application.Rhshf.Commands.RatifyRhshfCaseHandler>();

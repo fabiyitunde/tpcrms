@@ -1,4 +1,5 @@
 @using CRMS.Domain.Enums
+@using CRMS.Application.Rhshf.Queries
 
 <div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
     <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
@@ -7,6 +8,46 @@
             <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
         </div>
         <div class="modal-body">
+            @if (Intent == "Cleared" && Preview is not null)
+            {
+                <div class="card" style="border: 1px solid var(--primary-200); margin-bottom: 1rem;">
+                    <div class="card-header" style="background: var(--primary-50); padding: 0.5rem 0.75rem;">
+                        <h4 class="card-title" style="font-size: 0.9rem; margin: 0;">
+                            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">groups</span>
+                            Routes to the @FormatTier(Preview.Tier) committee
+                        </h4>
+                        <span style="font-size: 0.75rem; color: var(--gray-500);">EOP @Preview.Currency @Preview.EopValue.ToString("N0")</span>
+                    </div>
+                    <div class="card-body" style="padding: 0.75rem;">
+                        @if (!string.IsNullOrEmpty(Preview.Warning))
+                        {
+                            <div class="alert alert-warning" style="margin: 0; font-size: 0.85rem;">
+                                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">warning</span> @Preview.Warning
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="font-size: 0.8rem; color: var(--gray-600); margin-bottom: 0.5rem;">
+                                On clearing, voting opens to these members. Needs @Preview.RequiredVotes vote(s), minimum @Preview.MinimumApprovalVotes to approve.
+                            </div>
+                            <ul class="list-unstyled" style="margin: 0; display: flex; flex-direction: column; gap: 0.3rem;">
+                                @foreach (var m in Preview.Members)
+                                {
+                                    <li style="font-size: 0.85rem;">
+                                        <span style="font-weight: 500;">@m.UserName</span>
+                                        <span style="color: var(--gray-500);"> &middot; @m.Role</span>
+                                        @if (m.IsChairperson) { <span class="badge badge-gray" style="margin-left: 4px; font-size: 0.6rem;">Chair</span> }
+                                    </li>
+                                }
+                                @if (Preview.Members.Count == 0)
+                                {
+                                    <li style="font-size: 0.85rem; color: var(--gray-500);">No members configured on this committee.</li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            }
             <div class="form-group">
                 <label class="form-label">Notes @(RequiresNotes ? "(required)" : "(optional)")</label>
                 <textarea class="form-control" rows="3" @bind="notes" placeholder="Enter notes..."></textarea>
@@ -40,6 +81,7 @@
 
 @code {
     [Parameter, EditorRequired] public string Intent { get; set; } = "Cleared";
+    [Parameter] public RhshfCommitteeRoutingPreviewDto? Preview { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<(RhshfRiskReviewOutcome Outcome, string? Notes, RhshfProfilingStage? ReturnToStage)> OnConfirm { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
@@ -48,6 +90,15 @@
     private string notes = string.Empty;
     private string? clientError;
     private RhshfProfilingStage returnToStage = RhshfProfilingStage.ReviewAndSubmit;
+
+    private static string FormatTier(CommitteeType? tier) => tier switch
+    {
+        CommitteeType.BranchCredit => "Branch",
+        CommitteeType.ZonalCredit => "Zonal",
+        CommitteeType.RegionalCredit => "Regional",
+        CommitteeType.HeadOfficeCredit => "Head Office",
+        _ => "credit",
+    };
 
     private bool RequiresNotes => Intent != "Cleared";
     private string Title => Intent switch { "ReturnToFac" => "Return to FAC", "Decline" => "Decline at Risk Review", _ => "Clear Risk Review" };

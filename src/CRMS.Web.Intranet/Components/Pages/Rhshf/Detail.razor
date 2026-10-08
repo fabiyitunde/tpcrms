@@ -342,7 +342,7 @@ else
     }
     @if (openModal == "riskreview")
     {
-        <RiskReviewModal Intent="@modalIntent" OnClose="CloseModal" OnConfirm="SubmitRiskReview" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
+        <RiskReviewModal Intent="@modalIntent" Preview="committeeRoutingPreview" OnClose="CloseModal" OnConfirm="SubmitRiskReview" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "committee")
     {
@@ -400,6 +400,7 @@ else
     private List<RhshfCollateralDto> collateralRecords = [];
     private RhshfCommitteeReviewDto? committeeReview;
     private StandingCommitteeInfo? committeeRoster;
+    private CRMS.Application.Rhshf.Queries.RhshfCommitteeRoutingPreviewDto? committeeRoutingPreview;
     private RhshfOfferDto? offer;
     private List<RhshfStatusHistoryDto> statusHistory = [];
     private AccountStatementDto? bankStatement;
@@ -539,7 +540,16 @@ else
     }
 
     private void OpenAppraisalModal(string intent) { openModal = "appraisal"; modalIntent = intent; modalError = null; }
-    private void OpenRiskReviewModal(string intent) { openModal = "riskreview"; modalIntent = intent; modalError = null; }
+    private async Task OpenRiskReviewModal(string intent)
+    {
+        openModal = "riskreview";
+        modalIntent = intent;
+        modalError = null;
+        // Show which committee a Clear will route the case to, at the point of clearing.
+        committeeRoutingPreview = intent == "Cleared"
+            ? await AppService.GetRhshfCommitteeRoutingPreviewAsync(Reference)
+            : null;
+    }
     private void OpenCommitteeModal(string intent) { openModal = "committee"; modalIntent = intent; modalError = null; }
     private void OpenRatificationModal(string intent) { openModal = "ratification"; modalIntent = intent; modalError = null; }
     private void OpenLegalClearanceModal(string intent) { openModal = "legal"; modalIntent = intent; modalError = null; }
