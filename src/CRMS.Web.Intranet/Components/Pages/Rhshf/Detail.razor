@@ -211,19 +211,9 @@ else
         <div class="tab @(activeTab == "advisory" ? "active" : "")" @onclick='() => activeTab = "advisory"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology_alt</span>AI Advisory
         </div>
-        @* ── Stage block (mirrors Corporate: Credit Appraisal → Committee → … → Loan Account) ── *@
-        @if (ShowAppraisalTab)
-        {
-            <div class="tab @(activeTab == "appraisal" ? "active" : "")" @onclick='() => activeTab = "appraisal"'>
-                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">psychology</span>Appraisal Decision
-            </div>
-        }
-        @if (ShowRiskReviewTab)
-        {
-            <div class="tab @(activeTab == "riskreview" ? "active" : "")" @onclick='() => activeTab = "riskreview"'>
-                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">shield_person</span>Risk Review
-            </div>
-        }
+        @* ── Stage block (mirrors Corporate: decisions are actioned from the top action bar and the
+             full decision history, incl. appraisal & risk review with their notes, lives in the
+             Workflow tab — so no standalone per-stage history tabs). ── *@
         @* Committee stays always-present (informational), mirroring Corporate. *@
         <div class="tab @(activeTab == "committee" ? "active" : "")" @onclick='() => activeTab = "committee"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">groups</span>Committee
@@ -321,12 +311,6 @@ else
                 CanEdit="CanEditFinancialAppraisal"
                 OnAddFarmPlan="OpenAddFarmPlanModal" OnEditFarmPlan="OpenEditFarmPlanModal"
                 OnRemoveFarmPlan="RemoveFarmPlan" OnOpenAppraisal="OpenFinancialAppraisalModal" />
-            break;
-        case "appraisal":
-            <AppraisalTab Appraisals="workspace.Appraisals" />
-            break;
-        case "riskreview":
-            <RiskReviewTab RiskReviews="workspace.RiskReviews" />
             break;
         case "committee":
             <CommitteeTab Committee="committeeReview" CurrentUserId="CurrentUserId" />
@@ -512,8 +496,6 @@ else
     // it — staff need the history, not just "is it my turn right now".
     private bool ShowCollateralTab => (workspace!.InternalStage is not null && PostLegalStages.Contains(workspace.InternalStage.Value))
         || collateralRecords.Count > 0;
-    private bool ShowAppraisalTab => workspace!.InternalStage is not null || workspace.Appraisals.Count > 0;
-    private bool ShowRiskReviewTab => workspace!.Appraisals.Count > 0;
     private bool ShowCommitteeTab => workspace!.RiskReviews.Count > 0 || committeeReview is not null;
     private bool ShowRatificationTab => (committeeReview?.FinalDecision == RhshfCommitteeDecision.Approved) || workspace!.Ratifications.Count > 0;
     private bool ShowOfferTab => workspace!.Ratifications.Any(r => r.Outcome == RhshfRatificationOutcome.Ratified) || offer is not null;
