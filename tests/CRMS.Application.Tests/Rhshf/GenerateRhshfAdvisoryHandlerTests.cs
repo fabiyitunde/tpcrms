@@ -79,7 +79,7 @@ public class GenerateRhshfAdvisoryHandlerTests
         var ai = new CapturingAdvisoryService();
         var handler = new GenerateRhshfAdvisoryHandler(
             new FakeProfileRepo(profile), new FakeAdvisoryRepo(), new FakeCollateralRepo(),
-            new FakeFinancialStatementRepo(), new FakeBureauRepo(reports ?? []), ai, new FakeUow());
+            new FakeFinancialStatementRepo(), new FakeGuarantorRepo(), new FakeBureauRepo(reports ?? []), ai, new FakeUow());
         return (handler, ai);
     }
 
@@ -417,6 +417,16 @@ public class GenerateRhshfAdvisoryHandlerTests
         public void Remove(RhshfFinancialStatement statement) { }
     }
 
+
+    private class FakeGuarantorRepo : IRhshfGuarantorRepository
+    {
+        public Task<IReadOnlyList<RhshfGuarantor>> GetByProfileIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<RhshfGuarantor>>([]);
+        public Task<RhshfGuarantor?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<RhshfGuarantor?>(null);
+        public Task AddAsync(RhshfGuarantor g, CancellationToken ct = default) => Task.CompletedTask;
+        public void Remove(RhshfGuarantor g) { }
+    }
 
     private class FakeUow : IUnitOfWork
     {

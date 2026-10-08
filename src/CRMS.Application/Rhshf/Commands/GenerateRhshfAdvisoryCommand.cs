@@ -3,6 +3,7 @@ using CRMS.Application.Advisory.Interfaces;
 using CRMS.Application.Common;
 using CRMS.Application.Rhshf.DTOs;
 using CRMS.Domain.Aggregates.CreditBureau;
+using CRMS.Domain.Aggregates.FinancialStatement;
 using CRMS.Domain.Aggregates.Rhshf;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
@@ -31,6 +32,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
     private readonly IRhshfAdvisoryRepository _advisoryRepo;
     private readonly IRhshfCollateralRepository _collateralRepo;
     private readonly IRhshfFinancialStatementRepository _financialRepo;
+    private readonly IRhshfGuarantorRepository _guarantorRepo;
     private readonly IBureauReportRepository _bureauRepo;
     private readonly IAIAdvisoryService _aiService;
     private readonly IUnitOfWork _uow;
@@ -39,6 +41,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
         IRhshfCreditProfileRepository repo, IRhshfAdvisoryRepository advisoryRepo,
         IRhshfCollateralRepository collateralRepo,
         IRhshfFinancialStatementRepository financialRepo,
+        IRhshfGuarantorRepository guarantorRepo,
         IBureauReportRepository bureauRepo,
         IAIAdvisoryService aiService, IUnitOfWork uow)
     {
@@ -46,6 +49,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
         _advisoryRepo = advisoryRepo;
         _collateralRepo = collateralRepo;
         _financialRepo = financialRepo;
+        _guarantorRepo = guarantorRepo;
         _bureauRepo = bureauRepo;
         _aiService = aiService;
         _uow = uow;
@@ -64,9 +68,11 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
         var bureauReports = await _bureauRepo.GetByRhshfCreditProfileIdAsync(profile.Id, ct);
         var appraisal = profile.GetCurrentCycleFinancialAppraisal();
         var farmPlans = profile.GetCurrentCycleFarmPlans();
-        // Institutional financials: total turnover across captured years, for the loan-to-turnover signal.
+        // Institutional financials: the full per-year accounts (fed one input per year so the model
+        // sees the trajectory, not a lump) plus the summed turnover for the loan-to-turnover signal.
         var financials = await _financialRepo.GetByProfileIdAsync(profile.Id, ct);
         var threeYearTurnover = financials.Sum(s => s.Revenue ?? 0);
+        var guarantors = await _guarantorRepo.GetByProfileIdAsync(profile.Id, ct);
 
         var advisoryResult = RhshfAdvisory.Create(profile.Id, request.GeneratedByUserId, _aiService.GetModelVersion());
         if (advisoryResult.IsFailure)
@@ -77,7 +83,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
 
         try
         {
-            var aiRequest = BuildAIRequest(profile, bureauReports, appraisal, farmPlans, collateral, threeYearTurnover);
+            var aiRequest = BuildAIRequest(profile, bureauReports, appraisal, farmPlans, collateral, financials, guarantors, threeYearTurnover);
             var aiResponse = await _aiService.GenerateAdvisoryAsync(aiRequest, ct);
 
             if (!aiResponse.Success)
@@ -144,9 +150,18 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
         RhshfFinancialAppraisalReport? appraisal,
         IReadOnlyList<RhshfFarmPlan> farmPlans,
         IReadOnlyList<RhshfCollateral> collateral,
+        IReadOnlyList<RhshfFinancialStatement> financials,
+        IReadOnlyList<RhshfGuarantor> guarantors,
         decimal threeYearTurnover)
     {
         var completedReports = bureauReports.Where(r => r.Status == BureauReportStatus.Completed).ToList();
+
+        // Historical company accounts (one input per captured year, oldest first → the model reads the
+        // trend) followed by the single crop-cycle appraisal. The two answer different questions —
+        // "is the company financially sound over time?" vs "does this season repay this loan?" — and
+        // the YearType field keeps them distinct.
+        var financialInputs = BuildHistoricalFinancialInputs(financials);
+        financialInputs.AddRange(BuildFinancialInputs(appraisal));
 
         return new AIAdvisoryRequest(
             LoanApplicationId: profile.Id,
@@ -157,14 +172,93 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
             ProductType: "RH-SHF Dry Season Input Financing",
             Industry: "Agriculture",
             BureauReports: BuildBureauInputs(profile, completedReports),
-            FinancialStatements: BuildFinancialInputs(appraisal),
+            FinancialStatements: financialInputs,
             CashflowAnalysis: null, // no bank-statement analysis in RH-SHF
             CollateralSummary: BuildCollateralInput(profile, collateral),
-            Guarantors: [],
+            Guarantors: BuildGuarantorInputs(guarantors),
             ExistingExposure: completedReports.Sum(r => r.TotalOutstandingBalance),
             ExistingFacilitiesCount: completedReports.Sum(r => r.ActiveLoans),
             AdditionalContext: BuildApplicationContext(profile, appraisal, farmPlans, threeYearTurnover));
     }
+
+    /// <summary>
+    /// One input per captured financial year — the FAC's full historical accounts restated through the
+    /// same shared FinancialRatios engine the Financial Analysis tab uses, so the figures and ratios
+    /// match exactly. Rejected years are excluded; years not yet verified are flagged IsUnverified so
+    /// the model can discount them. Feeding each year (rather than one summed turnover number) lets the
+    /// model read the FAC's financial trajectory — growth, margin trend, leverage drift.
+    /// </summary>
+    private static List<FinancialDataInput> BuildHistoricalFinancialInputs(IReadOnlyList<RhshfFinancialStatement> statements)
+    {
+        return statements
+            .Where(s => s.Status != RhshfFinancialStatementStatus.Rejected)
+            .OrderBy(s => s.FinancialYear)
+            .Select(s =>
+            {
+                var inc = IncomeStatement.Create(s.Id,
+                    s.Revenue ?? 0, s.OtherOperatingIncome ?? 0, s.CostOfSales ?? 0, s.SellingExpenses ?? 0,
+                    s.AdministrativeExpenses ?? 0, s.DepreciationAmortization ?? 0, s.OtherOperatingExpenses ?? 0,
+                    s.InterestIncome ?? 0, s.InterestExpense ?? 0, s.OtherFinanceCosts ?? 0, s.IncomeTaxExpense ?? 0,
+                    s.DividendsDeclared ?? 0);
+                var bs = BalanceSheet.Create(s.Id,
+                    s.CashAndCashEquivalents ?? 0, s.TradeReceivables ?? 0, s.Inventory ?? 0, s.PrepaidExpenses ?? 0,
+                    s.OtherCurrentAssets ?? 0, s.PropertyPlantEquipment ?? 0, s.IntangibleAssets ?? 0, s.LongTermInvestments ?? 0,
+                    s.DeferredTaxAssets ?? 0, s.OtherNonCurrentAssets ?? 0, s.TradePayables ?? 0, s.ShortTermBorrowings ?? 0,
+                    s.CurrentPortionLongTermDebt ?? 0, s.AccruedExpenses ?? 0, s.TaxPayable ?? 0, s.OtherCurrentLiabilities ?? 0,
+                    s.LongTermDebt ?? 0, s.DeferredTaxLiabilities ?? 0, s.Provisions ?? 0, s.OtherNonCurrentLiabilities ?? 0,
+                    s.ShareCapital ?? 0, s.SharePremium ?? 0, s.RetainedEarnings ?? 0, s.OtherReserves ?? 0);
+                var cf = CashFlowStatement.Create(s.Id,
+                    s.CfProfitBeforeTax ?? 0, s.CfDepreciationAmortization ?? 0, s.CfInterestExpenseAddBack ?? 0,
+                    s.CfChangesInWorkingCapital ?? 0, s.CfTaxPaid ?? 0, s.CfOtherOperatingAdjustments ?? 0,
+                    s.CfPurchaseOfPpe ?? 0, s.CfSaleOfPpe ?? 0, s.CfPurchaseOfInvestments ?? 0, s.CfSaleOfInvestments ?? 0,
+                    s.CfInterestReceived ?? 0, s.CfDividendsReceived ?? 0, s.CfOtherInvestingActivities ?? 0,
+                    s.CfProceedsFromBorrowings ?? 0, s.CfRepaymentOfBorrowings ?? 0, s.CfInterestPaid ?? 0,
+                    s.CfDividendsPaid ?? 0, s.CfProceedsFromShareIssue ?? 0, s.CfOtherFinancingActivities ?? 0,
+                    s.CfOpeningCashBalance ?? 0);
+                var r = FinancialRatios.Calculate(bs, inc, cf);
+
+                return new FinancialDataInput(
+                    StatementId: s.Id,
+                    Year: s.FinancialYear,
+                    YearType: s.YearType.ToString(),
+                    TotalAssets: bs.TotalAssets,
+                    TotalLiabilities: bs.TotalLiabilities,
+                    TotalEquity: bs.TotalEquity,
+                    Revenue: inc.TotalRevenue,
+                    NetProfit: inc.NetProfit,
+                    EBITDA: inc.EBITDA,
+                    CurrentRatio: r.CurrentRatio,
+                    QuickRatio: r.QuickRatio,
+                    DebtToEquityRatio: r.DebtToEquityRatio,
+                    InterestCoverageRatio: r.InterestCoverageRatio,
+                    DebtServiceCoverageRatio: r.DebtServiceCoverageRatio,
+                    NetProfitMarginPercent: r.NetProfitMarginPercent,
+                    ReturnOnEquity: r.ReturnOnEquity,
+                    LiquidityAssessment: r.GetLiquidityAssessment(),
+                    LeverageAssessment: r.GetLeverageAssessment(),
+                    ProfitabilityAssessment: r.GetProfitabilityAssessment(),
+                    OverallAssessment: r.GetOverallAssessment(),
+                    IsUnverified: s.Status != RhshfFinancialStatementStatus.Verified);
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Guarantors the FAC declared. RH-SHF does not independently credit-check guarantors (the bureau
+    /// runs on the company + directors), so each is passed with no score and HasBureauReport=false —
+    /// the model sees the guarantee cover exists but is not credit-verified. Net worth is not captured,
+    /// so it is zero; the guarantee amount is the meaningful figure.
+    /// </summary>
+    private static List<GuarantorDataInput> BuildGuarantorInputs(IReadOnlyList<RhshfGuarantor> guarantors)
+        => guarantors.Select(g => new GuarantorDataInput(
+            GuarantorId: g.Id,
+            Name: g.FullName,
+            Type: g.GuarantorType.ToString(),
+            NetWorth: 0,
+            GuaranteeAmount: g.GuaranteeAmount ?? 0,
+            CreditScore: null,
+            CreditStatus: "Not independently credit-checked",
+            HasBureauReport: false)).ToList();
 
     /// <summary>
     /// One input per bureau subject — the company plus every director checked — mirroring how NAMP
