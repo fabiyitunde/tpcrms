@@ -36,6 +36,12 @@
                             Re-send to portal
                         </button>
                     }
+                    @if (CanCopyLink)
+                    {
+                        <button class="btn btn-ghost btn-sm" @onclick="() => OnCopyLink.InvokeAsync()" title="Copy the FAC offer-acceptance link with a token (testing only — hidden in production)">
+                            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">link</span> Copy accept link
+                        </button>
+                    }
                     <span class="badge @StatusBadgeClass(Offer.Status)">@Offer.Status</span>
                 </div>
             }
@@ -147,6 +153,9 @@
     [Parameter] public bool CanResendCallback { get; set; }
     [Parameter] public bool IsResendingCallback { get; set; }
     [Parameter] public EventCallback OnResendCallback { get; set; }
+
+    [Parameter] public bool CanCopyLink { get; set; }
+    [Parameter] public EventCallback OnCopyLink { get; set; }
 
     // Collapsed by default — View/Download already cover reading it; the inline preview is opt-in.
     private bool showPreview;

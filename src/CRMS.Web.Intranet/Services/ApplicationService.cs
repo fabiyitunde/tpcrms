@@ -7658,6 +7658,32 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Testing helper: builds the full FAC offer-acceptance link (base URL + a freshly minted
+    /// token). Token minting is additive — it does not invalidate any link the FAC already holds.</summary>
+    public async Task<(string? Url, string? Error)> GetRhshfOfferAcceptanceLinkAsync(string reference)
+    {
+        try
+        {
+            var provider = _sp.GetRequiredService<CRMS.Application.Rhshf.Interfaces.IRhshfPublicUrlProvider>();
+            var baseUrl = provider.OfferUrl(reference);
+            if (string.IsNullOrEmpty(baseUrl))
+                return (null, "No public base URL is configured (Rhshf:PublicBaseUrl), so an offer link can't be built.");
+
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RefreshRhshfTokenHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.RefreshRhshfTokenCommand(reference), CancellationToken.None);
+            if (!result.IsSuccess || result.Data is null)
+                return (null, result.Error ?? "Could not mint a token for this case.");
+
+            var sep = baseUrl.Contains('?') ? "&" : "?";
+            return ($"{baseUrl}{sep}token={result.Data.Token}", null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error building RH-SHF offer acceptance link for {Reference}", reference);
+            return (null, "Could not build the offer link.");
+        }
+    }
+
     /// <summary>Manually re-enqueues the OfferReady portal callback (for a failed/interrupted delivery).</summary>
     public async Task<ApiResponse> ResendRhshfOfferReadyCallbackAsync(string reference)
     {

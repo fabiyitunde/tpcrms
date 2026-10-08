@@ -12,6 +12,7 @@
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env
 
 <PageTitle>RH-SHF @Reference - CRMS</PageTitle>
 
@@ -306,7 +307,8 @@ else
         case "offer":
             <OfferTab Offer="offer" Reference="@Reference" OnDownload="DownloadOfferDocument"
                 CanRegenerate="CanRegenerateOffer" IsRegenerating="isRegeneratingOffer" OnRegenerate="RegenerateOffer"
-                CanResendCallback="CanResendOfferCallback" IsResendingCallback="isResendingCallback" OnResendCallback="ResendOfferCallback" />
+                CanResendCallback="CanResendOfferCallback" IsResendingCallback="isResendingCallback" OnResendCallback="ResendOfferCallback"
+                CanCopyLink="CanCopyAcceptanceLink" OnCopyLink="CopyAcceptanceLink" />
             break;
         case "predeployment":
             <PreDeploymentTab Checklist="preDeploymentChecklist" />
@@ -1046,6 +1048,18 @@ else
         isRegeneratingOffer = false;
         if (!result.Success) { pageError = result.Error; return; }
         offer = await AppService.GetRhshfOfferAsync(Reference);
+    }
+
+    // Testing-only helper: copy the full FAC offer-acceptance link (with a minted token). Hidden in
+    // Production — in a real deployment the portal appends its own token to the callback's actionUrl.
+    private bool CanCopyAcceptanceLink => Env.EnvironmentName != "Production" && CanRatify && offer is not null;
+
+    private async Task CopyAcceptanceLink()
+    {
+        var (url, error) = await AppService.GetRhshfOfferAcceptanceLinkAsync(Reference);
+        if (url is null) { pageError = error; return; }
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", url); } catch { /* non-secure context */ }
+        await JS.InvokeVoidAsync("alert", $"FAC offer-acceptance link (copied to clipboard):\n\n{url}");
     }
 
     // Manual re-send of the OfferReady portal callback (for a failed/interrupted auto-delivery).
