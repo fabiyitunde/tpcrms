@@ -4,7 +4,7 @@
 <div class="card">
     <div class="card-header">
         <div>
-            <h3 class="card-title">Committee Vote</h3>
+            <h3 class="card-title">Committee</h3>
             @if (Committee is not null)
             {
                 <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 2px;">
@@ -25,47 +25,72 @@
         <div class="empty-state">
             <div class="empty-state-icon"><span class="material-symbols-outlined">groups</span></div>
             <div class="empty-state-title">No committee review</div>
-            <div class="empty-state-text">No committee review has been found for this cycle yet.</div>
-        </div>
-    }
-    else if (Committee.Votes.Count == 0)
-    {
-        <div class="empty-state">
-            <div class="empty-state-icon"><span class="material-symbols-outlined">groups</span></div>
-            <div class="empty-state-title">No votes yet</div>
-            <div class="empty-state-text">No votes have been cast yet.</div>
+            <div class="empty-state-text">Voting opens automatically once the Risk Officer clears the case — it is routed to the standing committee for this tier.</div>
         </div>
     }
     else
     {
+        @* The standing committee roster is the authoritative member list — show every member and whether
+           they have voted yet, so "voting is open and who is outstanding" is visible at a glance
+           (mirrors NAMP's Committee Members table). Falls back to votes-only if the roster can't load. *@
+        var rosterMembers = Roster?.Members ?? [];
+        var orphanVotes = Committee.Votes.Where(v => !rosterMembers.Any(m => m.UserId == v.UserId)).ToList();
+        var pendingCount = rosterMembers.Count(m => !Committee.Votes.Any(v => v.UserId == m.UserId));
+
         <div class="table-wrapper">
             <table class="table">
-                <thead><tr><th>Voter</th><th>Vote</th><th>Voted At</th><th>Comment</th></tr></thead>
+                <thead><tr><th>Member</th><th>Role</th><th>Vote</th><th>Voted At</th><th>Comment</th></tr></thead>
                 <tbody>
-                    @foreach (var v in Committee.Votes)
+                    @foreach (var m in rosterMembers)
+                    {
+                        var vote = Committee.Votes.FirstOrDefault(v => v.UserId == m.UserId);
+                        <tr>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                                    <div class="user-avatar" style="width: 28px; height: 28px; font-size: 0.65rem;">@Initials(m.UserName)</div>
+                                    <span>
+                                        <span style="font-weight: 500;">@m.UserName</span>
+                                        @if (m.UserId == CurrentUserId) { <span class="badge badge-primary" style="margin-left: 6px; font-size: 0.65rem;">You</span> }
+                                        @if (m.IsChairperson) { <span class="badge badge-gray" style="margin-left: 6px; font-size: 0.65rem;">Chair</span> }
+                                    </span>
+                                </div>
+                            </td>
+                            <td style="font-size: 0.85rem; color: var(--gray-600);">@m.Role</td>
+                            <td>
+                                @if (vote is not null)
+                                {
+                                    <span class="badge @VoteBadgeClass(vote.Vote)">
+                                        <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">@VoteIcon(vote.Vote)</span> @vote.Vote
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-warning">Pending</span>
+                                }
+                            </td>
+                            <td style="font-size: 0.8rem; color: var(--gray-500);">@(vote is not null ? vote.VotedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm") : "—")</td>
+                            <td style="font-size: 0.85rem; color: var(--gray-600);">@(vote?.Comment ?? "—")</td>
+                        </tr>
+                    }
+                    @* Any vote cast by someone no longer on the current roster — don't hide it. *@
+                    @foreach (var v in orphanVotes)
                     {
                         <tr>
                             <td>
                                 <div style="display: flex; align-items: center; gap: 0.6rem;">
                                     <div class="user-avatar" style="width: 28px; height: 28px; font-size: 0.65rem;">@Initials(v.UserName)</div>
-                                    <span>
-                                        <span style="font-weight: 500;">@v.UserName</span>
-                                        @if (v.UserId == CurrentUserId)
-                                        {
-                                            <span class="badge badge-primary" style="margin-left: 6px; font-size: 0.65rem;">You</span>
-                                        }
-                                    </span>
+                                    <span><span style="font-weight: 500;">@v.UserName</span> <span class="badge badge-gray" style="margin-left: 6px; font-size: 0.6rem;">not on roster</span></span>
                                 </div>
                             </td>
-                            <td>
-                                <span class="badge @VoteBadgeClass(v.Vote)">
-                                    <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">@VoteIcon(v.Vote)</span>
-                                    @v.Vote
-                                </span>
-                            </td>
+                            <td style="font-size: 0.85rem; color: var(--gray-600);">—</td>
+                            <td><span class="badge @VoteBadgeClass(v.Vote)"><span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">@VoteIcon(v.Vote)</span> @v.Vote</span></td>
                             <td style="font-size: 0.8rem; color: var(--gray-500);">@v.VotedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
                             <td style="font-size: 0.85rem; color: var(--gray-600);">@(v.Comment ?? "—")</td>
                         </tr>
+                    }
+                    @if (rosterMembers.Count == 0 && Committee.Votes.Count == 0)
+                    {
+                        <tr><td colspan="5" style="color: var(--gray-500); font-size: 0.85rem;">The standing committee roster could not be loaded. Voting is open; votes will appear here as they are cast.</td></tr>
                     }
                 </tbody>
             </table>
@@ -75,6 +100,7 @@
                 <span style="color: var(--success-700); font-weight: 600;">@Committee.Votes.Count(v => v.Vote == RhshfCommitteeVoteChoice.Approve) Approve</span>
                 <span style="color: var(--danger-700); font-weight: 600;">@Committee.Votes.Count(v => v.Vote == RhshfCommitteeVoteChoice.Reject) Reject</span>
                 <span style="color: var(--gray-500);">@Committee.Votes.Count(v => v.Vote == RhshfCommitteeVoteChoice.Abstain) Abstain</span>
+                @if (pendingCount > 0) { <span style="color: var(--warning-600); font-weight: 600;">⧗ @pendingCount Pending</span> }
             </div>
             <div style="font-size: 0.75rem; color: var(--gray-400); margin-top: 4px;">
                 @Committee.Votes.Count / @Committee.RequiredVotes votes cast &middot; Minimum @Committee.MinimumApprovalVotes to approve
@@ -85,6 +111,7 @@
 
 @code {
     [Parameter] public RhshfCommitteeReviewDto? Committee { get; set; }
+    [Parameter] public StandingCommitteeInfo? Roster { get; set; }
     [Parameter] public Guid CurrentUserId { get; set; }
 
     private static string VoteBadgeClass(RhshfCommitteeVoteChoice vote) => vote switch
