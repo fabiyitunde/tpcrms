@@ -781,6 +781,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.ResendRhshfOfferReadyCallbackHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfOfferHandler>();
         services.AddScoped<Application.Rhshf.Commands.UploadSignedOfferHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RemoveSignedOfferDocumentHandler>();
         services.AddScoped<Application.Rhshf.Commands.AcceptRhshfOfferHandler>();
         services.AddScoped<Application.Rhshf.Commands.RejectRhshfOfferHandler>();
         services.AddScoped<IRhshfLegalClearanceRepository, RhshfLegalClearanceRepository>();

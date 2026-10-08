@@ -86,6 +86,21 @@ public class RhshfOffer : AggregateRoot
         return Result.Success(document);
     }
 
+    /// <summary>Removes a signed upload (e.g. the FAC uploaded the wrong file) — only while the offer
+    /// is still undecided.</summary>
+    public Result RemoveDocument(Guid documentId)
+    {
+        if (Status != RhshfOfferStatus.Generated)
+            return Result.Failure("This offer has already been decided — its documents can no longer be changed.");
+
+        var document = _documents.FirstOrDefault(d => d.Id == documentId);
+        if (document is null)
+            return Result.Failure("Document not found on this offer.");
+
+        _documents.Remove(document);
+        return Result.Success();
+    }
+
     /// <summary>Fails if no signed copy has been uploaded yet — checked here, not trusted from the
     /// caller (design doc §6 #10).</summary>
     public Result Accept(string? notes)

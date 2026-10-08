@@ -49,6 +49,42 @@ public class RhshfOfferTests
     }
 
     [Fact]
+    public void RemoveDocument_WhileGenerated_RemovesIt()
+    {
+        var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "offer.pdf").Value;
+        var doc = offer.AddDocument("wrong.pdf", "application/pdf", "p1.pdf", 1024, RhshfOfferDocumentKind.SignedOfferLetter).Value;
+
+        var result = offer.RemoveDocument(doc.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(offer.Documents);
+    }
+
+    [Fact]
+    public void RemoveDocument_UnknownId_Fails()
+    {
+        var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "offer.pdf").Value;
+
+        var result = offer.RemoveDocument(Guid.NewGuid());
+
+        Assert.True(result.IsFailure);
+    }
+
+    [Fact]
+    public void RemoveDocument_AfterDecided_Fails()
+    {
+        // Once accepted the signed package is part of the contractual record — it can't be pulled.
+        var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "offer.pdf").Value;
+        var doc = offer.AddDocument("signed.pdf", "application/pdf", "p1.pdf", 1024, RhshfOfferDocumentKind.SignedOfferLetter).Value;
+        offer.Accept(null);
+
+        var result = offer.RemoveDocument(doc.Id);
+
+        Assert.True(result.IsFailure);
+        Assert.Single(offer.Documents);
+    }
+
+    [Fact]
     public void RegenerateDocument_AfterAccepted_IsRejected()
     {
         // An accepted offer is contractual — the letter must not be silently replaced.

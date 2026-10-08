@@ -17,6 +17,7 @@ public class OfferModel : RhshfPublicPageModel
     private readonly GetRhshfCaseWorkspaceHandler _workspaceHandler;
     private readonly GetRhshfOfferHandler _offerHandler;
     private readonly UploadSignedOfferHandler _uploadHandler;
+    private readonly RemoveSignedOfferDocumentHandler _removeHandler;
     private readonly AcceptRhshfOfferHandler _acceptHandler;
     private readonly RejectRhshfOfferHandler _rejectHandler;
     private readonly IFileStorageService _fileStorage;
@@ -26,6 +27,7 @@ public class OfferModel : RhshfPublicPageModel
         GetRhshfCaseWorkspaceHandler workspaceHandler,
         GetRhshfOfferHandler offerHandler,
         UploadSignedOfferHandler uploadHandler,
+        RemoveSignedOfferDocumentHandler removeHandler,
         AcceptRhshfOfferHandler acceptHandler,
         RejectRhshfOfferHandler rejectHandler,
         IFileStorageService fileStorage)
@@ -34,6 +36,7 @@ public class OfferModel : RhshfPublicPageModel
         _workspaceHandler = workspaceHandler;
         _offerHandler = offerHandler;
         _uploadHandler = uploadHandler;
+        _removeHandler = removeHandler;
         _acceptHandler = acceptHandler;
         _rejectHandler = rejectHandler;
         _fileStorage = fileStorage;
@@ -115,6 +118,22 @@ public class OfferModel : RhshfPublicPageModel
             ErrorMessage = result.Error;
         else
             SuccessMessage = $"\"{file.FileName}\" uploaded.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    /// <summary>Removes a signed upload the FAC got wrong, so they can re-upload the right file.
+    /// Only works while the offer is undecided (enforced in the domain).</summary>
+    public async Task<IActionResult> OnPostRemoveDocumentAsync(string reference, Guid documentId, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _removeHandler.Handle(new RemoveSignedOfferDocumentCommand(reference, documentId), ct);
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = "File removed. You can upload a replacement.";
 
         return RedirectToPage(new { reference });
     }
