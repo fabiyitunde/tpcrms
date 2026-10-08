@@ -10,7 +10,15 @@
             </div>
             @if (Offer is not null)
             {
-                <span class="badge @StatusBadgeClass(Offer.Status)">@Offer.Status</span>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <a href="/api/rhshf-offer-letters/@Reference/view" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="View the generated offer letter">
+                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">visibility</span> View letter
+                    </a>
+                    <a href="/api/rhshf-offer-letters/@Reference/download" class="btn btn-ghost btn-sm" title="Download the offer letter PDF">
+                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">download</span>
+                    </a>
+                    <span class="badge @StatusBadgeClass(Offer.Status)">@Offer.Status</span>
+                </div>
             }
         </div>
 
@@ -88,6 +96,7 @@
 
 @code {
     [Parameter] public RhshfOfferDto? Offer { get; set; }
+    [Parameter] public string Reference { get; set; } = "";
     // Currency/TotalEopValue used to be passed in so this tab could synthesise the approved amount
     // from the case total. The offer now carries its own amount and currency, so they're gone.
     [Parameter] public EventCallback<Guid> OnDownload { get; set; }

@@ -243,6 +243,28 @@ app.MapGet("/api/rhshf-collateral-documents/{id:guid}/view", async (Guid id, CRM
     }
 }).DisableAntiforgery();
 
+// RH-SHF generated offer letter (staff) — the offer PDF created at ratification lives on the offer's
+// OfferDocumentPath (not a document row), so it needs its own serving route, resolved by case reference.
+app.MapGet("/api/rhshf-offer-letters/{reference}/{mode}", async (string reference, string mode,
+    CRMS.Application.Rhshf.Queries.GetRhshfOfferHandler offerHandler, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
+{
+    var result = await offerHandler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfOfferQuery(reference));
+    if (!result.IsSuccess || result.Data is null || string.IsNullOrEmpty(result.Data.OfferDocumentPath))
+        return Results.NotFound("No generated offer letter for this case.");
+
+    try
+    {
+        var fileBytes = await fileStorage.DownloadAsync(result.Data.OfferDocumentPath);
+        var disposition = string.Equals(mode, "download", StringComparison.OrdinalIgnoreCase) ? "attachment" : "inline";
+        httpContext.Response.Headers.ContentDisposition = $"{disposition}; filename=\"{reference}-offer.pdf\"";
+        return Results.File(fileBytes, "application/pdf");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error retrieving offer letter: {ex.Message}");
+    }
+}).DisableAntiforgery();
+
 // NAMP document file serving endpoints
 app.MapGet("/api/namp-documents/{id:guid}/view", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
 {
