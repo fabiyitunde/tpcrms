@@ -775,6 +775,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCommitteeRoutingPreviewHandler>();
         services.AddScoped<IRhshfOfferRepository, RhshfOfferRepository>();
         services.AddScoped<Application.Rhshf.Interfaces.IRhshfOfferLetterPdfGenerator, Documents.RhshfOfferLetterPdfGenerator>();
+        services.AddScoped<Application.Rhshf.Interfaces.IRhshfKfsPdfGenerator, Documents.RhshfKfsPdfGenerator>();
         services.AddScoped<Application.Rhshf.Commands.RatifyRhshfCaseHandler>();
         services.AddScoped<Application.Rhshf.Commands.RegenerateRhshfOfferLetterHandler>();
         services.AddScoped<Application.Rhshf.Commands.ResendRhshfOfferReadyCallbackHandler>();

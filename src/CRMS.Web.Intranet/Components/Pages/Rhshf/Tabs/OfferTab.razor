@@ -20,6 +20,15 @@
                             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">download</span>
                         </a>
                     }
+                    @if (!string.IsNullOrEmpty(Offer.KfsDocumentPath))
+                    {
+                        <a href="/api/rhshf-offer-kfs/@Reference/view" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="View the Key Facts Statement">
+                            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">description</span> View KFS
+                        </a>
+                        <a href="/api/rhshf-offer-kfs/@Reference/download" class="btn btn-ghost btn-sm" title="Download the Key Facts Statement PDF">
+                            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">download</span>
+                        </a>
+                    }
                     @if (CanRegenerate)
                     {
                         <button class="btn btn-ghost btn-sm" @onclick="() => OnRegenerate.InvokeAsync()" disabled="@IsRegenerating" title="Re-create the offer letter PDF (recovery, before the FAC responds)">

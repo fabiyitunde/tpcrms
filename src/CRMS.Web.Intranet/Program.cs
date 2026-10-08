@@ -265,6 +265,27 @@ app.MapGet("/api/rhshf-offer-letters/{reference}/{mode}", async (string referenc
     }
 }).DisableAntiforgery();
 
+// RH-SHF Key Facts Statement (accompanies the offer letter) — served by case reference like the letter.
+app.MapGet("/api/rhshf-offer-kfs/{reference}/{mode}", async (string reference, string mode,
+    CRMS.Application.Rhshf.Queries.GetRhshfOfferHandler offerHandler, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
+{
+    var result = await offerHandler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfOfferQuery(reference));
+    if (!result.IsSuccess || result.Data is null || string.IsNullOrEmpty(result.Data.KfsDocumentPath))
+        return Results.NotFound("No Key Facts Statement for this case.");
+
+    try
+    {
+        var fileBytes = await fileStorage.DownloadAsync(result.Data.KfsDocumentPath);
+        var disposition = string.Equals(mode, "download", StringComparison.OrdinalIgnoreCase) ? "attachment" : "inline";
+        httpContext.Response.Headers.ContentDisposition = $"{disposition}; filename=\"{reference}-kfs.pdf\"";
+        return Results.File(fileBytes, "application/pdf");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error retrieving Key Facts Statement: {ex.Message}");
+    }
+}).DisableAntiforgery();
+
 // NAMP document file serving endpoints
 app.MapGet("/api/namp-documents/{id:guid}/view", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
 {

@@ -50,9 +50,18 @@ else
                 <dt class="col-sm-4">Offer generated</dt><dd class="col-sm-8">@Model.Offer.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy")</dd>
             </dl>
 
-            <a class="btn btn-outline-success mb-3" href="@Url.Page("Offer", "Download", new { reference = Model.Workspace.Reference })">
-                Download offer document
-            </a>
+            <div class="d-flex gap-2 mb-3">
+                <a class="btn btn-outline-success" href="@Url.Page("Offer", "Download", new { reference = Model.Workspace.Reference })">
+                    Download offer letter
+                </a>
+                @if (!string.IsNullOrEmpty(Model.Offer.KfsDocumentPath))
+                {
+                    <a class="btn btn-outline-success" href="@Url.Page("Offer", "DownloadKfs", new { reference = Model.Workspace.Reference })">
+                        Download Key Facts Statement
+                    </a>
+                }
+            </div>
+            <p class="text-muted"><small>Sign the offer letter and the Key Facts Statement, then upload the signed copies below.</small></p>
 
             @if (Model.Offer.Status != RhshfOfferStatus.Generated)
             {
@@ -88,34 +97,23 @@ else
 
                 <hr />
                 <h5>Your decision</h5>
-                <div class="row">
-                    <div class="col-md-6">
-                        <form method="post" asp-page-handler="Accept">
-                            <input type="hidden" name="reference" value="@Model.Workspace.Reference" />
-                            <div class="mb-2">
-                                <label class="form-label">Comment (optional)</label>
-                                <textarea class="form-control" rows="2" name="notes"></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-success" @(Model.Offer.SignedDocuments.Count == 0 ? "disabled" : "")>
-                                Accept offer
-                            </button>
-                            @if (Model.Offer.SignedDocuments.Count == 0)
-                            {
-                                <p class="text-muted mt-2"><small>Upload a signed copy above to enable Accept.</small></p>
-                            }
-                        </form>
+                <form method="post">
+                    <input type="hidden" name="reference" value="@Model.Workspace.Reference" />
+                    <div class="mb-2">
+                        <label class="form-label">Comment (optional)</label>
+                        <textarea class="form-control" rows="2" name="notes" placeholder="Add a note about your decision (applies to whichever you choose)."></textarea>
                     </div>
-                    <div class="col-md-6">
-                        <form method="post" asp-page-handler="Reject">
-                            <input type="hidden" name="reference" value="@Model.Workspace.Reference" />
-                            <div class="mb-2">
-                                <label class="form-label">Comment (optional)</label>
-                                <textarea class="form-control" rows="2" name="notes"></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-outline-danger">Decline offer</button>
-                        </form>
+                    <div class="d-flex gap-2">
+                        <button type="submit" asp-page-handler="Accept" class="btn btn-success" disabled="@(Model.Offer.SignedDocuments.Count == 0)">
+                            Accept offer
+                        </button>
+                        <button type="submit" asp-page-handler="Reject" class="btn btn-outline-danger">Decline offer</button>
                     </div>
-                </div>
+                    @if (Model.Offer.SignedDocuments.Count == 0)
+                    {
+                        <p class="text-muted mt-2"><small>Upload a signed copy above to enable Accept.</small></p>
+                    }
+                </form>
             }
         </div>
     </div>

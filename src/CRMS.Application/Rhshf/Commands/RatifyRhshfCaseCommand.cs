@@ -24,6 +24,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
     private readonly IRhshfCommitteeReviewRepository _committeeRepo;
     private readonly IRhshfOfferRepository _offerRepo;
     private readonly IRhshfOfferLetterPdfGenerator _pdfGenerator;
+    private readonly IRhshfKfsPdfGenerator _kfsGenerator;
     private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _uow;
 
@@ -32,6 +33,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
         IRhshfCommitteeReviewRepository committeeRepo,
         IRhshfOfferRepository offerRepo,
         IRhshfOfferLetterPdfGenerator pdfGenerator,
+        IRhshfKfsPdfGenerator kfsGenerator,
         IFileStorageService fileStorage,
         IUnitOfWork uow)
     {
@@ -39,6 +41,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
         _committeeRepo = committeeRepo;
         _offerRepo = offerRepo;
         _pdfGenerator = pdfGenerator;
+        _kfsGenerator = kfsGenerator;
         _fileStorage = fileStorage;
         _uow = uow;
     }
@@ -83,10 +86,35 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
             if (offerResult.IsFailure)
                 return ApplicationResult.Failure(offerResult.Error);
 
+            // The Key Facts Statement ships with the offer letter — the FAC signs and returns both.
+            var kfsPath = await GenerateAndStoreKfsAsync(profile, request.ApprovedAmount!.Value, cycleNumber, ct);
+            offerResult.Value.AttachKfs(kfsPath);
+
             await _offerRepo.AddAsync(offerResult.Value, ct);
         }
 
         await _uow.SaveChangesAsync(ct);
         return ApplicationResult.Success();
+    }
+
+    private async Task<string> GenerateAndStoreKfsAsync(
+        Domain.Aggregates.Rhshf.RhshfCreditProfile profile, decimal approvedAmount, int cycleNumber, CancellationToken ct)
+    {
+        var appraisal = profile.GetCurrentCycleFinancialAppraisal();
+        var kfsBytes = await _kfsGenerator.GenerateAsync(new RhshfKfsData(
+            Reference: profile.Reference,
+            CompanyName: profile.CompanyName,
+            RcNumber: profile.RcNumber,
+            ProgrammeName: profile.ProgrammeName,
+            SessionName: profile.SessionName,
+            ApprovedAmount: approvedAmount,
+            Currency: profile.Currency,
+            GeneratedDate: DateTime.UtcNow,
+            BankName: BankName,
+            InterestRatePercent: appraisal?.InterestRatePercent,
+            CycleMonths: appraisal?.CycleMonths,
+            AmountDueAtHarvest: appraisal?.AmountDueAtHarvest), ct);
+        return await _fileStorage.UploadAsync(
+            OfferContainerName, $"{profile.Reference}/kfs-cycle{cycleNumber}.pdf", kfsBytes, "application/pdf", ct);
     }
 }

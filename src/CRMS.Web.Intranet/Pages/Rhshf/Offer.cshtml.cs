@@ -79,6 +79,20 @@ public class OfferModel : RhshfPublicPageModel
         return File(bytes, "application/pdf", $"{reference}-offer.pdf");
     }
 
+    /// <summary>GET /rhshf/offer/{reference}?handler=DownloadKfs — the Key Facts Statement.</summary>
+    public async Task<IActionResult> OnGetDownloadKfsAsync(string reference, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var offerResult = await _offerHandler.Handle(new GetRhshfOfferQuery(reference), ct);
+        if (!offerResult.IsSuccess || string.IsNullOrEmpty(offerResult.Data!.KfsDocumentPath))
+            return NotFound();
+
+        var bytes = await _fileStorage.DownloadAsync(offerResult.Data.KfsDocumentPath, ct);
+        return File(bytes, "application/pdf", $"{reference}-kfs.pdf");
+    }
+
     public async Task<IActionResult> OnPostUploadAsync(string reference, IFormFile? file, CancellationToken ct)
     {
         if (!await IsAuthorizedForReferenceAsync(reference))

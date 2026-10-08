@@ -47,7 +47,7 @@ public class RatifyRhshfCaseHandlerTests
         var fileStorage = new FakeFileStorage();
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), offerRepo,
-            new FakePdfGenerator(), fileStorage, new FakeUnitOfWork());
+            new FakePdfGenerator(), new FakeKfsGenerator(), fileStorage, new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
@@ -55,7 +55,9 @@ public class RatifyRhshfCaseHandlerTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(offerRepo.Added);
         Assert.Equal(RhshfOfferStatus.Generated, offerRepo.Added!.Status);
-        Assert.Single(fileStorage.UploadedPaths);
+        // Two PDFs are generated and stored: the offer letter and the accompanying Key Facts Statement.
+        Assert.Equal(2, fileStorage.UploadedPaths.Count);
+        Assert.NotNull(offerRepo.Added.KfsDocumentPath);
         Assert.Equal(RhshfInternalStage.AwaitingOfferAcceptance, profile.InternalStage);
     }
 
@@ -68,7 +70,7 @@ public class RatifyRhshfCaseHandlerTests
         review.CastVote(committeeApproverId, RhshfCommitteeVoteChoice.Approve, null, []);
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeOfferRepository(),
-            new FakePdfGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
+            new FakePdfGenerator(), new FakeKfsGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, committeeApproverId, RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
@@ -83,7 +85,7 @@ public class RatifyRhshfCaseHandlerTests
         var offerRepo = new FakeOfferRepository();
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), offerRepo,
-            new FakePdfGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
+            new FakePdfGenerator(), new FakeKfsGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue - 1, null, null));
@@ -99,7 +101,7 @@ public class RatifyRhshfCaseHandlerTests
         var offerRepo = new FakeOfferRepository();
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), offerRepo,
-            new FakePdfGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
+            new FakePdfGenerator(), new FakeKfsGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.ReturnToFac, null, "need more info", RhshfProfilingStage.SupportingDocuments));
@@ -153,6 +155,12 @@ public class RatifyRhshfCaseHandlerTests
     {
         public Task<byte[]> GenerateAsync(RhshfOfferLetterData data, CancellationToken ct = default)
             => Task.FromResult(new byte[] { 1, 2, 3 });
+    }
+
+    private class FakeKfsGenerator : IRhshfKfsPdfGenerator
+    {
+        public Task<byte[]> GenerateAsync(RhshfKfsData data, CancellationToken ct = default)
+            => Task.FromResult(new byte[] { 4, 5, 6 });
     }
 
     private class FakeFileStorage : IFileStorageService

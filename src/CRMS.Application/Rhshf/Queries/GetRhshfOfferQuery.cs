@@ -14,6 +14,7 @@ public record RhshfOfferDto(
     int CycleNumber,
     DateTime GeneratedAt,
     string OfferDocumentPath,
+    string? KfsDocumentPath,
     RhshfOfferStatus Status,
     /// <summary>The ratified amount this offer was issued for. Today the domain forces it equal to
     /// TotalEopValue (no partial approval), but the offer must carry its own figure rather than
@@ -47,7 +48,7 @@ public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, Applicat
             return ApplicationResult<RhshfOfferDto>.Failure("No offer has been generated for this case's current cycle.");
 
         return ApplicationResult<RhshfOfferDto>.Success(new RhshfOfferDto(
-            offer.CycleNumber, offer.GeneratedAt, offer.OfferDocumentPath, offer.Status,
+            offer.CycleNumber, offer.GeneratedAt, offer.OfferDocumentPath, offer.KfsDocumentPath, offer.Status,
             profile.ApprovedAmount, profile.Currency,
             offer.FacRespondedAt, offer.FacResponseNotes,
             offer.Documents.Select(d => new RhshfOfferDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt)).ToList()));

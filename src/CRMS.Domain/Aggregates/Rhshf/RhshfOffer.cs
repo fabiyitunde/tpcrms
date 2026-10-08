@@ -14,6 +14,9 @@ public class RhshfOffer : AggregateRoot
     public int CycleNumber { get; private set; }
     public DateTime GeneratedAt { get; private set; }
     public string OfferDocumentPath { get; private set; } = string.Empty;
+    /// <summary>The generated Key Facts Statement that accompanies the offer letter (null until
+    /// attached). A separate document so the FAC can sign and return it on its own.</summary>
+    public string? KfsDocumentPath { get; private set; }
     public RhshfOfferStatus Status { get; private set; }
     public DateTime? FacRespondedAt { get; private set; }
     public string? FacResponseNotes { get; private set; }
@@ -54,6 +57,19 @@ public class RhshfOffer : AggregateRoot
 
         OfferDocumentPath = offerDocumentPath;
         GeneratedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>Attaches (or replaces) the generated Key Facts Statement. Same window as regeneration —
+    /// only before the FAC has responded, so a signed-off package isn't altered underneath them.</summary>
+    public Result AttachKfs(string kfsDocumentPath)
+    {
+        if (string.IsNullOrWhiteSpace(kfsDocumentPath))
+            return Result.Failure("kfsDocumentPath is required.");
+        if (Status is not (RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse))
+            return Result.Failure("The Key Facts Statement can only be (re)generated before the FAC has responded.");
+
+        KfsDocumentPath = kfsDocumentPath;
         return Result.Success();
     }
 

@@ -22,16 +22,19 @@ public class RegenerateRhshfOfferLetterHandler : IRequestHandler<RegenerateRhshf
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfOfferRepository _offerRepo;
     private readonly IRhshfOfferLetterPdfGenerator _pdfGenerator;
+    private readonly IRhshfKfsPdfGenerator _kfsGenerator;
     private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _uow;
 
     public RegenerateRhshfOfferLetterHandler(
         IRhshfCreditProfileRepository repo, IRhshfOfferRepository offerRepo,
-        IRhshfOfferLetterPdfGenerator pdfGenerator, IFileStorageService fileStorage, IUnitOfWork uow)
+        IRhshfOfferLetterPdfGenerator pdfGenerator, IRhshfKfsPdfGenerator kfsGenerator,
+        IFileStorageService fileStorage, IUnitOfWork uow)
     {
         _repo = repo;
         _offerRepo = offerRepo;
         _pdfGenerator = pdfGenerator;
+        _kfsGenerator = kfsGenerator;
         _fileStorage = fileStorage;
         _uow = uow;
     }
@@ -66,6 +69,25 @@ public class RegenerateRhshfOfferLetterHandler : IRequestHandler<RegenerateRhshf
         var result = offer.RegenerateDocument(storagePath);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
+
+        // Regenerate the accompanying Key Facts Statement too, so the package stays complete.
+        var appraisal = profile.GetCurrentCycleFinancialAppraisal();
+        var kfsBytes = await _kfsGenerator.GenerateAsync(new RhshfKfsData(
+            Reference: profile.Reference,
+            CompanyName: profile.CompanyName,
+            RcNumber: profile.RcNumber,
+            ProgrammeName: profile.ProgrammeName,
+            SessionName: profile.SessionName,
+            ApprovedAmount: profile.ApprovedAmount.Value,
+            Currency: profile.Currency,
+            GeneratedDate: DateTime.UtcNow,
+            BankName: BankName,
+            InterestRatePercent: appraisal?.InterestRatePercent,
+            CycleMonths: appraisal?.CycleMonths,
+            AmountDueAtHarvest: appraisal?.AmountDueAtHarvest), ct);
+        var kfsPath = await _fileStorage.UploadAsync(
+            OfferContainerName, $"{profile.Reference}/kfs-cycle{offer.CycleNumber}.pdf", kfsBytes, "application/pdf", ct);
+        offer.AttachKfs(kfsPath);
 
         // The offer was loaded tracked, so the OfferDocumentPath change persists on save.
         await _uow.SaveChangesAsync(ct);
