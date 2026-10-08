@@ -23,6 +23,21 @@ public class RhshfOfferTests
     }
 
     [Fact]
+    public void Accept_RequiresBothSignedOfferLetterAndSignedKfs_WhenAKfsWasIssued()
+    {
+        var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "offer.pdf").Value;
+        offer.AttachKfs("kfs.pdf");
+        offer.AddDocument("signed-offer.pdf", "application/pdf", "p1.pdf", 1024, RhshfOfferDocumentKind.SignedOfferLetter);
+
+        var blocked = offer.Accept(null); // KFS not signed yet
+        Assert.True(blocked.IsFailure);
+
+        offer.AddDocument("signed-kfs.pdf", "application/pdf", "p2.pdf", 1024, RhshfOfferDocumentKind.SignedKfs);
+        var ok = offer.Accept(null);
+        Assert.True(ok.IsSuccess);
+    }
+
+    [Fact]
     public void RegenerateDocument_WhileGenerated_ReplacesThePath()
     {
         var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "old/path.pdf").Value;

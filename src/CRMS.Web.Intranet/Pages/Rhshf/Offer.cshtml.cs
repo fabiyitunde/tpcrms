@@ -93,7 +93,8 @@ public class OfferModel : RhshfPublicPageModel
         return File(bytes, "application/pdf", $"{reference}-kfs.pdf");
     }
 
-    public async Task<IActionResult> OnPostUploadAsync(string reference, IFormFile? file, CancellationToken ct)
+    public async Task<IActionResult> OnPostUploadAsync(
+        string reference, IFormFile? file, CRMS.Domain.Enums.RhshfOfferDocumentKind kind, CancellationToken ct)
     {
         if (!await IsAuthorizedForReferenceAsync(reference))
             return RedirectToPage("SessionExpired");
@@ -108,7 +109,7 @@ public class OfferModel : RhshfPublicPageModel
         await file.CopyToAsync(ms, ct);
 
         var result = await _uploadHandler.Handle(
-            new UploadSignedOfferCommand(reference, file.FileName, file.ContentType, ms.ToArray()), ct);
+            new UploadSignedOfferCommand(reference, file.FileName, file.ContentType, ms.ToArray(), kind), ct);
 
         if (!result.IsSuccess)
             ErrorMessage = result.Error;

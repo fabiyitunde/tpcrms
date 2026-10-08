@@ -6,7 +6,7 @@ namespace CRMS.Application.Rhshf.Queries;
 
 public record GetRhshfOfferQuery(string Reference) : IRequest<ApplicationResult<RhshfOfferDto>>;
 
-public record RhshfOfferDocumentDto(Guid Id, string FileName, long SizeBytes, DateTime UploadedAt);
+public record RhshfOfferDocumentDto(Guid Id, string FileName, long SizeBytes, DateTime UploadedAt, RhshfOfferDocumentKind Kind);
 
 /// <summary>Used by both the staff-side workspace (Phase 6) and the FAC-facing offer-acceptance
 /// page (Phase 7) — same underlying data, two different audiences.</summary>
@@ -51,6 +51,6 @@ public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, Applicat
             offer.CycleNumber, offer.GeneratedAt, offer.OfferDocumentPath, offer.KfsDocumentPath, offer.Status,
             profile.ApprovedAmount, profile.Currency,
             offer.FacRespondedAt, offer.FacResponseNotes,
-            offer.Documents.Select(d => new RhshfOfferDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt)).ToList()));
+            offer.Documents.Select(d => new RhshfOfferDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt, d.Kind)).ToList()));
     }
 }

@@ -163,6 +163,15 @@ public enum RhshfRatificationOutcome
 
 /// <summary>Lifecycle of the generated offer document (design doc §3.6). Acceptance/rejection by
 /// the FAC is Phase 7 — not wired yet; Generated is the only status this phase produces.</summary>
+/// <summary>Which issued document a FAC's signed upload is returning. Legacy/uncategorised uploads are
+/// Other; acceptance is gated on the signed offer letter (and the signed KFS when one was issued).</summary>
+public enum RhshfOfferDocumentKind
+{
+    Other,
+    SignedOfferLetter,
+    SignedKfs,
+}
+
 public enum RhshfOfferStatus
 {
     Generated,

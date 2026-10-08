@@ -1,4 +1,5 @@
 using CRMS.Application.Common;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Rhshf.Commands;
@@ -8,8 +9,9 @@ namespace CRMS.Application.Rhshf.Commands;
 /// enforced in RhshfOffer itself, not just here. No stage-order guard beyond "the offer exists and
 /// hasn't been decided yet" (checked inside RhshfOffer.AddDocument).
 /// </summary>
-public record UploadSignedOfferCommand(string Reference, string FileName, string ContentType, byte[] Content)
-    : IRequest<ApplicationResult>;
+public record UploadSignedOfferCommand(
+    string Reference, string FileName, string ContentType, byte[] Content,
+    RhshfOfferDocumentKind Kind = RhshfOfferDocumentKind.Other) : IRequest<ApplicationResult>;
 
 public class UploadSignedOfferHandler : IRequestHandler<UploadSignedOfferCommand, ApplicationResult>
 {
@@ -48,7 +50,7 @@ public class UploadSignedOfferHandler : IRequestHandler<UploadSignedOfferCommand
         var storagePath = await _fileStorage.UploadAsync(
             ContainerName, $"{profile.Reference}/{Guid.NewGuid()}-{request.FileName}", request.Content, request.ContentType, ct);
 
-        var result = offer.AddDocument(request.FileName, request.ContentType, storagePath, request.Content.Length);
+        var result = offer.AddDocument(request.FileName, request.ContentType, storagePath, request.Content.Length, request.Kind);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

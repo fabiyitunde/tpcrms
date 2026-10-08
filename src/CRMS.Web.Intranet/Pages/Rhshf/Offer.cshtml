@@ -72,9 +72,40 @@ else
             }
             else
             {
+                var kfsIssued = !string.IsNullOrEmpty(Model.Offer.KfsDocumentPath);
+                var hasLetter = Model.Offer.SignedDocuments.Any(d =>
+                    d.Kind == RhshfOfferDocumentKind.SignedOfferLetter || d.Kind == RhshfOfferDocumentKind.Other);
+                var hasKfs = Model.Offer.SignedDocuments.Any(d => d.Kind == RhshfOfferDocumentKind.SignedKfs);
+                var canAccept = hasLetter && (!kfsIssued || hasKfs);
+
                 <hr />
-                <h5>Upload your signed copy</h5>
-                <p class="text-muted">A signed copy of the offer must be uploaded before you can accept it.</p>
+                <h5>Upload your signed documents</h5>
+                <p class="text-muted">Sign the document(s) above and upload the signed copies into the matching slots.</p>
+
+                <div class="mb-2 d-flex align-items-center gap-2">
+                    <span class="badge @(hasLetter ? "bg-success" : "bg-secondary")">@(hasLetter ? "✓" : "–")</span>
+                    <strong>Signed offer letter</strong>
+                </div>
+                <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="mb-3 d-flex gap-2">
+                    <input type="hidden" name="reference" value="@Model.Workspace.Reference" />
+                    <input type="hidden" name="kind" value="@RhshfOfferDocumentKind.SignedOfferLetter" />
+                    <input type="file" name="file" class="form-control" required />
+                    <button type="submit" class="btn btn-outline-success text-nowrap">Upload</button>
+                </form>
+
+                @if (kfsIssued)
+                {
+                    <div class="mb-2 d-flex align-items-center gap-2">
+                        <span class="badge @(hasKfs ? "bg-success" : "bg-secondary")">@(hasKfs ? "✓" : "–")</span>
+                        <strong>Signed Key Facts Statement</strong>
+                    </div>
+                    <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="mb-3 d-flex gap-2">
+                        <input type="hidden" name="reference" value="@Model.Workspace.Reference" />
+                        <input type="hidden" name="kind" value="@RhshfOfferDocumentKind.SignedKfs" />
+                        <input type="file" name="file" class="form-control" required />
+                        <button type="submit" class="btn btn-outline-success text-nowrap">Upload</button>
+                    </form>
+                }
 
                 @if (Model.Offer.SignedDocuments.Count > 0)
                 {
@@ -82,18 +113,12 @@ else
                         @foreach (var doc in Model.Offer.SignedDocuments)
                         {
                             <li class="list-group-item d-flex justify-content-between">
-                                <span>@doc.FileName</span>
+                                <span>@doc.FileName <span class="badge bg-light text-dark border ms-1">@(doc.Kind == RhshfOfferDocumentKind.SignedOfferLetter ? "Offer letter" : doc.Kind == RhshfOfferDocumentKind.SignedKfs ? "KFS" : "Other")</span></span>
                                 <span class="text-muted">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</span>
                             </li>
                         }
                     </ul>
                 }
-
-                <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="mb-4 d-flex gap-2">
-                    <input type="hidden" name="reference" value="@Model.Workspace.Reference" />
-                    <input type="file" name="file" class="form-control" required />
-                    <button type="submit" class="btn btn-outline-success text-nowrap">Upload</button>
-                </form>
 
                 <hr />
                 <h5>Your decision</h5>
@@ -104,14 +129,14 @@ else
                         <textarea class="form-control" rows="2" name="notes" placeholder="Add a note about your decision (applies to whichever you choose)."></textarea>
                     </div>
                     <div class="d-flex gap-2">
-                        <button type="submit" asp-page-handler="Accept" class="btn btn-success" disabled="@(Model.Offer.SignedDocuments.Count == 0)">
+                        <button type="submit" asp-page-handler="Accept" class="btn btn-success" disabled="@(!canAccept)">
                             Accept offer
                         </button>
                         <button type="submit" asp-page-handler="Reject" class="btn btn-outline-danger">Decline offer</button>
                     </div>
-                    @if (Model.Offer.SignedDocuments.Count == 0)
+                    @if (!canAccept)
                     {
-                        <p class="text-muted mt-2"><small>Upload a signed copy above to enable Accept.</small></p>
+                        <p class="text-muted mt-2"><small>Upload the signed @(kfsIssued ? "offer letter and Key Facts Statement" : "offer letter") above to enable Accept.</small></p>
                     }
                 </form>
             }

@@ -1,4 +1,5 @@
 using CRMS.Domain.Common;
+using CRMS.Domain.Enums;
 
 namespace CRMS.Domain.Aggregates.Rhshf;
 
@@ -17,15 +18,20 @@ public class RhshfOfferDocument : Entity
     public long SizeBytes { get; private set; }
     public DateTime UploadedAt { get; private set; }
 
+    /// <summary>Which issued document this signed upload returns (offer letter / KFS / other).</summary>
+    public RhshfOfferDocumentKind Kind { get; private set; }
+
     protected RhshfOfferDocument() { }
 
-    public RhshfOfferDocument(Guid rhshfOfferId, string fileName, string contentType, string storagePath, long sizeBytes)
+    public RhshfOfferDocument(Guid rhshfOfferId, string fileName, string contentType, string storagePath, long sizeBytes,
+        RhshfOfferDocumentKind kind = RhshfOfferDocumentKind.Other)
     {
         RhshfOfferId = rhshfOfferId;
         FileName = fileName;
         ContentType = contentType;
         StoragePath = storagePath;
         SizeBytes = sizeBytes;
+        Kind = kind;
         UploadedAt = DateTime.UtcNow;
     }
 }

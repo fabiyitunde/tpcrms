@@ -75,12 +75,13 @@ public class RhshfOffer : AggregateRoot
 
     /// <summary>No fixed checklist beyond "at least one" — the FAC can upload more than once
     /// (e.g. a re-scan) while the offer is still undecided.</summary>
-    public Result<RhshfOfferDocument> AddDocument(string fileName, string contentType, string storagePath, long sizeBytes)
+    public Result<RhshfOfferDocument> AddDocument(string fileName, string contentType, string storagePath, long sizeBytes,
+        RhshfOfferDocumentKind kind = RhshfOfferDocumentKind.Other)
     {
         if (Status != RhshfOfferStatus.Generated)
             return Result.Failure<RhshfOfferDocument>("This offer has already been decided — no further documents can be attached.");
 
-        var document = new RhshfOfferDocument(Id, fileName, contentType, storagePath, sizeBytes);
+        var document = new RhshfOfferDocument(Id, fileName, contentType, storagePath, sizeBytes, kind);
         _documents.Add(document);
         return Result.Success(document);
     }
@@ -91,8 +92,14 @@ public class RhshfOffer : AggregateRoot
     {
         if (Status != RhshfOfferStatus.Generated)
             return Result.Failure("This offer has already been decided.");
-        if (_documents.Count == 0)
-            return Result.Failure("A signed copy of the offer must be uploaded before it can be accepted.");
+
+        // The FAC must return the signed offer letter — and the signed KFS too, when one was issued.
+        // A legacy "Other" upload also satisfies the offer-letter slot so in-flight cases aren't stranded.
+        var hasSignedLetter = _documents.Any(d => d.Kind is RhshfOfferDocumentKind.SignedOfferLetter or RhshfOfferDocumentKind.Other);
+        if (!hasSignedLetter)
+            return Result.Failure("Upload the signed offer letter before accepting.");
+        if (!string.IsNullOrEmpty(KfsDocumentPath) && !_documents.Any(d => d.Kind == RhshfOfferDocumentKind.SignedKfs))
+            return Result.Failure("Upload the signed Key Facts Statement before accepting.");
 
         Status = RhshfOfferStatus.Accepted;
         FacRespondedAt = DateTime.UtcNow;

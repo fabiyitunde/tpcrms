@@ -135,6 +135,7 @@
                                     <td>
                                         <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: var(--gray-500);">attach_file</span>
                                         @doc.FileName
+                                        <span class="badge badge-gray" style="margin-left: 6px; font-size: 0.65rem;">@KindLabel(doc.Kind)</span>
                                     </td>
                                     <td style="text-align: right; font-size: 0.8rem; color: var(--gray-500);">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</td>
                                     <td style="font-size: 0.8rem; color: var(--gray-500);">@doc.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
@@ -168,6 +169,13 @@
 
     // Collapsed by default — View/Download already cover reading it; the inline preview is opt-in.
     private bool showPreview;
+
+    private static string KindLabel(RhshfOfferDocumentKind kind) => kind switch
+    {
+        RhshfOfferDocumentKind.SignedOfferLetter => "Offer letter",
+        RhshfOfferDocumentKind.SignedKfs => "KFS",
+        _ => "Other",
+    };
     // Currency/TotalEopValue used to be passed in so this tab could synthesise the approved amount
     // from the case total. The offer now carries its own amount and currency, so they're gone.
     [Parameter] public EventCallback<Guid> OnDownload { get; set; }
