@@ -7658,6 +7658,22 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Manually re-enqueues the OfferReady portal callback (for a failed/interrupted delivery).</summary>
+    public async Task<ApiResponse> ResendRhshfOfferReadyCallbackAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ResendRhshfOfferReadyCallbackHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.ResendRhshfOfferReadyCallbackCommand(reference), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Re-send failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error re-sending RH-SHF offer-ready callback for {Reference}", reference);
+            return ApiResponse.Fail("Re-send failed");
+        }
+    }
+
     /// <summary>Previews the committee a case will route to on risk clearance (tier + standing roster), no writes.</summary>
     public async Task<CRMS.Application.Rhshf.Queries.RhshfCommitteeRoutingPreviewDto?> GetRhshfCommitteeRoutingPreviewAsync(string reference)
     {

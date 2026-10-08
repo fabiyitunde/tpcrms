@@ -304,8 +304,9 @@ else
             <CommitteeTab Committee="committeeReview" Roster="committeeRoster" CurrentUserId="CurrentUserId" />
             break;
         case "offer":
-            <OfferTab Offer="offer" Reference="Reference" OnDownload="DownloadOfferDocument"
-                CanRegenerate="CanRegenerateOffer" IsRegenerating="isRegeneratingOffer" OnRegenerate="RegenerateOffer" />
+            <OfferTab Offer="offer" Reference="@Reference" OnDownload="DownloadOfferDocument"
+                CanRegenerate="CanRegenerateOffer" IsRegenerating="isRegeneratingOffer" OnRegenerate="RegenerateOffer"
+                CanResendCallback="CanResendOfferCallback" IsResendingCallback="isResendingCallback" OnResendCallback="ResendOfferCallback" />
             break;
         case "predeployment":
             <PreDeploymentTab Checklist="preDeploymentChecklist" />
@@ -1045,6 +1046,21 @@ else
         isRegeneratingOffer = false;
         if (!result.Success) { pageError = result.Error; return; }
         offer = await AppService.GetRhshfOfferAsync(Reference);
+    }
+
+    // Manual re-send of the OfferReady portal callback (for a failed/interrupted auto-delivery).
+    private bool CanResendOfferCallback => CanRatify
+        && workspace?.InternalStage == RhshfInternalStage.AwaitingOfferAcceptance;
+    private bool isResendingCallback;
+
+    private async Task ResendOfferCallback()
+    {
+        isResendingCallback = true;
+        pageError = null;
+        var result = await AppService.ResendRhshfOfferReadyCallbackAsync(Reference);
+        isResendingCallback = false;
+        if (!result.Success) { pageError = result.Error; return; }
+        await JS.InvokeVoidAsync("alert", "Offer-ready callback re-queued — the portal will be notified on the next delivery cycle.");
     }
     private async Task DownloadCollateralDocument(Guid documentId) => await TriggerDownload(await AppService.DownloadRhshfCollateralDocumentAsync(documentId));
 
