@@ -141,14 +141,21 @@
     <div class="actor">🌾 FAC (applicant) <span class="login">· token link: /rhshf/profiling/{ref}?token=…</span></div>
     <dl>
       <dt>What they do</dt>
-      <dd>Open the profiling link and work through the five steps, confirming/entering data and attaching the required documents:
+      <dd>Open the profiling link and work through the five steps, confirming/entering data and attaching the required documents. The FAC <b>originates</b> its own parties and security here — officers later verify, they don't scout for it:
         <ol class="sub">
           <li><b>Company Verification</b> — confirm CAC / company details.</li>
-          <li><b>Credit Bureau Check</b> — consent / company lookup.</li>
-          <li><b>EOP Review</b> — confirm the Economics-of-Production input lines.</li>
+          <li><b>Credit Bureau Check &amp; Parties</b> — company lookup, plus the FAC declares the subjects the bureau checks run on:
+            <ul>
+              <li><b>Directors</b> — list every director; a <b>BVN is required for each</b> (pull from the Bank of Agriculture record, or add by hand). Missing BVNs can be filled inline.</li>
+              <li><b>Guarantors</b> — individuals (checked by <b>BVN, required</b>) or companies (checked by RC number).</li>
+              <li><b>Collateral / Security</b> — one or more instruments (bank guarantee / NIRSAL CRG / legal mortgage); the type-specific fields show for the chosen type, and a <b>supporting document is attached to each instrument</b>.</li>
+            </ul>
+          </li>
+          <li><b>EOP Review &amp; Farm Plan</b> — confirm the Economics-of-Production input lines and enter the farm plan (at least one crop is required).</li>
           <li><b>Supporting Documents</b> — upload the mandatory items (CAC, off-take, farmer register, warehousing, <b>audited financials</b> — a 3-year template is offered here to download, fill, and upload).</li>
-          <li><b>Review &amp; Submit</b> — final review, then submit.</li>
+          <li><b>Review &amp; Submit</b> — a full read-back of every section, each with an <b>Edit</b> link that jumps back to fix it and returns here. Submit is blocked until every director and every individual guarantor has a BVN (and the farm plan / mandatory documents are satisfied).</li>
         </ol>
+        The FAC can move <b>back and forward</b> between any step already reached (click a completed step, or an Edit link on the review) to correct a record — there is no need to wait for a staff Return-to-FAC for self-corrections.
       </dd>
       <dt>Advances when</dt>
       <dd>The FAC <b>submits</b> the final step. External status flips to <b>Under Review</b> and the internal stage becomes <b>Appraisal</b> — the case now appears in the Credit Officer's RH-SHF queue.</dd>
@@ -162,7 +169,7 @@
     <div class="actor">👤 Credit Officer <span class="login">· uche.eze@crms.ng</span></div>
     <dl>
       <dt>What they do</dt>
-      <dd>Open the case and build the credit picture: run <span class="btn">Re-run Credit Checks</span> (bureau for the company + every director/guarantor with a BVN); capture <b>Directors</b> &amp; <b>Guarantors</b> as needed; complete the <b>Financial Appraisal</b> (crop-economics viability — DSCR, margins, IRR, break-even); optionally capture the <b>Financial Analysis</b> (3-year statements). Review Documents, Collateral and the AI Advisory.</dd>
+      <dd>Open the case and build the credit picture: run <span class="btn">Re-run Credit Checks</span> (bureau for the company + every director/guarantor BVN the FAC supplied at profiling); <b>verify</b> the FAC-declared <b>Directors</b>, <b>Guarantors</b> and <b>Collateral</b> (the Credit Officer confirms, not originates); complete the <b>Financial Appraisal</b> (crop-economics viability — DSCR, margins, IRR, break-even); optionally capture the <b>Financial Analysis</b> (3-year statements). Review Documents, Collateral and the AI Advisory.</dd>
       <dt>Advances when</dt>
       <dd>Credit Officer clicks <span class="btn">Proceed</span> → <b>Risk Review</b>.</dd>
       <dt>Other outcomes</dt>
@@ -237,7 +244,7 @@
     <div class="actor">👤 Legal Officer <span class="login">· adaeze.nwosu@crms.ng</span></div>
     <dl>
       <dt>What they do</dt>
-      <dd>Review the legal/security position; optionally <span class="btn">Record Collateral</span> (bank guarantee / NIRSAL CRG / legal mortgage).</dd>
+      <dd><b>Verify and perfect</b> the collateral the FAC declared at profiling — open each instrument, view its attached evidence (the <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">visibility</span> eye icon opens the document in a new tab), and set perfection status. Additional instruments can still be recorded here (<span class="btn">Record Collateral</span>) if something was missed, but scouting for collateral is no longer the officer's job — the FAC originates it.</dd>
       <dt>Advances when</dt>
       <dd>Legal Officer clicks <span class="btn">Grant</span> → <b>Pre-Deployment Verification</b>.</dd>
       <dt>Other outcomes</dt>
@@ -290,6 +297,8 @@
     <li><b>Exact amounts.</b> The ratification amount must equal the Total EOP value exactly, and the disbursed amount must equal the ratified amount — no rounding, no partial approval.</li>
     <li><b>The two FAC steps aren't staff actions.</b> Profiling (step 0) and Offer Acceptance (step 5) happen on token-protected pages; there's no staff button for them. Use the FAC links.</li>
     <li><b>External status is a plateau.</b> From FAC submission to disbursement the external status reads <em>Under Review</em> — track progress by the internal stage, not the status.</li>
+    <li><b>BVNs are required to submit profiling.</b> Every director, and every <em>individual</em> guarantor, must have a BVN before the FAC can submit (companies are checked by RC instead). The farm plan and all mandatory documents must also be satisfied.</li>
+    <li><b>FAC originates parties &amp; security.</b> Directors, guarantors and collateral (with evidence) are entered by the FAC during profiling — officers verify and perfect them, they don't scout for them later.</li>
   </ul>
 
   <h2 class="section">Local test credentials</h2>
