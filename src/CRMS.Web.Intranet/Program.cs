@@ -265,6 +265,15 @@ app.MapGet("/api/rhshf-offer-letters/{reference}/{mode}", async (string referenc
     }
 }).DisableAntiforgery();
 
+// Testing-only (non-Production): trigger offer-letter + KFS regeneration without the Blazor UI.
+app.MapPost("/api/rhshf-dev/regenerate-offer/{reference}", async (string reference, IWebHostEnvironment env,
+    CRMS.Application.Rhshf.Commands.RegenerateRhshfOfferLetterHandler handler) =>
+{
+    if (env.IsProduction()) return Results.NotFound();
+    var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.RegenerateRhshfOfferLetterCommand(reference, Guid.Empty));
+    return result.IsSuccess ? Results.Ok("regenerated") : Results.BadRequest(result.Error);
+}).DisableAntiforgery();
+
 // RH-SHF Key Facts Statement (accompanies the offer letter) — served by case reference like the letter.
 app.MapGet("/api/rhshf-offer-kfs/{reference}/{mode}", async (string reference, string mode,
     CRMS.Application.Rhshf.Queries.GetRhshfOfferHandler offerHandler, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
