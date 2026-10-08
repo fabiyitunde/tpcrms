@@ -180,7 +180,7 @@ else
         <div class="tab @(activeTab == "eop" ? "active" : "")" @onclick='() => activeTab = "eop"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">receipt_long</span>EOP Breakdown
         </div>
-        <div class="tab @(activeTab == "directors" ? "active" : "")" @onclick='() => activeTab = "directors"'>
+        <div class="tab @(activeTab == "directors" ? "active" : "")" @onclick='async () => { activeTab = "directors"; await EnsureDirectorCrossCheckLoaded(); }'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">groups</span>Directors &amp; Signatories
         </div>
         <div class="tab @(activeTab == "documents" ? "active" : "")" @onclick='() => activeTab = "documents"'>
@@ -427,6 +427,7 @@ else
     private List<RhshfBureauReportDto> bureauReports = [];
     private RhshfDirectorDto? editingDirector;
     private CRMS.Application.Rhshf.Queries.RhshfDirectorCrossCheckDto? directorCrossCheck;
+    private bool directorCrossCheckLoaded;
     private bool isCrossChecking;
     private string? crossCheckError;
     private bool isRunningBureauChecks;
@@ -902,12 +903,24 @@ else
     // Verification only — fetches the CAC registry + core-banking record for side-by-side comparison
     // with the FAC-declared directors. Nothing is merged into the case list (that merge caused
     // duplicate rows and duplicate billable bureau checks). CAC is a billed lookup, so it's on demand.
+    // Loads the SAVED snapshot (free, no external calls) the first time the Directors tab is opened,
+    // so the CAC/CBS cards persist across visits without re-billing CAC.
+    private async Task EnsureDirectorCrossCheckLoaded()
+    {
+        if (directorCrossCheckLoaded) return;
+        directorCrossCheckLoaded = true;
+        var (data, _) = await AppService.GetRhshfDirectorCrossCheckAsync(Reference);
+        directorCrossCheck = data; // null => never run; the tab prompts to run one
+    }
+
+    // Explicit (re-)run — this is the only path that calls the billed CAC lookup; the result is saved.
     private async Task RunDirectorCrossCheck()
     {
         isCrossChecking = true;
         crossCheckError = null;
-        var (data, error) = await AppService.GetRhshfDirectorCrossCheckAsync(Reference);
+        var (data, error) = await AppService.RunRhshfDirectorCrossCheckAsync(Reference, CurrentUserId);
         isCrossChecking = false;
+        directorCrossCheckLoaded = true;
         if (data is null) { crossCheckError = error ?? "Cross-check failed."; return; }
         directorCrossCheck = data;
     }

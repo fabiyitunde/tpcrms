@@ -162,6 +162,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<RH.RhshfGuarantor> RhshfGuarantors => Set<RH.RhshfGuarantor>();
     public DbSet<RH.RhshfFinancialStatement> RhshfFinancialStatements => Set<RH.RhshfFinancialStatement>();
     public DbSet<RH.RhshfCollateralDocument> RhshfCollateralDocuments => Set<RH.RhshfCollateralDocument>();
+    public DbSet<RH.RhshfDirectorCrossCheck> RhshfDirectorCrossChecks => Set<RH.RhshfDirectorCrossCheck>();
     public DbSet<RH.RhshfRoutingConfig> RhshfRoutingConfigs => Set<RH.RhshfRoutingConfig>();
     public DbSet<RH.RhshfPreDeploymentChecklistTemplate> RhshfPreDeploymentChecklistTemplates => Set<RH.RhshfPreDeploymentChecklistTemplate>();
     public DbSet<RH.RhshfPreDeploymentChecklistItem> RhshfPreDeploymentChecklistItems => Set<RH.RhshfPreDeploymentChecklistItem>();

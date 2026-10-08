@@ -7626,12 +7626,29 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Reads the saved cross-check snapshot — free, never calls CAC/CBS. Null data = never run.</summary>
     public async Task<(CRMS.Application.Rhshf.Queries.RhshfDirectorCrossCheckDto? Data, string? Error)> GetRhshfDirectorCrossCheckAsync(string reference)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfDirectorCrossCheckHandler>();
             var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfDirectorCrossCheckQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? (result.Data, null) : (null, result.Error);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reading RH-SHF director cross-check for {Reference}", reference);
+            return (null, "Could not load the cross-check.");
+        }
+    }
+
+    /// <summary>Runs/re-runs the cross-check (calls the billed CAC lookup + CBS) and saves the snapshot.</summary>
+    public async Task<(CRMS.Application.Rhshf.Queries.RhshfDirectorCrossCheckDto? Data, string? Error)> RunRhshfDirectorCrossCheckAsync(string reference, Guid actorUserId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RunRhshfDirectorCrossCheckHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.RunRhshfDirectorCrossCheckCommand(reference, actorUserId), CancellationToken.None);
             return result.IsSuccess ? (result.Data, null) : (null, result.Error);
         }
         catch (Exception ex)

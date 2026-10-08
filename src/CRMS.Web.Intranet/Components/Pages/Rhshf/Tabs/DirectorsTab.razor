@@ -25,6 +25,10 @@
             {
                 <span style="font-size: 0.8rem; color: var(--danger-600);">@CrossCheckError</span>
             }
+            @if (CrossCheck is not null)
+            {
+                <span style="font-size: 0.75rem; color: var(--gray-500);">Cross-checked @CrossCheck.FetchedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</span>
+            }
             <button class="btn btn-outline btn-sm" @onclick="() => OnRunCrossCheck.InvokeAsync()" disabled="@IsCrossChecking"
                     title="Fetches the CAC registry and the core-banking record for comparison. CAC is a billed lookup.">
                 @if (IsCrossChecking)
