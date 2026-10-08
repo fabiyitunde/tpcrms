@@ -161,9 +161,14 @@ OUTPUT FORMAT (JSON):
 
             sb.AppendLine($"Total Parties Checked: {request.BureauReports.Count} ({realReports.Count} with data, {placeholders.Count} missing)");
 
+            // Subject names are deliberately withheld from the prompt (sent to an external LLM) and
+            // replaced with positional labels — the narrative reasons on scores/figures, not identities,
+            // so no company or person name needs to leave the system. Keeps each party distinct.
+            var bureauIdx = 0;
             foreach (var report in realReports)
             {
-                sb.AppendLine($"\n  {report.SubjectType}: {report.SubjectName}");
+                bureauIdx++;
+                sb.AppendLine($"\n  {report.SubjectType} #{bureauIdx}");
                 sb.AppendLine($"    Credit Score: {report.CreditScore?.ToString() ?? "N/A"}");
                 sb.AppendLine($"    Active Loans: {report.ActiveLoansCount}, Outstanding: NGN {report.TotalOutstandingDebt:N0}");
                 sb.AppendLine($"    Performing: {report.PerformingLoansCount}, Delinquent: {report.DelinquentLoansCount}, Defaulted: {report.DefaultedLoansCount}");
@@ -175,8 +180,9 @@ OUTPUT FORMAT (JSON):
             if (placeholders.Any())
             {
                 sb.AppendLine("\n  Missing Bureau Data For:");
+                var missingIdx = 0;
                 foreach (var p in placeholders)
-                    sb.AppendLine($"    - {p.SubjectType}: {p.SubjectName}");
+                    sb.AppendLine($"    - {p.SubjectType} #{++missingIdx}");
             }
         }
         else
@@ -271,9 +277,12 @@ OUTPUT FORMAT (JSON):
         if (request.Guarantors.Any())
         {
             sb.AppendLine($"Total Guarantors: {request.Guarantors.Count}");
+            // Guarantor names withheld too — positional label only.
+            var guarantorIdx = 0;
             foreach (var g in request.Guarantors)
             {
-                sb.AppendLine($"\n  {g.Type}: {g.Name}");
+                guarantorIdx++;
+                sb.AppendLine($"\n  {g.Type} #{guarantorIdx}");
                 sb.AppendLine($"    Net Worth: NGN {g.NetWorth:N0}");
                 sb.AppendLine($"    Guarantee Amount: NGN {g.GuaranteeAmount:N0}");
                 sb.AppendLine($"    Credit Score: {g.CreditScore?.ToString() ?? "N/A"}");
