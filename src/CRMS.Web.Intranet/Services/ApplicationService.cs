@@ -6861,6 +6861,22 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Admin/HO view of every RH-SHF case regardless of status/stage (branch-scoped).</summary>
+    public async Task<List<CRMS.Application.Rhshf.DTOs.RhshfQueueItemDto>> GetRhshfAllCasesAsync(Guid? branchId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfAllCasesHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfAllCasesQuery(branchId), CancellationToken.None);
+            return result.IsSuccess && result.Data != null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading all RH-SHF cases");
+            return [];
+        }
+    }
+
     public async Task<CRMS.Application.Rhshf.DTOs.RhshfCaseWorkspaceDto?> GetRhshfCaseWorkspaceAsync(string reference)
     {
         try

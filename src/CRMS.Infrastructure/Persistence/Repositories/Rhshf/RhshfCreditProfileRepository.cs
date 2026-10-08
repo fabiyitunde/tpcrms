@@ -65,4 +65,13 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
 
     public async Task<RhshfSupportingDocument?> GetSupportingDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
         => await _context.RhshfSupportingDocuments.FirstOrDefaultAsync(x => x.Id == documentId, ct);
+
+    // No Includes — the admin "all" list only needs root columns, and this can return the whole book.
+    public async Task<IReadOnlyList<RhshfCreditProfile>> GetAllForListAsync(Guid? branchId, CancellationToken ct = default)
+    {
+        var query = _context.RhshfCreditProfiles.AsNoTracking();
+        if (branchId.HasValue)
+            query = query.Where(x => x.ResolvedBranchId == branchId.Value);
+        return await query.OrderByDescending(x => x.UpdatedAt).ToListAsync(ct);
+    }
 }

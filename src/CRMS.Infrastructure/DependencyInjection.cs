@@ -718,6 +718,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.AppraiseRhshfCaseHandler>();
         services.AddScoped<Application.Rhshf.Commands.ReviewRhshfRiskHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfStaffQueueHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfAllCasesHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCaseWorkspaceHandler>();
         services.AddScoped<IRhshfCommitteeReviewRepository, RhshfCommitteeReviewRepository>();
         services.AddScoped<IRhshfRoutingConfigRepository, Persistence.Repositories.Rhshf.RhshfRoutingConfigRepository>();

@@ -26,9 +26,9 @@
 <div class="tabs">
     @if (CanAppraise)
     {
-        <div class="tab @(activeStage == RhshfInternalStage.Appraisal ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Appraisal)'>
+        <div class="tab @(!showAll && activeStage == RhshfInternalStage.Appraisal ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Appraisal)'>
             Appraisal
-            @if (queue.Count > 0 && activeStage == RhshfInternalStage.Appraisal)
+            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.Appraisal)
             {
                 <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
             }
@@ -36,9 +36,9 @@
     }
     @if (CanReviewRisk)
     {
-        <div class="tab @(activeStage == RhshfInternalStage.RiskReview ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.RiskReview)'>
+        <div class="tab @(!showAll && activeStage == RhshfInternalStage.RiskReview ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.RiskReview)'>
             Risk Review
-            @if (queue.Count > 0 && activeStage == RhshfInternalStage.RiskReview)
+            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.RiskReview)
             {
                 <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
             }
@@ -46,9 +46,9 @@
     }
     @if (CanVoteOnCommittee)
     {
-        <div class="tab @(activeStage == RhshfInternalStage.CommitteeVoting ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.CommitteeVoting)'>
+        <div class="tab @(!showAll && activeStage == RhshfInternalStage.CommitteeVoting ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.CommitteeVoting)'>
             Committee
-            @if (queue.Count > 0 && activeStage == RhshfInternalStage.CommitteeVoting)
+            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.CommitteeVoting)
             {
                 <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
             }
@@ -56,9 +56,19 @@
     }
     @if (CanRatify)
     {
-        <div class="tab @(activeStage == RhshfInternalStage.Ratification ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Ratification)'>
+        <div class="tab @(!showAll && activeStage == RhshfInternalStage.Ratification ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Ratification)'>
             Ratification
-            @if (queue.Count > 0 && activeStage == RhshfInternalStage.Ratification)
+            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.Ratification)
+            {
+                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
+            }
+        </div>
+    }
+    @if (CanRatify || CanClearLegally)
+    {
+        <div class="tab @(!showAll && activeStage == RhshfInternalStage.AwaitingOfferAcceptance ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.AwaitingOfferAcceptance)'>
+            Awaiting Offer
+            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.AwaitingOfferAcceptance)
             {
                 <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
             }
@@ -66,9 +76,9 @@
     }
     @if (CanClearLegally)
     {
-        <div class="tab @(activeStage == RhshfInternalStage.LegalClearance ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.LegalClearance)'>
+        <div class="tab @(!showAll && activeStage == RhshfInternalStage.LegalClearance ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.LegalClearance)'>
             Legal Clearance
-            @if (queue.Count > 0 && activeStage == RhshfInternalStage.LegalClearance)
+            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.LegalClearance)
             {
                 <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
             }
@@ -76,11 +86,21 @@
     }
     @if (CanBookDisbursement)
     {
-        <div class="tab @(activeStage == RhshfInternalStage.Disbursement ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Disbursement)'>
+        <div class="tab @(!showAll && activeStage == RhshfInternalStage.Disbursement ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Disbursement)'>
             Disbursement
-            @if (queue.Count > 0 && activeStage == RhshfInternalStage.Disbursement)
+            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.Disbursement)
             {
                 <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
+            }
+        </div>
+    }
+    @if (CanSeeAll)
+    {
+        <div class="tab @(showAll ? "active" : "")" @onclick="SwitchToAll">
+            All
+            @if (showAll && queue.Count > 0)
+            {
+                <span class="badge badge-gray" style="margin-left: 6px;">@queue.Count</span>
             }
         </div>
     }
@@ -105,6 +125,8 @@
                         <th>Company</th>
                         <th style="text-align: right;">Total EOP Value</th>
                         <th>Cycle</th>
+                        <th>Status</th>
+                        <th>Stage</th>
                         <th>Updated</th>
                     </tr>
                 </thead>
@@ -116,6 +138,8 @@
                             <td>@item.CompanyName</td>
                             <td style="text-align: right;">@item.Currency @item.TotalEopValue.ToString("N2")</td>
                             <td>@item.CurrentCycleNumber</td>
+                            <td><span class="badge @StatusBadge(item.Status)">@Humanise(item.Status.ToString())</span></td>
+                            <td style="font-size: 0.85rem; color: var(--gray-600);">@(item.InternalStage is null ? "—" : Humanise(item.InternalStage.ToString()!))</td>
                             <td>@item.UpdatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
                         </tr>
                     }
@@ -127,9 +151,14 @@
 
 @code {
     private RhshfInternalStage activeStage = RhshfInternalStage.Appraisal;
+    private bool showAll;
     private List<RhshfQueueItemDto> queue = [];
     private bool isLoading;
     private string? pageError;
+
+    // Admin / head office get an "All" tab across every case regardless of status or stage.
+    private bool CanSeeAll => (AuthService.CurrentUser?.HasAnyRole("SystemAdmin") ?? false)
+        || (AuthService.CurrentUser?.IsHeadOffice ?? false);
 
     private bool CanAppraise => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer") ?? false;
     private bool CanReviewRisk => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager") ?? false;
@@ -156,7 +185,14 @@
 
     private async Task SwitchTab(RhshfInternalStage stage)
     {
+        showAll = false;
         activeStage = stage;
+        await LoadQueue();
+    }
+
+    private async Task SwitchToAll()
+    {
+        showAll = true;
         await LoadQueue();
     }
 
@@ -170,7 +206,9 @@
             // Branch-scoped like every other CRMS queue — HO sees everything, branch staff see
             // only their own branch (computed here, not deep in a child component).
             Guid? branchId = (user?.IsHeadOffice ?? false) ? null : user?.LocationId;
-            queue = await AppService.GetRhshfStaffQueueAsync(activeStage, branchId);
+            queue = showAll
+                ? await AppService.GetRhshfAllCasesAsync(branchId)
+                : await AppService.GetRhshfStaffQueueAsync(activeStage, branchId);
         }
         catch (Exception ex)
         {
@@ -183,4 +221,17 @@
     }
 
     private void OpenReview(string reference) => Navigation.NavigateTo($"/rhshf/detail/{reference}");
+
+    private static string StatusBadge(RhshfCaseStatus status) => status switch
+    {
+        RhshfCaseStatus.Approved => "badge-success",
+        RhshfCaseStatus.Declined => "badge-danger",
+        RhshfCaseStatus.Cancelled or RhshfCaseStatus.Expired => "badge-gray",
+        RhshfCaseStatus.ProfilingPending or RhshfCaseStatus.ProfilingInProgress => "badge-warning",
+        _ => "badge-primary",
+    };
+
+    // Insert spaces before capitals: "AwaitingOfferAcceptance" -> "Awaiting Offer Acceptance".
+    private static string Humanise(string pascal) =>
+        System.Text.RegularExpressions.Regex.Replace(pascal, "(?<=[a-z])(?=[A-Z])", " ");
 }

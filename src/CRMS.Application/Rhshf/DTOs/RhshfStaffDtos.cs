@@ -10,7 +10,9 @@ public record RhshfQueueItemDto(
     decimal TotalEopValue,
     string Currency,
     int CurrentCycleNumber,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    CRMS.Domain.Enums.RhshfCaseStatus Status,
+    CRMS.Domain.Enums.RhshfInternalStage? InternalStage);
 
 /// <summary>The staff-side case review workspace (design doc Phase 4 §7) — everything a Credit
 /// Officer or Risk Officer needs to make a decision: company verification data, bureau report, EOP
