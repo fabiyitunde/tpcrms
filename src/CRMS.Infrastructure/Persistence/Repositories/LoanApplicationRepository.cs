@@ -21,6 +21,9 @@ public class LoanApplicationRepository : ILoanApplicationRepository
             .Include(x => x.Parties)
             .Include(x => x.Comments)
             .Include(x => x.StatusHistory)
+            // 4 collection Includes in one query produce a cartesian product; split into one query
+            // per collection. See [[feedback_ef_multi_include_cartesian]].
+            .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
@@ -32,6 +35,7 @@ public class LoanApplicationRepository : ILoanApplicationRepository
             .Include(x => x.Parties)
             .Include(x => x.Comments)
             .Include(x => x.StatusHistory)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
@@ -57,6 +61,7 @@ public class LoanApplicationRepository : ILoanApplicationRepository
             .Include(x => x.Parties)
             .Include(x => x.Comments)
             .Include(x => x.StatusHistory)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.ApplicationNumber == applicationNumber, ct);
     }
 
