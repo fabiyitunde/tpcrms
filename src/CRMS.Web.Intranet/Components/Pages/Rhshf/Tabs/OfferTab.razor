@@ -79,11 +79,17 @@
     @if (Offer is not null && !string.IsNullOrEmpty(Offer.OfferDocumentPath))
     {
         <div class="card">
-            <div class="card-header"><h3 class="card-title">Offer Letter</h3></div>
-            <div class="card-body" style="padding: 0;">
-                <iframe src="/api/rhshf-offer-letters/@Reference/view" title="Offer letter"
-                        style="width: 100%; height: 640px; border: 0; display: block;"></iframe>
+            <div class="card-header" style="cursor: pointer;" @onclick="() => showPreview = !showPreview">
+                <h3 class="card-title">Offer Letter Preview</h3>
+                <span class="material-symbols-outlined" style="color: var(--gray-500);">@(showPreview ? "expand_less" : "expand_more")</span>
             </div>
+            @if (showPreview)
+            {
+                <div class="card-body" style="padding: 0;">
+                    <iframe src="/api/rhshf-offer-letters/@Reference/view" title="Offer letter"
+                            style="width: 100%; height: 640px; border: 0; display: block;"></iframe>
+                </div>
+            }
         </div>
     }
 
@@ -141,6 +147,9 @@
     [Parameter] public bool CanResendCallback { get; set; }
     [Parameter] public bool IsResendingCallback { get; set; }
     [Parameter] public EventCallback OnResendCallback { get; set; }
+
+    // Collapsed by default — View/Download already cover reading it; the inline preview is opt-in.
+    private bool showPreview;
     // Currency/TotalEopValue used to be passed in so this tab could synthesise the approved amount
     // from the case total. The offer now carries its own amount and currency, so they're gone.
     [Parameter] public EventCallback<Guid> OnDownload { get; set; }
