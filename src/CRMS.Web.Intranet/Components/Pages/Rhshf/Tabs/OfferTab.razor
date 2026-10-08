@@ -11,12 +11,15 @@
             @if (Offer is not null)
             {
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <a href="/api/rhshf-offer-letters/@Reference/view" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="View the generated offer letter">
-                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">visibility</span> View letter
-                    </a>
-                    <a href="/api/rhshf-offer-letters/@Reference/download" class="btn btn-ghost btn-sm" title="Download the offer letter PDF">
-                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">download</span>
-                    </a>
+                    @if (!string.IsNullOrEmpty(Offer.OfferDocumentPath))
+                    {
+                        <a href="/api/rhshf-offer-letters/@Reference/view" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="View the generated offer letter">
+                            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">visibility</span> View letter
+                        </a>
+                        <a href="/api/rhshf-offer-letters/@Reference/download" class="btn btn-ghost btn-sm" title="Download the offer letter PDF">
+                            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">download</span>
+                        </a>
+                    }
                     <span class="badge @StatusBadgeClass(Offer.Status)">@Offer.Status</span>
                 </div>
             }
