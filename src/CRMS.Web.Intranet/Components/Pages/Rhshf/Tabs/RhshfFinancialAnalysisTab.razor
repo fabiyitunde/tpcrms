@@ -122,9 +122,12 @@ else
                                 Import from FAC Upload
                             </button>
                         }
-                        <button class="btn btn-primary btn-sm" @onclick="() => OnAddYear.InvokeAsync()">
-                            <span class="material-symbols-outlined" style="font-size: 16px;">add</span> Add Year
-                        </button>
+                        @if (EnableManualFinancialActions)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="() => OnAddYear.InvokeAsync()">
+                                <span class="material-symbols-outlined" style="font-size: 16px;">add</span> Add Year
+                            </button>
+                        }
                     </div>
                 }
             </div>
@@ -141,7 +144,7 @@ else
                         <div class="empty-state-icon"><span class="material-symbols-outlined">description</span></div>
                         <div class="empty-state-title">No financial statements captured</div>
                         <div class="empty-state-text">
-                            @(CanManage ? "Download the template for the FAC to fill, upload a completed one, or enter a year manually." : "The FAC's financial statements appear here once captured.")
+                            @(CanManage ? "The FAC's uploaded financials are parsed in here with \"Import from FAC Upload\". A blank template and manual upload are also available." : "The FAC's financial statements appear here once captured.")
                         </div>
                     </div>
                 }
@@ -182,7 +185,7 @@ else
                                                     <button class="btn btn-ghost btn-sm" title="View / edit" @onclick="() => OnEditYear.InvokeAsync(current)">
                                                         <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
                                                     </button>
-                                                    @if (y.Status == "Draft")
+                                                    @if (EnableManualFinancialActions && y.Status == "Draft")
                                                     {
                                                         <button class="btn btn-ghost btn-sm" title="Submit for review" @onclick="() => OnSubmit.InvokeAsync(current.Id)">
                                                             <span class="material-symbols-outlined" style="font-size: 18px; color: var(--primary-600);">send</span>
@@ -206,9 +209,12 @@ else
                                                             <span class="material-symbols-outlined" style="font-size: 18px;">undo</span>
                                                         </button>
                                                     }
-                                                    <button class="btn btn-ghost btn-sm" title="Delete" @onclick="() => OnDelete.InvokeAsync(current.Id)">
-                                                        <span class="material-symbols-outlined" style="font-size: 18px; color: var(--danger-600);">delete</span>
-                                                    </button>
+                                                    @if (EnableManualFinancialActions)
+                                                    {
+                                                        <button class="btn btn-ghost btn-sm" title="Delete" @onclick="() => OnDelete.InvokeAsync(current.Id)">
+                                                            <span class="material-symbols-outlined" style="font-size: 18px; color: var(--danger-600);">delete</span>
+                                                        </button>
+                                                    }
                                                 </div>
                                             </td>
                                         }
@@ -280,6 +286,11 @@ else
     [Parameter] public EventCallback<Guid> OnReject { get; set; }
     [Parameter] public EventCallback<Guid> OnRevert { get; set; }
     [Parameter] public EventCallback<Guid> OnDelete { get; set; }
+
+    // Statements are auto-generated from the FAC's upload; the officer's job is to view and verify
+    // them. The manual/lifecycle actions (Add Year, Submit-for-review, Delete) are hidden for now to
+    // keep the tab simple — flip this to true to bring them back. The handlers behind them stay wired.
+    private const bool EnableManualFinancialActions = false;
 
     private async Task DownloadTemplate() => await JS.InvokeVoidAsync("open", "/api/financial-statements/template", "_blank");
 
