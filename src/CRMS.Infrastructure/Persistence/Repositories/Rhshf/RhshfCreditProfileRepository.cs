@@ -27,6 +27,13 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
     // navigation on an already-persisted profile needs it tracked from the start, otherwise EF
     // Core mis-tracks the new child as Modified instead of Added (see CRMSDbContext.SaveChangesAsync's
     // compensating fix, mirroring the existing NAMP pattern).
+    //
+    // AsSplitQuery is essential here: 13 collection Includes in a single SQL statement produce a
+    // cartesian product (StatusHistory x PreDeploymentChecklist x StageConfirmations x Directors x
+    // ...), which EF materialises and de-duplicates client-side — thousands of wide rows per profile
+    // as those collections grow, and the dominant cause of slow RH-SHF page loads. Split query issues
+    // one query per collection instead, so each returns only its real rows. Tracking and the
+    // append-tracking fix above are unaffected (split queries still return tracked entities).
     private IQueryable<RhshfCreditProfile> Query()
         => _context.RhshfCreditProfiles
             .Include(x => x.EopLines)
@@ -41,7 +48,8 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
             .Include(x => x.FarmPlans)
             .Include(x => x.FinancialAppraisals)
             .Include(x => x.StageConfirmations)
-            .Include(x => x.StatusHistory);
+            .Include(x => x.StatusHistory)
+            .AsSplitQuery();
 
     public async Task AddAsync(RhshfCreditProfile profile, CancellationToken ct = default)
         => await _context.RhshfCreditProfiles.AddAsync(profile, ct);
