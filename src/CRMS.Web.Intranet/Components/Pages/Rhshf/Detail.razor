@@ -462,7 +462,10 @@ else
     // Same maker gate as directors — the Credit Officer who assembles the case records its guarantors.
     private bool CanManageGuarantors => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer") ?? false;
     private bool CanManageFinancials => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer") ?? false;
-    private bool CanRunBureauChecks => CanManageDirectors;
+    // Credit checks feed the Appraisal and Risk Review decisions only — once the case passes Risk
+    // Review into Committee Voting the bureau picture is locked in, so the re-run action is withdrawn.
+    private bool CanRunBureauChecks => CanManageDirectors
+        && workspace?.InternalStage is RhshfInternalStage.Appraisal or RhshfInternalStage.RiskReview;
     // Only editable while the case actually sits at Appraisal — the domain enforces the same rule,
     // this just keeps the buttons honest.
     private bool CanEditFinancialAppraisal => CanAppraise && workspace!.InternalStage == RhshfInternalStage.Appraisal;
