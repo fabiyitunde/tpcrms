@@ -14,8 +14,62 @@ public static class RhshfWorkflowSeeder
     {
         await SeedRoutingConfigAsync(context, logger);
         await SeedPreDeploymentChecklistAsync(context, logger);
+        await BackfillPreDeploymentKindsAsync(context, logger);
         await SeedAppraisalThresholdsAsync(context, logger);
         await SeedDocumentRequirementsAsync(context, logger);
+    }
+
+    /// <summary>One-time, idempotent: sets the verification kind on default pre-deployment templates that
+    /// were seeded before kinds existed (the migration defaulted every row to Manual). Only touches
+    /// recognised default titles still marked Manual — a renamed or admin-created item is left alone.</summary>
+    private static async Task BackfillPreDeploymentKindsAsync(CRMSDbContext context, ILogger logger)
+    {
+        var map = new Dictionary<string, RhshfPreDeploymentVerificationKind>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Disbursement Account Verified"] = RhshfPreDeploymentVerificationKind.AccountConfirmation,
+            ["BOA Disbursement Account Verified"] = RhshfPreDeploymentVerificationKind.AccountConfirmation,
+            ["Collateral Perfected"] = RhshfPreDeploymentVerificationKind.CollateralReview,
+            ["Collateral Reviewed & Documents on File"] = RhshfPreDeploymentVerificationKind.CollateralReview,
+            ["Signed Offer Letter Countersigned"] = RhshfPreDeploymentVerificationKind.OfferDocuments,
+            ["Signed Offer Letter & KFS Received"] = RhshfPreDeploymentVerificationKind.OfferDocuments,
+        };
+
+        var manualTemplates = await context.RhshfPreDeploymentChecklistTemplates
+            .Where(t => t.Kind == RhshfPreDeploymentVerificationKind.Manual)
+            .ToListAsync();
+
+        var changed = 0;
+        foreach (var t in manualTemplates)
+        {
+            if (!map.TryGetValue(t.Title, out var kind)) continue;
+            t.Update(t.Title, t.Description, t.IsMandatory, t.SortOrder, kind);
+            t.SetAuditInfo("System Seeder", isNew: false);
+            changed++;
+        }
+
+        // Also align already-seeded items for cases still sitting at the gate (completed cases are history —
+        // leave them). Items snapshot Title, so match on that; only touch ones still at Manual.
+        var inFlight = await context.RhshfCreditProfiles
+            .Include(p => p.PreDeploymentChecklist)
+            .Where(p => p.InternalStage == RhshfInternalStage.PreDeploymentVerification)
+            .ToListAsync();
+
+        var itemsChanged = 0;
+        foreach (var profile in inFlight)
+            foreach (var item in profile.PreDeploymentChecklist.Where(i => i.Kind == RhshfPreDeploymentVerificationKind.Manual))
+                if (map.TryGetValue(item.Title, out var kind))
+                {
+                    item.ApplyKind(kind);
+                    itemsChanged++;
+                }
+
+        if (changed > 0 || itemsChanged > 0)
+        {
+            await context.SaveChangesAsync();
+            logger.LogInformation(
+                "Backfilled verification kind on {Templates} RH-SHF templates and {Items} in-flight items.",
+                changed, itemsChanged);
+        }
     }
 
     // ── Required documents for FAC profiling ───────────────────────────────

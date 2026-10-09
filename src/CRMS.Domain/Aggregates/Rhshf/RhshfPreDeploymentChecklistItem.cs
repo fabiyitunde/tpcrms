@@ -50,6 +50,10 @@ public class RhshfPreDeploymentChecklistItem : Entity
     /// kind, which the system derives).</summary>
     public bool IsOfficerConfirmable => Kind != RhshfPreDeploymentVerificationKind.OfferDocuments;
 
+    /// <summary>One-time backfill for items seeded before verification kinds existed — lets the seeder
+    /// align an in-flight item with its template's kind. Not used in the normal lifecycle.</summary>
+    public void ApplyKind(RhshfPreDeploymentVerificationKind kind) => Kind = kind;
+
     public void SetConfirmation(Guid userId, bool? isConfirmed, string? notes)
     {
         IsConfirmed = isConfirmed;
