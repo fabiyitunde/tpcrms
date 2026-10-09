@@ -34,7 +34,31 @@
 
             <div class="form-group">
                 <label class="form-label">Input-supplier account number (required)</label>
-                <input class="form-control" @bind="supplierAccountNumber" />
+                <input class="form-control" value="@supplierAccountNumber" @oninput="OnAccountInput"
+                       maxlength="10" inputmode="numeric" placeholder="10-digit NUBAN" autocomplete="off" />
+                @if (isLookingUp)
+                {
+                    <div style="font-size: 0.8rem; color: var(--gray-500); margin-top: 4px;">
+                        <span class="spinner" style="width: 12px; height: 12px; vertical-align: middle;"></span> Checking account with Core Banking…
+                    </div>
+                }
+                else if (accountLookup is not null)
+                {
+                    @if (accountLookup.Found)
+                    {
+                        <div style="font-size: 0.82rem; color: var(--primary, #14532d); margin-top: 4px;">
+                            <span class="material-symbols-outlined" style="font-size: 15px; vertical-align: middle;">check_circle</span>
+                            <strong>@accountLookup.AccountName</strong>@(string.IsNullOrEmpty(accountLookup.Status) ? "" : $" · {accountLookup.Status}")
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="font-size: 0.82rem; color: #b45309; margin-top: 4px;">
+                            <span class="material-symbols-outlined" style="font-size: 15px; vertical-align: middle;">warning</span>
+                            @accountLookup.Error
+                        </div>
+                    }
+                }
             </div>
             <div class="form-group">
                 <label class="form-label">Supplier name (optional)</label>
@@ -60,6 +84,12 @@
     [Parameter] public EventCallback<(string SupplierAccountNumber, string? SupplierName)> OnConfirm { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
+    /// <summary>Name-enquiry against Core Banking for a 10-digit NUBAN (returns the resolved account).</summary>
+    [Parameter] public Func<string, Task<CRMS.Application.Rhshf.Queries.CoreBankingAccountLookupDto?>>? OnLookupAccount { get; set; }
+
+    private CRMS.Application.Rhshf.Queries.CoreBankingAccountLookupDto? accountLookup;
+    private bool isLookingUp;
+    private string? lastLookedUp;
 
     // Read-only context so the officer sees what they're about to disburse.
     [Parameter] public string CompanyName { get; set; } = "";
@@ -73,6 +103,31 @@
     private string supplierAccountNumber = string.Empty;
     private string supplierName = string.Empty;
     private string? clientError;
+
+    private async Task OnAccountInput(ChangeEventArgs e)
+    {
+        supplierAccountNumber = (e.Value?.ToString() ?? string.Empty).Trim();
+        clientError = null;
+
+        var digits = new string(supplierAccountNumber.Where(char.IsDigit).ToArray());
+        if (digits.Length != 10)
+        {
+            accountLookup = null;
+            lastLookedUp = null;
+            return;
+        }
+        if (digits == lastLookedUp || OnLookupAccount is null) return;
+
+        lastLookedUp = digits;
+        isLookingUp = true;
+        accountLookup = null;
+        accountLookup = await OnLookupAccount(digits);
+        isLookingUp = false;
+
+        // Convenience: pre-fill the supplier name from the enquiry when the officer hasn't typed one.
+        if (accountLookup?.Found == true && string.IsNullOrWhiteSpace(supplierName))
+            supplierName = accountLookup.AccountName ?? string.Empty;
+    }
 
     private async Task Confirm()
     {

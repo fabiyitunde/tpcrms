@@ -6892,6 +6892,21 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<CRMS.Application.Rhshf.Queries.CoreBankingAccountLookupDto?> LookupCoreBankingAccountAsync(string accountNumber)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.LookupCoreBankingAccountHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.LookupCoreBankingAccountQuery(accountNumber), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error looking up Core Banking account {AccountNumber}", accountNumber);
+            return new CRMS.Application.Rhshf.Queries.CoreBankingAccountLookupDto(accountNumber, null, null, null, false, "Lookup failed.");
+        }
+    }
+
     public async Task<CRMS.Application.Rhshf.Queries.RhshfBoaAccountSnapshotDto?> GetRhshfBoaAccountSnapshotAsync(string reference)
     {
         try

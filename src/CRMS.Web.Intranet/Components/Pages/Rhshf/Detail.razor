@@ -356,7 +356,8 @@ else
             CompanyName="@workspace.CompanyName" Reference="@Reference"
             Currency="@(string.IsNullOrWhiteSpace(offer?.Currency) ? workspace.Currency : offer!.Currency)"
             AmountToDisburse="@(workspace.ApprovedAmount ?? offer?.ApprovedAmount ?? workspace.TotalEopValue)"
-            InterestRatePercent="offer?.InterestRatePercent" CycleMonths="offer?.CycleMonths" AmountDueAtHarvest="offer?.AmountDueAtHarvest" />
+            InterestRatePercent="offer?.InterestRatePercent" CycleMonths="offer?.CycleMonths" AmountDueAtHarvest="offer?.AmountDueAtHarvest"
+            OnLookupAccount="AppService.LookupCoreBankingAccountAsync" />
     }
     @if (openModal == "appraisal")
     {

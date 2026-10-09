@@ -781,6 +781,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Interfaces.IRhshfLoanPackGenerator, Documents.RhshfLoanPackPdfGenerator>();
         services.AddScoped<Application.Rhshf.Commands.GenerateRhshfLoanPackHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfBoaAccountSnapshotHandler>();
+        services.AddScoped<Application.Rhshf.Queries.LookupCoreBankingAccountHandler>();
         services.AddScoped<Application.Rhshf.Commands.ResendRhshfOfferReadyCallbackHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfOfferHandler>();
         services.AddScoped<Application.Rhshf.Commands.UploadSignedOfferHandler>();
