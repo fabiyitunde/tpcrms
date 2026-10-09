@@ -44,46 +44,66 @@ else
     <div class="card shadow-sm">
         <div class="card-body p-4">
             <h4 class="mb-3">Your RH-SHF Offer</h4>
-            <dl class="row">
+            <dl class="row mb-3">
                 <dt class="col-sm-4">Company</dt><dd class="col-sm-8">@Model.Workspace.CompanyName</dd>
-                <dt class="col-sm-4">Approved amount</dt><dd class="col-sm-8">@Model.Workspace.Currency @Model.Workspace.TotalEopValue.ToString("N2")</dd>
+                <dt class="col-sm-4">Reference</dt><dd class="col-sm-8">@Model.Workspace.Reference</dd>
+                <dt class="col-sm-4">Financing cycle</dt><dd class="col-sm-8">Cycle @Model.Offer.CycleNumber</dd>
+                <dt class="col-sm-4">Approved amount</dt>
+                <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.Offer.Currency) ? Model.Workspace.Currency : Model.Offer.Currency) @((Model.Offer.ApprovedAmount ?? Model.Workspace.TotalEopValue).ToString("N2"))</dd>
+                @if (Model.Offer.InterestRatePercent.HasValue)
+                {
+                    <dt class="col-sm-4">Interest rate</dt><dd class="col-sm-8">@Model.Offer.InterestRatePercent.Value.ToString("0.##")% for the cycle</dd>
+                }
+                @if (Model.Offer.CycleMonths.HasValue)
+                {
+                    <dt class="col-sm-4">Crop cycle</dt><dd class="col-sm-8">@Model.Offer.CycleMonths.Value month@(Model.Offer.CycleMonths.Value == 1 ? "" : "s")</dd>
+                }
+                @if (Model.Offer.AmountDueAtHarvest.HasValue)
+                {
+                    <dt class="col-sm-4">Total repayable at harvest</dt>
+                    <dd class="col-sm-8"><strong>@(string.IsNullOrWhiteSpace(Model.Offer.Currency) ? Model.Workspace.Currency : Model.Offer.Currency) @Model.Offer.AmountDueAtHarvest.Value.ToString("N2")</strong></dd>
+                }
+                @if (Model.Workspace.FarmerCount.HasValue)
+                {
+                    <dt class="col-sm-4">Farmers</dt><dd class="col-sm-8">@Model.Workspace.FarmerCount.Value.ToString("N0")</dd>
+                }
+                <dt class="col-sm-4">Location</dt><dd class="col-sm-8">@Model.Workspace.Lga, @Model.Workspace.State</dd>
                 <dt class="col-sm-4">Offer generated</dt><dd class="col-sm-8">@Model.Offer.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy")</dd>
             </dl>
 
-            <div class="d-flex gap-2 mb-3">
+            <div class="d-flex gap-2 mb-3 flex-wrap">
                 <a class="btn btn-outline-success" href="@Url.Page("Offer", "Download", new { reference = Model.Workspace.Reference })">
                     Download offer letter
                 </a>
-                @if (!string.IsNullOrEmpty(Model.Offer.KfsDocumentPath))
+                @if (Model.KfsIssued)
                 {
                     <a class="btn btn-outline-success" href="@Url.Page("Offer", "DownloadKfs", new { reference = Model.Workspace.Reference })">
                         Download Key Facts Statement
                     </a>
                 }
             </div>
-            <p class="text-muted"><small>Sign the offer letter and the Key Facts Statement, then upload the signed copies below.</small></p>
 
-            @if (Model.Offer.Status != RhshfOfferStatus.Generated)
+            @if (Model.IsDecided)
             {
                 <div class="alert alert-info">
                     You @(Model.Offer.Status == RhshfOfferStatus.Accepted ? "accepted" : "declined") this offer
                     on @Model.Offer.FacRespondedAt?.ToLocalTime().ToString("MMM dd, yyyy HH:mm").
                 </div>
             }
-            else
+            else if (!Model.CanAccept)
             {
-                var kfsIssued = !string.IsNullOrEmpty(Model.Offer.KfsDocumentPath);
-                var hasLetter = Model.Offer.SignedDocuments.Any(d =>
-                    d.Kind == RhshfOfferDocumentKind.SignedOfferLetter || d.Kind == RhshfOfferDocumentKind.Other);
-                var hasKfs = Model.Offer.SignedDocuments.Any(d => d.Kind == RhshfOfferDocumentKind.SignedKfs);
-                var canAccept = hasLetter && (!kfsIssued || hasKfs);
+                <p class="text-muted">
+                    <small>Sign the offer letter@(Model.KfsIssued ? " and the Key Facts Statement" : ""), then upload the signed cop@(Model.KfsIssued ? "ies" : "y") below.</small>
+                </p>
+            }
 
+            @if (!Model.IsDecided)
+            {
                 <hr />
                 <h5>Upload your signed documents</h5>
-                <p class="text-muted">Sign the document(s) above and upload the signed copies into the matching slots.</p>
 
                 <div class="mb-2 d-flex align-items-center gap-2">
-                    <span class="badge @(hasLetter ? "bg-success" : "bg-secondary")">@(hasLetter ? "✓" : "–")</span>
+                    <span class="badge @(Model.HasSignedLetter ? "bg-success" : "bg-secondary")">@(Model.HasSignedLetter ? "✓" : "–")</span>
                     <strong>Signed offer letter</strong>
                 </div>
                 <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="mb-3 d-flex gap-2">
@@ -93,10 +113,10 @@ else
                     <button type="submit" class="btn btn-outline-success text-nowrap">Upload</button>
                 </form>
 
-                @if (kfsIssued)
+                @if (Model.KfsIssued)
                 {
                     <div class="mb-2 d-flex align-items-center gap-2">
-                        <span class="badge @(hasKfs ? "bg-success" : "bg-secondary")">@(hasKfs ? "✓" : "–")</span>
+                        <span class="badge @(Model.HasSignedKfs ? "bg-success" : "bg-secondary")">@(Model.HasSignedKfs ? "✓" : "–")</span>
                         <strong>Signed Key Facts Statement</strong>
                     </div>
                     <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="mb-3 d-flex gap-2">
@@ -106,28 +126,38 @@ else
                         <button type="submit" class="btn btn-outline-success text-nowrap">Upload</button>
                     </form>
                 }
+            }
 
-                @if (Model.Offer.SignedDocuments.Count > 0)
-                {
-                    <ul class="list-group mb-3">
-                        @foreach (var doc in Model.Offer.SignedDocuments)
-                        {
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span>@doc.FileName <span class="badge bg-light text-dark border ms-1">@(doc.Kind == RhshfOfferDocumentKind.SignedOfferLetter ? "Offer letter" : doc.Kind == RhshfOfferDocumentKind.SignedKfs ? "KFS" : "Other")</span></span>
-                                <span class="d-flex align-items-center gap-3">
-                                    <span class="text-muted">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</span>
+            @if (Model.Offer.SignedDocuments.Count > 0)
+            {
+                <h6 class="mt-3">Your signed copies</h6>
+                <ul class="list-group mb-3">
+                    @foreach (var doc in Model.Offer.SignedDocuments)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>@doc.FileName <span class="badge bg-light text-dark border ms-1">@(doc.Kind == RhshfOfferDocumentKind.SignedOfferLetter ? "Offer letter" : doc.Kind == RhshfOfferDocumentKind.SignedKfs ? "KFS" : "Other")</span></span>
+                            <span class="d-flex align-items-center gap-3">
+                                <span class="text-muted">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</span>
+                                <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+                                   href="@Url.Page("Offer", "DownloadSigned", new { reference = Model.Workspace.Reference, documentId = doc.Id })"
+                                   title="View this signed copy">View</a>
+                                @if (!Model.IsDecided)
+                                {
                                     <form method="post" asp-page-handler="RemoveDocument" class="m-0"
                                           onsubmit="return confirm('Remove this file? You can then upload a replacement.');">
                                         <input type="hidden" name="reference" value="@Model.Workspace.Reference" />
                                         <input type="hidden" name="documentId" value="@doc.Id" />
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove this upload">Remove</button>
                                     </form>
-                                </span>
-                            </li>
-                        }
-                    </ul>
-                }
+                                }
+                            </span>
+                        </li>
+                    }
+                </ul>
+            }
 
+            @if (!Model.IsDecided)
+            {
                 <hr />
                 <h5>Your decision</h5>
                 <form method="post">
@@ -137,14 +167,14 @@ else
                         <textarea class="form-control" rows="2" name="notes" placeholder="Add a note about your decision (applies to whichever you choose)."></textarea>
                     </div>
                     <div class="d-flex gap-2">
-                        <button type="submit" asp-page-handler="Accept" class="btn btn-success" disabled="@(!canAccept)">
+                        <button type="submit" asp-page-handler="Accept" class="btn btn-success" disabled="@(!Model.CanAccept)">
                             Accept offer
                         </button>
                         <button type="submit" asp-page-handler="Reject" class="btn btn-outline-danger">Decline offer</button>
                     </div>
-                    @if (!canAccept)
+                    @if (!Model.CanAccept)
                     {
-                        <p class="text-muted mt-2"><small>Upload the signed @(kfsIssued ? "offer letter and Key Facts Statement" : "offer letter") above to enable Accept.</small></p>
+                        <p class="text-muted mt-2"><small>Upload the signed @(Model.KfsIssued ? "offer letter and Key Facts Statement" : "offer letter") above to enable Accept.</small></p>
                     }
                 </form>
             }

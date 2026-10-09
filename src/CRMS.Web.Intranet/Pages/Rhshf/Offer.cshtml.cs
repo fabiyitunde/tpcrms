@@ -18,6 +18,7 @@ public class OfferModel : RhshfPublicPageModel
     private readonly GetRhshfOfferHandler _offerHandler;
     private readonly UploadSignedOfferHandler _uploadHandler;
     private readonly RemoveSignedOfferDocumentHandler _removeHandler;
+    private readonly DownloadRhshfOfferDocumentHandler _downloadSignedHandler;
     private readonly AcceptRhshfOfferHandler _acceptHandler;
     private readonly RejectRhshfOfferHandler _rejectHandler;
     private readonly IFileStorageService _fileStorage;
@@ -28,6 +29,7 @@ public class OfferModel : RhshfPublicPageModel
         GetRhshfOfferHandler offerHandler,
         UploadSignedOfferHandler uploadHandler,
         RemoveSignedOfferDocumentHandler removeHandler,
+        DownloadRhshfOfferDocumentHandler downloadSignedHandler,
         AcceptRhshfOfferHandler acceptHandler,
         RejectRhshfOfferHandler rejectHandler,
         IFileStorageService fileStorage)
@@ -37,6 +39,7 @@ public class OfferModel : RhshfPublicPageModel
         _offerHandler = offerHandler;
         _uploadHandler = uploadHandler;
         _removeHandler = removeHandler;
+        _downloadSignedHandler = downloadSignedHandler;
         _acceptHandler = acceptHandler;
         _rejectHandler = rejectHandler;
         _fileStorage = fileStorage;
@@ -44,6 +47,16 @@ public class OfferModel : RhshfPublicPageModel
 
     public RhshfCaseWorkspaceDto? Workspace { get; private set; }
     public RhshfOfferDto? Offer { get; private set; }
+
+    // Display-state flags, kept here so the Razor page stays free of code-block logic.
+    public bool KfsIssued => !string.IsNullOrEmpty(Offer?.KfsDocumentPath);
+    public bool IsDecided => Offer is not null && Offer.Status != RhshfOfferStatus.Generated;
+    public bool HasSignedLetter => Offer?.SignedDocuments
+        .Any(d => d.Kind is RhshfOfferDocumentKind.SignedOfferLetter or RhshfOfferDocumentKind.Other) ?? false;
+    public bool HasSignedKfs => Offer?.SignedDocuments.Any(d => d.Kind == RhshfOfferDocumentKind.SignedKfs) ?? false;
+    /// <summary>Mirror of RhshfOffer.Accept()'s precondition — a signed offer letter, plus a signed KFS
+    /// when one was issued.</summary>
+    public bool CanAccept => HasSignedLetter && (!KfsIssued || HasSignedKfs);
 
     [TempData]
     public string? ErrorMessage { get; set; }
@@ -94,6 +107,25 @@ public class OfferModel : RhshfPublicPageModel
 
         var bytes = await _fileStorage.DownloadAsync(offerResult.Data.KfsDocumentPath, ct);
         return File(bytes, "application/pdf", $"{reference}-kfs.pdf");
+    }
+
+    /// <summary>GET /rhshf/offer/{reference}?handler=DownloadSigned&amp;documentId=… — lets the FAC
+    /// retrieve a signed copy they uploaded. The id is verified against this case's own offer so a
+    /// session scoped to one reference can't pull another case's document.</summary>
+    public async Task<IActionResult> OnGetDownloadSignedAsync(string reference, Guid documentId, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var offerResult = await _offerHandler.Handle(new GetRhshfOfferQuery(reference), ct);
+        if (!offerResult.IsSuccess || offerResult.Data!.SignedDocuments.All(d => d.Id != documentId))
+            return NotFound();
+
+        var fileResult = await _downloadSignedHandler.Handle(new DownloadRhshfOfferDocumentQuery(documentId), ct);
+        if (!fileResult.IsSuccess)
+            return NotFound();
+
+        return File(fileResult.Data!.Content, fileResult.Data.ContentType, fileResult.Data.FileName);
     }
 
     public async Task<IActionResult> OnPostUploadAsync(

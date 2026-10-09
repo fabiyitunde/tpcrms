@@ -22,6 +22,12 @@ public record RhshfOfferDto(
     /// make every historical offer display the wrong number.</summary>
     decimal? ApprovedAmount,
     string Currency,
+    /// <summary>Repayment terms pulled from the cycle's financial appraisal — the same figures the KFS
+    /// prints. Nullable because legacy/SQL-advanced cases may have reached the offer stage without a
+    /// saved appraisal; the FAC page only shows a term when its value is present.</summary>
+    decimal? InterestRatePercent,
+    int? CycleMonths,
+    decimal? AmountDueAtHarvest,
     DateTime? FacRespondedAt,
     string? FacResponseNotes,
     List<RhshfOfferDocumentDto> SignedDocuments);
@@ -47,9 +53,12 @@ public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, Applicat
         if (offer is null)
             return ApplicationResult<RhshfOfferDto>.Failure("No offer has been generated for this case's current cycle.");
 
+        var appraisal = profile.GetCurrentCycleFinancialAppraisal();
+
         return ApplicationResult<RhshfOfferDto>.Success(new RhshfOfferDto(
             offer.CycleNumber, offer.GeneratedAt, offer.OfferDocumentPath, offer.KfsDocumentPath, offer.Status,
             profile.ApprovedAmount, profile.Currency,
+            appraisal?.InterestRatePercent, appraisal?.CycleMonths, appraisal?.AmountDueAtHarvest,
             offer.FacRespondedAt, offer.FacResponseNotes,
             offer.Documents.Select(d => new RhshfOfferDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt, d.Kind)).ToList()));
     }
