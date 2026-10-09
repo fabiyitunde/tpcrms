@@ -24,7 +24,7 @@
                         <span style="font-size: 0.8rem; color: var(--gray-500);">Cycle @d.CycleNumber &middot; @d.BookedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</span>
                         @if (d.Status == RhshfDisbursementStatus.Booked)
                         {
-                            <span style="font-size: 0.8rem; color: var(--gray-700);">Fineract loan <code>@d.FineractLoanAccountNumber</code></span>
+                            <span style="font-size: 0.8rem; color: var(--gray-700);">Core Banking loan <code>@d.FineractLoanAccountNumber</code></span>
                         }
                     </div>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 0.6rem;">

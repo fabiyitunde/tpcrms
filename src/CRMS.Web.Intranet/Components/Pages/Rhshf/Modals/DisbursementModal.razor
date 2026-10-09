@@ -1,11 +1,37 @@
 <div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
-    <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+    <div class="modal" style="max-width: 520px;" @onclick:stopPropagation>
         <div class="modal-header">
             <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">account_balance</span>Book Disbursement</h3>
             <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
         </div>
         <div class="modal-body">
-            <p class="text-muted">Books against the admin-configured RH-SHF Fineract product. Interest rate and tenor are always pulled live from that product — not entered here.</p>
+            <p class="text-muted">Books against the admin-configured RH-SHF Core Banking product. Interest rate and tenor are always pulled live from that product — not entered here.</p>
+
+            @* What the officer is about to disburse. *@
+            <div style="border: 1px solid var(--gray-200); border-radius: 6px; padding: 12px; margin-bottom: 1rem; background: var(--gray-50);">
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.85rem;">
+                    <div style="color: var(--gray-600);">Borrower</div><div><strong>@CompanyName</strong></div>
+                    <div style="color: var(--gray-600);">Reference</div><div>@Reference</div>
+                    @if (InterestRatePercent is not null)
+                    {
+                        <div style="color: var(--gray-600);">Interest rate</div><div>@InterestRatePercent.Value.ToString("0.##")% for the cycle</div>
+                    }
+                    @if (CycleMonths is not null)
+                    {
+                        <div style="color: var(--gray-600);">Crop cycle</div><div>@CycleMonths.Value month@(CycleMonths.Value == 1 ? "" : "s")</div>
+                    }
+                    @if (AmountDueAtHarvest is not null)
+                    {
+                        <div style="color: var(--gray-600);">Repayable at harvest</div><div>@Currency @AmountDueAtHarvest.Value.ToString("N2")</div>
+                    }
+                </div>
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-200);">
+                    <div style="color: var(--gray-600); font-size: 0.78rem;">Amount to disburse</div>
+                    <div style="font-size: 1.35rem; font-weight: 700; color: var(--primary, #14532d);">@Currency @AmountToDisburse.ToString("N2")</div>
+                    <div style="color: var(--gray-500); font-size: 0.74rem;">Disbursed in kind to the input supplier below — not as cash to the borrower.</div>
+                </div>
+            </div>
+
             <div class="form-group">
                 <label class="form-label">Input-supplier account number (required)</label>
                 <input class="form-control" @bind="supplierAccountNumber" />
@@ -34,6 +60,15 @@
     [Parameter] public EventCallback<(string SupplierAccountNumber, string? SupplierName)> OnConfirm { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
+
+    // Read-only context so the officer sees what they're about to disburse.
+    [Parameter] public string CompanyName { get; set; } = "";
+    [Parameter] public string Reference { get; set; } = "";
+    [Parameter] public string Currency { get; set; } = "NGN";
+    [Parameter] public decimal AmountToDisburse { get; set; }
+    [Parameter] public decimal? InterestRatePercent { get; set; }
+    [Parameter] public int? CycleMonths { get; set; }
+    [Parameter] public decimal? AmountDueAtHarvest { get; set; }
 
     private string supplierAccountNumber = string.Empty;
     private string supplierName = string.Empty;

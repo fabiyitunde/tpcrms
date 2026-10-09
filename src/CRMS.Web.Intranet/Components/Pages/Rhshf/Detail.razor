@@ -352,7 +352,11 @@ else
     }
     @if (openModal == "disbursement")
     {
-        <DisbursementModal OnClose="CloseModal" OnConfirm="SubmitDisbursement" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
+        <DisbursementModal OnClose="CloseModal" OnConfirm="SubmitDisbursement" IsSubmitting="isSubmitting" ErrorMessage="@modalError"
+            CompanyName="@workspace.CompanyName" Reference="@Reference"
+            Currency="@(string.IsNullOrWhiteSpace(offer?.Currency) ? workspace.Currency : offer!.Currency)"
+            AmountToDisburse="@(workspace.ApprovedAmount ?? offer?.ApprovedAmount ?? workspace.TotalEopValue)"
+            InterestRatePercent="offer?.InterestRatePercent" CycleMonths="offer?.CycleMonths" AmountDueAtHarvest="offer?.AmountDueAtHarvest" />
     }
     @if (openModal == "appraisal")
     {
