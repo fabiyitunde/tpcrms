@@ -51,7 +51,7 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
         var product = await _productRepo.GetActiveRhshfProductAsync(ct);
         if (product?.FineractProductId is null || product.FineractProductId <= 0)
             return ApplicationResult.Failure(
-                "No active RH-SHF loan product with a linked Fineract product is configured. Contact an administrator.");
+                "No active RH-SHF loan product with a linked Core Banking product is configured. Contact an administrator.");
 
         var accountResult = await _fineract.GetNampBoaAccountAsync(profile.BoaAccountNumber, ct);
         if (accountResult.IsFailure)
@@ -59,11 +59,11 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
 
         var productsResult = await _fineract.GetLoanProductsAsync(activeOnly: false, ct);
         if (productsResult.IsFailure)
-            return await RecordAndSaveAsync(profile, request, null, null, $"Could not fetch Fineract product catalogue: {productsResult.Error}", ct);
+            return await RecordAndSaveAsync(profile, request, null, null, $"Could not fetch the Core Banking product catalogue: {productsResult.Error}", ct);
 
         var fineractProduct = productsResult.Value.FirstOrDefault(p => p.Id == product.FineractProductId);
         if (fineractProduct is null)
-            return await RecordAndSaveAsync(profile, request, null, null, $"Fineract product {product.FineractProductId} not found in catalogue.", ct);
+            return await RecordAndSaveAsync(profile, request, null, null, $"The configured Core Banking product was not found in the catalogue.", ct);
 
         var bookingRequest = new FineractLoanBookingRequest(
             ClientId: accountResult.Value.ClientId,
@@ -90,6 +90,8 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
         RhshfCreditProfile profile, BookRhshfDisbursementCommand request,
         long? fineractLoanId, string? fineractLoanAccountNumber, string? failureReason, CancellationToken ct)
     {
+        // Never surface the core-banking vendor name to officers — sanitise raw service errors too.
+        failureReason = Sanitize(failureReason);
         var status = failureReason is null ? RhshfDisbursementStatus.Booked : RhshfDisbursementStatus.Failed;
         var result = profile.RecordDisbursementAttempt(
             request.DisbursementOfficerId, profile.ApprovedAmount!.Value, request.SupplierAccountNumber, request.SupplierName,
@@ -102,4 +104,11 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
             ? ApplicationResult.Success()
             : ApplicationResult.Failure(failureReason!);
     }
+
+    /// <summary>Replaces the core-banking vendor name with the neutral "Core Banking" in any message that
+    /// could reach an officer (raw service errors can carry it).</summary>
+    private static string? Sanitize(string? message) => message is null
+        ? null
+        : System.Text.RegularExpressions.Regex.Replace(message, "fineract", "Core Banking",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 }

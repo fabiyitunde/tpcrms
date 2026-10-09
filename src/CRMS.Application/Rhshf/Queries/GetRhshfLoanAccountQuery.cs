@@ -36,7 +36,12 @@ public class GetRhshfLoanAccountHandler : IRequestHandler<GetRhshfLoanAccountQue
 
         var result = await _fineract.GetLoanDetailAsync(booked.FineractLoanId!.Value, ct);
         if (!result.IsSuccess)
-            return ApplicationResult<RhshfLoanAccountDto>.Failure($"Could not load loan account from Fineract: {result.Error}");
+        {
+            var reason = System.Text.RegularExpressions.Regex.Replace(
+                result.Error ?? "unknown error", "fineract", "Core Banking",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return ApplicationResult<RhshfLoanAccountDto>.Failure($"Could not load loan account from Core Banking: {reason}");
+        }
 
         var loan = result.Value;
         var now = DateTime.UtcNow;

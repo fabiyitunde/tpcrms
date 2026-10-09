@@ -876,7 +876,7 @@ public class RhshfCreditProfile : AggregateRoot
             DecidedAt = DateTime.UtcNow;
             DecidedBy = "CRMS Disbursement";
             DecisionNotes = fineractLoanAccountNumber is not null
-                ? $"Booked as Fineract loan {fineractLoanAccountNumber}."
+                ? $"Booked as Core Banking loan {fineractLoanAccountNumber}."
                 : null;
             RecordTransition("Disbursed and booked — loan now active", disbursementOfficerId, note: DecisionNotes);
             AddDomainEvent(new RhshfCaseDecidedEvent(Id));

@@ -118,7 +118,7 @@ public class SubmitConsolidatedEopHandler
         if (branch is null)
         {
             profile.ResolveBranch(null, null,
-                $"BOA account belongs to Fineract office '{clientResult.Value.OfficeName}' which does not match any active CRMS branch.");
+                $"BOA account belongs to core banking office '{clientResult.Value.OfficeName}' which does not match any active CRMS branch.");
             return;
         }
 
