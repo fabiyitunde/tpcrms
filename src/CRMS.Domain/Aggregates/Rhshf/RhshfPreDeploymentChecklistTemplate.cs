@@ -1,4 +1,5 @@
 using CRMS.Domain.Common;
+using CRMS.Domain.Enums;
 
 namespace CRMS.Domain.Aggregates.Rhshf;
 
@@ -18,10 +19,15 @@ public class RhshfPreDeploymentChecklistTemplate : Entity
     public int SortOrder { get; private set; }
     public bool IsActive { get; private set; }
 
+    /// <summary>How this gate item is satisfied (auto from offer docs, account/collateral review, or a
+    /// plain manual tick). Defaults to Manual, so pre-existing templates keep their current behaviour.</summary>
+    public RhshfPreDeploymentVerificationKind Kind { get; private set; }
+
     protected RhshfPreDeploymentChecklistTemplate() { }
 
     public static Result<RhshfPreDeploymentChecklistTemplate> Create(
-        string title, string? description, bool isMandatory, int sortOrder)
+        string title, string? description, bool isMandatory, int sortOrder,
+        RhshfPreDeploymentVerificationKind kind = RhshfPreDeploymentVerificationKind.Manual)
     {
         if (string.IsNullOrWhiteSpace(title))
             return Result.Failure<RhshfPreDeploymentChecklistTemplate>("Title is required.");
@@ -32,11 +38,13 @@ public class RhshfPreDeploymentChecklistTemplate : Entity
             Description = description?.Trim(),
             IsMandatory = isMandatory,
             SortOrder = sortOrder,
+            Kind = kind,
             IsActive = true,
         });
     }
 
-    public Result Update(string title, string? description, bool isMandatory, int sortOrder)
+    public Result Update(string title, string? description, bool isMandatory, int sortOrder,
+        RhshfPreDeploymentVerificationKind kind = RhshfPreDeploymentVerificationKind.Manual)
     {
         if (string.IsNullOrWhiteSpace(title))
             return Result.Failure("Title is required.");
@@ -45,6 +53,7 @@ public class RhshfPreDeploymentChecklistTemplate : Entity
         Description = description?.Trim();
         IsMandatory = isMandatory;
         SortOrder = sortOrder;
+        Kind = kind;
         return Result.Success();
     }
 

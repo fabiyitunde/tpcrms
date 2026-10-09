@@ -49,6 +49,28 @@ public class RhshfOfferTests
     }
 
     [Fact]
+    public void HasRequiredSignedDocuments_LetterOnly_NoKfsIssued_IsTrue()
+    {
+        var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "offer.pdf").Value;
+        offer.AddDocument("signed-offer.pdf", "application/pdf", "p1.pdf", 1024, RhshfOfferDocumentKind.SignedOfferLetter);
+
+        Assert.True(offer.HasRequiredSignedDocuments);
+    }
+
+    [Fact]
+    public void HasRequiredSignedDocuments_KfsIssuedButNotSigned_IsFalse()
+    {
+        var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "offer.pdf").Value;
+        offer.AttachKfs("kfs.pdf");
+        offer.AddDocument("signed-offer.pdf", "application/pdf", "p1.pdf", 1024, RhshfOfferDocumentKind.SignedOfferLetter);
+
+        Assert.False(offer.HasRequiredSignedDocuments);
+
+        offer.AddDocument("signed-kfs.pdf", "application/pdf", "p2.pdf", 1024, RhshfOfferDocumentKind.SignedKfs);
+        Assert.True(offer.HasRequiredSignedDocuments);
+    }
+
+    [Fact]
     public void RemoveDocument_WhileGenerated_RemovesIt()
     {
         var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "offer.pdf").Value;

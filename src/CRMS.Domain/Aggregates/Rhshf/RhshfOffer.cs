@@ -101,6 +101,13 @@ public class RhshfOffer : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>Whether the FAC's signed package is on file — the signed offer letter (a legacy "Other"
+    /// upload also counts, so in-flight cases aren't stranded), plus the signed KFS when one was issued.
+    /// The single source of truth for both Accept()'s precondition and the pre-deployment auto gate.</summary>
+    public bool HasRequiredSignedDocuments =>
+        _documents.Any(d => d.Kind is RhshfOfferDocumentKind.SignedOfferLetter or RhshfOfferDocumentKind.Other)
+        && (string.IsNullOrEmpty(KfsDocumentPath) || _documents.Any(d => d.Kind == RhshfOfferDocumentKind.SignedKfs));
+
     /// <summary>Fails if no signed copy has been uploaded yet — checked here, not trusted from the
     /// caller (design doc §6 #10).</summary>
     public Result Accept(string? notes)
@@ -109,9 +116,7 @@ public class RhshfOffer : AggregateRoot
             return Result.Failure("This offer has already been decided.");
 
         // The FAC must return the signed offer letter — and the signed KFS too, when one was issued.
-        // A legacy "Other" upload also satisfies the offer-letter slot so in-flight cases aren't stranded.
-        var hasSignedLetter = _documents.Any(d => d.Kind is RhshfOfferDocumentKind.SignedOfferLetter or RhshfOfferDocumentKind.Other);
-        if (!hasSignedLetter)
+        if (!_documents.Any(d => d.Kind is RhshfOfferDocumentKind.SignedOfferLetter or RhshfOfferDocumentKind.Other))
             return Result.Failure("Upload the signed offer letter before accepting.");
         if (!string.IsNullOrEmpty(KfsDocumentPath) && !_documents.Any(d => d.Kind == RhshfOfferDocumentKind.SignedKfs))
             return Result.Failure("Upload the signed Key Facts Statement before accepting.");

@@ -6892,6 +6892,21 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<CRMS.Application.Rhshf.Queries.RhshfBoaAccountSnapshotDto?> GetRhshfBoaAccountSnapshotAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfBoaAccountSnapshotHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfBoaAccountSnapshotQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF BOA account snapshot for {Reference}", reference);
+            return null;
+        }
+    }
+
     public async Task<ApiResponse> AppraiseRhshfCaseAsync(
         string reference, Guid creditOfficerId, CRMS.Domain.Enums.RhshfAppraisalOutcome outcome, string? notes,
         CRMS.Domain.Enums.RhshfProfilingStage? returnToStage)
@@ -7426,13 +7441,14 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> CreateRhshfPreDeployTemplateAsync(string title, string? description, bool isMandatory, int sortOrder)
+    public async Task<ApiResponse> CreateRhshfPreDeployTemplateAsync(string title, string? description, bool isMandatory, int sortOrder,
+        CRMS.Domain.Enums.RhshfPreDeploymentVerificationKind kind = CRMS.Domain.Enums.RhshfPreDeploymentVerificationKind.Manual)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.CreateRhshfPreDeployTemplateHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.CreateRhshfPreDeployTemplateCommand(title, description, isMandatory, sortOrder),
+                new CRMS.Application.Rhshf.Commands.CreateRhshfPreDeployTemplateCommand(title, description, isMandatory, sortOrder, kind),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create checklist template");
         }
@@ -7443,13 +7459,14 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> UpdateRhshfPreDeployTemplateAsync(Guid id, string title, string? description, bool isMandatory, int sortOrder)
+    public async Task<ApiResponse> UpdateRhshfPreDeployTemplateAsync(Guid id, string title, string? description, bool isMandatory, int sortOrder,
+        CRMS.Domain.Enums.RhshfPreDeploymentVerificationKind kind = CRMS.Domain.Enums.RhshfPreDeploymentVerificationKind.Manual)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.UpdateRhshfPreDeployTemplateHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.UpdateRhshfPreDeployTemplateCommand(id, title, description, isMandatory, sortOrder),
+                new CRMS.Application.Rhshf.Commands.UpdateRhshfPreDeployTemplateCommand(id, title, description, isMandatory, sortOrder, kind),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update checklist template");
         }

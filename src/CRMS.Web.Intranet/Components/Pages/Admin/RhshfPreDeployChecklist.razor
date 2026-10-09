@@ -1,6 +1,7 @@
 @page "/admin/rhshf-predeploy-checklist"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
 @using CRMS.Application.Rhshf.DTOs
+@using CRMS.Domain.Enums
 @inject ApplicationService AppService
 
 <PageTitle>RH-SHF Pre-Deploy Checklist - CRMS</PageTitle>
@@ -40,7 +41,7 @@
             <div class="table-wrapper">
                 <table class="table" style="margin-bottom: 0;">
                     <thead>
-                        <tr><th>Title</th><th>Mandatory</th><th>Sort</th><th>Status</th><th></th></tr>
+                        <tr><th>Title</th><th>Verification</th><th>Mandatory</th><th>Sort</th><th>Status</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach (var t in templates.OrderBy(t => t.SortOrder))
@@ -53,6 +54,7 @@
                                         <div style="font-size: 0.8rem; color: var(--gray-500);">@t.Description</div>
                                     }
                                 </td>
+                                <td><span class="badge badge-gray">@KindLabel(t.Kind)</span></td>
                                 <td><span class="badge @(t.IsMandatory ? "badge-warning" : "badge-gray")">@(t.IsMandatory ? "Mandatory" : "Optional")</span></td>
                                 <td>@t.SortOrder</td>
                                 <td><span class="badge @(t.IsActive ? "badge-success" : "badge-gray")">@(t.IsActive ? "Active" : "Inactive")</span></td>
@@ -85,6 +87,18 @@
                 <div class="form-group">
                     <label class="form-label">Description</label>
                     <textarea class="form-control" rows="2" @bind="form.Description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Verification type</label>
+                    <select class="form-control" @bind="form.Kind">
+                        <option value="@RhshfPreDeploymentVerificationKind.Manual">Manual — officer attests</option>
+                        <option value="@RhshfPreDeploymentVerificationKind.OfferDocuments">Auto — signed offer documents on file</option>
+                        <option value="@RhshfPreDeploymentVerificationKind.AccountConfirmation">Account — confirm pulled BOA account details</option>
+                        <option value="@RhshfPreDeploymentVerificationKind.CollateralReview">Collateral — review records & documents</option>
+                    </select>
+                    <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 4px;">
+                        Auto items are satisfied by the system; the others are confirmed by the Disbursement Officer after review.
+                    </div>
                 </div>
                 <div class="form-group">
                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
@@ -144,7 +158,7 @@
 
     private void OpenEditModal(RhshfPreDeploymentChecklistTemplateDto t)
     {
-        form = new() { Title = t.Title, Description = t.Description ?? string.Empty, IsMandatory = t.IsMandatory, SortOrder = t.SortOrder };
+        form = new() { Title = t.Title, Description = t.Description ?? string.Empty, IsMandatory = t.IsMandatory, SortOrder = t.SortOrder, Kind = t.Kind };
         editingId = t.Id;
         isEditing = true;
         saveError = null;
@@ -163,8 +177,8 @@
         try
         {
             var result = isEditing
-                ? await AppService.UpdateRhshfPreDeployTemplateAsync(editingId, form.Title, form.Description, form.IsMandatory, form.SortOrder)
-                : await AppService.CreateRhshfPreDeployTemplateAsync(form.Title, form.Description, form.IsMandatory, form.SortOrder);
+                ? await AppService.UpdateRhshfPreDeployTemplateAsync(editingId, form.Title, form.Description, form.IsMandatory, form.SortOrder, form.Kind)
+                : await AppService.CreateRhshfPreDeployTemplateAsync(form.Title, form.Description, form.IsMandatory, form.SortOrder, form.Kind);
 
             if (result.Success) { CloseModal(); await Load(); }
             else saveError = result.Error ?? "Failed to save";
@@ -179,11 +193,20 @@
         else pageError = result.Error ?? "Failed to update status";
     }
 
+    private static string KindLabel(RhshfPreDeploymentVerificationKind kind) => kind switch
+    {
+        RhshfPreDeploymentVerificationKind.OfferDocuments => "Auto",
+        RhshfPreDeploymentVerificationKind.AccountConfirmation => "Account",
+        RhshfPreDeploymentVerificationKind.CollateralReview => "Collateral",
+        _ => "Manual",
+    };
+
     private class FormModel
     {
         public string Title { get; set; } = string.Empty;
         public string? Description { get; set; }
         public bool IsMandatory { get; set; } = true;
         public int SortOrder { get; set; } = 0;
+        public RhshfPreDeploymentVerificationKind Kind { get; set; } = RhshfPreDeploymentVerificationKind.Manual;
     }
 }

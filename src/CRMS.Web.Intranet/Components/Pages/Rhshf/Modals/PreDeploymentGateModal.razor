@@ -1,7 +1,9 @@
 @using CRMS.Application.Rhshf.DTOs
+@using CRMS.Application.Rhshf.Queries
+@using CRMS.Domain.Enums
 
 <div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
-    <div class="modal" style="max-width: 640px; max-height: 85vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
+    <div class="modal" style="max-width: 680px; max-height: 88vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
         <div class="modal-header">
             <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">checklist</span>Pre-Deployment Gate</h3>
             <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
@@ -13,7 +15,7 @@
             }
             else
             {
-                @foreach (var item in Checklist.OrderBy(i => i.Title))
+                @foreach (var item in Checklist.OrderBy(i => i.Kind == RhshfPreDeploymentVerificationKind.OfferDocuments ? 0 : 1).ThenBy(i => i.Title))
                 {
                     <div class="form-group" style="border: 1px solid var(--gray-200); border-radius: 6px; padding: 12px; margin-bottom: 10px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 0.75rem;">
@@ -23,21 +25,52 @@
                                 {
                                     <span class="badge badge-gray" style="margin-left: 6px; font-size: 0.65rem;">Optional</span>
                                 }
+                                <span class="badge badge-gray" style="margin-left: 6px; font-size: 0.6rem;">@KindLabel(item.Kind)</span>
                             </strong>
-                            <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
-                                <button type="button" class="btn btn-sm @(item.IsConfirmed == true ? "btn-success" : "btn-outline-success")" @onclick="() => Confirm(item.Id, true)">
-                                    <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">check</span>
-                                </button>
-                                <button type="button" class="btn btn-sm @(item.IsConfirmed == false ? "btn-danger" : "btn-outline-danger")" @onclick="() => Confirm(item.Id, false)">
-                                    <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">close</span>
-                                </button>
-                            </div>
+                            @if (item.Kind == RhshfPreDeploymentVerificationKind.OfferDocuments)
+                            {
+                                <span class="badge @(item.IsConfirmed == true ? "badge-success" : "badge-warning")" style="flex-shrink: 0;">
+                                    @(item.IsConfirmed == true ? "Verified automatically" : "Awaiting signed docs")
+                                </span>
+                            }
+                            else
+                            {
+                                <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                                    <button type="button" class="btn btn-sm @(item.IsConfirmed == true ? "btn-success" : "btn-outline-success")" @onclick="() => Confirm(item.Id, true)">
+                                        <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">check</span>
+                                    </button>
+                                    <button type="button" class="btn btn-sm @(item.IsConfirmed == false ? "btn-danger" : "btn-outline-danger")" @onclick="() => Confirm(item.Id, false)">
+                                        <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">close</span>
+                                    </button>
+                                </div>
+                            }
                         </div>
                         @if (!string.IsNullOrEmpty(item.Description))
                         {
                             <p class="text-muted" style="font-size: 0.8rem; margin: 0 0 6px;">@item.Description</p>
                         }
-                        <textarea class="form-control" rows="1" placeholder="Notes (optional)" value="@item.Notes" @onchange="e => SetNotes(item.Id, e.Value?.ToString())"></textarea>
+
+                        @* Kind-specific evidence the officer reviews before confirming. *@
+                        @if (item.Kind == RhshfPreDeploymentVerificationKind.AccountConfirmation)
+                        {
+                            @RenderAccountCard()
+                        }
+                        else if (item.Kind == RhshfPreDeploymentVerificationKind.CollateralReview)
+                        {
+                            @RenderCollateralCard()
+                        }
+
+                        @if (item.Kind == RhshfPreDeploymentVerificationKind.OfferDocuments)
+                        {
+                            @if (!string.IsNullOrEmpty(item.Notes))
+                            {
+                                <p style="font-size: 0.8rem; color: var(--gray-600); margin: 4px 0 0;">@item.Notes</p>
+                            }
+                        }
+                        else
+                        {
+                            <textarea class="form-control" rows="1" placeholder="Notes (optional)" value="@item.Notes" @onchange="e => SetNotes(item.Id, e.Value?.ToString())"></textarea>
+                        }
                     </div>
                 }
                 <div class="form-group">
@@ -62,6 +95,8 @@
 
 @code {
     [Parameter, EditorRequired] public List<RhshfPreDeploymentChecklistItemDto> Checklist { get; set; } = [];
+    [Parameter] public List<RhshfCollateralDto> Collateral { get; set; } = [];
+    [Parameter] public RhshfBoaAccountSnapshotDto? AccountSnapshot { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<(Guid ItemId, bool? IsConfirmed, string? Notes)> OnConfirmItem { get; set; }
     [Parameter] public EventCallback<string?> OnComplete { get; set; }
@@ -70,6 +105,65 @@
 
     private string? completionNote;
     private readonly Dictionary<Guid, string?> pendingNotes = [];
+
+    private RenderFragment RenderAccountCard() => __builder =>
+    {
+        <div style="background: var(--gray-50); border-radius: 6px; padding: 8px 10px; margin: 2px 0 8px; font-size: 0.82rem;">
+            @if (AccountSnapshot is null)
+            {
+                <span class="text-muted">Account details not loaded.</span>
+            }
+            else if (!AccountSnapshot.Found)
+            {
+                <span style="color: var(--danger, #b91c1c);">Could not pull account details: @AccountSnapshot.Error</span>
+            }
+            else
+            {
+                <div><strong>Account:</strong> @AccountSnapshot.AccountNumber</div>
+                <div><strong>Name:</strong> @(AccountSnapshot.AccountName ?? "—")</div>
+                @if (!string.IsNullOrEmpty(AccountSnapshot.AccountType))
+                {
+                    <div><strong>Type:</strong> @AccountSnapshot.AccountType</div>
+                }
+                @if (!string.IsNullOrEmpty(AccountSnapshot.Status))
+                {
+                    <div><strong>Status:</strong> @AccountSnapshot.Status</div>
+                }
+                <div class="text-muted" style="font-size: 0.72rem; margin-top: 3px;">Pulled from Core Banking — confirm the name/number match the offer.</div>
+            }
+        </div>
+    };
+
+    private RenderFragment RenderCollateralCard() => __builder =>
+    {
+        <div style="background: var(--gray-50); border-radius: 6px; padding: 8px 10px; margin: 2px 0 8px; font-size: 0.82rem;">
+            @if (Collateral.Count == 0)
+            {
+                <span class="text-muted">No collateral recorded for this case.</span>
+            }
+            else
+            {
+                @foreach (var c in Collateral)
+                {
+                    <div style="padding: 2px 0;">
+                        <strong>@c.Type</strong>
+                        @if (!string.IsNullOrEmpty(c.ReferenceNumber)) { <span class="text-muted"> · @c.ReferenceNumber</span> }
+                        @if (c.PerfectionStatus is not null) { <span class="badge badge-gray" style="margin-left: 6px; font-size: 0.6rem;">@c.PerfectionStatus</span> }
+                        <span class="text-muted" style="margin-left: 6px;">@c.Documents.Count doc(s)</span>
+                    </div>
+                }
+                <div class="text-muted" style="font-size: 0.72rem; margin-top: 3px;">Review the records and documents on the Collateral tab, then confirm.</div>
+            }
+        </div>
+    };
+
+    private static string KindLabel(RhshfPreDeploymentVerificationKind kind) => kind switch
+    {
+        RhshfPreDeploymentVerificationKind.OfferDocuments => "Auto",
+        RhshfPreDeploymentVerificationKind.AccountConfirmation => "Account",
+        RhshfPreDeploymentVerificationKind.CollateralReview => "Collateral",
+        _ => "Manual",
+    };
 
     private async Task Confirm(Guid itemId, bool isConfirmed)
     {

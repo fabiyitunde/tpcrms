@@ -144,21 +144,21 @@ public static class RhshfWorkflowSeeder
         var items = new[]
         {
             Checklist(
-                "Disbursement Account Verified",
-                "Confirm the input-supplier account number and name have been verified and match the offer.",
-                isMandatory: true, sortOrder: 10),
+                "BOA Disbursement Account Verified",
+                "Review the BOA account details pulled from Core Banking and confirm the account name/number match the offer.",
+                isMandatory: true, sortOrder: 10, kind: RhshfPreDeploymentVerificationKind.AccountConfirmation),
             Checklist(
-                "Collateral Perfected",
-                "If a Legal Mortgage was recorded for this case, confirm its perfection status is Perfected. Not applicable if no mortgage was taken.",
-                isMandatory: false, sortOrder: 20),
+                "Collateral Reviewed & Documents on File",
+                "Review the collateral records and their uploaded documents, then confirm. Not applicable if no collateral was taken.",
+                isMandatory: false, sortOrder: 20, kind: RhshfPreDeploymentVerificationKind.CollateralReview),
             Checklist(
-                "Signed Offer Letter Countersigned",
-                "Confirm the FAC's countersigned offer letter is on file (see the Offer tab).",
-                isMandatory: true, sortOrder: 30),
+                "Signed Offer Letter & KFS Received",
+                "Auto-verified from the FAC's signed offer documents on the offer.",
+                isMandatory: true, sortOrder: 30, kind: RhshfPreDeploymentVerificationKind.OfferDocuments),
             Checklist(
                 "Compliance / AML Sign-Off",
                 "Confirm compliance and AML checks for this disbursement are complete.",
-                isMandatory: true, sortOrder: 40),
+                isMandatory: true, sortOrder: 40, kind: RhshfPreDeploymentVerificationKind.Manual),
         };
 
         await context.RhshfPreDeploymentChecklistTemplates.AddRangeAsync(items);
@@ -166,9 +166,10 @@ public static class RhshfWorkflowSeeder
         logger.LogInformation("Seeded {Count} RH-SHF pre-deployment checklist templates.", items.Length);
     }
 
-    private static RhshfPreDeploymentChecklistTemplate Checklist(string title, string description, bool isMandatory, int sortOrder)
+    private static RhshfPreDeploymentChecklistTemplate Checklist(
+        string title, string description, bool isMandatory, int sortOrder, RhshfPreDeploymentVerificationKind kind)
     {
-        var result = RhshfPreDeploymentChecklistTemplate.Create(title, description, isMandatory, sortOrder);
+        var result = RhshfPreDeploymentChecklistTemplate.Create(title, description, isMandatory, sortOrder, kind);
         result.Value.SetAuditInfo("System Seeder", isNew: true);
         return result.Value;
     }

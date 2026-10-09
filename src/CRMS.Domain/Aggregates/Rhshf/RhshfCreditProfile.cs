@@ -776,10 +776,22 @@ public class RhshfCreditProfile : AggregateRoot
         var item = _preDeploymentChecklist.FirstOrDefault(i => i.Id == itemId && i.CycleNumber == CurrentCycleNumber);
         if (item is null)
             return Result.Failure("Checklist item not found for this cycle.");
+        if (!item.IsOfficerConfirmable)
+            return Result.Failure("This item is verified automatically from the signed offer documents and can't be confirmed by hand.");
 
         item.SetConfirmation(userId, isConfirmed, notes);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
+    }
+
+    /// <summary>Re-derives the auto (offer-documents) items for the current cycle from whether the signed
+    /// offer package is on file. Called by the Application layer (which owns the offer aggregate) before
+    /// completion and on display, so these items always reflect reality rather than a stale tick.</summary>
+    public void SyncAutoOfferDocumentItems(bool offerDocumentsOnFile)
+    {
+        foreach (var item in _preDeploymentChecklist.Where(i =>
+                     i.CycleNumber == CurrentCycleNumber && i.Kind == RhshfPreDeploymentVerificationKind.OfferDocuments))
+            item.SetAutoSatisfaction(offerDocumentsOnFile);
     }
 
     /// <summary>Gate cleared — advances to Disbursement. Blocks if any mandatory item for this cycle

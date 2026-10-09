@@ -1,4 +1,5 @@
 using CRMS.Domain.Common;
+using CRMS.Domain.Enums;
 
 namespace CRMS.Domain.Aggregates.Rhshf;
 
@@ -19,6 +20,10 @@ public class RhshfPreDeploymentChecklistItem : Entity
     public bool IsMandatory { get; private set; }
     public int SortOrder { get; private set; }
 
+    /// <summary>How this item is satisfied (snapshot from the template). Drives both the UI and whether
+    /// confirmation is an officer action (manual/account/collateral) or system-derived (offer docs).</summary>
+    public RhshfPreDeploymentVerificationKind Kind { get; private set; }
+
     // Confirmation state.
     public bool? IsConfirmed { get; private set; }
     public Guid? ConfirmedByUserId { get; private set; }
@@ -38,7 +43,12 @@ public class RhshfPreDeploymentChecklistItem : Entity
             Description = template.Description,
             IsMandatory = template.IsMandatory,
             SortOrder = template.SortOrder,
+            Kind = template.Kind,
         };
+
+    /// <summary>True for items the officer confirms by hand (everything except the auto offer-documents
+    /// kind, which the system derives).</summary>
+    public bool IsOfficerConfirmable => Kind != RhshfPreDeploymentVerificationKind.OfferDocuments;
 
     public void SetConfirmation(Guid userId, bool? isConfirmed, string? notes)
     {
@@ -55,6 +65,19 @@ public class RhshfPreDeploymentChecklistItem : Entity
             ConfirmedByUserId = null;
             ConfirmedAt = null;
         }
+    }
+
+    /// <summary>System-derived satisfaction for the auto (offer-documents) kind — set from whether the
+    /// signed offer package is on file. Keeps ConfirmedByUserId null (no human attested it) but stamps a
+    /// note so the trail is explicit.</summary>
+    public void SetAutoSatisfaction(bool satisfied)
+    {
+        IsConfirmed = satisfied;
+        ConfirmedByUserId = null;
+        ConfirmedAt = satisfied ? DateTime.UtcNow : null;
+        Notes = satisfied
+            ? "Verified automatically — signed offer documents on file."
+            : "Awaiting the FAC's signed offer documents.";
     }
 
     public bool BlocksCompletion => IsMandatory && IsConfirmed != true;

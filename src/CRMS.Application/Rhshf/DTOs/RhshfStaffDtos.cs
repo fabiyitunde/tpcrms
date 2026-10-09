@@ -140,6 +140,7 @@ public record RhshfPreDeploymentChecklistItemDto(
     string Title,
     string? Description,
     bool IsMandatory,
+    RhshfPreDeploymentVerificationKind Kind,
     bool? IsConfirmed,
     Guid? ConfirmedByUserId,
     string? ConfirmedByName,
@@ -151,6 +152,7 @@ public record RhshfPreDeploymentChecklistTemplateDto(
     string Title,
     string? Description,
     bool IsMandatory,
+    RhshfPreDeploymentVerificationKind Kind,
     int SortOrder,
     bool IsActive
 );

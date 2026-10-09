@@ -49,6 +49,49 @@ public class RhshfCreditProfilePreDeploymentAndMonitoringTests
     private static RhshfPreDeploymentChecklistTemplate Optional(string title, int sort = 20) =>
         RhshfPreDeploymentChecklistTemplate.Create(title, null, isMandatory: false, sortOrder: sort).Value;
 
+    private static RhshfPreDeploymentChecklistTemplate OfferDocsAuto(string title, int sort = 30) =>
+        RhshfPreDeploymentChecklistTemplate.Create(title, null, isMandatory: true, sortOrder: sort,
+            RhshfPreDeploymentVerificationKind.OfferDocuments).Value;
+
+    [Fact]
+    public void CompletePreDeployment_AutoOfferDocumentsItem_PassesWhenSyncedSatisfied()
+    {
+        var profile = CreateProfileAtPreDeploymentVerification();
+        profile.SeedPreDeploymentChecklist([OfferDocsAuto("Signed offer & KFS")]);
+
+        // The app layer derives this from the offer; here we assert the gate honours a satisfied sync.
+        profile.SyncAutoOfferDocumentItems(offerDocumentsOnFile: true);
+        var result = profile.CompletePreDeploymentVerification(Guid.NewGuid(), null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfInternalStage.Disbursement, profile.InternalStage);
+    }
+
+    [Fact]
+    public void CompletePreDeployment_AutoOfferDocumentsItem_BlockedWhenNotOnFile()
+    {
+        var profile = CreateProfileAtPreDeploymentVerification();
+        profile.SeedPreDeploymentChecklist([OfferDocsAuto("Signed offer & KFS")]);
+
+        profile.SyncAutoOfferDocumentItems(offerDocumentsOnFile: false);
+        var result = profile.CompletePreDeploymentVerification(Guid.NewGuid(), null);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(RhshfInternalStage.PreDeploymentVerification, profile.InternalStage);
+    }
+
+    [Fact]
+    public void ConfirmPreDeployment_AutoOfferDocumentsItem_CannotBeConfirmedByHand()
+    {
+        var profile = CreateProfileAtPreDeploymentVerification();
+        profile.SeedPreDeploymentChecklist([OfferDocsAuto("Signed offer & KFS")]);
+        var item = profile.PreDeploymentChecklist.Single();
+
+        var result = profile.ConfirmPreDeploymentChecklistItem(item.Id, Guid.NewGuid(), true, "manual tick");
+
+        Assert.True(result.IsFailure);
+    }
+
     [Fact]
     public void SeedPreDeploymentChecklist_InstantiatesActiveTemplatesForCurrentCycle()
     {

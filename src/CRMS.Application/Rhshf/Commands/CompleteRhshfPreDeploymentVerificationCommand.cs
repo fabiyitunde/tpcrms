@@ -10,11 +10,14 @@ public record CompleteRhshfPreDeploymentVerificationCommand(string Reference, Gu
 public class CompleteRhshfPreDeploymentVerificationHandler : IRequestHandler<CompleteRhshfPreDeploymentVerificationCommand, ApplicationResult>
 {
     private readonly IRhshfCreditProfileRepository _repo;
+    private readonly IRhshfOfferRepository _offerRepo;
     private readonly IUnitOfWork _uow;
 
-    public CompleteRhshfPreDeploymentVerificationHandler(IRhshfCreditProfileRepository repo, IUnitOfWork uow)
+    public CompleteRhshfPreDeploymentVerificationHandler(
+        IRhshfCreditProfileRepository repo, IRhshfOfferRepository offerRepo, IUnitOfWork uow)
     {
         _repo = repo;
+        _offerRepo = offerRepo;
         _uow = uow;
     }
 
@@ -23,6 +26,11 @@ public class CompleteRhshfPreDeploymentVerificationHandler : IRequestHandler<Com
         var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
         if (profile is null)
             return ApplicationResult.Failure("Case not found.");
+
+        // Re-derive the auto (offer-documents) items from the live offer before gating, so they reflect
+        // reality and can't be stale-ticked. The offer aggregate is loaded here since it's outside the profile.
+        var offer = await _offerRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
+        profile.SyncAutoOfferDocumentItems(offer?.HasRequiredSignedDocuments ?? false);
 
         var result = profile.CompletePreDeploymentVerification(request.UserId, request.Note);
         if (result.IsFailure)

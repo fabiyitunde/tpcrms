@@ -115,7 +115,7 @@ else
             }
             @if (CanBookDisbursement && workspace.InternalStage == RhshfInternalStage.PreDeploymentVerification)
             {
-                <button class="btn btn-outline" @onclick='() => openModal = "predeployment"'>
+                <button class="btn btn-outline" @onclick="OpenPreDeploymentModal">
                     <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">checklist</span> Pre-Deployment Gate
                 </button>
             }
@@ -406,7 +406,8 @@ else
     }
     @if (openModal == "predeployment")
     {
-        <PreDeploymentGateModal Checklist="preDeploymentChecklist" OnClose="CloseModal" OnConfirmItem="SubmitConfirmChecklistItem"
+        <PreDeploymentGateModal Checklist="preDeploymentChecklist" Collateral="collateralRecords" AccountSnapshot="boaAccountSnapshot"
+            OnClose="CloseModal" OnConfirmItem="SubmitConfirmChecklistItem"
             OnComplete="SubmitCompletePreDeployment" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
 }
@@ -1004,6 +1005,16 @@ else
         isRunningBureauChecks = false;
         if (!result.Success) { bureauError = result.Error; return; }
         await LoadAllAsync();
+    }
+
+    private CRMS.Application.Rhshf.Queries.RhshfBoaAccountSnapshotDto? boaAccountSnapshot;
+
+    private async Task OpenPreDeploymentModal()
+    {
+        modalError = null;
+        openModal = "predeployment";
+        // Pull the live BOA account details so the officer can confirm the account gate item in-place.
+        boaAccountSnapshot = await AppService.GetRhshfBoaAccountSnapshotAsync(Reference);
     }
 
     private async Task SubmitConfirmChecklistItem((Guid ItemId, bool? IsConfirmed, string? Notes) input)

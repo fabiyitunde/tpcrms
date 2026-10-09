@@ -1,13 +1,16 @@
 using CRMS.Application.Common;
 using CRMS.Application.Rhshf.DTOs;
 using CRMS.Domain.Aggregates.Rhshf;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Rhshf.Commands;
 
 // ── Admin: manage Pre-Deployment gate checklist templates ──────────────────
 
-public record CreateRhshfPreDeployTemplateCommand(string Title, string? Description, bool IsMandatory, int SortOrder)
+public record CreateRhshfPreDeployTemplateCommand(
+    string Title, string? Description, bool IsMandatory, int SortOrder,
+    RhshfPreDeploymentVerificationKind Kind = RhshfPreDeploymentVerificationKind.Manual)
     : IRequest<ApplicationResult<RhshfPreDeploymentChecklistTemplateDto>>;
 
 public class CreateRhshfPreDeployTemplateHandler
@@ -25,7 +28,7 @@ public class CreateRhshfPreDeployTemplateHandler
     public async Task<ApplicationResult<RhshfPreDeploymentChecklistTemplateDto>> Handle(
         CreateRhshfPreDeployTemplateCommand request, CancellationToken ct = default)
     {
-        var result = RhshfPreDeploymentChecklistTemplate.Create(request.Title, request.Description, request.IsMandatory, request.SortOrder);
+        var result = RhshfPreDeploymentChecklistTemplate.Create(request.Title, request.Description, request.IsMandatory, request.SortOrder, request.Kind);
         if (result.IsFailure)
             return ApplicationResult<RhshfPreDeploymentChecklistTemplateDto>.Failure(result.Error);
 
@@ -36,10 +39,12 @@ public class CreateRhshfPreDeployTemplateHandler
     }
 
     internal static RhshfPreDeploymentChecklistTemplateDto MapToDto(RhshfPreDeploymentChecklistTemplate t) => new(
-        t.Id, t.Title, t.Description, t.IsMandatory, t.SortOrder, t.IsActive);
+        t.Id, t.Title, t.Description, t.IsMandatory, t.Kind, t.SortOrder, t.IsActive);
 }
 
-public record UpdateRhshfPreDeployTemplateCommand(Guid Id, string Title, string? Description, bool IsMandatory, int SortOrder)
+public record UpdateRhshfPreDeployTemplateCommand(
+    Guid Id, string Title, string? Description, bool IsMandatory, int SortOrder,
+    RhshfPreDeploymentVerificationKind Kind = RhshfPreDeploymentVerificationKind.Manual)
     : IRequest<ApplicationResult<RhshfPreDeploymentChecklistTemplateDto>>;
 
 public class UpdateRhshfPreDeployTemplateHandler
@@ -61,7 +66,7 @@ public class UpdateRhshfPreDeployTemplateHandler
         if (template is null)
             return ApplicationResult<RhshfPreDeploymentChecklistTemplateDto>.Failure("Checklist template not found.");
 
-        var result = template.Update(request.Title, request.Description, request.IsMandatory, request.SortOrder);
+        var result = template.Update(request.Title, request.Description, request.IsMandatory, request.SortOrder, request.Kind);
         if (result.IsFailure)
             return ApplicationResult<RhshfPreDeploymentChecklistTemplateDto>.Failure(result.Error);
 

@@ -18,7 +18,7 @@ public class GetRhshfPreDeployTemplatesHandler
     {
         var templates = await _repo.GetAllAsync(ct);
         var dtos = templates.Select(t => new RhshfPreDeploymentChecklistTemplateDto(
-            t.Id, t.Title, t.Description, t.IsMandatory, t.SortOrder, t.IsActive)).ToList();
+            t.Id, t.Title, t.Description, t.IsMandatory, t.Kind, t.SortOrder, t.IsActive)).ToList();
 
         return ApplicationResult<List<RhshfPreDeploymentChecklistTemplateDto>>.Success(dtos);
     }

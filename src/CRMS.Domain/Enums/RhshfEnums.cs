@@ -172,6 +172,25 @@ public enum RhshfOfferDocumentKind
     SignedKfs,
 }
 
+/// <summary>How a pre-deployment checklist item is satisfied — bind the gate to evidence that usually
+/// already exists in the system rather than asking for a blind re-upload.
+/// <list type="bullet">
+/// <item><b>Manual</b> — a plain Disbursement-Officer attestation (fallback).</item>
+/// <item><b>OfferDocuments</b> — auto-satisfied when the FAC's signed offer letter (and KFS, if one was
+/// issued) is already on the offer; the officer doesn't confirm it, the system derives it.</item>
+/// <item><b>AccountConfirmation</b> — the officer confirms after reviewing the live BOA account details
+/// pulled from Core Banking.</item>
+/// <item><b>CollateralReview</b> — the officer confirms after reviewing the collateral records and their
+/// documents captured at profiling.</item>
+/// </list></summary>
+public enum RhshfPreDeploymentVerificationKind
+{
+    Manual,
+    OfferDocuments,
+    AccountConfirmation,
+    CollateralReview,
+}
+
 public enum RhshfOfferStatus
 {
     Generated,
