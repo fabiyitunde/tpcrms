@@ -97,6 +97,7 @@
     [Parameter, EditorRequired] public List<RhshfPreDeploymentChecklistItemDto> Checklist { get; set; } = [];
     [Parameter] public List<RhshfCollateralDto> Collateral { get; set; } = [];
     [Parameter] public RhshfBoaAccountSnapshotDto? AccountSnapshot { get; set; }
+    [Parameter] public RhshfLegalClearanceDto? LegalClearance { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<(Guid ItemId, bool? IsConfirmed, string? Notes)> OnConfirmItem { get; set; }
     [Parameter] public EventCallback<string?> OnComplete { get; set; }
@@ -137,6 +138,17 @@
     private RenderFragment RenderCollateralCard() => __builder =>
     {
         <div style="background: var(--gray-50); border-radius: 6px; padding: 8px 10px; margin: 2px 0 8px; font-size: 0.82rem;">
+            @if (LegalClearance is not null)
+            {
+                <div style="padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--gray-200);">
+                    <span class="badge @LegalBadgeClass(LegalClearance.Outcome)">Legal: @LegalClearance.Outcome</span>
+                    <span style="margin-left: 6px; color: var(--gray-600);">by <strong>@LegalClearance.LegalOfficerName</strong></span>
+                    @if (!string.IsNullOrWhiteSpace(LegalClearance.Comments))
+                    {
+                        <div style="margin-top: 3px; color: var(--gray-700);">&ldquo;@LegalClearance.Comments&rdquo;</div>
+                    }
+                </div>
+            }
             @if (Collateral.Count == 0)
             {
                 <span class="text-muted">No collateral recorded for this case.</span>
@@ -155,6 +167,14 @@
                 <div class="text-muted" style="font-size: 0.72rem; margin-top: 3px;">Review the records and documents on the Collateral tab, then confirm.</div>
             }
         </div>
+    };
+
+    private static string LegalBadgeClass(RhshfLegalClearanceOutcome outcome) => outcome switch
+    {
+        RhshfLegalClearanceOutcome.Granted => "badge-success",
+        RhshfLegalClearanceOutcome.Returned => "badge-warning",
+        RhshfLegalClearanceOutcome.Declined => "badge-danger",
+        _ => "badge-gray",
     };
 
     private static string KindLabel(RhshfPreDeploymentVerificationKind kind) => kind switch

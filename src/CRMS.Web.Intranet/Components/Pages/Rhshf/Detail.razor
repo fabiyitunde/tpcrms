@@ -302,7 +302,7 @@ else
             <BureauTab Reports="bureauReports" CanRecheck="CanRunBureauChecks" RecheckError="@bureauError" />
             break;
         case "collateral":
-            <CollateralTab Records="collateralRecords" CanUpload="CanClearLegally"
+            <CollateralTab Records="collateralRecords" CanUpload="CanClearLegally" LegalClearance="currentLegalClearance"
                 OnUploadDocument="UploadCollateralDocument" OnDownloadDocument="DownloadCollateralDocument" />
             break;
         case "documents":
@@ -407,7 +407,7 @@ else
     @if (openModal == "predeployment")
     {
         <PreDeploymentGateModal Checklist="preDeploymentChecklist" Collateral="collateralRecords" AccountSnapshot="boaAccountSnapshot"
-            OnClose="CloseModal" OnConfirmItem="SubmitConfirmChecklistItem"
+            LegalClearance="currentLegalClearance" OnClose="CloseModal" OnConfirmItem="SubmitConfirmChecklistItem"
             OnComplete="SubmitCompletePreDeployment" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
 }
@@ -417,6 +417,7 @@ else
 
     private RhshfCaseWorkspaceDto? workspace;
     private List<RhshfCollateralDto> collateralRecords = [];
+    private CRMS.Application.Rhshf.Queries.RhshfLegalClearanceDto? currentLegalClearance;
     private RhshfCommitteeReviewDto? committeeReview;
     private StandingCommitteeInfo? committeeRoster;
     private CRMS.Application.Rhshf.Queries.RhshfCommitteeRoutingPreviewDto? committeeRoutingPreview;
@@ -542,6 +543,11 @@ else
             financialAppraisal = appraisalResult.Data;
             financialAppraisalError = appraisalResult.Error;
             collateralRecords = await AppService.GetRhshfCollateralAsync(Reference);
+            var legalHistory = await AppService.GetRhshfLegalClearanceHistoryAsync(Reference);
+            currentLegalClearance = legalHistory
+                .Where(c => c.CycleNumber == workspace.CurrentCycleNumber)
+                .OrderByDescending(c => c.ClearedAt)
+                .FirstOrDefault();
             committeeReview = await AppService.GetRhshfCommitteeReviewAsync(Reference);
             committeeRoster = committeeReview is not null
                 ? await AppService.GetStandingCommitteeByTypeAsync(committeeReview.Tier.ToString(), committeeReview.BranchId)

@@ -14,6 +14,20 @@
         <span class="badge badge-primary">@Records.Count</span>
     </div>
     <div class="card-body" style="padding: 0;">
+        @if (LegalClearance is not null)
+        {
+            <div style="padding: 10px 16px; border-bottom: 1px solid var(--gray-100); background: var(--gray-50); font-size: 0.85rem;">
+                <span class="badge @LegalBadgeClass(LegalClearance.Outcome)">Legal: @LegalClearance.Outcome</span>
+                <span style="margin-left: 8px; color: var(--gray-600);">
+                    by <strong style="color: var(--gray-800);">@LegalClearance.LegalOfficerName</strong>
+                    &middot; @LegalClearance.ClearedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                </span>
+                @if (!string.IsNullOrWhiteSpace(LegalClearance.Comments))
+                {
+                    <div style="margin-top: 4px; color: var(--gray-700);">&ldquo;@LegalClearance.Comments&rdquo;</div>
+                }
+            </div>
+        }
         @if (Records.Count == 0)
         {
             <div class="empty-state">
@@ -179,6 +193,17 @@
     [Parameter] public bool CanUpload { get; set; }
     [Parameter] public EventCallback<(Guid CollateralId, string FileName, string ContentType, byte[] Content)> OnUploadDocument { get; set; }
     [Parameter] public EventCallback<Guid> OnDownloadDocument { get; set; }
+    /// <summary>The current cycle's legal clearance (outcome + officer + comment), shown as context since
+    /// collateral/security gets its legal sign-off at that stage. Null until a clearance is recorded.</summary>
+    [Parameter] public RhshfLegalClearanceDto? LegalClearance { get; set; }
+
+    private static string LegalBadgeClass(RhshfLegalClearanceOutcome outcome) => outcome switch
+    {
+        RhshfLegalClearanceOutcome.Granted => "badge-success",
+        RhshfLegalClearanceOutcome.Returned => "badge-warning",
+        RhshfLegalClearanceOutcome.Declined => "badge-danger",
+        _ => "badge-gray",
+    };
 
     private RhshfCollateralDto? _selected;
 
