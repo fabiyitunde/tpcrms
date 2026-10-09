@@ -65,6 +65,20 @@ else
                     Re-run Credit Checks
                 </button>
             }
+            @if (CanGenerateLoanPack)
+            {
+                <button class="btn btn-outline" @onclick="GenerateLoanPack" disabled="@isGeneratingLoanPack" title="Download the consolidated case dossier (PDF)">
+                    @if (isGeneratingLoanPack)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size: 18px;">picture_as_pdf</span>
+                    }
+                    Loan Pack
+                </button>
+            }
             @if (CanAppraise && workspace.InternalStage == RhshfInternalStage.Appraisal)
             {
                 <button class="btn btn-warning" @onclick='() => OpenAppraisalModal("ReturnToFac")'>Return to FAC</button>
@@ -466,6 +480,11 @@ else
     // Review into Committee Voting the bureau picture is locked in, so the re-run action is withdrawn.
     private bool CanRunBureauChecks => CanManageDirectors
         && workspace?.InternalStage is RhshfInternalStage.Appraisal or RhshfInternalStage.RiskReview;
+    // The consolidated dossier becomes useful once the Credit Officer's appraisal is done and the case
+    // moves on — so it's offered from Risk Review onward, to any staff member who can open this case.
+    private bool CanGenerateLoanPack => AuthService.CurrentUser is not null
+        && workspace?.InternalStage is { } stage && stage >= RhshfInternalStage.RiskReview;
+    private bool isGeneratingLoanPack;
     // Only editable while the case actually sits at Appraisal — the domain enforces the same rule,
     // this just keeps the buttons honest.
     private bool CanEditFinancialAppraisal => CanAppraise && workspace!.InternalStage == RhshfInternalStage.Appraisal;
@@ -1051,6 +1070,30 @@ else
         isRegeneratingOffer = false;
         if (!result.Success) { pageError = result.Error; return; }
         offer = await AppService.GetRhshfOfferAsync(Reference);
+    }
+
+    private async Task GenerateLoanPack()
+    {
+        isGeneratingLoanPack = true;
+        pageError = null;
+        try
+        {
+            var result = await AppService.GenerateRhshfLoanPackAsync(
+                Reference, CurrentUserId, AuthService.CurrentUser?.FullName ?? "System");
+            if (result.Success && result.Data is not null)
+            {
+                var fileName = $"RhshfLoanPack_{Reference}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/pdf", result.Data);
+            }
+            else
+            {
+                pageError = result.Error ?? "Failed to generate loan pack.";
+            }
+        }
+        finally
+        {
+            isGeneratingLoanPack = false;
+        }
     }
 
     // Testing-only helper: copy the full FAC offer-acceptance link (with a minted token). Hidden in

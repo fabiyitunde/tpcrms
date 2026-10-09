@@ -7658,6 +7658,24 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse<byte[]>> GenerateRhshfLoanPackAsync(string reference, Guid userId, string userName)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.GenerateRhshfLoanPackHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.GenerateRhshfLoanPackCommand(
+                reference, userId, userName, _bankSettings.BankName), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<byte[]>.Ok(result.Data!)
+                : ApiResponse<byte[]>.Fail(result.Error ?? "Loan pack generation failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating RH-SHF loan pack for {Reference}", reference);
+            return ApiResponse<byte[]>.Fail($"Failed to generate loan pack: {ex.Message}");
+        }
+    }
+
     /// <summary>Testing helper: builds the full FAC offer-acceptance link (base URL + a freshly minted
     /// token). Token minting is additive — it does not invalidate any link the FAC already holds.</summary>
     public async Task<(string? Url, string? Error)> GetRhshfOfferAcceptanceLinkAsync(string reference)
