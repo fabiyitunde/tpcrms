@@ -3032,7 +3032,7 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, string segment = "Corporate")
+    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, string segment = "Corporate", int? fineractProductId = null)
     {
         try
         {
@@ -3041,7 +3041,7 @@ public partial class ApplicationService
             var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.CreateLoanProductHandler>();
             var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.CreateLoanProductCommand(
                 code, name, description, segmentType,
-                minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate
+                minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate, fineractProductId
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create product");
         }

@@ -14,5 +14,6 @@ public record CreateLoanProductCommand(
     string Currency,
     int MinTenorMonths,
     int MaxTenorMonths,
-    decimal BaseInterestRate = 0m
+    decimal BaseInterestRate = 0m,
+    int? FineractProductId = null
 ) : IRequest<ApplicationResult<LoanProductDto>>;

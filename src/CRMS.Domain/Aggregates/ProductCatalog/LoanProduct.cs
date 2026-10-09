@@ -47,7 +47,8 @@ public class LoanProduct : AggregateRoot
         Money maxAmount,
         int minTenorMonths,
         int maxTenorMonths,
-        decimal baseInterestRate = 0m)
+        decimal baseInterestRate = 0m,
+        int? fineractProductId = null)
     {
         if (string.IsNullOrWhiteSpace(code))
             return Result.Failure<LoanProduct>("Product code is required");
@@ -75,6 +76,7 @@ public class LoanProduct : AggregateRoot
             MinTenorMonths = minTenorMonths,
             MaxTenorMonths = maxTenorMonths,
             BaseInterestRate = baseInterestRate,
+            FineractProductId = fineractProductId,
             Status = ProductStatus.Draft
         };
 

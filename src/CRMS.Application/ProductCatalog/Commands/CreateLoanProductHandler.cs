@@ -35,7 +35,8 @@ public class CreateLoanProductHandler : IRequestHandler<CreateLoanProductCommand
             maxAmount,
             request.MinTenorMonths,
             request.MaxTenorMonths,
-            request.BaseInterestRate
+            request.BaseInterestRate,
+            request.FineractProductId
         );
 
         if (productResult.IsFailure)
