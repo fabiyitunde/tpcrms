@@ -52,27 +52,8 @@ public class RegenerateRhshfOfferLetterHandler : IRequestHandler<RegenerateRhshf
         if (profile.ApprovedAmount is null)
             return ApplicationResult.Failure("No ratified amount is on file for this case.");
 
-        var pdfBytes = await _pdfGenerator.GenerateAsync(new RhshfOfferLetterData(
-            Reference: profile.Reference,
-            CompanyName: profile.CompanyName,
-            RcNumber: profile.RcNumber,
-            ProgrammeName: profile.ProgrammeName,
-            SessionName: profile.SessionName,
-            ApprovedAmount: profile.ApprovedAmount.Value,
-            Currency: profile.Currency,
-            GeneratedDate: DateTime.UtcNow,
-            BankName: BankName), ct);
-
-        var storagePath = await _fileStorage.UploadAsync(
-            OfferContainerName, $"{profile.Reference}/offer-cycle{offer.CycleNumber}.pdf", pdfBytes, "application/pdf", ct);
-
-        var result = offer.RegenerateDocument(storagePath);
-        if (result.IsFailure)
-            return ApplicationResult.Failure(result.Error);
-
-        // Regenerate the accompanying Key Facts Statement too, so the package stays complete.
         var appraisal = profile.GetCurrentCycleFinancialAppraisal();
-        var kfsBytes = await _kfsGenerator.GenerateAsync(new RhshfKfsData(
+        var pdfBytes = await _pdfGenerator.GenerateAsync(new RhshfOfferLetterData(
             Reference: profile.Reference,
             CompanyName: profile.CompanyName,
             RcNumber: profile.RcNumber,
@@ -85,6 +66,18 @@ public class RegenerateRhshfOfferLetterHandler : IRequestHandler<RegenerateRhshf
             InterestRatePercent: appraisal?.InterestRatePercent,
             CycleMonths: appraisal?.CycleMonths,
             AmountDueAtHarvest: appraisal?.AmountDueAtHarvest), ct);
+
+        var storagePath = await _fileStorage.UploadAsync(
+            OfferContainerName, $"{profile.Reference}/offer-cycle{offer.CycleNumber}.pdf", pdfBytes, "application/pdf", ct);
+
+        var result = offer.RegenerateDocument(storagePath);
+        if (result.IsFailure)
+            return ApplicationResult.Failure(result.Error);
+
+        // Regenerate the accompanying Key Facts Statement too, so the package stays complete. Shares the
+        // ratify path's builder so a regenerated KFS is identical to the one issued at ratification.
+        var kfsBytes = await _kfsGenerator.GenerateAsync(
+            RatifyRhshfCaseHandler.BuildKfsData(profile, profile.ApprovedAmount.Value, appraisal), ct);
         var kfsPath = await _fileStorage.UploadAsync(
             OfferContainerName, $"{profile.Reference}/kfs-cycle{offer.CycleNumber}.pdf", kfsBytes, "application/pdf", ct);
         offer.AttachKfs(kfsPath);

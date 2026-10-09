@@ -25,4 +25,17 @@ public record RhshfKfsData(
     /// which case the KFS states the figure is per the facility terms rather than inventing one.</summary>
     decimal? InterestRatePercent,
     int? CycleMonths,
-    decimal? AmountDueAtHarvest);
+    decimal? AmountDueAtHarvest,
+    /// <summary>What the FAC applied for — the EOP input package, documented on the KFS so the request
+    /// and the offer sit on one record.</summary>
+    IReadOnlyList<RhshfKfsEopLine> AppliedForLines,
+    int? FarmerCount,
+    string State,
+    string Lga,
+    /// <summary>Money breakdown from the appraisal, so repayment figures aren't lumped into prose —
+    /// null when no appraisal was recorded.</summary>
+    decimal? FinancedInputCost,
+    decimal? InterestCharge);
+
+/// <summary>One line of the EOP input package applied for (commodity, quantity, unit price, value).</summary>
+public record RhshfKfsEopLine(string Commodity, decimal QuantityKg, decimal UnitPricePerKg, decimal LineValue);

@@ -21,4 +21,10 @@ public record RhshfOfferLetterData(
     decimal ApprovedAmount,
     string Currency,
     DateTime GeneratedDate,
-    string BankName);
+    string BankName,
+    /// <summary>Key terms from the credit appraisal, shown as a summary in the letter (the full numeric
+    /// breakdown lives in the accompanying KFS). Null when no appraisal was recorded — the letter then
+    /// omits the specific figure rather than inventing one.</summary>
+    decimal? InterestRatePercent = null,
+    int? CycleMonths = null,
+    decimal? AmountDueAtHarvest = null);

@@ -68,6 +68,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
 
         if (request.Outcome == RhshfRatificationOutcome.Ratified)
         {
+            var appraisal = profile.GetCurrentCycleFinancialAppraisal();
             var pdfBytes = await _pdfGenerator.GenerateAsync(new RhshfOfferLetterData(
                 Reference: profile.Reference,
                 CompanyName: profile.CompanyName,
@@ -77,7 +78,10 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
                 ApprovedAmount: request.ApprovedAmount!.Value,
                 Currency: profile.Currency,
                 GeneratedDate: DateTime.UtcNow,
-                BankName: BankName), ct);
+                BankName: BankName,
+                InterestRatePercent: appraisal?.InterestRatePercent,
+                CycleMonths: appraisal?.CycleMonths,
+                AmountDueAtHarvest: appraisal?.AmountDueAtHarvest), ct);
 
             var storagePath = await _fileStorage.UploadAsync(
                 OfferContainerName, $"{profile.Reference}/offer-cycle{cycleNumber}.pdf", pdfBytes, "application/pdf", ct);
@@ -101,7 +105,17 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
         Domain.Aggregates.Rhshf.RhshfCreditProfile profile, decimal approvedAmount, int cycleNumber, CancellationToken ct)
     {
         var appraisal = profile.GetCurrentCycleFinancialAppraisal();
-        var kfsBytes = await _kfsGenerator.GenerateAsync(new RhshfKfsData(
+        var kfsBytes = await _kfsGenerator.GenerateAsync(BuildKfsData(profile, approvedAmount, appraisal), ct);
+        return await _fileStorage.UploadAsync(
+            OfferContainerName, $"{profile.Reference}/kfs-cycle{cycleNumber}.pdf", kfsBytes, "application/pdf", ct);
+    }
+
+    /// <summary>Builds the KFS payload — the applied-for input package plus facility facts — shared so
+    /// the ratify and regenerate paths produce an identical statement.</summary>
+    internal static RhshfKfsData BuildKfsData(
+        Domain.Aggregates.Rhshf.RhshfCreditProfile profile, decimal approvedAmount,
+        Domain.Aggregates.Rhshf.RhshfFinancialAppraisalReport? appraisal)
+        => new(
             Reference: profile.Reference,
             CompanyName: profile.CompanyName,
             RcNumber: profile.RcNumber,
@@ -113,8 +127,13 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
             BankName: BankName,
             InterestRatePercent: appraisal?.InterestRatePercent,
             CycleMonths: appraisal?.CycleMonths,
-            AmountDueAtHarvest: appraisal?.AmountDueAtHarvest), ct);
-        return await _fileStorage.UploadAsync(
-            OfferContainerName, $"{profile.Reference}/kfs-cycle{cycleNumber}.pdf", kfsBytes, "application/pdf", ct);
-    }
+            AmountDueAtHarvest: appraisal?.AmountDueAtHarvest,
+            AppliedForLines: profile.EopLines
+                .Select(l => new RhshfKfsEopLine(l.Commodity, l.QuantityKg, l.UnitPricePerKg, l.LineValue))
+                .ToList(),
+            FarmerCount: profile.FarmerCount,
+            State: profile.State,
+            Lga: profile.Lga,
+            FinancedInputCost: appraisal?.FinancedInputCost,
+            InterestCharge: appraisal?.InterestCharge);
 }
