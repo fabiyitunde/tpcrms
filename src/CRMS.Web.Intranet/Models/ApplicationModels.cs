@@ -104,6 +104,17 @@ public class LoanApplicationDetail
     public string? DisbursementMemoStoragePath { get; set; }
 
     public DateTimeOffset? LegalReviewCompletedAt { get; set; }
+
+    // ── Core banking booking state ────────────────────────────────────────
+    // CoreBankingLoanId is set the moment core banking creates the loan; CoreBankingDisbursedOn only
+    // once it actually disbursed. An id with no date means "created, not disbursed" — no money moved,
+    // and the disbursement can be resumed.
+    public long? CoreBankingLoanId { get; set; }
+
+    public DateTime? CoreBankingDisbursedOn { get; set; }
+
+    public bool CoreBankingLoanCreatedNotDisbursed =>
+        CoreBankingLoanId.HasValue && CoreBankingDisbursedOn is null;
 }
 
 public class CustomerInfo

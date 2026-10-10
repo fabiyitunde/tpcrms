@@ -77,7 +77,8 @@ public class GetLoanApplicationByIdHandler : IRequestHandler<GetLoanApplicationB
         app.CreditAppraisalMemoPath,
         app.CreditAppraisalMemoFileName,
         app.CreditAppraisalSavedAt,
-        app.CreditAppraisalSavedByUserId
+        app.CreditAppraisalSavedByUserId,
+        app.FineractLoanId
     );
 }
 
@@ -151,7 +152,8 @@ public class GetLoanApplicationByNumberHandler : IRequestHandler<GetLoanApplicat
         app.CreditAppraisalMemoPath,
         app.CreditAppraisalMemoFileName,
         app.CreditAppraisalSavedAt,
-        app.CreditAppraisalSavedByUserId
+        app.CreditAppraisalSavedByUserId,
+        app.FineractLoanId
     );
 }
 

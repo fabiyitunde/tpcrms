@@ -1190,6 +1190,8 @@ public partial class ApplicationService
             loanApplicationDetail.LastUpdatedAt = app.ModifiedAt;
             loanApplicationDetail.DisbursementMemoStoragePath = app.DisbursementMemoStoragePath;
             loanApplicationDetail.LegalReviewCompletedAt = app.LegalReviewCompletedAt;
+            loanApplicationDetail.CoreBankingLoanId = app.FineractLoanId;
+            loanApplicationDetail.CoreBankingDisbursedOn = app.DisbursedAt;
             if (app.CreditAppraisalSavedAt.HasValue)
             {
                 loanApplicationDetail.CreditAppraisal = new CreditAppraisalInfo

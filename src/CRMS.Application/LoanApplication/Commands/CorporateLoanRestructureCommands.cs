@@ -423,14 +423,23 @@ public class CompleteCorporateDisbursementHandler : IRequestHandler<CompleteCorp
 
         var booking = bookingResult.Value;
 
-        // Created but not disbursed is not a disbursement — don't complete it. The loan carries this
-        // application number as its externalId, so re-running this step resumes it instead of creating
-        // a second loan for the same application.
+        // Created but not disbursed is not a disbursement — don't complete it. Record the loan id so the
+        // application shows it and the officer can resume, and leave the status at Disbursement. The loan
+        // carries this application number as its externalId, so re-running this step resumes it instead
+        // of creating a second loan for the same application.
         if (!booking.Disbursed)
         {
             _logger.LogError(
                 "Corporate disbursement: Fineract loan {LoanId} for application {Id} was created but NOT disbursed (status {Status}).",
                 booking.LoanId, application.Id, booking.Status);
+
+            var partial = application.RecordCoreBankingLoanCreatedNotDisbursed(booking.LoanId);
+            if (partial.IsSuccess)
+            {
+                _repository.Update(application);
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+
             return ApplicationResult.Failure(
                 $"Core Banking created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
                 "No funds have moved and the disbursement has not been completed. Check Core Banking, then retry — " +

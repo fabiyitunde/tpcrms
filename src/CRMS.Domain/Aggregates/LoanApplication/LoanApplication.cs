@@ -1004,6 +1004,21 @@ public class LoanApplication : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>
+    /// Records a loan core banking created but did not disburse (the approve or disburse step failed).
+    /// Keeps the loan id so staff can see it and the officer can resume, and deliberately changes nothing
+    /// else: the application stays at Disbursement, CoreBankingLoanId and DisbursedAt stay unset, so
+    /// nothing in CRMS claims money moved. A retry resumes this same loan via its externalId.
+    /// </summary>
+    public Result RecordCoreBankingLoanCreatedNotDisbursed(long fineractLoanId)
+    {
+        if (Status != LoanApplicationStatus.Disbursement)
+            return Result.Failure("A partial core banking booking can only be recorded from Disbursement status");
+
+        FineractLoanId = fineractLoanId;
+        return Result.Success();
+    }
+
     public Result CompleteDisbursement(string coreBankingLoanId, Guid userId, long? fineractLoanId = null)
     {
         if (Status != LoanApplicationStatus.Disbursement)

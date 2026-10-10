@@ -45,7 +45,10 @@ public record LoanApplicationDto(
     string? CreditAppraisalMemoPath = null,
     string? CreditAppraisalMemoFileName = null,
     DateTimeOffset? CreditAppraisalSavedAt = null,
-    Guid? CreditAppraisalSavedByUserId = null
+    Guid? CreditAppraisalSavedByUserId = null,
+    // Core banking's internal loan id. Set as soon as core banking creates the loan — so a non-null
+    // value with DisbursedAt still null means "created, not disbursed": no money moved.
+    long? FineractLoanId = null
 );
 
 public record LoanApplicationSummaryDto(
