@@ -449,8 +449,24 @@ public class FineractDirectService : IFineractDirectService
     {
         try
         {
-            _logger.LogInformation("Fineract: Initiating automated booking for client {ClientId}, product {ProductId}, principal {Principal}",
-                request.ClientId, request.ProductId, request.Principal);
+            _logger.LogInformation("Fineract: Initiating automated booking for client {ClientId}, product {ProductId}, principal {Principal}, externalId {ExternalId}",
+                request.ClientId, request.ProductId, request.Principal, request.ExternalId);
+
+            // Step 0: Resume, never duplicate. If an earlier attempt already created a loan for this
+            // CRMS reference (and then failed to approve or disburse it), carry on from the step that
+            // failed. Probing first keeps the common retry quiet; the duplicate-externalId check on the
+            // POST below is the real safety net, since core banking enforces uniqueness for us.
+            if (!string.IsNullOrWhiteSpace(request.ExternalId))
+            {
+                var existing = await FindLoanByExternalIdAsync(request.ExternalId!, ct);
+                if (existing is not null)
+                {
+                    _logger.LogWarning(
+                        "Fineract: externalId '{ExternalId}' already belongs to loan {LoanId} (status {StatusCode} '{Status}') — resuming that loan instead of creating a second one.",
+                        request.ExternalId, existing.LoanId, existing.StatusCode, existing.Status);
+                    return await ResumeExistingLoanAsync(existing, request, ct);
+                }
+            }
 
             // Step 1: Fetch Fineract Loan Product config to map settings
             var productsResult = await GetLoanProductsAsync(activeOnly: false, ct);
@@ -551,6 +567,11 @@ public class FineractDirectService : IFineractDirectService
                 ["transactionProcessingStrategyId"] = fineractProduct.TransactionProcessingStrategyId
             };
 
+            // The CRMS reference core banking needs to tie this loan back to its origination record
+            // (and the key the resume path above looks the loan up by).
+            if (!string.IsNullOrWhiteSpace(request.ExternalId))
+                loanBody["externalId"] = request.ExternalId!;
+
             if (linkAccountId.HasValue)
             {
                 loanBody["linkAccountId"] = linkAccountId.Value;
@@ -573,6 +594,25 @@ public class FineractDirectService : IFineractDirectService
             {
                 var errorBody = await bookResponse.Content.ReadAsStringAsync(ct);
                 _logger.LogWarning("Fineract: Booking loan failed ({Status}): {Body}", bookResponse.StatusCode, errorBody);
+
+                // Uniqueness rejection = an earlier attempt did create this loan (the Step 0 probe can
+                // miss it if the lookup itself errored). Resume rather than report a failure.
+                if (!string.IsNullOrWhiteSpace(request.ExternalId) && IsDuplicateExternalIdError(errorBody))
+                {
+                    var existing = await FindLoanByExternalIdAsync(request.ExternalId!, ct);
+                    if (existing is not null)
+                    {
+                        _logger.LogWarning(
+                            "Fineract: POST /loans rejected externalId '{ExternalId}' as a duplicate; resuming loan {LoanId} (status {StatusCode} '{Status}').",
+                            request.ExternalId, existing.LoanId, existing.StatusCode, existing.Status);
+                        return await ResumeExistingLoanAsync(existing, request, ct);
+                    }
+
+                    return Result.Failure<FineractBookingResult>(
+                        $"Fineract reports a loan already exists for reference '{request.ExternalId}' but it could not be retrieved. " +
+                        "Check the loan in core banking before retrying.");
+                }
+
                 return Result.Failure<FineractBookingResult>($"Fineract booking failed: {errorBody}");
             }
 
@@ -585,7 +625,37 @@ public class FineractDirectService : IFineractDirectService
             var loanId = createResponse.LoanId;
             _logger.LogInformation("Fineract: Loan successfully booked with ID {LoanId}", loanId);
 
-            // Step 5: Approve the loan
+            // Steps 5-7: approve, disburse, then read back the generated loan account number.
+            return await ApproveAndDisburseAsync(loanId, request, formattedDate, needsApproval: true, resumed: false, ct);
+        }
+        catch (TaskCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fineract automated booking error");
+            return Result.Failure<FineractBookingResult>($"Fineract automated booking error: {ex.Message}");
+        }
+    }
+
+    // ── Booking helpers: approve/disburse, and resuming a partially booked loan ────────────────
+
+    /// <summary>Fineract loan statuses that mean the money has already left the bank, so there is
+    /// nothing left for a resume to do (active, closed, written off, rescheduled, overpaid).</summary>
+    private static readonly int[] DisbursedLoanStatusCodes = [300, 600, 601, 602, 700];
+
+    /// <summary>
+    /// Approve (when still pending) and disburse a loan that already exists in Fineract, then read back
+    /// the generated account number. A failure at either step returns Success with Disbursed=false and the
+    /// loanId intact, so the caller can report "not disbursed" and a later retry can resume this same loan.
+    /// </summary>
+    private async Task<Result<FineractBookingResult>> ApproveAndDisburseAsync(
+        long loanId, FineractLoanBookingRequest request, string formattedDate,
+        bool needsApproval, bool resumed, CancellationToken ct)
+    {
+        if (needsApproval)
+        {
             _logger.LogInformation("Fineract: Approving loan {LoanId} (POST /loans/{LoanId}?command=approve)", loanId, loanId);
             var approveBody = new Dictionary<string, object>
             {
@@ -601,67 +671,189 @@ public class FineractDirectService : IFineractDirectService
             if (!approveResponse.IsSuccessStatusCode)
             {
                 var errorBody = await approveResponse.Content.ReadAsStringAsync(ct);
-                _logger.LogWarning("Fineract: Approving loan {LoanId} failed ({Status}): {Body}", loanId, approveResponse.StatusCode, errorBody);
+                _logger.LogError(
+                    "Fineract: Loan {LoanId} was CREATED BUT NOT APPROVED ({Status}): {Body}. externalId '{ExternalId}' — a retry will resume this loan.",
+                    loanId, approveResponse.StatusCode, errorBody, request.ExternalId);
                 return Result.Success(new FineractBookingResult(
                     LoanId: loanId,
                     LoanAccountNumber: "",
                     Booked: true,
                     Approved: false,
                     Disbursed: false,
-                    Status: "Submitted and pending approval"
+                    Status: "Submitted and pending approval",
+                    Resumed: resumed
                 ));
             }
 
             _logger.LogInformation("Fineract: Loan {LoanId} successfully approved", loanId);
+        }
 
-            // Step 6: Disburse the loan
-            var command = request.DisburseToSavings ? "disburseToSavings" : "disburse";
-            _logger.LogInformation("Fineract: Disbursing loan {LoanId} using command {Command}", loanId, command);
+        var command = request.DisburseToSavings ? "disburseToSavings" : "disburse";
+        _logger.LogInformation("Fineract: Disbursing loan {LoanId} using command {Command}", loanId, command);
 
-            var disburseBody = new Dictionary<string, object>
+        var disburseBody = new Dictionary<string, object>
+        {
+            ["dateFormat"] = "dd MMMM yyyy",
+            ["locale"] = "en",
+            ["actualDisbursementDate"] = formattedDate,
+            ["transactionAmount"] = request.Principal,
+            ["note"] = $"Disbursed automatically by CRMS booking workflow ({command})"
+        };
+
+        var disburseResponse = await _httpClient.PostAsJsonAsync($"loans/{loanId}?command={command}", disburseBody, ct);
+        if (!disburseResponse.IsSuccessStatusCode)
+        {
+            var errorBody = await disburseResponse.Content.ReadAsStringAsync(ct);
+            _logger.LogError(
+                "Fineract: Loan {LoanId} was APPROVED BUT NOT DISBURSED ({Status}): {Body}. externalId '{ExternalId}' — a retry will resume this loan.",
+                loanId, disburseResponse.StatusCode, errorBody, request.ExternalId);
+            return Result.Success(new FineractBookingResult(
+                LoanId: loanId,
+                LoanAccountNumber: "",
+                Booked: true,
+                Approved: true,
+                Disbursed: false,
+                Status: "Approved",
+                Resumed: resumed
+            ));
+        }
+
+        _logger.LogInformation("Fineract: Loan {LoanId} successfully disbursed", loanId);
+
+        // Retrieve the final loan details to get the generated loan account number
+        var loanNo = "";
+        var statusStr = "Active";
+        var detailResult = await GetLoanDetailAsync(loanId, ct);
+        if (detailResult.IsSuccess)
+        {
+            loanNo = detailResult.Value.AccountNo;
+            statusStr = detailResult.Value.Status;
+        }
+
+        return Result.Success(new FineractBookingResult(
+            LoanId: loanId,
+            LoanAccountNumber: loanNo,
+            Booked: true,
+            Approved: true,
+            Disbursed: true,
+            Status: statusStr,
+            Resumed: resumed
+        ));
+    }
+
+    /// <summary>
+    /// Continues a loan an earlier attempt already created for this CRMS reference, from whichever step
+    /// it stalled at. A loan that can never be disbursed (withdrawn, rejected) is a hard failure needing
+    /// a human in core banking — retrying cannot help, and a second loan must not be created for it.
+    /// </summary>
+    private async Task<Result<FineractBookingResult>> ResumeExistingLoanAsync(
+        FineractExistingLoan existing, FineractLoanBookingRequest request, CancellationToken ct)
+    {
+        if (existing.Principal > 0 && existing.Principal != request.Principal)
+            _logger.LogWarning(
+                "Fineract: resumed loan {LoanId} has principal {ExistingPrincipal} but this booking is for {RequestedPrincipal} — the existing loan's figures stand.",
+                existing.LoanId, existing.Principal, request.Principal);
+
+        var formattedDate = request.ValueDate.ToString("dd MMMM yyyy");
+
+        if (DisbursedLoanStatusCodes.Contains(existing.StatusCode))
+        {
+            _logger.LogInformation(
+                "Fineract: loan {LoanId} for externalId '{ExternalId}' is already disbursed (status '{Status}') — nothing to resume.",
+                existing.LoanId, request.ExternalId, existing.Status);
+
+            var loanNo = existing.AccountNo;
+            if (string.IsNullOrWhiteSpace(loanNo))
             {
-                ["dateFormat"] = "dd MMMM yyyy",
-                ["locale"] = "en",
-                ["actualDisbursementDate"] = formattedDate,
-                ["transactionAmount"] = request.Principal,
-                ["note"] = $"Disbursed automatically by CRMS booking workflow ({command})"
-            };
-
-            var disburseResponse = await _httpClient.PostAsJsonAsync($"loans/{loanId}?command={command}", disburseBody, ct);
-            if (!disburseResponse.IsSuccessStatusCode)
-            {
-                var errorBody = await disburseResponse.Content.ReadAsStringAsync(ct);
-                _logger.LogWarning("Fineract: Disbursing loan {LoanId} failed ({Status}): {Body}", loanId, disburseResponse.StatusCode, errorBody);
-                return Result.Success(new FineractBookingResult(
-                    LoanId: loanId,
-                    LoanAccountNumber: "",
-                    Booked: true,
-                    Approved: true,
-                    Disbursed: false,
-                    Status: "Approved"
-                ));
-            }
-
-            _logger.LogInformation("Fineract: Loan {LoanId} successfully disbursed", loanId);
-
-            // Step 7: Retrieve the final loan details to get the generated loan account number
-            var loanNo = "";
-            var statusStr = "Active";
-            var detailResult = await GetLoanDetailAsync(loanId, ct);
-            if (detailResult.IsSuccess)
-            {
-                loanNo = detailResult.Value.AccountNo;
-                statusStr = detailResult.Value.Status;
+                var detailResult = await GetLoanDetailAsync(existing.LoanId, ct);
+                if (detailResult.IsSuccess) loanNo = detailResult.Value.AccountNo;
             }
 
             return Result.Success(new FineractBookingResult(
-                LoanId: loanId,
-                LoanAccountNumber: loanNo,
+                LoanId: existing.LoanId,
+                LoanAccountNumber: loanNo ?? "",
                 Booked: true,
                 Approved: true,
                 Disbursed: true,
-                Status: statusStr
+                Status: existing.Status ?? "Active",
+                Resumed: true
             ));
+        }
+
+        return existing.StatusCode switch
+        {
+            100 => await ApproveAndDisburseAsync(existing.LoanId, request, formattedDate, needsApproval: true, resumed: true, ct),
+            200 => await ApproveAndDisburseAsync(existing.LoanId, request, formattedDate, needsApproval: false, resumed: true, ct),
+            _ => Result.Failure<FineractBookingResult>(
+                $"Core banking already holds loan {existing.AccountNo} (id {existing.LoanId}) for reference '{request.ExternalId}' " +
+                $"with status '{existing.Status}', which cannot be disbursed. It must be resolved in core banking before this can be booked.")
+        };
+    }
+
+    /// <summary>
+    /// Looks a loan up by the CRMS reference sent as its externalId. Best-effort by design: "not found"
+    /// and "the lookup itself failed" both return null, because core banking's uniqueness constraint —
+    /// not this probe — is what actually stops a duplicate loan being created.
+    /// </summary>
+    private async Task<FineractExistingLoan?> FindLoanByExternalIdAsync(string externalId, CancellationToken ct)
+    {
+        try
+        {
+            var url = $"loans?externalId={Uri.EscapeDataString(externalId)}";
+            _logger.LogInformation("Fineract: GET {Url}", url);
+
+            var response = await _httpClient.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode != System.Net.HttpStatusCode.NotFound)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync(ct);
+                    _logger.LogWarning("Fineract: externalId lookup for '{ExternalId}' failed ({Status}): {Body}",
+                        externalId, response.StatusCode, errorBody);
+                }
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            if (string.IsNullOrWhiteSpace(json)) return null;
+
+            using var doc = JsonDocument.Parse(json);
+            var element = doc.RootElement;
+
+            // Tolerate all three shapes the endpoint can return: a paged envelope, a bare array, or a
+            // single loan object.
+            if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("pageItems", out var pageItems))
+                element = pageItems;
+
+            if (element.ValueKind == JsonValueKind.Array)
+            {
+                if (element.GetArrayLength() == 0) return null;
+                element = element[0];
+            }
+
+            if (element.ValueKind != JsonValueKind.Object) return null;
+            if (!element.TryGetProperty("id", out var idElement) || !idElement.TryGetInt64(out var loanId) || loanId <= 0)
+                return null;
+
+            var statusCode = 0;
+            string? statusValue = null;
+            if (element.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.Object)
+            {
+                if (status.TryGetProperty("id", out var statusId) && statusId.TryGetInt32(out var parsedStatusId))
+                    statusCode = parsedStatusId;
+                if (status.TryGetProperty("value", out var statusText))
+                    statusValue = statusText.GetString();
+            }
+
+            var accountNo = element.TryGetProperty("accountNo", out var accountNoElement)
+                ? accountNoElement.GetString()
+                : null;
+
+            decimal principal = 0;
+            if (element.TryGetProperty("principal", out var principalElement) && principalElement.ValueKind == JsonValueKind.Number)
+                principal = principalElement.GetDecimal();
+
+            return new FineractExistingLoan(loanId, accountNo, statusCode, statusValue, principal);
         }
         catch (TaskCanceledException) when (ct.IsCancellationRequested)
         {
@@ -669,10 +861,22 @@ public class FineractDirectService : IFineractDirectService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fineract automated booking error");
-            return Result.Failure<FineractBookingResult>($"Fineract automated booking error: {ex.Message}");
+            _logger.LogWarning(ex, "Fineract: externalId lookup for '{ExternalId}' errored", externalId);
+            return null;
         }
     }
+
+    /// <summary>Recognises Fineract's "this external id is taken" rejection of POST /loans.</summary>
+    private static bool IsDuplicateExternalIdError(string? errorBody) =>
+        !string.IsNullOrWhiteSpace(errorBody)
+        && errorBody.Contains("external", StringComparison.OrdinalIgnoreCase)
+        && (errorBody.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
+            || errorBody.Contains("already exists", StringComparison.OrdinalIgnoreCase)
+            || errorBody.Contains("already in use", StringComparison.OrdinalIgnoreCase)
+            || errorBody.Contains("must be unique", StringComparison.OrdinalIgnoreCase));
+
+    private sealed record FineractExistingLoan(
+        long LoanId, string? AccountNo, int StatusCode, string? Status, decimal Principal);
 
     public async Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
     {

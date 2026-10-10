@@ -73,18 +73,36 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
             InterestRatePerAnnum: fineractProduct.AnnualInterestRate,
             ValueDate: DateTime.UtcNow,
             RepaymentAccountNumber: profile.BoaAccountNumber,
-            DisburseToSavings: false);
+            DisburseToSavings: false,
+            // One loan per cycle, so the case reference alone would collide on a second cycle.
+            ExternalId: BuildExternalId(profile));
 
         var bookingResult = await _fineract.BookApprovedLoanAsync(bookingRequest, ct);
         if (bookingResult.IsFailure)
             return await RecordAndSaveAsync(profile, request, null, null, bookingResult.Error, ct);
 
-        if (!bookingResult.Value.Booked)
-            return await RecordAndSaveAsync(profile, request, null, null, $"Booking did not complete (status: {bookingResult.Value.Status}).", ct);
+        var booking = bookingResult.Value;
+        if (!booking.Booked)
+            return await RecordAndSaveAsync(profile, request, null, null, $"Booking did not complete (status: {booking.Status}).", ct);
+
+        // Core banking can create (and even approve) the loan and still fail to disburse it. That is a
+        // failed disbursement: the money has not moved, so the case must not be recorded as disbursed.
+        // The loan id is kept on the failed attempt, and a retry resumes that same loan via its externalId.
+        if (!booking.Disbursed)
+            return await RecordAndSaveAsync(
+                profile, request, booking.LoanId, null,
+                $"Core Banking created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
+                "No funds have moved. Check Core Banking, then retry — the existing loan will be resumed, not duplicated.",
+                ct);
 
         return await RecordAndSaveAsync(
-            profile, request, bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber, null, ct);
+            profile, request, booking.LoanId, booking.LoanAccountNumber, null, ct);
     }
+
+    /// <summary>The stable, unique reference core banking stores on the loan as its externalId. A case
+    /// books one loan per review cycle, so the cycle number is part of the identity.</summary>
+    private static string BuildExternalId(RhshfCreditProfile profile) =>
+        $"{profile.Reference}-C{profile.CurrentCycleNumber}";
 
     private async Task<ApplicationResult> RecordAndSaveAsync(
         RhshfCreditProfile profile, BookRhshfDisbursementCommand request,

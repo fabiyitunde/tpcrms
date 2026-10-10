@@ -104,6 +104,50 @@ public class BookRhshfDisbursementHandlerTests
     }
 
     [Fact]
+    public async Task Book_SendsCaseReferenceAndCycleAsExternalId()
+    {
+        var profile = MakeProfileAtDisbursement();
+        var fineract = new FakeFineractDirectService
+        {
+            ClientId = 555,
+            Products = [MakeFineractProduct(77, 9.5m, 6)],
+            BookingResult = new FineractBookingResult(9001, "LN-009001", true, true, true, "Active"),
+        };
+        var handler = new BookRhshfDisbursementHandler(
+            new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
+
+        await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+
+        Assert.Equal($"{profile.Reference}-C{profile.CurrentCycleNumber}", fineract.LastBookingRequest!.ExternalId);
+    }
+
+    [Fact]
+    public async Task Book_LoanCreatedButNotDisbursed_RecordsFailedAttempt_StaysAtDisbursement_KeepsLoanId()
+    {
+        var profile = MakeProfileAtDisbursement();
+        var fineract = new FakeFineractDirectService
+        {
+            ClientId = 555,
+            Products = [MakeFineractProduct(77, 9.5m, 6)],
+            // Core banking created and approved the loan, then the disburse step failed.
+            BookingResult = new FineractBookingResult(9001, "", true, true, false, "Approved"),
+        };
+        var handler = new BookRhshfDisbursementHandler(
+            new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
+
+        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(RhshfInternalStage.Disbursement, profile.InternalStage);
+        Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
+        var attempt = Assert.Single(profile.Disbursements);
+        Assert.Equal(RhshfDisbursementStatus.Failed, attempt.Status);
+        Assert.Equal(9001, attempt.FineractLoanId);
+        Assert.Contains("did not disburse", attempt.FailureReason);
+        Assert.DoesNotContain("ineract", attempt.FailureReason!);
+    }
+
+    [Fact]
     public async Task Book_WithoutSupplierAccount_Fails_DoesNotCallFineract()
     {
         var profile = MakeProfileAtDisbursement();

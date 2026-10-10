@@ -1046,23 +1046,39 @@ public class ConfirmNampDeploymentHandler
             ValueDate: DateTime.UtcNow,
             RepaymentAccountNumber: app.BoaAccountNumber,
             DisburseToSavings: false,
-            CreateRepaymentStandingInstruction: true
+            CreateRepaymentStandingInstruction: true,
+            ExternalId: app.ApplicationNumber
         );
 
         var bookingResult = await _fineractService.BookApprovedLoanAsync(bookingRequest, ct);
-        if (bookingResult.IsSuccess)
-        {
-            app.SetFineractLoanResult(bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber);
-            _logger.LogInformation("NAMP deployment: Fineract loan booked — LoanId={LoanId}, Account={Account}, Disbursed={Disbursed}",
-                bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber, bookingResult.Value.Disbursed);
-        }
-        else
+        if (bookingResult.IsFailure)
         {
             _logger.LogError("NAMP deployment: Fineract loan booking failed for application {Id}: {Error}",
                 app.Id, bookingResult.Error);
             return ApplicationResult<NampApplicationDto>.Failure(
                 $"Core Banking System booking failed: {bookingResult.Error}");
         }
+
+        var booking = bookingResult.Value;
+
+        // A created-but-not-disbursed loan is not a deployment. Leave the application where it is — with
+        // no loan link recorded, so the retry below is still open — and tell the officer what to check.
+        // The loan is not orphaned: it carries this application number as its externalId, so the retry
+        // resumes it rather than creating a second loan.
+        if (!booking.Disbursed)
+        {
+            _logger.LogError(
+                "NAMP deployment: CBS loan {LoanId} for application {Id} was created but NOT disbursed (status {Status}) — deployment blocked.",
+                booking.LoanId, app.Id, booking.Status);
+            return ApplicationResult<NampApplicationDto>.Failure(
+                $"Core Banking System created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
+                "No funds have moved and deployment has not been confirmed. Check the Core Banking System, then retry — " +
+                "the existing loan will be resumed, not duplicated.");
+        }
+
+        app.SetFineractLoanResult(booking.LoanId, booking.LoanAccountNumber);
+        _logger.LogInformation("NAMP deployment: Fineract loan booked — LoanId={LoanId}, Account={Account}, Resumed={Resumed}",
+            booking.LoanId, booking.LoanAccountNumber, booking.Resumed);
 
         var result = app.ConfirmDeployment(request.UserId, request.GpsActivated, request.Note);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -1160,7 +1176,8 @@ public class RetryNampFineractBookingHandler
             ValueDate: DateTime.UtcNow,
             RepaymentAccountNumber: app.BoaAccountNumber,
             DisburseToSavings: false,
-            CreateRepaymentStandingInstruction: true
+            CreateRepaymentStandingInstruction: true,
+            ExternalId: app.ApplicationNumber
         );
 
         var bookingResult = await _fineractService.BookApprovedLoanAsync(bookingRequest, ct);
@@ -1168,12 +1185,26 @@ public class RetryNampFineractBookingHandler
             return ApplicationResult<NampApplicationDto>.Failure(
                 $"CBS booking failed: {bookingResult.Error}");
 
-        app.SetFineractLoanResult(bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber);
+        var booking = bookingResult.Value;
+
+        // Created but not disbursed — record nothing, so this retry stays available (the loan is found
+        // again by its externalId next time rather than being created twice).
+        if (!booking.Disbursed)
+        {
+            _logger.LogError(
+                "RetryNampFineractBooking: CBS loan {LoanId} for application {Id} was created but NOT disbursed (status {Status}).",
+                booking.LoanId, app.Id, booking.Status);
+            return ApplicationResult<NampApplicationDto>.Failure(
+                $"Core Banking System created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
+                "No funds have moved. Check the Core Banking System, then retry — the existing loan will be resumed, not duplicated.");
+        }
+
+        app.SetFineractLoanResult(booking.LoanId, booking.LoanAccountNumber);
         app.SetAuditInfo(request.UserId.ToString());
         await _uow.SaveChangesAsync(ct);
 
-        _logger.LogInformation("RetryNampFineractBooking: booked LoanId={LoanId}, Account={Account} for application {Id}",
-            bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber, app.Id);
+        _logger.LogInformation("RetryNampFineractBooking: booked LoanId={LoanId}, Account={Account}, Resumed={Resumed} for application {Id}",
+            booking.LoanId, booking.LoanAccountNumber, booking.Resumed, app.Id);
 
         return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
     }

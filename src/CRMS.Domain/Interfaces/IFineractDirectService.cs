@@ -48,6 +48,10 @@ public interface IFineractDirectService
 
     /// <summary>
     /// Automates the booking, approval, and disbursement of an approved loan in Fineract.
+    /// Returns Success for a partial booking too (loan created but approve or disburse failed), with
+    /// <see cref="FineractBookingResult.Disbursed"/> false — callers MUST branch on Disbursed, never on
+    /// IsSuccess or Booked, before recording money as having moved. Pass
+    /// <see cref="FineractLoanBookingRequest.ExternalId"/> so a retry resumes the existing loan.
     /// </summary>
     Task<Result<FineractBookingResult>> BookApprovedLoanAsync(
         FineractLoanBookingRequest request, CancellationToken ct = default);
@@ -78,7 +82,13 @@ public record FineractLoanBookingRequest(
     // at disbursement so the linked savings account (RepaymentAccountNumber) is auto-debited for
     // loan dues. This is independent of DisburseToSavings: the loan can disburse to a vendor while
     // repayments are still auto-collected from the applicant's savings.
-    bool CreateRepaymentStandingInstruction = true
+    bool CreateRepaymentStandingInstruction = true,
+    // A stable, unique CRMS reference for the loan (application number / case reference + cycle).
+    // Sent as the core banking loan's externalId, which core banking stores and enforces uniqueness on.
+    // This is what makes booking resumable: if a previous attempt created the loan but failed to
+    // approve or disburse it, the next attempt finds that loan by externalId and continues from the
+    // step that failed instead of creating a second loan for the same application.
+    string? ExternalId = null
 );
 
 public record FineractBookingResult(
@@ -87,7 +97,10 @@ public record FineractBookingResult(
     bool Booked,
     bool Approved,
     bool Disbursed,
-    string Status
+    string Status,
+    // True when this call did not create the loan but picked up one an earlier attempt had already
+    // created (matched on ExternalId) — for logging and officer-facing wording, nothing else.
+    bool Resumed = false
 );
 
 // Schedule Calculation

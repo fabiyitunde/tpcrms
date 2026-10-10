@@ -12,6 +12,9 @@ public class MockFineractDirectService : IFineractDirectService
 {
     private readonly ILogger _logger;
 
+    /// <summary>Stands in for core banking's externalId uniqueness index (process-lifetime only).</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, long> BookedLoansByExternalId = new();
+
     public MockFineractDirectService(ILogger<MockFineractDirectService> logger) : this((ILogger)logger) { }
 
     public MockFineractDirectService(ILogger logger)
@@ -386,12 +389,35 @@ public class MockFineractDirectService : IFineractDirectService
     public Task<Result<FineractBookingResult>> BookApprovedLoanAsync(
         FineractLoanBookingRequest request, CancellationToken ct = default)
     {
-        _logger.LogInformation("MockFineract: Initiating automated booking for client {ClientId}, product {ProductId}, principal {Principal}",
-            request.ClientId, request.ProductId, request.Principal);
+        _logger.LogInformation("MockFineract: Initiating automated booking for client {ClientId}, product {ProductId}, principal {Principal}, externalId {ExternalId}",
+            request.ClientId, request.ProductId, request.Principal, request.ExternalId);
+
+        // Mirror the real service's externalId uniqueness: booking the same CRMS reference twice returns
+        // the loan already created for it rather than minting a second one, so the resume path can be
+        // exercised locally under UseMock.
+        if (!string.IsNullOrWhiteSpace(request.ExternalId)
+            && BookedLoansByExternalId.TryGetValue(request.ExternalId!, out var existingLoanId))
+        {
+            var existingAccountNumber = $"LN-{existingLoanId:D6}";
+            _logger.LogWarning("MockFineract: externalId '{ExternalId}' already belongs to loan {LoanId} — resuming it",
+                request.ExternalId, existingLoanId);
+            return Task.FromResult(Result.Success(new FineractBookingResult(
+                LoanId: existingLoanId,
+                LoanAccountNumber: existingAccountNumber,
+                Booked: true,
+                Approved: true,
+                Disbursed: true,
+                Status: "Active",
+                Resumed: true
+            )));
+        }
 
         var random = new Random();
         var loanId = 3000L + random.Next(1, 1000);
         var loanAccountNumber = $"LN-{loanId:D6}";
+
+        if (!string.IsNullOrWhiteSpace(request.ExternalId))
+            BookedLoansByExternalId[request.ExternalId!] = loanId;
 
         _logger.LogInformation("MockFineract: Successfully booked loan application (LoanId={LoanId}, AccountNo={AccountNo})",
             loanId, loanAccountNumber);

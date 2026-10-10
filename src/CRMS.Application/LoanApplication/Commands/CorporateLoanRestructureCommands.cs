@@ -414,16 +414,33 @@ public class CompleteCorporateDisbursementHandler : IRequestHandler<CompleteCorp
             ValueDate: DateTime.UtcNow,
             RepaymentAccountNumber: application.AccountNumber,
             DisburseToSavings: true,
-            CreateRepaymentStandingInstruction: true);
+            CreateRepaymentStandingInstruction: true,
+            ExternalId: application.ApplicationNumber);
 
         var bookingResult = await _fineractService.BookApprovedLoanAsync(bookingRequest, ct);
         if (bookingResult.IsFailure)
             return ApplicationResult.Failure($"Fineract loan booking failed: {bookingResult.Error}");
 
-        _logger.LogInformation("Corporate disbursement: Fineract loan booked — LoanId={LoanId}, Account={Account}",
-            bookingResult.Value.LoanId, bookingResult.Value.LoanAccountNumber);
+        var booking = bookingResult.Value;
 
-        var result = application.CompleteDisbursement(bookingResult.Value.LoanAccountNumber, request.UserId, bookingResult.Value.LoanId);
+        // Created but not disbursed is not a disbursement — don't complete it. The loan carries this
+        // application number as its externalId, so re-running this step resumes it instead of creating
+        // a second loan for the same application.
+        if (!booking.Disbursed)
+        {
+            _logger.LogError(
+                "Corporate disbursement: Fineract loan {LoanId} for application {Id} was created but NOT disbursed (status {Status}).",
+                booking.LoanId, application.Id, booking.Status);
+            return ApplicationResult.Failure(
+                $"Core Banking created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
+                "No funds have moved and the disbursement has not been completed. Check Core Banking, then retry — " +
+                "the existing loan will be resumed, not duplicated.");
+        }
+
+        _logger.LogInformation("Corporate disbursement: Fineract loan booked — LoanId={LoanId}, Account={Account}, Resumed={Resumed}",
+            booking.LoanId, booking.LoanAccountNumber, booking.Resumed);
+
+        var result = application.CompleteDisbursement(booking.LoanAccountNumber, request.UserId, booking.LoanId);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 
