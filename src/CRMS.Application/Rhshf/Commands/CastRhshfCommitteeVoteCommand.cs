@@ -15,15 +15,18 @@ public class CastRhshfCommitteeVoteHandler : IRequestHandler<CastRhshfCommitteeV
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfCommitteeReviewRepository _committeeRepo;
     private readonly IStandingCommitteeRepository _standingCommitteeRepo;
+    private readonly IRhshfLegalClearanceRepository _legalRepo;
     private readonly IUnitOfWork _uow;
 
     public CastRhshfCommitteeVoteHandler(
         IRhshfCreditProfileRepository repo, IRhshfCommitteeReviewRepository committeeRepo,
-        IStandingCommitteeRepository standingCommitteeRepo, IUnitOfWork uow)
+        IStandingCommitteeRepository standingCommitteeRepo, IRhshfLegalClearanceRepository legalRepo,
+        IUnitOfWork uow)
     {
         _repo = repo;
         _committeeRepo = committeeRepo;
         _standingCommitteeRepo = standingCommitteeRepo;
+        _legalRepo = legalRepo;
         _uow = uow;
     }
 
@@ -45,7 +48,13 @@ public class CastRhshfCommitteeVoteHandler : IRequestHandler<CastRhshfCommitteeV
         if (standingCommittee is null || standingCommittee.Members.All(m => m.UserId != request.UserId))
             return ApplicationResult.Failure("You are not a member of the committee this case is routed to.");
 
-        var excludedActorIds = profile.GetCurrentCycleAppraisalAndRiskActorIds();
+        // Appraiser + risk officer come off the profile; the Legal Officer who cleared the security
+        // before circulation is in a separate aggregate and is excluded too — a voter must not be
+        // reviewing their own work on any of the three internal stages.
+        var excludedActorIds = profile.GetCurrentCycleAppraisalAndRiskActorIds().ToList();
+        var clearances = await _legalRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
+        excludedActorIds.AddRange(clearances.Select(c => c.LegalOfficerId));
+
         var voteResult = review.CastVote(request.UserId, request.Vote, request.Comment, excludedActorIds);
         if (voteResult.IsFailure)
             return ApplicationResult.Failure(voteResult.Error);

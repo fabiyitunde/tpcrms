@@ -84,11 +84,11 @@ public class RhshfStatusHistoryTests
         var disbursementOfficer = Guid.NewGuid();
 
         profile.AppraiseWithFinancials(creditOfficer, RhshfAppraisalOutcome.Proceed, "Viable");
+        profile.AdvanceToRiskReviewFromLegal(legalOfficer, "Charge registered");
         profile.ReviewRisk(riskOfficer, RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification(voter, "3/3 approved.");
         profile.Ratify(finalApprover, RhshfRatificationOutcome.Ratified, Eop, null, null, []);
-        profile.AdvanceToLegalClearance();
-        profile.AdvanceToDisbursement(legalOfficer, "Title verified");
+        profile.AdvanceToPreDeploymentFromOffer(); // offer accepted -> PreDeploymentVerification
         profile.SeedPreDeploymentChecklist([]);
         CompleteVerification(profile, disbursementOfficer);
         profile.RecordDisbursementAttempt(
@@ -97,26 +97,28 @@ public class RhshfStatusHistoryTests
 
         var staffEntries = profile.StatusHistory.Where(e => e.CycleNumber == 1 && e.InternalStage is not null).ToList();
 
+        // Each entry records the stage the case LANDED in, so the actor on an entry is whoever moved
+        // it there. Legal now lands between appraisal and risk review.
         Assert.Equal(
             new[]
             {
                 RhshfInternalStage.Appraisal,               // submission
+                RhshfInternalStage.LegalClearance,
                 RhshfInternalStage.RiskReview,
                 RhshfInternalStage.CommitteeVoting,
                 RhshfInternalStage.Ratification,
                 RhshfInternalStage.AwaitingOfferAcceptance,
-                RhshfInternalStage.LegalClearance,
                 RhshfInternalStage.PreDeploymentVerification,
                 RhshfInternalStage.Disbursement,
                 RhshfInternalStage.Active,
             },
             staffEntries.Select(e => e.InternalStage!.Value).ToArray());
 
-        Assert.Equal(creditOfficer, Entry(profile, RhshfInternalStage.RiskReview).ActorUserId);
+        Assert.Equal(creditOfficer, Entry(profile, RhshfInternalStage.LegalClearance).ActorUserId);
+        Assert.Equal(legalOfficer, Entry(profile, RhshfInternalStage.RiskReview).ActorUserId);
         Assert.Equal(riskOfficer, Entry(profile, RhshfInternalStage.CommitteeVoting).ActorUserId);
         Assert.Equal(voter, Entry(profile, RhshfInternalStage.Ratification).ActorUserId);
         Assert.Equal(finalApprover, Entry(profile, RhshfInternalStage.AwaitingOfferAcceptance).ActorUserId);
-        Assert.Equal(legalOfficer, Entry(profile, RhshfInternalStage.PreDeploymentVerification).ActorUserId);
         Assert.Equal(disbursementOfficer, Entry(profile, RhshfInternalStage.Active).ActorUserId);
     }
 
@@ -125,9 +127,9 @@ public class RhshfStatusHistoryTests
     {
         var profile = RatifiedProfile(out _);
 
-        profile.AdvanceToLegalClearance();
+        profile.AdvanceToPreDeploymentFromOffer();
 
-        var entry = Entry(profile, RhshfInternalStage.LegalClearance);
+        var entry = Entry(profile, RhshfInternalStage.PreDeploymentVerification);
         Assert.Null(entry.ActorUserId);
         Assert.Equal("FAC", entry.ActorLabel);
     }
@@ -170,19 +172,24 @@ public class RhshfStatusHistoryTests
     }
 
     [Fact]
-    public void LegalReturn_RecordsTheInternalReRoute_WithoutOpeningANewCycle()
+    public void LegalReturn_RecordsTheRoundTripToTheFac()
     {
-        var profile = RatifiedProfile(out _);
-        profile.AdvanceToLegalClearance();
+        // Legal runs between Appraisal and Risk Review, so an appraised case is sitting at legal
+        // clearance and a fixable defect goes back to the FAC that declared the security. It files
+        // under the next cycle like every other FAC round-trip — the old legal return was an internal
+        // hop to Ratification and stayed in-cycle; this one genuinely restarts the review.
+        var profile = ProfileUnderReview();
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
         var legalOfficer = Guid.NewGuid();
 
-        profile.ReturnToRatificationFromLegal(legalOfficer, "Board resolution not executed");
+        profile.ReturnToFacFromLegal(RhshfProfilingStage.CreditBureauCheck, legalOfficer, "Board resolution not executed");
 
         var entry = profile.StatusHistory.Last();
-        Assert.Equal("Returned to ratification by Legal", entry.Action);
+        Assert.Equal("Returned to the FAC at legal clearance", entry.Action);
         Assert.Equal(legalOfficer, entry.ActorUserId);
-        Assert.Equal(RhshfInternalStage.Ratification, entry.InternalStage);
-        Assert.Equal(1, entry.CycleNumber); // same cycle — a legal issue is not a re-appraisal
+        Assert.Equal(RhshfCaseStatus.ProfilingInProgress, entry.Status);
+        Assert.Equal(RhshfProfilingStage.CreditBureauCheck, entry.ProfilingStage);
+        Assert.Equal(2, entry.CycleNumber);
     }
 
     [Fact]
@@ -238,7 +245,7 @@ public class RhshfStatusHistoryTests
 
         // Wrong stage for all of these.
         profile.AdvanceToRatification(Guid.NewGuid());
-        profile.AdvanceToDisbursement(Guid.NewGuid());
+        profile.AdvanceToRiskReviewFromLegal(Guid.NewGuid());
         profile.MarkClosed(Guid.NewGuid());
         profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null); // no financial appraisal
 
@@ -249,7 +256,7 @@ public class RhshfStatusHistoryTests
     public void AnEntryNeverCarriesBothAUserAndALabel()
     {
         var profile = RatifiedProfile(out var finalApprover);
-        profile.AdvanceToLegalClearance();
+        profile.AdvanceToPreDeploymentFromOffer();
 
         Assert.All(profile.StatusHistory, e =>
             Assert.True(e.ActorUserId is null ^ e.ActorLabel is null,
@@ -277,6 +284,7 @@ public class RhshfStatusHistoryTests
     {
         var profile = ProfileUnderReview();
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification(Guid.NewGuid());
         finalApprover = Guid.NewGuid();
@@ -287,8 +295,7 @@ public class RhshfStatusHistoryTests
     private static RhshfCreditProfile AtDisbursement(out Guid officer)
     {
         var profile = RatifiedProfile(out _);
-        profile.AdvanceToLegalClearance();
-        profile.AdvanceToDisbursement(Guid.NewGuid());
+        profile.AdvanceToPreDeploymentFromOffer();
         profile.SeedPreDeploymentChecklist([]);
         officer = Guid.NewGuid();
         CompleteVerification(profile, officer);

@@ -30,6 +30,7 @@ public class RhshfCreditProfileDisbursementTests
         }
 
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
@@ -37,8 +38,7 @@ public class RhshfCreditProfileDisbursementTests
         var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer-cycle1.pdf").Value;
         offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
         offer.Accept(null);
-        profile.AdvanceToLegalClearance();
-        profile.AdvanceToDisbursement(); // lands at PreDeploymentVerification, not Disbursement directly
+        profile.AdvanceToPreDeploymentFromOffer(); // offer accepted -> PreDeploymentVerification
 
         var template = RhshfPreDeploymentChecklistTemplate.Create("Gate Item", null, isMandatory: true, sortOrder: 10).Value;
         profile.SeedPreDeploymentChecklist([template]);

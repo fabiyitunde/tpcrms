@@ -41,7 +41,7 @@ public class RhshfCreditProfileAppraisalTests
     }
 
     [Fact]
-    public void Appraise_Proceed_AdvancesToRiskReview()
+    public void Appraise_Proceed_AdvancesToLegalClearance()
     {
         var profile = CreateProfileUnderReview();
         var creditOfficerId = Guid.NewGuid();
@@ -50,7 +50,7 @@ public class RhshfCreditProfileAppraisalTests
         var result = profile.Appraise(creditOfficerId, RhshfAppraisalOutcome.Proceed, "Looks fine");
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.RiskReview, profile.InternalStage);
+        Assert.Equal(RhshfInternalStage.LegalClearance, profile.InternalStage);
         Assert.Single(profile.Appraisals);
         Assert.Equal(1, profile.Appraisals.Single().CycleNumber);
     }
@@ -152,6 +152,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
 
         var result = profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
 
@@ -164,6 +165,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
 
         var second = profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
@@ -176,6 +178,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
 
         var result = profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Decline, "Fraud flag");
 
@@ -189,6 +192,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
 
         var result = profile.AdvanceToRatification();
@@ -212,6 +216,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
 
         var result = profile.DeclineAtCommittee("Committee rejected");
@@ -227,6 +232,7 @@ public class RhshfCreditProfileAppraisalTests
     {
         var profile = CreateProfileUnderReview();
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
 
         var result = profile.ReturnToFacFromCommittee(RhshfProfilingStage.SupportingDocuments);
@@ -244,6 +250,7 @@ public class RhshfCreditProfileAppraisalTests
         var creditOfficerId = Guid.NewGuid();
         var riskOfficerId = Guid.NewGuid();
         profile.AppraiseWithFinancials(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(riskOfficerId, RhshfRiskReviewOutcome.Cleared, null);
 
         var ids = profile.GetCurrentCycleAppraisalAndRiskActorIds();

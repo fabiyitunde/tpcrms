@@ -37,6 +37,7 @@ public class GetRhshfProfilingSessionHandlerTests
             profile.AdvanceStageForTest(stage);
         }
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
@@ -99,7 +100,7 @@ public class GetRhshfProfilingSessionHandlerTests
         var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
         offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
         offer.Accept(null);
-        profile.AdvanceToLegalClearance();
+        profile.AdvanceToPreDeploymentFromOffer();
 
         var result = await Handler(profile, offer).Handle(new GetRhshfProfilingSessionQuery(profile.Reference));
 

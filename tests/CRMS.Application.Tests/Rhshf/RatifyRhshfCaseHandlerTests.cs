@@ -33,6 +33,7 @@ public class RatifyRhshfCaseHandlerTests
         }
 
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
 
@@ -46,7 +47,7 @@ public class RatifyRhshfCaseHandlerTests
         var offerRepo = new FakeOfferRepository();
         var fileStorage = new FakeFileStorage();
         var handler = new RatifyRhshfCaseHandler(
-            new FakeProfileRepository(profile), new FakeCommitteeRepository(), offerRepo,
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(), offerRepo,
             new FakePdfGenerator(), new FakeKfsGenerator(), fileStorage, new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
@@ -69,7 +70,7 @@ public class RatifyRhshfCaseHandlerTests
         var review = RhshfCommitteeReview.Create(profile.Id, profile.CurrentCycleNumber, 1, 1, CommitteeType.BranchCredit, null).Value;
         review.CastVote(committeeApproverId, RhshfCommitteeVoteChoice.Approve, null, []);
         var handler = new RatifyRhshfCaseHandler(
-            new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new FakeOfferRepository(),
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new SharedFakeLegalClearanceRepository(), new FakeOfferRepository(),
             new FakePdfGenerator(), new FakeKfsGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
@@ -84,7 +85,7 @@ public class RatifyRhshfCaseHandlerTests
         var profile = MakeProfileAtRatification();
         var offerRepo = new FakeOfferRepository();
         var handler = new RatifyRhshfCaseHandler(
-            new FakeProfileRepository(profile), new FakeCommitteeRepository(), offerRepo,
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(), offerRepo,
             new FakePdfGenerator(), new FakeKfsGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
@@ -100,7 +101,7 @@ public class RatifyRhshfCaseHandlerTests
         var profile = MakeProfileAtRatification();
         var offerRepo = new FakeOfferRepository();
         var handler = new RatifyRhshfCaseHandler(
-            new FakeProfileRepository(profile), new FakeCommitteeRepository(), offerRepo,
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(), offerRepo,
             new FakePdfGenerator(), new FakeKfsGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(

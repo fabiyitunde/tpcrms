@@ -22,6 +22,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
 
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfCommitteeReviewRepository _committeeRepo;
+    private readonly IRhshfLegalClearanceRepository _legalRepo;
     private readonly IRhshfOfferRepository _offerRepo;
     private readonly IRhshfOfferLetterPdfGenerator _pdfGenerator;
     private readonly IRhshfKfsPdfGenerator _kfsGenerator;
@@ -31,6 +32,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
     public RatifyRhshfCaseHandler(
         IRhshfCreditProfileRepository repo,
         IRhshfCommitteeReviewRepository committeeRepo,
+        IRhshfLegalClearanceRepository legalRepo,
         IRhshfOfferRepository offerRepo,
         IRhshfOfferLetterPdfGenerator pdfGenerator,
         IRhshfKfsPdfGenerator kfsGenerator,
@@ -39,6 +41,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
     {
         _repo = repo;
         _committeeRepo = committeeRepo;
+        _legalRepo = legalRepo;
         _offerRepo = offerRepo;
         _pdfGenerator = pdfGenerator;
         _kfsGenerator = kfsGenerator;
@@ -61,6 +64,10 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
                 .Where(v => v.Vote == RhshfCommitteeVoteChoice.Approve)
                 .Select(v => v.UserId));
         }
+
+        // The Legal Officer who cleared the security before circulation is part of the same chain.
+        var clearances = await _legalRepo.GetByProfileAndCycleAsync(profile.Id, cycleNumber, ct);
+        excludedActorIds.AddRange(clearances.Select(c => c.LegalOfficerId));
 
         var result = profile.Ratify(request.FinalApproverId, request.Outcome, request.ApprovedAmount, request.Notes, request.ReturnToStage, excludedActorIds);
         if (result.IsFailure)

@@ -7054,13 +7054,14 @@ public partial class ApplicationService
     // ── RH-SHF Legal Clearance (Phase 8) ───────────────────────────────────
 
     public async Task<ApiResponse> ClearRhshfLegalAsync(
-        string reference, Guid legalOfficerId, CRMS.Domain.Enums.RhshfLegalClearanceOutcome outcome, string? comments)
+        string reference, Guid legalOfficerId, CRMS.Domain.Enums.RhshfLegalClearanceOutcome outcome, string? comments,
+        CRMS.Domain.Enums.RhshfProfilingStage? returnToStage = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ClearRhshfLegalHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.ClearRhshfLegalCommand(reference, legalOfficerId, outcome, comments),
+                new CRMS.Application.Rhshf.Commands.ClearRhshfLegalCommand(reference, legalOfficerId, outcome, comments, returnToStage),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Legal clearance failed");
         }

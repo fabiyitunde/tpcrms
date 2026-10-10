@@ -9,7 +9,9 @@ public class ClearRhshfLegalHandlerTests
 {
     private const decimal TotalEopValue = 51_500_000.00m;
 
-    private static (RhshfCreditProfile Profile, Guid FinalApproverId) MakeProfileAtLegalClearance()
+    /// <summary>Legal clearance now sits between Appraisal and Risk Review, so a case reaches it
+    /// straight off a Proceed appraisal — no ratification or offer in the picture.</summary>
+    private static RhshfCreditProfile MakeProfileAtLegalClearance()
     {
         var result = RhshfCreditProfile.Create(
             submissionId: Guid.NewGuid(), programmeCode: "RH-SHF-DRY-2026", programmeName: "Renewed Hope",
@@ -32,86 +34,80 @@ public class ClearRhshfLegalHandlerTests
         }
 
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
-        profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
-        profile.AdvanceToRatification();
-        var finalApproverId = Guid.NewGuid();
-        profile.Ratify(finalApproverId, RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
 
-        var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer-cycle1.pdf").Value;
-        offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
-        offer.Accept(null);
-        profile.AdvanceToLegalClearance();
-
-        return (profile, finalApproverId);
+        return profile; // now InternalStage == LegalClearance
     }
 
     [Fact]
-    public async Task Clear_Granted_AdvancesToPreDeploymentVerification_RecordsClearance()
+    public async Task Clear_Granted_AdvancesToRiskReview_RecordsClearance()
     {
-        var (profile, finalApproverId) = MakeProfileAtLegalClearance();
+        var profile = MakeProfileAtLegalClearance();
         var legalRepo = new FakeLegalClearanceRepository();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, new FakeTemplateRepository(), new FakeUnitOfWork());
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Granted, "all clear"));
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.PreDeploymentVerification, profile.InternalStage);
+        // Risk is the last internal look before circulation, so legal hands off to it — not to
+        // pre-deployment, which is now reached from offer acceptance instead.
+        Assert.Equal(RhshfInternalStage.RiskReview, profile.InternalStage);
         Assert.NotNull(legalRepo.Added);
         Assert.Equal(RhshfLegalClearanceOutcome.Granted, legalRepo.Added!.Outcome);
     }
 
     [Fact]
-    public async Task Clear_Granted_SeedsPreDeploymentChecklistFromActiveTemplates()
+    public async Task Clear_Granted_SeedsNoPreDeploymentChecklist()
     {
-        var (profile, _) = MakeProfileAtLegalClearance();
-        var template = RhshfPreDeploymentChecklistTemplate.Create("Gate Item", null, isMandatory: true, sortOrder: 10).Value;
+        var profile = MakeProfileAtLegalClearance();
         var handler = new ClearRhshfLegalHandler(
-            new FakeProfileRepository(profile), new FakeLegalClearanceRepository(),
-            new FakeTemplateRepository([template]), new FakeUnitOfWork());
+            new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Granted, "all clear"));
 
         Assert.True(result.IsSuccess);
-        Assert.Single(profile.PreDeploymentChecklist);
-        Assert.Equal("Gate Item", profile.PreDeploymentChecklist.Single().Title);
+        // The gate checklist belongs to the post-offer stage now, so nothing is seeded this early.
+        Assert.Empty(profile.PreDeploymentChecklist);
     }
 
     [Fact]
-    public async Task Clear_SamePersonAsFinalApprover_Fails_DoesNotTransitionProfile()
+    public async Task Clear_RecordsTheClearingLegalOfficer()
     {
-        var (profile, finalApproverId) = MakeProfileAtLegalClearance();
+        var profile = MakeProfileAtLegalClearance();
+        var legalOfficerId = Guid.NewGuid();
         var legalRepo = new FakeLegalClearanceRepository();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, new FakeTemplateRepository(), new FakeUnitOfWork());
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, new FakeUnitOfWork());
 
-        var result = await handler.Handle(new ClearRhshfLegalCommand(
-            profile.Reference, finalApproverId, RhshfLegalClearanceOutcome.Granted, null));
+        await handler.Handle(new ClearRhshfLegalCommand(
+            profile.Reference, legalOfficerId, RhshfLegalClearanceOutcome.Granted, null));
 
-        Assert.False(result.IsSuccess);
-        Assert.Null(legalRepo.Added);
-        Assert.Equal(RhshfInternalStage.LegalClearance, profile.InternalStage);
+        // The id has to be stored: risk review, the committee vote and ratification all exclude it.
+        Assert.Equal(legalOfficerId, legalRepo.Added!.LegalOfficerId);
     }
 
     [Fact]
-    public async Task Clear_Returned_RoutesBackToRatification_NotAppraisal()
+    public async Task Clear_Returned_GoesBackToTheFac_AtTheRequestedStage()
     {
-        var (profile, _) = MakeProfileAtLegalClearance();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeTemplateRepository(), new FakeUnitOfWork());
+        var profile = MakeProfileAtLegalClearance();
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
-            profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Returned, "fix the deed"));
+            profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Returned, "fix the deed",
+            RhshfProfilingStage.CreditBureauCheck));
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.Ratification, profile.InternalStage);
-        Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
+        // The defect is in what the FAC declared, and the FAC is who can correct it.
+        Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
+        Assert.Equal(RhshfProfilingStage.CreditBureauCheck, profile.CurrentStage);
+        Assert.Null(profile.InternalStage);
     }
 
     [Fact]
     public async Task Clear_Declined_IsTerminal()
     {
-        var (profile, _) = MakeProfileAtLegalClearance();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeTemplateRepository(), new FakeUnitOfWork());
+        var profile = MakeProfileAtLegalClearance();
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Declined, "title dispute"));

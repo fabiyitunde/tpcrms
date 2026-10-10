@@ -5,8 +5,11 @@ namespace CRMS.Application.Rhshf.Commands;
 
 /// <summary>
 /// FAC accepts the offer (design doc §3.6/§6 #10). RhshfOffer.Accept() enforces the signed-document
-/// precondition; on success, propagates to RhshfCreditProfile.AdvanceToLegalClearance() — both
-/// aggregates save in one transaction, same cross-aggregate pattern as Phase 5/6.
+/// precondition; on success the case goes straight to pre-deployment verification — legal clearance
+/// now happens before committee voting, so there is no legal stage left after acceptance. This is
+/// therefore also where the pre-deployment gate checklist is seeded (it used to be seeded when legal
+/// granted clearance). Both aggregates save in one transaction, same cross-aggregate pattern as
+/// Phase 5/6.
 /// </summary>
 public record AcceptRhshfOfferCommand(string Reference, string? Notes) : IRequest<ApplicationResult>;
 
@@ -14,12 +17,16 @@ public class AcceptRhshfOfferHandler : IRequestHandler<AcceptRhshfOfferCommand, 
 {
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfOfferRepository _offerRepo;
+    private readonly IRhshfPreDeploymentChecklistTemplateRepository _templateRepo;
     private readonly IUnitOfWork _uow;
 
-    public AcceptRhshfOfferHandler(IRhshfCreditProfileRepository repo, IRhshfOfferRepository offerRepo, IUnitOfWork uow)
+    public AcceptRhshfOfferHandler(
+        IRhshfCreditProfileRepository repo, IRhshfOfferRepository offerRepo,
+        IRhshfPreDeploymentChecklistTemplateRepository templateRepo, IUnitOfWork uow)
     {
         _repo = repo;
         _offerRepo = offerRepo;
+        _templateRepo = templateRepo;
         _uow = uow;
     }
 
@@ -37,9 +44,12 @@ public class AcceptRhshfOfferHandler : IRequestHandler<AcceptRhshfOfferCommand, 
         if (offerResult.IsFailure)
             return ApplicationResult.Failure(offerResult.Error);
 
-        var profileResult = profile.AdvanceToLegalClearance();
+        var profileResult = profile.AdvanceToPreDeploymentFromOffer();
         if (profileResult.IsFailure)
             return ApplicationResult.Failure(profileResult.Error);
+
+        var templates = await _templateRepo.GetActiveAsync(ct);
+        profile.SeedPreDeploymentChecklist(templates);
 
         await _uow.SaveChangesAsync(ct);
         return ApplicationResult.Success();

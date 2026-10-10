@@ -30,6 +30,7 @@ public class RhshfCreditProfileOfferAcceptanceTests
         }
 
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
@@ -38,24 +39,24 @@ public class RhshfCreditProfileOfferAcceptanceTests
     }
 
     [Fact]
-    public void AdvanceToLegalClearance_WhenAwaitingOfferAcceptance_Succeeds()
+    public void AdvanceToPreDeploymentFromOffer_WhenAwaitingOfferAcceptance_Succeeds()
     {
         var profile = CreateProfileAwaitingOfferAcceptance();
 
-        var result = profile.AdvanceToLegalClearance();
+        var result = profile.AdvanceToPreDeploymentFromOffer();
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.LegalClearance, profile.InternalStage);
+        Assert.Equal(RhshfInternalStage.PreDeploymentVerification, profile.InternalStage);
         Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status); // external status unchanged (§6 #9)
     }
 
     [Fact]
-    public void AdvanceToLegalClearance_WhenNotAwaitingOfferAcceptance_Fails()
+    public void AdvanceToPreDeploymentFromOffer_WhenNotAwaitingOfferAcceptance_Fails()
     {
         var profile = CreateProfileAwaitingOfferAcceptance();
-        profile.AdvanceToLegalClearance(); // already past this stage now
+        profile.AdvanceToPreDeploymentFromOffer(); // already past this stage now
 
-        var result = profile.AdvanceToLegalClearance();
+        var result = profile.AdvanceToPreDeploymentFromOffer();
 
         Assert.True(result.IsFailure);
     }
@@ -78,7 +79,7 @@ public class RhshfCreditProfileOfferAcceptanceTests
     public void CancelDueToOfferRejection_WhenNotAwaitingOfferAcceptance_Fails()
     {
         var profile = CreateProfileAwaitingOfferAcceptance();
-        profile.AdvanceToLegalClearance(); // moved on already
+        profile.AdvanceToPreDeploymentFromOffer(); // moved on already
 
         var result = profile.CancelDueToOfferRejection(null);
 

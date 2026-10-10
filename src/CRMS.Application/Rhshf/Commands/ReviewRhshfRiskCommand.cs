@@ -23,6 +23,7 @@ public class ReviewRhshfRiskHandler : IRequestHandler<ReviewRhshfRiskCommand, Ap
     private readonly IRhshfCommitteeReviewRepository _committeeRepo;
     private readonly IRhshfRoutingConfigRepository _routingRepo;
     private readonly IStandingCommitteeRepository _standingCommitteeRepo;
+    private readonly IRhshfLegalClearanceRepository _legalRepo;
     private readonly IUnitOfWork _uow;
 
     public ReviewRhshfRiskHandler(
@@ -30,12 +31,14 @@ public class ReviewRhshfRiskHandler : IRequestHandler<ReviewRhshfRiskCommand, Ap
         IRhshfCommitteeReviewRepository committeeRepo,
         IRhshfRoutingConfigRepository routingRepo,
         IStandingCommitteeRepository standingCommitteeRepo,
+        IRhshfLegalClearanceRepository legalRepo,
         IUnitOfWork uow)
     {
         _repo = repo;
         _committeeRepo = committeeRepo;
         _routingRepo = routingRepo;
         _standingCommitteeRepo = standingCommitteeRepo;
+        _legalRepo = legalRepo;
         _uow = uow;
     }
 
@@ -46,7 +49,15 @@ public class ReviewRhshfRiskHandler : IRequestHandler<ReviewRhshfRiskCommand, Ap
             return ApplicationResult.Failure("Case not found.");
 
         var cycleNumber = profile.CurrentCycleNumber;
-        var result = profile.ReviewRisk(request.RiskOfficerId, request.Outcome, request.Notes, request.ReturnToStage);
+
+        // Legal clearance runs before risk review now, and its record lives in its own aggregate — so
+        // the Legal Officer has to be handed in for the distinct-actor check inside ReviewRisk.
+        var clearances = await _legalRepo.GetByProfileAndCycleAsync(profile.Id, cycleNumber, ct);
+        var legalOfficerId = clearances
+            .OrderByDescending(c => c.ClearedAt)
+            .FirstOrDefault()?.LegalOfficerId;
+
+        var result = profile.ReviewRisk(request.RiskOfficerId, request.Outcome, request.Notes, request.ReturnToStage, legalOfficerId);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

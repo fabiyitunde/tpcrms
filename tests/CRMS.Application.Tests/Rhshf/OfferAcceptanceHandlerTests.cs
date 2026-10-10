@@ -32,6 +32,7 @@ public class OfferAcceptanceHandlerTests
         }
 
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
@@ -40,7 +41,7 @@ public class OfferAcceptanceHandlerTests
     }
 
     [Fact]
-    public async Task Upload_ThenAccept_Succeeds_AdvancesToLegalClearance()
+    public async Task Upload_ThenAccept_Succeeds_AdvancesToPreDeploymentVerification()
     {
         var profile = MakeProfileAwaitingOfferAcceptance();
         var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
@@ -51,12 +52,12 @@ public class OfferAcceptanceHandlerTests
         var uploadResult = await uploadHandler.Handle(new UploadSignedOfferCommand(profile.Reference, "signed.pdf", "application/pdf", [1, 2, 3]));
         Assert.True(uploadResult.IsSuccess);
 
-        var acceptHandler = new AcceptRhshfOfferHandler(new FakeProfileRepository(profile), offerRepo, new FakeUnitOfWork());
+        var acceptHandler = new AcceptRhshfOfferHandler(new FakeProfileRepository(profile), offerRepo, new SharedFakeTemplateRepository(), new FakeUnitOfWork());
         var acceptResult = await acceptHandler.Handle(new AcceptRhshfOfferCommand(profile.Reference, "all good"));
 
         Assert.True(acceptResult.IsSuccess);
         Assert.Equal(RhshfOfferStatus.Accepted, offer.Status);
-        Assert.Equal(RhshfInternalStage.LegalClearance, profile.InternalStage);
+        Assert.Equal(RhshfInternalStage.PreDeploymentVerification, profile.InternalStage);
     }
 
     [Fact]
@@ -64,7 +65,7 @@ public class OfferAcceptanceHandlerTests
     {
         var profile = MakeProfileAwaitingOfferAcceptance();
         var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
-        var handler = new AcceptRhshfOfferHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeUnitOfWork());
+        var handler = new AcceptRhshfOfferHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new SharedFakeTemplateRepository(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new AcceptRhshfOfferCommand(profile.Reference, null));
 

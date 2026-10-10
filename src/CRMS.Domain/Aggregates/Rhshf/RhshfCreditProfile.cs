@@ -481,6 +481,8 @@ public class RhshfCreditProfile : AggregateRoot
     {
         if (Status != RhshfCaseStatus.UnderReview)
             return Result.Failure("Case is not under review.");
+        if (InternalStage != RhshfInternalStage.Appraisal)
+            return Result.Failure("Case is not at the appraisal stage.");
         if (_appraisals.Any(a => a.CycleNumber == CurrentCycleNumber))
             return Result.Failure("This cycle has already been appraised.");
 
@@ -489,15 +491,15 @@ public class RhshfCreditProfile : AggregateRoot
         // be submitted with no appraisal report at all. Decline and ReturnToFac are unguarded — an
         // officer must always be able to reject or send back a case without first modelling it.
         if (outcome == RhshfAppraisalOutcome.Proceed && GetCurrentCycleFinancialAppraisal() is null)
-            return Result.Failure("A financial appraisal must be completed before proceeding to risk review.");
+            return Result.Failure("A financial appraisal must be completed before proceeding to legal clearance.");
 
         _appraisals.Add(new RhshfAppraisal(Id, CurrentCycleNumber, creditOfficerId, outcome, notes));
 
         switch (outcome)
         {
             case RhshfAppraisalOutcome.Proceed:
-                InternalStage = RhshfInternalStage.RiskReview;
-                RecordTransition("Appraisal completed — proceeding to risk review", creditOfficerId, note: notes);
+                InternalStage = RhshfInternalStage.LegalClearance;
+                RecordTransition("Appraisal completed — sent for legal clearance", creditOfficerId, note: notes);
                 break;
             case RhshfAppraisalOutcome.ReturnToFac:
                 ReturnToFac(returnToStage, "Returned to the FAC at appraisal", creditOfficerId, notes);
@@ -511,18 +513,27 @@ public class RhshfCreditProfile : AggregateRoot
         return Result.Success();
     }
 
-    /// <summary>Risk Officer's review — second stage (design doc §3.6). Must differ from that
-    /// cycle's appraising Credit Officer; cannot run before that cycle's Appraisal.</summary>
-    public Result ReviewRisk(Guid riskOfficerId, RhshfRiskReviewOutcome outcome, string? notes, RhshfProfilingStage? returnToStage = null)
+    /// <summary>Risk Officer's review — now the LAST internal look before the case is circulated to
+    /// committee, so it runs after legal clearance rather than before it. Must differ from that cycle's
+    /// appraising Credit Officer and from its Legal Officer; the InternalStage guard is what enforces
+    /// that legal clearance has already happened (a case only reaches RiskReview through it).
+    /// legalOfficerId is supplied by the Application layer from that cycle's RhshfLegalClearance, which
+    /// is a separate aggregate this one cannot read.</summary>
+    public Result ReviewRisk(Guid riskOfficerId, RhshfRiskReviewOutcome outcome, string? notes,
+        RhshfProfilingStage? returnToStage = null, Guid? legalOfficerId = null)
     {
         if (Status != RhshfCaseStatus.UnderReview)
             return Result.Failure("Case is not under review.");
+        if (InternalStage != RhshfInternalStage.RiskReview)
+            return Result.Failure("Case is not at the risk review stage.");
 
         var appraisal = _appraisals.FirstOrDefault(a => a.CycleNumber == CurrentCycleNumber);
         if (appraisal is null || appraisal.Outcome != RhshfAppraisalOutcome.Proceed)
             return Result.Failure("This cycle has not been appraised with a Proceed outcome yet.");
         if (appraisal.CreditOfficerId == riskOfficerId)
             return Result.Failure("The Risk Officer must be a different person from the Credit Officer who appraised this case.");
+        if (legalOfficerId == riskOfficerId)
+            return Result.Failure("The Risk Officer must be a different person from the Legal Officer who cleared this case.");
         if (_riskReviews.Any(r => r.CycleNumber == CurrentCycleNumber))
             return Result.Failure("This cycle has already had a risk review.");
 
@@ -703,16 +714,19 @@ public class RhshfCreditProfile : AggregateRoot
         return Result.Success();
     }
 
-    /// <summary>FAC accepted the offer (design doc §3.6, Phase 7) — advances to LegalClearance.
-    /// Called by the Application layer once RhshfOffer.Accept() succeeds, since the offer itself
-    /// (and its signed-document precondition) lives in a separate aggregate.</summary>
-    public Result AdvanceToLegalClearance()
+    /// <summary>FAC accepted the offer (design doc §3.6, Phase 7) — advances straight to
+    /// PreDeploymentVerification. Legal clearance already happened before the committee voted, so there
+    /// is no legal stage left on this side of the decision; the gate's CollateralReview item is where
+    /// the security is confirmed still valid. Called by the Application layer once RhshfOffer.Accept()
+    /// succeeds, since the offer itself (and its signed-document precondition) lives in a separate
+    /// aggregate — the same call site also seeds the pre-deployment checklist.</summary>
+    public Result AdvanceToPreDeploymentFromOffer()
     {
         if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.AwaitingOfferAcceptance)
             return Result.Failure("Case is not awaiting offer acceptance.");
 
-        InternalStage = RhshfInternalStage.LegalClearance;
-        RecordTransition("Offer accepted — sent for legal clearance", actorUserId: null, actorLabel: "FAC");
+        InternalStage = RhshfInternalStage.PreDeploymentVerification;
+        RecordTransition("Offer accepted — pre-deployment verification opened", actorUserId: null, actorLabel: "FAC");
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
@@ -730,27 +744,25 @@ public class RhshfCreditProfile : AggregateRoot
         return Result.Success();
     }
 
-    /// <summary>That cycle's ratifying Final Approver, if any — the Application layer needs this to
-    /// enforce the Legal Officer/Final Approver distinctness check when creating an
-    /// RhshfLegalClearance record (design doc §3.6, Phase 8), since legal clearance lives in its own
-    /// aggregate with no access to this profile's Ratifications collection.</summary>
+    /// <summary>That cycle's ratifying Final Approver, if any. A read accessor for the Application
+    /// layer's maker-checker exclusion sets; it no longer gates legal clearance, which now runs before
+    /// any ratification exists.</summary>
     public Guid? GetCurrentCycleFinalApproverId()
         => _ratifications.Where(r => r.CycleNumber == CurrentCycleNumber)
             .OrderByDescending(r => r.RatifiedAt).FirstOrDefault()?.FinalApproverId;
 
-    /// <summary>Legal Clearance Granted — fifth stage (design doc §3.6, Phase 8). Called by the
-    /// Application layer once RhshfLegalClearance.Create() succeeds with Granted, since legal
-    /// clearance lives in a separate aggregate. Advances to PreDeploymentVerification (not straight
-    /// to Disbursement) — an auto-transition, same as NAMP's GrantLegalClearance; the checklist
-    /// itself is seeded separately (SeedPreDeploymentChecklist) since it needs the active template
-    /// list from the Application layer.</summary>
-    public Result AdvanceToDisbursement(Guid? legalOfficerId = null, string? note = null)
+    /// <summary>Legal cleared the security — hands the case to Risk, the last internal review before
+    /// circulation. Called by the Application layer once RhshfLegalClearance.Create() succeeds, since
+    /// legal clearance lives in a separate aggregate. Covers both forward outcomes (a clean grant, and
+    /// a grant with a documented caveat); the caveat itself rides on the clearance record, which Risk
+    /// and then the committee read.</summary>
+    public Result AdvanceToRiskReviewFromLegal(Guid? legalOfficerId = null, string? note = null)
     {
         if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.LegalClearance)
             return Result.Failure("Case is not at the legal clearance stage.");
 
-        InternalStage = RhshfInternalStage.PreDeploymentVerification;
-        RecordTransition("Legal clearance granted — pre-deployment verification opened", legalOfficerId, note: note);
+        InternalStage = RhshfInternalStage.RiskReview;
+        RecordTransition("Legal clearance completed — proceeding to risk review", legalOfficerId, note: note);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
@@ -813,17 +825,16 @@ public class RhshfCreditProfile : AggregateRoot
         return Result.Success();
     }
 
-    /// <summary>Legal Clearance Returned — routes back to Ratification, not Appraisal, for the same
-    /// cycle (design doc §6 #12: a legal issue isn't a re-appraisal of the credit). Unlike every
-    /// other ReturnToFac path, the case stays UnderReview — this is an internal re-route, not a
-    /// round-trip to the FAC.</summary>
-    public Result ReturnToRatificationFromLegal(Guid? legalOfficerId = null, string? note = null)
+    /// <summary>Legal Clearance Returned — goes back to the FAC to fix the security it declared.
+    /// Legal now runs before the committee, so the old "return to Ratification" target no longer
+    /// exists at this point in the flow: the defect is in what the FAC supplied, and the FAC is who
+    /// can correct it. Reserved for fixable problems — falsification and the like are a Decline.</summary>
+    public Result ReturnToFacFromLegal(RhshfProfilingStage? returnToStage = null, Guid? legalOfficerId = null, string? note = null)
     {
         if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.LegalClearance)
             return Result.Failure("Case is not at the legal clearance stage.");
 
-        InternalStage = RhshfInternalStage.Ratification;
-        RecordTransition("Returned to ratification by Legal", legalOfficerId, note: note);
+        ReturnToFac(returnToStage, "Returned to the FAC at legal clearance", legalOfficerId, note);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }

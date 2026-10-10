@@ -92,4 +92,10 @@ internal static class RhshfAppraisalTestExtensions
 
         return profile.Appraise(creditOfficerId, outcome, notes, returnToStage);
     }
+
+    /// <summary>Walks a case past legal clearance, which now sits between Appraisal and Risk
+    /// Review, so tests about later stages can step over it in one line. A random Legal Officer by
+    /// default — pass one explicitly when the test cares about actor distinctness.</summary>
+    internal static Result ClearLegalForTest(this RhshfCreditProfile profile, Guid? legalOfficerId = null)
+        => profile.AdvanceToRiskReviewFromLegal(legalOfficerId ?? Guid.NewGuid());
 }

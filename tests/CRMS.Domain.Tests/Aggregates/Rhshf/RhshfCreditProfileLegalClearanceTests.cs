@@ -3,11 +3,16 @@ using CRMS.Domain.Enums;
 
 namespace CRMS.Domain.Tests.Aggregates.Rhshf;
 
+/// <summary>
+/// Legal clearance sits between Appraisal and Risk Review: the security is sighted, opined on and
+/// perfected before the case is circulated, so the committee votes on a settled file and an approved
+/// case can no longer be killed by a later legal finding.
+/// </summary>
 public class RhshfCreditProfileLegalClearanceTests
 {
     private const decimal TotalEopValue = 51_500_000.00m;
 
-    private static RhshfCreditProfile CreateProfileAtLegalClearance(out Guid finalApproverId)
+    private static RhshfCreditProfile CreateProfileAtLegalClearance()
     {
         var result = RhshfCreditProfile.Create(
             submissionId: Guid.NewGuid(), programmeCode: "RH-SHF-DRY-2026", programmeName: "Renewed Hope",
@@ -30,72 +35,80 @@ public class RhshfCreditProfileLegalClearanceTests
         }
 
         profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
-        profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
-        profile.AdvanceToRatification();
-        finalApproverId = Guid.NewGuid();
-        profile.Ratify(finalApproverId, RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
-
-        var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer-cycle1.pdf").Value;
-        offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
-        offer.Accept(null);
-        profile.AdvanceToLegalClearance();
 
         return profile; // now InternalStage == LegalClearance
     }
 
     [Fact]
-    public void GetCurrentCycleFinalApproverId_ReturnsRatifyingApprover()
+    public void Appraisal_Proceed_LandsAtLegalClearance_NotRiskReview()
     {
-        var profile = CreateProfileAtLegalClearance(out var finalApproverId);
+        var profile = CreateProfileAtLegalClearance();
 
-        Assert.Equal(finalApproverId, profile.GetCurrentCycleFinalApproverId());
-    }
-
-    [Fact]
-    public void AdvanceToDisbursement_FromLegalClearance_LandsAtPreDeploymentVerification()
-    {
-        var profile = CreateProfileAtLegalClearance(out _);
-
-        var result = profile.AdvanceToDisbursement();
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.PreDeploymentVerification, profile.InternalStage);
+        Assert.Equal(RhshfInternalStage.LegalClearance, profile.InternalStage);
         Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
     }
 
     [Fact]
-    public void ReturnToRatificationFromLegal_Succeeds_StaysUnderReview_SameCycle()
+    public void AdvanceToRiskReviewFromLegal_HandsTheCaseToRisk()
     {
-        var profile = CreateProfileAtLegalClearance(out _);
+        var profile = CreateProfileAtLegalClearance();
+
+        var result = profile.AdvanceToRiskReviewFromLegal(Guid.NewGuid(), "title verified, charge registered");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfInternalStage.RiskReview, profile.InternalStage);
+        Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
+    }
+
+    [Fact]
+    public void RiskReview_CannotRunBeforeLegalClearance()
+    {
+        var profile = CreateProfileAtLegalClearance();
+
+        // The stage guard is what enforces the ordering — Risk must not be able to jump the queue and
+        // circulate a case whose security has not been looked at.
+        var result = profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(RhshfInternalStage.LegalClearance, profile.InternalStage);
+    }
+
+    [Fact]
+    public void RiskOfficer_CannotBeTheLegalOfficerWhoCleared()
+    {
+        var profile = CreateProfileAtLegalClearance();
+        var legalOfficerId = Guid.NewGuid();
+        profile.AdvanceToRiskReviewFromLegal(legalOfficerId);
+
+        var result = profile.ReviewRisk(legalOfficerId, RhshfRiskReviewOutcome.Cleared, null, null, legalOfficerId);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("Legal Officer", result.Error);
+    }
+
+    [Fact]
+    public void ReturnToFacFromLegal_SendsTheCaseBackToTheFac_AtTheRequestedStage()
+    {
+        var profile = CreateProfileAtLegalClearance();
         var cycleBefore = profile.CurrentCycleNumber;
 
-        var result = profile.ReturnToRatificationFromLegal();
+        // A fixable defect in what the FAC declared goes back to the FAC, not onward — there is no
+        // ratification to return to at this point in the flow any more.
+        var result = profile.ReturnToFacFromLegal(RhshfProfilingStage.CreditBureauCheck, Guid.NewGuid(), "re-upload the title deed");
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.Ratification, profile.InternalStage);
-        Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
+        Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
+        Assert.Equal(RhshfProfilingStage.CreditBureauCheck, profile.CurrentStage);
+        Assert.Null(profile.InternalStage);
         Assert.Equal(cycleBefore, profile.CurrentCycleNumber);
-    }
-
-    [Fact]
-    public void ReturnToRatificationFromLegal_ThenReRatify_Succeeds_ProducesSecondRatificationRecord()
-    {
-        var profile = CreateProfileAtLegalClearance(out _);
-        profile.ReturnToRatificationFromLegal();
-
-        var result = profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, "re-ratified after legal return", null, []);
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfInternalStage.AwaitingOfferAcceptance, profile.InternalStage);
-        Assert.Equal(2, profile.Ratifications.Count(r => r.CycleNumber == profile.CurrentCycleNumber));
     }
 
     [Fact]
     public void DeclineAtLegalClearance_IsTerminal_FiresDomainEvent()
     {
-        var profile = CreateProfileAtLegalClearance(out _);
+        var profile = CreateProfileAtLegalClearance();
 
-        var result = profile.DeclineAtLegalClearance("collateral title defective");
+        var result = profile.DeclineAtLegalClearance("collateral title falsified");
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfCaseStatus.Declined, profile.Status);
@@ -106,23 +119,23 @@ public class RhshfCreditProfileLegalClearanceTests
     }
 
     [Fact]
-    public void AdvanceToDisbursement_WhenNotAtLegalClearance_Fails()
+    public void AdvanceToRiskReviewFromLegal_WhenNotAtLegalClearance_Fails()
     {
-        var profile = CreateProfileAtLegalClearance(out _);
-        profile.AdvanceToDisbursement();
+        var profile = CreateProfileAtLegalClearance();
+        profile.AdvanceToRiskReviewFromLegal();
 
-        var result = profile.AdvanceToDisbursement();
+        var result = profile.AdvanceToRiskReviewFromLegal();
 
         Assert.True(result.IsFailure);
     }
 
     [Fact]
-    public void ReturnToRatificationFromLegal_WhenNotAtLegalClearance_Fails()
+    public void ReturnToFacFromLegal_WhenNotAtLegalClearance_Fails()
     {
-        var profile = CreateProfileAtLegalClearance(out _);
-        profile.AdvanceToDisbursement();
+        var profile = CreateProfileAtLegalClearance();
+        profile.AdvanceToRiskReviewFromLegal();
 
-        var result = profile.ReturnToRatificationFromLegal();
+        var result = profile.ReturnToFacFromLegal();
 
         Assert.True(result.IsFailure);
     }

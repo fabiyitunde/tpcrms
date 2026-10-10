@@ -109,7 +109,7 @@ else
                 <button class="btn btn-outline" @onclick='() => openModal = "collateral"'>
                     <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">security</span> Record Collateral
                 </button>
-                <button class="btn btn-warning" @onclick='() => OpenLegalClearanceModal("Returned")'>Return to Ratification</button>
+                <button class="btn btn-warning" @onclick='() => OpenLegalClearanceModal("Returned")'>Return to FAC</button>
                 <button class="btn btn-danger" @onclick='() => OpenLegalClearanceModal("Declined")'>Decline</button>
                 <button class="btn btn-success" @onclick='() => OpenLegalClearanceModal("Granted")'>Grant</button>
             }
@@ -867,11 +867,11 @@ else
         await LoadAllAsync();
     }
 
-    private async Task SubmitLegalClearance((RhshfLegalClearanceOutcome Outcome, string? Comments) input)
+    private async Task SubmitLegalClearance((RhshfLegalClearanceOutcome Outcome, string? Comments, RhshfProfilingStage? ReturnToStage) input)
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.ClearRhshfLegalAsync(Reference, CurrentUserId, input.Outcome, input.Comments);
+        var result = await AppService.ClearRhshfLegalAsync(Reference, CurrentUserId, input.Outcome, input.Comments, input.ReturnToStage);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();

@@ -80,9 +80,9 @@ public class RhshfStatusHistoryPersistenceTests
         db.ChangeTracker.Clear();
 
         var reloaded = await repo.GetByReferenceAsync(profile.Reference);
-        var entry = reloaded!.StatusHistory.Single(e => e.InternalStage == RhshfInternalStage.RiskReview);
+        var entry = reloaded!.StatusHistory.Single(e => e.InternalStage == RhshfInternalStage.LegalClearance);
 
-        Assert.Equal("Appraisal completed — proceeding to risk review", entry.Action);
+        Assert.Equal("Appraisal completed — sent for legal clearance", entry.Action);
         Assert.Equal(creditOfficer, entry.ActorUserId);
         Assert.Null(entry.ActorLabel);
         Assert.Equal(RhshfCaseStatus.UnderReview, entry.Status);

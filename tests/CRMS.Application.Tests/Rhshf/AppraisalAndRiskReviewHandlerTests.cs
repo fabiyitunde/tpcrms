@@ -79,7 +79,7 @@ public class AppraisalAndRiskReviewHandlerTests
         var creditOfficerId = Guid.NewGuid();
         profile.AppraiseWithFinancials(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
         var repo = new FakeRepository(profile);
-        var handler = new ReviewRhshfRiskHandler(repo, new FakeCommitteeRepository(), new FakeRoutingConfigRepository(), new FakeStandingCommitteeRepository(), new FakeUnitOfWork());
+        var handler = new ReviewRhshfRiskHandler(repo, new FakeCommitteeRepository(), new FakeRoutingConfigRepository(), new FakeStandingCommitteeRepository(), new SharedFakeLegalClearanceRepository(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ReviewRhshfRiskCommand(profile.Reference, creditOfficerId, RhshfRiskReviewOutcome.Cleared, null, null));
 
@@ -126,6 +126,7 @@ public class AppraisalAndRiskReviewHandlerTests
         var creditOfficerId = Guid.NewGuid();
         var riskOfficerId = Guid.NewGuid();
         profile.AppraiseWithFinancials(creditOfficerId, RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
         profile.ReviewRisk(riskOfficerId, RhshfRiskReviewOutcome.Cleared, null);
 
         var resolver = new FakeUserNameResolver(new Dictionary<Guid, string>

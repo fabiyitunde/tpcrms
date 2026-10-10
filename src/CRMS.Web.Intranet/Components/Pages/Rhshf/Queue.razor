@@ -34,6 +34,17 @@
             }
         </div>
     }
+    @* Legal sits between Appraisal and Risk Review — the tab order follows the flow. *@
+    @if (CanClearLegally)
+    {
+        <div class="tab @(!showAll && activeStage == RhshfInternalStage.LegalClearance ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.LegalClearance)'>
+            Legal Clearance
+            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.LegalClearance)
+            {
+                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
+            }
+        </div>
+    }
     @if (CanReviewRisk)
     {
         <div class="tab @(!showAll && activeStage == RhshfInternalStage.RiskReview ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.RiskReview)'>
@@ -69,16 +80,6 @@
         <div class="tab @(!showAll && activeStage == RhshfInternalStage.AwaitingOfferAcceptance ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.AwaitingOfferAcceptance)'>
             Awaiting Offer
             @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.AwaitingOfferAcceptance)
-            {
-                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
-            }
-        </div>
-    }
-    @if (CanClearLegally)
-    {
-        <div class="tab @(!showAll && activeStage == RhshfInternalStage.LegalClearance ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.LegalClearance)'>
-            Legal Clearance
-            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.LegalClearance)
             {
                 <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
             }

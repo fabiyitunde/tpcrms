@@ -99,12 +99,16 @@ public enum RhshfCreditRecommendation
 public enum RhshfInternalStage
 {
     Appraisal,
+    // Legal sights, opines on and perfects the security BEFORE the case is circulated — so Risk is the
+    // last internal look before voting, and the committee votes on a file with nothing left to discover.
+    // (Legal used to sit after offer acceptance, which let a post-approval legal finding kill an
+    // already-approved case.) Persisted by name, so this reordering is cosmetic for existing rows.
+    LegalClearance,
     RiskReview,
     CommitteeVoting,
     Ratification,
     OfferGenerated,
     AwaitingOfferAcceptance,
-    LegalClearance,
     PreDeploymentVerification,
     Disbursement,
     /// <summary>Legacy terminal marker — pre-dates Active/Closed monitoring. New disbursements set

@@ -11,6 +11,18 @@
                 <label class="form-label">Comments @(RequiresNotes ? "(required)" : "(optional)")</label>
                 <textarea class="form-control" rows="3" @bind="comments" placeholder="Enter comments..."></textarea>
             </div>
+            @if (Intent == "Returned")
+            {
+                <div class="form-group">
+                    <label class="form-label">Reopen the FAC's form at:</label>
+                    <select class="form-control" @bind="returnToStage">
+                        @foreach (var stage in Enum.GetValues<RhshfProfilingStage>())
+                        {
+                            <option value="@stage">@stage</option>
+                        }
+                    </select>
+                </div>
+            }
             @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
             {
                 <div class="alert alert-danger">@(ErrorMessage ?? clientError)</div>
@@ -29,16 +41,19 @@
 @code {
     [Parameter, EditorRequired] public string Intent { get; set; } = "Granted";
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback<(RhshfLegalClearanceOutcome Outcome, string? Comments)> OnConfirm { get; set; }
+    [Parameter] public EventCallback<(RhshfLegalClearanceOutcome Outcome, string? Comments, RhshfProfilingStage? ReturnToStage)> OnConfirm { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
 
     private string comments = string.Empty;
     private string? clientError;
+    private RhshfProfilingStage returnToStage = RhshfProfilingStage.CreditBureauCheck;
 
     private bool RequiresNotes => Intent != "Granted";
-    private string Title => Intent switch { "Returned" => "Return to Ratification", "Declined" => "Decline at Legal Clearance", _ => "Grant Legal Clearance" };
-    private string ConfirmLabel => Intent switch { "Returned" => "Return to Ratification", "Declined" => "Confirm Decline", _ => "Grant" };
+    // Clearance runs before the committee votes, so a defect goes back to the FAC that declared the
+    // security — there is no ratification to return to at this point.
+    private string Title => Intent switch { "Returned" => "Return to the FAC", "Declined" => "Decline at Legal Clearance", _ => "Grant Legal Clearance" };
+    private string ConfirmLabel => Intent switch { "Returned" => "Return to the FAC", "Declined" => "Confirm Decline", _ => "Grant" };
     private string ConfirmButtonClass => Intent switch { "Declined" => "btn-danger", "Returned" => "btn-warning", _ => "btn-success" };
 
     private async Task Confirm()
@@ -50,6 +65,9 @@
         }
         clientError = null;
         var outcome = Enum.Parse<RhshfLegalClearanceOutcome>(Intent);
-        await OnConfirm.InvokeAsync((outcome, string.IsNullOrWhiteSpace(comments) ? null : comments));
+        await OnConfirm.InvokeAsync((
+            outcome,
+            string.IsNullOrWhiteSpace(comments) ? null : comments,
+            outcome == RhshfLegalClearanceOutcome.Returned ? returnToStage : null));
     }
 }
