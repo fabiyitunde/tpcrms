@@ -142,8 +142,12 @@ public class NampApplication : AggregateRoot
     public string? FineractProductName { get; private set; }         // Resolved at recall
     public decimal? FineractNominalInterestRate { get; private set; } // Annual interest rate from Fineract product catalogue at recall
     public decimal? ApprovedInterestRate { get; private set; }       // Locked at ratification (may differ if committee overrides)
-    public long? FineractLoanId { get; private set; }                // Set after deployment booking
-    public string? FineractLoanAccountNumber { get; private set; }   // Set after deployment booking
+    public long? FineractLoanId { get; private set; }                // Set as soon as core banking creates the loan
+    public string? FineractLoanAccountNumber { get; private set; }   // Only generated once the loan is disbursed
+    // Set only when core banking actually disbursed the loan. A loan it created but did not disburse
+    // leaves this null, which is what distinguishes "linked and funded" from "linked, no money moved"
+    // and what keeps the booking retry open. Displayed as "Core Banking Disbursed On".
+    public DateTime? FineractDisbursedOn { get; private set; }
 
     // ── Collections ───────────────────────────────────────────────────────
     private readonly List<NampDocument> _documents = [];
@@ -576,10 +580,23 @@ public class NampApplication : AggregateRoot
 
     public void SetResolvedTenor(int tenorMonths) => RequestedTenorMonths = tenorMonths;
 
+    /// <summary>Records a loan core banking created, approved AND disbursed.</summary>
     public void SetFineractLoanResult(long loanId, string loanAccountNumber)
     {
         FineractLoanId = loanId;
         FineractLoanAccountNumber = loanAccountNumber;
+        FineractDisbursedOn ??= DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Records a loan core banking created but did not disburse (the approve or disburse step failed).
+    /// Keeps the loan id so staff can see it, and deliberately leaves FineractDisbursedOn null: no money
+    /// moved, so the booking retry must stay open. A retry resumes this same loan via its externalId.
+    /// </summary>
+    public void SetFineractLoanCreatedNotDisbursed(long loanId)
+    {
+        FineractLoanId = loanId;
+        FineractLoanAccountNumber = null;
     }
 
     // ── Extended Info Setters (called at recall time) ──────────────────────

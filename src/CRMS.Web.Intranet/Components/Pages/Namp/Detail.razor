@@ -3064,20 +3064,56 @@ else
                             <div style="font-weight: 500; font-size: 0.875rem;">@(app.DeployedAt.HasValue ? app.DeployedAt.Value.ToLocalTime().ToString("dd MMM yyyy") : "—")</div>
                         </div>
                     </div>
-                    @if (!string.IsNullOrEmpty(app.FineractLoanAccountNumber))
-                    {
-                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-                            <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">CBS Loan Account No.</div>
-                            <div style="font-weight: 700; font-size: 0.9rem; font-family: monospace;">@app.FineractLoanAccountNumber</div>
+                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem;">
+                        @if (!string.IsNullOrEmpty(app.FineractLoanAccountNumber))
+                        {
+                            <div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">CBS Loan Account No.</div>
+                                <div style="font-weight: 700; font-size: 0.9rem; font-family: monospace;">@app.FineractLoanAccountNumber</div>
+                            </div>
+                        }
+                        @if (app.FineractLoanId.HasValue)
+                        {
+                            <div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Core Banking Loan ID</div>
+                                <div style="font-weight: 700; font-size: 0.9rem; font-family: monospace;">@app.FineractLoanId</div>
+                            </div>
+                        }
+                        <div>
+                            <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.2rem;">Core Banking Disbursed On</div>
+                            <div style="font-weight: 500; font-size: 0.875rem;">
+                                @if (app.FineractDisbursedOn.HasValue)
+                                {
+                                    @app.FineractDisbursedOn.Value.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
+                                }
+                                else
+                                {
+                                    <span style="color: var(--danger-color); font-weight: 600;">Not disbursed</span>
+                                }
+                            </div>
                         </div>
-                    }
+                    </div>
                 </div>
             </div>
             <div class="alert alert-warning" style="display: flex; align-items: flex-start; gap: 0.75rem;">
                 <span class="material-symbols-outlined" style="font-size: 20px; flex-shrink: 0; margin-top: 2px;">warning</span>
                 <div style="flex: 1;">
-                    <div style="font-weight: 600; margin-bottom: 0.3rem;">Not linked to Core Banking System</div>
-                    <div style="font-size: 0.875rem;">The CBS booking was not completed when this application was deployed. Live repayment schedule and balance data are not available.</div>
+                    @if (app.FineractLoanId.HasValue)
+                    {
+                        @* Core Banking holds a loan for this application but never disbursed it — no funds moved. *@
+                        <div style="font-weight: 600; margin-bottom: 0.3rem;">Loan created in Core Banking but not disbursed</div>
+                        <div style="font-size: 0.875rem;">
+                            Core Banking created loan <strong>@app.FineractLoanId</strong> for this application, but the
+                            disbursement step did not complete — <strong>no funds have moved</strong> and no loan account
+                            number has been generated. Check the loan in Core Banking, then resume the booking below:
+                            the existing loan is continued, never duplicated.
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="font-weight: 600; margin-bottom: 0.3rem;">Not linked to Core Banking System</div>
+                        <div style="font-size: 0.875rem;">The CBS booking was not completed when this application was deployed. Live repayment schedule and balance data are not available.</div>
+                    }
                     @if (!string.IsNullOrEmpty(cbsBookingRetryError))
                     {
                         <div style="margin-top: 0.5rem; color: var(--danger-color); font-size: 0.8rem;">@cbsBookingRetryError</div>
@@ -3092,7 +3128,7 @@ else
                             else
                             {
                                 <span class="material-symbols-outlined" style="font-size: 15px; vertical-align: middle; margin-right: 0.3rem;">link</span>
-                                <span>Link to Core Banking System</span>
+                                <span>@(app.FineractLoanId.HasValue ? "Resume Core Banking Booking" : "Link to Core Banking System")</span>
                             }
                         </button>
                     </div>
@@ -4711,7 +4747,9 @@ else
         detailTab = "loan-account";
         if (loanAccountLoaded && !force) return;
 
-        if (app?.FineractLoanId is null)
+        // No link, or a loan Core Banking created but never disbursed: either way there is no live
+        // repayment data to fetch, and the officer needs the booking retry — not a loan view.
+        if (app?.FineractLoanId is null || app.FineractDisbursedOn is null)
         {
             loanAccount = null;
             loanAccountError = null;
@@ -4748,13 +4786,18 @@ else
         if (result.Success)
         {
             app = result.Data;
-            // Reload the tab — FineractLoanId is now set, so it will fetch live CBS data
+            // Reload the tab — the loan is now disbursed, so it will fetch live CBS data
             loanAccountLoaded = false;
             await LoadLoanAccountTab(force: true);
         }
         else
         {
             cbsBookingRetryError = result.Error ?? "CBS booking failed. Please try again.";
+            // The attempt may still have created the loan (created, not disbursed) — reload so the
+            // loan id and "Not disbursed" show instead of a stale "never linked" card.
+            app = await AppService.GetNampApplicationByIdAsync(Id);
+            loanAccountLoaded = false;
+            await LoadLoanAccountTab(force: true);
         }
         isRetryingCbsBooking = false;
     }

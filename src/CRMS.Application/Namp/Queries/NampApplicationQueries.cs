@@ -130,6 +130,7 @@ public class GetNampApplicationByIdHandler
         app.ApprovedInterestRate,
         app.FineractLoanId,
         app.FineractLoanAccountNumber,
+        app.FineractDisbursedOn,
         app.CreatedAt,
         app.ModifiedAt,
         app.Documents.Select(d => new NampDocumentDto(

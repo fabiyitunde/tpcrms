@@ -1061,19 +1061,24 @@ public class ConfirmNampDeploymentHandler
 
         var booking = bookingResult.Value;
 
-        // A created-but-not-disbursed loan is not a deployment. Leave the application where it is — with
-        // no loan link recorded, so the retry below is still open — and tell the officer what to check.
-        // The loan is not orphaned: it carries this application number as its externalId, so the retry
-        // resumes it rather than creating a second loan.
+        // A created-but-not-disbursed loan is not a deployment. Record the loan id so staff can see it on
+        // the Loan Account tab, leave FineractDisbursedOn null (no money moved, so the retry stays open),
+        // and don't confirm deployment. The loan isn't orphaned either way: it carries this application
+        // number as its externalId, so the retry resumes it rather than creating a second loan.
         if (!booking.Disbursed)
         {
             _logger.LogError(
                 "NAMP deployment: CBS loan {LoanId} for application {Id} was created but NOT disbursed (status {Status}) — deployment blocked.",
                 booking.LoanId, app.Id, booking.Status);
+
+            app.SetFineractLoanCreatedNotDisbursed(booking.LoanId);
+            app.SetAuditInfo(request.UserId.ToString());
+            await _uow.SaveChangesAsync(ct);
+
             return ApplicationResult<NampApplicationDto>.Failure(
                 $"Core Banking System created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
-                "No funds have moved and deployment has not been confirmed. Check the Core Banking System, then retry — " +
-                "the existing loan will be resumed, not duplicated.");
+                "No funds have moved and deployment has not been confirmed. Check the Core Banking System, then retry " +
+                "from the Loan Account tab — the existing loan will be resumed, not duplicated.");
         }
 
         app.SetFineractLoanResult(booking.LoanId, booking.LoanAccountNumber);
@@ -1091,9 +1096,10 @@ public class ConfirmNampDeploymentHandler
 }
 
 // ── Retry Fineract CBS Booking ────────────────────────────────────────────
-// Used when deployment succeeded but the CBS booking was skipped (e.g. FineractClientId
-// was not resolved at recall time). Guards against double-booking: fails if FineractLoanId
-// is already set.
+// Used when the CBS booking was skipped (e.g. FineractClientId was not resolved at recall time)
+// or stalled part-way — core banking created the loan but never disbursed it. Guards against
+// double-disbursing: fails only if FineractDisbursedOn is already set. A loan that exists but was
+// never disbursed is resumed by externalId inside BookApprovedLoanAsync, not booked again.
 
 public record RetryNampFineractBookingCommand(Guid NampApplicationId, Guid UserId)
     : IRequest<ApplicationResult<NampApplicationDto>>;
@@ -1127,10 +1133,11 @@ public class RetryNampFineractBookingHandler
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
 
-        // Guard: already booked — nothing to do
-        if (app.FineractLoanId.HasValue)
+        // Guard: already disbursed — nothing to do. A loan that exists but was never disbursed is NOT
+        // blocked here: that is exactly the case this retry has to finish.
+        if (app.FineractDisbursedOn.HasValue)
             return ApplicationResult<NampApplicationDto>.Failure(
-                "This loan is already linked to the Core Banking System.");
+                "This loan has already been disbursed in the Core Banking System.");
 
         // Re-try resolving FineractClientId if it was never set
         if (app.FineractClientId is null)
@@ -1187,13 +1194,18 @@ public class RetryNampFineractBookingHandler
 
         var booking = bookingResult.Value;
 
-        // Created but not disbursed — record nothing, so this retry stays available (the loan is found
-        // again by its externalId next time rather than being created twice).
+        // Still not disbursed — keep the loan id visible, leave FineractDisbursedOn null so this retry
+        // stays available, and say so plainly.
         if (!booking.Disbursed)
         {
             _logger.LogError(
                 "RetryNampFineractBooking: CBS loan {LoanId} for application {Id} was created but NOT disbursed (status {Status}).",
                 booking.LoanId, app.Id, booking.Status);
+
+            app.SetFineractLoanCreatedNotDisbursed(booking.LoanId);
+            app.SetAuditInfo(request.UserId.ToString());
+            await _uow.SaveChangesAsync(ct);
+
             return ApplicationResult<NampApplicationDto>.Failure(
                 $"Core Banking System created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
                 "No funds have moved. Check the Core Banking System, then retry — the existing loan will be resumed, not duplicated.");

@@ -148,6 +148,7 @@ public record NampApplicationDto(
     decimal? ApprovedInterestRate,
     long? FineractLoanId,
     string? FineractLoanAccountNumber,
+    DateTime? FineractDisbursedOn,
     DateTime CreatedAt,
     DateTime? ModifiedAt,
     List<NampDocumentDto> Documents,

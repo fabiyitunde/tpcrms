@@ -3660,6 +3660,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<long?>("FineractClientId")
                         .HasColumnType("bigint");
 
+                    b.Property<DateTime?>("FineractDisbursedOn")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("FineractLoanAccountNumber")
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");

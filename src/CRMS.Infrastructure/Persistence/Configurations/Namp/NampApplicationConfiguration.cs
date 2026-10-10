@@ -141,6 +141,7 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
         builder.Property(x => x.ApprovedInterestRate).HasColumnType("decimal(10,4)");
         builder.Property(x => x.FineractLoanId);
         builder.Property(x => x.FineractLoanAccountNumber).HasMaxLength(100);
+        builder.Property(x => x.FineractDisbursedOn);
 
         builder.Property(x => x.CreatedBy)
             .HasMaxLength(100);
