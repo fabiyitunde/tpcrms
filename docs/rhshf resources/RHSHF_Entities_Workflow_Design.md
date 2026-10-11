@@ -1,7 +1,7 @@
 # RH-SHF Credit-Profiling — Entities & Workflow Design
 
 **Status:** **Implemented** — see the 2026-10-11 amendments inline (§3.6 pipeline order, §6 #12 legal-return routing). The ASCII flow diagram further down still shows the ORIGINAL ordering with legal clearance after offer acceptance; `RHSHF_Workflow_Guide.html` is the current, maintained description of the flow.
-**Scope:** CRMS side of the RH-SHF (Renewed Hope Dry Season) input-financing integration described in `docs/namp resources/crmsintegration.html`
+**Scope:** CRMS side of the RH-SHF (Renewed Hope Dry Season) input-financing integration described in `docs/rhshf resources/crmsintegration.html` (the portal team's own brief — moved here from `docs/namp resources/` on 2026-10-11, where it had been filed by mistake)
 **Isolation constraint:** RH-SHF is a **separate loan track from NAMP**, already in production. Nothing here shares entities, enums, tables, or workflow code with NAMP. Where the same *kind* of infrastructure is reused (webhook pattern, token signing, bureau checks), it is reused as independent code, never by extending NAMP's own classes. See "Non-Goals" below.
 
 ---
