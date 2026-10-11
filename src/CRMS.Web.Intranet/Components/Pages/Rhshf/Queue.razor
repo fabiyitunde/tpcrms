@@ -23,88 +23,30 @@
     <div class="alert alert-danger" style="margin-bottom: 1rem;">@pageError</div>
 }
 
+@* Every RH-SHF actor sees every stage: a case should be findable whatever stage it is in, by anyone
+   who works the pipeline. Acting on it is a different question and stays gated — the detail page
+   shows a stage's buttons only to that stage's role, and the domain refuses a second appraisal /
+   risk review / vote for the same cycle. Each role still LANDS on its own stage (see
+   OnInitializedAsync); the other tabs are there to look, not to act. *@
 <div class="tabs">
-    @if (CanAppraise)
+    @foreach (var (stage, label) in StageTabs)
     {
-        <div class="tab @(!showAll && activeStage == RhshfInternalStage.Appraisal ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Appraisal)'>
-            Appraisal
-            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.Appraisal)
+        var isActive = !showAll && activeStage == stage;
+        <div class="tab @(isActive ? "active" : "")" @onclick="() => SwitchTab(stage)">
+            @label
+            @if (isActive && queue.Count > 0)
             {
                 <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
             }
         </div>
     }
-    @* Legal sits between Appraisal and Risk Review — the tab order follows the flow. *@
-    @if (CanClearLegally)
-    {
-        <div class="tab @(!showAll && activeStage == RhshfInternalStage.LegalClearance ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.LegalClearance)'>
-            Legal Clearance
-            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.LegalClearance)
-            {
-                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
-            }
-        </div>
-    }
-    @if (CanReviewRisk)
-    {
-        <div class="tab @(!showAll && activeStage == RhshfInternalStage.RiskReview ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.RiskReview)'>
-            Risk Review
-            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.RiskReview)
-            {
-                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
-            }
-        </div>
-    }
-    @if (CanVoteOnCommittee)
-    {
-        <div class="tab @(!showAll && activeStage == RhshfInternalStage.CommitteeVoting ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.CommitteeVoting)'>
-            Committee
-            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.CommitteeVoting)
-            {
-                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
-            }
-        </div>
-    }
-    @if (CanRatify)
-    {
-        <div class="tab @(!showAll && activeStage == RhshfInternalStage.Ratification ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Ratification)'>
-            Ratification
-            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.Ratification)
-            {
-                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
-            }
-        </div>
-    }
-    @if (CanRatify || CanClearLegally)
-    {
-        <div class="tab @(!showAll && activeStage == RhshfInternalStage.AwaitingOfferAcceptance ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.AwaitingOfferAcceptance)'>
-            Awaiting Offer
-            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.AwaitingOfferAcceptance)
-            {
-                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
-            }
-        </div>
-    }
-    @if (CanBookDisbursement)
-    {
-        <div class="tab @(!showAll && activeStage == RhshfInternalStage.Disbursement ? "active" : "")" @onclick='() => SwitchTab(RhshfInternalStage.Disbursement)'>
-            Disbursement
-            @if (!showAll && queue.Count > 0 && activeStage == RhshfInternalStage.Disbursement)
-            {
-                <span class="badge badge-warning" style="margin-left: 6px;">@queue.Count</span>
-            }
-        </div>
-    }
-    @if (CanSeeAll)
-    {
-        <div class="tab @(showAll ? "active" : "")" @onclick="SwitchToAll">
-            All
-            @if (showAll && queue.Count > 0)
-            {
-                <span class="badge badge-gray" style="margin-left: 6px;">@queue.Count</span>
-            }
-        </div>
-    }
+    <div class="tab @(showAll ? "active" : "")" @onclick="SwitchToAll">
+        All
+        @if (showAll && queue.Count > 0)
+        {
+            <span class="badge badge-gray" style="margin-left: 6px;">@queue.Count</span>
+        }
+    </div>
 </div>
 
 <div class="card">
@@ -157,30 +99,44 @@
     private bool isLoading;
     private string? pageError;
 
-    // Admin / head office get an "All" tab across every case regardless of status or stage.
-    private bool CanSeeAll => (AuthService.CurrentUser?.HasAnyRole("SystemAdmin") ?? false)
-        || (AuthService.CurrentUser?.IsHeadOffice ?? false);
+    /// <summary>
+    /// Every stage in flow order. PreDeploymentVerification and Active used to have no tab at all,
+    /// which left a case invisible to the very officer who owns it — the only route in was the
+    /// admin-only "All" list or a hand-typed URL.
+    /// </summary>
+    private static readonly (RhshfInternalStage Stage, string Label)[] StageTabs =
+    [
+        (RhshfInternalStage.Appraisal, "Appraisal"),
+        (RhshfInternalStage.LegalClearance, "Legal Clearance"),
+        (RhshfInternalStage.RiskReview, "Risk Review"),
+        (RhshfInternalStage.CommitteeVoting, "Committee"),
+        (RhshfInternalStage.Ratification, "Ratification"),
+        (RhshfInternalStage.AwaitingOfferAcceptance, "Awaiting Offer"),
+        (RhshfInternalStage.PreDeploymentVerification, "Pre-Deployment"),
+        (RhshfInternalStage.Disbursement, "Disbursement"),
+        (RhshfInternalStage.Active, "Active"),
+    ];
 
-    private bool CanAppraise => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer") ?? false;
-    private bool CanReviewRisk => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager") ?? false;
-    private bool CanVoteOnCommittee => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CommitteeMember") ?? false;
-    private bool CanRatify => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "FinalApprover") ?? false;
-    private bool CanClearLegally => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "LegalOfficer") ?? false;
-    private bool CanBookDisbursement => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "DisbursementOfficer") ?? false;
+    /// <summary>Where each role lands, so an officer still opens on their own work; every other tab
+    /// is one click away. Order matters — the first matching role wins.</summary>
+    private RhshfInternalStage DefaultStageForRole()
+    {
+        var user = AuthService.CurrentUser;
+        if (user is null) return RhshfInternalStage.Appraisal;
+
+        if (user.HasAnyRole("CreditOfficer")) return RhshfInternalStage.Appraisal;
+        if (user.HasAnyRole("LegalOfficer")) return RhshfInternalStage.LegalClearance;
+        if (user.HasAnyRole("RiskManager")) return RhshfInternalStage.RiskReview;
+        if (user.HasAnyRole("CommitteeMember")) return RhshfInternalStage.CommitteeVoting;
+        if (user.HasAnyRole("FinalApprover")) return RhshfInternalStage.Ratification;
+        // The disbursement officer's first task is the gate, not the booking.
+        if (user.HasAnyRole("DisbursementOfficer")) return RhshfInternalStage.PreDeploymentVerification;
+        return RhshfInternalStage.Appraisal;
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        if (!CanAppraise && CanReviewRisk)
-            activeStage = RhshfInternalStage.RiskReview;
-        else if (!CanAppraise && !CanReviewRisk && CanVoteOnCommittee)
-            activeStage = RhshfInternalStage.CommitteeVoting;
-        else if (!CanAppraise && !CanReviewRisk && !CanVoteOnCommittee && CanRatify)
-            activeStage = RhshfInternalStage.Ratification;
-        else if (!CanAppraise && !CanReviewRisk && !CanVoteOnCommittee && !CanRatify && CanClearLegally)
-            activeStage = RhshfInternalStage.LegalClearance;
-        else if (!CanAppraise && !CanReviewRisk && !CanVoteOnCommittee && !CanRatify && !CanClearLegally && CanBookDisbursement)
-            activeStage = RhshfInternalStage.Disbursement;
-
+        activeStage = DefaultStageForRole();
         await LoadQueue();
     }
 

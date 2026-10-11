@@ -54,9 +54,16 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
     public async Task AddAsync(RhshfCreditProfile profile, CancellationToken ct = default)
         => await _context.RhshfCreditProfiles.AddAsync(profile, ct);
 
+    /// <summary>
+    /// Filtered on stage alone, deliberately. It used to also require Status == UnderReview, which
+    /// silently hid every post-disbursement case: booking flips the status to Approved while the stage
+    /// moves to Active, so an Active queue would always have come back empty. The stage filter is
+    /// sufficient on its own — every terminal path (declined, cancelled, returned to the FAC) clears
+    /// InternalStage to null, so those cases cannot match any stage.
+    /// </summary>
     public async Task<IReadOnlyList<RhshfCreditProfile>> GetQueueAsync(RhshfInternalStage stage, Guid? branchId, CancellationToken ct = default)
     {
-        var query = Query().Where(x => x.Status == RhshfCaseStatus.UnderReview && x.InternalStage == stage);
+        var query = Query().Where(x => x.InternalStage == stage);
         if (branchId.HasValue)
             query = query.Where(x => x.ResolvedBranchId == branchId.Value);
 
