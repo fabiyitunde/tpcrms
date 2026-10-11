@@ -677,6 +677,10 @@ else
 
                     var missingBvnDirectors = Model.Session.Directors.Count(d => !d.HasBvn);
                     var missingBvnGuarantors = Model.Session.Guarantors.Count(g => g.GuarantorType == CRMS.Domain.Enums.RhshfGuarantorType.Individual && !g.HasBvn);
+                    // The Bank's Legal Officer verifies and perfects the declared security before the
+                    // case is circulated for approval, so a case with none cannot be submitted.
+                    var noCollateral = Model.Session.Collateral.Count == 0;
+                    var blockSubmit = missingBvnDirectors > 0 || missingBvnGuarantors > 0 || noCollateral;
 
                     <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
                         <h6 class="mb-0">Company</h6>
@@ -714,7 +718,14 @@ else
                                 <span class="badge bg-danger ms-1">@missingBvnGuarantors missing BVN</span>
                             }
                         </dd>
-                        <dt class="col-sm-4">Collateral</dt><dd class="col-sm-8">@Model.Session.Collateral.Count declared</dd>
+                        <dt class="col-sm-4">Collateral</dt>
+                        <dd class="col-sm-8">
+                            @Model.Session.Collateral.Count declared
+                            @if (noCollateral)
+                            {
+                                <span class="badge bg-danger ms-1">required</span>
+                            }
+                        </dd>
                     </dl>
                     @if (missingBvnDirectors > 0 || missingBvnGuarantors > 0)
                     {
@@ -755,11 +766,15 @@ else
                     <form method="post" asp-page-handler="Confirm">
                         <input type="hidden" name="reference" value="@Model.Session.Reference" />
                         <input type="hidden" name="stage" value="@RhshfProfilingStage.ReviewAndSubmit" />
-                        <button type="submit" class="btn btn-success btn-lg" disabled="@(missingBvnDirectors > 0 || missingBvnGuarantors > 0)">Submit for credit review</button>
+                        <button type="submit" class="btn btn-success btn-lg" disabled="@blockSubmit">Submit for credit review</button>
                     </form>
                     @if (missingBvnDirectors > 0 || missingBvnGuarantors > 0)
                     {
                         <p class="small text-danger mt-2 mb-0">You can't submit yet: BVN is missing for @missingBvnDirectors director(s) and @missingBvnGuarantors individual guarantor(s). Use <strong>Edit</strong> on the directors, guarantors &amp; collateral section to add it.</p>
+                    }
+                    @if (noCollateral)
+                    {
+                        <p class="small text-danger mt-2 mb-0">You can't submit yet: no security has been declared. Use <strong>Edit</strong> on the directors, guarantors &amp; collateral section to add at least one instrument (bank guarantee, NIRSAL CRG or legal mortgage) and attach its document.</p>
                     }
                     break;
             }

@@ -19,15 +19,17 @@ public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfPro
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfDocumentRequirementRepository _requirementRepo;
     private readonly IRhshfGuarantorRepository _guarantorRepo;
+    private readonly IRhshfCollateralRepository _collateralRepo;
     private readonly IUnitOfWork _uow;
 
     public AdvanceRhshfProfilingStageHandler(
         IRhshfCreditProfileRepository repo, IRhshfDocumentRequirementRepository requirementRepo,
-        IRhshfGuarantorRepository guarantorRepo, IUnitOfWork uow)
+        IRhshfGuarantorRepository guarantorRepo, IRhshfCollateralRepository collateralRepo, IUnitOfWork uow)
     {
         _repo = repo;
         _requirementRepo = requirementRepo;
         _guarantorRepo = guarantorRepo;
+        _collateralRepo = collateralRepo;
         _uow = uow;
     }
 
@@ -46,6 +48,16 @@ public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfPro
             var guarantors = await _guarantorRepo.GetByProfileIdAsync(profile.Id, ct);
             if (guarantors.Any(g => g.GuarantorType == RhshfGuarantorType.Individual && string.IsNullOrWhiteSpace(g.Bvn)))
                 return ApplicationResult.Failure("Every individual guarantor must have a BVN before submitting — the bank runs a credit check on each one.");
+
+            // Security is now settled before the committee votes, which only works if there is
+            // something to settle: the Legal Officer sights, opines on and perfects what the FAC
+            // declared here, between appraisal and risk review. A case with no instrument declared
+            // would reach that stage with nothing to clear. Collateral is its own aggregate, so this
+            // is checked here rather than in AdvanceStage — same as the guarantor gate above.
+            var collateral = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.ProfilingTargetCycleNumber, ct);
+            if (collateral.Count == 0)
+                return ApplicationResult.Failure(
+                    "At least one security instrument must be declared before submitting — the Bank's Legal Officer verifies and perfects it before the case goes for approval.");
         }
 
         // Loaded for the two stages whose transition the domain gates on documents: leaving

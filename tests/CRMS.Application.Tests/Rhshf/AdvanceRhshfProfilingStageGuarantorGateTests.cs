@@ -6,9 +6,10 @@ using CRMS.Domain.Interfaces;
 namespace CRMS.Application.Tests.Rhshf;
 
 /// <summary>
-/// The submit-time gate that every individual guarantor must carry a BVN (companies are checked by
-/// RC). It lives in the handler rather than the domain because guarantors are a separate aggregate
-/// the profile doesn't own — the counterpart to the director-BVN gate that is in the domain.
+/// The submit-time gates that live in the handler rather than the domain, because guarantors and
+/// collateral are separate aggregates the profile doesn't own: every individual guarantor must carry
+/// a BVN (companies are checked by RC), and at least one security instrument must be declared, since
+/// the Legal Officer sights and perfects it before the case is circulated for approval.
 /// </summary>
 public class AdvanceRhshfProfilingStageGuarantorGateTests
 {
@@ -36,11 +37,23 @@ public class AdvanceRhshfProfilingStageGuarantorGateTests
         return profile; // now on ReviewAndSubmit
     }
 
+    /// <summary>Security declared by default, so these calls stay about the guarantor gate.</summary>
     private static AdvanceRhshfProfilingStageHandler Handler(RhshfCreditProfile profile, params RhshfGuarantor[] guarantors)
-        => new(new FakeProfileRepo(profile), new FakeRequirementRepo(), new FakeGuarantorRepo(guarantors), new FakeUow());
+        => new(new FakeProfileRepo(profile), new FakeRequirementRepo(), new FakeGuarantorRepo(guarantors),
+            new FakeCollateralRepo([DeclaredSecurity(profile)]), new FakeUow());
+
+    private static AdvanceRhshfProfilingStageHandler HandlerWithSecurity(RhshfCreditProfile profile, params RhshfCollateral[] collateral)
+        => new(new FakeProfileRepo(profile), new FakeRequirementRepo(), new FakeGuarantorRepo([]),
+            new FakeCollateralRepo(collateral), new FakeUow());
 
     private static RhshfGuarantor Individual(string? bvn) => RhshfGuarantor.Create(
         Guid.NewGuid(), RhshfGuarantorType.Individual, "Ada Guarantor", bvn, null, "Friend", null, null, null, 1_000_000m, null).Value;
+
+    /// <summary>A bank guarantee filed under the cycle this profiling pass will be reviewed as.
+    /// PerfectionStatus is left unset — the FAC declares, the Legal Officer asserts perfection.</summary>
+    private static RhshfCollateral DeclaredSecurity(RhshfCreditProfile profile) => RhshfCollateral.Create(
+        profile.Id, profile.ProfilingTargetCycleNumber, RhshfCollateralType.BankGuarantee, Guid.NewGuid(), null,
+        "BG-2026-01", null, null, "First Bank", 52_000_000m, true, null, null, null, null, null, null).Value;
 
     [Fact]
     public async Task Submit_IsBlocked_WhenAnIndividualGuarantorHasNoBvn()
@@ -65,6 +78,51 @@ public class AdvanceRhshfProfilingStageGuarantorGateTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
+    }
+
+    [Fact]
+    public async Task Submit_IsBlocked_WhenNoSecurityHasBeenDeclared()
+    {
+        var profile = ProfileReadyToSubmit();
+
+        var result = await HandlerWithSecurity(profile)
+            .Handle(new AdvanceRhshfProfilingStageCommand(profile.Reference, RhshfProfilingStage.ReviewAndSubmit));
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("security instrument", result.Error);
+        Assert.Equal(RhshfProfilingStage.ReviewAndSubmit, profile.CurrentStage); // not advanced
+        Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
+    }
+
+    [Fact]
+    public async Task Submit_Proceeds_WhenSecurityHasBeenDeclared()
+    {
+        var profile = ProfileReadyToSubmit();
+
+        var result = await HandlerWithSecurity(profile, DeclaredSecurity(profile))
+            .Handle(new AdvanceRhshfProfilingStageCommand(profile.Reference, RhshfProfilingStage.ReviewAndSubmit));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
+        // Lands at Appraisal; legal clearance (where this security gets sighted) is the next stage.
+        Assert.Equal(RhshfInternalStage.Appraisal, profile.InternalStage);
+    }
+
+    [Fact]
+    public async Task Submit_IsNotBlocked_ByAnInstrumentFiledUnderAnEarlierCycle()
+    {
+        var profile = ProfileReadyToSubmit();
+        var stale = RhshfCollateral.Create(
+            profile.Id, profile.ProfilingTargetCycleNumber - 1, RhshfCollateralType.NirsalCrg, Guid.NewGuid(), null,
+            "CRG-OLD", null, null, null, null, null, 75m, null, null, null, null, null).Value;
+
+        var result = await HandlerWithSecurity(profile, stale)
+            .Handle(new AdvanceRhshfProfilingStageCommand(profile.Reference, RhshfProfilingStage.ReviewAndSubmit));
+
+        // A previous cycle's instrument is not security for this one — the repo query is cycle-scoped,
+        // so this must read as "nothing declared" rather than silently passing the gate.
+        Assert.False(result.IsSuccess);
+        Assert.Contains("security instrument", result.Error);
     }
 
     private class FakeProfileRepo(RhshfCreditProfile profile) : IRhshfCreditProfileRepository
@@ -96,6 +154,19 @@ public class AdvanceRhshfProfilingStageGuarantorGateTests
         public Task<RhshfGuarantor?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<RhshfGuarantor?>(null);
         public Task AddAsync(RhshfGuarantor g, CancellationToken ct = default) => Task.CompletedTask;
         public void Remove(RhshfGuarantor g) { }
+    }
+
+    /// <summary>Cycle-scoped, like the real repository — that scoping is what the stale-cycle test
+    /// above relies on.</summary>
+    private class FakeCollateralRepo(RhshfCollateral[] collateral) : IRhshfCollateralRepository
+    {
+        public Task<IReadOnlyList<RhshfCollateral>> GetByProfileAndCycleAsync(Guid profileId, int cycleNumber, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<RhshfCollateral>>(
+                [.. collateral.Where(c => c.RhshfCreditProfileId == profileId && c.CycleNumber == cycleNumber)]);
+        public Task<RhshfCollateral?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<RhshfCollateral?>(null);
+        public Task AddAsync(RhshfCollateral c, CancellationToken ct = default) => Task.CompletedTask;
+        public void Remove(RhshfCollateral c) { }
+        public Task<RhshfCollateralDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private class FakeUow : IUnitOfWork
