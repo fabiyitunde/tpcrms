@@ -39,6 +39,16 @@
       --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
     }
   }
+  /* Explicit dark choice must win over a light OS too, so the tokens are declared again. */
+  :root[data-theme="dark"] {
+    --bg: #0e1511; --surface: #141d18; --surface-2: #19241d;
+    --ink: #e7efe9; --ink-soft: #a9b8af; --ink-faint: #7e8f84;
+    --line: #263329; --primary: #45b571; --primary-dark: #2f9557;
+    --primary-50: #16281d; --primary-200: #2d5a3c;
+    --fac: #f0a955; --fac-bg: #2a1f10; --fac-line: #4a3617;
+    --danger: #f0736f; --warn-bg: #241e0c; --warn-line: #43380f;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; }
   .wrap { max-width: 920px; margin: 0 auto; padding: 48px 24px 96px; }
@@ -113,11 +123,11 @@
     <div class="journey">
       <span class="chip start">FAC Profiling</span><span class="arr">→</span>
       <span class="chip">Appraisal</span><span class="arr">→</span>
+      <span class="chip">Legal Clearance</span><span class="arr">→</span>
       <span class="chip">Risk Review</span><span class="arr">→</span>
       <span class="chip">Committee</span><span class="arr">→</span>
       <span class="chip">Ratification</span><span class="arr">→</span>
       <span class="chip start">Offer Acceptance</span><span class="arr">→</span>
-      <span class="chip">Legal Clearance</span><span class="arr">→</span>
       <span class="chip">Pre-Deployment</span><span class="arr">→</span>
       <span class="chip">Disbursement</span><span class="arr">→</span>
       <span class="chip end">Approved / Active</span>
@@ -125,8 +135,13 @@
   </header>
 
   <div class="note">
-    <strong>Two things to know before you start.</strong>
-    (1) The external <em>status</em> is a long plateau: it flips to <b>Under Review</b> the moment the FAC submits profiling and stays there through the entire internal pipeline — what actually moves is the <em>internal stage</em> shown on each card. (2) Two stages are <b>FAC-side</b> (orange) and happen on token-protected pages, not with a staff login: <b>Profiling</b> and <b>Offer Acceptance</b>.
+    <strong>Three things to know before you start.</strong>
+    (1) The external <em>status</em> is a long plateau: it flips to <b>Under Review</b> the moment the FAC submits profiling and stays there through the entire internal pipeline — what actually moves is the <em>internal stage</em> shown on each card. (2) Two stages are <b>FAC-side</b> (orange) and happen on token-protected pages, not with a staff login: <b>Profiling</b> and <b>Offer Acceptance</b>. (3) <b>Legal Clearance now runs second</b>, straight after appraisal and <em>before</em> the committee votes — so the security is sighted and perfected before anyone approves the facility, and an approved case can no longer be killed by a legal finding afterwards.
+  </div>
+
+  <div class="note">
+    <strong>What changed in October 2026.</strong>
+    Legal Clearance moved from after offer acceptance to <b>between Appraisal and Risk Review</b>. Risk is now the last internal review before the committee, with the legal opinion in front of it. Three consequences: the FAC must declare at least one security instrument <b>with its document attached</b> before it can submit; only the <b>Legal Officer</b> can mark an instrument perfected, and only with the evidence on file; and if the committee approves a case whose security is not perfected, it must say whether perfection is <b>deferred</b> (a blocking pre-deployment condition) or <b>waived</b>.
   </div>
 
   <h2 class="section">The stages, in order</h2>
@@ -153,9 +168,9 @@
           </li>
           <li><b>EOP Review &amp; Farm Plan</b> — confirm the Economics-of-Production input lines and enter the farm plan (at least one crop is required).</li>
           <li><b>Supporting Documents</b> — upload the mandatory items (CAC, off-take, farmer register, warehousing, <b>audited financials</b> — a 3-year template is offered here to download, fill, and upload).</li>
-          <li><b>Review &amp; Submit</b> — a full read-back of every section, each with an <b>Edit</b> link that jumps back to fix it and returns here. Submit is blocked until every director and every individual guarantor has a BVN (and the farm plan / mandatory documents are satisfied).</li>
+          <li><b>Review &amp; Submit</b> — a full read-back of every section, each with an <b>Edit</b> link that jumps back to fix it and returns here. Submit is blocked until: every director and every individual guarantor has a BVN; the farm plan and mandatory documents are satisfied; and <b>at least one security instrument is declared with a document attached to every instrument</b>.</li>
         </ol>
-        The FAC can move <b>back and forward</b> between any step already reached (click a completed step, or an Edit link on the review) to correct a record — there is no need to wait for a staff Return-to-FAC for self-corrections.
+        The FAC can move <b>back and forward</b> between any step already reached (click a completed step, or an Edit link on the review) to correct a record — there is no need to wait for a staff Return-to-FAC for self-corrections. Every uploaded file can be <b>previewed in a modal or downloaded</b> without leaving the form, so the FAC can check it attached the right document.
       </dd>
       <dt>Advances when</dt>
       <dd>The FAC <b>submits</b> the final step. External status flips to <b>Under Review</b> and the internal stage becomes <b>Appraisal</b> — the case now appears in the Credit Officer's RH-SHF queue.</dd>
@@ -171,22 +186,40 @@
       <dt>What they do</dt>
       <dd>Open the case and build the credit picture: run <span class="btn">Re-run Credit Checks</span> (bureau for the company + every director/guarantor BVN the FAC supplied at profiling); <b>verify</b> the FAC-declared <b>Directors</b>, <b>Guarantors</b> and <b>Collateral</b> (the Credit Officer confirms, not originates); complete the <b>Financial Appraisal</b> (crop-economics viability — DSCR, margins, IRR, break-even); optionally capture the <b>Financial Analysis</b> (3-year statements). Review Documents, Collateral and the AI Advisory.</dd>
       <dt>Advances when</dt>
-      <dd>Credit Officer clicks <span class="btn">Proceed</span> → <b>Risk Review</b>.</dd>
+      <dd>Credit Officer clicks <span class="btn">Proceed</span> → <b>Legal Clearance</b>. A financial appraisal must be saved first.</dd>
       <dt>Other outcomes</dt>
       <dd class="alt"><span class="btn">Return to FAC</span> (reopens profiling) · <span class="btn">Decline</span> (terminal).</dd>
     </dl>
   </div>
 
-  <!-- RISK REVIEW -->
+  <!-- LEGAL CLEARANCE -->
   <div class="stage">
     <div class="num">2</div>
+    <div class="top"><h3>Legal Clearance</h3><span class="pill stageid">stage: LegalClearance</span><span class="pill status">Under Review</span></div>
+    <div class="actor">👤 Legal Officer <span class="login">· adaeze.nwosu@crms.ng</span></div>
+    <dl>
+      <dt>What they do</dt>
+      <dd>Confirm the security the FAC declared at profiling — <b>instrument by instrument</b>, on the <b>Collateral</b> tab. The tab shows how many of how many are confirmed; each row has a <span class="btn">Confirm</span> button that opens the instrument with its attached evidence. For each one: check it against its document, add any title reference / registration authority established during perfection, write a <b>note on that instrument</b>, attach further evidence if needed, then <span class="btn">Mark as perfected</span>.
+        <br><br>This is a <b>confirmation</b> step, not data entry: nothing is re-keyed, and staff cannot add an instrument here. The FAC's own figures and note are left exactly as submitted — the legal note is stored separately. An instrument the FAC never declared is a <b>Return to FAC</b>.
+        <br><br><em>Perfected cannot be set without a document on the instrument</em> — no evidence, no assertion. Only the Legal Officer can set it; nobody can set it at declaration time.
+      </dd>
+      <dt>Advances when</dt>
+      <dd><span class="btn">Grant</span> → <b>Risk Review</b>. Grant is only available once <b>every</b> instrument is perfected.</dd>
+      <dt>Other outcomes</dt>
+      <dd class="alt"><span class="btn">Grant with Caveat</span> → <b>Risk Review</b> with the defect documented, for security that could not be perfected — the committee then has to answer for it · <span class="btn">Return to FAC</span> at a chosen profiling step, for a fixable defect · <span class="btn">Decline</span> (terminal) for something fundamental, such as falsified title.</dd>
+    </dl>
+  </div>
+
+  <!-- RISK REVIEW -->
+  <div class="stage">
+    <div class="num">3</div>
     <div class="top"><h3>Risk Review</h3><span class="pill stageid">stage: RiskReview</span><span class="pill status">Under Review</span></div>
     <div class="actor">👤 Risk Manager <span class="login">· chukwuemeka.obi@crms.ng</span></div>
     <dl>
       <dt>What they do</dt>
-      <dd>Independently review the appraisal, bureau results and advisory for risk concerns.</dd>
+      <dd>The <b>last internal review before the case is circulated</b>. Independently review the appraisal, bureau results and advisory for risk concerns — now with the <b>legal opinion already on file</b>, including any caveat about security that could not be perfected.</dd>
       <dt>Advances when</dt>
-      <dd>Risk Manager clicks <span class="btn">Clear</span> → <b>Committee Voting</b>.</dd>
+      <dd>Risk Manager clicks <span class="btn">Clear</span> → <b>Committee Voting</b>. Must be a different person from the appraiser <em>and</em> from the Legal Officer who cleared the case.</dd>
       <dt>Other outcomes</dt>
       <dd class="alt"><span class="btn">Return to FAC</span> · <span class="btn">Decline</span> (terminal).</dd>
     </dl>
@@ -194,12 +227,19 @@
 
   <!-- COMMITTEE -->
   <div class="stage">
-    <div class="num">3</div>
+    <div class="num">4</div>
     <div class="top"><h3>Committee Voting</h3><span class="pill stageid">stage: CommitteeVoting</span><span class="pill status">Under Review</span></div>
     <div class="actor">👥 Committee Members <span class="login">· tier depends on EOP value (Branch / Zonal / Regional / Head Office)</span></div>
     <dl>
       <dt>What they do</dt>
-      <dd>Each member of the routed committee opens the case and casts a vote: <span class="btn">Approve</span>, <span class="btn">Reject</span>, <span class="btn">Abstain</span>, or <span class="btn">Return to FAC</span>. The <b>Committee</b> tab shows the required number of votes and minimum approvals for that tier. Members must be distinct people (maker-checker).</dd>
+      <dd>Each member of the routed committee opens the case and casts a vote: <span class="btn">Approve</span>, <span class="btn">Reject</span>, <span class="btn">Abstain</span>, or <span class="btn">Return to FAC</span>. The <b>Committee</b> tab shows the required number of votes and minimum approvals for that tier. Members must be distinct people, and distinct from the appraiser, the Legal Officer and the risk officer (maker-checker).
+        <br><br><b>If the security is not fully perfected</b> — because Legal granted with a caveat — an <em>approving</em> vote must say on what basis, and the modal shows Legal's caveat alongside the choice:
+        <ul>
+          <li><b>Perfect before disbursement (deferred)</b> — the approval stands, and perfection becomes a mandatory pre-deployment condition. No money moves until it is done.</li>
+          <li><b>Waive perfection</b> — the committee accepts the facility without that security, recorded deliberately against the decision.</li>
+        </ul>
+        If members disagree, the <b>stricter</b> reading wins: one member insisting on perfection binds the case. The recorded disposition is badged on the Committee tab and carried into the ratification screen.
+      </dd>
       <dt>Advances when</dt>
       <dd>The required <b>Approve</b> threshold is reached — the case then advances to <b>Ratification</b> <b>automatically</b> on the deciding vote.</dd>
       <dt>Other outcomes</dt>
@@ -209,12 +249,14 @@
 
   <!-- RATIFICATION -->
   <div class="stage">
-    <div class="num">4</div>
+    <div class="num">5</div>
     <div class="top"><h3>Ratification</h3><span class="pill stageid">stage: Ratification → OfferGenerated</span><span class="pill status">Under Review</span></div>
     <div class="actor">👤 Final Approver <span class="login">· yusuf.mohammed@crms.ng</span></div>
     <dl>
       <dt>What they do</dt>
-      <dd>Final sign-off. Must be a <b>different person</b> from the appraiser, risk officer and approving committee members.</dd>
+      <dd>Final sign-off. Must be a <b>different person</b> from the appraiser, the Legal Officer, the risk officer and the approving committee members.
+        <br><br>The <b>Ratify</b> modal carries the facility in front of the ratifier: borrower and committee tier; interest rate, crop cycle and amount repayable at harvest; the appraisal in five figures (DSCR, gross margin, IRR, yield and price headroom, each coloured by pass/fail) with gates passed, repayment capacity and the credit officer's recommendation; the <b>legal outcome and its caveat</b>; the <b>committee tally and its perfection disposition</b>; and the security — instrument count, how many are perfected, value covered.
+      </dd>
       <dt>Advances when</dt>
       <dd>Final Approver clicks <span class="btn">Ratify</span> with the approved amount <b>equal to the Total EOP value exactly</b> (no partial approval). This generates the offer letter PDF and moves the case to <b>Awaiting Offer Acceptance</b>.</dd>
       <dt>Other outcomes</dt>
@@ -224,31 +266,16 @@
 
   <!-- OFFER ACCEPTANCE -->
   <div class="stage fac">
-    <div class="num">5</div>
+    <div class="num">6</div>
     <div class="top"><h3>Offer Acceptance</h3><span class="pill stageid">stage: AwaitingOfferAcceptance</span></div>
     <div class="actor">🌾 FAC (applicant) <span class="login">· token link: /rhshf/offer/{ref}?token=…</span></div>
     <dl>
       <dt>What they do</dt>
       <dd>On the token-protected offer page, the FAC <b>downloads the offer</b>, <b>uploads the signed copy</b>, and <b>accepts</b>. <em>This is not a staff action — the CRMS Offer tab is view-only.</em></dd>
       <dt>Advances when</dt>
-      <dd>The FAC <b>accepts</b> the offer → <b>Legal Clearance</b>.</dd>
+      <dd>The FAC <b>accepts</b> the offer → <b>Pre-Deployment Verification</b>. There is no legal stage after acceptance any more; the pre-deployment gate seeds its checklist at this point.</dd>
       <dt>Other outcomes</dt>
       <dd class="alt">FAC rejects the offer → <span class="btn">Cancelled</span> (a withdrawal, not a bank decision).</dd>
-    </dl>
-  </div>
-
-  <!-- LEGAL -->
-  <div class="stage">
-    <div class="num">6</div>
-    <div class="top"><h3>Legal Clearance</h3><span class="pill stageid">stage: LegalClearance</span><span class="pill status">Under Review</span></div>
-    <div class="actor">👤 Legal Officer <span class="login">· adaeze.nwosu@crms.ng</span></div>
-    <dl>
-      <dt>What they do</dt>
-      <dd><b>Verify and perfect</b> the collateral the FAC declared at profiling — open each instrument, view its attached evidence (the <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">visibility</span> eye icon opens the document in a new tab), and set perfection status. Additional instruments can still be recorded here (<span class="btn">Record Collateral</span>) if something was missed, but scouting for collateral is no longer the officer's job — the FAC originates it.</dd>
-      <dt>Advances when</dt>
-      <dd>Legal Officer clicks <span class="btn">Grant</span> → <b>Pre-Deployment Verification</b>.</dd>
-      <dt>Other outcomes</dt>
-      <dd class="alt"><span class="btn">Return to Ratification</span> · <span class="btn">Decline</span> (terminal).</dd>
     </dl>
   </div>
 
@@ -259,9 +286,11 @@
     <div class="actor">👤 Disbursement Officer <span class="login">· folake.balogun@crms.ng</span></div>
     <dl>
       <dt>What they do</dt>
-      <dd>Open the <span class="btn">Pre-Deployment Gate</span> and confirm each checklist item (final conditions before funds move).</dd>
+      <dd>Open the <span class="btn">Pre-Deployment Gate</span> and confirm each checklist item (final conditions before funds move) — BOA account verified against core banking, collateral reviewed, signed offer documents, compliance sign-off.
+        <br><br>If the committee approved with <b>perfection deferred</b>, the gate also carries a mandatory item — <em>“Collateral Perfection Completed (committee condition)”</em> — added automatically at offer acceptance. The gate cannot complete while it is unconfirmed, so a deferral genuinely blocks the money rather than being a note nobody chases.
+      </dd>
       <dt>Advances when</dt>
-      <dd>All checklist items are confirmed → the gate completes → <b>Disbursement</b>.</dd>
+      <dd>All mandatory checklist items are confirmed → the gate completes → <b>Disbursement</b>.</dd>
     </dl>
   </div>
 
@@ -293,12 +322,16 @@
 
   <h2 class="section">Rules that will block you if missed</h2>
   <ul class="rules">
-    <li><b>Maker-checker (distinct people).</b> The ratifier must differ from the appraiser, risk officer and approving committee members; the committee needs a quorum of <em>distinct</em> members. Don't use one admin account for the decision stages.</li>
+    <li><b>Maker-checker (distinct people).</b> Four distinct people are now needed before ratification: the Credit Officer, the <b>Legal Officer</b>, the Risk Manager and the committee must all differ, and the ratifier must differ from all of them. Don't use one admin account for the decision stages — the stage will refuse the second action.</li>
+    <li><b>Security must exist before a case can be submitted.</b> At least one instrument, and a document attached to <em>every</em> instrument. The FAC cannot submit otherwise.</li>
+    <li><b>Only Legal marks an instrument perfected, and only with evidence on file.</b> It cannot be set when the instrument is declared, and it cannot be changed after the case leaves legal clearance — the committee voted on what was asserted.</li>
+    <li><b>Plain <em>Grant</em> means fully perfected.</b> If any instrument is unperfected, Grant is unavailable; use <b>Grant with Caveat</b>, and the committee then records whether perfection is deferred or waived.</li>
     <li><b>Exact amounts.</b> The ratification amount must equal the Total EOP value exactly, and the disbursed amount must equal the ratified amount — no rounding, no partial approval.</li>
-    <li><b>The two FAC steps aren't staff actions.</b> Profiling (step 0) and Offer Acceptance (step 5) happen on token-protected pages; there's no staff button for them. Use the FAC links.</li>
+    <li><b>The two FAC steps aren't staff actions.</b> Profiling (step 0) and Offer Acceptance (step 6) happen on token-protected pages; there's no staff button for them. Use the FAC links. Profiling links are <b>single-use</b> — the first page load consumes the token, after which the session carries the FAC; a fresh link is minted on request.</li>
     <li><b>External status is a plateau.</b> From FAC submission to disbursement the external status reads <em>Under Review</em> — track progress by the internal stage, not the status.</li>
     <li><b>BVNs are required to submit profiling.</b> Every director, and every <em>individual</em> guarantor, must have a BVN before the FAC can submit (companies are checked by RC instead). The farm plan and all mandatory documents must also be satisfied.</li>
-    <li><b>FAC originates parties &amp; security.</b> Directors, guarantors and collateral (with evidence) are entered by the FAC during profiling — officers verify and perfect them, they don't scout for them later.</li>
+    <li><b>FAC originates parties &amp; security.</b> Directors, guarantors and collateral (with evidence) are entered by the FAC during profiling — officers verify and perfect them, they don't scout for them later, and <b>staff cannot add an instrument at all</b>. One the FAC never declared is a Return to FAC.</li>
+    <li><b>Everyone can see every case; only the stage's owner can act.</b> The RH-SHF queue shows all stages to every actor, so a case is findable whatever stage it is in. Acting is still gated by stage and role, and a stage already acted on for that cycle will refuse a second action — unless the case was returned to the FAC and resubmitted, which opens a new cycle and reopens every stage.</li>
   </ul>
 
   <h2 class="section">Local test credentials</h2>
@@ -308,11 +341,11 @@
     <tbody>
       <tr><td>Oversight / admin</td><td>SystemAdmin</td><td><code>admin@crms.ng</code></td><td><code>Admin@CRMS2026!</code></td></tr>
       <tr><td>1 · Appraisal</td><td>Credit Officer</td><td><code>uche.eze@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
-      <tr><td>2 · Risk Review</td><td>Risk Manager</td><td><code>chukwuemeka.obi@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
-      <tr><td>3 · Committee</td><td>Committee Member</td><td><code>emeka.nnamdi@crms.ng</code>, <code>blessing.okafor@crms.ng</code>, <code>tunde.bakare@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
-      <tr><td>4 · Ratification</td><td>Final Approver</td><td><code>yusuf.mohammed@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
-      <tr><td>6 · Legal Clearance</td><td>Legal Officer</td><td><code>adaeze.nwosu@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
-      <tr><td>7–9 · Disbursement</td><td>Disbursement Officer</td><td><code>folake.balogun@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+      <tr><td>2 · Legal Clearance</td><td>Legal Officer</td><td><code>adaeze.nwosu@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+      <tr><td>3 · Risk Review</td><td>Risk Manager</td><td><code>chukwuemeka.obi@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+      <tr><td>4 · Committee</td><td>Committee Member</td><td><code>emeka.nnamdi@crms.ng</code>, <code>blessing.okafor@crms.ng</code>, <code>tunde.bakare@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+      <tr><td>5 · Ratification</td><td>Final Approver</td><td><code>yusuf.mohammed@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
+      <tr><td>7–9 · Pre-Deployment &amp; Disbursement</td><td>Disbursement Officer</td><td><code>folake.balogun@crms.ng</code></td><td><code>Password1$$$</code></td></tr>
     </tbody>
   </table>
 

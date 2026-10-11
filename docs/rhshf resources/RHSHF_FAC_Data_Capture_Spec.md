@@ -1,6 +1,14 @@
 # RH-SHF — FAC-Originated Data Capture (Directors, Guarantors, Collateral)
 
-**Status:** Approved direction (2026-10-07) · **Owner:** CRMS team · **Related:** RHSHF_Entities_Workflow_Design.md
+**Status:** **Implemented** (2026-10-11) · Approved direction 2026-10-07 · **Owner:** CRMS team · **Related:** RHSHF_Entities_Workflow_Design.md, RHSHF_Workflow_Guide.html
+
+> **Amendment — 2026-10-11, as built.** The direction below shipped, and went further in three places:
+>
+> 1. **Submission is gated on it.** The FAC cannot submit profiling without at least one security instrument *and* a document attached to every instrument. Declaring security is no longer best-effort.
+> 2. **Staff cannot enter collateral at all.** The staff-side "Record Collateral" action is gone — not merely de-emphasised. An instrument the FAC never declared is a Return to FAC. (`RecordRhshfCollateralCommand` still exists for an admin/API caller but has no UI path.)
+> 3. **Perfection is a locked assertion, on every instrument type.** `PerfectionStatus` cannot be set when an instrument is declared; only the Legal Officer sets it, only at legal clearance, only with a document on file, and it is stamped with who asserted it and when, plus a per-instrument legal note kept separate from the FAC's own note. It applies to bank guarantees and NIRSAL CRGs too, not just legal mortgages.
+>
+> One sequencing change affects this spec's framing: **legal clearance now runs between Appraisal and Risk Review**, before the committee votes — so the security is verified and perfected *before* approval, not after offer acceptance.
 
 ## 1. Problem
 
@@ -37,7 +45,7 @@ The officer who is meant to **verify** the application is also **sourcing and en
 
 ### Collateral
 - **Profiling:** a Collateral step. The FAC declares each instrument (bank guarantee / NIRSAL CRG / legal mortgage) with its value and title/reference, and **uploads evidence**.
-- **Staff (Collateral tab / Legal Officer):** verify and perfect (perfection status for legal mortgages). No fresh data entry — the records already exist.
+- **Staff (Collateral tab / Legal Officer):** confirm and perfect, instrument by instrument. The tab shows "N of M confirmed" with a **Confirm** button per row; each opens the instrument with its evidence, takes any title reference / registration authority, a legal note on that instrument, and a **Mark as perfected** action that requires a document on file. No fresh data entry is possible — staff cannot add an instrument. *As built 2026-10-11: perfection applies to every instrument type, not only legal mortgages, because the committee now votes on whether the security is actually in place.*
 
 ## 5. Phasing
 
