@@ -42,13 +42,8 @@
                 <div class="form-group"><label class="form-label">Property Value</label><input type="number" class="form-control" @bind="propertyValue" /></div>
                 <div class="form-group"><label class="form-label">Title Reference Number</label><input class="form-control" @bind="titleReferenceNumber" /></div>
                 <div class="form-group"><label class="form-label">Registration Authority</label><input class="form-control" @bind="registrationAuthority" /></div>
-                <div class="form-group">
-                    <label class="form-label">Perfection Status</label>
-                    <select class="form-control" @bind="perfectionStatus">
-                        <option value="@RhshfCollateralPerfectionStatus.Pending">Pending</option>
-                        <option value="@RhshfCollateralPerfectionStatus.Perfected">Perfected</option>
-                    </select>
-                </div>
+                @* Perfection is not declared here — the Legal Officer asserts it at legal clearance,
+                   with the evidence on file, and the committee votes on that assertion. *@
             }
 
             <div class="form-group"><label class="form-label">Notes (optional)</label><textarea class="form-control" rows="2" @bind="notes"></textarea></div>
@@ -84,7 +79,6 @@
     private decimal? propertyValue;
     private string? titleReferenceNumber;
     private string? registrationAuthority;
-    private RhshfCollateralPerfectionStatus perfectionStatus = RhshfCollateralPerfectionStatus.Pending;
 
     private async Task Submit()
     {
@@ -99,7 +93,6 @@
             type == RhshfCollateralType.LegalMortgage ? propertyDescription : null,
             type == RhshfCollateralType.LegalMortgage ? propertyValue : null,
             type == RhshfCollateralType.LegalMortgage ? titleReferenceNumber : null,
-            type == RhshfCollateralType.LegalMortgage ? registrationAuthority : null,
-            type == RhshfCollateralType.LegalMortgage ? perfectionStatus : null));
+            type == RhshfCollateralType.LegalMortgage ? registrationAuthority : null));
     }
 }

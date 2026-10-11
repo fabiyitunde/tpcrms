@@ -45,7 +45,7 @@ public class RecordRhshfCollateralHandlerTests
             profile.Reference, Guid.NewGuid(), RhshfCollateralType.BankGuarantee, null,
             "BG-2026-001", DateTime.UtcNow, DateTime.UtcNow.AddYears(1),
             "First Merchant Bank", 22_400_000m, true,
-            null, null, null, null, null, null));
+            null, null, null, null, null));
 
         Assert.True(result.IsSuccess);
         Assert.Single(collateralRepo.Added);
@@ -60,11 +60,11 @@ public class RecordRhshfCollateralHandlerTests
 
         await handler.Handle(new RecordRhshfCollateralCommand(
             profile.Reference, Guid.NewGuid(), RhshfCollateralType.BankGuarantee, null,
-            "BG-2026-001", null, null, "First Merchant Bank", 22_400_000m, true, null, null, null, null, null, null));
+            "BG-2026-001", null, null, "First Merchant Bank", 22_400_000m, true, null, null, null, null, null));
         await handler.Handle(new RecordRhshfCollateralCommand(
             profile.Reference, Guid.NewGuid(), RhshfCollateralType.LegalMortgage, null,
             null, null, null, null, null, null, null,
-            "3-hectare warehouse plot", 30_000_000m, "KN/2026/00123", "Kano State Land Registry", RhshfCollateralPerfectionStatus.Pending));
+            "3-hectare warehouse plot", 30_000_000m, "KN/2026/00123", "Kano State Land Registry"));
 
         Assert.Equal(2, collateralRepo.Added.Count);
     }
@@ -78,7 +78,7 @@ public class RecordRhshfCollateralHandlerTests
 
         var result = await handler.Handle(new RecordRhshfCollateralCommand(
             profile.Reference, Guid.NewGuid(), RhshfCollateralType.BankGuarantee, null,
-            null, null, null, null, null, null, null, null, null, null, null, null));
+            null, null, null, null, null, null, null, null, null, null, null));
 
         Assert.False(result.IsSuccess);
         Assert.Empty(collateralRepo.Added);
@@ -91,7 +91,7 @@ public class RecordRhshfCollateralHandlerTests
 
         var result = await handler.Handle(new RecordRhshfCollateralCommand(
             "RHSHF-2026-000000", Guid.NewGuid(), RhshfCollateralType.BankGuarantee, null,
-            "BG-1", null, null, "Bank", 1_000_000m, true, null, null, null, null, null, null));
+            "BG-1", null, null, "Bank", 1_000_000m, true, null, null, null, null, null));
 
         Assert.False(result.IsSuccess);
     }

@@ -6087,6 +6087,12 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("longtext");
 
+                    b.Property<DateTime?>("PerfectedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("PerfectedByUserId")
+                        .HasColumnType("char(36)");
+
                     b.Property<string>("PerfectionStatus")
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");

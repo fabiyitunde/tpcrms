@@ -13,7 +13,7 @@ public class RhshfCollateralTests
             guarantorBankName: guarantorBankName, guaranteeAmount: guaranteeAmount, isUnconditional: true,
             crgCoveragePercentage: null,
             propertyDescription: null, propertyValue: null, titleReferenceNumber: null,
-            registrationAuthority: null, perfectionStatus: null);
+            registrationAuthority: null);
 
     [Fact]
     public void Create_BankGuarantee_WithRequiredFields_Succeeds()
@@ -50,7 +50,7 @@ public class RhshfCollateralTests
             guarantorBankName: null, guaranteeAmount: null, isUnconditional: null,
             crgCoveragePercentage: 50m,
             propertyDescription: null, propertyValue: null, titleReferenceNumber: null,
-            registrationAuthority: null, perfectionStatus: null);
+            registrationAuthority: null);
 
         Assert.True(result.IsSuccess);
     }
@@ -64,7 +64,7 @@ public class RhshfCollateralTests
             guarantorBankName: null, guaranteeAmount: null, isUnconditional: null,
             crgCoveragePercentage: null,
             propertyDescription: null, propertyValue: null, titleReferenceNumber: null,
-            registrationAuthority: null, perfectionStatus: null);
+            registrationAuthority: null);
 
         Assert.True(result.IsFailure);
     }
@@ -78,11 +78,12 @@ public class RhshfCollateralTests
             guarantorBankName: null, guaranteeAmount: null, isUnconditional: null,
             crgCoveragePercentage: null,
             propertyDescription: "3-hectare warehouse plot, Bunkure, Kano", propertyValue: 30_000_000m,
-            titleReferenceNumber: "KN/2026/00123", registrationAuthority: "Kano State Land Registry",
-            perfectionStatus: RhshfCollateralPerfectionStatus.Pending);
+            titleReferenceNumber: "KN/2026/00123", registrationAuthority: "Kano State Land Registry");
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(RhshfCollateralPerfectionStatus.Pending, result.Value.PerfectionStatus);
+        Assert.Equal("KN/2026/00123", result.Value.TitleReferenceNumber);
+        // Nobody asserts perfection at declaration time — that is the Legal Officer's, at clearance.
+        Assert.Null(result.Value.PerfectionStatus);
     }
 
     [Fact]
@@ -94,7 +95,7 @@ public class RhshfCollateralTests
             guarantorBankName: null, guaranteeAmount: null, isUnconditional: null,
             crgCoveragePercentage: null,
             propertyDescription: "3-hectare warehouse plot", propertyValue: null,
-            titleReferenceNumber: null, registrationAuthority: null, perfectionStatus: null);
+            titleReferenceNumber: null, registrationAuthority: null);
 
         Assert.True(result.IsFailure);
     }
@@ -119,7 +120,84 @@ public class RhshfCollateralTests
             guarantorBankName: "First Merchant Bank", guaranteeAmount: 1_000_000m, isUnconditional: true,
             crgCoveragePercentage: null,
             propertyDescription: null, propertyValue: null, titleReferenceNumber: null,
-            registrationAuthority: null, perfectionStatus: null);
+            registrationAuthority: null);
+
+        Assert.True(result.IsFailure);
+    }
+
+    // ── Perfection: the Legal Officer's assertion, not a field anyone can fill in ──────────────
+
+    [Fact]
+    public void AssertPerfection_Perfected_RecordsWhoAssertedItAndWhen()
+    {
+        var collateral = CreateBankGuarantee().Value;
+        collateral.AddDocument("guarantee.pdf", "application/pdf", "path/g.pdf", 1024);
+        var legalOfficerId = Guid.NewGuid();
+
+        var result = collateral.AssertPerfection(legalOfficerId, RhshfCollateralPerfectionStatus.Perfected);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfCollateralPerfectionStatus.Perfected, collateral.PerfectionStatus);
+        Assert.Equal(legalOfficerId, collateral.PerfectedByUserId);
+        Assert.NotNull(collateral.PerfectedAt);
+    }
+
+    [Fact]
+    public void AssertPerfection_Perfected_RequiresTheEvidenceToBeOnFile()
+    {
+        var collateral = CreateBankGuarantee().Value; // no document attached
+
+        var result = collateral.AssertPerfection(Guid.NewGuid(), RhshfCollateralPerfectionStatus.Perfected);
+
+        Assert.True(result.IsFailure);
+        Assert.Null(collateral.PerfectionStatus);
+        Assert.Null(collateral.PerfectedAt);
+    }
+
+    [Fact]
+    public void AssertPerfection_CapturesTitleDetailsEstablishedDuringPerfection()
+    {
+        var collateral = RhshfCollateral.Create(
+            Guid.NewGuid(), 1, RhshfCollateralType.LegalMortgage, Guid.NewGuid(), notes: null,
+            referenceNumber: null, issuedDate: null, expiryDate: null,
+            guarantorBankName: null, guaranteeAmount: null, isUnconditional: null,
+            crgCoveragePercentage: null,
+            propertyDescription: "3-hectare warehouse plot", propertyValue: 30_000_000m,
+            titleReferenceNumber: null, registrationAuthority: null).Value;
+        collateral.AddDocument("deed.pdf", "application/pdf", "path/d.pdf", 4096);
+
+        collateral.AssertPerfection(
+            Guid.NewGuid(), RhshfCollateralPerfectionStatus.Perfected,
+            titleReferenceNumber: "KN/2026/00123", registrationAuthority: "Kano State Land Registry");
+
+        // Legal is usually the first to know these, so the assertion can carry them.
+        Assert.Equal("KN/2026/00123", collateral.TitleReferenceNumber);
+        Assert.Equal("Kano State Land Registry", collateral.RegistrationAuthority);
+    }
+
+    [Fact]
+    public void AssertPerfection_Pending_WalksTheAssertionBack_AndClearsItsAudit()
+    {
+        var collateral = CreateBankGuarantee().Value;
+        collateral.AddDocument("guarantee.pdf", "application/pdf", "path/g.pdf", 1024);
+        collateral.AssertPerfection(Guid.NewGuid(), RhshfCollateralPerfectionStatus.Perfected);
+
+        var result = collateral.AssertPerfection(Guid.NewGuid(), RhshfCollateralPerfectionStatus.Pending);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfCollateralPerfectionStatus.Pending, collateral.PerfectionStatus);
+        // No stale "perfected by X" left behind on an instrument that is no longer perfected.
+        Assert.Null(collateral.PerfectedByUserId);
+        Assert.Null(collateral.PerfectedAt);
+    }
+
+    [Fact]
+    public void AssertPerfection_WithoutALegalOfficer_Fails()
+    {
+        var collateral = CreateBankGuarantee().Value;
+        collateral.AddDocument("guarantee.pdf", "application/pdf", "path/g.pdf", 1024);
+
+        var result = collateral.AssertPerfection(Guid.Empty, RhshfCollateralPerfectionStatus.Perfected);
 
         Assert.True(result.IsFailure);
     }

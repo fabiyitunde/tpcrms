@@ -7331,6 +7331,27 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse> AssertRhshfCollateralPerfectionAsync(
+        string reference, Guid collateralId, Guid legalOfficerId,
+        CRMS.Domain.Enums.RhshfCollateralPerfectionStatus status,
+        string? titleReferenceNumber = null, string? registrationAuthority = null)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.AssertRhshfCollateralPerfectionHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.AssertRhshfCollateralPerfectionCommand(
+                    reference, collateralId, legalOfficerId, status, titleReferenceNumber, registrationAuthority),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Recording perfection failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recording RH-SHF collateral perfection for {Reference}", reference);
+            return ApiResponse.Fail(ex.Message);
+        }
+    }
+
     public async Task<ApiResponse> AddRhshfCollateralDocumentAsync(Guid collateralId, string fileName, string contentType, byte[] content)
     {
         try

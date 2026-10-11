@@ -831,6 +831,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.SaveRhshfFinancialStatementHandler>();
         services.AddScoped<Application.Rhshf.Commands.RhshfFinancialStatementLifecycleHandler>();
         services.AddScoped<Application.Rhshf.Commands.RecordRhshfCollateralHandler>();
+        services.AddScoped<Application.Rhshf.Commands.AssertRhshfCollateralPerfectionHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfProfilingCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.RemoveRhshfProfilingCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.UploadRhshfProfilingCollateralDocumentHandler>();

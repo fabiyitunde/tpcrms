@@ -50,7 +50,7 @@ public class AddRhshfProfilingCollateralHandler : IRequestHandler<AddRhshfProfil
             request.GuarantorBankName, request.GuaranteeAmount, request.IsUnconditional,
             request.CrgCoveragePercentage,
             request.PropertyDescription, request.PropertyValue, request.TitleReferenceNumber,
-            registrationAuthority: null, perfectionStatus: null);
+            registrationAuthority: null);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

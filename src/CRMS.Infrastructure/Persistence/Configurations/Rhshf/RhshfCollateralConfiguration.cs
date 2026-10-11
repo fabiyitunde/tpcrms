@@ -23,6 +23,8 @@ public class RhshfCollateralConfiguration : IEntityTypeConfiguration<RhshfCollat
         builder.Property(x => x.TitleReferenceNumber).HasMaxLength(100);
         builder.Property(x => x.RegistrationAuthority).HasMaxLength(200);
         builder.Property(x => x.PerfectionStatus).HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.PerfectedByUserId);
+        builder.Property(x => x.PerfectedAt);
 
         builder.HasIndex(x => new { x.RhshfCreditProfileId, x.CycleNumber });
 

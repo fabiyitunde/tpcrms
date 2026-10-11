@@ -14,7 +14,7 @@ public record RecordRhshfCollateralCommand(
     string? GuarantorBankName, decimal? GuaranteeAmount, bool? IsUnconditional,
     decimal? CrgCoveragePercentage,
     string? PropertyDescription, decimal? PropertyValue, string? TitleReferenceNumber,
-    string? RegistrationAuthority, RhshfCollateralPerfectionStatus? PerfectionStatus) : IRequest<ApplicationResult>;
+    string? RegistrationAuthority) : IRequest<ApplicationResult>;
 
 public class RecordRhshfCollateralHandler : IRequestHandler<RecordRhshfCollateralCommand, ApplicationResult>
 {
@@ -43,7 +43,7 @@ public class RecordRhshfCollateralHandler : IRequestHandler<RecordRhshfCollatera
             request.GuarantorBankName, request.GuaranteeAmount, request.IsUnconditional,
             request.CrgCoveragePercentage,
             request.PropertyDescription, request.PropertyValue, request.TitleReferenceNumber,
-            request.RegistrationAuthority, request.PerfectionStatus);
+            request.RegistrationAuthority);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

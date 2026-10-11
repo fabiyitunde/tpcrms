@@ -303,7 +303,9 @@ else
             break;
         case "collateral":
             <CollateralTab Records="collateralRecords" CanUpload="CanClearLegally" LegalClearance="currentLegalClearance"
-                OnUploadDocument="UploadCollateralDocument" OnDownloadDocument="DownloadCollateralDocument" />
+                OnUploadDocument="UploadCollateralDocument" OnDownloadDocument="DownloadCollateralDocument"
+                CanAssertPerfection="CanAssertPerfection" OnAssertPerfection="SubmitCollateralPerfection"
+                IsAssertingPerfection="isSubmitting" PerfectionError="@perfectionError" />
             break;
         case "documents":
             <DocumentsTab Documents="workspace.SupportingDocuments" OnDownload="DownloadSupportingDocument"
@@ -500,11 +502,15 @@ else
     private bool CanActuallyVote => !(committeeReview?.Votes.Any(v => v.UserId == CurrentUserId) ?? false)
         && (committeeRoster?.Members.Any(m => m.UserId == CurrentUserId) ?? false);
 
-    // Terminal/late-pipeline stages a "has this case ever reached X" check needs to include —
-    // PreDeploymentVerification onward. Completed is the legacy terminal marker (pre-Active/Closed).
+    // Every stage from legal clearance onward — legal now runs second, so this covers the whole
+    // pipeline after appraisal. Risk and the committee in particular must be able to see the security
+    // and its perfection state, since they now decide with it in front of them. Completed is the
+    // legacy terminal marker (pre-Active/Closed).
     private static readonly RhshfInternalStage[] PostLegalStages =
     [
-        RhshfInternalStage.LegalClearance, RhshfInternalStage.PreDeploymentVerification, RhshfInternalStage.Disbursement,
+        RhshfInternalStage.LegalClearance, RhshfInternalStage.RiskReview, RhshfInternalStage.CommitteeVoting,
+        RhshfInternalStage.Ratification, RhshfInternalStage.OfferGenerated, RhshfInternalStage.AwaitingOfferAcceptance,
+        RhshfInternalStage.PreDeploymentVerification, RhshfInternalStage.Disbursement,
         RhshfInternalStage.Completed, RhshfInternalStage.Active, RhshfInternalStage.Closed,
     ];
 
@@ -864,6 +870,25 @@ else
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();
+        await LoadAllAsync();
+    }
+
+    /// <summary>Perfection is the Legal Officer's assertion, and only while the case is at their
+    /// stage — after that the committee has voted on whatever was asserted.</summary>
+    private bool CanAssertPerfection =>
+        CanClearLegally && workspace?.InternalStage == RhshfInternalStage.LegalClearance;
+
+    private string? perfectionError;
+
+    private async Task SubmitCollateralPerfection(
+        (Guid CollateralId, RhshfCollateralPerfectionStatus Status, string? TitleReference, string? RegistrationAuthority) input)
+    {
+        isSubmitting = true;
+        perfectionError = null;
+        var result = await AppService.AssertRhshfCollateralPerfectionAsync(
+            Reference, input.CollateralId, CurrentUserId, input.Status, input.TitleReference, input.RegistrationAuthority);
+        isSubmitting = false;
+        if (!result.Success) { perfectionError = result.Error; return; }
         await LoadAllAsync();
     }
 

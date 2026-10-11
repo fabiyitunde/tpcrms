@@ -35,7 +35,15 @@ public class RhshfCollateral : AggregateRoot
     public decimal? PropertyValue { get; private set; }
     public string? TitleReferenceNumber { get; private set; }
     public string? RegistrationAuthority { get; private set; }
+
+    // ── Perfection ────────────────────────────────────────────────────────
+    // Deliberately NOT settable at creation: whoever declares an instrument (the FAC on the profiling
+    // form, or an officer) must not be able to assert that it is perfected. Only the Legal Officer
+    // does that, at legal clearance, via AssertPerfection — and the committee now votes on the result,
+    // so the assertion carries who made it and when.
     public RhshfCollateralPerfectionStatus? PerfectionStatus { get; private set; }
+    public Guid? PerfectedByUserId { get; private set; }
+    public DateTime? PerfectedAt { get; private set; }
 
     private readonly List<RhshfCollateralDocument> _documents = [];
     public IReadOnlyCollection<RhshfCollateralDocument> Documents => _documents.AsReadOnly();
@@ -48,7 +56,7 @@ public class RhshfCollateral : AggregateRoot
         string? guarantorBankName, decimal? guaranteeAmount, bool? isUnconditional,
         decimal? crgCoveragePercentage,
         string? propertyDescription, decimal? propertyValue, string? titleReferenceNumber,
-        string? registrationAuthority, RhshfCollateralPerfectionStatus? perfectionStatus)
+        string? registrationAuthority)
     {
         if (recordedBy == Guid.Empty)
             return Result.Failure<RhshfCollateral>("recordedBy is required.");
@@ -82,7 +90,6 @@ public class RhshfCollateral : AggregateRoot
             PropertyValue = propertyValue,
             TitleReferenceNumber = titleReferenceNumber,
             RegistrationAuthority = registrationAuthority,
-            PerfectionStatus = perfectionStatus,
         });
     }
 
@@ -91,5 +98,43 @@ public class RhshfCollateral : AggregateRoot
         var document = new RhshfCollateralDocument(Id, fileName, contentType, storagePath, sizeBytes);
         _documents.Add(document);
         return document;
+    }
+
+    /// <summary>
+    /// The Legal Officer's assertion about this instrument, made at legal clearance before the case is
+    /// circulated for voting. Perfected means Legal has sighted the instrument and (for a mortgage)
+    /// the charge is registered — so it requires the evidence to actually be attached; a title
+    /// reference and registration authority established during perfection can be recorded with it.
+    /// Pending walks the assertion back and clears its audit trail.
+    /// </summary>
+    public Result AssertPerfection(
+        Guid legalOfficerId, RhshfCollateralPerfectionStatus status,
+        string? titleReferenceNumber = null, string? registrationAuthority = null)
+    {
+        if (legalOfficerId == Guid.Empty)
+            return Result.Failure("The asserting Legal Officer is required.");
+
+        if (status == RhshfCollateralPerfectionStatus.Perfected && _documents.Count == 0)
+            return Result.Failure(
+                "This instrument has no document attached — the evidence must be on file before it can be marked perfected.");
+
+        if (!string.IsNullOrWhiteSpace(titleReferenceNumber))
+            TitleReferenceNumber = titleReferenceNumber;
+        if (!string.IsNullOrWhiteSpace(registrationAuthority))
+            RegistrationAuthority = registrationAuthority;
+
+        PerfectionStatus = status;
+        if (status == RhshfCollateralPerfectionStatus.Perfected)
+        {
+            PerfectedByUserId = legalOfficerId;
+            PerfectedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            PerfectedByUserId = null;
+            PerfectedAt = null;
+        }
+
+        return Result.Success();
     }
 }

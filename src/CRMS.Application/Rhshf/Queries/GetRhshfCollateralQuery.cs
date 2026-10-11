@@ -15,6 +15,7 @@ public record RhshfCollateralDto(
     decimal? CrgCoveragePercentage,
     string? PropertyDescription, decimal? PropertyValue, string? TitleReferenceNumber,
     string? RegistrationAuthority, RhshfCollateralPerfectionStatus? PerfectionStatus,
+    Guid? PerfectedByUserId, string? PerfectedByName, DateTime? PerfectedAt,
     List<RhshfCollateralDocumentDto> Documents);
 
 public class GetRhshfCollateralHandler : IRequestHandler<GetRhshfCollateralQuery, ApplicationResult<List<RhshfCollateralDto>>>
@@ -38,13 +39,17 @@ public class GetRhshfCollateralHandler : IRequestHandler<GetRhshfCollateralQuery
             return ApplicationResult<List<RhshfCollateralDto>>.Failure("Case not found.");
 
         var records = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
-        var names = await _names.ResolveManyAsync(records.Select(c => c.RecordedBy), ct);
+        var names = await _names.ResolveManyAsync(
+            records.Select(c => c.RecordedBy).Concat(records.Where(c => c.PerfectedByUserId.HasValue).Select(c => c.PerfectedByUserId!.Value)), ct);
         var dto = records.Select(c => new RhshfCollateralDto(
             c.Id, c.Type, c.ReferenceNumber, c.IssuedDate, c.ExpiryDate,
             c.RecordedBy, names.TryGetValue(c.RecordedBy, out var n) ? n : "—", c.RecordedAt, c.Notes,
             c.GuarantorBankName, c.GuaranteeAmount, c.IsUnconditional,
             c.CrgCoveragePercentage,
             c.PropertyDescription, c.PropertyValue, c.TitleReferenceNumber, c.RegistrationAuthority, c.PerfectionStatus,
+            c.PerfectedByUserId,
+            c.PerfectedByUserId.HasValue && names.TryGetValue(c.PerfectedByUserId.Value, out var pn) ? pn : null,
+            c.PerfectedAt,
             c.Documents.Select(d => new RhshfCollateralDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt)).ToList()))
             .ToList();
 

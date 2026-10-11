@@ -128,7 +128,11 @@
                         @FieldChip("Value", _selected.PropertyValue?.ToString("N2"))
                         @FieldChip("Title Reference", _selected.TitleReferenceNumber)
                         @FieldChip("Registration Authority", _selected.RegistrationAuthority)
-                        @FieldChip("Perfection Status", _selected.PerfectionStatus?.ToString())
+                    }
+                    @FieldChip("Perfection", _selected.PerfectionStatus?.ToString() ?? "Not yet asserted")
+                    @if (_selected.PerfectedAt.HasValue)
+                    {
+                        @FieldChip("Perfected By", $"{_selected.PerfectedByName ?? "—"} · {_selected.PerfectedAt.Value.ToLocalTime():MMM dd, yyyy HH:mm}")
                     }
                     @FieldChip("Issued", _selected.IssuedDate?.ToLocalTime().ToString("MMM dd, yyyy"))
                     @FieldChip("Expiry", _selected.ExpiryDate?.ToLocalTime().ToString("MMM dd, yyyy"))
@@ -176,11 +180,54 @@
                         </table>
                     }
                 </div>
+                @if (CanAssertPerfection)
+                {
+                    @* Legal's own assertion, made before the case is circulated for voting. Any title
+                       reference / registration authority established during perfection is captured with it. *@
+                    <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--gray-100);">
+                        <div class="field-chip-label" style="margin-bottom: 0.5rem;">Record perfection</div>
+                        @if (_selected.Type == RhshfCollateralType.LegalMortgage)
+                        {
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <input class="form-control" placeholder="Title reference" @bind="_perfectionTitleReference" />
+                                <input class="form-control" placeholder="Registration authority" @bind="_perfectionRegistrationAuthority" />
+                            </div>
+                        }
+                        @if (_selected.Documents.Count == 0)
+                        {
+                            <div style="font-size: var(--text-sm); color: var(--danger-color);">
+                                Attach the instrument's document first — it can't be marked perfected with no evidence on file.
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(PerfectionError))
+                        {
+                            <div class="alert alert-danger" style="margin-top: 0.5rem;">@PerfectionError</div>
+                        }
+                    </div>
+                }
             </div>
             <div class="modal-footer">
                 @if (CanUpload)
                 {
                     <InputFile OnChange="e => UploadFile(_selected.Id, e)" class="form-control" style="flex: 1;" />
+                }
+                @if (CanAssertPerfection)
+                {
+                    @if (_selected.PerfectionStatus == RhshfCollateralPerfectionStatus.Perfected)
+                    {
+                        <button class="btn btn-warning" disabled="@IsAssertingPerfection"
+                                @onclick="() => AssertPerfection(RhshfCollateralPerfectionStatus.Pending)">
+                            Mark as pending
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-success" disabled="@(IsAssertingPerfection || _selected.Documents.Count == 0)"
+                                @onclick="() => AssertPerfection(RhshfCollateralPerfectionStatus.Perfected)">
+                            @if (IsAssertingPerfection) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                            Mark as perfected
+                        </button>
+                    }
                 }
                 <button class="btn btn-secondary" @onclick="Close">Close</button>
             </div>
@@ -196,6 +243,25 @@
     /// <summary>The current cycle's legal clearance (outcome + officer + comment), shown as context since
     /// collateral/security gets its legal sign-off at that stage. Null until a clearance is recorded.</summary>
     [Parameter] public RhshfLegalClearanceDto? LegalClearance { get; set; }
+
+    /// <summary>True only for the Legal Officer while the case sits at legal clearance — perfection is
+    /// theirs to assert, and only before the case is circulated for voting.</summary>
+    [Parameter] public bool CanAssertPerfection { get; set; }
+    [Parameter] public EventCallback<(Guid CollateralId, RhshfCollateralPerfectionStatus Status, string? TitleReference, string? RegistrationAuthority)> OnAssertPerfection { get; set; }
+    [Parameter] public bool IsAssertingPerfection { get; set; }
+    [Parameter] public string? PerfectionError { get; set; }
+
+    private string? _perfectionTitleReference;
+    private string? _perfectionRegistrationAuthority;
+
+    private async Task AssertPerfection(RhshfCollateralPerfectionStatus status)
+    {
+        if (_selected is null) return;
+        await OnAssertPerfection.InvokeAsync((
+            _selected.Id, status,
+            string.IsNullOrWhiteSpace(_perfectionTitleReference) ? null : _perfectionTitleReference,
+            string.IsNullOrWhiteSpace(_perfectionRegistrationAuthority) ? null : _perfectionRegistrationAuthority));
+    }
 
     private static string LegalBadgeClass(RhshfLegalClearanceOutcome outcome) => outcome switch
     {
@@ -236,8 +302,10 @@
 
     private static RenderFragment StatusBadge(RhshfCollateralDto r) => __builder =>
     {
-        // Only the legal mortgage carries a perfection lifecycle; the others are simply "recorded".
-        if (r.Type == RhshfCollateralType.LegalMortgage && r.PerfectionStatus is not null)
+        // Every instrument now carries a perfection state, because the committee votes on whether the
+        // security is actually in place — not just on a mortgage's registration. Null means the Legal
+        // Officer has not asserted anything yet.
+        if (r.PerfectionStatus is not null)
         {
             var cls = r.PerfectionStatus == RhshfCollateralPerfectionStatus.Perfected ? "badge-success" : "badge-warning";
             __builder.OpenElement(0, "span");
@@ -249,7 +317,7 @@
         {
             __builder.OpenElement(0, "span");
             __builder.AddAttribute(1, "class", "badge badge-gray");
-            __builder.AddContent(2, "Recorded");
+            __builder.AddContent(2, "Declared");
             __builder.CloseElement();
         }
     };

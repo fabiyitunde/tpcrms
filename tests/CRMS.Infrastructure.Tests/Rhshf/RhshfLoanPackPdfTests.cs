@@ -120,7 +120,8 @@ public class RhshfLoanPackPdfTests
             new(Guid.NewGuid(), RhshfCollateralType.BankGuarantee, "BG-2026-01", DateTime.UtcNow, DateTime.UtcNow.AddYears(1),
                 Guid.NewGuid(), "Chidi Officer", DateTime.UtcNow, "Clean BG.",
                 "First Bank", 15_000_000m, true, null, null, null, null, null,
-                RhshfCollateralPerfectionStatus.Perfected, new List<RhshfCollateralDocumentDto>()),
+                RhshfCollateralPerfectionStatus.Perfected, Guid.NewGuid(), "Lara Legal", DateTime.UtcNow,
+                new List<RhshfCollateralDocumentDto>()),
         };
 
         var guarantors = new List<RhshfGuarantorDto>

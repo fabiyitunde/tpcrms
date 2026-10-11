@@ -56,7 +56,7 @@ public class AdvanceRhshfProfilingStageGuarantorGateTests
     {
         var collateral = RhshfCollateral.Create(
             profile.Id, profile.ProfilingTargetCycleNumber, RhshfCollateralType.BankGuarantee, Guid.NewGuid(), null,
-            "BG-2026-01", null, null, "First Bank", 52_000_000m, true, null, null, null, null, null, null).Value;
+            "BG-2026-01", null, null, "First Bank", 52_000_000m, true, null, null, null, null, null).Value;
         if (withDocument)
             collateral.AddDocument("guarantee-letter.pdf", "application/pdf", "path/bg.pdf", 2048);
         return collateral;
@@ -148,7 +148,7 @@ public class AdvanceRhshfProfilingStageGuarantorGateTests
         var profile = ProfileReadyToSubmit();
         var stale = RhshfCollateral.Create(
             profile.Id, profile.ProfilingTargetCycleNumber - 1, RhshfCollateralType.NirsalCrg, Guid.NewGuid(), null,
-            "CRG-OLD", null, null, null, null, null, 75m, null, null, null, null, null).Value;
+            "CRG-OLD", null, null, null, null, null, 75m, null, null, null, null).Value;
 
         var result = await HandlerWithSecurity(profile, stale)
             .Handle(new AdvanceRhshfProfilingStageCommand(profile.Reference, RhshfProfilingStage.ReviewAndSubmit));
