@@ -25,6 +25,7 @@ public class RhshfCollateralConfiguration : IEntityTypeConfiguration<RhshfCollat
         builder.Property(x => x.PerfectionStatus).HasConversion<string>().HasMaxLength(20);
         builder.Property(x => x.PerfectedByUserId);
         builder.Property(x => x.PerfectedAt);
+        builder.Property(x => x.PerfectionNote).HasColumnType("longtext");
 
         builder.HasIndex(x => new { x.RhshfCreditProfileId, x.CycleNumber });
 

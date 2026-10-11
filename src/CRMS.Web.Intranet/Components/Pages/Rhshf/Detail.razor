@@ -106,13 +106,19 @@ else
             }
             @if (CanClearLegally && workspace.InternalStage == RhshfInternalStage.LegalClearance)
             {
-                <button class="btn btn-outline" @onclick='() => openModal = "collateral"'>
-                    <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">security</span> Record Collateral
-                </button>
+                @* No "record collateral" here: the FAC declares its security on the profiling form and
+                   Legal verifies it on the Collateral tab. An instrument the FAC never declared is a
+                   Return to FAC, not something staff type in on their behalf. *@
                 <button class="btn btn-warning" @onclick='() => OpenLegalClearanceModal("Returned")'>Return to FAC</button>
                 <button class="btn btn-danger" @onclick='() => OpenLegalClearanceModal("Declined")'>Decline</button>
                 <button class="btn btn-warning" @onclick='() => OpenLegalClearanceModal("GrantedWithCaveat")'>Grant with Caveat</button>
-                <button class="btn btn-success" @onclick='() => OpenLegalClearanceModal("Granted")'>Grant</button>
+                @* Granting outright asserts the security is fully in place, so it only appears once every
+                   instrument is confirmed. The handler enforces the same rule. *@
+                <button class="btn btn-success" @onclick='() => OpenLegalClearanceModal("Granted")'
+                        disabled="@(!AllCollateralPerfected)"
+                        title="@(AllCollateralPerfected ? null : "Confirm every instrument on the Collateral tab first, or use Grant with Caveat")">
+                    Grant
+                </button>
             }
             @if (CanBookDisbursement && workspace.InternalStage == RhshfInternalStage.PreDeploymentVerification)
             {
@@ -349,10 +355,6 @@ else
             break;
     }
 
-    @if (openModal == "collateral")
-    {
-        <CollateralModal OnClose="CloseModal" OnConfirm="SubmitCollateral" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
-    }
     @if (openModal == "disbursement")
     {
         <DisbursementModal OnClose="CloseModal" OnConfirm="SubmitDisbursement" IsSubmitting="isSubmitting" ErrorMessage="@modalError"
@@ -801,19 +803,6 @@ else
         isFetchingStatement = false;
     }
 
-    private async Task SubmitCollateral(RecordRhshfCollateralCommand command)
-    {
-        isSubmitting = true;
-        modalError = null;
-        // The modal has no knowledge of the case reference or current user — the container fills
-        // in the two things it actually owns.
-        var result = await AppService.RecordRhshfCollateralAsync(command with { Reference = Reference, RecordedBy = CurrentUserId });
-        isSubmitting = false;
-        if (!result.Success) { modalError = result.Error; return; }
-        CloseModal();
-        await LoadAllAsync();
-    }
-
     private async Task UploadCollateralDocument((Guid CollateralId, string FileName, string ContentType, byte[] Content) upload)
     {
         var result = await AppService.AddRhshfCollateralDocumentAsync(upload.CollateralId, upload.FileName, upload.ContentType, upload.Content);
@@ -847,6 +836,11 @@ else
     /// then has to say whether perfection is deferred to pre-disbursement or waived outright.</summary>
     private bool SecurityNotPerfected =>
         collateralRecords.Any(c => c.PerfectionStatus != RhshfCollateralPerfectionStatus.Perfected);
+
+    /// <summary>Every declared instrument confirmed by Legal — the condition for an outright Grant.
+    /// A case with no collateral at all cannot pass either: nothing was declared to perfect.</summary>
+    private bool AllCollateralPerfected =>
+        collateralRecords.Count > 0 && collateralRecords.All(c => c.PerfectionStatus == RhshfCollateralPerfectionStatus.Perfected);
 
     private async Task SubmitCommitteeVote((RhshfCommitteeVoteChoice Vote, string? Comment, RhshfPerfectionDisposition? PerfectionDisposition) input)
     {
@@ -889,12 +883,12 @@ else
     private string? perfectionError;
 
     private async Task SubmitCollateralPerfection(
-        (Guid CollateralId, RhshfCollateralPerfectionStatus Status, string? TitleReference, string? RegistrationAuthority) input)
+        (Guid CollateralId, RhshfCollateralPerfectionStatus Status, string? TitleReference, string? RegistrationAuthority, string? Note) input)
     {
         isSubmitting = true;
         perfectionError = null;
         var result = await AppService.AssertRhshfCollateralPerfectionAsync(
-            Reference, input.CollateralId, CurrentUserId, input.Status, input.TitleReference, input.RegistrationAuthority);
+            Reference, input.CollateralId, CurrentUserId, input.Status, input.TitleReference, input.RegistrationAuthority, input.Note);
         isSubmitting = false;
         if (!result.Success) { perfectionError = result.Error; return; }
         await LoadAllAsync();

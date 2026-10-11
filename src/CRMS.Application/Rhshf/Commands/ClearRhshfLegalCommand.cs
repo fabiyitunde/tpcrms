@@ -19,13 +19,16 @@ public class ClearRhshfLegalHandler : IRequestHandler<ClearRhshfLegalCommand, Ap
 {
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfLegalClearanceRepository _legalRepo;
+    private readonly IRhshfCollateralRepository _collateralRepo;
     private readonly IUnitOfWork _uow;
 
     public ClearRhshfLegalHandler(
-        IRhshfCreditProfileRepository repo, IRhshfLegalClearanceRepository legalRepo, IUnitOfWork uow)
+        IRhshfCreditProfileRepository repo, IRhshfLegalClearanceRepository legalRepo,
+        IRhshfCollateralRepository collateralRepo, IUnitOfWork uow)
     {
         _repo = repo;
         _legalRepo = legalRepo;
+        _collateralRepo = collateralRepo;
         _uow = uow;
     }
 
@@ -34,6 +37,19 @@ public class ClearRhshfLegalHandler : IRequestHandler<ClearRhshfLegalCommand, Ap
         var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
         if (profile is null)
             return ApplicationResult.Failure("Case not found.");
+
+        // A plain Grant asserts that the security is fully in place, so it must actually be: every
+        // declared instrument perfected. Anything less is what GrantedWithCaveat is for — otherwise the
+        // caveat is optional decoration and the committee can't tell the two cases apart.
+        if (request.Outcome == RhshfLegalClearanceOutcome.Granted)
+        {
+            var collateral = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
+            var unperfected = collateral.Count(c => c.PerfectionStatus != RhshfCollateralPerfectionStatus.Perfected);
+            if (unperfected > 0)
+                return ApplicationResult.Failure(
+                    $"{unperfected} of {collateral.Count} security instrument(s) are not marked perfected. " +
+                    "Confirm each one on the Collateral tab, or use \"Grant with Caveat\" to send the case on with the defect documented.");
+        }
 
         var clearanceResult = RhshfLegalClearance.Create(
             profile.Id, profile.CurrentCycleNumber, request.LegalOfficerId, request.Outcome, request.Comments);

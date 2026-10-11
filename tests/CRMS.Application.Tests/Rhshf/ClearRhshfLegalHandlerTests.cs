@@ -38,12 +38,53 @@ public class ClearRhshfLegalHandlerTests
         return profile; // now InternalStage == LegalClearance
     }
 
+    /// <summary>One declared instrument, confirmed — so an outright Grant is allowed.</summary>
+    private static SharedFakeCollateralRepository PerfectedCollateral(RhshfCreditProfile profile)
+        => SharedFakeCollateralRepository.Perfected(profile.Id, profile.CurrentCycleNumber);
+
+    [Fact]
+    public async Task Clear_Granted_IsRefused_WhileAnyInstrumentIsUnperfected()
+    {
+        var profile = MakeProfileAtLegalClearance();
+        var legalRepo = new FakeLegalClearanceRepository();
+        var handler = new ClearRhshfLegalHandler(
+            new FakeProfileRepository(profile), legalRepo,
+            SharedFakeCollateralRepository.NotPerfected(profile.Id, profile.CurrentCycleNumber), new FakeUnitOfWork());
+
+        var result = await handler.Handle(new ClearRhshfLegalCommand(
+            profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Granted, "all clear"));
+
+        // A plain Grant asserts the security is fully in place; anything less is Grant with Caveat.
+        Assert.False(result.IsSuccess);
+        Assert.Contains("not marked perfected", result.Error);
+        Assert.Null(legalRepo.Added);
+        Assert.Equal(RhshfInternalStage.LegalClearance, profile.InternalStage);
+    }
+
+    [Fact]
+    public async Task Clear_GrantedWithCaveat_IsAllowed_WithAnUnperfectedInstrument()
+    {
+        var profile = MakeProfileAtLegalClearance();
+        var legalRepo = new FakeLegalClearanceRepository();
+        var handler = new ClearRhshfLegalHandler(
+            new FakeProfileRepository(profile), legalRepo,
+            SharedFakeCollateralRepository.NotPerfected(profile.Id, profile.CurrentCycleNumber), new FakeUnitOfWork());
+
+        var result = await handler.Handle(new ClearRhshfLegalCommand(
+            profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.GrantedWithCaveat, "charge not yet registered"));
+
+        // This is exactly the route for it — the committee then has to answer for the defect.
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfLegalClearanceOutcome.GrantedWithCaveat, legalRepo.Added!.Outcome);
+        Assert.Equal(RhshfInternalStage.RiskReview, profile.InternalStage);
+    }
+
     [Fact]
     public async Task Clear_Granted_AdvancesToRiskReview_RecordsClearance()
     {
         var profile = MakeProfileAtLegalClearance();
         var legalRepo = new FakeLegalClearanceRepository();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, new FakeUnitOfWork());
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, PerfectedCollateral(profile), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Granted, "all clear"));
@@ -61,7 +102,7 @@ public class ClearRhshfLegalHandlerTests
     {
         var profile = MakeProfileAtLegalClearance();
         var handler = new ClearRhshfLegalHandler(
-            new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeUnitOfWork());
+            new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), PerfectedCollateral(profile), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Granted, "all clear"));
@@ -77,7 +118,7 @@ public class ClearRhshfLegalHandlerTests
         var profile = MakeProfileAtLegalClearance();
         var legalOfficerId = Guid.NewGuid();
         var legalRepo = new FakeLegalClearanceRepository();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, new FakeUnitOfWork());
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), legalRepo, PerfectedCollateral(profile), new FakeUnitOfWork());
 
         await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, legalOfficerId, RhshfLegalClearanceOutcome.Granted, null));
@@ -90,7 +131,7 @@ public class ClearRhshfLegalHandlerTests
     public async Task Clear_Returned_GoesBackToTheFac_AtTheRequestedStage()
     {
         var profile = MakeProfileAtLegalClearance();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeUnitOfWork());
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), PerfectedCollateral(profile), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Returned, "fix the deed",
@@ -107,7 +148,7 @@ public class ClearRhshfLegalHandlerTests
     public async Task Clear_Declined_IsTerminal()
     {
         var profile = MakeProfileAtLegalClearance();
-        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), new FakeUnitOfWork());
+        var handler = new ClearRhshfLegalHandler(new FakeProfileRepository(profile), new FakeLegalClearanceRepository(), PerfectedCollateral(profile), new FakeUnitOfWork());
 
         var result = await handler.Handle(new ClearRhshfLegalCommand(
             profile.Reference, Guid.NewGuid(), RhshfLegalClearanceOutcome.Declined, "title dispute"));

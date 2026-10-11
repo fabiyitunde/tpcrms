@@ -14,7 +14,8 @@ namespace CRMS.Application.Rhshf.Commands;
 /// </summary>
 public record AssertRhshfCollateralPerfectionCommand(
     string Reference, Guid CollateralId, Guid LegalOfficerId, RhshfCollateralPerfectionStatus Status,
-    string? TitleReferenceNumber = null, string? RegistrationAuthority = null) : IRequest<ApplicationResult>;
+    string? TitleReferenceNumber = null, string? RegistrationAuthority = null,
+    string? PerfectionNote = null) : IRequest<ApplicationResult>;
 
 public class AssertRhshfCollateralPerfectionHandler : IRequestHandler<AssertRhshfCollateralPerfectionCommand, ApplicationResult>
 {

@@ -15,7 +15,7 @@ public record RhshfCollateralDto(
     decimal? CrgCoveragePercentage,
     string? PropertyDescription, decimal? PropertyValue, string? TitleReferenceNumber,
     string? RegistrationAuthority, RhshfCollateralPerfectionStatus? PerfectionStatus,
-    Guid? PerfectedByUserId, string? PerfectedByName, DateTime? PerfectedAt,
+    Guid? PerfectedByUserId, string? PerfectedByName, DateTime? PerfectedAt, string? PerfectionNote,
     List<RhshfCollateralDocumentDto> Documents);
 
 public class GetRhshfCollateralHandler : IRequestHandler<GetRhshfCollateralQuery, ApplicationResult<List<RhshfCollateralDto>>>
@@ -49,7 +49,7 @@ public class GetRhshfCollateralHandler : IRequestHandler<GetRhshfCollateralQuery
             c.PropertyDescription, c.PropertyValue, c.TitleReferenceNumber, c.RegistrationAuthority, c.PerfectionStatus,
             c.PerfectedByUserId,
             c.PerfectedByUserId.HasValue && names.TryGetValue(c.PerfectedByUserId.Value, out var pn) ? pn : null,
-            c.PerfectedAt,
+            c.PerfectedAt, c.PerfectionNote,
             c.Documents.Select(d => new RhshfCollateralDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt)).ToList()))
             .ToList();
 

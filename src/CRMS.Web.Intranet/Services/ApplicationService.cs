@@ -7335,14 +7335,14 @@ public partial class ApplicationService
     public async Task<ApiResponse> AssertRhshfCollateralPerfectionAsync(
         string reference, Guid collateralId, Guid legalOfficerId,
         CRMS.Domain.Enums.RhshfCollateralPerfectionStatus status,
-        string? titleReferenceNumber = null, string? registrationAuthority = null)
+        string? titleReferenceNumber = null, string? registrationAuthority = null, string? perfectionNote = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.AssertRhshfCollateralPerfectionHandler>();
             var result = await handler.Handle(
                 new CRMS.Application.Rhshf.Commands.AssertRhshfCollateralPerfectionCommand(
-                    reference, collateralId, legalOfficerId, status, titleReferenceNumber, registrationAuthority),
+                    reference, collateralId, legalOfficerId, status, titleReferenceNumber, registrationAuthority, perfectionNote),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Recording perfection failed");
         }

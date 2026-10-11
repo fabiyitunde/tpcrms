@@ -6093,6 +6093,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("PerfectedByUserId")
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("PerfectionNote")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("PerfectionStatus")
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");

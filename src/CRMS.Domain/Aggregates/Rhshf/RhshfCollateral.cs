@@ -45,6 +45,11 @@ public class RhshfCollateral : AggregateRoot
     public Guid? PerfectedByUserId { get; private set; }
     public DateTime? PerfectedAt { get; private set; }
 
+    /// <summary>The Legal Officer's own note on THIS instrument — what they sighted, what they could
+    /// not, any caveat. Kept separate from Notes, which belongs to the FAC that declared the
+    /// instrument: an officer must never overwrite what the applicant said.</summary>
+    public string? PerfectionNote { get; private set; }
+
     private readonly List<RhshfCollateralDocument> _documents = [];
     public IReadOnlyCollection<RhshfCollateralDocument> Documents => _documents.AsReadOnly();
 
@@ -109,7 +114,7 @@ public class RhshfCollateral : AggregateRoot
     /// </summary>
     public Result AssertPerfection(
         Guid legalOfficerId, RhshfCollateralPerfectionStatus status,
-        string? titleReferenceNumber = null, string? registrationAuthority = null)
+        string? titleReferenceNumber = null, string? registrationAuthority = null, string? perfectionNote = null)
     {
         if (legalOfficerId == Guid.Empty)
             return Result.Failure("The asserting Legal Officer is required.");
@@ -122,6 +127,8 @@ public class RhshfCollateral : AggregateRoot
             TitleReferenceNumber = titleReferenceNumber;
         if (!string.IsNullOrWhiteSpace(registrationAuthority))
             RegistrationAuthority = registrationAuthority;
+        if (!string.IsNullOrWhiteSpace(perfectionNote))
+            PerfectionNote = perfectionNote;
 
         PerfectionStatus = status;
         if (status == RhshfCollateralPerfectionStatus.Perfected)

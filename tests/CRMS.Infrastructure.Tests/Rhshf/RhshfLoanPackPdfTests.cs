@@ -121,6 +121,7 @@ public class RhshfLoanPackPdfTests
                 Guid.NewGuid(), "Chidi Officer", DateTime.UtcNow, "Clean BG.",
                 "First Bank", 15_000_000m, true, null, null, null, null, null,
                 RhshfCollateralPerfectionStatus.Perfected, Guid.NewGuid(), "Lara Legal", DateTime.UtcNow,
+                "Charge registered at the Kano registry.",
                 new List<RhshfCollateralDocumentDto>()),
         };
 

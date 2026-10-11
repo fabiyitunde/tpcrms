@@ -5,9 +5,14 @@ using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Rhshf.Commands;
 
-/// <summary>Records one collateral instrument (S/N 16 — Bank Guarantee, NIRSAL CRG, or Legal
-/// Mortgage) for the case's current cycle — recorded by the Legal Officer as part of Legal
-/// Clearance. A case may carry more than one instrument, so this can be called repeatedly.</summary>
+/// <summary>
+/// Records one collateral instrument (S/N 16 — Bank Guarantee, NIRSAL CRG, or Legal Mortgage) for the
+/// case's current cycle.
+/// NO UI PATH as of 2026-10-11, deliberately: the FAC declares its own security on the profiling form
+/// (AddRhshfProfilingCollateralCommand) and staff verify it — they do not enter it on the applicant's
+/// behalf. An instrument the FAC never declared is a Return to FAC. Kept for an admin/API caller, but
+/// do not wire it back into the staff UI without revisiting that decision.
+/// </summary>
 public record RecordRhshfCollateralCommand(
     string Reference, Guid RecordedBy, RhshfCollateralType Type, string? Notes,
     string? ReferenceNumber, DateTime? IssuedDate, DateTime? ExpiryDate,
