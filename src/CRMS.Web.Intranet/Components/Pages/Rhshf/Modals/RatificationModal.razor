@@ -1,15 +1,117 @@
 @using CRMS.Domain.Enums
+@using CRMS.Application.Rhshf.Queries
 
 <div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
-    <div class="modal" style="max-width: 480px;" @onclick:stopPropagation>
+    <div class="modal" style="max-width: 640px; max-height: 90vh; display: flex; flex-direction: column;" @onclick:stopPropagation>
         <div class="modal-header">
             <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">task_alt</span>@Title</h3>
             <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
         </div>
-        <div class="modal-body">
-            @if (Intent == "Ratified")
+        <div class="modal-body" style="overflow-y: auto; flex: 1;">
+            @* The ratifier is the last credit decision on this facility, so the facts it rests on belong
+               in front of them — not one tab away. Everything here is already loaded by the page. *@
+            <div style="border: 1px solid var(--gray-200); border-radius: 6px; padding: 12px; margin-bottom: 1rem; background: var(--gray-50);">
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.85rem;">
+                    <div style="color: var(--gray-600);">Borrower</div><div><strong>@CompanyName</strong></div>
+                    <div style="color: var(--gray-600);">Reference</div><div>@Reference</div>
+                    @if (FarmerCount is > 0)
+                    {
+                        <div style="color: var(--gray-600);">Farmers</div><div>@FarmerCount.Value.ToString("N0")</div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(CommitteeTier))
+                    {
+                        <div style="color: var(--gray-600);">Committee</div>
+                        <div>@CommitteeTier@(string.IsNullOrWhiteSpace(CommitteeTierBand) ? "" : $" · {CommitteeTierBand}")</div>
+                    }
+                    @if (Report is not null)
+                    {
+                        <div style="color: var(--gray-600);">Interest rate</div><div>@Report.InterestRatePercent.ToString("0.##")% for the cycle</div>
+                        <div style="color: var(--gray-600);">Crop cycle</div><div>@Report.CycleMonths month@(Report.CycleMonths == 1 ? "" : "s")</div>
+                        <div style="color: var(--gray-600);">Repayable at harvest</div><div>@Currency @Report.AmountDueAtHarvest.ToString("N2")</div>
+                    }
+                </div>
+
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-200);">
+                    <div style="color: var(--gray-600); font-size: 0.78rem;">Facility to ratify</div>
+                    <div style="font-size: 1.35rem; font-weight: 700; color: var(--primary, #14532d);">@Currency @TotalEopValue.ToString("N2")</div>
+                    <div style="color: var(--gray-500); font-size: 0.74rem;">Must equal the total EOP value exactly — RH-SHF has no partial approval.</div>
+                </div>
+            </div>
+
+            @if (Report is not null)
             {
-                <p class="text-muted">Approved amount must equal the total EOP value exactly — <strong>@Currency @TotalEopValue.ToString("N2")</strong>.</p>
+                @* The credit case in five numbers, with the officer's own read on it. *@
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 1rem;">
+                    @MetricTile("DSCR", Report.Dscr.ToString("0.00"), Report.DscrPass)
+                    @MetricTile("Gross margin", $"{Report.GrossMarginPercent:0.#}%", Report.GrossMarginPass)
+                    @MetricTile("IRR", $"{Report.Irr:0.#}%", Report.IrrPass)
+                    @MetricTile("Yield headroom", $"{Report.YieldHeadroomPercent:0.#}%", Report.YieldHeadroomPass)
+                    @MetricTile("Price headroom", $"{Report.PriceHeadroomPercent:0.#}%", Report.PriceHeadroomPass)
+                </div>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.85rem; margin-bottom: 1rem;">
+                    <div style="color: var(--gray-600);">Appraisal gates</div>
+                    <div>
+                        <span class="badge @(Report.AllGatesPass ? "badge-success" : "badge-warning")">@Report.GatesPassed of 5 passed</span>
+                    </div>
+                    <div style="color: var(--gray-600);">Repayment capacity</div><div>@Report.RepaymentCapacityRating</div>
+                    <div style="color: var(--gray-600);">Credit officer</div>
+                    <div>@Report.CreditOfficerRecommendation@(string.IsNullOrWhiteSpace(Report.PreparedByName) ? "" : $" · {Report.PreparedByName}")</div>
+                </div>
+            }
+
+            @* Who has already signed off, and on what basis — the ratifier is checking the chain, not
+               re-deriving it. Legal runs before the committee now, so its caveat matters here. *@
+            <div style="border-left: 3px solid var(--gray-200); padding-left: 10px; margin-bottom: 1rem; font-size: 0.85rem;">
+                @if (LegalClearance is not null)
+                {
+                    <div style="margin-bottom: 4px;">
+                        <span style="color: var(--gray-600);">Legal:</span>
+                        <strong>@LegalClearance.Outcome</strong>
+                        <span style="color: var(--gray-500);">· @LegalClearance.LegalOfficerName</span>
+                        @if (!string.IsNullOrWhiteSpace(LegalClearance.Comments))
+                        {
+                            <div style="color: var(--gray-700); font-style: italic;">&ldquo;@LegalClearance.Comments&rdquo;</div>
+                        }
+                    </div>
+                }
+                @if (Committee is not null)
+                {
+                    <div>
+                        <span style="color: var(--gray-600);">Committee:</span>
+                        <strong>@(Committee.FinalDecision?.ToString() ?? "Voting")</strong>
+                        <span style="color: var(--gray-500);">
+                            · @Committee.Votes.Count(v => v.Vote == RhshfCommitteeVoteChoice.Approve) of @Committee.Votes.Count approved
+                        </span>
+                        @if (Committee.PerfectionDisposition is not null)
+                        {
+                            <span class="badge @(Committee.PerfectionDisposition == RhshfPerfectionDisposition.Deferred ? "badge-warning" : "badge-danger")" style="margin-left: 6px;">
+                                @(Committee.PerfectionDisposition == RhshfPerfectionDisposition.Deferred
+                                    ? "approved with perfection deferred" : "approved with perfection waived")
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (Collateral.Count > 0)
+            {
+                var secured = Collateral.Sum(c => c.Type == RhshfCollateralType.BankGuarantee ? c.GuaranteeAmount ?? 0
+                    : c.Type == RhshfCollateralType.LegalMortgage ? c.PropertyValue ?? 0 : 0);
+                var perfected = Collateral.Count(c => c.PerfectionStatus == RhshfCollateralPerfectionStatus.Perfected);
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.85rem; margin-bottom: 1rem;">
+                    <div style="color: var(--gray-600);">Security</div>
+                    <div>
+                        @Collateral.Count instrument(s), @perfected perfected
+                        @if (secured > 0)
+                        {
+                            <span style="color: var(--gray-500);">· @Currency @secured.ToString("N2") covered</span>
+                        }
+                        @if (perfected < Collateral.Count)
+                        {
+                            <span class="badge badge-warning" style="margin-left: 6px;">not fully perfected</span>
+                        }
+                    </div>
+                </div>
             }
             <div class="form-group">
                 <label class="form-label">Notes @(RequiresNotes ? "(required)" : "(optional)")</label>
@@ -46,6 +148,37 @@
     [Parameter, EditorRequired] public string Intent { get; set; } = "Ratified";
     [Parameter] public decimal TotalEopValue { get; set; }
     [Parameter] public string Currency { get; set; } = "NGN";
+
+    // Context for the decision. All of it is already loaded by the Detail page, so showing it here
+    // costs nothing extra — the ratifier just shouldn't have to leave the modal to find it.
+    [Parameter] public string? CompanyName { get; set; }
+    [Parameter] public string? Reference { get; set; }
+    [Parameter] public int? FarmerCount { get; set; }
+    [Parameter] public string? CommitteeTier { get; set; }
+    [Parameter] public string? CommitteeTierBand { get; set; }
+    [Parameter] public RhshfAppraisalReportDto? Report { get; set; }
+    [Parameter] public RhshfCommitteeReviewDto? Committee { get; set; }
+    [Parameter] public RhshfLegalClearanceDto? LegalClearance { get; set; }
+    [Parameter] public List<RhshfCollateralDto> Collateral { get; set; } = [];
+
+    /// <summary>A figure with its own pass/fail colour, so a failing gate can't hide in a grid.</summary>
+    private static RenderFragment MetricTile(string label, string value, bool pass) => __builder =>
+    {
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "style",
+            "border: 1px solid " + (pass ? "var(--success-200, #bbf7d0)" : "#fed7aa") + "; " +
+            "background: " + (pass ? "var(--success-50, #f0fdf4)" : "#fff7ed") + "; " +
+            "border-radius: 6px; padding: 8px 10px;");
+        __builder.OpenElement(2, "div");
+        __builder.AddAttribute(3, "style", "font-size: 0.7rem; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.04em;");
+        __builder.AddContent(4, label);
+        __builder.CloseElement();
+        __builder.OpenElement(5, "div");
+        __builder.AddAttribute(6, "style", "font-weight: 700; font-size: 0.95rem; color: " + (pass ? "var(--primary, #14532d)" : "#b45309") + ";");
+        __builder.AddContent(7, value);
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<(RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage)> OnConfirm { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
