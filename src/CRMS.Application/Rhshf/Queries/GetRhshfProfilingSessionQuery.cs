@@ -64,7 +64,7 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
             BureauTotalOutstanding: profile.BureauTotalOutstanding,
             BureauTotalOverdue: profile.BureauTotalOverdue,
             SupportingDocuments: profile.SupportingDocuments
-                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt) { Category = d.Category })
+                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt) { Category = d.Category, ContentType = d.ContentType })
                 .ToList(),
             DocumentRequirements: requirements
                 .Select(r => new RhshfDocumentRequirementStatusDto(
@@ -92,7 +92,7 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
                 .Select(c => new RhshfProfilingCollateralDto(
                     c.Id, c.Type, c.ReferenceNumber, c.GuarantorBankName, c.GuaranteeAmount,
                     c.CrgCoveragePercentage, c.PropertyDescription, c.PropertyValue, c.Notes,
-                    c.Documents.Select(d => new RhshfProfilingCollateralDocumentDto(d.Id, d.FileName, d.SizeBytes)).ToList()))
+                    c.Documents.Select(d => new RhshfProfilingCollateralDocumentDto(d.Id, d.FileName, d.SizeBytes, d.ContentType)).ToList()))
                 .ToList(),
             IsAwaitingOfferAcceptance: await IsAwaitingOfferAcceptanceAsync(profile, ct));
 

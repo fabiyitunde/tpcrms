@@ -1,6 +1,7 @@
 @page "/rhshf/profiling/{reference}"
 @model CRMS.Web.Intranet.Pages.Rhshf.ProfilingModel
 @using CRMS.Domain.Enums
+@using CRMS.Application.Rhshf.Queries
 @{
     ViewData["Title"] = "Credit Profiling";
 }
@@ -345,12 +346,23 @@ else
                                     <div class="border-top mt-2 pt-2">
                                         @if (c.Documents.Count > 0)
                                         {
-                                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                            <ul class="list-unstyled mb-2">
                                                 @foreach (var doc in c.Documents)
                                                 {
-                                                    <span class="badge bg-light text-dark border fw-normal"><i class="bi bi-paperclip"></i> @doc.FileName <span class="text-muted">(@((doc.SizeBytes / 1024.0).ToString("N0")) KB)</span></span>
+                                                    <li class="d-flex align-items-center gap-2 mb-1">
+                                                        <span class="badge bg-light text-dark border fw-normal flex-grow-1 text-start">
+                                                            @doc.FileName <span class="text-muted">(@((doc.SizeBytes / 1024.0).ToString("N0")) KB)</span>
+                                                        </span>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                                data-preview-name="@doc.FileName"
+                                                                data-preview-type="@doc.ContentType"
+                                                                data-preview-src="@Url.Page("Profiling", "PreviewDocument", new { reference = Model.Session.Reference, documentId = doc.Id, kind = RhshfFacDocumentKind.Collateral })"
+                                                                data-preview-download="@Url.Page("Profiling", "DownloadDocument", new { reference = Model.Session.Reference, documentId = doc.Id, kind = RhshfFacDocumentKind.Collateral })">View</button>
+                                                        <a class="btn btn-sm btn-outline-secondary"
+                                                           href="@Url.Page("Profiling", "DownloadDocument", new { reference = Model.Session.Reference, documentId = doc.Id, kind = RhshfFacDocumentKind.Collateral })">Download</a>
+                                                    </li>
                                                 }
-                                            </div>
+                                            </ul>
                                         }
                                         else
                                         {
@@ -645,6 +657,13 @@ else
                                         </span>
                                         <span class="d-flex gap-2 align-items-center">
                                             <span class="text-muted small">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</span>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                    data-preview-name="@doc.FileName"
+                                                    data-preview-type="@doc.ContentType"
+                                                    data-preview-src="@Url.Page("Profiling", "PreviewDocument", new { reference = Model.Session.Reference, documentId = doc.Id, kind = RhshfFacDocumentKind.Supporting })"
+                                                    data-preview-download="@Url.Page("Profiling", "DownloadDocument", new { reference = Model.Session.Reference, documentId = doc.Id, kind = RhshfFacDocumentKind.Supporting })">View</button>
+                                            <a class="btn btn-sm btn-outline-secondary"
+                                               href="@Url.Page("Profiling", "DownloadDocument", new { reference = Model.Session.Reference, documentId = doc.Id, kind = RhshfFacDocumentKind.Supporting })">Download</a>
                                             <form method="post" asp-page-handler="RemoveDocument">
                                                 <input type="hidden" name="reference" value="@Model.Session.Reference" />
                                                 <input type="hidden" name="documentId" value="@doc.Id" />
@@ -792,3 +811,90 @@ else
         </div>
     </div>
 }
+
+@* ── Document preview ──────────────────────────────────────────────────────────────────────────
+   One modal shared by every View button on the page (collateral documents and supporting
+   documents). The button carries the file's name, content type and URLs as data- attributes; the
+   script below picks an inline viewer for PDFs and images and falls back to a download prompt for
+   anything a browser can't render, like .docx. Nothing here changes how files are uploaded or
+   removed — it only reads back what is already on file. *@
+<div class="modal fade" id="docPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-truncate" id="docPreviewTitle">Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="min-height: 60vh;">
+                <iframe id="docPreviewFrame" title="Document preview" class="w-100 d-none" style="height: 60vh; border: 0;"></iframe>
+                <img id="docPreviewImage" alt="Document preview" class="img-fluid d-none" />
+                <div id="docPreviewUnsupported" class="d-none text-center text-muted py-5">
+                    <p class="mb-1">This file type can't be previewed in the browser.</p>
+                    <p class="small mb-0">Use <strong>Download</strong> below to open it on your device.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a id="docPreviewDownload" class="btn btn-outline-success" href="#">Download</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var modalEl = document.getElementById('docPreviewModal');
+        if (!modalEl) return;
+
+        var frame = document.getElementById('docPreviewFrame');
+        var image = document.getElementById('docPreviewImage');
+        var unsupported = document.getElementById('docPreviewUnsupported');
+        var title = document.getElementById('docPreviewTitle');
+        var download = document.getElementById('docPreviewDownload');
+        var modal = new bootstrap.Modal(modalEl);
+
+        function reset() {
+            [frame, image, unsupported].forEach(function (el) { el.classList.add('d-none'); });
+            frame.src = 'about:blank';
+            image.removeAttribute('src');
+        }
+
+        document.querySelectorAll('[data-preview-src]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                reset();
+                var type = (btn.getAttribute('data-preview-type') || '').toLowerCase();
+                var src = btn.getAttribute('data-preview-src');
+                var name = btn.getAttribute('data-preview-name') || 'Document';
+
+                title.textContent = name;
+                download.href = btn.getAttribute('data-preview-download');
+
+                if (type.indexOf('pdf') !== -1) {
+                    frame.src = src;
+                    frame.classList.remove('d-none');
+                } else if (type.indexOf('image/') === 0) {
+                    image.src = src;
+                    image.classList.remove('d-none');
+                } else {
+                    // Content type can be missing or generic on older uploads — fall back on the
+                    // file extension before giving up, so a .pdf still previews.
+                    var lower = name.toLowerCase();
+                    if (lower.endsWith('.pdf')) {
+                        frame.src = src;
+                        frame.classList.remove('d-none');
+                    } else if (/\.(png|jpe?g|gif|webp|bmp)$/.test(lower)) {
+                        image.src = src;
+                        image.classList.remove('d-none');
+                    } else {
+                        unsupported.classList.remove('d-none');
+                    }
+                }
+
+                modal.show();
+            });
+        });
+
+        // Don't leave a loaded PDF/image in memory (or a stale frame) behind a closed modal.
+        modalEl.addEventListener('hidden.bs.modal', reset);
+    })();
+</script>

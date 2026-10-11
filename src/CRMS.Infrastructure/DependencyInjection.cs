@@ -711,6 +711,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.RefreshRhshfTokenHandler>();
         services.AddScoped<Application.Rhshf.Commands.VerifyRhshfProfilingTokenHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfProfilingSessionHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfFacDocumentFileHandler>();
         services.AddScoped<Application.Rhshf.Commands.EnsureRhshfBureauCheckHandler>();
         services.AddScoped<Application.Rhshf.Commands.AdvanceRhshfProfilingStageHandler>();
         services.AddScoped<Application.Rhshf.Commands.GoToRhshfProfilingStageHandler>();

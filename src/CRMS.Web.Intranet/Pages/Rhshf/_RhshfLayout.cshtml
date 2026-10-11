@@ -19,5 +19,8 @@
         <div class="rhshf-brand">Bank of Agriculture · RH-SHF Credit Profiling</div>
         @RenderBody()
     </div>
+    @* Bootstrap JS is needed for the document-preview modal on the profiling form. The bundle is
+       already vendored in wwwroot; this is still plain Razor Pages, no Blazor circuit. *@
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

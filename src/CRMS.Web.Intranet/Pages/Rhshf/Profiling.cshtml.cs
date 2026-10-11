@@ -30,6 +30,7 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly AddRhshfProfilingCollateralHandler _addCollateralHandler;
     private readonly RemoveRhshfProfilingCollateralHandler _removeCollateralHandler;
     private readonly UploadRhshfProfilingCollateralDocumentHandler _uploadCollateralDocHandler;
+    private readonly GetRhshfFacDocumentFileHandler _documentFileHandler;
 
     public ProfilingModel(
         VerifyRhshfProfilingTokenHandler verifyHandler,
@@ -49,7 +50,8 @@ public class ProfilingModel : RhshfPublicPageModel
         RemoveRhshfGuarantorHandler removeGuarantorHandler,
         AddRhshfProfilingCollateralHandler addCollateralHandler,
         RemoveRhshfProfilingCollateralHandler removeCollateralHandler,
-        UploadRhshfProfilingCollateralDocumentHandler uploadCollateralDocHandler)
+        UploadRhshfProfilingCollateralDocumentHandler uploadCollateralDocHandler,
+        GetRhshfFacDocumentFileHandler documentFileHandler)
         : base(verifyHandler)
     {
         _sessionHandler = sessionHandler;
@@ -69,6 +71,7 @@ public class ProfilingModel : RhshfPublicPageModel
         _addCollateralHandler = addCollateralHandler;
         _removeCollateralHandler = removeCollateralHandler;
         _uploadCollateralDocHandler = uploadCollateralDocHandler;
+        _documentFileHandler = documentFileHandler;
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
@@ -172,6 +175,38 @@ public class ProfilingModel : RhshfPublicPageModel
             ErrorMessage = result.Error;
 
         return RedirectToPage(new { reference });
+    }
+
+    // ── Reading back an upload ────────────────────────────────────────────────────────────────────
+    // The FAC could attach and delete files but never see what was actually on file — which matters
+    // now that submission requires a document on every security instrument. Preview serves inline (an
+    // iframe/img in a modal on the page), download serves as an attachment. Both go through the
+    // case-scoped query, so a document id from another case is refused even with a valid session; the
+    // staff /api/rhshf-*-documents routes are deliberately NOT reused here, since those carry no auth.
+
+    public Task<IActionResult> OnGetPreviewDocumentAsync(string reference, Guid documentId, RhshfFacDocumentKind kind, CancellationToken ct)
+        => ServeDocumentAsync(reference, documentId, kind, asAttachment: false, ct);
+
+    public Task<IActionResult> OnGetDownloadDocumentAsync(string reference, Guid documentId, RhshfFacDocumentKind kind, CancellationToken ct)
+        => ServeDocumentAsync(reference, documentId, kind, asAttachment: true, ct);
+
+    private async Task<IActionResult> ServeDocumentAsync(
+        string reference, Guid documentId, RhshfFacDocumentKind kind, bool asAttachment, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _documentFileHandler.Handle(new GetRhshfFacDocumentFileQuery(reference, documentId, kind), ct);
+        if (!result.IsSuccess || result.Data is null)
+            return NotFound(result.Error ?? "Document not found.");
+
+        var file = result.Data;
+        if (asAttachment)
+            return File(file.Content, file.ContentType, file.FileName);
+
+        // Inline, so the browser's own PDF/image viewer renders it inside the modal's frame.
+        Response.Headers.ContentDisposition = $"inline; filename=\"{file.FileName}\"";
+        return File(file.Content, file.ContentType);
     }
 
     public async Task<IActionResult> OnPostAddDirectorAsync(

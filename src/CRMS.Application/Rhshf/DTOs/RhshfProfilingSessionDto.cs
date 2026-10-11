@@ -51,6 +51,10 @@ public record RhshfProfilingSessionDto(
 
 public record RhshfSupportingDocumentDto(Guid Id, string FileName, long SizeBytes, DateTime UploadedAt)
 {
+    /// <summary>Defaulted for the same reason as Category — only the FAC preview needs it, to pick
+    /// between an inline viewer and a download-only message.</summary>
+    public string ContentType { get; init; } = "";
+
     /// <summary>Defaulted so existing staff-side callers that don't care about categories are
     /// unaffected.</summary>
     public RhshfDocumentCategory Category { get; init; } = RhshfDocumentCategory.Other;
@@ -77,4 +81,4 @@ public record RhshfProfilingCollateralDto(
     string? PropertyDescription, decimal? PropertyValue, string? Notes,
     List<RhshfProfilingCollateralDocumentDto> Documents);
 
-public record RhshfProfilingCollateralDocumentDto(Guid Id, string FileName, long SizeBytes);
+public record RhshfProfilingCollateralDocumentDto(Guid Id, string FileName, long SizeBytes, string ContentType = "");
