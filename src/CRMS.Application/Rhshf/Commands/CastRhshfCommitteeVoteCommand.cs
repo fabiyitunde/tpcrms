@@ -6,8 +6,13 @@ namespace CRMS.Application.Rhshf.Commands;
 
 /// <summary>Committee member's vote (design doc §3.6, Phase 5). Propagates the tally result to the
 /// RhshfCreditProfile the moment quorum is reached — both aggregates save in one transaction since
-/// they share the same DbContext instance for this request.</summary>
-public record CastRhshfCommitteeVoteCommand(string Reference, Guid UserId, RhshfCommitteeVoteChoice Vote, string? Comment)
+/// they share the same DbContext instance for this request.
+/// PerfectionDisposition is required on an approving vote when the Legal Officer did not perfect the
+/// security: the voter says whether perfection must still happen before disbursement (Deferred) or
+/// is being waived.</summary>
+public record CastRhshfCommitteeVoteCommand(
+    string Reference, Guid UserId, RhshfCommitteeVoteChoice Vote, string? Comment,
+    RhshfPerfectionDisposition? PerfectionDisposition = null)
     : IRequest<ApplicationResult>;
 
 public class CastRhshfCommitteeVoteHandler : IRequestHandler<CastRhshfCommitteeVoteCommand, ApplicationResult>
@@ -16,17 +21,19 @@ public class CastRhshfCommitteeVoteHandler : IRequestHandler<CastRhshfCommitteeV
     private readonly IRhshfCommitteeReviewRepository _committeeRepo;
     private readonly IStandingCommitteeRepository _standingCommitteeRepo;
     private readonly IRhshfLegalClearanceRepository _legalRepo;
+    private readonly IRhshfCollateralRepository _collateralRepo;
     private readonly IUnitOfWork _uow;
 
     public CastRhshfCommitteeVoteHandler(
         IRhshfCreditProfileRepository repo, IRhshfCommitteeReviewRepository committeeRepo,
         IStandingCommitteeRepository standingCommitteeRepo, IRhshfLegalClearanceRepository legalRepo,
-        IUnitOfWork uow)
+        IRhshfCollateralRepository collateralRepo, IUnitOfWork uow)
     {
         _repo = repo;
         _committeeRepo = committeeRepo;
         _standingCommitteeRepo = standingCommitteeRepo;
         _legalRepo = legalRepo;
+        _collateralRepo = collateralRepo;
         _uow = uow;
     }
 
@@ -55,7 +62,15 @@ public class CastRhshfCommitteeVoteHandler : IRequestHandler<CastRhshfCommitteeV
         var clearances = await _legalRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
         excludedActorIds.AddRange(clearances.Select(c => c.LegalOfficerId));
 
-        var voteResult = review.CastVote(request.UserId, request.Vote, request.Comment, excludedActorIds);
+        // Whether the committee has to answer the perfection question at all: Legal either perfected
+        // everything before circulating, or forwarded with a caveat. Collateral is a separate
+        // aggregate, so the state is resolved here and handed to the review.
+        var collateral = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
+        var perfectionRequired = collateral.Any(c => c.PerfectionStatus != RhshfCollateralPerfectionStatus.Perfected);
+
+        var voteResult = review.CastVote(
+            request.UserId, request.Vote, request.Comment, excludedActorIds,
+            perfectionRequired, request.PerfectionDisposition);
         if (voteResult.IsFailure)
             return ApplicationResult.Failure(voteResult.Error);
 

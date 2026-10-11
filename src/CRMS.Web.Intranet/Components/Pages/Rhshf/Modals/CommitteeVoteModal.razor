@@ -23,6 +23,26 @@
                     </select>
                 </div>
             }
+            @if (Intent == "Approve" && PerfectionRequired)
+            {
+                @* Legal forwarded this case with the security not (or not fully) perfected. An approval
+                   has to say which of the two things it means — the obligation must not evaporate. *@
+                <div class="alert alert-warning" style="margin-bottom: var(--space-3);">
+                    <strong>Security is not perfected.</strong>
+                    @if (!string.IsNullOrWhiteSpace(LegalCaveat))
+                    {
+                        <div style="margin-top: 0.3rem; font-size: var(--text-sm);">Legal noted: &ldquo;@LegalCaveat&rdquo;</div>
+                    }
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Approving on what basis? (required)</label>
+                    <select class="form-control" @bind="perfectionDisposition">
+                        <option value="">— choose —</option>
+                        <option value="@RhshfPerfectionDisposition.Deferred">Perfect the security before disbursement (blocks the gate)</option>
+                        <option value="@RhshfPerfectionDisposition.Waived">Waive perfection — approve without it</option>
+                    </select>
+                </div>
+            }
             @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
             {
                 <div class="alert alert-danger">@(ErrorMessage ?? clientError)</div>
@@ -41,14 +61,21 @@
 @code {
     [Parameter, EditorRequired] public string Intent { get; set; } = "Approve";
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback<(RhshfCommitteeVoteChoice Vote, string? Comment)> OnVote { get; set; }
+    [Parameter] public EventCallback<(RhshfCommitteeVoteChoice Vote, string? Comment, RhshfPerfectionDisposition? PerfectionDisposition)> OnVote { get; set; }
     [Parameter] public EventCallback<(string Notes, RhshfProfilingStage ReturnToStage)> OnReturnToFac { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
 
+    /// <summary>True when at least one declared instrument is not marked perfected, so an approving
+    /// vote has to state whether perfection is deferred or waived.</summary>
+    [Parameter] public bool PerfectionRequired { get; set; }
+    /// <summary>Legal's comment when they forwarded with a caveat — shown so the voter sees why.</summary>
+    [Parameter] public string? LegalCaveat { get; set; }
+
     private string notes = string.Empty;
     private string? clientError;
     private RhshfProfilingStage returnToStage = RhshfProfilingStage.ReviewAndSubmit;
+    private RhshfPerfectionDisposition? perfectionDisposition;
 
     private string Title => Intent switch { "ReturnToFac" => "Return to FAC", "Reject" => "Cast Reject Vote", "Abstain" => "Cast Abstain Vote", _ => "Cast Approve Vote" };
     private string ConfirmLabel => Intent switch { "ReturnToFac" => "Return to FAC", _ => $"Confirm {Intent}" };
@@ -68,8 +95,17 @@
             return;
         }
 
-        clientError = null;
         var vote = Enum.Parse<RhshfCommitteeVoteChoice>(Intent);
-        await OnVote.InvokeAsync((vote, string.IsNullOrWhiteSpace(notes) ? null : notes));
+        if (vote == RhshfCommitteeVoteChoice.Approve && PerfectionRequired && perfectionDisposition is null)
+        {
+            clientError = "Say whether perfection must happen before disbursement, or is being waived.";
+            return;
+        }
+
+        clientError = null;
+        await OnVote.InvokeAsync((
+            vote,
+            string.IsNullOrWhiteSpace(notes) ? null : notes,
+            vote == RhshfCommitteeVoteChoice.Approve ? perfectionDisposition : null));
     }
 }

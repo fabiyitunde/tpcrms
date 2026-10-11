@@ -1,4 +1,5 @@
 using CRMS.Application.Common;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Rhshf.Commands;
@@ -18,15 +19,18 @@ public class AcceptRhshfOfferHandler : IRequestHandler<AcceptRhshfOfferCommand, 
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfOfferRepository _offerRepo;
     private readonly IRhshfPreDeploymentChecklistTemplateRepository _templateRepo;
+    private readonly IRhshfCommitteeReviewRepository _committeeRepo;
     private readonly IUnitOfWork _uow;
 
     public AcceptRhshfOfferHandler(
         IRhshfCreditProfileRepository repo, IRhshfOfferRepository offerRepo,
-        IRhshfPreDeploymentChecklistTemplateRepository templateRepo, IUnitOfWork uow)
+        IRhshfPreDeploymentChecklistTemplateRepository templateRepo, IRhshfCommitteeReviewRepository committeeRepo,
+        IUnitOfWork uow)
     {
         _repo = repo;
         _offerRepo = offerRepo;
         _templateRepo = templateRepo;
+        _committeeRepo = committeeRepo;
         _uow = uow;
     }
 
@@ -50,6 +54,13 @@ public class AcceptRhshfOfferHandler : IRequestHandler<AcceptRhshfOfferCommand, 
 
         var templates = await _templateRepo.GetActiveAsync(ct);
         profile.SeedPreDeploymentChecklist(templates);
+
+        // If the committee approved on the basis that perfection would follow, that promise becomes a
+        // mandatory gate item here — otherwise the deferral would be a note nobody enforced and the
+        // case could disburse against unperfected security.
+        var review = await _committeeRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
+        if (review?.PerfectionDisposition == RhshfPerfectionDisposition.Deferred)
+            profile.AddPerfectionConditionToPreDeploymentChecklist();
 
         await _uow.SaveChangesAsync(ct);
         return ApplicationResult.Success();

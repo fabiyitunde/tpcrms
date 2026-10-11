@@ -40,6 +40,58 @@ public class OfferAcceptanceHandlerTests
         return profile;
     }
 
+    /// <summary>A decided committee review for this cycle, optionally approved with perfection
+    /// deferred — the basis on which the gate gains its blocking condition.</summary>
+    private static RhshfCommitteeReview DecidedReview(RhshfCreditProfile profile, RhshfPerfectionDisposition? disposition)
+    {
+        var review = RhshfCommitteeReview.Create(
+            profile.Id, profile.CurrentCycleNumber, requiredVotes: 2, minimumApprovalVotes: 2,
+            CRMS.Domain.Enums.CommitteeType.BranchCredit, null).Value;
+        var perfectionRequired = disposition is not null;
+        review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null, [], perfectionRequired, disposition);
+        review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null, [], perfectionRequired, disposition);
+        return review;
+    }
+
+    [Fact]
+    public async Task Accept_WhenTheCommitteeDeferredPerfection_AddsABlockingGateItem()
+    {
+        var profile = MakeProfileAwaitingOfferAcceptance();
+        var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
+        offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
+        var review = DecidedReview(profile, RhshfPerfectionDisposition.Deferred);
+
+        var handler = new AcceptRhshfOfferHandler(
+            new FakeProfileRepository(profile), new FakeOfferRepository(offer), new SharedFakeTemplateRepository(),
+            new SharedFakeCommitteeReviewRepository(review), new FakeUnitOfWork());
+        var result = await handler.Handle(new AcceptRhshfOfferCommand(profile.Reference, null));
+
+        Assert.True(result.IsSuccess);
+        // The deferral has to become something that actually stops a disbursement, not just a note.
+        var item = Assert.Single(profile.PreDeploymentChecklist, i => i.Title == RhshfCreditProfile.PerfectionConditionTitle);
+        Assert.True(item.IsMandatory);
+        Assert.Equal(RhshfPreDeploymentVerificationKind.CollateralReview, item.Kind);
+        Assert.Equal(profile.CurrentCycleNumber, item.CycleNumber);
+    }
+
+    [Fact]
+    public async Task Accept_WhenTheCommitteeWaivedPerfection_AddsNoExtraGateItem()
+    {
+        var profile = MakeProfileAwaitingOfferAcceptance();
+        var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
+        offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
+        var review = DecidedReview(profile, RhshfPerfectionDisposition.Waived);
+
+        var handler = new AcceptRhshfOfferHandler(
+            new FakeProfileRepository(profile), new FakeOfferRepository(offer), new SharedFakeTemplateRepository(),
+            new SharedFakeCommitteeReviewRepository(review), new FakeUnitOfWork());
+        var result = await handler.Handle(new AcceptRhshfOfferCommand(profile.Reference, null));
+
+        Assert.True(result.IsSuccess);
+        // A waiver is the committee accepting the facility without that security — nothing to chase.
+        Assert.DoesNotContain(profile.PreDeploymentChecklist, i => i.Title == RhshfCreditProfile.PerfectionConditionTitle);
+    }
+
     [Fact]
     public async Task Upload_ThenAccept_Succeeds_AdvancesToPreDeploymentVerification()
     {
@@ -52,7 +104,7 @@ public class OfferAcceptanceHandlerTests
         var uploadResult = await uploadHandler.Handle(new UploadSignedOfferCommand(profile.Reference, "signed.pdf", "application/pdf", [1, 2, 3]));
         Assert.True(uploadResult.IsSuccess);
 
-        var acceptHandler = new AcceptRhshfOfferHandler(new FakeProfileRepository(profile), offerRepo, new SharedFakeTemplateRepository(), new FakeUnitOfWork());
+        var acceptHandler = new AcceptRhshfOfferHandler(new FakeProfileRepository(profile), offerRepo, new SharedFakeTemplateRepository(), new SharedFakeCommitteeReviewRepository(), new FakeUnitOfWork());
         var acceptResult = await acceptHandler.Handle(new AcceptRhshfOfferCommand(profile.Reference, "all good"));
 
         Assert.True(acceptResult.IsSuccess);
@@ -65,7 +117,7 @@ public class OfferAcceptanceHandlerTests
     {
         var profile = MakeProfileAwaitingOfferAcceptance();
         var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
-        var handler = new AcceptRhshfOfferHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new SharedFakeTemplateRepository(), new FakeUnitOfWork());
+        var handler = new AcceptRhshfOfferHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new SharedFakeTemplateRepository(), new SharedFakeCommitteeReviewRepository(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new AcceptRhshfOfferCommand(profile.Reference, null));
 

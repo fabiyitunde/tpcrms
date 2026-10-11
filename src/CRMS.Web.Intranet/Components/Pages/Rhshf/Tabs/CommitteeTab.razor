@@ -17,6 +17,13 @@
             <span class="badge @(Committee.FinalDecision is not null ? DecisionBadgeClass(Committee.FinalDecision.Value) : "badge-warning")">
                 @(Committee.FinalDecision?.ToString() ?? "Voting")
             </span>
+            @if (Committee.PerfectionDisposition is not null)
+            {
+                @* What the committee decided about security that was not perfected when it voted. *@
+                <span class="badge @(Committee.PerfectionDisposition == RhshfPerfectionDisposition.Deferred ? "badge-warning" : "badge-danger")" style="margin-left: 6px;">
+                    @(Committee.PerfectionDisposition == RhshfPerfectionDisposition.Deferred ? "Perfection deferred to pre-disbursement" : "Perfection waived")
+                </span>
+            }
         }
     </div>
 

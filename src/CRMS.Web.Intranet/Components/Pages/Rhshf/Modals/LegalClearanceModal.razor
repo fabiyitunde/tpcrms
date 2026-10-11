@@ -52,9 +52,9 @@
     private bool RequiresNotes => Intent != "Granted";
     // Clearance runs before the committee votes, so a defect goes back to the FAC that declared the
     // security — there is no ratification to return to at this point.
-    private string Title => Intent switch { "Returned" => "Return to the FAC", "Declined" => "Decline at Legal Clearance", _ => "Grant Legal Clearance" };
-    private string ConfirmLabel => Intent switch { "Returned" => "Return to the FAC", "Declined" => "Confirm Decline", _ => "Grant" };
-    private string ConfirmButtonClass => Intent switch { "Declined" => "btn-danger", "Returned" => "btn-warning", _ => "btn-success" };
+    private string Title => Intent switch { "Returned" => "Return to the FAC", "Declined" => "Decline at Legal Clearance", "GrantedWithCaveat" => "Grant with a Caveat", _ => "Grant Legal Clearance" };
+    private string ConfirmLabel => Intent switch { "Returned" => "Return to the FAC", "Declined" => "Confirm Decline", "GrantedWithCaveat" => "Grant with Caveat", _ => "Grant" };
+    private string ConfirmButtonClass => Intent switch { "Declined" => "btn-danger", "Returned" => "btn-warning", "GrantedWithCaveat" => "btn-warning", _ => "btn-success" };
 
     private async Task Confirm()
     {

@@ -778,6 +778,29 @@ public class RhshfCreditProfile : AggregateRoot
             _preDeploymentChecklist.Add(RhshfPreDeploymentChecklistItem.FromTemplate(Id, CurrentCycleNumber, template));
     }
 
+    /// <summary>
+    /// The committee approved on the basis that the security would be perfected before disbursement,
+    /// so that obligation becomes a mandatory gate item. Without this the deferral would be a note
+    /// nobody enforced and the case would sail to disbursement unperfected. Idempotent per cycle, and
+    /// safe to call before or after the templates are seeded.
+    /// </summary>
+    public void AddPerfectionConditionToPreDeploymentChecklist()
+    {
+        if (_preDeploymentChecklist.Any(i => i.CycleNumber == CurrentCycleNumber && i.Title == PerfectionConditionTitle))
+            return;
+
+        _preDeploymentChecklist.Add(RhshfPreDeploymentChecklistItem.FromCommitteeCondition(
+            Id, CurrentCycleNumber, PerfectionConditionTitle,
+            "The committee approved this facility on the basis that the security would be perfected before " +
+            "disbursement. Confirm the instrument is perfected and the evidence is on file.",
+            RhshfPreDeploymentVerificationKind.CollateralReview,
+            sortOrder: 15));
+
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public const string PerfectionConditionTitle = "Collateral Perfection Completed (committee condition)";
+
     /// <summary>Disbursement Officer confirming (or unconfirming) one gate item — only while the case
     /// is actually at PreDeploymentVerification.</summary>
     public Result ConfirmPreDeploymentChecklistItem(Guid itemId, Guid userId, bool? isConfirmed, string? notes)

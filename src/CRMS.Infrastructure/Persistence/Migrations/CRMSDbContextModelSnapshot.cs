@@ -6261,6 +6261,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("PerfectionDisposition")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
                     b.Property<int>("RequiredVotes")
                         .HasColumnType("int");
 
@@ -6301,6 +6305,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("ModifiedBy")
                         .HasColumnType("longtext");
+
+                    b.Property<string>("PerfectionDisposition")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
 
                     b.Property<Guid>("RhshfCommitteeReviewId")
                         .HasColumnType("char(36)");

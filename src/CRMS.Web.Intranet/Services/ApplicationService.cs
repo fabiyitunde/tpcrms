@@ -6980,13 +6980,14 @@ public partial class ApplicationService
     }
 
     public async Task<ApiResponse> CastRhshfCommitteeVoteAsync(
-        string reference, Guid userId, CRMS.Domain.Enums.RhshfCommitteeVoteChoice vote, string? comment)
+        string reference, Guid userId, CRMS.Domain.Enums.RhshfCommitteeVoteChoice vote, string? comment,
+        CRMS.Domain.Enums.RhshfPerfectionDisposition? perfectionDisposition = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.CastRhshfCommitteeVoteHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.CastRhshfCommitteeVoteCommand(reference, userId, vote, comment),
+                new CRMS.Application.Rhshf.Commands.CastRhshfCommitteeVoteCommand(reference, userId, vote, comment, perfectionDisposition),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Vote failed");
         }

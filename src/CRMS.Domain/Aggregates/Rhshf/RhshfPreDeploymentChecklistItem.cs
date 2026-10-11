@@ -32,6 +32,28 @@ public class RhshfPreDeploymentChecklistItem : Entity
 
     protected RhshfPreDeploymentChecklistItem() { }
 
+    /// <summary>
+    /// A condition the committee attached to its own approval rather than one of the standing
+    /// templates — currently only "perfect the security first" when it approved with perfection
+    /// deferred. Always mandatory: it is the reason the approval was given, so it blocks the gate.
+    /// TemplateItemId is left empty because there is no template behind it (the column carries no
+    /// foreign key).
+    /// </summary>
+    public static RhshfPreDeploymentChecklistItem FromCommitteeCondition(
+        Guid rhshfCreditProfileId, int cycleNumber, string title, string? description,
+        RhshfPreDeploymentVerificationKind kind, int sortOrder)
+        => new()
+        {
+            RhshfCreditProfileId = rhshfCreditProfileId,
+            CycleNumber = cycleNumber,
+            TemplateItemId = Guid.Empty,
+            Title = title,
+            Description = description,
+            IsMandatory = true,
+            SortOrder = sortOrder,
+            Kind = kind,
+        };
+
     public static RhshfPreDeploymentChecklistItem FromTemplate(
         Guid rhshfCreditProfileId, int cycleNumber, RhshfPreDeploymentChecklistTemplate template)
         => new()

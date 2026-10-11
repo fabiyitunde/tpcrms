@@ -210,8 +210,25 @@ public enum RhshfOfferStatus
 public enum RhshfLegalClearanceOutcome
 {
     Granted,
+    /// <summary>Forwarded with a documented defect — the security is not (or not fully) perfected, but
+    /// the case goes on to Risk and the committee with the problem stated, for them to decide with
+    /// their eyes open rather than Legal killing it alone. Name kept under 20 chars: the stored column
+    /// is varchar(20).</summary>
+    GrantedWithCaveat,
     Returned,
     Declined,
+}
+
+/// <summary>
+/// What the committee decided about security that was not perfected when it voted. Null on an
+/// approval means the question never arose (everything was perfected). Deferred keeps the obligation
+/// alive as a blocking pre-deployment item — no money moves until perfection is done. Waived is the
+/// committee accepting the facility without it, recorded deliberately.
+/// </summary>
+public enum RhshfPerfectionDisposition
+{
+    Deferred,
+    Waived,
 }
 
 /// <summary>Outcome of a Disbursement Officer's booking attempt (design doc §3.6, Phase 9). Failed

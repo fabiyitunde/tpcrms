@@ -26,6 +26,12 @@ public class RhshfCommitteeReview : AggregateRoot
     public DateTime? DecidedAt { get; private set; }
     public string? Notes { get; private set; }
 
+    /// <summary>On an approval reached while the security was not fully perfected: what the committee
+    /// decided about it. Deferred becomes a blocking pre-deployment item so no money moves until
+    /// perfection is done; Waived records that the committee accepted the facility without it. Null
+    /// when the question never arose. Derived from the approving votes when the decision lands.</summary>
+    public RhshfPerfectionDisposition? PerfectionDisposition { get; private set; }
+
     public bool IsDecided => FinalDecision is not null;
 
     private readonly List<RhshfCommitteeVote> _votes = [];
@@ -58,7 +64,15 @@ public class RhshfCommitteeReview : AggregateRoot
     /// excludedActorIds is that cycle's Credit Officer + Risk Officer (design doc Phase 5 §4):
     /// committee membership must be distinct from the actors who already appraised/risk-reviewed
     /// this cycle.</summary>
-    public Result CastVote(Guid userId, RhshfCommitteeVoteChoice vote, string? comment, IReadOnlyCollection<Guid> excludedActorIds)
+    /// <summary>
+    /// perfectionRequired says the security was not fully perfected when this vote was cast, so an
+    /// approving voter must say what they are approving: perfection before disbursement (Deferred) or
+    /// the facility without it (Waived). The Application layer supplies it, since collateral is a
+    /// separate aggregate this one cannot read.
+    /// </summary>
+    public Result CastVote(
+        Guid userId, RhshfCommitteeVoteChoice vote, string? comment, IReadOnlyCollection<Guid> excludedActorIds,
+        bool perfectionRequired = false, RhshfPerfectionDisposition? perfectionDisposition = null)
     {
         if (IsDecided)
             return Result.Failure("This committee review has already reached a decision.");
@@ -66,14 +80,27 @@ public class RhshfCommitteeReview : AggregateRoot
             return Result.Failure("This user appraised or risk-reviewed this cycle and cannot also vote on committee.");
         if (_votes.Any(v => v.UserId == userId))
             return Result.Failure("This user has already voted on this review.");
+        if (perfectionRequired && vote == RhshfCommitteeVoteChoice.Approve && perfectionDisposition is null)
+            return Result.Failure(
+                "The security on this case is not perfected — an approving vote must either require perfection before disbursement, or waive it.");
 
-        _votes.Add(new RhshfCommitteeVote(Id, userId, vote, comment));
+        _votes.Add(new RhshfCommitteeVote(Id, userId, vote, comment, perfectionDisposition));
 
         if (_votes.Count >= RequiredVotes)
         {
-            var approvals = _votes.Count(v => v.Vote == RhshfCommitteeVoteChoice.Approve);
-            FinalDecision = approvals >= MinimumApprovalVotes ? RhshfCommitteeDecision.Approved : RhshfCommitteeDecision.Rejected;
+            var approvals = _votes.Where(v => v.Vote == RhshfCommitteeVoteChoice.Approve).ToList();
+            FinalDecision = approvals.Count >= MinimumApprovalVotes ? RhshfCommitteeDecision.Approved : RhshfCommitteeDecision.Rejected;
             DecidedAt = DateTime.UtcNow;
+
+            // The stricter reading wins: if any approving member required perfection first, the case
+            // carries that obligation even if others were willing to waive it.
+            if (FinalDecision == RhshfCommitteeDecision.Approved)
+            {
+                PerfectionDisposition =
+                    approvals.Any(v => v.PerfectionDisposition == RhshfPerfectionDisposition.Deferred) ? RhshfPerfectionDisposition.Deferred
+                    : approvals.Any(v => v.PerfectionDisposition == RhshfPerfectionDisposition.Waived) ? RhshfPerfectionDisposition.Waived
+                    : null;
+            }
         }
 
         return Result.Success();

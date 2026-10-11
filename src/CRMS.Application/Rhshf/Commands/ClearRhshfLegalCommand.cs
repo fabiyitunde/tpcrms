@@ -42,7 +42,11 @@ public class ClearRhshfLegalHandler : IRequestHandler<ClearRhshfLegalCommand, Ap
 
         var transitionResult = request.Outcome switch
         {
-            RhshfLegalClearanceOutcome.Granted => profile.AdvanceToRiskReviewFromLegal(request.LegalOfficerId, request.Comments),
+            // Both forward outcomes go to Risk. GrantedWithCaveat differs only in what it says: the
+            // defect rides on this clearance record, Risk reads it, and the committee then has to
+            // answer for it explicitly when it votes (defer perfection, or waive it).
+            RhshfLegalClearanceOutcome.Granted or RhshfLegalClearanceOutcome.GrantedWithCaveat
+                => profile.AdvanceToRiskReviewFromLegal(request.LegalOfficerId, request.Comments),
             RhshfLegalClearanceOutcome.Returned => profile.ReturnToFacFromLegal(request.ReturnToStage, request.LegalOfficerId, request.Comments),
             RhshfLegalClearanceOutcome.Declined => profile.DeclineAtLegalClearance(request.Comments, request.LegalOfficerId),
             _ => throw new ArgumentOutOfRangeException(nameof(request.Outcome)),

@@ -111,6 +111,7 @@ else
                 </button>
                 <button class="btn btn-warning" @onclick='() => OpenLegalClearanceModal("Returned")'>Return to FAC</button>
                 <button class="btn btn-danger" @onclick='() => OpenLegalClearanceModal("Declined")'>Decline</button>
+                <button class="btn btn-warning" @onclick='() => OpenLegalClearanceModal("GrantedWithCaveat")'>Grant with Caveat</button>
                 <button class="btn btn-success" @onclick='() => OpenLegalClearanceModal("Granted")'>Grant</button>
             }
             @if (CanBookDisbursement && workspace.InternalStage == RhshfInternalStage.PreDeploymentVerification)
@@ -371,7 +372,9 @@ else
     }
     @if (openModal == "committee")
     {
-        <CommitteeVoteModal Intent="@modalIntent" OnClose="CloseModal" OnVote="SubmitCommitteeVote" OnReturnToFac="SubmitCommitteeReturnToFac" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
+        <CommitteeVoteModal Intent="@modalIntent" OnClose="CloseModal" OnVote="SubmitCommitteeVote" OnReturnToFac="SubmitCommitteeReturnToFac"
+            IsSubmitting="isSubmitting" ErrorMessage="@modalError"
+            PerfectionRequired="SecurityNotPerfected" LegalCaveat="@currentLegalClearance?.Comments" />
     }
     @if (openModal == "ratification")
     {
@@ -840,11 +843,16 @@ else
         await LoadAllAsync();
     }
 
-    private async Task SubmitCommitteeVote((RhshfCommitteeVoteChoice Vote, string? Comment) input)
+    /// <summary>Any declared instrument the Legal Officer did not mark perfected — an approving vote
+    /// then has to say whether perfection is deferred to pre-disbursement or waived outright.</summary>
+    private bool SecurityNotPerfected =>
+        collateralRecords.Any(c => c.PerfectionStatus != RhshfCollateralPerfectionStatus.Perfected);
+
+    private async Task SubmitCommitteeVote((RhshfCommitteeVoteChoice Vote, string? Comment, RhshfPerfectionDisposition? PerfectionDisposition) input)
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.CastRhshfCommitteeVoteAsync(Reference, CurrentUserId, input.Vote, input.Comment);
+        var result = await AppService.CastRhshfCommitteeVoteAsync(Reference, CurrentUserId, input.Vote, input.Comment, input.PerfectionDisposition);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();

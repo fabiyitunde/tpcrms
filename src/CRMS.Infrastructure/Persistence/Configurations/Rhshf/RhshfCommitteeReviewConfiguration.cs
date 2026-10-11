@@ -14,6 +14,7 @@ public class RhshfCommitteeReviewConfiguration : IEntityTypeConfiguration<RhshfC
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.FinalDecision).HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.PerfectionDisposition).HasConversion<string>().HasMaxLength(20);
         builder.Property(x => x.Notes).HasColumnType("longtext");
         builder.Property(x => x.Tier).IsRequired().HasConversion<string>().HasMaxLength(30);
 
@@ -34,6 +35,7 @@ public class RhshfCommitteeVoteConfiguration : IEntityTypeConfiguration<RhshfCom
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Vote).IsRequired().HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.PerfectionDisposition).HasConversion<string>().HasMaxLength(20);
         builder.Property(x => x.Comment).HasColumnType("longtext");
 
         builder.HasIndex(x => new { x.RhshfCommitteeReviewId, x.UserId }).IsUnique();

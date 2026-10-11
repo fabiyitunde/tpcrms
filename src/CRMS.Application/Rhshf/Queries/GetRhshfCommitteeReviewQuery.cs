@@ -15,6 +15,7 @@ public record RhshfCommitteeReviewDto(
     CommitteeType Tier,
     Guid? BranchId,
     RhshfCommitteeDecision? FinalDecision,
+    RhshfPerfectionDisposition? PerfectionDisposition,
     List<RhshfCommitteeVoteDto> Votes);
 
 public class GetRhshfCommitteeReviewHandler : IRequestHandler<GetRhshfCommitteeReviewQuery, ApplicationResult<RhshfCommitteeReviewDto>>
@@ -44,6 +45,7 @@ public class GetRhshfCommitteeReviewHandler : IRequestHandler<GetRhshfCommitteeR
         var names = await _names.ResolveManyAsync(review.Votes.Select(v => v.UserId), ct);
         var dto = new RhshfCommitteeReviewDto(
             review.CycleNumber, review.RequiredVotes, review.MinimumApprovalVotes, review.Tier, review.BranchId, review.FinalDecision,
+            review.PerfectionDisposition,
             review.Votes.Select(v => new RhshfCommitteeVoteDto(
                 v.UserId, names.TryGetValue(v.UserId, out var n) ? n : "—", v.Vote, v.VotedAt, v.Comment)).ToList());
 

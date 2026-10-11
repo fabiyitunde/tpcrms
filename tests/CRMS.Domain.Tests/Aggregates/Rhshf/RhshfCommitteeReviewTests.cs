@@ -112,4 +112,78 @@ public class RhshfCommitteeReviewTests
 
         Assert.True(result.IsFailure);
     }
+
+    // ── Perfection disposition: what an approval means when the security isn't perfected ─────────
+
+    [Fact]
+    public void CastVote_Approve_WithUnperfectedSecurity_RequiresADisposition()
+    {
+        var review = CreateReview();
+
+        var result = review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null, [], perfectionRequired: true);
+
+        Assert.True(result.IsFailure);
+        Assert.Empty(review.Votes);
+    }
+
+    [Fact]
+    public void CastVote_Reject_NeedsNoDisposition_EvenWithUnperfectedSecurity()
+    {
+        var review = CreateReview();
+
+        var result = review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Reject, "no", [], perfectionRequired: true);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(review.Votes.Single().PerfectionDisposition);
+    }
+
+    [Fact]
+    public void Approval_WithEveryVoterWaiving_RecordsWaived()
+    {
+        var review = CreateReview(requiredVotes: 2, minimumApprovalVotes: 2);
+
+        review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null, [], true, RhshfPerfectionDisposition.Waived);
+        review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null, [], true, RhshfPerfectionDisposition.Waived);
+
+        Assert.Equal(RhshfCommitteeDecision.Approved, review.FinalDecision);
+        Assert.Equal(RhshfPerfectionDisposition.Waived, review.PerfectionDisposition);
+    }
+
+    [Fact]
+    public void Approval_WithAnyVoterRequiringPerfectionFirst_RecordsDeferred()
+    {
+        var review = CreateReview(requiredVotes: 2, minimumApprovalVotes: 2);
+
+        review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null, [], true, RhshfPerfectionDisposition.Waived);
+        review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null, [], true, RhshfPerfectionDisposition.Deferred);
+
+        // The stricter reading wins — one member insisting on perfection binds the case.
+        Assert.Equal(RhshfCommitteeDecision.Approved, review.FinalDecision);
+        Assert.Equal(RhshfPerfectionDisposition.Deferred, review.PerfectionDisposition);
+    }
+
+    [Fact]
+    public void Approval_WithPerfectedSecurity_LeavesTheDispositionNull()
+    {
+        var review = CreateReview(requiredVotes: 2, minimumApprovalVotes: 2);
+
+        review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null, []);
+        review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null, []);
+
+        // The question never arose, so nothing is recorded about it.
+        Assert.Equal(RhshfCommitteeDecision.Approved, review.FinalDecision);
+        Assert.Null(review.PerfectionDisposition);
+    }
+
+    [Fact]
+    public void RejectedDecision_CarriesNoDisposition()
+    {
+        var review = CreateReview(requiredVotes: 2, minimumApprovalVotes: 2);
+
+        review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Approve, null, [], true, RhshfPerfectionDisposition.Deferred);
+        review.CastVote(Guid.NewGuid(), RhshfCommitteeVoteChoice.Reject, "security too weak", [], true);
+
+        Assert.Equal(RhshfCommitteeDecision.Rejected, review.FinalDecision);
+        Assert.Null(review.PerfectionDisposition);
+    }
 }

@@ -132,6 +132,7 @@ public class RhshfLoanPackPdfTests
         var committee = new RhshfCommitteeReviewDto(
             CycleNumber: 1, RequiredVotes: 3, MinimumApprovalVotes: 2, Tier: CommitteeType.RegionalCredit,
             BranchId: Guid.NewGuid(), FinalDecision: RhshfCommitteeDecision.Approved,
+            PerfectionDisposition: null,
             Votes: new List<RhshfCommitteeVoteDto>
             {
                 new(Guid.NewGuid(), "Member One", RhshfCommitteeVoteChoice.Approve, DateTime.UtcNow, "Solid case."),
