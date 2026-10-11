@@ -57,3 +57,15 @@ Thumbs.db
 *.rsuser
 *.DotSettings.user
 /src/CRMS.Web.Intranet/storage/collateral/bc5294f5-7905-4d06-adb4-ee5ed4395ea7/documents
+
+# Uploaded and generated documents (local file-storage provider)
+#
+# This is the on-disk store the local/dev IFileStorageService writes to — uploads from a form,
+# generated offer letters, KFS and loan packs. Production uses S3, so nothing here is a build input
+# or a deployment artefact: each file only means anything beside its row in whichever database wrote
+# it, which makes a developer's test uploads pure noise in `git status`.
+#
+# Files already committed under storage/ stay tracked — this rule only stops NEW ones appearing.
+# Untracking the existing ones is deliberately left alone: if any environment serves documents from
+# local disk rather than S3, removing them from the repo would 404 real records on the next deploy.
+/src/CRMS.Web.Intranet/storage/
