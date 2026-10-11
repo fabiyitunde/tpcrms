@@ -58,6 +58,15 @@ public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfPro
             if (collateral.Count == 0)
                 return ApplicationResult.Failure(
                     "At least one security instrument must be declared before submitting — the Bank's Legal Officer verifies and perfects it before the case goes for approval.");
+
+            // And each one needs its evidence attached: the Legal Officer sights the guarantee letter,
+            // CRG certificate or title deed itself. An instrument with no document would bounce straight
+            // back from legal clearance and cost the FAC a whole cycle.
+            var undocumented = collateral.Where(c => c.Documents.Count == 0).ToList();
+            if (undocumented.Count > 0)
+                return ApplicationResult.Failure(
+                    $"Attach the supporting document to every security instrument before submitting — {undocumented.Count} of {collateral.Count} " +
+                    $"{(undocumented.Count == 1 ? "has" : "have")} none (guarantee letter, CRG certificate or title deed).");
         }
 
         // Loaded for the two stages whose transition the domain gates on documents: leaving

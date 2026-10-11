@@ -678,9 +678,12 @@ else
                     var missingBvnDirectors = Model.Session.Directors.Count(d => !d.HasBvn);
                     var missingBvnGuarantors = Model.Session.Guarantors.Count(g => g.GuarantorType == CRMS.Domain.Enums.RhshfGuarantorType.Individual && !g.HasBvn);
                     // The Bank's Legal Officer verifies and perfects the declared security before the
-                    // case is circulated for approval, so a case with none cannot be submitted.
+                    // case is circulated for approval, so a case with none cannot be submitted — and
+                    // each instrument needs its evidence attached for Legal to sight.
                     var noCollateral = Model.Session.Collateral.Count == 0;
-                    var blockSubmit = missingBvnDirectors > 0 || missingBvnGuarantors > 0 || noCollateral;
+                    var undocumentedCollateral = Model.Session.Collateral.Count(c => c.Documents.Count == 0);
+                    var blockSubmit = missingBvnDirectors > 0 || missingBvnGuarantors > 0
+                        || noCollateral || undocumentedCollateral > 0;
 
                     <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
                         <h6 class="mb-0">Company</h6>
@@ -724,6 +727,10 @@ else
                             @if (noCollateral)
                             {
                                 <span class="badge bg-danger ms-1">required</span>
+                            }
+                            else if (undocumentedCollateral > 0)
+                            {
+                                <span class="badge bg-danger ms-1">@undocumentedCollateral missing document</span>
                             }
                         </dd>
                     </dl>
@@ -775,6 +782,10 @@ else
                     @if (noCollateral)
                     {
                         <p class="small text-danger mt-2 mb-0">You can't submit yet: no security has been declared. Use <strong>Edit</strong> on the directors, guarantors &amp; collateral section to add at least one instrument (bank guarantee, NIRSAL CRG or legal mortgage) and attach its document.</p>
+                    }
+                    else if (undocumentedCollateral > 0)
+                    {
+                        <p class="small text-danger mt-2 mb-0">You can't submit yet: @undocumentedCollateral of your @Model.Session.Collateral.Count security instrument(s) have no document attached. The Bank's Legal Officer has to sight the guarantee letter, CRG certificate or title deed itself — use <strong>Edit</strong> on the directors, guarantors &amp; collateral section to attach it.</p>
                     }
                     break;
             }

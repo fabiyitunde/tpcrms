@@ -49,11 +49,18 @@ public class AdvanceRhshfProfilingStageGuarantorGateTests
     private static RhshfGuarantor Individual(string? bvn) => RhshfGuarantor.Create(
         Guid.NewGuid(), RhshfGuarantorType.Individual, "Ada Guarantor", bvn, null, "Friend", null, null, null, 1_000_000m, null).Value;
 
-    /// <summary>A bank guarantee filed under the cycle this profiling pass will be reviewed as.
-    /// PerfectionStatus is left unset — the FAC declares, the Legal Officer asserts perfection.</summary>
-    private static RhshfCollateral DeclaredSecurity(RhshfCreditProfile profile) => RhshfCollateral.Create(
-        profile.Id, profile.ProfilingTargetCycleNumber, RhshfCollateralType.BankGuarantee, Guid.NewGuid(), null,
-        "BG-2026-01", null, null, "First Bank", 52_000_000m, true, null, null, null, null, null, null).Value;
+    /// <summary>A bank guarantee filed under the cycle this profiling pass will be reviewed as, with
+    /// its guarantee letter attached. PerfectionStatus is left unset — the FAC declares, the Legal
+    /// Officer asserts perfection.</summary>
+    private static RhshfCollateral DeclaredSecurity(RhshfCreditProfile profile, bool withDocument = true)
+    {
+        var collateral = RhshfCollateral.Create(
+            profile.Id, profile.ProfilingTargetCycleNumber, RhshfCollateralType.BankGuarantee, Guid.NewGuid(), null,
+            "BG-2026-01", null, null, "First Bank", 52_000_000m, true, null, null, null, null, null, null).Value;
+        if (withDocument)
+            collateral.AddDocument("guarantee-letter.pdf", "application/pdf", "path/bg.pdf", 2048);
+        return collateral;
+    }
 
     [Fact]
     public async Task Submit_IsBlocked_WhenAnIndividualGuarantorHasNoBvn()
@@ -106,6 +113,33 @@ public class AdvanceRhshfProfilingStageGuarantorGateTests
         Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
         // Lands at Appraisal; legal clearance (where this security gets sighted) is the next stage.
         Assert.Equal(RhshfInternalStage.Appraisal, profile.InternalStage);
+    }
+
+    [Fact]
+    public async Task Submit_IsBlocked_WhenADeclaredInstrumentHasNoDocument()
+    {
+        var profile = ProfileReadyToSubmit();
+
+        var result = await HandlerWithSecurity(profile, DeclaredSecurity(profile, withDocument: false))
+            .Handle(new AdvanceRhshfProfilingStageCommand(profile.Reference, RhshfProfilingStage.ReviewAndSubmit));
+
+        // Legal has to sight the instrument itself; a bare declaration would bounce back from legal
+        // clearance and cost the FAC a cycle.
+        Assert.False(result.IsSuccess);
+        Assert.Contains("supporting document", result.Error);
+        Assert.Equal(RhshfProfilingStage.ReviewAndSubmit, profile.CurrentStage);
+    }
+
+    [Fact]
+    public async Task Submit_IsBlocked_WhenOnlySomeInstrumentsHaveDocuments()
+    {
+        var profile = ProfileReadyToSubmit();
+
+        var result = await HandlerWithSecurity(profile, DeclaredSecurity(profile), DeclaredSecurity(profile, withDocument: false))
+            .Handle(new AdvanceRhshfProfilingStageCommand(profile.Reference, RhshfProfilingStage.ReviewAndSubmit));
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("1 of 2", result.Error);
     }
 
     [Fact]
