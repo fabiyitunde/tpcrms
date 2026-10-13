@@ -64,7 +64,7 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
             BureauTotalOutstanding: profile.BureauTotalOutstanding,
             BureauTotalOverdue: profile.BureauTotalOverdue,
             SupportingDocuments: profile.SupportingDocuments
-                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt) { Category = d.Category, ContentType = d.ContentType })
+                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt) { Category = d.Category, ContentType = d.ContentType, ReusedFromReference = d.ReusedFromReference, OriginalUploadedAt = d.OriginalUploadedAt })
                 .ToList(),
             DocumentRequirements: requirements
                 .Select(r => new RhshfDocumentRequirementStatusDto(

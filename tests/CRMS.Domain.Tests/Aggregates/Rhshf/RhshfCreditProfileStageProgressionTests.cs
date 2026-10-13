@@ -193,7 +193,9 @@ public class RhshfCreditProfileStageProgressionTests
         var result = profile.AdvanceStage(RhshfProfilingStage.SupportingDocuments, MandatoryCacAndOffTake());
 
         Assert.True(result.IsFailure);
-        Assert.Contains(nameof(RhshfDocumentCategory.OffTakeAgreement), result.Error);
+        // The requirement's Title, not the enum member: the FAC is told the name it was shown on the
+        // upload slot, which the programme team renames independently of the code.
+        Assert.Contains("Off-take agreement", result.Error);
         Assert.Equal(RhshfProfilingStage.SupportingDocuments, profile.CurrentStage);
     }
 
@@ -322,7 +324,9 @@ public class RhshfCreditProfileStageProgressionTests
         var result = profile.AdvanceStage(RhshfProfilingStage.ReviewAndSubmit, MandatoryCacAndOffTake());
 
         Assert.True(result.IsFailure);
-        Assert.Contains(nameof(RhshfDocumentCategory.OffTakeAgreement), result.Error);
+        // The requirement's Title, not the enum member: the FAC is told the name it was shown on the
+        // upload slot, which the programme team renames independently of the code.
+        Assert.Contains("Off-take agreement", result.Error);
         Assert.Equal(RhshfProfilingStage.ReviewAndSubmit, profile.CurrentStage);
         Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
     }

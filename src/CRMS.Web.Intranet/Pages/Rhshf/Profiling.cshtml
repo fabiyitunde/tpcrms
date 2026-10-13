@@ -2,6 +2,7 @@
 @model CRMS.Web.Intranet.Pages.Rhshf.ProfilingModel
 @using CRMS.Domain.Enums
 @using CRMS.Application.Rhshf.Queries
+@using CRMS.Web.Intranet.Models
 @{
     ViewData["Title"] = "Credit Profiling";
 }
@@ -638,6 +639,41 @@ else
                                             <input type="file" name="file" class="form-control form-control-sm" required />
                                             <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Upload</button>
                                         </form>
+                                        @* Carry-over: a CAM the FAC already supplied on an earlier season need not be
+                                           uploaded again. Loaded only while this slot is empty, so it disappears once
+                                           something is attached — including when the carry-over itself is what filled it. *@
+                                        @if (req.Category == RhshfDocumentCategory.CreditAppraisalMemorandum
+                                             && !req.IsSatisfied && Model.ReusableCamDocuments.Count > 0)
+                                        {
+                                            <details class="mt-2 text-start">
+                                                <summary class="small text-success" style="cursor: pointer;">
+                                                    Or re-use one from an earlier application (@Model.ReusableCamDocuments.Count)
+                                                </summary>
+                                                <ul class="list-group list-group-flush mt-2">
+                                                    @foreach (var cam in Model.ReusableCamDocuments)
+                                                    {
+                                                        <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-2">
+                                                            <span class="small">
+                                                                <span class="fw-semibold">@cam.FileName</span>
+                                                                <span class="d-block text-muted">
+                                                                    @cam.SourceSessionName &middot; @cam.SourceReference &middot;
+                                                                    uploaded @cam.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")
+                                                                </span>
+                                                            </span>
+                                                            <form method="post" asp-page-handler="ReuseDocument">
+                                                                <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                                <input type="hidden" name="sourceDocumentId" value="@cam.DocumentId" />
+                                                                <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Use this</button>
+                                                            </form>
+                                                        </li>
+                                                    }
+                                                </ul>
+                                                <div class="small text-muted mt-1">
+                                                    A copy is attached to this application. Check it is still the right
+                                                    version &mdash; upload a newer one instead if it is not.
+                                                </div>
+                                            </details>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -653,7 +689,17 @@ else
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
                                         <span>
                                             @doc.FileName
-                                            <span class="badge bg-light text-dark border ms-1">@doc.Category</span>
+                                            @* The requirement's Title, not the enum member: the FAC must see the same
+                                               name here as on the upload slot it attached this against. *@
+                                            <span class="badge bg-light text-dark border ms-1">
+                                                @(Model.Session.DocumentRequirements.FirstOrDefault(r => r.Category == doc.Category)?.Title
+                                                  ?? RhshfDisplayNames.CategoryLabel(doc.Category))
+                                            </span>
+                                            @if (doc.IsReused)
+                                            {
+                                                <span class="badge bg-info-subtle text-info-emphasis border ms-1"
+                                                      title="Carried over from @doc.ReusedFromReference">re-used</span>
+                                            }
                                         </span>
                                         <span class="d-flex gap-2 align-items-center">
                                             <span class="text-muted small">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</span>

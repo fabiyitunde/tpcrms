@@ -50,6 +50,17 @@
                             <td>@FormatCategory(doc.Category)</td>
                             <td>
                                 <div style="font-size: var(--text-sm);">@doc.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                                @* A carried-over document was prepared for an earlier season. The reviewer has to
+                                   know that before relying on it — the programme sets no expiry, so this is the
+                                   only thing that tells them to judge whether it is still current. *@
+                                @if (doc.IsReused)
+                                {
+                                    <div style="font-size: var(--text-xs, 0.72rem); color: var(--gray-500);">
+                                        re-used from @doc.ReusedFromReference@(doc.OriginalUploadedAt.HasValue
+                                            ? $", originally {doc.OriginalUploadedAt.Value.ToLocalTime():MMM dd, yyyy}"
+                                            : "")
+                                    </div>
+                                }
                             </td>
                             <td style="font-size: var(--text-sm); color: var(--gray-500);">@FormatSize(doc.SizeBytes)</td>
                             <td>

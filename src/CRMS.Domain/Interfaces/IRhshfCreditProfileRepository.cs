@@ -22,4 +22,28 @@ public interface IRhshfCreditProfileRepository
     /// entity with no independent aggregate root, so this avoids loading the whole profile (with
     /// every other collection) just to find one document by id.</summary>
     Task<RhshfSupportingDocument?> GetSupportingDocumentByIdAsync(Guid documentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Documents in one category that this FAC supplied on its other cases, newest first — the
+    /// candidates offered for carry-over so an unchanged document need not be re-uploaded each
+    /// season. Scoped by FacId, never by company name: the FAC's identity on the portal is the only
+    /// thing that makes two cases the same aggregator.
+    /// </summary>
+    Task<IReadOnlyList<RhshfReusableDocument>> GetReusableDocumentsForFacAsync(
+        Guid facId, Guid excludeProfileId, RhshfDocumentCategory category, CancellationToken ct = default);
 }
+
+/// <summary>A document from one of this FAC's earlier cases, offered for carry-over. Carries the
+/// source case's reference, session and status so the FAC and the reviewer can judge whether it is
+/// still the right document — the programme defines no expiry, so nothing is filtered on age.</summary>
+public record RhshfReusableDocument(
+    Guid DocumentId,
+    RhshfDocumentCategory Category,
+    string FileName,
+    string ContentType,
+    string StoragePath,
+    long SizeBytes,
+    DateTime UploadedAt,
+    string SourceReference,
+    string SourceSessionName,
+    RhshfCaseStatus SourceStatus);

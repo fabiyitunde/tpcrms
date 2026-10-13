@@ -73,6 +73,24 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
     public async Task<RhshfSupportingDocument?> GetSupportingDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
         => await _context.RhshfSupportingDocuments.FirstOrDefaultAsync(x => x.Id == documentId, ct);
 
+    // A join projection rather than loading profiles: this runs on the FAC-facing documents stage,
+    // where pulling whole profile graphs (13 collections each) to read one document row per case
+    // would be absurd. AsNoTracking — the handler copies the bytes and creates a new row, it never
+    // mutates the source.
+    public async Task<IReadOnlyList<RhshfReusableDocument>> GetReusableDocumentsForFacAsync(
+        Guid facId, Guid excludeProfileId, RhshfDocumentCategory category, CancellationToken ct = default)
+        => await (from doc in _context.RhshfSupportingDocuments.AsNoTracking()
+                  join profile in _context.RhshfCreditProfiles.AsNoTracking()
+                      on doc.RhshfCreditProfileId equals profile.Id
+                  where profile.FacId == facId
+                        && profile.Id != excludeProfileId
+                        && doc.Category == category
+                  orderby doc.UploadedAt descending
+                  select new RhshfReusableDocument(
+                      doc.Id, doc.Category, doc.FileName, doc.ContentType, doc.StoragePath,
+                      doc.SizeBytes, doc.UploadedAt, profile.Reference, profile.SessionName, profile.Status))
+            .ToListAsync(ct);
+
     // No Includes — the admin "all" list only needs root columns, and this can return the whole book.
     public async Task<IReadOnlyList<RhshfCreditProfile>> GetAllForListAsync(Guid? branchId, CancellationToken ct = default)
     {

@@ -314,6 +314,32 @@ public class RhshfCreditProfile : AggregateRoot
         return Result.Success(document);
     }
 
+    /// <summary>
+    /// Attaches a copy of a document the same FAC supplied on an earlier session, so an unchanged
+    /// document (a Credit Appraisal Memorandum, typically) need not be re-uploaded season after
+    /// season. The caller copies the bytes first and passes the new storage path — this aggregate
+    /// never shares a blob between two cases, so removing one case's copy cannot break the other's.
+    /// </summary>
+    public Result<RhshfSupportingDocument> AddReusedSupportingDocument(
+        RhshfDocumentCategory category, string fileName, string contentType, string storagePath,
+        long sizeBytes, Guid sourceDocumentId, string sourceReference, DateTime originalUploadedAt)
+    {
+        if (CurrentStage != RhshfProfilingStage.SupportingDocuments)
+            return Result.Failure<RhshfSupportingDocument>("Case is not on the supporting documents stage.");
+
+        // One carried-over copy per category is the whole point — a second adds nothing and would
+        // leave the FAC unable to tell the duplicates apart.
+        if (_supportingDocuments.Any(d => d.Category == category))
+            return Result.Failure<RhshfSupportingDocument>(
+                "This case already has a document in that category. Remove it first to carry a different one over.");
+
+        var document = new RhshfSupportingDocument(Id, category, fileName, contentType, storagePath, sizeBytes);
+        document.MarkReusedFrom(sourceDocumentId, sourceReference, originalUploadedAt);
+        _supportingDocuments.Add(document);
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success(document);
+    }
+
     public Result RemoveSupportingDocument(Guid documentId)
     {
         if (CurrentStage != RhshfProfilingStage.SupportingDocuments)
@@ -365,7 +391,16 @@ public class RhshfCreditProfile : AggregateRoot
         {
             var missing = MissingMandatoryDocuments(documentRequirements);
             if (missing.Count > 0)
-                return Result.Failure($"Required documents are missing: {string.Join(", ", missing)}.");
+            {
+                // Named by the requirement's admin-editable Title, not the enum member. The two can
+                // differ deliberately — the programme team renames documents (FarmerRegister is
+                // titled "Farmers Register") and the FAC must be told the name it was shown on the
+                // upload slot, not CRMS's internal identifier.
+                var names = missing
+                    .Select(c => documentRequirements.FirstOrDefault(r => r.Category == c)?.Title ?? c.ToString())
+                    .ToList();
+                return Result.Failure($"Required documents are missing: {string.Join(", ", names)}.");
+            }
         }
 
         // A case cannot be submitted for credit review without the agronomic basis the appraisal

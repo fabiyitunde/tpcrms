@@ -201,6 +201,12 @@ public class RhshfSupportingDocumentConfiguration : IEntityTypeConfiguration<Rhs
         builder.Property(x => x.FileName).IsRequired().HasMaxLength(255);
         builder.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
         builder.Property(x => x.StoragePath).IsRequired().HasMaxLength(500);
+
+        // Carried-over provenance — null on an ordinary upload. No FK to the source document: the
+        // source case must stay deletable without taking this copy's history with it, and the
+        // reference is kept alongside the id precisely so the trail survives.
+        builder.Property(x => x.ReusedFromReference).HasMaxLength(50);
+        builder.Ignore(x => x.IsReused);
     }
 }
 

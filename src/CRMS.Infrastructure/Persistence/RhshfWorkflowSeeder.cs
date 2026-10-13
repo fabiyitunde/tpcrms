@@ -76,22 +76,25 @@ public static class RhshfWorkflowSeeder
 
     private static async Task SeedDocumentRequirementsAsync(CRMSDbContext context, ILogger logger)
     {
-        if (await context.RhshfDocumentRequirements.AnyAsync())
-        {
-            logger.LogInformation("RH-SHF document requirements already seeded, skipping.");
-            return;
-        }
-
-        logger.LogInformation("Seeding default RH-SHF document requirements...");
+        // Add-missing-by-category rather than all-or-nothing. The original "skip if any row exists"
+        // meant a newly defined requirement never reached an already-seeded environment, so adding a
+        // document to the programme needed a manual admin step on every deployment. Existing rows are
+        // never touched: titles, mandatory flags, sort order and active/inactive state are
+        // admin-owned once seeded, and a category deliberately deactivated stays deactivated.
+        var existingCategories = await context.RhshfDocumentRequirements
+            .Select(r => r.Category)
+            .ToListAsync();
 
         // Mapped to the programme's own eligibility criteria (RSHSF_Programme_Details.docx S/N 15).
         // Mandatory flags are a starting position — tune via Admin > RH-SHF Document Requirements.
-        var requirements = new[]
+        var defaults = new[]
         {
             Requirement(RhshfDocumentCategory.CacCertificate, "CAC Certificate of Incorporation",
                 "Proof of full incorporation with the Corporate Affairs Commission.", isMandatory: true, sortOrder: 10),
             Requirement(RhshfDocumentCategory.AuditedFinancials, "Audited Financial Statements",
                 "Most recent audited accounts and statutory compliance filings.", isMandatory: true, sortOrder: 20),
+            Requirement(RhshfDocumentCategory.CreditAppraisalMemorandum, "Credit Appraisal Memorandum (CAM)",
+                "The CAM prepared for this facility. Optional at Expression of Interest, but required before the consolidated EOP goes for credit appraisal.", isMandatory: true, sortOrder: 25),
             Requirement(RhshfDocumentCategory.OffTakeAgreement, "Off-Take / Market Linkage Agreement",
                 "Formalised, legally binding agreement covering the produce being financed.", isMandatory: true, sortOrder: 30),
             Requirement(RhshfDocumentCategory.FarmerRegister, "Farmers Register",
@@ -106,9 +109,18 @@ public static class RhshfWorkflowSeeder
                 "Title, lease or documented usage rights over the hectares under cultivation.", isMandatory: false, sortOrder: 80),
         };
 
-        await context.RhshfDocumentRequirements.AddRangeAsync(requirements);
+        var missing = defaults.Where(r => !existingCategories.Contains(r.Category)).ToList();
+        if (missing.Count == 0)
+        {
+            logger.LogInformation("RH-SHF document requirements already cover every default category.");
+            return;
+        }
+
+        await context.RhshfDocumentRequirements.AddRangeAsync(missing);
         await context.SaveChangesAsync();
-        logger.LogInformation("Seeded {Count} RH-SHF document requirements.", requirements.Length);
+        logger.LogInformation(
+            "Seeded {Count} RH-SHF document requirement(s): {Categories}.",
+            missing.Count, string.Join(", ", missing.Select(r => r.Category)));
     }
 
     private static RhshfDocumentRequirement Requirement(

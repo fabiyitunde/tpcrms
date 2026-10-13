@@ -79,7 +79,7 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
             BureauTotalOverdue: profile.BureauTotalOverdue,
             BureauRawJson: profile.BureauRawJson,
             SupportingDocuments: profile.SupportingDocuments
-                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt) { Category = d.Category }).ToList(),
+                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt) { Category = d.Category, ReusedFromReference = d.ReusedFromReference, OriginalUploadedAt = d.OriginalUploadedAt }).ToList(),
             Appraisals: profile.Appraisals
                 .Select(a => new RhshfAppraisalDto(a.CycleNumber, a.CreditOfficerId, Name(a.CreditOfficerId), a.AppraisedAt, a.Outcome, a.Notes)).ToList(),
             RiskReviews: profile.RiskReviews

@@ -80,6 +80,12 @@ public enum RhshfDocumentCategory
     BankStatement,
     /// <summary>Land title, lease or usage rights for the cultivated hectares.</summary>
     LandDocumentation,
+    /// <summary>The Credit Appraisal Memorandum. Optional on the portal at Expression of Interest,
+    /// but compulsory before the FAC submits the consolidated EOP for credit appraisal, so CRMS
+    /// enforces it as a mandatory requirement on the documents stage. Where the FAC already supplied
+    /// one on an earlier session it can be carried over instead of re-uploaded — see
+    /// RhshfSupportingDocument's reuse provenance.</summary>
+    CreditAppraisalMemorandum,
 }
 
 /// <summary>Repayment capacity band, derived from DSCR relative to the configured minimum.</summary>

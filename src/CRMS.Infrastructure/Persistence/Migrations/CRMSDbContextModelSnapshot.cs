@@ -8126,6 +8126,16 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("ModifiedBy")
                         .HasColumnType("longtext");
 
+                    b.Property<DateTime?>("OriginalUploadedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("ReusedFromDocumentId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ReusedFromReference")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<Guid>("RhshfCreditProfileId")
                         .HasColumnType("char(36)");
 

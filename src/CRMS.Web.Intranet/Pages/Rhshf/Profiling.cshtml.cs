@@ -31,6 +31,8 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly RemoveRhshfProfilingCollateralHandler _removeCollateralHandler;
     private readonly UploadRhshfProfilingCollateralDocumentHandler _uploadCollateralDocHandler;
     private readonly GetRhshfFacDocumentFileHandler _documentFileHandler;
+    private readonly GetReusableRhshfDocumentsHandler _reusableDocumentsHandler;
+    private readonly ReuseRhshfSupportingDocumentHandler _reuseDocumentHandler;
 
     public ProfilingModel(
         VerifyRhshfProfilingTokenHandler verifyHandler,
@@ -51,7 +53,9 @@ public class ProfilingModel : RhshfPublicPageModel
         AddRhshfProfilingCollateralHandler addCollateralHandler,
         RemoveRhshfProfilingCollateralHandler removeCollateralHandler,
         UploadRhshfProfilingCollateralDocumentHandler uploadCollateralDocHandler,
-        GetRhshfFacDocumentFileHandler documentFileHandler)
+        GetRhshfFacDocumentFileHandler documentFileHandler,
+        GetReusableRhshfDocumentsHandler reusableDocumentsHandler,
+        ReuseRhshfSupportingDocumentHandler reuseDocumentHandler)
         : base(verifyHandler)
     {
         _sessionHandler = sessionHandler;
@@ -72,9 +76,16 @@ public class ProfilingModel : RhshfPublicPageModel
         _removeCollateralHandler = removeCollateralHandler;
         _uploadCollateralDocHandler = uploadCollateralDocHandler;
         _documentFileHandler = documentFileHandler;
+        _reusableDocumentsHandler = reusableDocumentsHandler;
+        _reuseDocumentHandler = reuseDocumentHandler;
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
+
+    /// <summary>Credit Appraisal Memoranda this FAC supplied on its earlier cases, offered as an
+    /// alternative to uploading the file again. Loaded only while the CAM slot is unfilled on the
+    /// documents stage; empty everywhere else.</summary>
+    public List<RhshfReusableDocumentDto> ReusableCamDocuments { get; private set; } = [];
 
     [TempData]
     public string? ErrorMessage { get; set; }
@@ -173,6 +184,22 @@ public class ProfilingModel : RhshfPublicPageModel
         var result = await _removeDocumentHandler.Handle(new RemoveRhshfProfilingDocumentCommand(reference, documentId), ct);
         if (!result.IsSuccess)
             ErrorMessage = result.Error;
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostReuseDocumentAsync(string reference, Guid sourceDocumentId, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _reuseDocumentHandler.Handle(
+            new ReuseRhshfSupportingDocumentCommand(reference, sourceDocumentId), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = "Document carried over from your earlier application. Replace it if a newer version applies.";
 
         return RedirectToPage(new { reference });
     }
@@ -399,6 +426,20 @@ public class ProfilingModel : RhshfPublicPageModel
             return false;
 
         Session = result.Data;
+
+        // Only on the documents stage, and only while the slot is still empty — this is an extra
+        // query, and offering a carry-over for something already attached would just be noise.
+        var camRequirement = Session!.DocumentRequirements
+            .FirstOrDefault(r => r.Category == RhshfDocumentCategory.CreditAppraisalMemorandum);
+        if (Session.CurrentStage == RhshfProfilingStage.SupportingDocuments
+            && camRequirement is not null && !camRequirement.IsSatisfied)
+        {
+            var reusable = await _reusableDocumentsHandler.Handle(
+                new GetReusableRhshfDocumentsQuery(reference, RhshfDocumentCategory.CreditAppraisalMemorandum), ct);
+            if (reusable.IsSuccess && reusable.Data is not null)
+                ReusableCamDocuments = reusable.Data;
+        }
+
         return true;
     }
 }

@@ -58,11 +58,29 @@ public record RhshfSupportingDocumentDto(Guid Id, string FileName, long SizeByte
     /// <summary>Defaulted so existing staff-side callers that don't care about categories are
     /// unaffected.</summary>
     public RhshfDocumentCategory Category { get; init; } = RhshfDocumentCategory.Other;
+
+    /// <summary>Case reference this document was carried over from, or null if it was uploaded here.
+    /// Shown so neither the FAC nor the reviewer mistakes a document from an earlier season for one
+    /// prepared for this application.</summary>
+    public string? ReusedFromReference { get; init; }
+
+    /// <summary>When the FAC originally supplied a carried-over document, on the source case. Null
+    /// for an ordinary upload, where <see cref="UploadedAt"/> is the only date that applies.</summary>
+    public DateTime? OriginalUploadedAt { get; init; }
+
+    public bool IsReused => ReusedFromReference is not null;
 }
 
 public record RhshfDocumentRequirementStatusDto(
     RhshfDocumentCategory Category, string Title, string? Description,
     bool IsMandatory, int SortOrder, bool IsSatisfied, int AttachedCount);
+
+/// <summary>A document from one of this FAC's earlier cases, offered for carry-over on the documents
+/// stage. The source reference, session and status are shown so the FAC can tell which document it
+/// is picking up — CRMS enforces no expiry, so that judgement is theirs.</summary>
+public record RhshfReusableDocumentDto(
+    Guid DocumentId, string FileName, long SizeBytes, DateTime UploadedAt,
+    string SourceReference, string SourceSessionName, RhshfCaseStatus SourceStatus);
 
 public record RhshfProfilingFarmPlanDto(
     Guid Id, string Crop, decimal Hectares, decimal ExpectedYieldKgPerHectare,
