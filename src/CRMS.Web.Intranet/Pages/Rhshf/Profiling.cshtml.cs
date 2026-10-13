@@ -33,6 +33,7 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly GetRhshfFacDocumentFileHandler _documentFileHandler;
     private readonly GetReusableRhshfDocumentsHandler _reusableDocumentsHandler;
     private readonly ReuseRhshfSupportingDocumentHandler _reuseDocumentHandler;
+    private readonly UpdateRhshfDirectorShareholdingHandler _updateDirectorShareholdingHandler;
 
     public ProfilingModel(
         VerifyRhshfProfilingTokenHandler verifyHandler,
@@ -55,7 +56,8 @@ public class ProfilingModel : RhshfPublicPageModel
         UploadRhshfProfilingCollateralDocumentHandler uploadCollateralDocHandler,
         GetRhshfFacDocumentFileHandler documentFileHandler,
         GetReusableRhshfDocumentsHandler reusableDocumentsHandler,
-        ReuseRhshfSupportingDocumentHandler reuseDocumentHandler)
+        ReuseRhshfSupportingDocumentHandler reuseDocumentHandler,
+        UpdateRhshfDirectorShareholdingHandler updateDirectorShareholdingHandler)
         : base(verifyHandler)
     {
         _sessionHandler = sessionHandler;
@@ -78,6 +80,7 @@ public class ProfilingModel : RhshfPublicPageModel
         _documentFileHandler = documentFileHandler;
         _reusableDocumentsHandler = reusableDocumentsHandler;
         _reuseDocumentHandler = reuseDocumentHandler;
+        _updateDirectorShareholdingHandler = updateDirectorShareholdingHandler;
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
@@ -269,6 +272,26 @@ public class ProfilingModel : RhshfPublicPageModel
             ErrorMessage = result.Error;
         else
             SuccessMessage = "Director BVN updated.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostUpdateDirectorShareholdingAsync(
+        string reference, Guid directorId, decimal? shareholdingPercent, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        // Its own command rather than UpdateRhshfDirectorCommand: that one writes the BVN too, and
+        // this form has no BVN to send back (the session DTO exposes presence only), so it would
+        // post a null and wipe it.
+        var result = await _updateDirectorShareholdingHandler.Handle(
+            new UpdateRhshfDirectorShareholdingCommand(reference, directorId, shareholdingPercent, Guid.Empty), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = "Shareholding updated.";
 
         return RedirectToPage(new { reference });
     }

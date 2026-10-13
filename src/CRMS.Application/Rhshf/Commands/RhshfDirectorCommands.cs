@@ -79,7 +79,7 @@ public class FetchRhshfCacDetailsHandler : IRequestHandler<FetchRhshfCacDetailsC
                     d.Nationality, d.Occupation, d.Email, d.PhoneNumber, d.Address, d.City, d.State,
                     d.IsChairman ?? false, d.DateOfAppointment, d.AffiliateType, d.Status,
                     d.TypeOfShares, d.NumSharesAlloted, d.IdentityNumber);
-                profile.AddDirector(director);
+                profile.ImportDirector(director);
                 keptIds.Add(director.Id);
             }
         }
@@ -134,7 +134,12 @@ public class AddRhshfDirectorHandler : IRequestHandler<AddRhshfDirectorCommand, 
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 
-        profile.AddDirector(result.Value);
+        // Capped against the case's total, not just 0-100 on this one row: 60% + 50% was accepted
+        // before, because a director cannot see its siblings' holdings.
+        var addResult = profile.AddDeclaredDirector(result.Value);
+        if (addResult.IsFailure)
+            return ApplicationResult.Failure(addResult.Error);
+
         profile.SetAuditInfo(request.UserId.ToString());
         await _uow.SaveChangesAsync(ct);
         return ApplicationResult.Success();
@@ -172,9 +177,53 @@ public class UpdateRhshfDirectorHandler : IRequestHandler<UpdateRhshfDirectorCom
         if (bvnResult.IsFailure)
             return ApplicationResult.Failure(bvnResult.Error);
 
-        var shareResult = director.UpdateShareholding(request.ShareholdingPercent);
+        // Through the aggregate, which excludes this director from the total it checks against —
+        // otherwise its own current holding counts against it and lowering 60% to 55% is refused.
+        var shareResult = profile.UpdateDirectorShareholding(request.DirectorId, request.ShareholdingPercent);
         if (shareResult.IsFailure)
             return ApplicationResult.Failure(shareResult.Error);
+
+        profile.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+        return ApplicationResult.Success();
+    }
+}
+
+/// <summary>
+/// Changes one director's declared shareholding and nothing else.
+/// <para>
+/// Separate from <see cref="UpdateRhshfDirectorCommand"/> because that one writes the BVN too, and
+/// the FAC-facing form cannot round-trip a BVN: the profiling session DTO exposes presence only
+/// (<c>HasBvn</c>), never the number. Reusing it from a shareholding-only form would post a null BVN
+/// and wipe the one the bureau checks depend on.
+/// </para>
+/// </summary>
+public record UpdateRhshfDirectorShareholdingCommand(
+    string Reference, Guid DirectorId, decimal? ShareholdingPercent, Guid UserId)
+    : IRequest<ApplicationResult>;
+
+public class UpdateRhshfDirectorShareholdingHandler
+    : IRequestHandler<UpdateRhshfDirectorShareholdingCommand, ApplicationResult>
+{
+    private readonly IRhshfCreditProfileRepository _repo;
+    private readonly IUnitOfWork _uow;
+
+    public UpdateRhshfDirectorShareholdingHandler(IRhshfCreditProfileRepository repo, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult> Handle(
+        UpdateRhshfDirectorShareholdingCommand request, CancellationToken ct = default)
+    {
+        var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
+        if (profile is null)
+            return ApplicationResult.Failure("Case not found.");
+
+        var result = profile.UpdateDirectorShareholding(request.DirectorId, request.ShareholdingPercent);
+        if (result.IsFailure)
+            return ApplicationResult.Failure(result.Error);
 
         profile.SetAuditInfo(request.UserId.ToString());
         await _uow.SaveChangesAsync(ct);

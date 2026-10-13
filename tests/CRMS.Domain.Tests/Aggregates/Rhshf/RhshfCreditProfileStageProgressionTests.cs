@@ -338,7 +338,7 @@ public class RhshfCreditProfileStageProgressionTests
         profile.AdvanceStage(RhshfProfilingStage.CompanyVerification); // on CreditBureauCheck
         var director = RhshfDirector.CreateManual(
             profile.Id, "Jane Doe", bvn: null, shareholdingPercent: null, isChairman: false, email: null, phoneNumber: null).Value;
-        profile.AddDirector(director);
+        profile.ImportDirector(director);
         profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck); // on EopReview
         profile.AddFarmPlanDuringProfiling("Maize", 100m, 3_000m, 515m);
         profile.AdvanceStage(RhshfProfilingStage.EopReview);

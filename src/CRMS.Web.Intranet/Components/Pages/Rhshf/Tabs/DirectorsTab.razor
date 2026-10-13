@@ -128,17 +128,58 @@
                             }
                         </tr>
                     }
+                    @* Declared total, visible to the officer appraising the case. Over 100% blocks the FAC's
+                       submission, so a case reaching here with one almost certainly carries it from the bank's
+                       own register. Under 100% is not a defect: this screen captures directors, and a FAC's
+                       non-director shareholders are not required to be listed. *@
+                    <tr style="border-top: 2px solid var(--gray-200);">
+                        <td colspan="2" style="font-weight: 500;">Declared shareholding</td>
+                        <td style="font-weight: 600;" class="@(ShareholdingTotal > 100m ? "text-danger" : "")">
+                            @ShareholdingTotal.ToString("0.##")%
+                        </td>
+                        <td colspan="@(1 + (CrossCheck is not null ? 1 : 0) + (CanManageDirectors ? 1 : 0))"
+                            style="font-size: var(--text-xs); color: var(--gray-500);">
+                            @if (ShareholdingTotal > 100m)
+                            {
+                                <span style="color: var(--danger-600);">Over-allocated — exceeds 100%.</span>
+                            }
+                            else if (ShareholdingTotal < 100m)
+                            {
+                                <span>@((100m - ShareholdingTotal).ToString("0.##"))% not accounted for by the directors listed.</span>
+                            }
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
 
-        @if (Directors.Directors.Any(d => !d.HasBvn))
+        @if (Directors.Directors.Any(d => !d.HasBvn) || ShareholdingTotal > 100m || ShareholdingTotal is > 0m and < 100m)
         {
             <div class="card-footer">
-                <div class="alert alert-warning" style="margin: 0; font-size: 0.85rem;">
-                    <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">warning</span>
-                    Some directors are missing a BVN. Complete the missing BVNs, then re-run the checks from the Credit Bureau tab.
-                </div>
+                @if (Directors.Directors.Any(d => !d.HasBvn))
+                {
+                    <div class="alert alert-warning" style="margin: 0; font-size: 0.85rem;">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">warning</span>
+                        Some directors are missing a BVN. Complete the missing BVNs, then re-run the checks from the Credit Bureau tab.
+                    </div>
+                }
+                @if (ShareholdingTotal > 100m)
+                {
+                    <div class="alert alert-danger" style="margin: var(--space-2) 0 0; font-size: 0.85rem;">
+                        Declared shareholding totals <b>@ShareholdingTotal.ToString("0.##")%</b>, which is more than 100% —
+                        usually imported from the core-banking register. The FAC cannot submit a further cycle until this
+                        is corrected.
+                    </div>
+                }
+                else if (ShareholdingTotal is > 0m and < 100m)
+                {
+                    <div class="alert alert-info" style="margin: var(--space-2) 0 0; font-size: 0.85rem;">
+                        The directors listed account for <b>@ShareholdingTotal.ToString("0.##")%</b> of the company.
+                        This step captures <b>directors</b>, not the full ownership register, so the remaining
+                        @((100m - ShareholdingTotal).ToString("0.##"))% may sit with shareholders who are not directors.
+                        Query it during appraisal if the ownership structure matters to the decision.
+                    </div>
+                }
             </div>
         }
     }
@@ -224,6 +265,11 @@ else
 }
 
 @code {
+    /// <summary>Mirrors RhshfCreditProfile.DeclaredShareholdingTotal — an unstated holding counts as
+    /// nothing, which is why a total under 100% is reported rather than treated as an error.</summary>
+    private decimal ShareholdingTotal =>
+        Directors?.Directors.Sum(d => d.ShareholdingPercent ?? 0m) ?? 0m;
+
     [Parameter] public RhshfDirectorsDto? Directors { get; set; }
     [Parameter] public bool CanManageDirectors { get; set; }
     [Parameter] public RhshfDirectorCrossCheckDto? CrossCheck { get; set; }

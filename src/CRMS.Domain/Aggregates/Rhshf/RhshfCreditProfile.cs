@@ -416,6 +416,21 @@ public class RhshfCreditProfile : AggregateRoot
             && _directors.Any(d => string.IsNullOrWhiteSpace(d.Bvn)))
             return Result.Failure("Every director must have a BVN before submitting — the bank runs a credit check on each one.");
 
+        // Both human-driven paths already refuse a total over 100%, so this only catches what an
+        // import brought in (the Bank of Agriculture register carries its own percentages). The
+        // import is allowed to land — failing it halfway would strand the director list — and the
+        // case is stopped here instead, where the FAC can see the figure and correct it.
+        //
+        // Deliberately NOT a check for exactly 100%: this screen is not a complete ownership
+        // register. Non-director shareholders need not be listed and nothing attests that the list
+        // is complete, so a FAC whose minority holders are absent would be blocked — and the
+        // realistic response to that is inflating a director to 100%, which is worse data than an
+        // honest 85%. An under-allocated total is surfaced as advice, not a gate.
+        if (expectedCurrentStage == RhshfProfilingStage.ReviewAndSubmit && IsShareholdingOverAllocated)
+            return Result.Failure(
+                $"Declared shareholding totals {DeclaredShareholdingTotal:0.##}%, which is more than 100%. " +
+                "Correct the directors' percentages before submitting.");
+
         // Captured before the status flip below, which would otherwise shift ProfilingTargetCycleNumber.
         var targetCycle = ProfilingTargetCycleNumber;
 
@@ -993,10 +1008,106 @@ public class RhshfCreditProfile : AggregateRoot
             ((cacDirectorId.HasValue && d.CacDirectorId == cacDirectorId) ||
              (!cacDirectorId.HasValue && string.Equals(d.FullName, fullName, StringComparison.OrdinalIgnoreCase))));
 
-    public void AddDirector(RhshfDirector director)
+    /// <summary>
+    /// Total shareholding declared across every director/shareholder on the case. Nulls count as
+    /// nothing — an unstated holding is unknown, not zero, which is exactly why this total is
+    /// advisory below 100% (see <see cref="IsShareholdingOverAllocated"/>).
+    /// </summary>
+    public decimal DeclaredShareholdingTotal =>
+        _directors.Sum(d => d.ShareholdingPercent ?? 0m);
+
+    /// <summary>
+    /// Headroom left before the declared total would exceed 100%, optionally ignoring one director —
+    /// pass the id of the row being edited, or its own current holding counts against it and
+    /// lowering 60% to 55% would be refused against itself. Never negative: an already
+    /// over-allocated case (imported from core banking) reports no headroom rather than a negative.
+    /// </summary>
+    public decimal RemainingShareholding(Guid? excludingDirectorId = null)
+    {
+        var allocated = _directors
+            .Where(d => excludingDirectorId is null || d.Id != excludingDirectorId)
+            .Sum(d => d.ShareholdingPercent ?? 0m);
+        return Math.Max(0m, 100m - allocated);
+    }
+
+    /// <summary>True when the declared total is already past 100% — only reachable through an
+    /// import, since both human-driven paths refuse it. Blocks submission rather than the import
+    /// itself.</summary>
+    public bool IsShareholdingOverAllocated => DeclaredShareholdingTotal > 100m;
+
+    /// <summary>
+    /// Adds a director whose declared holding must fit inside what is left of 100%.
+    /// <para>
+    /// Deliberately NOT the path used by the CAC and core-banking imports — see
+    /// <see cref="ImportDirector"/>. The cap belongs on the paths a person drives, where there is
+    /// someone to correct the number; failing an import halfway would leave a partial director list
+    /// and no way forward.
+    /// </para>
+    /// </summary>
+    public Result AddDeclaredDirector(RhshfDirector director)
+    {
+        var check = CheckShareholdingFits(director.ShareholdingPercent, excludingDirectorId: null);
+        if (check.IsFailure)
+            return check;
+
+        _directors.Add(director);
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Adds a director from an external record (CAC, or the Bank of Agriculture's own register).
+    /// Uncapped on purpose: rejecting the bank's data at the door would strand the import, so an
+    /// over-allocated total is allowed in and blocks submission instead, where the FAC can see the
+    /// figure and fix it.
+    /// </summary>
+    public void ImportDirector(RhshfDirector director)
     {
         _directors.Add(director);
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Changes one director's declared holding, keeping the case's total within 100%. Lives on the
+    /// aggregate because a single director cannot see its siblings' holdings — the whole reason the
+    /// old per-director 0-100 check let 60% + 50% through.
+    /// </summary>
+    public Result UpdateDirectorShareholding(Guid directorId, decimal? shareholdingPercent)
+    {
+        var director = _directors.FirstOrDefault(d => d.Id == directorId);
+        if (director is null)
+            return Result.Failure("Director not found on this case.");
+
+        var check = CheckShareholdingFits(shareholdingPercent, excludingDirectorId: directorId);
+        if (check.IsFailure)
+            return check;
+
+        var result = director.UpdateShareholding(shareholdingPercent);
+        if (result.IsFailure)
+            return result;
+
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>States the arithmetic in the failure: a bare "cannot exceed 100%" leaves the user
+    /// guessing which of several directors to change and by how much.</summary>
+    private Result CheckShareholdingFits(decimal? proposedPercent, Guid? excludingDirectorId)
+    {
+        if (!proposedPercent.HasValue)
+            return Result.Success();
+
+        var allocatedElsewhere = _directors
+            .Where(d => excludingDirectorId is null || d.Id != excludingDirectorId)
+            .Sum(d => d.ShareholdingPercent ?? 0m);
+
+        if (allocatedElsewhere + proposedPercent.Value <= 100m)
+            return Result.Success();
+
+        return Result.Failure(
+            $"Declared shareholding would total {allocatedElsewhere + proposedPercent.Value:0.##}%. " +
+            $"The other directors already account for {allocatedElsewhere:0.##}%, so this one cannot exceed " +
+            $"{Math.Max(0m, 100m - allocatedElsewhere):0.##}%.");
     }
 
     public Result RemoveDirector(Guid directorId)

@@ -187,7 +187,23 @@ else
                                                 </form>
                                             }
                                         </td>
-                                        <td class="text-end">@(d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:N1}%" : "—")</td>
+                                        @* Editable, not read-only. There was no way to correct a mistyped percentage:
+                                           shareholding could only be set when the director was added, and FAC-declared
+                                           directors cannot be deleted — so a typo was permanent and, now that the total
+                                           is capped, would have been unfixable. The ceiling is what is left of 100%
+                                           excluding this row's own holding. *@
+                                        <td class="text-end" style="min-width: 170px;">
+                                            <form method="post" asp-page-handler="UpdateDirectorShareholding" class="d-flex gap-1 justify-content-end align-items-center">
+                                                <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                <input type="hidden" name="directorId" value="@d.Id" />
+                                                <input name="shareholdingPercent" type="number" step="0.01" min="0"
+                                                       max="@((Model.Session.RemainingShareholding + (d.ShareholdingPercent ?? 0m)).ToString("0.##"))"
+                                                       value="@(d.ShareholdingPercent?.ToString("0.##"))"
+                                                       class="form-control form-control-sm text-end" style="max-width: 90px;"
+                                                       placeholder="—" aria-label="Shareholding percent for @d.FullName" />
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Save shareholding">%</button>
+                                            </form>
+                                        </td>
                                         <td class="text-end">
                                             <form method="post" asp-page-handler="RemoveDirector" onsubmit="return confirm('Remove this director?');">
                                                 <input type="hidden" name="reference" value="@Model.Session.Reference" />
@@ -199,6 +215,39 @@ else
                                 }
                                 </tbody>
                             </table>
+                            @* Running total: the cap is enforced server-side on every add and edit, but the FAC
+                               needs to see the arithmetic rather than discover it by being refused. Over 100% is an
+                               error and blocks submission; under 100% is only information, because this list is not
+                               a complete ownership register. *@
+                            var shareTotal = Model.Session.DeclaredShareholdingTotal;
+                            <div class="d-flex justify-content-between align-items-center small mb-2">
+                                <span class="text-muted">Declared shareholding</span>
+                                <span>
+                                    <strong class="@(shareTotal > 100m ? "text-danger" : "")">@shareTotal.ToString("0.##")%</strong>
+                                    @if (shareTotal < 100m)
+                                    {
+                                        <span class="text-muted">&middot; @Model.Session.RemainingShareholding.ToString("0.##")% unallocated</span>
+                                    }
+                                </span>
+                            </div>
+
+                            @if (shareTotal > 100m)
+                            {
+                                <div class="alert alert-danger py-2 small">
+                                    Declared shareholding totals <strong>@shareTotal.ToString("0.##")%</strong>, which is more than 100%.
+                                    This usually comes from the Bank of Agriculture record. Correct the percentages above
+                                    before submitting.
+                                </div>
+                            }
+                            else if (shareTotal > 0m && shareTotal < 100m)
+                            {
+                                <div class="alert alert-secondary py-2 small mb-2">
+                                    The directors listed here account for <strong>@shareTotal.ToString("0.##")%</strong> of the company.
+                                    If the remaining @Model.Session.RemainingShareholding.ToString("0.##")% is held by shareholders who are not
+                                    directors, you do not need to list them — this step captures directors.
+                                </div>
+                            }
+
                             @if (Model.Session.Directors.Any(d => !d.HasBvn))
                             {
                                 <div class="alert alert-warning py-2 small">Every director needs a BVN before you can submit — the bank runs a credit check on each one. Add the missing BVN(s) above.</div>
@@ -213,7 +262,15 @@ else
                             <input type="hidden" name="reference" value="@Model.Session.Reference" />
                             <div class="col-md-4"><label class="form-label small mb-0">Full name</label><input name="fullName" class="form-control form-control-sm" required /></div>
                             <div class="col-md-3"><label class="form-label small mb-0">BVN <span class="text-danger">*</span></label><input name="bvn" maxlength="11" pattern="\d{11}" title="11 digits" required class="form-control form-control-sm" placeholder="11 digits" /></div>
-                            <div class="col-md-2"><label class="form-label small mb-0">Shareholding %</label><input name="shareholdingPercent" type="number" step="0.01" min="0" max="100" class="form-control form-control-sm" /></div>
+                            @* Ceiling is what is actually left, not a flat 100 — the old max="100" is what let
+                               60% + 50% through the browser. The server refuses it either way. *@
+                            <div class="col-md-2">
+                                <label class="form-label small mb-0">Shareholding %</label>
+                                <input name="shareholdingPercent" type="number" step="0.01" min="0"
+                                       max="@Model.Session.RemainingShareholding.ToString("0.##")"
+                                       class="form-control form-control-sm"
+                                       title="At most @Model.Session.RemainingShareholding.ToString("0.##")% is unallocated" />
+                            </div>
                             <div class="col-md-2"><div class="form-check mt-3"><input type="checkbox" name="isChairman" value="true" class="form-check-input" id="chairCheck" /><label class="form-check-label small" for="chairCheck">Chairman</label></div></div>
                             <div class="col-md-1"><button type="submit" class="btn btn-sm btn-success w-100">Add</button></div>
                         </form>

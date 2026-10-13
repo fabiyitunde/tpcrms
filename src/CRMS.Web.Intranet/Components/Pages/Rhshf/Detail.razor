@@ -403,7 +403,8 @@ else
     }
     @if (openModal == "director")
     {
-        <DirectorModal Existing="editingDirector" OnClose="CloseModal" OnAdd="SubmitAddDirector"
+        <DirectorModal Existing="editingDirector" AllDirectors="directors?.Directors ?? []"
+            OnClose="CloseModal" OnAdd="SubmitAddDirector"
             OnUpdate="SubmitUpdateDirector" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "guarantor")

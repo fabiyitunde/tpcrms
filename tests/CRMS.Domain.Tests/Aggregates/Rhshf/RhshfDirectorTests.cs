@@ -110,8 +110,8 @@ public class RhshfCreditProfileDirectorTests
         var profile = MakeProfile();
         var withBvn = Cac(profile.Id, 1, "Has BVN");
         withBvn.UpdateBvn("12345678901");
-        profile.AddDirector(withBvn);
-        profile.AddDirector(Cac(profile.Id, 2, "No BVN"));
+        profile.ImportDirector(withBvn);
+        profile.ImportDirector(Cac(profile.Id, 2, "No BVN"));
 
         var subjects = profile.GetDirectorsWithBvn();
 
@@ -127,7 +127,7 @@ public class RhshfCreditProfileDirectorTests
         // from the previous merging behaviour must be manually removable.
         var profile = MakeProfile();
         var cac = Cac(profile.Id, 1, "From CAC");
-        profile.AddDirector(cac);
+        profile.ImportDirector(cac);
 
         var result = profile.RemoveDirector(cac.Id);
 
@@ -141,7 +141,7 @@ public class RhshfCreditProfileDirectorTests
         // Staff must not be able to delete what the FAC submitted (manipulation guard).
         var profile = MakeProfile();
         var fac = RhshfDirector.CreateManual(profile.Id, "FAC Declared", "12345678901", null, false, null, null, declaredByFac: true).Value;
-        profile.AddDirector(fac);
+        profile.ImportDirector(fac);
 
         var result = profile.RemoveDirector(fac.Id);
 
@@ -155,7 +155,7 @@ public class RhshfCreditProfileDirectorTests
         // A director a staff member added manually (not FAC-declared) is theirs to remove.
         var profile = MakeProfile();
         var manual = RhshfDirector.CreateManual(profile.Id, "Manual Entry", null, null, false, null, null).Value;
-        profile.AddDirector(manual);
+        profile.ImportDirector(manual);
 
         var result = profile.RemoveDirector(manual.Id);
 
@@ -170,9 +170,9 @@ public class RhshfCreditProfileDirectorTests
         var kept = Cac(profile.Id, 1, "Still Listed");
         var stale = Cac(profile.Id, 2, "Departed");
         var manual = RhshfDirector.CreateManual(profile.Id, "Manual Entry", null, null, false, null, null).Value;
-        profile.AddDirector(kept);
-        profile.AddDirector(stale);
-        profile.AddDirector(manual);
+        profile.ImportDirector(kept);
+        profile.ImportDirector(stale);
+        profile.ImportDirector(manual);
 
         profile.PruneCacDirectorsNotIn([kept.Id]);
 
@@ -188,7 +188,7 @@ public class RhshfCreditProfileDirectorTests
         // A CAC refresh must not absorb a hand-entered director just because the names collide.
         var profile = MakeProfile();
         var manual = RhshfDirector.CreateManual(profile.Id, "Ngozi Eze", null, null, false, null, null).Value;
-        profile.AddDirector(manual);
+        profile.ImportDirector(manual);
 
         Assert.Null(profile.FindCacDirector(null, "Ngozi Eze"));
     }

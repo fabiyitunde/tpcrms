@@ -28,7 +28,7 @@ public class AdvanceRhshfProfilingStageGuarantorGateTests
             eopLines: null, resolvedBranchId: null, resolvedOfficeId: null).Value;
 
         profile.AdvanceStage(RhshfProfilingStage.CompanyVerification);
-        profile.AddDirector(RhshfDirector.CreateManual(
+        profile.ImportDirector(RhshfDirector.CreateManual(
             profile.Id, "Jane Doe", "12345678901", null, false, null, null).Value);
         profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck);
         profile.AddFarmPlanDuringProfiling("Maize", 100m, 3_000m, 515m);

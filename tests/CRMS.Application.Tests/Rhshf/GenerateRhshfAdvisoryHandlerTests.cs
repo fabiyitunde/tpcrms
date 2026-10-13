@@ -285,8 +285,8 @@ public class GenerateRhshfAdvisoryHandlerTests
     public async Task Context_FlagsDirectorsThatCouldNotBeCreditChecked()
     {
         var profile = ProfileAtAppraisal();
-        profile.AddDirector(RhshfDirector.CreateManual(profile.Id, "Ngozi Eze", "12345678901", null, false, null, null).Value);
-        profile.AddDirector(RhshfDirector.CreateManual(profile.Id, "Sadiq Bello", null, null, false, null, null).Value);
+        profile.ImportDirector(RhshfDirector.CreateManual(profile.Id, "Ngozi Eze", "12345678901", null, false, null, null).Value);
+        profile.ImportDirector(RhshfDirector.CreateManual(profile.Id, "Sadiq Bello", null, null, false, null, null).Value);
         var (handler, ai) = MakeHandler(profile);
 
         await handler.Handle(new GenerateRhshfAdvisoryCommand(profile.Reference, Guid.NewGuid()));

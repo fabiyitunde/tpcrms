@@ -718,6 +718,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.UploadRhshfSupportingDocumentHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetReusableRhshfDocumentsHandler>();
         services.AddScoped<Application.Rhshf.Commands.ReuseRhshfSupportingDocumentHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UpdateRhshfDirectorShareholdingHandler>();
         services.AddScoped<Application.Rhshf.Commands.AppraiseRhshfCaseHandler>();
         services.AddScoped<Application.Rhshf.Commands.ReviewRhshfRiskHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfStaffQueueHandler>();

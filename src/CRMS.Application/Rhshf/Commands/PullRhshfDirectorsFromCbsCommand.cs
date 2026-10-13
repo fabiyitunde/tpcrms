@@ -68,7 +68,7 @@ public class PullRhshfDirectorsFromCbsHandler : IRequestHandler<PullRhshfDirecto
             if (result.IsFailure)
                 continue;
 
-            profile.AddDirector(result.Value);
+            profile.ImportDirector(result.Value);
             existingBvns.Add(bvn);
             added++;
         }

@@ -47,7 +47,12 @@ public record RhshfProfilingSessionDto(
     /// with the FAC, and without a route onward they land on "you can close this tab" while an
     /// offer sits waiting. Lets the completed panel link through to the offer page.
     /// </summary>
-    bool IsAwaitingOfferAcceptance = false);
+    bool IsAwaitingOfferAcceptance = false,
+    /// <summary>Total shareholding declared across the directors, and what is left of 100%. Drives
+    /// the running total, the input ceiling, and the over-/under-allocated messages — all computed
+    /// on the aggregate so the page and the server agree on the arithmetic.</summary>
+    decimal DeclaredShareholdingTotal = 0m,
+    decimal RemainingShareholding = 100m);
 
 public record RhshfSupportingDocumentDto(Guid Id, string FileName, long SizeBytes, DateTime UploadedAt)
 {

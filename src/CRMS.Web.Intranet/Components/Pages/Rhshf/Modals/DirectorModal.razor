@@ -33,7 +33,21 @@
 
             <div class="form-group">
                 <label class="form-label">Shareholding (%)</label>
-                <input type="number" class="form-control" min="0" max="100" step="0.01" @bind="shareholdingPercent" />
+                @* Ceiling is what is unallocated, not a flat 100 — the case total is what matters, and a flat
+                   100 here is what let two directors declare 60% and 50%. In edit mode this row's own holding
+                   is added back, or lowering it would be refused against itself. *@
+                <input type="number" class="form-control" min="0" step="0.01"
+                       max="@MaxShareholding.ToString("0.##")" @bind="shareholdingPercent" />
+                <small class="form-hint">
+                    @if (AllocatedElsewhere > 0m)
+                    {
+                        <span>The other directors account for @AllocatedElsewhere.ToString("0.##")%, so at most @MaxShareholding.ToString("0.##")% is available.</span>
+                    }
+                    else
+                    {
+                        <span>Share of the company held by this person. The case total cannot exceed 100%.</span>
+                    }
+                </small>
             </div>
 
             @if (!IsEditing)
@@ -80,7 +94,18 @@
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
 
+    /// <summary>Every director already on the case, so the modal can work out how much of the 100% is
+    /// still available. Without it the client can only check 0-100 on one row, which is the gap that
+    /// let a case total 110%.</summary>
+    [Parameter] public IReadOnlyList<RhshfDirectorDto> AllDirectors { get; set; } = [];
+
     private bool IsEditing => Existing is not null;
+
+    /// <summary>Holdings declared by directors other than the one being edited.</summary>
+    private decimal AllocatedElsewhere =>
+        AllDirectors.Where(d => Existing is null || d.Id != Existing.Id).Sum(d => d.ShareholdingPercent ?? 0m);
+
+    private decimal MaxShareholding => Math.Max(0m, 100m - AllocatedElsewhere);
 
     private string fullName = string.Empty;
     private string? bvn;
@@ -107,9 +132,19 @@
             clientError = "BVN must be exactly 11 digits.";
             return;
         }
-        if (shareholdingPercent is < 0 or > 100)
+        if (shareholdingPercent is < 0)
         {
-            clientError = "Shareholding must be between 0 and 100.";
+            clientError = "Shareholding cannot be negative.";
+            return;
+        }
+        // The case total, not just this row: mirrors RhshfCreditProfile's check so the user is told
+        // the arithmetic before a round trip. The server refuses it regardless.
+        if (shareholdingPercent.HasValue && AllocatedElsewhere + shareholdingPercent.Value > 100m)
+        {
+            clientError = AllocatedElsewhere > 0m
+                ? $"That would take the declared total to {(AllocatedElsewhere + shareholdingPercent.Value):0.##}%. "
+                  + $"The other directors already account for {AllocatedElsewhere:0.##}%, so this one cannot exceed {MaxShareholding:0.##}%."
+                : "Shareholding cannot exceed 100%.";
             return;
         }
 

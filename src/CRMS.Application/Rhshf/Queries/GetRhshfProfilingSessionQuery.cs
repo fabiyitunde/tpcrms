@@ -94,7 +94,9 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
                     c.CrgCoveragePercentage, c.PropertyDescription, c.PropertyValue, c.Notes,
                     c.Documents.Select(d => new RhshfProfilingCollateralDocumentDto(d.Id, d.FileName, d.SizeBytes, d.ContentType)).ToList()))
                 .ToList(),
-            IsAwaitingOfferAcceptance: await IsAwaitingOfferAcceptanceAsync(profile, ct));
+            IsAwaitingOfferAcceptance: await IsAwaitingOfferAcceptanceAsync(profile, ct),
+            DeclaredShareholdingTotal: profile.DeclaredShareholdingTotal,
+            RemainingShareholding: profile.RemainingShareholding());
 
         return ApplicationResult<RhshfProfilingSessionDto>.Success(dto);
     }
