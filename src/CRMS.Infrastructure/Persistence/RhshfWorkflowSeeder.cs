@@ -94,7 +94,7 @@ public static class RhshfWorkflowSeeder
                 "Most recent audited accounts and statutory compliance filings.", isMandatory: true, sortOrder: 20),
             Requirement(RhshfDocumentCategory.OffTakeAgreement, "Off-Take / Market Linkage Agreement",
                 "Formalised, legally binding agreement covering the produce being financed.", isMandatory: true, sortOrder: 30),
-            Requirement(RhshfDocumentCategory.FarmerRegister, "Out-Grower Register",
+            Requirement(RhshfDocumentCategory.FarmerRegister, "Farmers Register",
                 "Register of the smallholders under this aggregator, with biometric capture evidence.", isMandatory: true, sortOrder: 40),
             Requirement(RhshfDocumentCategory.BankStatement, "BOA Account Statement",
                 "Statements for the operational Bank of Agriculture account.", isMandatory: true, sortOrder: 50),

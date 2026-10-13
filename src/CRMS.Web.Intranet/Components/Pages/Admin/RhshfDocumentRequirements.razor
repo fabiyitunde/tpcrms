@@ -229,8 +229,10 @@
         else pageError = result.Error ?? "Failed to update status";
     }
 
+    // Shared with the staff Documents tab, so the category badge beside a requirement's Title never
+    // disagrees with it — see RhshfDisplayNames.
     private static string Humanise(RhshfDocumentCategory category) =>
-        System.Text.RegularExpressions.Regex.Replace(category.ToString(), "(?<!^)([A-Z])", " $1");
+        RhshfDisplayNames.CategoryLabel(category);
 
     private class FormModel
     {

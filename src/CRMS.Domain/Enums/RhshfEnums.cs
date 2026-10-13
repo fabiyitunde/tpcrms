@@ -67,7 +67,10 @@ public enum RhshfDocumentCategory
     AuditedFinancials,
     /// <summary>Signed off-take / market linkage agreement.</summary>
     OffTakeAgreement,
-    /// <summary>Evidence of the out-grower network and farmer register.</summary>
+    /// <summary>The Farmers Register — the smallholders aggregated under this FAC, with biometric
+    /// capture evidence. Member name kept as FarmerRegister: the category is persisted by name on
+    /// RhshfSupportingDocuments and RhshfDocumentRequirements, so renaming it would orphan existing
+    /// rows. The portal-facing label lives on the requirement's Title (admin-editable), not here.</summary>
     FarmerRegister,
     /// <summary>Proof of warehousing and transport capacity.</summary>
     WarehousingEvidence,

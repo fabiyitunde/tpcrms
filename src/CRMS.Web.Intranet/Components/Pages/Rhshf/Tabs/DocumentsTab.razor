@@ -186,10 +186,10 @@
         return "insert_drive_file";
     }
 
-    // "OffTakeAgreement" -> "Off Take Agreement". Keeps the category human-readable without a lookup
-    // table that would drift from the enum.
+    // Shared with the admin requirements screen so staff and the FAC never see two names for the
+    // same document — see RhshfDisplayNames for the one deliberate override.
     private static string FormatCategory(RhshfDocumentCategory category) =>
-        System.Text.RegularExpressions.Regex.Replace(category.ToString(), "(?<!^)([A-Z])", " $1");
+        RhshfDisplayNames.CategoryLabel(category);
 
     private static string FormatSize(long bytes)
     {
