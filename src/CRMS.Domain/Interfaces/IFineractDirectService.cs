@@ -245,5 +245,46 @@ public record FineractLoanProduct(
     int TransactionProcessingStrategyId,
     DateTime? StartDate,
     DateTime? CloseDate,
-    bool IsActive
-);
+    bool IsActive,
+    /// <summary>
+    /// Fees configured on the product, which core banking applies at booking. CRMS sends no charges
+    /// when it books — it sends principal, tenor and rate — so these are the authoritative statement
+    /// of what the borrower will actually be charged, and the only safe source for the fee lines on
+    /// an offer letter.
+    /// <para>
+    /// Null and empty both mean "none defined"; read it through <see cref="ProductCharges"/> rather
+    /// than directly. Optional so the many callers that only want principal and rate bounds are
+    /// unaffected.
+    /// </para>
+    /// </summary>
+    IReadOnlyList<FineractLoanProductCharge>? Charges = null
+)
+{
+    /// <summary>The product's fees, never null.</summary>
+    public IReadOnlyList<FineractLoanProductCharge> ProductCharges => Charges ?? [];
+}
+
+/// <summary>
+/// One fee configured on a loan product. <paramref name="CalculationType"/> is what tells a reader
+/// whether <paramref name="Amount"/> is naira or a percentage ("Flat" versus "% Approved Amount"),
+/// so the two must always be presented together — an amount of 1 means a flat ₦1 or 1% depending on
+/// it.
+/// </summary>
+public record FineractLoanProductCharge(
+    int Id,
+    string Name,
+    decimal Amount,
+    string CalculationType,
+    string TimeType,
+    string? CurrencyCode)
+{
+    /// <summary>True when Amount is a percentage rather than a naira figure.</summary>
+    public bool IsPercentage =>
+        CalculationType.Contains('%', StringComparison.Ordinal)
+        || CalculationType.Contains("percent", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The fee as it should read on a document: "1% of approved amount" or "NGN 5,000.00".</summary>
+    public string Display => IsPercentage
+        ? $"{Amount:0.##}% ({CalculationType})"
+        : $"{CurrencyCode ?? "NGN"} {Amount:N2}";
+}

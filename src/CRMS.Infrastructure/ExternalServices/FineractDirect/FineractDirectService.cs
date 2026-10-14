@@ -425,7 +425,20 @@ public class FineractDirectService : IFineractDirectService
                         TransactionProcessingStrategyId: dto.TransactionProcessingStrategyId,
                         StartDate: ParseFineractDate(dto.StartDate),
                         CloseDate: closeDate,
-                        IsActive: isActive
+                        IsActive: isActive,
+                        // Previously dropped on the floor. These are the fees core banking actually
+                        // applies at booking, so an offer letter that states fees must read them from
+                        // here rather than keep its own copy — otherwise the letter and the deduction
+                        // drift apart with nothing to catch it.
+                        Charges: (dto.Charges ?? [])
+                            .Select(c => new FineractLoanProductCharge(
+                                Id: c.Id,
+                                Name: c.Name ?? "",
+                                Amount: c.Amount,
+                                CalculationType: c.ChargeCalculationType?.Value ?? "",
+                                TimeType: c.ChargeTimeType?.Value ?? "",
+                                CurrencyCode: c.Currency?.Code))
+                            .ToList()
                     );
                 })
                 .Where(p => !activeOnly || p.IsActive)

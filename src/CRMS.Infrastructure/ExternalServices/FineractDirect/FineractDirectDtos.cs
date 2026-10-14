@@ -503,6 +503,35 @@ public class FineractLoanProductDto
 
     [JsonPropertyName("closeDate")]
     public List<int>? CloseDate { get; set; }
+
+    /// <summary>Fees configured on the product. Absent on products that define none.</summary>
+    [JsonPropertyName("charges")]
+    public List<FineractLoanProductChargeDto>? Charges { get; set; }
+}
+
+/// <summary>
+/// A fee on a loan product. The amount is meaningless without chargeCalculationType — "1" is a flat
+/// one naira under "Flat" and one percent under "% Approved Amount".
+/// </summary>
+public class FineractLoanProductChargeDto
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("amount")]
+    public decimal Amount { get; set; }
+
+    [JsonPropertyName("chargeCalculationType")]
+    public FineractEnumDto? ChargeCalculationType { get; set; }
+
+    [JsonPropertyName("chargeTimeType")]
+    public FineractEnumDto? ChargeTimeType { get; set; }
+
+    [JsonPropertyName("currency")]
+    public FineractCurrency? Currency { get; set; }
 }
 
 // POST /loans response

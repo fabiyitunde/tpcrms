@@ -37,6 +37,15 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
         builder.Property(x => x.TotalEopValue).IsRequired().HasColumnType("decimal(18,2)");
         builder.Property(x => x.Currency).IsRequired().HasMaxLength(10);
 
+        // Programme charges financed inside TotalEopValue, itemised by the portal. Nullable: cases
+        // submitted before the portal sent them have no breakdown, and the offer letter falls back
+        // to a single balancing row for the remainder.
+        builder.Property(x => x.InsuranceCharge).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.WorkingCapitalCharge).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.TechnologyServicesFee).HasColumnType("decimal(18,2)");
+        builder.Ignore(x => x.ItemisedChargesTotal);
+        builder.Ignore(x => x.UnitemisedRemainder);
+
         builder.Property(x => x.CallbackUrl).IsRequired().HasMaxLength(500);
         builder.Property(x => x.CertifiedByAdmin).HasMaxLength(200);
 
@@ -201,6 +210,7 @@ public class RhshfSupportingDocumentConfiguration : IEntityTypeConfiguration<Rhs
         builder.Property(x => x.FileName).IsRequired().HasMaxLength(255);
         builder.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
         builder.Property(x => x.StoragePath).IsRequired().HasMaxLength(500);
+
 
         // Carried-over provenance — null on an ordinary upload. No FK to the source document: the
         // source case must stay deletable without taking this copy's history with it, and the

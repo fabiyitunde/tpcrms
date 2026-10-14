@@ -41,6 +41,33 @@ public class RhshfCreditProfile : AggregateRoot
     public string Currency { get; private set; } = "NGN";
     public int? FarmerCount { get; private set; }
 
+    // ── Programme charges financed inside TotalEopValue ───────────────────
+    // Calculated by the portal, not here, and already part of the principal the FAC repays. The
+    // offer letter prints each as its own row. Null on cases submitted before the portal sent them,
+    // where the letter falls back to a single balancing row for the unitemised remainder.
+    //
+    // The appraisal and monitoring fees are absent on purpose: they are NOT financed. They sit on
+    // the core banking loan product and are deducted at booking, so CRMS reads them from the
+    // product rather than storing a copy that could drift from what is actually charged.
+    public decimal? InsuranceCharge { get; private set; }
+    public decimal? WorkingCapitalCharge { get; private set; }
+    public decimal? TechnologyServicesFee { get; private set; }
+
+    /// <summary>The financed charges that were itemised, or null when none were sent.</summary>
+    public decimal? ItemisedChargesTotal =>
+        InsuranceCharge is null && WorkingCapitalCharge is null && TechnologyServicesFee is null
+            ? null
+            : (InsuranceCharge ?? 0m) + (WorkingCapitalCharge ?? 0m) + (TechnologyServicesFee ?? 0m);
+
+    /// <summary>
+    /// What the EOP total does not account for once the input lines and the itemised charges are
+    /// taken off. Zero on a balanced submission. The offer letter prints any remainder as one
+    /// balancing row, so the implementation plan always foots to the approved amount even on a case
+    /// whose charges were never itemised.
+    /// </summary>
+    public decimal UnitemisedRemainder =>
+        TotalEopValue - _eopLines.Sum(l => l.LineValue) - (ItemisedChargesTotal ?? 0m);
+
     // ── Portal integration ────────────────────────────────────────────────
     public string CallbackUrl { get; private set; } = string.Empty;
     public string? CertifiedByAdmin { get; private set; }
@@ -179,7 +206,8 @@ public class RhshfCreditProfile : AggregateRoot
         string rawSubmissionPayload,
         IEnumerable<RhshfEopLineInput>? eopLines,
         Guid? resolvedBranchId,
-        Guid? resolvedOfficeId)
+        Guid? resolvedOfficeId,
+        RhshfEopChargesInput? charges = null)
     {
         if (string.IsNullOrWhiteSpace(companyName))
             return Result.Failure<RhshfCreditProfile>("fac.companyName is required.");
@@ -238,6 +266,26 @@ public class RhshfCreditProfile : AggregateRoot
             profile._eopLines.Add(new RhshfEopLine(
                 profile.Id, line.Commodity, line.QuantityKg, line.UnitPricePerKg, line.LineValue,
                 line.Supplier, line.Product, line.UnitOfMeasurement));
+
+        if (charges is not null)
+        {
+            profile.InsuranceCharge = charges.Insurance;
+            profile.WorkingCapitalCharge = charges.WorkingCapital;
+            profile.TechnologyServicesFee = charges.TechnologyServicesFee;
+
+            // Reconciliation, enforced only once the portal itemises the charges — there is nothing
+            // to check against otherwise. The three parties have to agree on one financing
+            // structure: the approved amount must equal this total exactly (no partial approval),
+            // and the offer letter's plan is printed from these same lines and charges. A submission
+            // that does not balance would put a plan in front of a borrower that does not add up to
+            // what they are signing for, so it is refused at the door instead.
+            var itemised = profile._eopLines.Sum(l => l.LineValue) + (profile.ItemisedChargesTotal ?? 0m);
+            var difference = Math.Abs(totalEopValue - itemised);
+            if (difference > 0.01m)
+                return Result.Failure<RhshfCreditProfile>(
+                    $"EOP does not reconcile: the input lines and itemised charges total {itemised:N2}, " +
+                    $"but the submitted EOP value is {totalEopValue:N2} (difference {difference:N2}).");
+        }
 
         // The trail starts where the case does — otherwise the first entry a reader sees is the
         // FAC already midway through the form, with no record of the case arriving.

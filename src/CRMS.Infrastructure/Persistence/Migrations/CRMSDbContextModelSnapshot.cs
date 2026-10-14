@@ -6485,6 +6485,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<int?>("FarmerCount")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("InsuranceCharge")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("InternalStage")
                         .HasMaxLength(30)
                         .HasColumnType("varchar(30)");
@@ -6556,6 +6559,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SubmissionId")
                         .HasColumnType("char(36)");
 
+                    b.Property<decimal?>("TechnologyServicesFee")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("Tin")
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
@@ -6565,6 +6571,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<decimal?>("WorkingCapitalCharge")
+                        .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
 

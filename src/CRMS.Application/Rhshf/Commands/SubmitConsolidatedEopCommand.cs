@@ -80,7 +80,9 @@ public class SubmitConsolidatedEopHandler
             rawSubmissionPayload: request.RawPayload,
             eopLines: eopLines,
             resolvedBranchId: null,
-            resolvedOfficeId: null);
+            resolvedOfficeId: null,
+            charges: req.Charges is null ? null : new RhshfEopChargesInput(
+                req.Charges.Insurance, req.Charges.WorkingCapital, req.Charges.TechnologyServicesFee));
 
         if (result.IsFailure)
             return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(result.Error);

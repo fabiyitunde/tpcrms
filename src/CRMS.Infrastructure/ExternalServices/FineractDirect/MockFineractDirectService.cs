@@ -324,6 +324,32 @@ public class MockFineractDirectService : IFineractDirectService
                 AmortizationType: "Equal installments", InterestType: "Flat",
                 TransactionProcessingStrategyId: 1,
                 StartDate: new DateTime(2020, 1, 1), CloseDate: new DateTime(2022, 12, 31), IsActive: false),
+
+            // The only mock product carrying charges, so the offer letter's fee lines can be
+            // exercised locally. The two fees match the approved RH-SHF offer template: appraisal
+            // at 1% and monitoring at 0.5%, both taken at disbursement. Nothing else in the mock
+            // catalogue defines charges, which is also worth exercising — a product with none must
+            // produce a letter that says so rather than a blank.
+            new(Id: 7, Name: "RH-SHF Dry Season Input Financing", ShortName: "RHSHF-DSI",
+                Description: "Renewed Hope Smallholder Farmer dry-season input financing, disbursed in kind to accredited input suppliers",
+                CurrencyCode: "NGN", CurrencySymbol: "₦",
+                MinPrincipal: 1_000_000m, DefaultPrincipal: 50_000_000m, MaxPrincipal: 1_000_000_000m,
+                DefaultInterestRatePerPeriod: 0.75m, MinInterestRatePerPeriod: 0.75m, MaxInterestRatePerPeriod: 0.75m,
+                AnnualInterestRate: 9m, InterestRateFrequencyType: "Per month",
+                DefaultNumberOfRepayments: 9, MinNumberOfRepayments: 6, MaxNumberOfRepayments: 12,
+                RepaymentEvery: 1, RepaymentFrequencyType: "Months",
+                AmortizationType: "Equal installments", InterestType: "Declining Balance",
+                TransactionProcessingStrategyId: 1,
+                StartDate: new DateTime(2026, 1, 1), CloseDate: null, IsActive: true,
+                Charges:
+                [
+                    new FineractLoanProductCharge(
+                        Id: 101, Name: "Appraisal Fee", Amount: 1m,
+                        CalculationType: "% Approved Amount", TimeType: "Disbursement", CurrencyCode: "NGN"),
+                    new FineractLoanProductCharge(
+                        Id: 102, Name: "Monitoring Fee", Amount: 0.5m,
+                        CalculationType: "% Approved Amount", TimeType: "Disbursement", CurrencyCode: "NGN"),
+                ]),
         };
 
         var result = activeOnly ? products.Where(p => p.IsActive).ToList() : products;

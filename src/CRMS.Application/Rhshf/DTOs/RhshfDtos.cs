@@ -72,4 +72,30 @@ public record SubmitConsolidatedEopRequest(
     int? FarmerCount,
     List<RhshfEopLineDto>? EopLines,
     string CallbackUrl,
-    Dictionary<string, string>? Metadata);
+    Dictionary<string, string>? Metadata,
+    /// <summary>
+    /// The programme charges the portal has already computed and included in
+    /// <see cref="TotalEopValue"/>. Optional, so the portal can begin sending them independently of
+    /// this deployment — but without them the offer letter cannot itemise them, and the
+    /// reconciliation check cannot run.
+    /// </summary>
+    RhshfEopChargesDto? Charges = null);
+
+/// <summary>
+/// Programme charges financed inside the EOP amount — the portal calculates these and they form
+/// part of the principal the FAC repays.
+/// <para>
+/// Sent as named amounts rather than derived at this end on purpose: insurance and working capital
+/// are percentages of the input cost <i>excluding extension services</i>, and CRMS has no dependable
+/// way to tell which line that is beyond pattern-matching a commodity name. Re-implementing the
+/// formula would mean two calculations that eventually disagree, on a figure a borrower signs.
+/// </para>
+/// <para>
+/// The appraisal and monitoring fees are deliberately absent: those are not financed. They are
+/// configured on the core banking loan product and deducted at booking.
+/// </para>
+/// </summary>
+public record RhshfEopChargesDto(
+    decimal? Insurance = null,
+    decimal? WorkingCapital = null,
+    decimal? TechnologyServicesFee = null);
