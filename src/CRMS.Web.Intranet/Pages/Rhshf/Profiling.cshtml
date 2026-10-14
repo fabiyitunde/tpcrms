@@ -313,6 +313,73 @@ else
                                             </form>
                                         </td>
                                     </tr>
+                                    @* Edit in place. There was no edit at all before, so correcting a name or a
+                                       mistyped RC meant removing the guarantor and entering it again. A details
+                                       row keeps it collapsed until wanted and needs no page navigation. *@
+                                    <tr>
+                                        <td colspan="6" class="pt-0 border-top-0">
+                                            <details>
+                                                <summary class="small text-success" style="cursor: pointer;">Edit this guarantor</summary>
+                                                <form method="post" asp-page-handler="UpdateGuarantor"
+                                                      class="row g-2 align-items-end mt-2 mb-2" data-guarantor-form>
+                                                    <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                    <input type="hidden" name="guarantorId" value="@g.Id" />
+                                                    <div class="col-md-2">
+                                                        <label class="form-label small mb-0">Type</label>
+                                                        <select name="guarantorType" data-guarantor-type class="form-select form-select-sm">
+                                                            @foreach (var t in Enum.GetValues<RhshfGuarantorType>())
+                                                            {
+                                                                <option value="@t" selected="@(t == g.GuarantorType)">@t</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label small mb-0">Full name / company</label>
+                                                        <input name="fullName" value="@g.FullName" class="form-control form-control-sm" required />
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <label class="form-label small mb-0">BVN <span class="text-danger d-none" data-guarantor-bvn-star>*</span></label>
+                                                        <input name="bvn" data-guarantor-bvn="optional" maxlength="11" pattern="\d{11}"
+                                                               title="11 digits" class="form-control form-control-sm"
+                                                               placeholder="@(g.HasBvn ? "On file — leave blank" : "11 digits")" />
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <label class="form-label small mb-0">RC <span class="text-danger d-none" data-guarantor-rc-star>*</span></label>
+                                                        <input name="rcNumber" data-guarantor-rc value="@g.RcNumber" class="form-control form-control-sm" />
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <label class="form-label small mb-0">Guarantee amount</label>
+                                                        <input name="guaranteeAmount" type="number" step="0.01" min="0"
+                                                               value="@(g.GuaranteeAmount?.ToString("0.##"))" class="form-control form-control-sm" />
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label small mb-0">Relationship to the FAC <span class="text-danger">*</span></label>
+                                                        <select name="relationshipCategory" data-guarantor-relationship class="form-select form-select-sm" required>
+                                                            <option value="">Select…</option>
+                                                            @foreach (var r in Enum.GetValues<RhshfGuarantorRelationship>())
+                                                            {
+                                                                <option value="@r" selected="@(r == g.RelationshipCategory)">
+                                                                    @RhshfDisplayNames.GuarantorRelationshipLabel(r)
+                                                                </option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                    @* Rendered shown when the stored category is already Other, so the
+                                                       existing wording is there to edit rather than reappearing blank
+                                                       (the delegated script would otherwise clear it on load). *@
+                                                    <div class="col-md-3 @(g.RelationshipCategory == RhshfGuarantorRelationship.Other ? "" : "d-none")" data-guarantor-other-wrap>
+                                                        <label class="form-label small mb-0">Specify the relationship <span class="text-danger">*</span></label>
+                                                        <input name="relationshipOther" data-guarantor-other maxlength="100"
+                                                               value="@g.RelationshipOther"
+                                                               class="form-control form-control-sm" placeholder="e.g. Produce off-taker" />
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <button type="submit" class="btn btn-sm btn-success w-100">Save changes</button>
+                                                    </div>
+                                                </form>
+                                            </details>
+                                        </td>
+                                    </tr>
                                 }
                                 </tbody>
                             </table>
@@ -322,16 +389,16 @@ else
                             <p class="text-muted small fst-italic">No guarantors added.</p>
                         }
 
-                        <form method="post" asp-page-handler="AddGuarantor" class="row g-2 align-items-end mb-2">
+                        <form method="post" asp-page-handler="AddGuarantor" class="row g-2 align-items-end mb-2" data-guarantor-form>
                             <input type="hidden" name="reference" value="@Model.Session.Reference" />
                             <div class="col-md-2"><label class="form-label small mb-0">Type</label>
-                                <select name="guarantorType" id="guarantorTypeSelect" class="form-select form-select-sm">
+                                <select name="guarantorType" data-guarantor-type class="form-select form-select-sm">
                                     @foreach (var t in Enum.GetValues<CRMS.Domain.Enums.RhshfGuarantorType>()) { <option value="@t">@t</option> }
                                 </select>
                             </div>
                             <div class="col-md-3"><label class="form-label small mb-0">Full name / company</label><input name="fullName" class="form-control form-control-sm" required /></div>
-                            <div class="col-md-2"><label class="form-label small mb-0">BVN <span class="text-danger" id="guarantorBvnStar">*</span></label><input name="bvn" id="guarantorBvn" maxlength="11" pattern="\d{11}" title="11 digits" class="form-control form-control-sm" placeholder="11 digits" /></div>
-                            <div class="col-md-2"><label class="form-label small mb-0">RC <span class="text-danger d-none" id="guarantorRcStar">*</span></label><input name="rcNumber" id="guarantorRc" class="form-control form-control-sm" /></div>
+                            <div class="col-md-2"><label class="form-label small mb-0">BVN <span class="text-danger" data-guarantor-bvn-star>*</span></label><input name="bvn" data-guarantor-bvn maxlength="11" pattern="\d{11}" title="11 digits" class="form-control form-control-sm" placeholder="11 digits" /></div>
+                            <div class="col-md-2"><label class="form-label small mb-0">RC <span class="text-danger d-none" data-guarantor-rc-star>*</span></label><input name="rcNumber" data-guarantor-rc class="form-control form-control-sm" /></div>
                             <div class="col-md-2"><label class="form-label small mb-0">Guarantee amount</label><input name="guaranteeAmount" type="number" step="0.01" min="0" class="form-control form-control-sm" /></div>
                             <div class="col-md-1"><button type="submit" class="btn btn-sm btn-success w-100">Add</button></div>
                             @* Approved categories only. This was free text, so the same relationship arrived
@@ -339,7 +406,7 @@ else
                                only for Other, and is required then. *@
                             <div class="col-md-3">
                                 <label class="form-label small mb-0">Relationship to the FAC <span class="text-danger">*</span></label>
-                                <select name="relationshipCategory" id="guarantorRelationship" class="form-select form-select-sm" required>
+                                <select name="relationshipCategory" data-guarantor-relationship class="form-select form-select-sm" required>
                                     <option value="">Select…</option>
                                     @foreach (var r in Enum.GetValues<RhshfGuarantorRelationship>())
                                     {
@@ -347,41 +414,66 @@ else
                                     }
                                 </select>
                             </div>
-                            <div class="col-md-3 d-none" id="guarantorRelationshipOtherWrap">
+                            <div class="col-md-3 d-none" data-guarantor-other-wrap>
                                 <label class="form-label small mb-0">Specify the relationship <span class="text-danger">*</span></label>
-                                <input name="relationshipOther" id="guarantorRelationshipOther" maxlength="100"
+                                <input name="relationshipOther" data-guarantor-other maxlength="100"
                                        class="form-control form-control-sm" placeholder="e.g. Produce off-taker" />
                             </div>
                         </form>
+                        @* One delegated handler for the add form and every per-guarantor edit form.
+                           Attribute-driven rather than by element id: the edit forms repeat per row, so
+                           ids would collide and getElementById would only ever find the first. *@
                         <script>
                             (function () {
-                                var sel = document.getElementById('guarantorTypeSelect');
-                                if (!sel) return;
-                                var bvn = document.getElementById('guarantorBvn');
-                                var rc = document.getElementById('guarantorRc');
-                                var bvnStar = document.getElementById('guarantorBvnStar');
-                                var rcStar = document.getElementById('guarantorRcStar');
-                                function sync() {
-                                    var ind = sel.value === 'Individual';
-                                    bvn.required = ind; bvn.disabled = !ind; if (!ind) { bvn.value = ''; }
-                                    rc.required = !ind; rc.disabled = ind; if (ind) { rc.value = ''; }
-                                    bvnStar.classList.toggle('d-none', !ind);
-                                    rcStar.classList.toggle('d-none', ind);
-                                }
-                                sel.addEventListener('change', sync); sync();
+                                function syncGuarantorForm(form) {
+                                    if (!form) return;
+                                    var typeSel = form.querySelector('[data-guarantor-type]');
+                                    var bvn = form.querySelector('[data-guarantor-bvn]');
+                                    var rc = form.querySelector('[data-guarantor-rc]');
 
-                                // "Specify" only exists for Other, and is required while it is shown —
-                                // a hidden required input would block submission with nothing visible to fix.
-                                var rel = document.getElementById('guarantorRelationship');
-                                var otherWrap = document.getElementById('guarantorRelationshipOtherWrap');
-                                var other = document.getElementById('guarantorRelationshipOther');
-                                function syncRelationship() {
-                                    var isOther = rel.value === 'Other';
-                                    otherWrap.classList.toggle('d-none', !isOther);
-                                    other.required = isOther;
-                                    if (!isOther) { other.value = ''; }
+                                    if (typeSel) {
+                                        var ind = typeSel.value === 'Individual';
+                                        // A disabled input posts nothing, which is how the irrelevant bureau key
+                                        // is left out rather than sent as an empty string.
+                                        if (bvn) {
+                                            // On an edit form a blank BVN means "keep the one on file" — the number
+                                            // is never sent to the browser — so it must not be marked required.
+                                            bvn.required = ind && bvn.dataset.guarantorBvn !== 'optional';
+                                            bvn.disabled = !ind;
+                                            if (!ind) { bvn.value = ''; }
+                                        }
+                                        if (rc) {
+                                            rc.required = !ind;
+                                            rc.disabled = ind;
+                                            if (ind) { rc.value = ''; }
+                                        }
+                                        form.querySelectorAll('[data-guarantor-bvn-star]').forEach(function (el) {
+                                            el.classList.toggle('d-none', !ind);
+                                        });
+                                        form.querySelectorAll('[data-guarantor-rc-star]').forEach(function (el) {
+                                            el.classList.toggle('d-none', ind);
+                                        });
+                                    }
+
+                                    // "Specify" only exists for Other, and is required while it is shown —
+                                    // a hidden required input would block submission with nothing visible to fix.
+                                    var rel = form.querySelector('[data-guarantor-relationship]');
+                                    var otherWrap = form.querySelector('[data-guarantor-other-wrap]');
+                                    var other = form.querySelector('[data-guarantor-other]');
+                                    if (rel && otherWrap && other) {
+                                        var isOther = rel.value === 'Other';
+                                        otherWrap.classList.toggle('d-none', !isOther);
+                                        other.required = isOther;
+                                        if (!isOther) { other.value = ''; }
+                                    }
                                 }
-                                rel.addEventListener('change', syncRelationship); syncRelationship();
+
+                                document.addEventListener('change', function (e) {
+                                    if (e.target.matches('[data-guarantor-type], [data-guarantor-relationship]')) {
+                                        syncGuarantorForm(e.target.closest('form'));
+                                    }
+                                });
+                                document.querySelectorAll('form[data-guarantor-form]').forEach(syncGuarantorForm);
                             })();
                         </script>
 

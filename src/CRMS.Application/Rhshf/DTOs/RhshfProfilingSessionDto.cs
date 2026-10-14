@@ -96,7 +96,12 @@ public record RhshfProfilingDirectorDto(
 
 public record RhshfProfilingGuarantorDto(
     Guid Id, string FullName, RhshfGuarantorType GuarantorType, bool HasBvn, string? RcNumber,
-    string? RelationshipDisplay, decimal? GuaranteeAmount);
+    string? RelationshipDisplay, decimal? GuaranteeAmount,
+    /// <summary>The raw category and specification, as well as the display text: the edit form has to
+    /// pre-select the dropdown and refill the Specify box, and the display text alone cannot do that
+    /// — for Other it is the free text, which matches no category.</summary>
+    RhshfGuarantorRelationship? RelationshipCategory = null,
+    string? RelationshipOther = null);
 
 public record RhshfProfilingCollateralDto(
     Guid Id, RhshfCollateralType Type, string? ReferenceNumber,

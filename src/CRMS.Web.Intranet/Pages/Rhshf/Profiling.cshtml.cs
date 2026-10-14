@@ -34,6 +34,8 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly GetReusableRhshfDocumentsHandler _reusableDocumentsHandler;
     private readonly ReuseRhshfSupportingDocumentHandler _reuseDocumentHandler;
     private readonly UpdateRhshfDirectorShareholdingHandler _updateDirectorShareholdingHandler;
+    private readonly UpdateRhshfGuarantorFromProfilingHandler _updateGuarantorHandler;
+    private readonly GetRhshfGuarantorsHandler _guarantorsHandler;
 
     public ProfilingModel(
         VerifyRhshfProfilingTokenHandler verifyHandler,
@@ -57,7 +59,9 @@ public class ProfilingModel : RhshfPublicPageModel
         GetRhshfFacDocumentFileHandler documentFileHandler,
         GetReusableRhshfDocumentsHandler reusableDocumentsHandler,
         ReuseRhshfSupportingDocumentHandler reuseDocumentHandler,
-        UpdateRhshfDirectorShareholdingHandler updateDirectorShareholdingHandler)
+        UpdateRhshfDirectorShareholdingHandler updateDirectorShareholdingHandler,
+        UpdateRhshfGuarantorFromProfilingHandler updateGuarantorHandler,
+        GetRhshfGuarantorsHandler guarantorsHandler)
         : base(verifyHandler)
     {
         _sessionHandler = sessionHandler;
@@ -81,6 +85,8 @@ public class ProfilingModel : RhshfPublicPageModel
         _reusableDocumentsHandler = reusableDocumentsHandler;
         _reuseDocumentHandler = reuseDocumentHandler;
         _updateDirectorShareholdingHandler = updateDirectorShareholdingHandler;
+        _updateGuarantorHandler = updateGuarantorHandler;
+        _guarantorsHandler = guarantorsHandler;
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
@@ -344,16 +350,55 @@ public class ProfilingModel : RhshfPublicPageModel
         return RedirectToPage(new { reference });
     }
 
+    public async Task<IActionResult> OnPostUpdateGuarantorAsync(
+        string reference, Guid guarantorId, RhshfGuarantorType guarantorType, string fullName,
+        string? bvn, string? rcNumber, RhshfGuarantorRelationship? relationshipCategory,
+        string? relationshipOther, decimal? guaranteeAmount, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        // Case scoping lives in the command: it refuses a guarantor belonging to another case, and
+        // leaves the staff-recorded contact fields alone.
+        var result = await _updateGuarantorHandler.Handle(
+            new UpdateRhshfGuarantorFromProfilingCommand(
+                reference, guarantorId, guarantorType, fullName, bvn, rcNumber,
+                relationshipCategory, relationshipOther, guaranteeAmount), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = $"Guarantor \"{fullName}\" updated.";
+
+        return RedirectToPage(new { reference });
+    }
+
     public async Task<IActionResult> OnPostRemoveGuarantorAsync(string reference, Guid guarantorId, CancellationToken ct)
     {
         if (!await IsAuthorizedForReferenceAsync(reference))
             return RedirectToPage("SessionExpired");
+
+        // The session is authenticated against one case, but RemoveRhshfGuarantorCommand is shared
+        // with the staff side and carries no profile scoping — so without this, a valid token for one
+        // case could delete a guarantor off another by posting its id.
+        if (!await GuarantorBelongsToCaseAsync(reference, guarantorId, ct))
+        {
+            ErrorMessage = "Guarantor not found on this case.";
+            return RedirectToPage(new { reference });
+        }
 
         var result = await _removeGuarantorHandler.Handle(new RemoveRhshfGuarantorCommand(guarantorId), ct);
         if (!result.IsSuccess)
             ErrorMessage = result.Error;
 
         return RedirectToPage(new { reference });
+    }
+
+    private async Task<bool> GuarantorBelongsToCaseAsync(string reference, Guid guarantorId, CancellationToken ct)
+    {
+        var guarantors = await _guarantorsHandler.Handle(new GetRhshfGuarantorsQuery(reference), ct);
+        return guarantors.IsSuccess && guarantors.Data is not null
+               && guarantors.Data.Any(g => g.Id == guarantorId);
     }
 
     public async Task<IActionResult> OnPostAddCollateralAsync(
