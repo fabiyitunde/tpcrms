@@ -52,7 +52,9 @@ public class SubmitConsolidatedEopHandler
             return ApplicationResult<SubmitConsolidatedEopResultDto>.Success(existingResponse);
         }
 
-        var eopLines = req.EopLines?.Select(l => (l.Commodity, l.QuantityKg, l.UnitPricePerKg, l.LineValue));
+        var eopLines = req.EopLines?.Select(l => new RhshfEopLineInput(
+            l.Commodity, l.QuantityKg, l.UnitPricePerKg, l.LineValue,
+            l.Supplier, l.Product, l.UnitOfMeasurement));
 
         var result = RhshfCreditProfile.Create(
             submissionId: req.SubmissionId,

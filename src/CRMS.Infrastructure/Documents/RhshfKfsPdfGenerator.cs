@@ -102,7 +102,7 @@ public class RhshfKfsPdfGenerator : IRhshfKfsPdfGenerator
                     foreach (var line in data.AppliedForLines)
                     {
                         BodyCell(table, line.Commodity, left: true);
-                        BodyCell(table, line.QuantityKg.ToString("N0"));
+                        BodyCell(table, line.QuantityDisplay);
                         BodyCell(table, $"{data.Currency} {line.UnitPricePerKg:N2}");
                         BodyCell(table, $"{data.Currency} {line.LineValue:N2}");
                     }

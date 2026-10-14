@@ -9,7 +9,7 @@ public class RhshfCreditProfileTests
         Guid facId, string companyName, string rcNumber, string tin, string boaAccountNumber, string contactEmail,
         string contactPhone, string state, string lga, decimal totalEopValue, string currency, int? farmerCount,
         string callbackUrl, string? certifiedByAdmin, DateTime? certifiedAt, string rawSubmissionPayload,
-        IEnumerable<(string Commodity, decimal QuantityKg, decimal UnitPricePerKg, decimal LineValue)>? eopLines,
+        IEnumerable<RhshfEopLineInput>? eopLines,
         Guid? resolvedBranchId, Guid? resolvedOfficeId) ValidArgs() => (
         Guid.NewGuid(), "RH-SHF-DRY-2026", "Renewed Hope - Dry Season 2026", "2026-DRY", "Dry Season 2026",
         Guid.NewGuid(), "Alliedsoft Limited", "RC123456", "01234567-0001", "0123456789", "fac@company.com",
@@ -145,8 +145,8 @@ public class RhshfCreditProfileTests
         var a = ValidArgs();
         var lines = new[]
         {
-            ("Maize", 100_000m, 340.00m, 34_000_000.00m),
-            ("Sorghum", 50_000m, 330.00m, 16_500_000.00m),
+            new RhshfEopLineInput("Maize", 100_000m, 340.00m, 34_000_000.00m),
+            new RhshfEopLineInput("Sorghum", 50_000m, 330.00m, 16_500_000.00m),
         };
 
         var result = RhshfCreditProfile.Create(

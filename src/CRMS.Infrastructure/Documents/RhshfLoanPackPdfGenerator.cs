@@ -129,11 +129,13 @@ public class RhshfLoanPackPdfGenerator : IRhshfLoanPackGenerator
         col.Item().Table(table =>
         {
             table.ColumnsDefinition(c => { c.RelativeColumn(3); c.RelativeColumn(2); c.RelativeColumn(2); c.RelativeColumn(2); });
-            Th(table, "Commodity", true); Th(table, "Quantity (kg)"); Th(table, "Unit price"); Th(table, "Line value");
+            // "Quantity", not "Quantity (kg)": the portal sends a unit per line, and a line counted in
+            // bags under a kilogramme header is a false statement in a credit document.
+            Th(table, "Commodity", true); Th(table, "Quantity"); Th(table, "Unit price"); Th(table, "Line value");
             foreach (var l in lines)
             {
                 Td(table, l.Commodity, true);
-                Td(table, l.QuantityKg.ToString("N0"));
+                Td(table, l.QuantityDisplay);
                 Td(table, $"{ccy} {l.UnitPricePerKg:N2}");
                 Td(table, $"{ccy} {l.LineValue:N2}");
             }

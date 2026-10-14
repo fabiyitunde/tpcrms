@@ -233,5 +233,13 @@ public class RhshfEopLineConfiguration : IEntityTypeConfiguration<RhshfEopLine>
         builder.Property(x => x.QuantityKg).HasColumnType("decimal(18,3)");
         builder.Property(x => x.UnitPricePerKg).HasColumnType("decimal(18,2)");
         builder.Property(x => x.LineValue).HasColumnType("decimal(18,2)");
+
+        // Sent per line by the portal as of the merged offer letter; null on everything submitted
+        // before that, which is why all three are nullable rather than defaulted.
+        builder.Property(x => x.Supplier).HasMaxLength(200);
+        builder.Property(x => x.Product).HasMaxLength(200);
+        builder.Property(x => x.UnitOfMeasurement).HasMaxLength(30);
+        builder.Ignore(x => x.QuantityDisplay);
+        builder.Ignore(x => x.ItemDescription);
     }
 }

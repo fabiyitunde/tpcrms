@@ -177,7 +177,7 @@ public class RhshfCreditProfile : AggregateRoot
         string? certifiedByAdmin,
         DateTime? certifiedAt,
         string rawSubmissionPayload,
-        IEnumerable<(string Commodity, decimal QuantityKg, decimal UnitPricePerKg, decimal LineValue)>? eopLines,
+        IEnumerable<RhshfEopLineInput>? eopLines,
         Guid? resolvedBranchId,
         Guid? resolvedOfficeId)
     {
@@ -235,7 +235,9 @@ public class RhshfCreditProfile : AggregateRoot
         };
 
         foreach (var line in eopLines ?? [])
-            profile._eopLines.Add(new RhshfEopLine(profile.Id, line.Commodity, line.QuantityKg, line.UnitPricePerKg, line.LineValue));
+            profile._eopLines.Add(new RhshfEopLine(
+                profile.Id, line.Commodity, line.QuantityKg, line.UnitPricePerKg, line.LineValue,
+                line.Supplier, line.Product, line.UnitOfMeasurement));
 
         // The trail starts where the case does — otherwise the first entry a reader sees is the
         // FAC already midway through the form, with no record of the case arriving.

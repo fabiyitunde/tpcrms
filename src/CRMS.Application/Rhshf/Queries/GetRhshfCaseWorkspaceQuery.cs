@@ -70,7 +70,9 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
             TotalEopValue: profile.TotalEopValue,
             Currency: profile.Currency,
             FarmerCount: profile.FarmerCount,
-            EopLines: profile.EopLines.Select(l => new RhshfEopLineDto(l.Commodity, l.QuantityKg, l.UnitPricePerKg, l.LineValue)).ToList(),
+            EopLines: profile.EopLines.Select(l => new RhshfEopLineDto(
+                l.Commodity, l.QuantityKg, l.UnitPricePerKg, l.LineValue,
+                l.Supplier, l.Product, l.UnitOfMeasurement)).ToList(),
             BureauCheckOutcome: profile.BureauCheckOutcome,
             BureauTotalLoans: profile.BureauTotalLoans,
             BureauActiveLoans: profile.BureauActiveLoans,

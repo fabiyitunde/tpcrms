@@ -38,4 +38,12 @@ public record RhshfKfsData(
     decimal? InterestCharge);
 
 /// <summary>One line of the EOP input package applied for (commodity, quantity, unit price, value).</summary>
-public record RhshfKfsEopLine(string Commodity, decimal QuantityKg, decimal UnitPricePerKg, decimal LineValue);
+public record RhshfKfsEopLine(
+    string Commodity, decimal QuantityKg, decimal UnitPricePerKg, decimal LineValue,
+    string? UnitOfMeasurement = null)
+{
+    /// <summary>Quantity with its unit, so a line counted in bags is not printed under a
+    /// kilogramme assumption. Optional: lines predating the portal sending a unit fall back to kg.</summary>
+    public string QuantityDisplay =>
+        $"{QuantityKg:N0} {(string.IsNullOrWhiteSpace(UnitOfMeasurement) ? "kg" : UnitOfMeasurement.Trim())}";
+}

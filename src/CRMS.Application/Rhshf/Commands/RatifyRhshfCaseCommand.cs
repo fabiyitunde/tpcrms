@@ -136,7 +136,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
             CycleMonths: appraisal?.CycleMonths,
             AmountDueAtHarvest: appraisal?.AmountDueAtHarvest,
             AppliedForLines: profile.EopLines
-                .Select(l => new RhshfKfsEopLine(l.Commodity, l.QuantityKg, l.UnitPricePerKg, l.LineValue))
+                .Select(l => new RhshfKfsEopLine(l.Commodity, l.QuantityKg, l.UnitPricePerKg, l.LineValue, l.UnitOfMeasurement))
                 .ToList(),
             FarmerCount: profile.FarmerCount,
             State: profile.State,

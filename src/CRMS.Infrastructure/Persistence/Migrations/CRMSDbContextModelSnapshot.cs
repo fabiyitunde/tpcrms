@@ -6890,11 +6890,23 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("ModifiedBy")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("Product")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
                     b.Property<decimal>("QuantityKg")
                         .HasColumnType("decimal(18,3)");
 
                     b.Property<Guid>("RhshfCreditProfileId")
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("Supplier")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("UnitOfMeasurement")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
 
                     b.Property<decimal>("UnitPricePerKg")
                         .HasColumnType("decimal(18,2)");

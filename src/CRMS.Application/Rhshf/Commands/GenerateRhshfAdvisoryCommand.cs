@@ -407,13 +407,14 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
         {
             $"Programme: {profile.ProgrammeName} ({profile.SessionName}).",
             $"Farmer count served: {profile.FarmerCount?.ToString("N0") ?? "not recorded"}.",
-            // Quantity and unit price are 0 for every line the portal sends — it records quantities
-            // per input (bags, litres), not a tonnage of the commodity grown. Stating "0kg @ 0.00/kg"
-            // to the model is worse than saying nothing: it reads as a real measurement of zero.
+            // Quantity and unit price were 0 on every line the portal sent before it began sending a
+            // unit per line. Stating "0kg @ 0.00/kg" to the model is worse than saying nothing: it
+            // reads as a real measurement of zero. Where a quantity IS present it is stated in the
+            // unit the portal gave, never assumed to be kilogrammes — a line can be counted in bags.
             $"EOP commodities: {string.Join(", ", profile.EopLines.Select(l =>
                 l.QuantityKg > 0 && l.UnitPricePerKg > 0
-                    ? $"{l.Commodity} ({l.QuantityKg:N0}kg @ {l.UnitPricePerKg:N2}/kg, {l.LineValue:N0})"
-                    : $"{l.Commodity} ({l.LineValue:N0}; per-commodity quantity not recorded by the portal)"))}.",
+                    ? $"{l.ItemDescription} ({l.QuantityDisplay} @ {l.UnitPricePerKg:N2}/unit, {l.LineValue:N0})"
+                    : $"{l.ItemDescription} ({l.LineValue:N0}; per-commodity quantity not recorded by the portal)"))}.",
             $"Total EOP value: {profile.Currency} {profile.TotalEopValue:N2}.",
         };
 
