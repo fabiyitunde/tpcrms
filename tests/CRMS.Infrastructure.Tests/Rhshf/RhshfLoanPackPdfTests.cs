@@ -127,7 +127,9 @@ public class RhshfLoanPackPdfTests
 
         var guarantors = new List<RhshfGuarantorDto>
         {
-            new(Guid.NewGuid(), RhshfGuarantorType.Individual, "Emeka Surety", true, null, "Business associate", null, null, null, 5_000_000m, null),
+            new(Guid.NewGuid(), RhshfGuarantorType.Individual, "Emeka Surety", true, null,
+                RhshfGuarantorRelationship.BusinessPartner, null, "Business Partner",
+                null, null, null, 5_000_000m, null),
         };
 
         var committee = new RhshfCommitteeReviewDto(

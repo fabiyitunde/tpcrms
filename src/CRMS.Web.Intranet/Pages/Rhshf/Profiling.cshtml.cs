@@ -326,14 +326,15 @@ public class ProfilingModel : RhshfPublicPageModel
 
     public async Task<IActionResult> OnPostAddGuarantorAsync(
         string reference, RhshfGuarantorType guarantorType, string fullName, string? bvn, string? rcNumber,
-        string? relationship, decimal? guaranteeAmount, string? phoneNumber, CancellationToken ct)
+        RhshfGuarantorRelationship? relationshipCategory, string? relationshipOther,
+        decimal? guaranteeAmount, string? phoneNumber, CancellationToken ct)
     {
         if (!await IsAuthorizedForReferenceAsync(reference))
             return RedirectToPage("SessionExpired");
 
         var result = await _addGuarantorHandler.Handle(
             new AddRhshfGuarantorCommand(reference, Guid.Empty, guarantorType, fullName, bvn, rcNumber,
-                relationship, phoneNumber, null, null, guaranteeAmount, null), ct);
+                relationshipCategory, relationshipOther, phoneNumber, null, null, guaranteeAmount, null), ct);
 
         if (!result.IsSuccess)
             ErrorMessage = result.Error;

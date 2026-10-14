@@ -8,7 +8,8 @@ namespace CRMS.Application.Rhshf.Commands;
 // ── Add ─────────────────────────────────────────────────────────────────────
 public record AddRhshfGuarantorCommand(
     string Reference, Guid ActorUserId, RhshfGuarantorType GuarantorType, string FullName,
-    string? Bvn, string? RcNumber, string? Relationship, string? PhoneNumber, string? Email,
+    string? Bvn, string? RcNumber, RhshfGuarantorRelationship? RelationshipCategory, string? RelationshipOther,
+    string? PhoneNumber, string? Email,
     string? Address, decimal? GuaranteeAmount, string? Notes) : IRequest<ApplicationResult>;
 
 public class AddRhshfGuarantorHandler : IRequestHandler<AddRhshfGuarantorCommand, ApplicationResult>
@@ -32,7 +33,8 @@ public class AddRhshfGuarantorHandler : IRequestHandler<AddRhshfGuarantorCommand
 
         var result = RhshfGuarantor.Create(
             profile.Id, request.GuarantorType, request.FullName, request.Bvn, request.RcNumber,
-            request.Relationship, request.PhoneNumber, request.Email, request.Address, request.GuaranteeAmount, request.Notes);
+            request.RelationshipCategory, request.RelationshipOther,
+            request.PhoneNumber, request.Email, request.Address, request.GuaranteeAmount, request.Notes);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 
@@ -46,7 +48,8 @@ public class AddRhshfGuarantorHandler : IRequestHandler<AddRhshfGuarantorCommand
 // ── Update ──────────────────────────────────────────────────────────────────
 public record UpdateRhshfGuarantorCommand(
     Guid GuarantorId, Guid ActorUserId, RhshfGuarantorType GuarantorType, string FullName,
-    string? Bvn, string? RcNumber, string? Relationship, string? PhoneNumber, string? Email,
+    string? Bvn, string? RcNumber, RhshfGuarantorRelationship? RelationshipCategory, string? RelationshipOther,
+    string? PhoneNumber, string? Email,
     string? Address, decimal? GuaranteeAmount, string? Notes) : IRequest<ApplicationResult>;
 
 public class UpdateRhshfGuarantorHandler : IRequestHandler<UpdateRhshfGuarantorCommand, ApplicationResult>
@@ -72,7 +75,8 @@ public class UpdateRhshfGuarantorHandler : IRequestHandler<UpdateRhshfGuarantorC
         var effectiveBvn = string.IsNullOrWhiteSpace(request.Bvn) ? guarantor.Bvn : request.Bvn;
 
         var result = guarantor.Update(
-            request.GuarantorType, request.FullName, effectiveBvn, request.RcNumber, request.Relationship,
+            request.GuarantorType, request.FullName, effectiveBvn, request.RcNumber,
+            request.RelationshipCategory, request.RelationshipOther,
             request.PhoneNumber, request.Email, request.Address, request.GuaranteeAmount, request.Notes);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);

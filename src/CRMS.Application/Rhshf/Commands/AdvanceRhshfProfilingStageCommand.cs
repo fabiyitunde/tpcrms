@@ -49,6 +49,12 @@ public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfPro
             if (guarantors.Any(g => g.GuarantorType == RhshfGuarantorType.Individual && string.IsNullOrWhiteSpace(g.Bvn)))
                 return ApplicationResult.Failure("Every individual guarantor must have a BVN before submitting — the bank runs a credit check on each one.");
 
+            // The other half of the sentence above, which was never enforced: a corporate guarantor
+            // with no RC number cannot be looked up at the business bureau at all, so it would reach
+            // the credit stage as an unverifiable name on a form.
+            if (guarantors.Any(g => g.GuarantorType == RhshfGuarantorType.Corporate && string.IsNullOrWhiteSpace(g.RcNumber)))
+                return ApplicationResult.Failure("Every corporate guarantor must have an RC number before submitting — the bank runs a business credit check on each one.");
+
             // Security is now settled before the committee votes, which only works if there is
             // something to settle: the Legal Officer sights, opines on and perfects what the FAC
             // declared here, between appraisal and risk review. A case with no instrument declared

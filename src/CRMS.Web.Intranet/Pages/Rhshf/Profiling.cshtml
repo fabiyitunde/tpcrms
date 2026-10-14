@@ -303,7 +303,7 @@ else
                                                 <code>@g.RcNumber</code>
                                             }
                                         </td>
-                                        <td class="small text-muted">@(string.IsNullOrWhiteSpace(g.Relationship) ? "—" : g.Relationship)</td>
+                                        <td class="small text-muted">@(string.IsNullOrWhiteSpace(g.RelationshipDisplay) ? "—" : g.RelationshipDisplay)</td>
                                         <td class="text-end">@(g.GuaranteeAmount.HasValue ? $"{Model.Session.Currency} {g.GuaranteeAmount:N0}" : "—")</td>
                                         <td class="text-end">
                                             <form method="post" asp-page-handler="RemoveGuarantor" onsubmit="return confirm('Remove this guarantor?');">
@@ -334,7 +334,24 @@ else
                             <div class="col-md-2"><label class="form-label small mb-0">RC <span class="text-danger d-none" id="guarantorRcStar">*</span></label><input name="rcNumber" id="guarantorRc" class="form-control form-control-sm" /></div>
                             <div class="col-md-2"><label class="form-label small mb-0">Guarantee amount</label><input name="guaranteeAmount" type="number" step="0.01" min="0" class="form-control form-control-sm" /></div>
                             <div class="col-md-1"><button type="submit" class="btn btn-sm btn-success w-100">Add</button></div>
-                            <div class="col-md-3"><input name="relationship" class="form-control form-control-sm" placeholder="Relationship (e.g. Director)" /></div>
+                            @* Approved categories only. This was free text, so the same relationship arrived
+                               spelled several ways and nothing could be reported on it. The Specify box appears
+                               only for Other, and is required then. *@
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">Relationship to the FAC <span class="text-danger">*</span></label>
+                                <select name="relationshipCategory" id="guarantorRelationship" class="form-select form-select-sm" required>
+                                    <option value="">Select…</option>
+                                    @foreach (var r in Enum.GetValues<RhshfGuarantorRelationship>())
+                                    {
+                                        <option value="@r">@RhshfDisplayNames.GuarantorRelationshipLabel(r)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-none" id="guarantorRelationshipOtherWrap">
+                                <label class="form-label small mb-0">Specify the relationship <span class="text-danger">*</span></label>
+                                <input name="relationshipOther" id="guarantorRelationshipOther" maxlength="100"
+                                       class="form-control form-control-sm" placeholder="e.g. Produce off-taker" />
+                            </div>
                         </form>
                         <script>
                             (function () {
@@ -352,6 +369,19 @@ else
                                     rcStar.classList.toggle('d-none', ind);
                                 }
                                 sel.addEventListener('change', sync); sync();
+
+                                // "Specify" only exists for Other, and is required while it is shown —
+                                // a hidden required input would block submission with nothing visible to fix.
+                                var rel = document.getElementById('guarantorRelationship');
+                                var otherWrap = document.getElementById('guarantorRelationshipOtherWrap');
+                                var other = document.getElementById('guarantorRelationshipOther');
+                                function syncRelationship() {
+                                    var isOther = rel.value === 'Other';
+                                    otherWrap.classList.toggle('d-none', !isOther);
+                                    other.required = isOther;
+                                    if (!isOther) { other.value = ''; }
+                                }
+                                rel.addEventListener('change', syncRelationship); syncRelationship();
                             })();
                         </script>
 

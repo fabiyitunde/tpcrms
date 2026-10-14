@@ -17,6 +17,38 @@ public static class RhshfWorkflowSeeder
         await BackfillPreDeploymentKindsAsync(context, logger);
         await SeedAppraisalThresholdsAsync(context, logger);
         await SeedDocumentRequirementsAsync(context, logger);
+        await BackfillGuarantorRelationshipsAsync(context, logger);
+    }
+
+    /// <summary>
+    /// One-time, idempotent: gives a relationship category to guarantors recorded before the
+    /// categories existed, when the field was free text.
+    /// <para>
+    /// Text that matches a category is mapped to it; anything else becomes Other and keeps the
+    /// original wording as its specification, so nothing staff typed is discarded. Rows that already
+    /// carry a category are untouched, and a guarantor with no relationship recorded at all is left
+    /// null — inventing one would be a fabrication, and the next edit will ask for it.
+    /// </para>
+    /// </summary>
+    private static async Task BackfillGuarantorRelationshipsAsync(CRMSDbContext context, ILogger logger)
+    {
+        var uncategorised = await context.RhshfGuarantors
+            .Where(g => g.RelationshipCategory == null && g.RelationshipOther != null)
+            .ToListAsync();
+
+        if (uncategorised.Count == 0)
+            return;
+
+        foreach (var guarantor in uncategorised)
+        {
+            var (category, other) = RhshfGuarantor.ClassifyLegacyRelationship(guarantor.RelationshipOther);
+            guarantor.BackfillRelationship(category, other);
+        }
+
+        await context.SaveChangesAsync();
+        logger.LogInformation(
+            "Backfilled relationship category on {Count} RH-SHF guarantor(s) recorded before the categories existed.",
+            uncategorised.Count);
     }
 
     /// <summary>One-time, idempotent: sets the verification kind on default pre-deployment templates that

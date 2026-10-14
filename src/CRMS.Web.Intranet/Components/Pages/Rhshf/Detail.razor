@@ -630,10 +630,10 @@ else
         modalError = null;
         var result = editingGuarantor is null
             ? await AppService.AddRhshfGuarantorAsync(new AddRhshfGuarantorCommand(
-                Reference, CurrentUserId, data.Type, data.FullName, data.Bvn, data.RcNumber, data.Relationship,
+                Reference, CurrentUserId, data.Type, data.FullName, data.Bvn, data.RcNumber, data.RelationshipCategory, data.RelationshipOther,
                 data.PhoneNumber, data.Email, data.Address, data.GuaranteeAmount, data.Notes))
             : await AppService.UpdateRhshfGuarantorAsync(new UpdateRhshfGuarantorCommand(
-                editingGuarantor.Id, CurrentUserId, data.Type, data.FullName, data.Bvn, data.RcNumber, data.Relationship,
+                editingGuarantor.Id, CurrentUserId, data.Type, data.FullName, data.Bvn, data.RcNumber, data.RelationshipCategory, data.RelationshipOther,
                 data.PhoneNumber, data.Email, data.Address, data.GuaranteeAmount, data.Notes));
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }

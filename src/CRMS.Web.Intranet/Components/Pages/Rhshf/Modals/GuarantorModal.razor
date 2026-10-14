@@ -1,3 +1,4 @@
+@using CRMS.Web.Intranet.Models
 @using CRMS.Application.Rhshf.Queries
 @using CRMS.Domain.Enums
 
@@ -42,15 +43,32 @@
             }
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                @* Approved categories, not free text — the same relationship used to arrive spelled
+                   several ways and could not be reported on. *@
                 <div class="form-group">
-                    <label class="form-label">Relationship to FAC</label>
-                    <input class="form-control" @bind="relationship" placeholder="e.g. Director, Third Party" />
+                    <label class="form-label">Relationship to FAC *</label>
+                    <select class="form-control" @bind="relationshipCategory">
+                        <option value="">Select…</option>
+                        @foreach (var r in Enum.GetValues<RhshfGuarantorRelationship>())
+                        {
+                            <option value="@r">@RhshfDisplayNames.GuarantorRelationshipLabel(r)</option>
+                        }
+                    </select>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Guarantee Amount</label>
                     <input type="number" class="form-control" min="0" step="0.01" @bind="guaranteeAmount" />
                 </div>
             </div>
+
+            @if (relationshipCategory == RhshfGuarantorRelationship.Other)
+            {
+                <div class="form-group">
+                    <label class="form-label">Specify the relationship *</label>
+                    <input class="form-control" maxlength="100" @bind="relationshipOther"
+                           placeholder="e.g. Produce off-taker" />
+                </div>
+            }
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div class="form-group">
@@ -97,7 +115,8 @@
     [Parameter] public string? ErrorMessage { get; set; }
 
     public record GuarantorFormData(
-        RhshfGuarantorType Type, string FullName, string? Bvn, string? RcNumber, string? Relationship,
+        RhshfGuarantorType Type, string FullName, string? Bvn, string? RcNumber,
+        RhshfGuarantorRelationship? RelationshipCategory, string? RelationshipOther,
         string? PhoneNumber, string? Email, string? Address, decimal? GuaranteeAmount, string? Notes);
 
     private bool IsEditing => Existing is not null;
@@ -106,7 +125,8 @@
     private string fullName = string.Empty;
     private string? bvn;
     private string? rcNumber;
-    private string? relationship;
+    private RhshfGuarantorRelationship? relationshipCategory;
+    private string? relationshipOther;
     private string? phoneNumber;
     private string? email;
     private string? address;
@@ -121,7 +141,8 @@
         type = Existing.GuarantorType;
         fullName = Existing.FullName;
         rcNumber = Existing.RcNumber;
-        relationship = Existing.Relationship;
+        relationshipCategory = Existing.RelationshipCategory;
+        relationshipOther = Existing.RelationshipOther;
         phoneNumber = Existing.PhoneNumber;
         email = Existing.Email;
         address = Existing.Address;
@@ -147,6 +168,17 @@
             clientError = "BVN must be exactly 11 digits.";
             return;
         }
+        // Mirrors the domain rules so the user is told before a round trip.
+        if (relationshipCategory is null)
+        {
+            clientError = "Select the guarantor's relationship to the FAC.";
+            return;
+        }
+        if (relationshipCategory == RhshfGuarantorRelationship.Other && string.IsNullOrWhiteSpace(relationshipOther))
+        {
+            clientError = "State the relationship when choosing Other.";
+            return;
+        }
         if (guaranteeAmount is < 0)
         {
             clientError = "Guarantee amount cannot be negative.";
@@ -156,7 +188,8 @@
         await OnSave.InvokeAsync(new GuarantorFormData(
             type, fullName.Trim(), trimmedBvn,
             string.IsNullOrWhiteSpace(rcNumber) ? null : rcNumber.Trim(),
-            string.IsNullOrWhiteSpace(relationship) ? null : relationship,
+            relationshipCategory,
+            string.IsNullOrWhiteSpace(relationshipOther) ? null : relationshipOther,
             string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber,
             string.IsNullOrWhiteSpace(email) ? null : email,
             string.IsNullOrWhiteSpace(address) ? null : address,

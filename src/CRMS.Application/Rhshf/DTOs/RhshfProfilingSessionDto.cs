@@ -96,7 +96,7 @@ public record RhshfProfilingDirectorDto(
 
 public record RhshfProfilingGuarantorDto(
     Guid Id, string FullName, RhshfGuarantorType GuarantorType, bool HasBvn, string? RcNumber,
-    string? Relationship, decimal? GuaranteeAmount);
+    string? RelationshipDisplay, decimal? GuaranteeAmount);
 
 public record RhshfProfilingCollateralDto(
     Guid Id, RhshfCollateralType Type, string? ReferenceNumber,

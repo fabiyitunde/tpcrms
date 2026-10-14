@@ -81,7 +81,7 @@
                                         : (MarkupString)$"<code>{g.RcNumber}</code>")
                                 }
                             </td>
-                            <td style="font-size: var(--text-sm); color: var(--gray-600);">@(string.IsNullOrWhiteSpace(g.Relationship) ? "—" : g.Relationship)</td>
+                            <td style="font-size: var(--text-sm); color: var(--gray-600);">@(string.IsNullOrWhiteSpace(g.RelationshipDisplay) ? "—" : g.RelationshipDisplay)</td>
                             <td style="text-align: right; font-weight: 600;">@(g.GuaranteeAmount is decimal v ? $"{Currency} {v:N2}" : "—")</td>
                             <td style="font-size: var(--text-xs); color: var(--gray-500);">
                                 @if (!string.IsNullOrWhiteSpace(g.PhoneNumber)) { <div>@g.PhoneNumber</div> }

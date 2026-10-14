@@ -274,7 +274,7 @@ public class RhshfLoanPackPdfGenerator : IRhshfLoanPackGenerator
             {
                 Td(table, g.FullName, true);
                 Td(table, g.GuarantorType.ToString(), true);
-                Td(table, g.Relationship ?? "—", true);
+                Td(table, g.RelationshipDisplay ?? "—", true);
                 Td(table, g.HasBvn ? "BVN" : !string.IsNullOrWhiteSpace(g.RcNumber) ? "RC" : "—");
                 Td(table, g.GuaranteeAmount is { } ga ? $"{ccy} {ga:N2}" : "—");
             }

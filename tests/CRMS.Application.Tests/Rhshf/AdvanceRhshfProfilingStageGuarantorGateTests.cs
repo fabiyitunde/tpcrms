@@ -47,7 +47,12 @@ public class AdvanceRhshfProfilingStageGuarantorGateTests
             new FakeCollateralRepo(collateral), new FakeUow());
 
     private static RhshfGuarantor Individual(string? bvn) => RhshfGuarantor.Create(
-        Guid.NewGuid(), RhshfGuarantorType.Individual, "Ada Guarantor", bvn, null, "Friend", null, null, null, 1_000_000m, null).Value;
+        Guid.NewGuid(), RhshfGuarantorType.Individual, "Ada Guarantor", bvn, null,
+        RhshfGuarantorRelationship.Other, "Friend of the promoter", null, null, null, 1_000_000m, null).Value;
+
+    private static RhshfGuarantor Corporate(string? rcNumber) => RhshfGuarantor.Create(
+        Guid.NewGuid(), RhshfGuarantorType.Corporate, "Sahel Holdings Limited", null, rcNumber,
+        RhshfGuarantorRelationship.ParentCompany, null, null, null, null, 5_000_000m, null).Value;
 
     /// <summary>A bank guarantee filed under the cycle this profiling pass will be reviewed as, with
     /// its guarantee letter attached. PerfectionStatus is left unset — the FAC declares, the Legal
@@ -60,6 +65,34 @@ public class AdvanceRhshfProfilingStageGuarantorGateTests
         if (withDocument)
             collateral.AddDocument("guarantee-letter.pdf", "application/pdf", "path/bg.pdf", 2048);
         return collateral;
+    }
+
+    [Fact]
+    public async Task Submit_IsBlocked_WhenACorporateGuarantorHasNoRcNumber()
+    {
+        // The other half of the gate's own sentence, which was never enforced: a corporate guarantor
+        // with no RC cannot be looked up at the business bureau, so it would reach the credit stage
+        // as an unverifiable name on a form.
+        var profile = ProfileReadyToSubmit();
+
+        var result = await Handler(profile, Corporate(rcNumber: null))
+            .Handle(new AdvanceRhshfProfilingStageCommand(profile.Reference, RhshfProfilingStage.ReviewAndSubmit));
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("RC number", result.Error);
+        Assert.Equal(RhshfProfilingStage.ReviewAndSubmit, profile.CurrentStage); // not advanced
+    }
+
+    [Fact]
+    public async Task Submit_Proceeds_WhenEveryCorporateGuarantorHasAnRcNumber()
+    {
+        var profile = ProfileReadyToSubmit();
+
+        var result = await Handler(profile, Corporate(rcNumber: "RC998877"))
+            .Handle(new AdvanceRhshfProfilingStageCommand(profile.Reference, RhshfProfilingStage.ReviewAndSubmit));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfCaseStatus.UnderReview, profile.Status);
     }
 
     [Fact]

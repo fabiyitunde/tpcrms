@@ -24,6 +24,15 @@ public static class RhshfDisplayNames
     public static string CategoryLabel(RhshfDocumentCategory category) => category switch
     {
         RhshfDocumentCategory.FarmerRegister => "Farmers Register",
-        _ => System.Text.RegularExpressions.Regex.Replace(category.ToString(), "(?<!^)([A-Z])", " $1"),
+        _ => SplitOnCapitals(category.ToString()),
     };
+
+    /// <summary>A guarantor relationship category as it should read in a dropdown — "BusinessPartner"
+    /// becomes "Business Partner". No overrides needed: the member names were chosen to match the
+    /// wording the programme team approved.</summary>
+    public static string GuarantorRelationshipLabel(RhshfGuarantorRelationship relationship) =>
+        SplitOnCapitals(relationship.ToString());
+
+    private static string SplitOnCapitals(string value) =>
+        System.Text.RegularExpressions.Regex.Replace(value, "(?<!^)([A-Z])", " $1");
 }

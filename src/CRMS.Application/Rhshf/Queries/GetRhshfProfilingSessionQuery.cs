@@ -86,7 +86,7 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
                 .OrderBy(g => g.FullName)
                 .Select(g => new RhshfProfilingGuarantorDto(
                     g.Id, g.FullName, g.GuarantorType, !string.IsNullOrWhiteSpace(g.Bvn), g.RcNumber,
-                    g.Relationship, g.GuaranteeAmount))
+                    g.RelationshipDisplay, g.GuaranteeAmount))
                 .ToList(),
             Collateral: collateral
                 .Select(c => new RhshfProfilingCollateralDto(

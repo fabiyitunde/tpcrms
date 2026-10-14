@@ -7502,9 +7502,14 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
-                    b.Property<string>("Relationship")
+                    b.Property<string>("RelationshipCategory")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("RelationshipOther")
                         .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("Relationship");
 
                     b.Property<Guid>("RhshfCreditProfileId")
                         .HasColumnType("char(36)");

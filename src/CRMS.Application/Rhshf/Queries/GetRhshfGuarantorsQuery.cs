@@ -14,7 +14,11 @@ public record RhshfGuarantorDto(
     string FullName,
     bool HasBvn,
     string? RcNumber,
-    string? Relationship,
+    RhshfGuarantorRelationship? RelationshipCategory,
+    string? RelationshipOther,
+    /// <summary>The relationship as it should be read — the stated text for Other, the category name
+    /// otherwise. Precomputed on the aggregate so every surface renders it the same way.</summary>
+    string? RelationshipDisplay,
     string? PhoneNumber,
     string? Email,
     string? Address,
@@ -44,7 +48,8 @@ public class GetRhshfGuarantorsHandler : IRequestHandler<GetRhshfGuarantorsQuery
             .OrderBy(g => g.FullName)
             .Select(g => new RhshfGuarantorDto(
                 g.Id, g.GuarantorType, g.FullName, !string.IsNullOrWhiteSpace(g.Bvn), g.RcNumber,
-                g.Relationship, g.PhoneNumber, g.Email, g.Address, g.GuaranteeAmount, g.Notes))
+                g.RelationshipCategory, g.RelationshipOther, g.RelationshipDisplay,
+                g.PhoneNumber, g.Email, g.Address, g.GuaranteeAmount, g.Notes))
             .ToList();
 
         return ApplicationResult<List<RhshfGuarantorDto>>.Success(dtos);

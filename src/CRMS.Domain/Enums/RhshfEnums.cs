@@ -282,6 +282,33 @@ public enum RhshfGuarantorType
     Corporate,
 }
 
+/// <summary>
+/// How a guarantor is connected to the FAC. Replaces a free-text field that accepted anything staff
+/// typed, so the same relationship arrived spelled several ways and could not be reported on.
+/// <para>
+/// Persisted by name on a column of its own (RelationshipCategory) rather than over the original
+/// free-text Relationship column: existing rows hold arbitrary text, and a string-converted enum
+/// throws on reading any value that is not a member. The old column now carries the
+/// <see cref="Other"/> specification instead, which is also where unrecognised historical text was
+/// backfilled to — so nothing was discarded. Adding a category here is safe; renaming one orphans
+/// rows.
+/// </para>
+/// </summary>
+public enum RhshfGuarantorRelationship
+{
+    /// <summary>A director of the FAC.</summary>
+    Director,
+    /// <summary>A shareholder of the FAC who is not necessarily a director.</summary>
+    Shareholder,
+    BusinessPartner,
+    /// <summary>A company that owns the FAC.</summary>
+    ParentCompany,
+    /// <summary>A company under common ownership or control with the FAC.</summary>
+    RelatedCompany,
+    /// <summary>Anything else — requires the relationship to be stated in RelationshipOther.</summary>
+    Other,
+}
+
 /// <summary>Review lifecycle of a captured financial statement year (mirrors Corporate's
 /// FinancialStatementStatus): entered as Draft, Submitted for review, then Verified or Rejected.</summary>
 public enum RhshfFinancialStatementStatus

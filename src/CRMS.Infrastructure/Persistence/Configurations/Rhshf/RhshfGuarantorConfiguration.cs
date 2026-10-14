@@ -16,7 +16,15 @@ public class RhshfGuarantorConfiguration : IEntityTypeConfiguration<RhshfGuarant
         builder.Property(x => x.FullName).IsRequired().HasMaxLength(200);
         builder.Property(x => x.Bvn).HasMaxLength(11);
         builder.Property(x => x.RcNumber).HasMaxLength(50);
-        builder.Property(x => x.Relationship).HasMaxLength(100);
+        // The category goes in its own column, by name. Converting the original free-text column to a
+        // string-persisted enum would throw on reading any row holding something that is not an enum
+        // member — and every pre-existing row holds whatever staff typed.
+        builder.Property(x => x.RelationshipCategory).HasConversion<string>().HasMaxLength(30);
+
+        // The original Relationship column, now the Other specification. Mapped explicitly so the
+        // rename stays a rename: the data (including the backfilled historical text) stays put.
+        builder.Property(x => x.RelationshipOther).HasColumnName("Relationship").HasMaxLength(100);
+        builder.Ignore(x => x.RelationshipDisplay);
         builder.Property(x => x.PhoneNumber).HasMaxLength(30);
         builder.Property(x => x.Email).HasMaxLength(200);
         builder.Property(x => x.Address).HasMaxLength(500);
