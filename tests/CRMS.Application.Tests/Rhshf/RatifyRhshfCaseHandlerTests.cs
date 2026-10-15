@@ -1,3 +1,5 @@
+using CRMS.Domain.Common;
+using CRMS.Domain.Aggregates.ProductCatalog;
 using CRMS.Application.Rhshf.Commands;
 using CRMS.Application.Rhshf.Interfaces;
 using CRMS.Domain.Aggregates.Rhshf;
@@ -41,14 +43,18 @@ public class RatifyRhshfCaseHandlerTests
     }
 
     [Fact]
-    public async Task Ratify_Ratified_GeneratesOfferAndUploadsDocument()
+    public async Task Ratify_Ratified_GeneratesOneMergedDocument()
     {
+        // The whole point of the merge: one document, so the FAC signs and returns one file. No KFS
+        // path is attached, which is what makes HasRequiredSignedDocuments ask for one signature
+        // instead of two.
         var profile = MakeProfileAtRatification();
         var offerRepo = new FakeOfferRepository();
         var fileStorage = new FakeFileStorage();
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(), offerRepo,
-            new FakePdfGenerator(), new FakeKfsGenerator(), fileStorage, new FakeUnitOfWork());
+            new FakeCollateralRepo(), new FakeOfferDocumentGenerator(), new FakeKfsGenerator(),
+            new FakeLoanProductRepo(), new FakeFineract(), fileStorage, new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
@@ -56,10 +62,37 @@ public class RatifyRhshfCaseHandlerTests
         Assert.True(result.IsSuccess);
         Assert.NotNull(offerRepo.Added);
         Assert.Equal(RhshfOfferStatus.Generated, offerRepo.Added!.Status);
-        // Two PDFs are generated and stored: the offer letter and the accompanying Key Facts Statement.
-        Assert.Equal(2, fileStorage.UploadedPaths.Count);
-        Assert.NotNull(offerRepo.Added.KfsDocumentPath);
+        Assert.Single(fileStorage.UploadedPaths);
+        Assert.Null(offerRepo.Added.KfsDocumentPath);
+        Assert.True(offerRepo.Added.HasRequiredSignedDocuments == false); // nothing signed yet
         Assert.Equal(RhshfInternalStage.AwaitingOfferAcceptance, profile.InternalStage);
+    }
+
+    [Fact]
+    public async Task Ratify_PassesTheApprovedTermsIntoTheDocument()
+    {
+        var profile = MakeProfileAtRatification();
+        var generator = new FakeOfferDocumentGenerator();
+        var handler = new RatifyRhshfCaseHandler(
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(),
+            new FakeOfferRepository(), new FakeCollateralRepo(), generator, new FakeKfsGenerator(),
+            new FakeLoanProductRepo(), new FakeFineract(), new FakeFileStorage(), new FakeUnitOfWork());
+
+        await handler.Handle(new RatifyRhshfCaseCommand(
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
+
+        var data = generator.Received;
+        Assert.NotNull(data);
+        Assert.Equal(TotalEopValue, data!.ApprovedAmount);
+        Assert.Equal(profile.Reference, data.Reference);
+        Assert.Equal(7, data.ValidityDays);              // the approved template's seven days
+        Assert.Null(data.GraceMonths);                   // unsettled, so left unstated
+        Assert.Empty(data.ProductFees);                  // no product configured in this fake
+        Assert.NotNull(data.FeesAccount);
+        // No itemised financing on this case, so the plan falls back to a balancing row that still
+        // foots to the approved amount.
+        Assert.False(data.PlanIsItemised);
+        Assert.Equal(TotalEopValue, data.PlanRows.Sum(r => r.Amount));
     }
 
     [Fact]
@@ -71,7 +104,8 @@ public class RatifyRhshfCaseHandlerTests
         review.CastVote(committeeApproverId, RhshfCommitteeVoteChoice.Approve, null, []);
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new SharedFakeLegalClearanceRepository(), new FakeOfferRepository(),
-            new FakePdfGenerator(), new FakeKfsGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
+            new FakeCollateralRepo(), new FakeOfferDocumentGenerator(), new FakeKfsGenerator(),
+            new FakeLoanProductRepo(), new FakeFineract(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, committeeApproverId, RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
@@ -86,7 +120,8 @@ public class RatifyRhshfCaseHandlerTests
         var offerRepo = new FakeOfferRepository();
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(), offerRepo,
-            new FakePdfGenerator(), new FakeKfsGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
+            new FakeCollateralRepo(), new FakeOfferDocumentGenerator(), new FakeKfsGenerator(),
+            new FakeLoanProductRepo(), new FakeFineract(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue - 1, null, null));
@@ -102,7 +137,8 @@ public class RatifyRhshfCaseHandlerTests
         var offerRepo = new FakeOfferRepository();
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(), offerRepo,
-            new FakePdfGenerator(), new FakeKfsGenerator(), new FakeFileStorage(), new FakeUnitOfWork());
+            new FakeCollateralRepo(), new FakeOfferDocumentGenerator(), new FakeKfsGenerator(),
+            new FakeLoanProductRepo(), new FakeFineract(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.ReturnToFac, null, "need more info", RhshfProfilingStage.SupportingDocuments));
@@ -153,10 +189,76 @@ public class RatifyRhshfCaseHandlerTests
         public Task<RhshfOfferDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
-    private class FakePdfGenerator : IRhshfOfferLetterPdfGenerator
+    private class FakeOfferDocumentGenerator : IRhshfOfferDocumentGenerator
     {
-        public Task<byte[]> GenerateAsync(RhshfOfferLetterData data, CancellationToken ct = default)
-            => Task.FromResult(new byte[] { 1, 2, 3 });
+        public RhshfOfferDocumentData? Received { get; private set; }
+
+        public Task<byte[]> GenerateAsync(RhshfOfferDocumentData data, CancellationToken ct = default)
+        {
+            Received = data;
+            return Task.FromResult(new byte[] { 1, 2, 3 });
+        }
+    }
+
+    private class FakeCollateralRepo : IRhshfCollateralRepository
+    {
+        public Task<IReadOnlyList<RhshfCollateral>> GetByProfileAndCycleAsync(Guid rhshfCreditProfileId, int cycleNumber, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<RhshfCollateral>>([]);
+        public Task<RhshfCollateral?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<RhshfCollateral?>(null);
+        public Task AddAsync(RhshfCollateral collateral, CancellationToken ct = default) => Task.CompletedTask;
+        public void Remove(RhshfCollateral collateral) { }
+        public Task<RhshfCollateralDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
+            => Task.FromResult<RhshfCollateralDocument?>(null);
+    }
+
+    /// <summary>No RH-SHF product configured — the letter must still generate, stating the fees are
+    /// per the approved credit terms rather than failing on a catalogue lookup.</summary>
+    private class FakeLoanProductRepo : ILoanProductRepository
+    {
+        public Task<LoanProduct?> GetActiveRhshfProductAsync(CancellationToken ct = default)
+            => Task.FromResult<LoanProduct?>(null);
+        public Task<LoanProduct?> GetActiveNampProductAsync(CancellationToken ct = default)
+            => Task.FromResult<LoanProduct?>(null);
+        public Task<LoanProduct?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<LoanProduct?>(null);
+        public Task<LoanProduct?> GetByCodeAsync(string code, CancellationToken ct = default)
+            => Task.FromResult<LoanProduct?>(null);
+        public Task<IReadOnlyList<LoanProduct>> GetAllAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<LoanProduct>>([]);
+        public Task<IReadOnlyList<LoanProduct>> GetByStatusAsync(ProductStatus status, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<LoanProduct>>([]);
+        public Task<IReadOnlyList<LoanProduct>> GetByTypeAsync(LoanProductType type, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<LoanProduct>>([]);
+        public Task<IReadOnlyList<LoanProduct>> GetActiveByTypeAsync(LoanProductType type, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<LoanProduct>>([]);
+        public Task<bool> ExistsAsync(string code, CancellationToken ct = default) => Task.FromResult(false);
+        public Task AddAsync(LoanProduct product, CancellationToken ct = default) => Task.CompletedTask;
+        public Task UpdateAsync(LoanProduct product, CancellationToken ct = default) => Task.CompletedTask;
+        public Task AddChecklistTemplateItemAsync(DisbursementChecklistTemplate item, CancellationToken ct = default)
+            => Task.CompletedTask;
+    }
+
+    /// <summary>Only the product catalogue is reached, and only to read a product's fees. It answers
+    /// with an empty catalogue so the document falls back to "per the approved credit terms".</summary>
+    private class FakeFineract : IFineractDirectService
+    {
+        public Task<Result<IReadOnlyList<FineractLoanProduct>>> GetLoanProductsAsync(bool activeOnly = true, CancellationToken ct = default)
+            => Task.FromResult(Result.Success<IReadOnlyList<FineractLoanProduct>>([]));
+        public Task<Result<FineractBookingResult>> BookApprovedLoanAsync(FineractLoanBookingRequest request, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public Task<Result<FineractClientInfo>> GetClientByIdAsync(long clientId, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public Task<Result<ProposedRepaymentSchedule>> CalculateRepaymentScheduleAsync(ScheduleCalculationRequest request, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public Task<Result<ClientAccountSummary>> GetClientAccountsAsync(long clientId, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public Task<Result<FineractLoanDetail>> GetLoanDetailAsync(long loanId, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public Task<Result<CustomerExposure>> GetCustomerExposureAsync(long clientId, string accountNumber, string customerName, CancellationToken ct = default)
+            => throw new NotSupportedException();
     }
 
     private class FakeKfsGenerator : IRhshfKfsPdfGenerator

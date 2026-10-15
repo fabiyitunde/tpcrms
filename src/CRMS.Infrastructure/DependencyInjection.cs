@@ -779,6 +779,10 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCommitteeReviewHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfCommitteeRoutingPreviewHandler>();
         services.AddScoped<IRhshfOfferRepository, RhshfOfferRepository>();
+        // The merged post-approval document. The old pair stay registered: offers already issued
+        // still serve their stored offer letter and KFS, and the regenerate path uses them for a
+        // cycle that was issued under the two-document arrangement.
+        services.AddScoped<Application.Rhshf.Interfaces.IRhshfOfferDocumentGenerator, Documents.RhshfOfferDocumentPdfGenerator>();
         services.AddScoped<Application.Rhshf.Interfaces.IRhshfOfferLetterPdfGenerator, Documents.RhshfOfferLetterPdfGenerator>();
         services.AddScoped<Application.Rhshf.Interfaces.IRhshfKfsPdfGenerator, Documents.RhshfKfsPdfGenerator>();
         services.AddScoped<Application.Rhshf.Commands.RatifyRhshfCaseHandler>();
