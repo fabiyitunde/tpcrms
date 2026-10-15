@@ -37,14 +37,32 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
         builder.Property(x => x.TotalEopValue).IsRequired().HasColumnType("decimal(18,2)");
         builder.Property(x => x.Currency).IsRequired().HasMaxLength(10);
 
-        // Programme charges financed inside TotalEopValue, itemised by the portal. Nullable: cases
-        // submitted before the portal sent them have no breakdown, and the offer letter falls back
-        // to a single balancing row for the remainder.
-        builder.Property(x => x.InsuranceCharge).HasColumnType("decimal(18,2)");
-        builder.Property(x => x.WorkingCapitalCharge).HasColumnType("decimal(18,2)");
-        builder.Property(x => x.TechnologyServicesFee).HasColumnType("decimal(18,2)");
-        builder.Ignore(x => x.ItemisedChargesTotal);
+        // Itemised financing totals as the portal sent them. Nullable: cases submitted before the
+        // portal sent a breakdown have none, and the offer letter falls back to the crop-level lines.
+        builder.Property(x => x.FinancingInputsTotal).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.FinancingPackagingExcessTotal).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.FinancingChargesTotal).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.ApprovedEopTotal).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.FinancedLoanAmount).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.ExcludedFromLoan).HasColumnType("decimal(18,2)");
+        builder.Ignore(x => x.HasItemisedFinancing);
         builder.Ignore(x => x.UnitemisedRemainder);
+
+        // The InsuranceCharge / WorkingCapitalCharge / TechnologyServicesFee columns from the
+        // previous round are deliberately left unmapped: the portal's contract landed as a charges
+        // array carrying label and rate wording too, which those three flat columns cannot hold. The
+        // columns stay in the database because migrations here are additive-only, and EF simply does
+        // not know about them — nothing reads or writes them.
+
+        builder.HasMany(x => x.FinancingLines)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.FinancingCharges)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(x => x.CallbackUrl).IsRequired().HasMaxLength(500);
         builder.Property(x => x.CertifiedByAdmin).HasMaxLength(200);
@@ -251,5 +269,53 @@ public class RhshfEopLineConfiguration : IEntityTypeConfiguration<RhshfEopLine>
         builder.Property(x => x.UnitOfMeasurement).HasMaxLength(30);
         builder.Ignore(x => x.QuantityDisplay);
         builder.Ignore(x => x.ItemDescription);
+    }
+}
+
+public class RhshfFinancingLineConfiguration : IEntityTypeConfiguration<RhshfFinancingLine>
+{
+    public void Configure(EntityTypeBuilder<RhshfFinancingLine> builder)
+    {
+        builder.ToTable("RhshfFinancingLines");
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Crop).HasMaxLength(100);
+        builder.Property(x => x.Item).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.Category).HasMaxLength(100);
+        builder.Property(x => x.SpecificInput).HasMaxLength(200);
+        builder.Property(x => x.Supplier).HasMaxLength(200);
+        builder.Property(x => x.Unit).HasMaxLength(50);
+        builder.Property(x => x.Basis).HasMaxLength(20);
+
+        // 3 dp on quantity, 2 on money — the portal states amounts to the kobo and they are stored
+        // exactly as sent, never recomputed from quantity and price.
+        builder.Property(x => x.QuantityPerFarmer).HasColumnType("decimal(18,3)");
+        builder.Property(x => x.UnitPrice).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.Amount).IsRequired().HasColumnType("decimal(18,2)");
+        builder.Property(x => x.PackagingExcess).IsRequired().HasColumnType("decimal(18,2)");
+
+        builder.Ignore(x => x.Description);
+        builder.Ignore(x => x.QuantityDisplay);
+
+        builder.HasIndex(x => x.RhshfCreditProfileId);
+    }
+}
+
+public class RhshfFinancingChargeConfiguration : IEntityTypeConfiguration<RhshfFinancingCharge>
+{
+    public void Configure(EntityTypeBuilder<RhshfFinancingCharge> builder)
+    {
+        builder.ToTable("RhshfFinancingCharges");
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Code).IsRequired().HasMaxLength(50);
+        builder.Property(x => x.Label).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.RateBasis).HasMaxLength(500);
+
+        // Rate holds a percentage (4, 5) or naira per farmer (4000), so it needs room for both.
+        builder.Property(x => x.Rate).HasColumnType("decimal(18,4)");
+        builder.Property(x => x.Amount).IsRequired().HasColumnType("decimal(18,2)");
+
+        builder.HasIndex(x => x.RhshfCreditProfileId);
     }
 }

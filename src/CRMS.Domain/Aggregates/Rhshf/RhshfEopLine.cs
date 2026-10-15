@@ -90,10 +90,3 @@ public record RhshfEopLineInput(
     string? Product = null,
     string? UnitOfMeasurement = null);
 
-/// <summary>Programme charges the portal computed and included in the EOP total, for
-/// RhshfCreditProfile.Create. Not the appraisal or monitoring fee — those are core banking product
-/// charges, deducted at booking rather than financed.</summary>
-public record RhshfEopChargesInput(
-    decimal? Insurance = null,
-    decimal? WorkingCapital = null,
-    decimal? TechnologyServicesFee = null);

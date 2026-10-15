@@ -41,32 +41,43 @@ public class RhshfCreditProfile : AggregateRoot
     public string Currency { get; private set; } = "NGN";
     public int? FarmerCount { get; private set; }
 
-    // ── Programme charges financed inside TotalEopValue ───────────────────
-    // Calculated by the portal, not here, and already part of the principal the FAC repays. The
-    // offer letter prints each as its own row. Null on cases submitted before the portal sent them,
-    // where the letter falls back to a single balancing row for the unitemised remainder.
+    // ── Itemised financing (portal interface change, 14 Oct 2026) ─────────
+    // The rows the offer letter prints, as the portal computed them. Null/empty on cases submitted
+    // before the portal sent the breakdown — the letter then falls back to the crop-level EopLines
+    // and a single balancing row for whatever the lines do not account for.
     //
-    // The appraisal and monitoring fees are absent on purpose: they are NOT financed. They sit on
-    // the core banking loan product and are deducted at booking, so CRMS reads them from the
-    // product rather than storing a copy that could drift from what is actually charged.
-    public decimal? InsuranceCharge { get; private set; }
-    public decimal? WorkingCapitalCharge { get; private set; }
-    public decimal? TechnologyServicesFee { get; private set; }
+    // The appraisal and monitoring fees are deliberately absent: they are NOT financed. They sit on
+    // the core banking loan product and are deducted at booking, so CRMS reads them from the product
+    // rather than storing a copy that could drift from what is actually charged.
+    private readonly List<RhshfFinancingLine> _financingLines = [];
+    public IReadOnlyList<RhshfFinancingLine> FinancingLines => _financingLines.AsReadOnly();
 
-    /// <summary>The financed charges that were itemised, or null when none were sent.</summary>
-    public decimal? ItemisedChargesTotal =>
-        InsuranceCharge is null && WorkingCapitalCharge is null && TechnologyServicesFee is null
-            ? null
-            : (InsuranceCharge ?? 0m) + (WorkingCapitalCharge ?? 0m) + (TechnologyServicesFee ?? 0m);
+    private readonly List<RhshfFinancingCharge> _financingCharges = [];
+    public IReadOnlyList<RhshfFinancingCharge> FinancingCharges => _financingCharges.AsReadOnly();
+
+    /// <summary>Totals as the portal sent them, kept rather than recomputed so a mismatch between
+    /// their arithmetic and ours stays visible instead of being silently papered over.</summary>
+    public decimal? FinancingInputsTotal { get; private set; }
+    public decimal? FinancingPackagingExcessTotal { get; private set; }
+    public decimal? FinancingChargesTotal { get; private set; }
+    public decimal? ApprovedEopTotal { get; private set; }
+    public decimal? FinancedLoanAmount { get; private set; }
+
+    /// <summary>Approved but not financed under programme policy. Zero today — but it exists, so
+    /// nothing may assume the approved total equals the financed amount.</summary>
+    public decimal? ExcludedFromLoan { get; private set; }
+
+    /// <summary>True once the portal has sent the itemised breakdown for this case.</summary>
+    public bool HasItemisedFinancing => _financingLines.Count > 0 || _financingCharges.Count > 0;
 
     /// <summary>
-    /// What the EOP total does not account for once the input lines and the itemised charges are
-    /// taken off. Zero on a balanced submission. The offer letter prints any remainder as one
-    /// balancing row, so the implementation plan always foots to the approved amount even on a case
-    /// whose charges were never itemised.
+    /// What the EOP total does not account for once the crop-level lines are taken off — the single
+    /// balancing row the letter prints for a case with no itemised breakdown, so the plan still foots
+    /// to the approved amount. Meaningless once <see cref="HasItemisedFinancing"/> is true, where the
+    /// real rows are available and reconcile exactly.
     /// </summary>
     public decimal UnitemisedRemainder =>
-        TotalEopValue - _eopLines.Sum(l => l.LineValue) - (ItemisedChargesTotal ?? 0m);
+        TotalEopValue - _eopLines.Sum(l => l.LineValue);
 
     // ── Portal integration ────────────────────────────────────────────────
     public string CallbackUrl { get; private set; } = string.Empty;
@@ -207,7 +218,7 @@ public class RhshfCreditProfile : AggregateRoot
         IEnumerable<RhshfEopLineInput>? eopLines,
         Guid? resolvedBranchId,
         Guid? resolvedOfficeId,
-        RhshfEopChargesInput? charges = null)
+        RhshfFinancingInput? financing = null)
     {
         if (string.IsNullOrWhiteSpace(companyName))
             return Result.Failure<RhshfCreditProfile>("fac.companyName is required.");
@@ -267,24 +278,29 @@ public class RhshfCreditProfile : AggregateRoot
                 profile.Id, line.Commodity, line.QuantityKg, line.UnitPricePerKg, line.LineValue,
                 line.Supplier, line.Product, line.UnitOfMeasurement));
 
-        if (charges is not null)
+        if (financing is not null)
         {
-            profile.InsuranceCharge = charges.Insurance;
-            profile.WorkingCapitalCharge = charges.WorkingCapital;
-            profile.TechnologyServicesFee = charges.TechnologyServicesFee;
+            foreach (var line in financing.InputLines)
+                profile._financingLines.Add(new RhshfFinancingLine(
+                    profile.Id, line.EopId, line.Crop, line.Item, line.Category, line.SpecificInput,
+                    line.Supplier, line.QuantityPerFarmer, line.Unit, line.UnitPrice, line.Basis,
+                    line.Farmers, line.Amount, line.PackagingExcess, line.InLoan));
 
-            // Reconciliation, enforced only once the portal itemises the charges — there is nothing
-            // to check against otherwise. The three parties have to agree on one financing
-            // structure: the approved amount must equal this total exactly (no partial approval),
-            // and the offer letter's plan is printed from these same lines and charges. A submission
-            // that does not balance would put a plan in front of a borrower that does not add up to
-            // what they are signing for, so it is refused at the door instead.
-            var itemised = profile._eopLines.Sum(l => l.LineValue) + (profile.ItemisedChargesTotal ?? 0m);
-            var difference = Math.Abs(totalEopValue - itemised);
-            if (difference > 0.01m)
-                return Result.Failure<RhshfCreditProfile>(
-                    $"EOP does not reconcile: the input lines and itemised charges total {itemised:N2}, " +
-                    $"but the submitted EOP value is {totalEopValue:N2} (difference {difference:N2}).");
+            foreach (var charge in financing.Charges)
+                profile._financingCharges.Add(new RhshfFinancingCharge(
+                    profile.Id, charge.Code, charge.Label, charge.Rate, charge.RateBasis,
+                    charge.Amount, charge.InLoan));
+
+            profile.FinancingInputsTotal = financing.InputsTotal;
+            profile.FinancingPackagingExcessTotal = financing.PackagingExcessTotal;
+            profile.FinancingChargesTotal = financing.ChargesTotal;
+            profile.ApprovedEopTotal = financing.ApprovedEopTotal;
+            profile.FinancedLoanAmount = financing.LoanAmount;
+            profile.ExcludedFromLoan = financing.ExcludedFromLoan;
+
+            var reconciliation = profile.CheckFinancingReconciles(totalEopValue);
+            if (reconciliation.IsFailure)
+                return Result.Failure<RhshfCreditProfile>(reconciliation.Error);
         }
 
         // The trail starts where the case does — otherwise the first entry a reader sees is the
@@ -1057,6 +1073,60 @@ public class RhshfCreditProfile : AggregateRoot
             d.SourcedFromCac &&
             ((cacDirectorId.HasValue && d.CacDirectorId == cacDirectorId) ||
              (!cacDirectorId.HasValue && string.Equals(d.FullName, fullName, StringComparison.OrdinalIgnoreCase))));
+
+    /// <summary>
+    /// The portal's reconciliation rules 1 to 3, re-checked here on receipt at its request.
+    /// <para>
+    /// The portal refuses to send a case that fails them, so this is a second pair of eyes rather
+    /// than the only one — and that is the point: the approved EOP, this offer letter and the core
+    /// banking booking have to describe one financing structure, with nothing financed also deducted
+    /// as a charge. A breakdown that does not balance would put an implementation plan in front of a
+    /// borrower that does not add up to the amount they are signing for.
+    /// </para>
+    /// <para>
+    /// Tolerance is one kobo. The portal rounds supplier-pack unit prices down and rounds the
+    /// per-farmer charges before multiplying out, so two systems will not always agree on the last
+    /// kobo — but a naira apart is a real disagreement.
+    /// </para>
+    /// </summary>
+    private Result CheckFinancingReconciles(decimal totalEopValue)
+    {
+        const decimal tolerance = 0.01m;
+
+        // Rule 1: inputs + packaging excess + charges = approved EOP total. Summed from the rows
+        // rather than trusting the portal's own totals — agreeing with itself is not the check.
+        var lineAmounts = _financingLines.Sum(l => l.Amount);
+        var packagingExcess = _financingLines.Sum(l => l.PackagingExcess);
+        var chargeAmounts = _financingCharges.Sum(c => c.Amount);
+        var breakdown = lineAmounts + packagingExcess + chargeAmounts;
+        var approvedTotal = ApprovedEopTotal ?? totalEopValue;
+
+        if (Math.Abs(approvedTotal - breakdown) > tolerance)
+            return Result.Failure(
+                $"Financing does not reconcile (rule 1): input lines {lineAmounts:N2} plus packaging excess " +
+                $"{packagingExcess:N2} plus charges {chargeAmounts:N2} total {breakdown:N2}, but the approved " +
+                $"EOP total is {approvedTotal:N2} (difference {Math.Abs(approvedTotal - breakdown):N2}).");
+
+        // Rule 2: the rows flagged as financed sum to the loan amount. Everything is financed today,
+        // so this is the rule that will catch the first case where it is not.
+        var financed = _financingLines.Where(l => l.InLoan).Sum(l => l.Amount + l.PackagingExcess)
+                       + _financingCharges.Where(c => c.InLoan).Sum(c => c.Amount);
+        var loanAmount = FinancedLoanAmount ?? totalEopValue;
+
+        if (Math.Abs(loanAmount - financed) > tolerance)
+            return Result.Failure(
+                $"Financing does not reconcile (rule 2): the rows marked as financed total {financed:N2}, " +
+                $"but the loan amount is {loanAmount:N2} (difference {Math.Abs(loanAmount - financed):N2}).");
+
+        // Rule 3: the loan amount is the figure CRMS profiles and approves. If these ever diverge,
+        // the case would be approved for one amount and the letter printed from another.
+        if (Math.Abs(loanAmount - totalEopValue) > tolerance)
+            return Result.Failure(
+                $"Financing does not reconcile (rule 3): the loan amount is {loanAmount:N2}, but the " +
+                $"submitted EOP value is {totalEopValue:N2} (difference {Math.Abs(loanAmount - totalEopValue):N2}).");
+
+        return Result.Success();
+    }
 
     /// <summary>
     /// Total shareholding declared across every director/shareholder on the case. Nulls count as

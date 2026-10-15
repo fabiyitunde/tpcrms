@@ -73,7 +73,16 @@ public class RhshfSubmissionController : ControllerBase
         var result = await _submitHandler.Handle(new SubmitConsolidatedEopCommand(request, rawPayload), ct);
 
         if (!result.IsSuccess)
-            return BadRequest(new { error = "validation_failed", message = result.Error });
+        {
+            // A dedicated code for reconciliation, at the portal team's request: their sender checks
+            // the same rules before dispatch, so this code tells them their own guard was bypassed or
+            // their arithmetic and ours disagree — a different problem from a malformed field, and
+            // one they want to alert on separately.
+            var code = result.Error?.Contains("does not reconcile", StringComparison.OrdinalIgnoreCase) == true
+                ? "eop_reconciliation_failed"
+                : "validation_failed";
+            return BadRequest(new { error = code, message = result.Error });
+        }
 
         return StatusCode(StatusCodes.Status201Created, result.Data);
     }

@@ -81,8 +81,7 @@ public class SubmitConsolidatedEopHandler
             eopLines: eopLines,
             resolvedBranchId: null,
             resolvedOfficeId: null,
-            charges: req.Charges is null ? null : new RhshfEopChargesInput(
-                req.Charges.Insurance, req.Charges.WorkingCapital, req.Charges.TechnologyServicesFee));
+            financing: MapFinancing(req.Financing));
 
         if (result.IsFailure)
             return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(result.Error);
@@ -94,6 +93,42 @@ public class SubmitConsolidatedEopHandler
         await _uow.SaveChangesAsync(ct);
 
         return ApplicationResult<SubmitConsolidatedEopResultDto>.Success(response);
+    }
+
+    /// <summary>
+    /// Maps the portal's financing block, treating absence as "not sent yet" rather than as empty.
+    /// <para>
+    /// Amounts are carried across verbatim. The portal's spec is explicit that they must not be
+    /// recomputed from quantity × unit price or rate × base: supplier-pack unit prices are rounded
+    /// down to the kobo and the per-farmer charges are rounded before being multiplied out, so a
+    /// recomputation lands a few kobo away from the figure the borrower signs against.
+    /// </para>
+    /// </summary>
+    private static RhshfFinancingInput? MapFinancing(RhshfFinancingDto? financing)
+    {
+        if (financing is null)
+            return null;
+
+        var lines = (financing.InputLines ?? [])
+            .Select(l => new RhshfFinancingLineInput(
+                l.EopId, l.Crop, l.Item ?? string.Empty, l.Category, l.SpecificInput, l.Supplier,
+                l.QuantityPerFarmer, l.Unit, l.UnitPrice, l.Basis, l.Farmers,
+                l.Amount ?? 0m, l.PackagingExcess ?? 0m,
+                // Absent means financed: the programme finances everything today, and the
+                // reconciliation rules would catch it at once if that stopped being true.
+                l.InLoan ?? true))
+            .ToList();
+
+        var charges = (financing.Charges ?? [])
+            .Select(c => new RhshfFinancingChargeInput(
+                c.Code ?? string.Empty, c.Label ?? string.Empty, c.Rate, c.RateBasis,
+                c.Amount ?? 0m, c.InLoan ?? true))
+            .ToList();
+
+        return new RhshfFinancingInput(
+            lines, charges, financing.InputsTotal, financing.PackagingExcessTotal,
+            financing.ChargesTotal, financing.ApprovedEopTotal, financing.LoanAmount,
+            financing.ExcludedFromLoan);
     }
 
     /// <summary>Best-effort branch resolution (design doc §3.1) — mirrors the algorithm

@@ -74,28 +74,92 @@ public record SubmitConsolidatedEopRequest(
     string CallbackUrl,
     Dictionary<string, string>? Metadata,
     /// <summary>
-    /// The programme charges the portal has already computed and included in
-    /// <see cref="TotalEopValue"/>. Optional, so the portal can begin sending them independently of
-    /// this deployment — but without them the offer letter cannot itemise them, and the
-    /// reconciliation check cannot run.
+    /// The itemised financing breakdown (portal interface change, 14 Oct 2026). Optional: a
+    /// submission without it behaves exactly as before, which is what lets the portal roll it out
+    /// independently of this deployment.
     /// </summary>
-    RhshfEopChargesDto? Charges = null);
+    RhshfFinancingDto? Financing = null);
 
 /// <summary>
-/// Programme charges financed inside the EOP amount — the portal calculates these and they form
-/// part of the principal the FAC repays.
+/// The approved EOP broken into the rows the offer letter prints, with the totals they reconcile to.
 /// <para>
-/// Sent as named amounts rather than derived at this end on purpose: insurance and working capital
-/// are percentages of the input cost <i>excluding extension services</i>, and CRMS has no dependable
-/// way to tell which line that is beyond pattern-matching a commodity name. Re-implementing the
-/// formula would mean two calculations that eventually disagree, on a figure a borrower signs.
-/// </para>
-/// <para>
-/// The appraisal and monitoring fees are deliberately absent: those are not financed. They are
-/// configured on the core banking loan product and deducted at booking.
+/// Every amount is used <b>exactly as sent</b>. The portal rounds unit prices of supplier-pack lines
+/// down to the kobo, and rounds insurance and working capital per farmer before multiplying by the
+/// farmer count, so recomputing from quantity × price or rate × base gives slightly different
+/// figures. Two systems disagreeing by kobo on a document a borrower signs is the thing this whole
+/// contract exists to prevent.
 /// </para>
 /// </summary>
-public record RhshfEopChargesDto(
+public record RhshfFinancingDto(
+    string? Currency = null,
+    /// <summary>Every line of every approved EOP in the case, at input-item grain. This — not
+    /// <c>eopLines</c>, which stays a crop-level summary with zero quantities — is what the offer
+    /// letter's implementation plan is printed from.</summary>
+    List<RhshfFinancingInputLineDto>? InputLines = null,
+    /// <summary>The three programme charges financed inside the loan: insurance, working capital and
+    /// the technology services fee. The appraisal and monitoring fees are deliberately not here —
+    /// they are not financed, but configured on the core banking loan product and deducted at
+    /// booking.</summary>
+    List<RhshfFinancingChargeDto>? Charges = null,
+    decimal? InputsTotal = null,
+    decimal? PackagingExcessTotal = null,
+    decimal? ChargesTotal = null,
+    /// <summary>What BOA approved across the case's EOPs.</summary>
+    decimal? ApprovedEopTotal = null,
+    /// <summary>The amount to profile; equals the submission's TotalEopValue.</summary>
+    decimal? LoanAmount = null,
+    /// <summary>Approved but not financed under programme policy. Zero today, because the programme
+    /// finances everything — but it exists, so the letter must never assume approved equals
+    /// financed.</summary>
+    decimal? ExcludedFromLoan = null,
+    /// <summary>One summary per approved EOP. A case can carry several, each with its own farmer
+    /// count and its own rates as they stood when it was approved.</summary>
+    List<RhshfFinancingEopDto>? Eops = null);
+
+public record RhshfFinancingInputLineDto(
+    Guid? EopId = null,
+    string? Crop = null,
+    string? Item = null,
+    string? Category = null,
+    string? SpecificInput = null,
+    string? Supplier = null,
+    decimal? QuantityPerFarmer = null,
+    string? Unit = null,
+    decimal? UnitPrice = null,
+    /// <summary>"perFarmer" — the amount is the per-farmer cost times the farmer count. "wholeEop" —
+    /// a service priced for the whole EOP, not scaled by farmers.</summary>
+    string? Basis = null,
+    int? Farmers = null,
+    /// <summary>The line's total for the whole EOP.</summary>
+    decimal? Amount = null,
+    /// <summary>What whole supplier packs cost beyond the per-farmer requirement — three bags bought
+    /// where 2.4 are needed. Usually zero, and part of the amount financed when it is not.</summary>
+    decimal? PackagingExcess = null,
+    bool? InLoan = null);
+
+public record RhshfFinancingChargeDto(
+    /// <summary>"insurance", "workingCapital" or "techServicesFee".</summary>
+    string? Code = null,
+    /// <summary>The text to print — the portal supplies the wording, so the letter cannot drift from
+    /// what the programme calls it.</summary>
+    string? Label = null,
+    /// <summary>The percentage, or naira per farmer for the technology fee. <b>Null when the case's
+    /// EOPs used different rates</b>, in which case the letter prints the amount alone rather than
+    /// implying one rate applied throughout.</summary>
+    decimal? Rate = null,
+    string? RateBasis = null,
+    decimal? Amount = null,
+    bool? InLoan = null);
+
+public record RhshfFinancingEopDto(
+    Guid? EopId = null,
+    string? Crop = null,
+    string? State = null,
+    int? Farmers = null,
+    decimal? Inputs = null,
+    decimal? PackagingExcess = null,
     decimal? Insurance = null,
     decimal? WorkingCapital = null,
-    decimal? TechnologyServicesFee = null);
+    decimal? TechServicesFee = null,
+    decimal? ApprovedTotal = null,
+    decimal? LoanAmount = null);

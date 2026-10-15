@@ -4,136 +4,243 @@ using CRMS.Domain.Aggregates.Rhshf;
 namespace CRMS.Domain.Tests.Aggregates.Rhshf;
 
 /// <summary>
-/// Reconciliation of the EOP: the input lines plus the portal's itemised charges must equal the
-/// submitted total.
+/// The portal's reconciliation rules 1 to 3, re-checked on receipt at its request.
 ///
-/// This is the one instruction both teams agreed on in writing — the approved EOP, the offer letter
-/// and the core banking booking have to describe one financing structure, and nothing financed may
-/// also be deducted as a charge. The approved amount must equal this total exactly (no partial
-/// approval), and the offer letter's implementation plan is printed from these same lines and
-/// charges, so a submission that does not balance would put a plan in front of a borrower that does
-/// not add up to what they are signing for.
+/// Rule 1: input lines + packaging excess + charges = approved EOP total.
+/// Rule 2: the rows marked as financed sum to the loan amount.
+/// Rule 3: the loan amount is the figure CRMS profiles.
+///
+/// The portal refuses to send a case that fails these, so this is a second pair of eyes — which is
+/// the point. The approved EOP, the offer letter and the core banking booking have to describe one
+/// financing structure, with nothing financed also deducted as a charge, and the letter's
+/// implementation plan is printed from these same rows.
+///
+/// Figures throughout are the portal's own worked example: one EOP, ten farmers, everything financed.
 /// </summary>
 public class RhshfEopReconciliationTests
 {
-    // The approved Sagad offer: three supplier lines, then working capital and insurance.
-    private const decimal ExtensionServices = 22_500_000.00m;
-    private const decimal Fertiliser = 187_200_000.00m;
-    private const decimal Motar = 17_445_600.00m;
-    private const decimal WorkingCapital = 10_232_280.00m;
-    private const decimal Insurance = 8_185_824.00m;
-    private const decimal ApprovedTotal = 245_563_704.00m;
+    private const decimal Npk = 112_000.00m;
+    private const decimal Urea = 108_000.00m;
+    private const decimal Herbicide = 3_200_000.00m;
+    private const decimal Pesticide = 800_000.00m;
+    private const decimal Seeds = 40_000_000.00m;
+    private const decimal InputsTotal = 44_220_000.00m;
+
+    private const decimal Insurance = 1_768_800.00m;
+    private const decimal WorkingCapital = 2_211_000.00m;
+    private const decimal TechServicesFee = 40_000.00m;
+    private const decimal ChargesTotal = 4_019_800.00m;
+
+    private const decimal LoanAmount = 48_239_800.00m;
 
     [Fact]
-    public void Accepts_ASubmissionThatBalances()
+    public void AcceptsThePortalsWorkedExample()
     {
-        var result = Create(ApprovedTotal, SagadLines(), new RhshfEopChargesInput(Insurance, WorkingCapital));
+        var result = Create(LoanAmount, Financing());
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(Insurance + WorkingCapital, result.Value.ItemisedChargesTotal);
-        Assert.Equal(0m, result.Value.UnitemisedRemainder);
+        var profile = result.Value;
+        Assert.True(profile.HasItemisedFinancing);
+        Assert.Equal(6, profile.FinancingLines.Count);
+        Assert.Equal(3, profile.FinancingCharges.Count);
+        Assert.Equal(InputsTotal, profile.FinancingLines.Sum(l => l.Amount));
+        Assert.Equal(ChargesTotal, profile.FinancingCharges.Sum(c => c.Amount));
+        Assert.Equal(0m, profile.ExcludedFromLoan);
     }
 
     [Fact]
-    public void Refuses_WhenTheChargesAreDoubleCounted()
+    public void StoresTheRowsAsSent_WithoutRecomputingThem()
     {
-        // The exact failure the two teams set out to avoid: the portal computes the charges into the
-        // total, then something adds them again. The lines plus charges overshoot the total.
-        var result = Create(
-            ApprovedTotal - WorkingCapital - Insurance,
-            SagadLines(),
-            new RhshfEopChargesInput(Insurance, WorkingCapital));
+        // The portal's spec is explicit: unit prices of supplier-pack lines are rounded down to the
+        // kobo, so amount is NOT quantity x unitPrice x farmers. The stored amount must be the sent
+        // one — this line's arithmetic deliberately does not multiply out.
+        var result = Create(LoanAmount, Financing());
 
-        Assert.True(result.IsFailure);
-        Assert.Contains("does not reconcile", result.Error);
+        var npk = result.Value.FinancingLines.First(l => l.Item == "NPK Fertilizer");
+        Assert.Equal(Npk, npk.Amount);
+        Assert.Equal("NPK 20:10:10", npk.SpecificInput);
+        Assert.Equal("Example Supplier Ltd", npk.Supplier);
+        Assert.Equal("10 Kg", npk.QuantityDisplay);
+        Assert.Equal("NPK 20:10:10", npk.Description);
+        Assert.NotEqual(npk.Amount, (npk.QuantityPerFarmer ?? 0m) * (npk.UnitPrice ?? 0m));
     }
 
     [Fact]
-    public void Refuses_WhenTheTotalIsShortOfTheBreakdown()
+    public void KeepsThePortalsOwnLabelAndRate_SoTheLetterStatesTheChargeTheProgrammesWay()
     {
-        var result = Create(ApprovedTotal - 1_000m, SagadLines(), new RhshfEopChargesInput(Insurance, WorkingCapital));
+        var result = Create(LoanAmount, Financing());
 
-        Assert.True(result.IsFailure);
-        Assert.Contains("does not reconcile", result.Error);
+        var insurance = result.Value.FinancingCharges.First(c => c.Code == "insurance");
+        Assert.Equal("Insurance", insurance.Label);
+        Assert.Equal(4m, insurance.Rate);
+        Assert.Equal(Insurance, insurance.Amount);
+
+        var techFee = result.Value.FinancingCharges.First(c => c.Code == "techServicesFee");
+        Assert.Equal(4_000m, techFee.Rate); // naira per farmer, not a percentage
+        Assert.Equal(TechServicesFee, techFee.Amount);
     }
 
     [Fact]
-    public void NamesTheArithmeticInTheRefusal()
+    public void AllowsANullRate_WhenTheCasesEopsUsedDifferentOnes()
     {
-        // Whoever reads this is reconciling two systems, so the message has to carry both figures
-        // and the gap — "does not reconcile" alone sends them to a spreadsheet.
-        var result = Create(ApprovedTotal + 2_025_000m, SagadLines(), new RhshfEopChargesInput(Insurance, WorkingCapital));
+        // Printing one rate across a case whose EOPs were approved at different rates would state
+        // something untrue, so the portal sends null and the letter shows the amount alone.
+        var charges = new List<RhshfFinancingChargeInput>
+        {
+            new("insurance", "Insurance", null, "Varies by EOP", Insurance, true),
+            new("workingCapital", "Working capital", 5m, "…", WorkingCapital, true),
+            new("techServicesFee", "Technology services fee", 4_000m, "…", TechServicesFee, true),
+        };
 
-        Assert.True(result.IsFailure);
-        Assert.Contains("245,563,704.00", result.Error);
-        Assert.Contains("247,588,704.00", result.Error);
-        Assert.Contains("2,025,000.00", result.Error);
-    }
-
-    [Fact]
-    public void ToleratesRoundingOfAKoboOrLess()
-    {
-        // Two systems computing percentages will not always agree on the last kobo. A kobo is not a
-        // reconciliation failure; a naira is.
-        Assert.True(Create(ApprovedTotal + 0.01m, SagadLines(), new RhshfEopChargesInput(Insurance, WorkingCapital)).IsSuccess);
-        Assert.True(Create(ApprovedTotal - 0.01m, SagadLines(), new RhshfEopChargesInput(Insurance, WorkingCapital)).IsSuccess);
-        Assert.True(Create(ApprovedTotal + 1.00m, SagadLines(), new RhshfEopChargesInput(Insurance, WorkingCapital)).IsFailure);
-    }
-
-    [Fact]
-    public void SkipsTheCheck_WhenNoChargesWereItemised()
-    {
-        // The portal is rolling the itemised charges out separately. Until they arrive there is
-        // nothing to reconcile against, and a submission must not be rejected for it — the letter
-        // falls back to one balancing row for the unitemised remainder.
-        var result = Create(ApprovedTotal, SagadLines(), charges: null);
+        var result = Create(LoanAmount, Financing(charges: charges));
 
         Assert.True(result.IsSuccess);
-        Assert.Null(result.Value.ItemisedChargesTotal);
-        Assert.Equal(WorkingCapital + Insurance, result.Value.UnitemisedRemainder);
+        Assert.Null(result.Value.FinancingCharges.First(c => c.Code == "insurance").Rate);
     }
 
+    // ── Rule 1 ────────────────────────────────────────────────────────────────────────────────────
+
     [Fact]
-    public void TreatsAPartialBreakdownAsItemised_AndStillRequiresItToBalance()
+    public void Rule1_RefusesWhenTheBreakdownDoesNotMakeTheApprovedTotal()
     {
-        // Only the technology fee sent, say. It counts as itemised, so the remainder is whatever the
-        // other charges come to — and the check applies, because a figure WAS supplied to check.
-        var technologyFee = 40_000.00m;
-        var result = Create(
-            ApprovedTotal + technologyFee,
-            SagadLines(),
-            new RhshfEopChargesInput(TechnologyServicesFee: technologyFee));
+        // The double-charge shape: the charges are already inside the total, then counted again.
+        var result = Create(LoanAmount, Financing(approvedEopTotal: InputsTotal));
 
         Assert.True(result.IsFailure);
-        Assert.Contains("does not reconcile", result.Error);
+        Assert.Contains("rule 1", result.Error);
+        Assert.Contains("4,019,800.00", result.Error);
     }
 
     [Fact]
-    public void UnitemisedRemainder_IsWhatTheLetterPrintsAsItsBalancingRow()
+    public void Rule1_CountsPackagingExcess()
     {
-        var result = Create(ApprovedTotal, SagadLines(), new RhshfEopChargesInput(Insurance));
+        // Whole supplier packs bought above the per-farmer requirement are financed too. Omitting
+        // them from the check would let a case through whose plan is short by exactly that amount.
+        var withExcess = Lines().Select((l, i) => i == 0 ? l with { PackagingExcess = 5_000m } : l).ToList();
 
-        Assert.True(result.IsFailure); // insurance alone does not balance
-        var unitemised = Create(ApprovedTotal, SagadLines(), charges: null).Value;
-        Assert.Equal(WorkingCapital + Insurance, unitemised.UnitemisedRemainder);
+        Assert.True(Create(LoanAmount, Financing(lines: withExcess)).IsFailure);
+        Assert.True(Create(LoanAmount + 5_000m, Financing(
+            lines: withExcess, approvedEopTotal: LoanAmount + 5_000m, loanAmount: LoanAmount + 5_000m)).IsSuccess);
     }
 
-    private static IEnumerable<RhshfEopLineInput> SagadLines() =>
+    // ── Rule 2 ────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Rule2_RefusesWhenTheFinancedRowsDoNotMakeTheLoanAmount()
+    {
+        // A row excluded from the loan while the loan amount still claims the full total.
+        var lines = Lines().Select((l, i) => i == 4 ? l with { InLoan = false } : l).ToList();
+
+        var result = Create(LoanAmount, Financing(lines: lines));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("rule 2", result.Error);
+    }
+
+    [Fact]
+    public void Rule2_AcceptsAnExcludedRow_WhenTheLoanAmountReflectsIt()
+    {
+        // excludedFromLoan is zero today, but the field exists — so a case that finances less than
+        // it approves must reconcile, not be rejected on an assumption that the two are equal.
+        var lines = Lines().Select((l, i) => i == 4 ? l with { InLoan = false } : l).ToList();
+        var financed = LoanAmount - Seeds;
+
+        var result = Create(financed, Financing(
+            lines: lines, approvedEopTotal: LoanAmount, loanAmount: financed, excludedFromLoan: Seeds));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(Seeds, result.Value.ExcludedFromLoan);
+        Assert.Equal(financed, result.Value.FinancedLoanAmount);
+    }
+
+    // ── Rule 3 ────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Rule3_RefusesWhenTheLoanAmountIsNotTheProfiledAmount()
+    {
+        // Otherwise the case is approved for one figure and the letter printed from another.
+        var result = Create(LoanAmount + 1_000m, Financing(approvedEopTotal: LoanAmount, loanAmount: LoanAmount));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("rule 3", result.Error);
+    }
+
+    // ── Tolerance and absence ─────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ToleratesAKoboOfRounding_ButNotANaira()
+    {
+        Assert.True(Create(LoanAmount, Financing(approvedEopTotal: LoanAmount + 0.01m)).IsSuccess);
+        Assert.True(Create(LoanAmount, Financing(approvedEopTotal: LoanAmount + 1.00m)).IsFailure);
+    }
+
+    [Fact]
+    public void SkipsTheCheckEntirely_WhenNoFinancingWasSent()
+    {
+        // The portal is rolling this out separately; a submission without it must behave exactly as
+        // before. The letter falls back to the crop-level lines and one balancing row.
+        var result = Create(LoanAmount, financing: null);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value.HasItemisedFinancing);
+    }
+
+    // ── Fixtures ──────────────────────────────────────────────────────────────────────────────────
+
+    private static List<RhshfFinancingLineInput> Lines() =>
     [
-        new("Extension Services", 450m, 50_000m, ExtensionServices, "EL FIJIR AGRO", "Extension Services", "Items"),
-        new("NPK Fertilizer", 3_600m, 52_000m, Fertiliser, "Golden Fertilizer Limited", "NPK 15-15-15", "Bags"),
-        new("Motar", 450m, 38_768m, Motar, "WACOT Limited", "Motar", "Items"),
+        new(EopId: Guid.NewGuid(), Crop: "Maize", Item: "NPK Fertilizer", Category: "Fertilizer",
+            SpecificInput: "NPK 20:10:10", Supplier: "Example Supplier Ltd", QuantityPerFarmer: 10m,
+            Unit: "Kg", UnitPrice: 1_120.00m, Basis: "perFarmer", Farmers: 10,
+            Amount: Npk, PackagingExcess: 0m, InLoan: true),
+        Line("Urea Fertilizer", Urea),
+        Line("Herbicide", Herbicide),
+        Line("Pesticide", Pesticide),
+        Line("Improved Seeds", Seeds),
+        new(EopId: null, Crop: "Maize", Item: "Extension Services", Category: "Services",
+            SpecificInput: null, Supplier: null, QuantityPerFarmer: null, Unit: "Per Farmer",
+            UnitPrice: null, Basis: "perFarmer", Farmers: 10,
+            Amount: 0m, PackagingExcess: 0m, InLoan: true),
     ];
 
-    private static Result<RhshfCreditProfile> Create(
-        decimal totalEopValue, IEnumerable<RhshfEopLineInput> lines, RhshfEopChargesInput? charges) =>
+    private static RhshfFinancingLineInput Line(string item, decimal amount) =>
+        new(Guid.NewGuid(), "Maize", item, null, null, "Example Supplier Ltd", 1m, "Kg", amount,
+            "perFarmer", 10, amount, 0m, true);
+
+    private static List<RhshfFinancingChargeInput> DefaultCharges() =>
+    [
+        new("insurance", "Insurance", 4m, "4% of the per-farmer input subtotal", Insurance, true),
+        new("workingCapital", "Working capital", 5m, "5% of the per-farmer input subtotal", WorkingCapital, true),
+        new("techServicesFee", "Technology services fee", 4_000m, "NGN 4,000 per farmer", TechServicesFee, true),
+    ];
+
+    private static RhshfFinancingInput Financing(
+        List<RhshfFinancingLineInput>? lines = null,
+        List<RhshfFinancingChargeInput>? charges = null,
+        decimal? approvedEopTotal = null,
+        decimal? loanAmount = null,
+        decimal? excludedFromLoan = null)
+    {
+        var resolvedLines = lines ?? Lines();
+        var resolvedCharges = charges ?? DefaultCharges();
+        return new RhshfFinancingInput(
+            resolvedLines, resolvedCharges,
+            InputsTotal: resolvedLines.Sum(l => l.Amount),
+            PackagingExcessTotal: resolvedLines.Sum(l => l.PackagingExcess),
+            ChargesTotal: resolvedCharges.Sum(c => c.Amount),
+            ApprovedEopTotal: approvedEopTotal ?? LoanAmount,
+            LoanAmount: loanAmount ?? LoanAmount,
+            ExcludedFromLoan: excludedFromLoan ?? 0m);
+    }
+
+    private static Result<RhshfCreditProfile> Create(decimal totalEopValue, RhshfFinancingInput? financing) =>
         RhshfCreditProfile.Create(
             submissionId: Guid.NewGuid(), programmeCode: "RH-SHF-DRY-2026", programmeName: "Renewed Hope",
             sessionCode: "2026-DRY", sessionName: "Dry Season 2026", facId: Guid.NewGuid(),
-            companyName: "Sagad Farms Limited", rcNumber: "RC771204", tin: null,
+            companyName: "Iveren Agro Limited", rcNumber: "RC771204", tin: null,
             boaAccountNumber: "0123456789", contactEmail: "fac@company.com", contactPhone: "+2348012345678",
-            state: "Kano", lga: "Rano", totalEopValue: totalEopValue, currency: "NGN", farmerCount: 450,
+            state: "Yobe", lga: "Damaturu", totalEopValue: totalEopValue, currency: "NGN", farmerCount: 10,
             callbackUrl: "https://portal.example.gov.ng/api/integrations/crms/webhook",
             certifiedByAdmin: "admin@boa.gov.ng", certifiedAt: DateTime.UtcNow, rawSubmissionPayload: "{}",
-            eopLines: lines, resolvedBranchId: null, resolvedOfficeId: null, charges: charges);
+            eopLines: null, resolvedBranchId: null, resolvedOfficeId: null, financing: financing);
 }

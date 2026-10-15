@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CRMS.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CRMSDbContext))]
-    [Migration("20261014152924_AddRhshfFinancedCharges")]
-    partial class AddRhshfFinancedCharges
+    [Migration("20261015060442_AddRhshfItemisedFinancing")]
+    partial class AddRhshfItemisedFinancing
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -6347,6 +6347,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("ApprovedAmount")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("ApprovedEopTotal")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("BoaAccountNumber")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -6482,13 +6485,25 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
+                    b.Property<decimal?>("ExcludedFromLoan")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<Guid>("FacId")
                         .HasColumnType("char(36)");
 
                     b.Property<int?>("FarmerCount")
                         .HasColumnType("int");
 
-                    b.Property<decimal?>("InsuranceCharge")
+                    b.Property<decimal?>("FinancedLoanAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("FinancingChargesTotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("FinancingInputsTotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("FinancingPackagingExcessTotal")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("InternalStage")
@@ -6562,9 +6577,6 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SubmissionId")
                         .HasColumnType("char(36)");
 
-                    b.Property<decimal?>("TechnologyServicesFee")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<string>("Tin")
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
@@ -6574,9 +6586,6 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
-
-                    b.Property<decimal?>("WorkingCapitalCharge")
-                        .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
 
@@ -7469,6 +7478,137 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("RhshfFinancialStatements", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFinancingCharge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<bool>("InLoan")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal?>("Rate")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("RateBasis")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RhshfCreditProfileId");
+
+                    b.ToTable("RhshfFinancingCharges", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFinancingLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Basis")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Crop")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid?>("EopId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int?>("Farmers")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("InLoan")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Item")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("PackagingExcess")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("QuantityPerFarmer")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("SpecificInput")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Supplier")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<decimal?>("UnitPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RhshfCreditProfileId");
+
+                    b.ToTable("RhshfFinancingLines", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfGuarantor", b =>
@@ -9973,6 +10113,24 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFinancingCharge", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany("FinancingCharges")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFinancingLine", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany("FinancingLines")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfIssuedToken", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
@@ -10409,6 +10567,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Navigation("FarmPlans");
 
                     b.Navigation("FinancialAppraisals");
+
+                    b.Navigation("FinancingCharges");
+
+                    b.Navigation("FinancingLines");
 
                     b.Navigation("IssuedTokens");
 
