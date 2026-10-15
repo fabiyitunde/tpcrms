@@ -100,6 +100,79 @@ public class RhshfFinancialAppraisalReportTests
     }
 
     [Fact]
+    public void Save_PassWithFailingGates_NamesEachFailedGateAndTheFigureItMissedBy()
+    {
+        // The officer is being asked to justify an override in writing. Telling them only that "one
+        // or more gates failed" leaves them to work out which of five, and by how much, from the
+        // screen they have just filled in.
+        var profile = ProfileAtAppraisal();
+        AddPlan(profile, hectares: 10m, yieldPerHa: 500m, pricePerKg: 100m);
+
+        var result = Save(profile, RhshfCreditRecommendation.Pass, overrideJustification: null);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("DSCR is", result.Error);
+        Assert.Contains("against a minimum of", result.Error);
+        Assert.Contains("gross margin is", result.Error);
+        // Named, not counted — "4 of 5 failed" would be no more use than the old message.
+        Assert.DoesNotContain("One or more", result.Error);
+    }
+
+    [Fact]
+    public void DescribeFailedGates_ReportsIrrAsAPercentage_NotAsItsStoredFraction()
+    {
+        // Irr is stored as a fraction (0.18 for 18%). The advisory narrative used to print it raw,
+        // telling credit officers an 18% IRR was "0.2%".
+        var thresholds = RhshfAppraisalThresholds.Create(
+            minDscr: 1.25m, minGrossMarginPercent: 25m, hurdleRatePercent: 15m,
+            minYieldHeadroomPercent: 15m, minPriceHeadroomPercent: 15m).Value;
+
+        var failed = RhshfFinancialAppraisalReport.DescribeFailedGates(
+            thresholds,
+            dscr: thresholds.MinDscr,                           // passes
+            grossMarginPercent: thresholds.MinGrossMarginPercent, // passes
+            irrFraction: 0.02m,                                  // 2%, under any sane hurdle
+            yieldHeadroomPercent: thresholds.MinYieldHeadroomPercent,
+            priceHeadroomPercent: thresholds.MinPriceHeadroomPercent);
+
+        var irr = Assert.Single(failed);
+        Assert.Contains("IRR is 2.0%", irr);
+        Assert.DoesNotContain("IRR is 0.0%", irr);
+    }
+
+    [Fact]
+    public void DescribeFailedGates_ExplainsAnIncomputableIrr_RatherThanPrintingNothing()
+    {
+        var thresholds = RhshfAppraisalThresholds.Create(
+            minDscr: 1.25m, minGrossMarginPercent: 25m, hurdleRatePercent: 15m,
+            minYieldHeadroomPercent: 15m, minPriceHeadroomPercent: 15m).Value;
+
+        var failed = RhshfFinancialAppraisalReport.DescribeFailedGates(
+            thresholds, thresholds.MinDscr, thresholds.MinGrossMarginPercent,
+            irrFraction: null,
+            yieldHeadroomPercent: thresholds.MinYieldHeadroomPercent,
+            priceHeadroomPercent: thresholds.MinPriceHeadroomPercent);
+
+        Assert.Contains("cannot be computed", Assert.Single(failed));
+    }
+
+    [Fact]
+    public void DescribeFailedGates_IsEmptyWhenEveryGatePasses()
+    {
+        var thresholds = RhshfAppraisalThresholds.Create(
+            minDscr: 1.25m, minGrossMarginPercent: 25m, hurdleRatePercent: 15m,
+            minYieldHeadroomPercent: 15m, minPriceHeadroomPercent: 15m).Value;
+
+        var failed = RhshfFinancialAppraisalReport.DescribeFailedGates(
+            thresholds, thresholds.MinDscr, thresholds.MinGrossMarginPercent,
+            irrFraction: thresholds.HurdleRatePercent / 100m,
+            yieldHeadroomPercent: thresholds.MinYieldHeadroomPercent,
+            priceHeadroomPercent: thresholds.MinPriceHeadroomPercent);
+
+        Assert.Empty(failed);
+    }
+
+    [Fact]
     public void Save_PassWithFailingGates_IsAllowedWhenJustified_AndTheJustificationIsRetained()
     {
         var profile = ProfileAtAppraisal();

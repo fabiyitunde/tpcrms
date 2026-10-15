@@ -384,18 +384,11 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
             HasPerfectedLiens: collateral.Any(c => c.PerfectionStatus == RhshfCollateralPerfectionStatus.Perfected));
     }
 
-    private static string FailedGates(RhshfFinancialAppraisalReport a)
-    {
-        var failed = new List<string>();
-        if (!a.DscrPass) failed.Add($"DSCR {a.Dscr:N2} below {a.ThresholdMinDscr:N2}");
-        if (!a.GrossMarginPass) failed.Add($"gross margin {a.GrossMarginPercent:N1}% below {a.ThresholdMinGrossMarginPercent:N1}%");
-        if (!a.IrrPass) failed.Add(a.Irr is null
-            ? "IRR not computable from the cash-flow series"
-            : $"IRR {a.Irr:N1}% below the {a.ThresholdHurdleRatePercent:N1}% hurdle");
-        if (!a.YieldHeadroomPass) failed.Add($"yield headroom {a.YieldHeadroomPercent:N1}% below {a.ThresholdMinYieldHeadroomPercent:N1}%");
-        if (!a.PriceHeadroomPass) failed.Add($"price headroom {a.PriceHeadroomPercent:N1}% below {a.ThresholdMinPriceHeadroomPercent:N1}%");
-        return string.Join("; ", failed);
-    }
+    /// <summary>Delegates to the aggregate so the advisory narrative and the save-time refusal state
+    /// the same thing. It also fixes what this used to print: Irr is stored as a fraction, so
+    /// "{a.Irr:N1}%" reported an 18% IRR as "0.2%".</summary>
+    private static string FailedGates(RhshfFinancialAppraisalReport a) =>
+        string.Join("; ", a.FailedGateDescriptions());
 
     private static string BuildApplicationContext(
         RhshfCreditProfile profile,

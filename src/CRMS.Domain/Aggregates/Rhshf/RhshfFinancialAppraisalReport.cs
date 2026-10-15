@@ -74,6 +74,83 @@ public class RhshfFinancialAppraisalReport : Entity
     public int GatesPassed => (DscrPass ? 1 : 0) + (GrossMarginPass ? 1 : 0) + (IrrPass ? 1 : 0)
         + (YieldHeadroomPass ? 1 : 0) + (PriceHeadroomPass ? 1 : 0);
 
+    /// <summary>
+    /// Each failed gate, named with the figure it reached and the figure it needed. Empty when every
+    /// gate passed.
+    /// <para>
+    /// One implementation for both places this is said — the refusal when an officer tries to save a
+    /// Pass without a justification, and the AI advisory's narrative — so the officer cannot be told
+    /// two different stories about the same five numbers.
+    /// </para>
+    /// <para>
+    /// <paramref name="irrFraction"/> is a fraction, not a percentage: RhshfViabilityCalculator
+    /// returns 0.18 for 18%, and that is what is stored on <see cref="Irr"/>. It is scaled here for
+    /// display, which the advisory narrative previously failed to do — it reported a genuine 18% IRR
+    /// to credit officers as "0.2%".
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<string> DescribeFailedGates(
+        RhshfAppraisalThresholds thresholds,
+        decimal dscr,
+        decimal grossMarginPercent,
+        decimal? irrFraction,
+        decimal? yieldHeadroomPercent,
+        decimal? priceHeadroomPercent)
+    {
+        var failed = new List<string>();
+
+        if (dscr < thresholds.MinDscr)
+            failed.Add($"DSCR is {dscr:N2} against a minimum of {thresholds.MinDscr:N2}");
+
+        if (grossMarginPercent < thresholds.MinGrossMarginPercent)
+            failed.Add($"gross margin is {grossMarginPercent:N1}% against a minimum of {thresholds.MinGrossMarginPercent:N1}%");
+
+        // A null IRR means the cash-flow series never changes sign, so there is no rate to compare —
+        // it fails rather than being quietly treated as a pass, and the officer is told why.
+        if (irrFraction is null)
+            failed.Add("IRR cannot be computed from the projected cash flows (the series never turns positive)");
+        else if (irrFraction.Value * 100m < thresholds.HurdleRatePercent)
+            failed.Add($"IRR is {irrFraction.Value * 100m:N1}% against a hurdle of {thresholds.HurdleRatePercent:N1}%");
+
+        if (yieldHeadroomPercent is null)
+            failed.Add("yield headroom cannot be computed (no break-even yield from the farm plan)");
+        else if (yieldHeadroomPercent.Value < thresholds.MinYieldHeadroomPercent)
+            failed.Add($"yield headroom is {yieldHeadroomPercent.Value:N1}% against a minimum of {thresholds.MinYieldHeadroomPercent:N1}%");
+
+        if (priceHeadroomPercent is null)
+            failed.Add("price headroom cannot be computed (no break-even price from the farm plan)");
+        else if (priceHeadroomPercent.Value < thresholds.MinPriceHeadroomPercent)
+            failed.Add($"price headroom is {priceHeadroomPercent.Value:N1}% against a minimum of {thresholds.MinPriceHeadroomPercent:N1}%");
+
+        return failed;
+    }
+
+    /// <summary>The same descriptions for an already-saved report, measured against the thresholds
+    /// snapshotted on it rather than today's policy.</summary>
+    public IReadOnlyList<string> FailedGateDescriptions()
+    {
+        var failed = new List<string>();
+
+        if (!DscrPass)
+            failed.Add($"DSCR is {Dscr:N2} against a minimum of {ThresholdMinDscr:N2}");
+        if (!GrossMarginPass)
+            failed.Add($"gross margin is {GrossMarginPercent:N1}% against a minimum of {ThresholdMinGrossMarginPercent:N1}%");
+        if (!IrrPass)
+            failed.Add(Irr is null
+                ? "IRR cannot be computed from the projected cash flows (the series never turns positive)"
+                : $"IRR is {Irr.Value * 100m:N1}% against a hurdle of {ThresholdHurdleRatePercent:N1}%");
+        if (!YieldHeadroomPass)
+            failed.Add(YieldHeadroomPercent is null
+                ? "yield headroom cannot be computed (no break-even yield from the farm plan)"
+                : $"yield headroom is {YieldHeadroomPercent.Value:N1}% against a minimum of {ThresholdMinYieldHeadroomPercent:N1}%");
+        if (!PriceHeadroomPass)
+            failed.Add(PriceHeadroomPercent is null
+                ? "price headroom cannot be computed (no break-even price from the farm plan)"
+                : $"price headroom is {PriceHeadroomPercent.Value:N1}% against a minimum of {ThresholdMinPriceHeadroomPercent:N1}%");
+
+        return failed;
+    }
+
     // ── Officer conclusion ────────────────────────────────────────────────
     public RhshfRepaymentCapacityRating RepaymentCapacityRating { get; private set; }
     public RhshfCreditRecommendation CreditOfficerRecommendation { get; private set; }
@@ -181,8 +258,18 @@ public class RhshfFinancialAppraisalReport : Entity
         if (recommendation == RhshfCreditRecommendation.Pass && !allPass
             && string.IsNullOrWhiteSpace(overrideJustification))
         {
+            // Name the gates and the margin by which each missed. "One or more viability gates
+            // failed" left the officer to work out which of five it was, and by how much, from a
+            // screen they had just filled in — and the override justification they are being asked
+            // to write is precisely a statement about those specific numbers.
+            var failed = DescribeFailedGates(
+                thresholds, viability.Dscr, viability.GrossMarginPercent, viability.Irr,
+                yieldHeadroom, priceHeadroom);
+
             return Result.Failure(
-                "One or more viability gates failed. A Pass recommendation requires a written override justification.");
+                $"A Pass recommendation requires a written override justification, because "
+                + $"{(failed.Count == 1 ? "this viability gate failed" : $"these {failed.Count} viability gates failed")}: "
+                + string.Join("; ", failed) + ".");
         }
 
         PreparedByUserId = preparedByUserId;
