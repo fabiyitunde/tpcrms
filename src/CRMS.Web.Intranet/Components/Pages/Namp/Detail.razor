@@ -4505,6 +4505,10 @@ else
     /// least once. The superseded rounds are read-only history.</summary>
     private List<NampCommitteeReviewDto> committeeRounds = [];
 
+    /// <summary>The branches this user's location covers. Empty means no restriction, which is what
+    /// head office resolves to — see CoversThisApplicationsBranch.</summary>
+    private List<Guid> visibleBranchIds = [];
+
     // Bureau recheck
     private bool bureauRechecking;
     private string? bureauRecheckError;
@@ -4834,13 +4838,44 @@ else
         (app?.Status == "Submitted" || app?.Status == "FinancialAppraisal") &&
         (User?.HasAnyRole("CreditOfficer", "SystemAdmin") ?? false);
 
+    /// <summary>
+    /// Whether this user's location covers the application's branch.
+    /// <para>
+    /// Head office covers everything — including a user with no location assigned, which is the
+    /// bank's rule. A branch covers its own applications; a zone or region covers the branches
+    /// beneath it, resolved once on load.
+    /// </para>
+    /// </summary>
+    private bool CoversThisApplicationsBranch =>
+        (User?.IsHeadOffice ?? false)
+        || visibleBranchIds.Count == 0
+        || (app is not null && visibleBranchIds.Contains(app.BranchId));
+
+    /// <summary>The risk role for the application's own tier — who owns the case under normal
+    /// tier routing.</summary>
+    private string TierRiskRole => app?.CommitteeTier switch
+    {
+        "Branch" => "BranchRiskOfficer",
+        "Zonal" => "ZonalRiskOfficer",
+        "Regional" => "RegionalRiskOfficer",
+        _ => "HORiskOfficer",
+    };
+
+    /// <summary>
+    /// Risk review actions. The tier's own risk officer acts on it, and so does any head-office risk
+    /// officer — head office is not tier-restricted, which is the bank's rule.
+    /// <para>
+    /// Previously this demanded the role matching the application's tier and nothing else, so a Head
+    /// Office Risk Officer could see a Branch-tier case and had no button to act on it.
+    /// </para>
+    /// </summary>
     private bool ShowRiskReviewButtons =>
         app?.Status == "RiskReview" &&
-        (User?.HasAnyRole(
-            app?.CommitteeTier == "Branch"     ? "BranchRiskOfficer"   :
-            app?.CommitteeTier == "Zonal"      ? "ZonalRiskOfficer"    :
-            app?.CommitteeTier == "Regional"   ? "RegionalRiskOfficer" : "HORiskOfficer",
-            "SystemAdmin") ?? false);
+        CoversThisApplicationsBranch &&
+        ((User?.HasAnyRole(TierRiskRole, "SystemAdmin") ?? false)
+         || ((User?.IsHeadOffice ?? false)
+             && (User?.HasAnyRole(
+                 "HORiskOfficer", "RegionalRiskOfficer", "ZonalRiskOfficer", "BranchRiskOfficer") ?? false)));
 
     private bool ShowFinancialAppraisalTab =>
         app?.Status == "Submitted" || app?.Status == "FinancialAppraisal" || app?.Status == "FinancialDeclined" ||
@@ -4895,14 +4930,23 @@ else
         IsCommitteeStatus &&
         (IsRatifierForCurrentTier || (User?.HasRole("SystemAdmin") ?? false));
 
-    private bool IsRatifierForCurrentTier => app?.CommitteeTier switch
-    {
-        "Branch"     => User?.HasRole("BranchManager") ?? false,
-        "Zonal"      => User?.HasRole("ZonalManager") ?? false,
-        "Regional"   => User?.HasRole("RegionalManager") ?? false,
-        "HeadOffice" => User?.HasRole("MdCeo") ?? false,
-        _            => false
-    };
+    /// <summary>
+    /// The manager who ratifies this tier — or any head-office manager, since head office is not
+    /// tier-restricted. Without the head-office arm, an MD/CEO could open a Branch-tier case and
+    /// find nothing to ratify, the same wall the risk buttons had.
+    /// </summary>
+    private bool IsRatifierForCurrentTier =>
+        CoversThisApplicationsBranch &&
+        (app?.CommitteeTier switch
+        {
+            "Branch" => User?.HasRole("BranchManager") ?? false,
+            "Zonal" => User?.HasRole("ZonalManager") ?? false,
+            "Regional" => User?.HasRole("RegionalManager") ?? false,
+            "HeadOffice" => User?.HasRole("MdCeo") ?? false,
+            _ => false
+        }
+        || ((User?.IsHeadOffice ?? false)
+            && (User?.HasAnyRole("MdCeo", "RegionalManager", "ZonalManager", "BranchManager") ?? false)));
 
     private bool ShowOfferButtons =>
         app?.Status == "OfferGenerated" &&
@@ -5072,6 +5116,11 @@ else
             if (app != null)
             {
                 PopulateFormFields();
+
+                // Resolved once per load: which branches this user's location covers, so the action
+                // buttons can tell "this case is in my scope" from "it is somebody else's branch".
+                visibleBranchIds = await AppService.GetVisibleBranchIdsAsync(
+                    User?.LocationId, User?.IsHeadOffice ?? false);
                 if (app.CurrentCommitteeReviewId.HasValue)
                     committeeReview = await AppService.GetNampCommitteeReviewAsync(app.CurrentCommitteeReviewId.Value);
 
