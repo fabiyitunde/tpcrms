@@ -191,6 +191,20 @@ public class CRMSDbContext : DbContext, IUnitOfWork
         {
             entry.State = EntityState.Added;
         }
+        // The appraisal and risk pass records are append-only for the same reason as the status
+        // history above, and hit the same trap: a new one added through the collection navigation is
+        // tracked as Modified, so SaveChanges issues an UPDATE against a row that does not exist and
+        // fails with "expected to affect 1 row(s), but actually affected 0".
+        foreach (var entry in ChangeTracker.Entries<NA.NampFinancialAppraisalRecord>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        foreach (var entry in ChangeTracker.Entries<NA.NampRiskReviewRecord>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
         foreach (var entry in ChangeTracker.Entries<ApplicationUserRole>()
             .Where(e => e.State == EntityState.Modified))
         {
