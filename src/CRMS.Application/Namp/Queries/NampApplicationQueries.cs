@@ -434,6 +434,62 @@ public class GetNampApplicationsByParticipationHandler
     }
 }
 
+/// <summary>
+/// Every committee round for an application, newest first — the live one plus any superseded by a
+/// return for rework.
+/// <para>
+/// Votes from a superseded round stop counting but are deliberately kept, so that a return cannot be
+/// used to quietly discard an unwanted vote and try again. This is what makes that claim visible: a
+/// reader can see each round, who voted which way, and why the round was closed.
+/// </para>
+/// </summary>
+public record GetNampCommitteeRoundsQuery(string ApplicationNumber, Guid? CurrentReviewId)
+    : IRequest<ApplicationResult<List<NampCommitteeReviewDto>>>;
+
+public class GetNampCommitteeRoundsHandler
+    : IRequestHandler<GetNampCommitteeRoundsQuery, ApplicationResult<List<NampCommitteeReviewDto>>>
+{
+    private readonly ICommitteeReviewRepository _committeeRepo;
+
+    public GetNampCommitteeRoundsHandler(ICommitteeReviewRepository committeeRepo) => _committeeRepo = committeeRepo;
+
+    public async Task<ApplicationResult<List<NampCommitteeReviewDto>>> Handle(
+        GetNampCommitteeRoundsQuery request, CancellationToken ct = default)
+    {
+        var reviews = await _committeeRepo.GetAllByApplicationNumberAsync(request.ApplicationNumber, ct);
+
+        var dtos = reviews
+            .Select(r => MapReview(r, isCurrent: request.CurrentReviewId.HasValue && r.Id == request.CurrentReviewId.Value))
+            .ToList();
+
+        return ApplicationResult<List<NampCommitteeReviewDto>>.Success(dtos);
+    }
+
+    internal static NampCommitteeReviewDto MapReview(
+        Domain.Aggregates.Committee.CommitteeReview review, bool isCurrent) => new(
+            review.Id,
+            review.CommitteeType.ToString(),
+            review.Status.ToString(),
+            review.CirculatedAt,
+            review.DeadlineAt,
+            review.RequiredVotes,
+            review.MinimumApprovalVotes,
+            review.ApprovalVotes,
+            review.RejectionVotes,
+            review.AbstainVotes,
+            review.PendingVotes,
+            review.HasQuorum,
+            review.HasMajorityApproval,
+            review.IsOverdue,
+            review.Members.Select(m => new NampCommitteeMemberViewDto(
+                m.UserId, m.UserName, m.Role, m.IsChairperson, m.AssignedAt,
+                m.Vote?.ToString(), m.VotedAt, m.VoteComment)).ToList(),
+            review.FinalDecision?.ToString(),
+            review.DecisionAt,
+            review.DecisionRationale,
+            isCurrent);
+}
+
 public record GetNampCommitteeReviewQuery(Guid CommitteeReviewId)
     : IRequest<ApplicationResult<NampCommitteeReviewDto>>;
 

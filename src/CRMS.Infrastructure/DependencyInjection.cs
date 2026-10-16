@@ -688,6 +688,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Namp.Queries.GetNampApplicationsByCommitteeMembershipHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampApplicationsByParticipationHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampCommitteeReviewHandler>();
+        services.AddScoped<Application.Namp.Queries.GetNampCommitteeRoundsHandler>();
         services.AddScoped<Application.Namp.Commands.CastNampCommitteeVoteHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampRoutingConfigsHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampWorkflowConfigsHandler>();

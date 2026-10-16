@@ -14,6 +14,23 @@ public class CommitteeReviewRepository : ICommitteeReviewRepository
         _context = context;
     }
 
+    public async Task<IReadOnlyList<CommitteeReview>> GetAllByApplicationNumberAsync(
+        string applicationNumber, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(applicationNumber))
+            return [];
+
+        // Members only: this feeds a read-only history panel that shows who voted which way. Pulling
+        // comments and documents for every superseded round as well would be a lot of rows for
+        // something nothing on that panel reads.
+        return await _context.CommitteeReviews
+            .AsNoTracking()
+            .Include(r => r.Members)
+            .Where(r => r.ApplicationNumber == applicationNumber)
+            .OrderByDescending(r => r.CirculatedAt)
+            .ToListAsync(ct);
+    }
+
     public async Task<CommitteeReview?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         return await _context.CommitteeReviews

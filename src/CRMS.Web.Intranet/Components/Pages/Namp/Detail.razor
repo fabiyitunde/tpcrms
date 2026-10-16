@@ -1831,6 +1831,88 @@ else
             app.Status != "ZonalCommitteeDeclined" &&
             app.Status != "RegionalCommitteeDeclined" &&
             app.Status != "HOCommitteeDeclined";
+
+        @* Superseded rounds. A return for rework stops earlier votes counting but keeps them, and
+           this is what makes that visible: without it the preservation is a claim nobody can check,
+           and repeated returns aimed at changing an unwanted outcome would leave no trace on screen. *@
+        var supersededRounds = committeeRounds.Where(r => !r.IsCurrent).ToList();
+        @if (supersededRounds.Count > 0)
+        {
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Superseded committee rounds</h3>
+                    <span class="badge badge-warning" style="color: #000;">@supersededRounds.Count closed</span>
+                </div>
+                <div class="card-body">
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0;">
+                        These rounds were closed when the case was returned for rework. The votes below
+                        no longer count toward any decision — they are kept as a record of what the
+                        committee had decided at the time.
+                    </p>
+
+                    @foreach (var round in supersededRounds)
+                    {
+                        <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 0.875rem; margin-bottom: 0.75rem; opacity: 0.85;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                                <strong style="font-size: 0.9rem;">@FormatCommitteeType(round.CommitteeType)</strong>
+                                <span class="badge badge-secondary">@round.Status</span>
+                                @if (!string.IsNullOrEmpty(round.FinalDecision))
+                                {
+                                    <span class="badge badge-warning" style="color: #000;">@round.FinalDecision</span>
+                                }
+                                <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                                    Circulated @round.CirculatedAt.ToLocalTime().ToString("dd MMM yyyy")
+                                    @if (round.DecisionAt is { } closed)
+                                    {
+                                        <span> · closed @closed.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                    }
+                                </span>
+                            </div>
+
+                            <div style="display: flex; gap: 1rem; font-size: 0.82rem; margin-bottom: 0.5rem;">
+                                <span style="color: var(--success-700); font-weight: 600;">✓ @round.ApprovalVotes Approve</span>
+                                <span style="color: var(--danger-700); font-weight: 600;">✗ @round.RejectionVotes Reject</span>
+                                <span style="color: var(--gray-500);">— @round.AbstainVotes Abstain</span>
+                                @if (round.PendingVotes > 0)
+                                {
+                                    <span style="color: var(--text-secondary);">@round.PendingVotes never voted</span>
+                                }
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(round.DecisionRationale))
+                            {
+                                <div style="font-size: 0.82rem; margin-bottom: 0.5rem;">
+                                    <span style="color: var(--text-secondary);">Closed because:</span>
+                                    @round.DecisionRationale
+                                </div>
+                            }
+
+                            @if (round.Members.Any(m => m.Vote != null))
+                            {
+                                <table class="table" style="margin-bottom: 0; font-size: 0.82rem;">
+                                    <thead><tr><th>Member</th><th>Vote</th><th>When</th><th>Comment</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var m in round.Members.OrderBy(m => m.UserName))
+                                        {
+                                            <tr>
+                                                <td>
+                                                    @m.UserName
+                                                    @if (m.IsChairperson) { <span class="badge badge-secondary" style="margin-left: 0.3rem;">Chair</span> }
+                                                </td>
+                                                <td>@(m.Vote ?? "—")</td>
+                                                <td style="white-space: nowrap;">@(m.VotedAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "—")</td>
+                                                <td>@(string.IsNullOrWhiteSpace(m.VoteComment) ? "—" : m.VoteComment)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         <div style="display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; align-items: start;">
             @* Left: members + vote table *@
             <div class="card">
@@ -4419,6 +4501,10 @@ else
     private string detailTab = "overview";
     private NampCommitteeReviewDto? committeeReview;
 
+    /// <summary>All committee rounds, newest first — loaded only on a case that has been returned at
+    /// least once. The superseded rounds are read-only history.</summary>
+    private List<NampCommitteeReviewDto> committeeRounds = [];
+
     // Bureau recheck
     private bool bureauRechecking;
     private string? bureauRecheckError;
@@ -4988,6 +5074,12 @@ else
                 PopulateFormFields();
                 if (app.CurrentCommitteeReviewId.HasValue)
                     committeeReview = await AppService.GetNampCommitteeReviewAsync(app.CurrentCommitteeReviewId.Value);
+
+                // Only worth a round trip once the case has been round the loop at least twice —
+                // on a first-pass case this would return the one round the committee tab already shows.
+                if (app.ReviewPassNumber > 1)
+                    committeeRounds = await AppService.GetNampCommitteeRoundsAsync(
+                        app.ApplicationNumber, app.CurrentCommitteeReviewId);
             }
         }
         finally { isLoading = false; }
@@ -5629,6 +5721,17 @@ else
 
         return appraisals.Concat(risks).OrderBy(p => p.At);
     }
+
+    private static string FormatCommitteeType(string committeeType) => committeeType switch
+    {
+        "BranchCredit" => "Branch Credit Committee",
+        "ZonalCredit" => "Zonal Credit Committee",
+        "RegionalCredit" => "Regional Credit Committee",
+        "HeadOfficeCredit" => "Head Office Credit Committee",
+        "ManagementCredit" => "Management Credit Committee",
+        "BoardCredit" => "Board Credit Committee",
+        _ => committeeType,
+    };
 
     private static string OutcomeBadge(string outcome) => outcome switch
     {

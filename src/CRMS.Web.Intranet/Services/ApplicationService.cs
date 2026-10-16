@@ -5843,6 +5843,26 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Every committee round for an application, newest first — the live one and any
+    /// superseded by a return for rework.</summary>
+    public async Task<List<CRMS.Application.Namp.DTOs.NampCommitteeReviewDto>> GetNampCommitteeRoundsAsync(
+        string applicationNumber, Guid? currentReviewId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetNampCommitteeRoundsHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Queries.GetNampCommitteeRoundsQuery(applicationNumber, currentReviewId),
+                CancellationToken.None);
+            return result.IsSuccess ? result.Data! : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading NAMP committee rounds for {ApplicationNumber}", applicationNumber);
+            return [];
+        }
+    }
+
     public async Task<CRMS.Application.Namp.DTOs.NampCommitteeReviewDto?> GetNampCommitteeReviewAsync(Guid committeeReviewId)
     {
         try

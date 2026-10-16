@@ -366,7 +366,15 @@ public record NampCommitteeReviewDto(
     bool HasQuorum,
     bool HasMajorityApproval,
     bool IsOverdue,
-    List<NampCommitteeMemberViewDto> Members
+    List<NampCommitteeMemberViewDto> Members,
+    /// <summary>The round's recorded decision, where one was taken. "Deferred" marks a round closed
+    /// by a return for rework — its votes no longer count but are kept.</summary>
+    string? FinalDecision = null,
+    DateTime? DecisionAt = null,
+    string? DecisionRationale = null,
+    /// <summary>False once a later round has been circulated. A superseded round is read-only
+    /// history; nothing about it can be acted on.</summary>
+    bool IsCurrent = true
 );
 
 public record NampFinancialAppraisalReportDto(
