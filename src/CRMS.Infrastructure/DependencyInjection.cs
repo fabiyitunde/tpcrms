@@ -685,6 +685,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Namp.Queries.GetAllNampApplicationsHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampApplicationsByStatusHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampApplicationsByStatusAndTierHandler>();
+        services.AddScoped<Application.Namp.Queries.GetNampApplicationsScopedHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampApplicationsByCommitteeMembershipHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampApplicationsByParticipationHandler>();
         services.AddScoped<Application.Namp.Queries.GetNampCommitteeReviewHandler>();

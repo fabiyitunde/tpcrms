@@ -5785,6 +5785,65 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>
+    /// The branch ids a user may see, from their assigned location.
+    /// <para>
+    /// A branch resolves to itself; a zone or region resolves to the branches beneath it, so a zonal
+    /// officer sees every branch in their zone. An empty list means no restriction, which is what
+    /// head-office staff get — including anyone with no location assigned, per the bank's rule.
+    /// </para>
+    /// </summary>
+    public async Task<List<Guid>> GetVisibleBranchIdsAsync(Guid? locationId, bool isHeadOffice)
+    {
+        if (isHeadOffice || locationId is null)
+            return [];
+
+        try
+        {
+            var locations = _sp.GetRequiredService<CRMS.Domain.Interfaces.ILocationRepository>();
+            var descendants = await locations.GetDescendantBranchIdsAsync(locationId.Value);
+
+            // A branch has no descendant branches, so it resolves to itself. Returning an empty list
+            // there would silently mean "every branch" — the opposite of the intent.
+            return descendants.Count > 0 ? descendants.ToList() : [locationId.Value];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resolving visible branches for location {LocationId}", locationId);
+
+            // Fall back to the user's own location rather than to no restriction: a failure here must
+            // not widen what someone can see.
+            return [locationId.Value];
+        }
+    }
+
+    /// <summary>
+    /// Applications at the given statuses, scoped by tier and branch. A null tier means every tier
+    /// (head office); an empty branch list means every branch.
+    /// </summary>
+    public async Task<List<CRMS.Application.Namp.DTOs.NampApplicationSummaryDto>> GetNampApplicationsScopedAsync(
+        IEnumerable<string> statuses, string? tier, IReadOnlyList<Guid>? branchIds)
+    {
+        var results = new List<CRMS.Application.Namp.DTOs.NampApplicationSummaryDto>();
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Queries.GetNampApplicationsScopedHandler>();
+            foreach (var status in statuses)
+            {
+                var result = await handler.Handle(
+                    new CRMS.Application.Namp.Queries.GetNampApplicationsScopedQuery(status, tier, branchIds),
+                    CancellationToken.None);
+                if (result.IsSuccess && result.Data is not null)
+                    results.AddRange(result.Data);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading scoped NAMP applications");
+        }
+        return results.OrderByDescending(a => a.CreatedAt).ToList();
+    }
+
     public async Task<List<CRMS.Application.Namp.DTOs.NampApplicationSummaryDto>> GetNampApplicationsByStatusesAsync(IEnumerable<string> statuses, Guid? branchId = null)
     {
         var results = new List<CRMS.Application.Namp.DTOs.NampApplicationSummaryDto>();

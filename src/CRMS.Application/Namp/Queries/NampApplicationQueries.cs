@@ -261,6 +261,23 @@ public record GetAllNampApplicationsQuery()
 public class GetAllNampApplicationsHandler
     : IRequestHandler<GetAllNampApplicationsQuery, ApplicationResult<List<NampApplicationSummaryDto>>>
 {
+    /// <summary>The summary projection, shared so every list of NAMP applications carries the same
+    /// columns — this was repeated inline in each query handler.</summary>
+    internal static NampApplicationSummaryDto MapToSummary(Domain.Aggregates.Namp.NampApplication a) => new(
+        a.Id,
+        a.ApplicationNumber,
+        a.ApplicationReference,
+        a.Status.ToString(),
+        a.ApplicantName,
+        a.BoaAccountNumber,
+        a.ApplicantCategory.ToString(),
+        a.EquipmentValue,
+        a.CommitteeTier.ToString(),
+        a.BranchId,
+        a.CreatedAt,
+        a.SubmittedAt,
+        a.CurrentCommitteeReviewId);
+
     private readonly INampApplicationRepository _repo;
 
     public GetAllNampApplicationsHandler(INampApplicationRepository repo) => _repo = repo;
@@ -291,6 +308,42 @@ public class GetAllNampApplicationsHandler
 
 public record GetNampApplicationsByStatusQuery(string Status, Guid? BranchId = null)
     : IRequest<ApplicationResult<List<NampApplicationSummaryDto>>>;
+
+/// <summary>
+/// Applications at a status, scoped as the bank scopes visibility: a null tier means every tier
+/// (head office), and an empty branch list means every branch. A zone or region is expanded to its
+/// branches by the caller, so this query never needs to know about the location hierarchy.
+/// </summary>
+public record GetNampApplicationsScopedQuery(
+    string Status, string? Tier, IReadOnlyList<Guid>? BranchIds)
+    : IRequest<ApplicationResult<List<NampApplicationSummaryDto>>>;
+
+public class GetNampApplicationsScopedHandler
+    : IRequestHandler<GetNampApplicationsScopedQuery, ApplicationResult<List<NampApplicationSummaryDto>>>
+{
+    private readonly INampApplicationRepository _repo;
+
+    public GetNampApplicationsScopedHandler(INampApplicationRepository repo) => _repo = repo;
+
+    public async Task<ApplicationResult<List<NampApplicationSummaryDto>>> Handle(
+        GetNampApplicationsScopedQuery request, CancellationToken ct = default)
+    {
+        if (!Enum.TryParse<NampApplicationStatus>(request.Status, ignoreCase: true, out var status))
+            return ApplicationResult<List<NampApplicationSummaryDto>>.Failure($"Unknown status: '{request.Status}'.");
+
+        NampCommitteeTier? tier = null;
+        if (!string.IsNullOrWhiteSpace(request.Tier))
+        {
+            if (!Enum.TryParse<NampCommitteeTier>(request.Tier, ignoreCase: true, out var parsed))
+                return ApplicationResult<List<NampApplicationSummaryDto>>.Failure($"Unknown tier: '{request.Tier}'.");
+            tier = parsed;
+        }
+
+        var apps = await _repo.GetByStatusScopedAsync(status, tier, request.BranchIds, ct);
+        return ApplicationResult<List<NampApplicationSummaryDto>>.Success(
+            apps.Select(GetAllNampApplicationsHandler.MapToSummary).ToList());
+    }
+}
 
 public record GetNampApplicationsByStatusAndTierQuery(string Status, string Tier, Guid? BranchId = null)
     : IRequest<ApplicationResult<List<NampApplicationSummaryDto>>>;

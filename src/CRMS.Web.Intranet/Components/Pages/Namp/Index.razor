@@ -844,14 +844,16 @@
 
         var results = new List<NampApplicationSummaryDto>();
 
-        // Head-office-domiciled actors see every branch; branch actors are scoped to their own branch.
-        var queueBranchId = user.IsHeadOffice ? (Guid?)null : user.LocationId;
+        // Visibility scoping, per the bank's rule: head office (which includes anyone with no
+        // location assigned) sees every branch and every tier; a branch sees its own applications; a
+        // zone or region sees every branch beneath it. An empty list means no branch restriction.
+        var visibleBranchIds = await AppService.GetVisibleBranchIdsAsync(user.LocationId, user.IsHeadOffice);
 
         // Branch-filtered statuses: only apps in the user's branch (or all branches for HO actors)
         var branchStatuses = GetBranchScopedStatuses(user);
         if (branchStatuses.Length > 0)
         {
-            var branchApps = await AppService.GetNampApplicationsByStatusesAsync(branchStatuses, queueBranchId);
+            var branchApps = await AppService.GetNampApplicationsScopedAsync(branchStatuses, null, visibleBranchIds);
             results.AddRange(branchApps);
         }
 
@@ -874,23 +876,36 @@
         var ratificationTier = GetRatificationTier(user);
         if (ratificationTier != null)
         {
-            // Branch managers see only their branch's ratification apps; HO-domiciled managers and higher tiers see all
-            var ratBranchId = user.HasRole("BranchManager") && !user.IsHeadOffice ? user.LocationId : (Guid?)null;
-            var ratApps = await AppService.GetNampApplicationsByStatusAndTierAsync("Ratification", ratificationTier, ratBranchId);
+            // Head office is not tier-restricted. Tier-filtering a head-office manager left them
+            // seeing strictly less than a branch manager, which is backwards.
+            var ratTier = user.IsHeadOffice ? null : ratificationTier;
+            var ratApps = await AppService.GetNampApplicationsScopedAsync(["Ratification"], ratTier, visibleBranchIds);
             results.AddRange(ratApps);
         }
 
-        // Risk Review + Committee Circulation: filtered by the Risk Officer's tier.
-        // Risk Officers own both steps: reviewing (RiskReview) and circulating to committee ([Tier]CommitteeCirculation).
+        // Risk Review + Committee Circulation. Risk Officers own both steps: reviewing (RiskReview)
+        // and circulating to committee ([Tier]CommitteeCirculation).
         var riskTier = GetRiskReviewTier(user);
         if (riskTier != null)
         {
-            var riskBranchId = user.HasRole("BranchRiskOfficer") && !user.IsHeadOffice ? user.LocationId : (Guid?)null;
-            var riskApps = await AppService.GetNampApplicationsByStatusAndTierAsync("RiskReview", riskTier, riskBranchId);
-            results.AddRange(riskApps);
-            var circulationStatus = RiskTierCirculationStatus(riskTier);
-            var circApps = await AppService.GetNampApplicationsByStatusAndTierAsync(circulationStatus, riskTier, riskBranchId);
-            results.AddRange(circApps);
+            // Same rule as ratification above: head office sees every tier. A Head Office Risk
+            // Officer previously asked only for HeadOffice-tier cases and so saw nothing at all,
+            // which is what hid Branch-tier applications from everyone senior to the branch.
+            if (user.IsHeadOffice)
+            {
+                var allRiskStatuses = new[]
+                {
+                    "RiskReview",
+                    "BranchCommitteeCirculation", "ZonalCommitteeCirculation",
+                    "RegionalCommitteeCirculation", "HOCommitteeCirculation",
+                };
+                results.AddRange(await AppService.GetNampApplicationsScopedAsync(allRiskStatuses, null, visibleBranchIds));
+            }
+            else
+            {
+                var riskStatuses = new[] { "RiskReview", RiskTierCirculationStatus(riskTier) };
+                results.AddRange(await AppService.GetNampApplicationsScopedAsync(riskStatuses, riskTier, visibleBranchIds));
+            }
         }
 
         // Deduplicate by Id (user may hold multiple roles that overlap statuses)

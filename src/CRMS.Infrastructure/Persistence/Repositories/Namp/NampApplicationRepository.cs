@@ -81,6 +81,23 @@ public class NampApplicationRepository : INampApplicationRepository
         return await query.OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<NampApplication>> GetByStatusScopedAsync(
+        NampApplicationStatus status,
+        NampCommitteeTier? tier,
+        IReadOnlyList<Guid>? branchIds,
+        CancellationToken ct = default)
+    {
+        var query = _context.NampApplications.Where(x => x.Status == status);
+
+        if (tier.HasValue)
+            query = query.Where(x => x.CommitteeTier == tier.Value);
+
+        if (branchIds is { Count: > 0 })
+            query = query.Where(x => branchIds.Contains(x.BranchId));
+
+        return await query.OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<NampApplication>> GetByBranchAsync(Guid branchId, CancellationToken ct = default)
         => await _context.NampApplications
             .Where(x => x.BranchId == branchId)

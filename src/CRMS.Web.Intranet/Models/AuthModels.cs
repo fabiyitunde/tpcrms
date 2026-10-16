@@ -31,8 +31,18 @@ public class UserInfo
     public Guid? LocationId { get; set; }
     public string? LocationName { get; set; }
     public string? LocationType { get; set; }
-    /// <summary>True when the user is domiciled at the Head Office — grants cross-branch (global) visibility.</summary>
-    public bool IsHeadOffice => string.Equals(LocationType, "HeadOffice", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// True when the user is domiciled at the Head Office — grants cross-branch (global) visibility.
+    /// <para>
+    /// No location at all also counts as Head Office. That is the bank's rule: a user is scoped to a
+    /// branch or a zone only once one is explicitly assigned, and until then they are head-office
+    /// staff. Reading an unset location as "not head office" is what previously left a Head Office
+    /// Risk Officer seeing nothing — scoped to their own tier while being treated as branch staff.
+    /// </para>
+    /// </summary>
+    public bool IsHeadOffice =>
+        string.Equals(LocationType, "HeadOffice", StringComparison.OrdinalIgnoreCase)
+        || LocationId is null;
     // Backward compatibility
     public string? BranchId { get => LocationId?.ToString(); set => LocationId = Guid.TryParse(value, out var id) ? id : null; }
     public string? BranchName { get => LocationName; set => LocationName = value; }
