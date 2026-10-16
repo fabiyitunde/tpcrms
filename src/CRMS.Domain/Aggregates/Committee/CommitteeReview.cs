@@ -309,6 +309,37 @@ public class CommitteeReview : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>
+    /// Concludes a round that is being sent back for rework, whatever stage its voting had reached.
+    /// <para>
+    /// <see cref="RecordDecision"/> cannot do this: it requires quorum, and a case can be returned
+    /// before enough members have voted. <see cref="Close"/> cannot either — it only accepts an
+    /// already-decided review. Without this, a returned round would be detached from its application
+    /// while still marked as voting, and would surface as live work in members' pending-vote queues.
+    /// </para>
+    /// <para>
+    /// Votes already cast are kept. They cease to count — the next circulation is a fresh review —
+    /// but deleting them would destroy the audit trail and hide repeated returns aimed at changing
+    /// an unwanted outcome.
+    /// </para>
+    /// </summary>
+    public Result Supersede(Guid supersededByUserId, string rationale)
+    {
+        if (Status is CommitteeReviewStatus.Decided or CommitteeReviewStatus.Closed)
+            return Result.Failure("This review has already concluded.");
+        if (string.IsNullOrWhiteSpace(rationale))
+            return Result.Failure("A rationale is required to supersede a review.");
+
+        FinalDecision = CommitteeDecision.Deferred;
+        DecisionAt = DateTime.UtcNow;
+        DecisionByUserId = supersededByUserId;
+        DecisionRationale = rationale.Trim();
+        Status = CommitteeReviewStatus.Closed;
+
+        AddDomainEvent(new CommitteeReviewClosedEvent(Id, LoanApplicationId, CommitteeDecision.Deferred));
+        return Result.Success();
+    }
+
     public Result Close(Guid closedByUserId)
     {
         if (Status != CommitteeReviewStatus.Decided)

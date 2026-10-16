@@ -26,6 +26,8 @@ public class NampApplicationRepository : INampApplicationRepository
             .Include(x => x.FinancialStatements)
             .Include(x => x.PreDeploymentChecklist.OrderBy(i => i.SortOrder))
             .Include(x => x.Directors)
+            .Include(x => x.FinancialAppraisalRecords.OrderBy(r => r.PassNumber))
+            .Include(x => x.RiskReviewRecords.OrderBy(r => r.PassNumber))
             // 7 collection Includes in one query produce a cartesian product (de-duplicated
             // client-side); split into one query per collection. See the RH-SHF equivalent and
             // [[feedback_ef_multi_include_cartesian]]. Tracking + append-tracking fix are unaffected.
@@ -41,6 +43,8 @@ public class NampApplicationRepository : INampApplicationRepository
             .Include(x => x.FinancialStatements)
             .Include(x => x.PreDeploymentChecklist.OrderBy(i => i.SortOrder))
             .Include(x => x.Directors)
+            .Include(x => x.FinancialAppraisalRecords.OrderBy(r => r.PassNumber))
+            .Include(x => x.RiskReviewRecords.OrderBy(r => r.PassNumber))
             .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.CurrentCommitteeReviewId == committeeReviewId, ct);
 

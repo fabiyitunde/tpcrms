@@ -3583,6 +3583,16 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("CommitteeDecisionNote")
                         .HasColumnType("text");
 
+                    b.Property<string>("CommitteeReturnNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<DateTime?>("CommitteeReturnedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("CommitteeReturnedByUserId")
+                        .HasColumnType("char(36)");
+
                     b.Property<int>("CommitteeTier")
                         .HasColumnType("int");
 
@@ -3807,6 +3817,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("char(36)");
 
                     b.Property<int?>("RequestedTenorMonths")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ReviewPassNumber")
                         .HasColumnType("int");
 
                     b.Property<string>("RiskDeclineNote")
@@ -4196,6 +4209,55 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("NampDocumentTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampFinancialAppraisalRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("AppraisedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("AppraisedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<int>("PassNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId");
+
+                    b.HasIndex("NampApplicationId", "PassNumber");
+
+                    b.ToTable("NampFinancialAppraisalRecords", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampFinancialAppraisalReport", b =>
@@ -4824,6 +4886,57 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("SortOrder");
 
                     b.ToTable("NampPreDeploymentChecklistTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampRiskReviewRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("NampApplicationId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("PassNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ReviewedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("ReviewedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NampApplicationId");
+
+                    b.HasIndex("NampApplicationId", "PassNumber");
+
+                    b.ToTable("NampRiskReviewRecords", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampRoutingConfig", b =>
@@ -9883,6 +9996,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampFinancialAppraisalRecord", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
+                        .WithMany("FinancialAppraisalRecords")
+                        .HasForeignKey("NampApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampFinancialStatement", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
@@ -9905,6 +10027,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
                         .WithMany("PreDeploymentChecklist")
+                        .HasForeignKey("NampApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Namp.NampRiskReviewRecord", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Namp.NampApplication", null)
+                        .WithMany("RiskReviewRecords")
                         .HasForeignKey("NampApplicationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -10521,11 +10652,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Documents");
 
+                    b.Navigation("FinancialAppraisalRecords");
+
                     b.Navigation("FinancialStatements");
 
                     b.Navigation("Guarantors");
 
                     b.Navigation("PreDeploymentChecklist");
+
+                    b.Navigation("RiskReviewRecords");
 
                     b.Navigation("StatusHistory");
                 });

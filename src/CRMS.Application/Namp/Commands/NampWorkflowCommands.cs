@@ -388,6 +388,76 @@ public class CastNampCommitteeVoteHandler
     }
 }
 
+// ── Stage 4c: Return a circulating committee case for rework ──────────────
+
+/// <summary>
+/// Sends a case back from committee circulation to the Loan Officer, Credit Officer or Risk Officer,
+/// with a compulsory reason the receiving officer is shown.
+/// <para>
+/// Deliberately not a committee action. Returning a case unwinds votes already cast, so it sits with
+/// the tier's ratifier — the manager who holds credit authority over that case anyway — rather than
+/// with the chairperson or a voting member. SystemAdmin is allowed as a break-glass for when the
+/// ratifier is unavailable; both are recorded by name either way.
+/// </para>
+/// </summary>
+public record ReturnNampFromCommitteeCommand(
+    Guid NampApplicationId,
+    Guid UserId,
+    NampCommitteeReturnTarget Target,
+    string Reason
+) : IRequest<ApplicationResult<NampApplicationDto>>;
+
+public class ReturnNampFromCommitteeHandler
+    : IRequestHandler<ReturnNampFromCommitteeCommand, ApplicationResult<NampApplicationDto>>
+{
+    private readonly INampApplicationRepository _repo;
+    private readonly ICommitteeReviewRepository _committeeRepo;
+    private readonly IUnitOfWork _uow;
+
+    public ReturnNampFromCommitteeHandler(
+        INampApplicationRepository repo, ICommitteeReviewRepository committeeRepo, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _committeeRepo = committeeRepo;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<NampApplicationDto>> Handle(
+        ReturnNampFromCommitteeCommand request, CancellationToken ct = default)
+    {
+        var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
+        if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        // Close the round before moving the case, so a failure here cannot leave a detached review
+        // still marked as voting. Deferred is the shared enum's existing "requires more information"
+        // decision — the round is recorded as concluded without approval, not deleted.
+        var reviewId = app.CurrentCommitteeReviewId;
+        if (reviewId.HasValue)
+        {
+            var review = await _committeeRepo.GetByIdAsync(reviewId.Value, ct);
+            if (review is not null)
+            {
+                // Supersede, not RecordDecision: a case can be returned before quorum is reached,
+                // and a formal decision requires it. The rationale carries the same reason the
+                // officer will see, so the closed round explains itself to whoever reads the
+                // committee history later.
+                var superseded = review.Supersede(request.UserId, $"Returned for rework: {request.Reason}");
+                if (superseded.IsFailure)
+                    return ApplicationResult<NampApplicationDto>.Failure(superseded.Error);
+
+                _committeeRepo.Update(review);
+            }
+        }
+
+        var result = app.ReturnFromCommittee(request.UserId, request.Target, request.Reason);
+        if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
+
+        app.SetAuditInfo(request.UserId.ToString());
+        await _uow.SaveChangesAsync(ct);
+        return ApplicationResult<NampApplicationDto>.Success(GetNampApplicationByIdHandler.MapToDto(app));
+    }
+}
+
 // ── Stage 5: Ratification ─────────────────────────────────────────────────
 
 public record RatifyNampDecisionCommand(

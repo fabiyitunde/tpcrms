@@ -185,6 +185,21 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
             .HasForeignKey(d => d.NampApplicationId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Append-only history of each appraisal and risk pass. The single FinancialAppraisalNote /
+        // RiskReviewNote fields still hold the latest pass, which a rework after a committee return
+        // would otherwise overwrite without trace.
+        builder.HasMany(x => x.FinancialAppraisalRecords)
+            .WithOne()
+            .HasForeignKey(r => r.NampApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.RiskReviewRecords)
+            .WithOne()
+            .HasForeignKey(r => r.NampApplicationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(x => x.CommitteeReturnNote).HasMaxLength(2000);
+
         // Indexes
         builder.HasIndex(x => x.ApplicationNumber).IsUnique();
         builder.HasIndex(x => x.ApplicationReference).IsUnique();

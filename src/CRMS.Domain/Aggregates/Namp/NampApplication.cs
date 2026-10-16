@@ -104,6 +104,25 @@ public class NampApplication : AggregateRoot
     public Guid? CommitteeDecisionByUserId { get; private set; }
     public string? CommitteeDecisionNote { get; private set; }
 
+    // ── Committee return ──────────────────────────────────────────────────
+    // Set when a committee circulation is sent back for rework. Cleared on the next circulation, so
+    // the banner that shows the reason to the receiving officer disappears once the case has moved
+    // past it — the permanent record lives in StatusHistory and the stage-decision collections.
+    public DateTime? CommitteeReturnedAt { get; private set; }
+    public Guid? CommitteeReturnedByUserId { get; private set; }
+    public string? CommitteeReturnNote { get; private set; }
+
+    /// <summary>
+    /// Which trip through the appraisal → risk → committee pipeline the case is on. 1 until the
+    /// first committee return, then 2, and so on.
+    /// <para>
+    /// Stamped on every appraisal and risk record so a reader can tell a revision from a first look,
+    /// and so superseded committee rounds can be labelled. Not a loan cycle — NAMP has no
+    /// multi-cycle concept; this counts reworks of one application.
+    /// </para>
+    /// </summary>
+    public int ReviewPassNumber { get; private set; } = 1;
+
     // ── Stage 5: Ratification ─────────────────────────────────────────────
     public Guid? RatifiedByUserId { get; private set; }
     public DateTime? RatifiedAt { get; private set; }
@@ -157,6 +176,8 @@ public class NampApplication : AggregateRoot
     private readonly List<NampFinancialStatement> _financialStatements = [];
     private readonly List<NampPreDeploymentChecklistItem> _preDeploymentChecklist = [];
     private readonly List<NampDirector> _directors = [];
+    private readonly List<NampFinancialAppraisalRecord> _financialAppraisalRecords = [];
+    private readonly List<NampRiskReviewRecord> _riskReviewRecords = [];
 
     public IReadOnlyList<NampDocument> Documents => _documents.AsReadOnly();
     public IReadOnlyList<NampStatusHistory> StatusHistory => _statusHistory.AsReadOnly();
@@ -164,6 +185,13 @@ public class NampApplication : AggregateRoot
     public IReadOnlyList<NampCollateral> Collaterals => _collaterals.AsReadOnly();
     public IReadOnlyList<NampFinancialStatement> FinancialStatements => _financialStatements.AsReadOnly();
     public IReadOnlyList<NampPreDeploymentChecklistItem> PreDeploymentChecklist => _preDeploymentChecklist.AsReadOnly();
+
+    /// <summary>Every pass of financial appraisal, oldest first — the record a returned case would
+    /// otherwise have overwritten.</summary>
+    public IReadOnlyList<NampFinancialAppraisalRecord> FinancialAppraisalRecords => _financialAppraisalRecords.AsReadOnly();
+
+    /// <summary>Every pass of risk review, oldest first.</summary>
+    public IReadOnlyList<NampRiskReviewRecord> RiskReviewRecords => _riskReviewRecords.AsReadOnly();
     public IReadOnlyList<NampDirector> Directors => _directors.AsReadOnly();
 
     private NampApplication() { }
@@ -259,6 +287,11 @@ public class NampApplication : AggregateRoot
         FinancialAppraisalAt = DateTime.UtcNow;
         FinancialAppraisalNote = note;
 
+        // Appended as well as assigned: the three fields above hold the latest pass, which a second
+        // appraisal after a committee return would otherwise silently replace.
+        _financialAppraisalRecords.Add(NampFinancialAppraisalRecord.Create(
+            Id, ReviewPassNumber, userId, isApproved, note));
+
         Status = isApproved ? NampApplicationStatus.RiskReview : NampApplicationStatus.FinancialDeclined;
         var outcome = isApproved ? "Financial appraisal approved — forwarded to Risk Officer for review." : "Financial appraisal declined.";
         AddStatusHistory(Status, userId, $"{outcome}{(note != null ? $" Note: {note}" : "")}");
@@ -275,6 +308,9 @@ public class NampApplication : AggregateRoot
         RiskReviewedByUserId = userId;
         RiskReviewedAt = DateTime.UtcNow;
         RiskReviewNote = note;
+        _riskReviewRecords.Add(NampRiskReviewRecord.Create(
+            Id, ReviewPassNumber, userId, NampRiskReviewOutcome.Approved, note));
+
         Status = TierCirculationStatus();
         AddStatusHistory(Status, userId, $"Risk review approved — circulating to committee.{(note != null ? $" Note: {note}" : "")}");
         return Result.Success();
@@ -290,6 +326,9 @@ public class NampApplication : AggregateRoot
         RiskReviewedByUserId = userId;
         RiskReviewedAt = DateTime.UtcNow;
         RiskReturnNote = reason;
+        _riskReviewRecords.Add(NampRiskReviewRecord.Create(
+            Id, ReviewPassNumber, userId, NampRiskReviewOutcome.Returned, reason));
+
         Status = NampApplicationStatus.FinancialAppraisal;
         AddStatusHistory(Status, userId, $"Returned to Financial Appraisal by Risk Officer. Reason: {reason}");
         return Result.Success();
@@ -305,6 +344,9 @@ public class NampApplication : AggregateRoot
         RiskReviewedByUserId = userId;
         RiskReviewedAt = DateTime.UtcNow;
         RiskDeclineNote = reason;
+        _riskReviewRecords.Add(NampRiskReviewRecord.Create(
+            Id, ReviewPassNumber, userId, NampRiskReviewOutcome.Declined, reason));
+
         Status = NampApplicationStatus.RiskDeclined;
         AddStatusHistory(Status, userId, $"Declined by Risk Officer. Reason: {reason}");
         return Result.Success();
@@ -332,8 +374,89 @@ public class NampApplication : AggregateRoot
             return Result.Failure($"Application must be in {expectedStatus} status to circulate to committee.");
 
         CurrentCommitteeReviewId = committeeReviewId;
+
+        // Clear the previous return, so the "returned for rework" banner stops showing once the case
+        // has been reworked and sent back up. The reason itself stays in StatusHistory for good.
+        CommitteeReturnedAt = null;
+        CommitteeReturnedByUserId = null;
+        CommitteeReturnNote = null;
+
         // Status stays at circulation status (CommitteeReview tracks voting internally)
-        AddStatusHistory(Status, userId, $"Committee review created (Id: {committeeReviewId}).");
+        AddStatusHistory(Status, userId,
+            $"Committee review created (Id: {committeeReviewId})"
+            + (ReviewPassNumber > 1 ? $" — pass {ReviewPassNumber}, voting afresh." : "."));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Sends a circulating committee case back for rework, to the Loan Officer, Credit Officer or
+    /// Risk Officer.
+    /// <para>
+    /// Only from a live circulation. Once every member has voted, RecordCommitteeOutcome has already
+    /// moved the case to Ratification or a declined terminal, and reaching back into a decided case
+    /// is the ratifier's own decline path — not this.
+    /// </para>
+    /// <para>
+    /// The votes already cast are superseded, not erased: the caller closes the current review as
+    /// Deferred and the next circulation creates a fresh one, so both rounds stay on record. A
+    /// deleted round would destroy the audit trail and, worse, hide vote-shopping — returning a case
+    /// repeatedly until the vote goes the desired way.
+    /// </para>
+    /// <para>
+    /// The return target cannot skip the stages between it and the committee: nothing transitions to
+    /// a circulation status except ApproveRiskReview, and nothing reaches RiskReview except
+    /// SubmitFinancialAppraisal. So a case returned to the Loan Officer must pass credit and risk
+    /// again, and one returned to the Credit Officer must pass risk again, with no code here to
+    /// enforce it — the forward guards already do.
+    /// </para>
+    /// </summary>
+    public Result ReturnFromCommittee(Guid userId, NampCommitteeReturnTarget target, string reason)
+    {
+        var circulationStatus = TierCirculationStatus();
+        if (Status != circulationStatus)
+            return Result.Failure(
+                $"Only a case circulating to committee can be returned. This one is {Status}.");
+
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("A reason is required — the officer receiving the case has to know what to act on.");
+
+        var targetStatus = target switch
+        {
+            NampCommitteeReturnTarget.LoanOfficer => NampApplicationStatus.Draft,
+            NampCommitteeReturnTarget.CreditOfficer => NampApplicationStatus.FinancialAppraisal,
+            NampCommitteeReturnTarget.RiskOfficer => NampApplicationStatus.RiskReview,
+            _ => (NampApplicationStatus?)null,
+        };
+
+        if (targetStatus is null)
+            return Result.Failure($"'{target}' is not a valid return target.");
+
+        CommitteeReturnedAt = DateTime.UtcNow;
+        CommitteeReturnedByUserId = userId;
+        CommitteeReturnNote = reason.Trim();
+
+        // The superseded review is detached here; the caller closes it. Leaving it attached is what
+        // would make the loan pack keep rendering the old committee's votes after re-circulation.
+        CurrentCommitteeReviewId = null;
+        CommitteeDecisionAt = null;
+        CommitteeDecisionByUserId = null;
+        CommitteeDecisionNote = null;
+
+        // A new pass: the appraisal and risk records written from here on are stamped with it, so
+        // the history distinguishes the rework from the original.
+        ReviewPassNumber += 1;
+
+        var targetLabel = target switch
+        {
+            NampCommitteeReturnTarget.LoanOfficer => "Loan Officer",
+            NampCommitteeReturnTarget.CreditOfficer => "Credit Officer",
+            _ => "Risk Officer",
+        };
+
+        Status = targetStatus.Value;
+        AddStatusHistory(Status, userId,
+            $"Returned from {circulationStatus} to the {targetLabel} for rework (pass {ReviewPassNumber}). "
+            + $"Votes cast in the previous round are superseded. Reason: {CommitteeReturnNote}");
         return Result.Success();
     }
 

@@ -5958,6 +5958,34 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>
+    /// Returns a circulating committee case for rework. <paramref name="target"/> is the enum name —
+    /// "LoanOfficer", "CreditOfficer" or "RiskOfficer" — parsed here rather than bound in the page,
+    /// so an unrecognised value is refused instead of silently defaulting to the first member.
+    /// </summary>
+    public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> ReturnNampFromCommitteeAsync(
+        Guid id, Guid userId, string target, string reason)
+    {
+        try
+        {
+            if (!Enum.TryParse<CRMS.Domain.Enums.NampCommitteeReturnTarget>(target, ignoreCase: true, out var parsed))
+                return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail($"Unknown return target '{target}'.");
+
+            var handler = _sp.GetRequiredService<CRMS.Application.Namp.Commands.ReturnNampFromCommitteeHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Namp.Commands.ReturnNampFromCommitteeCommand(id, userId, parsed, reason),
+                CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail(result.Error ?? "Return failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error returning NAMP application {Id} from committee", id);
+            return ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>.Fail("An error occurred while returning the application.");
+        }
+    }
+
     public async Task<ApiResponse<CRMS.Application.Namp.DTOs.NampApplicationDto>> ReturnNampRiskReviewAsync(Guid id, Guid userId, string reason)
     {
         try

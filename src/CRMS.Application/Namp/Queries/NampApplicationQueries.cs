@@ -236,7 +236,22 @@ public class GetNampApplicationByIdHandler
             d.Bvn,
             d.IdentityNumber,
             d.BvnVerified
-        )).ToList()
+        )).ToList(),
+        app.CommitteeReturnedAt,
+        app.CommitteeReturnNote,
+        app.ReviewPassNumber,
+        app.FinancialAppraisalRecords
+            .OrderBy(r => r.PassNumber)
+            .Select(r => new NampStagePassDto(
+                r.PassNumber, r.AppraisedByUserId, null, r.AppraisedAt,
+                r.IsApproved ? "Approved" : "Declined", r.Note))
+            .ToList(),
+        app.RiskReviewRecords
+            .OrderBy(r => r.PassNumber)
+            .Select(r => new NampStagePassDto(
+                r.PassNumber, r.ReviewedByUserId, null, r.ReviewedAt,
+                r.Outcome.ToString(), r.Note))
+            .ToList()
     );
 }
 

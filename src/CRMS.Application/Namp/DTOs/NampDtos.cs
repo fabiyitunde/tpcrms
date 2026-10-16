@@ -171,6 +171,26 @@ public record NampApplicationDto(
     string? CacState,
     DateTime? CacFetchedAt,
     List<NampDirectorDto> Directors
+,
+    /// <summary>Set while a case is sitting back with an officer after a committee return. The
+    /// detail page shows it as a banner; it is cleared once the case is circulated again.</summary>
+    DateTime? CommitteeReturnedAt = null,
+    string? CommitteeReturnNote = null,
+    /// <summary>Which trip through appraisal -> risk -> committee the case is on.</summary>
+    int ReviewPassNumber = 1,
+    /// <summary>Every appraisal and risk pass, so a rework does not hide what the first one said.</summary>
+    List<NampStagePassDto>? FinancialAppraisalPasses = null,
+    List<NampStagePassDto>? RiskReviewPasses = null
+);
+
+/// <summary>One recorded pass of an appraisal or risk review, for the history panel.</summary>
+public record NampStagePassDto(
+    int PassNumber,
+    Guid ByUserId,
+    string? ByUserName,
+    DateTime At,
+    string Outcome,
+    string? Note
 );
 
 public record NampDirectorDto(

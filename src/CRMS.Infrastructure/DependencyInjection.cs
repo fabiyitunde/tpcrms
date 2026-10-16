@@ -651,6 +651,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Namp.Commands.ReturnNampFinancialAppraisalHandler>();
         services.AddScoped<Application.Namp.Commands.ApproveNampRiskReviewHandler>();
         services.AddScoped<Application.Namp.Commands.ReturnNampRiskReviewHandler>();
+        services.AddScoped<Application.Namp.Commands.ReturnNampFromCommitteeHandler>();
         services.AddScoped<Application.Namp.Commands.DeclineNampRiskReviewHandler>();
         services.AddScoped<Application.Namp.Commands.CirculateNampToCommitteeHandler>();
         services.AddScoped<Application.Namp.Commands.RatifyNampDecisionHandler>();

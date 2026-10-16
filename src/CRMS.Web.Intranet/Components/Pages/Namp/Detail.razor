@@ -56,6 +56,12 @@ else
             {
                 <button class="btn btn-primary" @onclick="OpenCommitteeModal">Circulate to Committee</button>
             }
+            @if (ShowCommitteeReturnButton)
+            {
+                <button class="btn btn-warning" @onclick="OpenCommitteeReturnModal" style="color: #000;">
+                    Return for Rework
+                </button>
+            }
             @if (ShowRatifyButton)
             {
                 <button class="btn btn-success" @onclick="OpenRatifyModal">Ratify Decision</button>
@@ -100,6 +106,36 @@ else
             }
         </div>
     </div>
+
+    @* The reason the committee sent this back, put where the officer cannot miss it. The whole
+       point of a compulsory reason is that the person who has to act on it reads it — buried in the
+       workflow tab it would be no use. Clears once the case is circulated again. *@
+    @if (!string.IsNullOrWhiteSpace(app.CommitteeReturnNote))
+    {
+        <div class="alert alert-warning" style="margin-bottom: 1rem; color: #000;">
+            <div style="display: flex; gap: 0.6rem; align-items: flex-start;">
+                <span class="material-symbols-outlined" style="font-size: 20px;">assignment_return</span>
+                <div>
+                    <div style="font-weight: 600; margin-bottom: 0.2rem;">
+                        Returned from committee for rework
+                        @if (app.CommitteeReturnedAt is { } at)
+                        {
+                            <span style="font-weight: 400;">· @at.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</span>
+                        }
+                        @if (app.ReviewPassNumber > 1)
+                        {
+                            <span class="badge badge-secondary" style="margin-left: 0.4rem;">Pass @app.ReviewPassNumber</span>
+                        }
+                    </div>
+                    <div>@app.CommitteeReturnNote</div>
+                    <div style="font-size: 0.8rem; margin-top: 0.3rem;">
+                        Votes from the previous round no longer count. The case must pass every stage
+                        between here and committee again before it is voted on afresh.
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 
     <!-- ── Persistent Summary Card ── -->
     <div class="card" style="margin-bottom: 1rem;">
@@ -3265,6 +3301,39 @@ else
     ══════════════════════════════════════════════ -->
     @if (detailTab == "workflow")
     {
+        @* Earlier appraisal and risk passes. Only shown once there has been more than one, because
+           on a first-pass case this panel would just repeat what the stage tabs already say. The
+           flat FinancialAppraisalNote holds only the latest pass, so without this the first
+           appraiser's opinion would be invisible after a rework. *@
+        @if (app.ReviewPassNumber > 1)
+        {
+            <div class="card" style="margin-bottom: 1rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Earlier review passes</h3>
+                    <span class="badge badge-secondary">Now on pass @app.ReviewPassNumber</span>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <table class="table" style="margin-bottom: 0;">
+                        <thead>
+                            <tr><th>Pass</th><th>Stage</th><th>Outcome</th><th>When</th><th>Note</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var pass in StagePasses())
+                            {
+                                <tr style="@(pass.PassNumber < app.ReviewPassNumber ? "opacity: 0.7;" : "")">
+                                    <td>@pass.PassNumber</td>
+                                    <td>@pass.Stage</td>
+                                    <td><span class="badge @OutcomeBadge(pass.Outcome)">@pass.Outcome</span></td>
+                                    <td style="font-size: 0.8rem; white-space: nowrap;">@pass.At.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                                    <td style="font-size: 0.85rem;">@(string.IsNullOrWhiteSpace(pass.Note) ? "—" : pass.Note)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
         <div class="card">
             <div class="card-body">
                 @if (!app.StatusHistory.Any())
@@ -3631,6 +3700,60 @@ else
                 <button class="btn btn-warning" style="color: #000;" @onclick="SubmitRiskReturn" disabled="@isSubmittingRiskAction">
                     @if (isSubmittingRiskAction) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
                     Return to Financial Appraisal
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Committee — Return for Rework Modal -->
+@if (showCommitteeReturnModal)
+{
+    <div class="modal-backdrop show" style="z-index: 1100;" @onclick="CloseCommitteeReturnModal">
+        <div class="modal" style="max-width: 560px; z-index: 1101;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Return for Rework</h3>
+                <button class="btn-close" @onclick="CloseCommitteeReturnModal"></button>
+            </div>
+            <div class="modal-body">
+                @* Said plainly before the officer commits: this is the consequential part, not the
+                   stage change. *@
+                <div class="alert alert-warning" style="color: #000;">
+                    <strong>Votes already cast will no longer count.</strong> The committee round is
+                    closed and recorded as deferred, and the case must be voted on afresh when it
+                    returns. Nothing is deleted — the round stays on record with its votes and this
+                    reason.
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Return to *</label>
+                    <select class="form-control" @bind="committeeReturnTarget">
+                        <option value="RiskOfficer">Risk Officer — re-run the risk opinion</option>
+                        <option value="CreditOfficer">Credit Officer — revise the financial appraisal</option>
+                        <option value="LoanOfficer">Loan Officer — rework the application itself</option>
+                    </select>
+                    <small class="form-hint">
+                        The case must pass every stage between there and committee again. Returned to
+                        the Loan Officer it goes through credit and risk; returned to the Credit
+                        Officer it goes through risk.
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Reason *</label>
+                    <textarea class="form-control" rows="4" @bind="committeeReturnReason"
+                              placeholder="What must be changed before this comes back to committee? The officer receiving the case sees this."></textarea>
+                    <small class="form-hint">Shown to the receiving officer and recorded permanently against the case.</small>
+                </div>
+
+                @if (!string.IsNullOrEmpty(committeeReturnError)) { <div class="alert alert-danger">@committeeReturnError</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseCommitteeReturnModal">Cancel</button>
+                <button class="btn btn-warning" style="color: #000;" @onclick="SubmitCommitteeReturn"
+                        disabled="@(isSubmittingCommitteeReturn || string.IsNullOrWhiteSpace(committeeReturnReason))">
+                    @if (isSubmittingCommitteeReturn) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
+                    Return for Rework
                 </button>
             </div>
         </div>
@@ -4675,6 +4798,17 @@ else
         app?.Status == "Ratification" &&
         (IsRatifierForCurrentTier || (User?.HasRole("SystemAdmin") ?? false));
 
+    /// <summary>
+    /// Returning a circulating case unwinds votes already cast, so it sits with the tier's ratifier
+    /// — who holds credit authority over the case anyway — with SystemAdmin as a break-glass. Not
+    /// the chairperson, and not a voting member: a committee should not be able to undo its own
+    /// vote, and an IT administrator should not be the routine route to voiding a credit decision.
+    /// Same gating as ratification, deliberately.
+    /// </summary>
+    private bool ShowCommitteeReturnButton =>
+        IsCommitteeStatus &&
+        (IsRatifierForCurrentTier || (User?.HasRole("SystemAdmin") ?? false));
+
     private bool IsRatifierForCurrentTier => app?.CommitteeTier switch
     {
         "Branch"     => User?.HasRole("BranchManager") ?? false,
@@ -5482,6 +5616,62 @@ else
             else riskActionError = result.Error ?? "Return failed";
         }
         finally { isSubmittingRiskAction = false; }
+    }
+
+    /// <summary>Appraisal and risk passes interleaved in the order they happened, so a reader follows
+    /// the case rather than two separate lists.</summary>
+    private IEnumerable<(int PassNumber, string Stage, string Outcome, DateTime At, string? Note)> StagePasses()
+    {
+        var appraisals = (app?.FinancialAppraisalPasses ?? [])
+            .Select(p => (p.PassNumber, Stage: "Financial appraisal", p.Outcome, p.At, p.Note));
+        var risks = (app?.RiskReviewPasses ?? [])
+            .Select(p => (p.PassNumber, Stage: "Risk review", p.Outcome, p.At, p.Note));
+
+        return appraisals.Concat(risks).OrderBy(p => p.At);
+    }
+
+    private static string OutcomeBadge(string outcome) => outcome switch
+    {
+        "Approved" => "badge-success",
+        "Returned" => "badge-warning",
+        "Declined" => "badge-danger",
+        _ => "badge-secondary",
+    };
+
+    private bool showCommitteeReturnModal;
+    private string committeeReturnTarget = "RiskOfficer";
+    private string? committeeReturnReason;
+    private string? committeeReturnError;
+    private bool isSubmittingCommitteeReturn;
+
+    private void OpenCommitteeReturnModal()
+    {
+        committeeReturnTarget = "RiskOfficer";
+        committeeReturnReason = null;
+        committeeReturnError = null;
+        showCommitteeReturnModal = true;
+    }
+
+    private void CloseCommitteeReturnModal() => showCommitteeReturnModal = false;
+
+    private async Task SubmitCommitteeReturn()
+    {
+        if (string.IsNullOrWhiteSpace(committeeReturnReason))
+        {
+            committeeReturnError = "A reason is required — the officer receiving the case has to know what to act on.";
+            return;
+        }
+
+        isSubmittingCommitteeReturn = true;
+        committeeReturnError = null;
+        try
+        {
+            var result = await AppService.ReturnNampFromCommitteeAsync(
+                Id, User?.Id ?? Guid.Empty, committeeReturnTarget, committeeReturnReason!);
+            if (result.Success) { showCommitteeReturnModal = false; await Load(); }
+            else committeeReturnError = result.Error ?? "Return failed";
+        }
+        finally { isSubmittingCommitteeReturn = false; }
     }
 
     private async Task SubmitRiskDecline()

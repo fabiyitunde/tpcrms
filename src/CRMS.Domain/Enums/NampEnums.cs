@@ -64,6 +64,25 @@ public enum NampApplicantCategory
     AgroServiceCompany,
 }
 
+/// <summary>What a Risk Officer did on one pass of risk review. Recorded on the append-only
+/// NampRiskReviewRecord — a bool could not distinguish a return from a decline, and the history is
+/// read precisely to tell those apart.</summary>
+public enum NampRiskReviewOutcome
+{
+    Approved,   // Forwarded to committee circulation
+    Returned,   // Sent back to the Credit Officer for rework
+    Declined,   // Terminal
+}
+
+/// <summary>Where a committee return sends the case. Restricted to the three internal stages that
+/// precede committee — a return cannot skip forward, and cannot reach a terminal status.</summary>
+public enum NampCommitteeReturnTarget
+{
+    LoanOfficer,        // Draft — the Loan Officer reworks and resubmits
+    CreditOfficer,      // FinancialAppraisal
+    RiskOfficer,        // RiskReview
+}
+
 public enum NampCommitteeTier
 {
     Branch,
