@@ -88,6 +88,53 @@ public class GenerateNampLoanPackHandler
         string? ratifiedByName = app.RatifiedByUserId.HasValue
             ? ResolveName(app.RatifiedByUserId.Value) : null;
 
+        // ── Revision trail ────────────────────────────────────────────────
+        // Only assembled for a case that has actually been returned. On a first-pass application
+        // these are empty and the pack prints nothing, so a clean case reads exactly as before.
+        var stagePasses = new List<NampLoanPackStagePass>();
+        var supersededRounds = new List<NampLoanPackCommitteeRound>();
+
+        if (app.ReviewPassNumber > 1)
+        {
+            stagePasses = app.FinancialAppraisalRecords
+                .Select(r => new NampLoanPackStagePass(
+                    r.PassNumber, "Financial appraisal",
+                    r.IsApproved ? "Approved" : "Declined",
+                    r.AppraisedAt, ResolveName(r.AppraisedByUserId), r.Note))
+                .Concat(app.RiskReviewRecords
+                    .Select(r => new NampLoanPackStagePass(
+                        r.PassNumber, "Risk review", r.Outcome.ToString(),
+                        r.ReviewedAt, ResolveName(r.ReviewedByUserId), r.Note)))
+                .OrderBy(p => p.At)
+                .ToList();
+
+            // Keyed on the application number: NAMP creates its committee reviews with
+            // loanApplicationId Guid.Empty, so the number is the only link back.
+            var allRounds = await _committeeRepo.GetAllByApplicationNumberAsync(app.ApplicationNumber, ct);
+            supersededRounds = allRounds
+                .Where(r => r.Id != app.CurrentCommitteeReviewId)
+                .OrderBy(r => r.CirculatedAt)
+                .Select(r => new NampLoanPackCommitteeRound(
+                    r.CommitteeType.ToString(),
+                    r.Status.ToString(),
+                    r.FinalDecision?.ToString(),
+                    r.CirculatedAt,
+                    r.DecisionAt,
+                    r.DecisionRationale,
+                    r.ApprovalVotes,
+                    r.RejectionVotes,
+                    r.AbstainVotes,
+                    r.PendingVotes,
+                    r.Members
+                        .OrderByDescending(m => m.IsChairperson)
+                        .ThenBy(m => m.UserName)
+                        .Select(m => new NampLoanPackMemberVote(
+                            m.UserName, m.Role, m.IsChairperson,
+                            m.Vote?.ToString(), m.VoteComment, m.VotedAt))
+                        .ToList()))
+                .ToList();
+        }
+
         // Resolve the committee decision. NAMP records the outcome on the application (auto-transition
         // on the last vote), so committeeReview.FinalDecision is usually null — derive from the recorded
         // outcome and the majority-approval tally instead of relying on FinalDecision.
@@ -175,7 +222,10 @@ public class GenerateNampLoanPackHandler
             BureauReports:        dto.BureauReports,
             FinancialStatements:  dto.FinancialStatements,
             StatusHistory:        statusHistory,
-            Documents:            dto.Documents
+            Documents:            dto.Documents,
+            ReviewPassNumber:     app.ReviewPassNumber,
+            StagePasses:          stagePasses,
+            SupersededRounds:     supersededRounds
         );
 
         var bytes = await _generator.GenerateAsync(data, ct);

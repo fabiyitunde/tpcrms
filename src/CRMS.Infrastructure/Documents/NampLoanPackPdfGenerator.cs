@@ -693,6 +693,104 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
                 });
             }
 
+            // ── Revisions ────────────────────────────────────────────────────
+            // Printed only for a case that went round the loop more than once. Without it the pack
+            // shows the latest opinion at each stage and nothing else, so a revised application
+            // reads exactly like a clean one — and a reader holding the pack has no way to know a
+            // committee had already voted and been overruled by a return.
+            if (data.ReviewPassNumber > 1)
+            {
+                col.Item().Element(c => SectionHeader(c, $"Revision Trail — now on pass {data.ReviewPassNumber}"));
+
+                col.Item().PaddingBottom(6)
+                    .Text("This application was returned for rework after reaching committee. Earlier "
+                        + "appraisals, risk opinions and committee votes are listed below; they no longer "
+                        + "carry any decision but are retained in full.")
+                    .FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
+
+                var passes = data.StagePasses ?? [];
+                if (passes.Count > 0)
+                {
+                    col.Item().PaddingBottom(8).Table(t =>
+                    {
+                        t.ColumnsDefinition(cd =>
+                        {
+                            cd.RelativeColumn(0.8f);
+                            cd.RelativeColumn(2f);
+                            cd.RelativeColumn(1.5f);
+                            cd.RelativeColumn(2f);
+                            cd.RelativeColumn(2f);
+                            cd.RelativeColumn(3f);
+                        });
+
+                        TableHeaderCell(t, "Pass");
+                        TableHeaderCell(t, "Stage");
+                        TableHeaderCell(t, "Outcome");
+                        TableHeaderCell(t, "Date");
+                        TableHeaderCell(t, "Actor");
+                        TableHeaderCell(t, "Note");
+
+                        foreach (var p in passes)
+                        {
+                            TableBodyCell(t, p.PassNumber.ToString());
+                            TableBodyCell(t, p.Stage);
+                            TableBodyCell(t, p.Outcome);
+                            TableBodyCell(t, p.At.ToLocalTime().ToString("dd MMM yyyy HH:mm"));
+                            TableBodyCell(t, p.UserName);
+                            TableBodyCell(t, p.Note ?? "—");
+                        }
+                    });
+                }
+
+                foreach (var round in data.SupersededRounds ?? [])
+                {
+                    col.Item().PaddingTop(2).PaddingBottom(2)
+                        .Text($"Superseded round — {FormatCommitteeType(round.CommitteeType)}, circulated "
+                            + $"{round.CirculatedAt.ToLocalTime():dd MMM yyyy}"
+                            + (round.ClosedAt is { } closed ? $", closed {closed.ToLocalTime():dd MMM yyyy}" : "")
+                            + (string.IsNullOrWhiteSpace(round.FinalDecision) ? "" : $" ({round.FinalDecision})"))
+                        .Bold().FontSize(8.5f);
+
+                    col.Item().PaddingBottom(3)
+                        .Text($"Votes: {round.ApprovalVotes} approve, {round.RejectionVotes} reject, "
+                            + $"{round.AbstainVotes} abstain"
+                            + (round.PendingVotes > 0 ? $", {round.PendingVotes} never voted" : "")
+                            + (string.IsNullOrWhiteSpace(round.ClosureRationale)
+                                ? "" : $". Closed because: {round.ClosureRationale}"))
+                        .FontSize(8).FontColor(Colors.Grey.Darken1);
+
+                    if (round.Members.Any(m => m.Vote is not null))
+                    {
+                        col.Item().PaddingBottom(8).Table(t =>
+                        {
+                            t.ColumnsDefinition(cd =>
+                            {
+                                cd.RelativeColumn(2.5f);
+                                cd.RelativeColumn(2f);
+                                cd.RelativeColumn(1.5f);
+                                cd.RelativeColumn(2f);
+                                cd.RelativeColumn(3f);
+                            });
+
+                            TableHeaderCell(t, "Member");
+                            TableHeaderCell(t, "Role");
+                            TableHeaderCell(t, "Vote");
+                            TableHeaderCell(t, "Voted At");
+                            TableHeaderCell(t, "Comment");
+
+                            foreach (var m in round.Members)
+                            {
+                                TableBodyCell(t, m.UserName + (m.IsChairperson ? " (Chair)" : ""));
+                                TableBodyCell(t, m.Role);
+                                TableBodyCell(t, m.Vote ?? "—");
+                                TableBodyCell(t, m.VotedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "—");
+                                TableBodyCell(t, m.VoteComment ?? "—");
+                            }
+                        });
+                    }
+                }
+            }
+
             // ── Workflow History ─────────────────────────────────────────────
             col.Item().Element(c => SectionHeader(c, "Workflow History"));
             col.Item().PaddingBottom(8).Table(t =>
@@ -809,6 +907,17 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
         "Mixed"             => "Mixed",
         "CompanyCashFlow"   => "Company Cash Flow",
         _ => string.IsNullOrWhiteSpace(source) ? "—" : source
+    };
+
+    private static string FormatCommitteeType(string committeeType) => committeeType switch
+    {
+        "BranchCredit" => "Branch Credit Committee",
+        "ZonalCredit" => "Zonal Credit Committee",
+        "RegionalCredit" => "Regional Credit Committee",
+        "HeadOfficeCredit" => "Head Office Credit Committee",
+        "ManagementCredit" => "Management Credit Committee",
+        "BoardCredit" => "Board Credit Committee",
+        _ => committeeType,
     };
 
     private static string FormatStatus(string status) => status switch

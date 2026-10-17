@@ -83,7 +83,44 @@ public record NampLoanPackData(
     List<NampBureauReportDto> BureauReports,
     List<NampFinancialStatementDto> FinancialStatements,
     List<NampLoanPackStatusEntry> StatusHistory,
-    List<NampDocumentDto> Documents
+    List<NampDocumentDto> Documents,
+    // Revision trail
+    /// <summary>Which trip through appraisal → risk → committee the case is on. 1 means it was never
+    /// returned, and the revision sections below are then empty.</summary>
+    int ReviewPassNumber = 1,
+    /// <summary>Every appraisal and risk pass, oldest first. Without these the pack would show only
+    /// the latest opinion at each stage, so a reader could not tell a revised case from a clean one
+    /// — which is the whole reason a committee return is recorded.</summary>
+    List<NampLoanPackStagePass>? StagePasses = null,
+    /// <summary>Committee rounds closed by a return for rework, with the votes that were cast. Kept
+    /// so the pack shows that a vote happened and was superseded, rather than quietly presenting the
+    /// final round as the only one.</summary>
+    List<NampLoanPackCommitteeRound>? SupersededRounds = null
+);
+
+/// <summary>One recorded pass of financial appraisal or risk review.</summary>
+public record NampLoanPackStagePass(
+    int PassNumber,
+    string Stage,
+    string Outcome,
+    DateTime At,
+    string UserName,
+    string? Note
+);
+
+/// <summary>A committee round that was closed and superseded.</summary>
+public record NampLoanPackCommitteeRound(
+    string CommitteeType,
+    string Status,
+    string? FinalDecision,
+    DateTime CirculatedAt,
+    DateTime? ClosedAt,
+    string? ClosureRationale,
+    int ApprovalVotes,
+    int RejectionVotes,
+    int AbstainVotes,
+    int PendingVotes,
+    List<NampLoanPackMemberVote> Members
 );
 
 public record NampLoanPackMemberVote(
