@@ -1,3 +1,4 @@
+using CRMS.Application.Namp.Authorization;
 using CRMS.Application.Common;
 using CRMS.Application.CreditBureau.Interfaces;
 using CRMS.Application.Namp.DTOs;
@@ -22,12 +23,14 @@ public class SubmitNampApplicationHandler
 {
     private readonly INampApplicationRepository _repo;
     private readonly ICreditCheckOutbox _outbox;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public SubmitNampApplicationHandler(INampApplicationRepository repo, ICreditCheckOutbox outbox, IUnitOfWork uow)
+    public SubmitNampApplicationHandler(INampApplicationRepository repo, ICreditCheckOutbox outbox, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
         _outbox = outbox;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -36,6 +39,9 @@ public class SubmitNampApplicationHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.Submit, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.Submit(request.UserId);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -65,12 +71,14 @@ public class SubmitNampFinancialAppraisalHandler
 {
     private readonly INampApplicationRepository _repo;
     private readonly IBureauReportRepository _bureauRepo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public SubmitNampFinancialAppraisalHandler(INampApplicationRepository repo, IBureauReportRepository bureauRepo, IUnitOfWork uow)
+    public SubmitNampFinancialAppraisalHandler(INampApplicationRepository repo, IBureauReportRepository bureauRepo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
         _bureauRepo = bureauRepo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -79,6 +87,9 @@ public class SubmitNampFinancialAppraisalHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.FinancialAppraisal, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var report = await _repo.GetFinancialAppraisalReportAsync(request.NampApplicationId, ct);
         if (report is null)
@@ -113,11 +124,13 @@ public class ReturnNampFinancialAppraisalHandler
     : IRequestHandler<ReturnNampFinancialAppraisalCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public ReturnNampFinancialAppraisalHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public ReturnNampFinancialAppraisalHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -126,6 +139,9 @@ public class ReturnNampFinancialAppraisalHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.FinancialAppraisal, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.ReturnFinancialAppraisalToLoanOfficer(request.UserId, request.Reason);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -149,11 +165,13 @@ public class ApproveNampRiskReviewHandler
     : IRequestHandler<ApproveNampRiskReviewCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public ApproveNampRiskReviewHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public ApproveNampRiskReviewHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -162,6 +180,9 @@ public class ApproveNampRiskReviewHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.RiskReview, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.ApproveRiskReview(request.UserId, request.Note);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -182,11 +203,13 @@ public class ReturnNampRiskReviewHandler
     : IRequestHandler<ReturnNampRiskReviewCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public ReturnNampRiskReviewHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public ReturnNampRiskReviewHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -195,6 +218,9 @@ public class ReturnNampRiskReviewHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.RiskReview, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.ReturnFromRiskReview(request.UserId, request.Reason);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -215,11 +241,13 @@ public class DeclineNampRiskReviewHandler
     : IRequestHandler<DeclineNampRiskReviewCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public DeclineNampRiskReviewHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public DeclineNampRiskReviewHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -228,6 +256,9 @@ public class DeclineNampRiskReviewHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.RiskReview, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.DeclineAtRiskReview(request.UserId, request.Reason);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -256,15 +287,18 @@ public class CirculateNampToCommitteeHandler
 {
     private readonly INampApplicationRepository _repo;
     private readonly ICommitteeReviewRepository _committeeRepo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
     public CirculateNampToCommitteeHandler(
         INampApplicationRepository repo,
         ICommitteeReviewRepository committeeRepo,
+        INampStageAuthorizer auth,
         IUnitOfWork uow)
     {
         _repo = repo;
         _committeeRepo = committeeRepo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -273,6 +307,9 @@ public class CirculateNampToCommitteeHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.CirculatedByUserId, NampStageAction.CirculateToCommittee, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var committeeType = app.CommitteeTier switch
         {
@@ -412,13 +449,15 @@ public class ReturnNampFromCommitteeHandler
 {
     private readonly INampApplicationRepository _repo;
     private readonly ICommitteeReviewRepository _committeeRepo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
     public ReturnNampFromCommitteeHandler(
-        INampApplicationRepository repo, ICommitteeReviewRepository committeeRepo, IUnitOfWork uow)
+        INampApplicationRepository repo, ICommitteeReviewRepository committeeRepo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
         _committeeRepo = committeeRepo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -427,6 +466,9 @@ public class ReturnNampFromCommitteeHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.ReturnFromCommittee, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         // Close the round before moving the case, so a failure here cannot leave a detached review
         // still marked as voting. Deferred is the shared enum's existing "requires more information"
@@ -472,6 +514,7 @@ public class RatifyNampDecisionHandler
     : IRequestHandler<RatifyNampDecisionCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly ILoanProductRepository _productRepo;
     private readonly IFineractDirectService _fineractService;
     private readonly INampOfferLetterPdfGenerator _pdfGenerator;
@@ -490,6 +533,7 @@ public class RatifyNampDecisionHandler
         INampGpsConsentFormPdfGenerator gpsPdfGenerator,
         INampDocumentTemplateRepository templateRepo,
         IFileStorageService fileStorage,
+        INampStageAuthorizer auth,
         IUnitOfWork uow)
     {
         _repo = repo;
@@ -500,6 +544,7 @@ public class RatifyNampDecisionHandler
         _gpsPdfGenerator = gpsPdfGenerator;
         _templateRepo = templateRepo;
         _fileStorage = fileStorage;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -508,6 +553,9 @@ public class RatifyNampDecisionHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.Ratification, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         if (app.LoanAmount is null or <= 0)
             return ApplicationResult<NampApplicationDto>.Failure("Loan amount must be set before ratification.");
@@ -717,11 +765,13 @@ public class DeclineNampRatificationHandler
     : IRequestHandler<DeclineNampRatificationCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public DeclineNampRatificationHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public DeclineNampRatificationHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -730,6 +780,9 @@ public class DeclineNampRatificationHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.Ratification, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.DeclineRatification(request.UserId, request.Note);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -750,11 +803,13 @@ public class RecordNampOfferAcceptanceHandler
     : IRequestHandler<RecordNampOfferAcceptanceCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public RecordNampOfferAcceptanceHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public RecordNampOfferAcceptanceHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -763,6 +818,9 @@ public class RecordNampOfferAcceptanceHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.Offer, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.RecordOfferAcceptance(request.UserId);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -787,16 +845,19 @@ public class GrantNampLegalClearanceHandler
     : IRequestHandler<GrantNampLegalClearanceCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly INampPreDeploymentChecklistTemplateRepository _templateRepo;
     private readonly IUnitOfWork _uow;
 
     public GrantNampLegalClearanceHandler(
         INampApplicationRepository repo,
         INampPreDeploymentChecklistTemplateRepository templateRepo,
+        INampStageAuthorizer auth,
         IUnitOfWork uow)
     {
         _repo = repo;
         _templateRepo = templateRepo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -805,6 +866,9 @@ public class GrantNampLegalClearanceHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.LegalClearance, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.GrantLegalClearance(request.UserId, request.Note);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -837,11 +901,13 @@ public class ReturnFromNampLegalHandler
     : IRequestHandler<ReturnFromNampLegalCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public ReturnFromNampLegalHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public ReturnFromNampLegalHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -850,6 +916,9 @@ public class ReturnFromNampLegalHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.LegalClearance, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.ReturnFromLegal(request.UserId, request.Note);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -868,11 +937,13 @@ public class ResubmitToNampLegalHandler
     : IRequestHandler<ResubmitToNampLegalCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public ResubmitToNampLegalHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public ResubmitToNampLegalHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -881,6 +952,9 @@ public class ResubmitToNampLegalHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.LegalClearance, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.ResubmitToLegal(request.UserId);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -899,11 +973,13 @@ public class DeclineNampLegalHandler
     : IRequestHandler<DeclineNampLegalCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public DeclineNampLegalHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public DeclineNampLegalHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -912,6 +988,9 @@ public class DeclineNampLegalHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.LegalClearance, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.DeclineLegal(request.UserId, request.Note);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -930,11 +1009,13 @@ public class LapseNampOfferHandler
     : IRequestHandler<LapseNampOfferCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public LapseNampOfferHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public LapseNampOfferHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -943,6 +1024,9 @@ public class LapseNampOfferHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.Offer, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.LapseOffer(request.UserId);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -963,16 +1047,19 @@ public class BeginNampPreDeploymentVerificationHandler
     : IRequestHandler<BeginNampPreDeploymentVerificationCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly INampPreDeploymentChecklistTemplateRepository _templateRepo;
     private readonly IUnitOfWork _uow;
 
     public BeginNampPreDeploymentVerificationHandler(
         INampApplicationRepository repo,
         INampPreDeploymentChecklistTemplateRepository templateRepo,
+        INampStageAuthorizer auth,
         IUnitOfWork uow)
     {
         _repo = repo;
         _templateRepo = templateRepo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -981,6 +1068,9 @@ public class BeginNampPreDeploymentVerificationHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.Deployment, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.BeginPreDeploymentVerification(request.UserId);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -1016,11 +1106,13 @@ public class CompleteNampPreDeploymentVerificationHandler
     : IRequestHandler<CompleteNampPreDeploymentVerificationCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public CompleteNampPreDeploymentVerificationHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public CompleteNampPreDeploymentVerificationHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -1029,6 +1121,9 @@ public class CompleteNampPreDeploymentVerificationHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.Deployment, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.CompletePreDeploymentVerification(request.UserId, request.Note);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
@@ -1053,6 +1148,7 @@ public class ConfirmNampDeploymentHandler
     : IRequestHandler<ConfirmNampDeploymentCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly ILoanProductRepository _productRepo;
     private readonly IFineractDirectService _fineractService;
     private readonly IUnitOfWork _uow;
@@ -1077,6 +1173,9 @@ public class ConfirmNampDeploymentHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.Deployment, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         // ── Fineract loan booking ─────────────────────────────────────────────
         // All conditions below are hard failures — deployment is blocked until CBS booking succeeds.
@@ -1178,6 +1277,7 @@ public class RetryNampFineractBookingHandler
     : IRequestHandler<RetryNampFineractBookingCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly ILoanProductRepository _productRepo;
     private readonly IFineractDirectService _fineractService;
     private readonly IUnitOfWork _uow;
@@ -1202,6 +1302,9 @@ public class RetryNampFineractBookingHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.Booking, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         // Guard: already disbursed — nothing to do. A loan that exists but was never disbursed is NOT
         // blocked here: that is exactly the case this retry has to finish.
@@ -1301,11 +1404,15 @@ public class MarkNampClosedHandler
     : IRequestHandler<MarkNampClosedCommand, ApplicationResult<NampApplicationDto>>
 {
     private readonly INampApplicationRepository _repo;
+    private readonly INampStageAuthorizer _auth;
     private readonly IUnitOfWork _uow;
 
-    public MarkNampClosedHandler(INampApplicationRepository repo, IUnitOfWork uow)
+    public MarkNampClosedHandler(INampApplicationRepository repo, INampStageAuthorizer auth, IUnitOfWork uow)
     {
         _repo = repo;
+        _auth = auth;
+        _auth = auth;
+        _auth = auth;
         _uow = uow;
     }
 
@@ -1314,6 +1421,9 @@ public class MarkNampClosedHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+
+        var authorised = await _auth.AuthoriseAsync(request.UserId, NampStageAction.Close, app, ct);
+        if (authorised.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(authorised.Error);
 
         var result = app.Close(request.UserId);
         if (result.IsFailure) return ApplicationResult<NampApplicationDto>.Failure(result.Error);
