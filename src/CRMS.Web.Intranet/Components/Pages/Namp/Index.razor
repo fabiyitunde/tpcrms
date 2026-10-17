@@ -885,27 +885,22 @@
 
         // Risk Review + Committee Circulation. Risk Officers own both steps: reviewing (RiskReview)
         // and circulating to committee ([Tier]CommitteeCirculation).
-        var riskTier = GetRiskReviewTier(user);
-        if (riskTier != null)
+        if (IsRiskOfficer(user))
         {
-            // Same rule as ratification above: head office sees every tier. A Head Office Risk
-            // Officer previously asked only for HeadOffice-tier cases and so saw nothing at all,
-            // which is what hid Branch-tier applications from everyone senior to the branch.
-            if (user.IsHeadOffice)
-            {
-                var allRiskStatuses = new[]
+            // A null tier means no tier restriction: head office, or a generic RiskManager whose
+            // scope comes from their location instead. Both then need every circulation status,
+            // since they are not confined to one tier's committee.
+            var riskTier = GetRiskReviewTier(user);
+            var riskStatuses = riskTier is null
+                ? new[]
                 {
                     "RiskReview",
                     "BranchCommitteeCirculation", "ZonalCommitteeCirculation",
                     "RegionalCommitteeCirculation", "HOCommitteeCirculation",
-                };
-                results.AddRange(await AppService.GetNampApplicationsScopedAsync(allRiskStatuses, null, visibleBranchIds));
-            }
-            else
-            {
-                var riskStatuses = new[] { "RiskReview", RiskTierCirculationStatus(riskTier) };
-                results.AddRange(await AppService.GetNampApplicationsScopedAsync(riskStatuses, riskTier, visibleBranchIds));
-            }
+                }
+                : ["RiskReview", RiskTierCirculationStatus(riskTier)];
+
+            results.AddRange(await AppService.GetNampApplicationsScopedAsync(riskStatuses, riskTier, visibleBranchIds));
         }
 
         // Deduplicate by Id (user may hold multiple roles that overlap statuses)
@@ -953,14 +948,26 @@
         return null;
     }
 
-    /// <summary>Returns the CommitteeTier string for risk review if this user is a Risk Officer; null otherwise.</summary>
+    /// <summary>True when this user does risk review at all — tiered officer or generic RiskManager.</summary>
+    private static bool IsRiskOfficer(UserInfo user) =>
+        user.HasAnyRole("HORiskOfficer", "RegionalRiskOfficer", "ZonalRiskOfficer", "BranchRiskOfficer", "RiskManager");
+
+    /// <summary>
+    /// The tier this user's risk queue is restricted to, or null for no restriction.
+    /// <para>
+    /// Null for head office, and null for the generic RiskManager role: RiskManager carries no tier,
+    /// so its holder is scoped by location alone — every tier within whatever branch or zone they are
+    /// assigned to, or everything when they are head office.
+    /// </para>
+    /// </summary>
     private static string? GetRiskReviewTier(UserInfo user)
     {
+        if (user.IsHeadOffice) return null;
         if (user.HasRole("HORiskOfficer"))       return "HeadOffice";
         if (user.HasRole("RegionalRiskOfficer")) return "Regional";
         if (user.HasRole("ZonalRiskOfficer"))    return "Zonal";
         if (user.HasRole("BranchRiskOfficer"))   return "Branch";
-        return null;
+        return null;   // generic RiskManager — location-scoped, not tier-scoped
     }
 
     /// <summary>Maps a CommitteeTier string to the corresponding committee circulation status.</summary>

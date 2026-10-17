@@ -145,8 +145,13 @@ public class NampStageAuthorizer : INampStageAuthorizer
             NampStageAction.Booking => [Roles.DisbursementOfficer, Roles.GMFinance],
             NampStageAction.Close => [Roles.LoanOfficer, Roles.DisbursementOfficer],
 
+            // RiskManager is always accepted: it carries no tier, so its holder is scoped by location
+            // alone — the branch check above is what confines them. The tiered roles are tier-bound
+            // unless the user is head office.
             NampStageAction.RiskReview or NampStageAction.CirculateToCommittee =>
-                isHeadOffice ? AllRiskOfficerRoles : [TierRiskRole(tier)],
+                isHeadOffice
+                    ? [.. AllRiskOfficerRoles, Roles.RiskManager]
+                    : [TierRiskRole(tier), Roles.RiskManager],
 
             NampStageAction.ReturnFromCommittee or NampStageAction.Ratification =>
                 isHeadOffice ? AllRatifierRoles : [TierRatifierRole(tier)],

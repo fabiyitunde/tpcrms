@@ -100,6 +100,40 @@ public class NampStageAuthorizerTests
     }
 
     [Fact]
+    public async Task AGenericRiskManagerMayActWithinTheirLocation()
+    {
+        // RiskManager carries no tier, so its holder is scoped by location alone. Assigned to the
+        // application's own branch, they act on it whatever its tier.
+        var app = BranchTierApp();
+        var auth = Authorizer(app, roles: [Roles.RiskManager], locationId: LagosBranch);
+
+        Assert.True((await auth.AuthoriseAsync(UserId, NampStageAction.RiskReview, app)).IsSuccess);
+        Assert.True((await auth.AuthoriseAsync(UserId, NampStageAction.CirculateToCommittee, app)).IsSuccess);
+    }
+
+    [Fact]
+    public async Task AGenericRiskManagerIsStillBoundByLocation()
+    {
+        // No tier restriction is not no restriction: a RiskManager at another branch is still out.
+        var app = BranchTierApp();
+        var auth = Authorizer(app, roles: [Roles.RiskManager], locationId: KanoBranch);
+
+        var result = await auth.AuthoriseAsync(UserId, NampStageAction.RiskReview, app);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("outside your assigned location", result.Error);
+    }
+
+    [Fact]
+    public async Task AGenericRiskManagerStillCannotRatify()
+    {
+        var app = BranchTierApp();
+        var auth = Authorizer(app, roles: [Roles.RiskManager], locationId: null);
+
+        Assert.True((await auth.AuthoriseAsync(UserId, NampStageAction.Ratification, app)).IsFailure);
+    }
+
+    [Fact]
     public async Task ACreditOfficerCannotTakeARiskDecision()
     {
         // The separation the stages exist for. Previously nothing stopped it server-side.

@@ -3744,6 +3744,45 @@ else
             </div>
             <div class="modal-body">
                 <p>The application will be forwarded to the <strong>@app!.CommitteeTier Committee</strong> for review.</p>
+
+                @* Who it is going to, and on what quorum, shown before the decision rather than on a
+                   later screen. Approving does NOT open voting — that happens when the case is
+                   circulated — so the note below says so explicitly. *@
+                @if (!string.IsNullOrEmpty(modalError))
+                {
+                    <div class="alert alert-warning" style="color: #000;">@modalError</div>
+                }
+                else if (committeeMembers.Count > 0)
+                {
+                    <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem;">
+                        <div style="display: flex; gap: 1.25rem; font-size: 0.8rem; margin-bottom: 0.6rem;">
+                            <span><span style="color: var(--text-secondary);">Members</span> <strong>@committeeMembers.Count</strong></span>
+                            <span><span style="color: var(--text-secondary);">Required votes</span> <strong>@committeeRequiredVotes</strong></span>
+                            <span><span style="color: var(--text-secondary);">Min. approvals</span> <strong>@committeeMinApprovalVotes</strong></span>
+                            <span><span style="color: var(--text-secondary);">Deadline</span> <strong>@committeeDeadlineHours h</strong></span>
+                        </div>
+                        <table class="table" style="margin-bottom: 0; font-size: 0.82rem;">
+                            <thead><tr><th>Member</th><th>Role</th><th>Chair</th></tr></thead>
+                            <tbody>
+                                @foreach (var m in committeeMembers)
+                                {
+                                    <tr>
+                                        <td>@m.UserName</td>
+                                        <td>@m.Role</td>
+                                        <td>@(m.IsChairperson ? "Yes" : "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <div class="alert alert-info" style="font-size: 0.82rem;">
+                    Approving forwards the case to this committee but does <strong>not</strong> open
+                    voting. You then circulate it, which assigns the members above and starts the
+                    voting deadline.
+                </div>
+
                 <div class="form-group">
                     <label class="form-label">Note <span class="text-muted">(optional)</span></label>
                     <textarea class="form-control" rows="3" @bind="riskApproveNote" placeholder="Any observations or conditions for the committee..."></textarea>
@@ -4873,6 +4912,8 @@ else
         app?.Status == "RiskReview" &&
         CoversThisApplicationsBranch &&
         ((User?.HasAnyRole(TierRiskRole, "SystemAdmin") ?? false)
+         // RiskManager carries no tier, so its holder acts on any tier within their location.
+         || (User?.HasRole("RiskManager") ?? false)
          || ((User?.IsHeadOffice ?? false)
              && (User?.HasAnyRole(
                  "HORiskOfficer", "RegionalRiskOfficer", "ZonalRiskOfficer", "BranchRiskOfficer") ?? false)));
@@ -5372,7 +5413,9 @@ else
         showAppraisalModal = true;
     }
 
-    private async Task OpenCommitteeModal()
+    /// <summary>Reads the standing committee configured for this application's tier and branch.
+    /// Shared by the approve and circulate modals so both show the same committee.</summary>
+    private async Task LoadStandingCommitteeAsync()
     {
         committeeMembers = [];
         modalError = null;
@@ -5390,7 +5433,6 @@ else
         if (sc == null)
         {
             modalError = $"No active standing committee configured for {app.CommitteeTier} tier. Please configure it in Admin > Committees first.";
-            showCommitteeModal = true;
             return;
         }
 
@@ -5399,7 +5441,11 @@ else
         committeeDeadlineHours = sc.DefaultDeadlineHours;
         committeeMembers = sc.Members.Select(m =>
             new NampCommitteeMemberInput(m.UserId, m.UserName, m.Role, m.IsChairperson)).ToList();
+    }
 
+    private async Task OpenCommitteeModal()
+    {
+        await LoadStandingCommitteeAsync();
         showCommitteeModal = true;
     }
 
@@ -5727,7 +5773,18 @@ else
     private void CloseFinReturnModal() => showFinReturnModal = false;
 
     // ── Risk Review actions ───────────────────────────────────────────────
-    private void OpenRiskApproveModal()  { riskApproveNote = null; riskActionError = null; showRiskApproveModal = true; }
+    /// <summary>
+    /// Loads the standing committee so the officer can see which committee the case is going to, and
+    /// who sits on it, before approving. It used to show only the tier name and a note box, which
+    /// left the membership and the quorum invisible until a later screen.
+    /// </summary>
+    private async Task OpenRiskApproveModal()
+    {
+        riskApproveNote = null;
+        riskActionError = null;
+        await LoadStandingCommitteeAsync();
+        showRiskApproveModal = true;
+    }
     private void CloseRiskApproveModal() => showRiskApproveModal = false;
     private void OpenRiskReturnModal()   { riskReturnReason = null; riskActionError = null; showRiskReturnModal = true; }
     private void CloseRiskReturnModal()  => showRiskReturnModal = false;
