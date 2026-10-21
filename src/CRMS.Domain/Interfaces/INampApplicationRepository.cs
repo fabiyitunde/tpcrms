@@ -11,6 +11,21 @@ public interface INampApplicationRepository
     Task<NampApplication?> GetByApplicationReferenceAsync(string applicationReference, CancellationToken ct = default);
     Task<NampApplication?> GetByApplicationReferenceWithHistoryAsync(string applicationReference, CancellationToken ct = default);
     Task<NampApplication?> GetByApplicationNumberWithHistoryAsync(string applicationNumber, CancellationToken ct = default);
+
+    /// <summary>
+    /// The applications behind a set of application numbers, as flat rows with no child collections.
+    /// <para>
+    /// Committee reviews for NAMP are created with a <c>LoanApplicationId</c> of <see cref="Guid.Empty"/>
+    /// because a NAMP application is not a <c>LoanApplication</c>, so the application number is the only
+    /// link back from a review to its case. Callers listing reviews use this to resolve the applicant,
+    /// the amount and the id to link to in one read instead of one read per row.
+    /// </para>
+    /// <para>
+    /// Keyed on the number rather than <c>CurrentCommitteeReviewId</c> so a round that was superseded by
+    /// a committee return still resolves to its application.
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<NampApplication>> GetByApplicationNumbersAsync(IReadOnlyList<string> applicationNumbers, CancellationToken ct = default);
     Task<IReadOnlyList<NampApplication>> GetAllAsync(CancellationToken ct = default);
     Task<IReadOnlyList<NampApplication>> GetByStatusAsync(NampApplicationStatus status, Guid? branchId = null, CancellationToken ct = default);
     Task<IReadOnlyList<NampApplication>> GetByStatusAndTierAsync(NampApplicationStatus status, NampCommitteeTier tier, Guid? branchId = null, CancellationToken ct = default);

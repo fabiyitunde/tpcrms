@@ -8,6 +8,9 @@ public interface ICommitteeReviewRepository
     Task<CommitteeReview?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<CommitteeReview?> GetByLoanApplicationIdAsync(Guid loanApplicationId, CancellationToken ct = default);
     Task<CommitteeReview?> GetActiveByLoanApplicationIdAsync(Guid loanApplicationId, CancellationToken ct = default);
+    /// <summary>Every review, whatever its status — what the review list shows when no status filter is set.</summary>
+    Task<IReadOnlyList<CommitteeReview>> GetAllAsync(CancellationToken ct = default);
+
     Task<IReadOnlyList<CommitteeReview>> GetByStatusAsync(CommitteeReviewStatus status, CancellationToken ct = default);
     Task<IReadOnlyList<CommitteeReview>> GetByMemberUserIdAsync(Guid userId, CancellationToken ct = default);
     Task<IReadOnlyList<CommitteeReview>> GetPendingVotesByUserIdAsync(Guid userId, CancellationToken ct = default);

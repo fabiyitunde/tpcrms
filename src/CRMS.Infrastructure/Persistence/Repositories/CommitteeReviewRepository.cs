@@ -62,6 +62,14 @@ public class CommitteeReviewRepository : ICommitteeReviewRepository
             .FirstOrDefaultAsync(ct);
     }
 
+    public async Task<IReadOnlyList<CommitteeReview>> GetAllAsync(CancellationToken ct = default)
+    {
+        return await _context.CommitteeReviews
+            .Include(r => r.Members)
+            .OrderByDescending(r => r.CirculatedAt)
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<CommitteeReview>> GetByStatusAsync(CommitteeReviewStatus status, CancellationToken ct = default)
     {
         return await _context.CommitteeReviews

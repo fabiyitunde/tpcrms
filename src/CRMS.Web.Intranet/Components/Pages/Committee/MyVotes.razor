@@ -1,4 +1,5 @@
 @page "/committee/my-votes"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject ApplicationService AppService
 @inject AuthService AuthService
 @inject NavigationManager Navigation
@@ -37,7 +38,7 @@ else
     <div class="votes-grid">
         @foreach (var vote in pendingVotes)
         {
-            var voteAppId = vote.ApplicationId;
+            var voteUrl = vote.DetailUrl;
             <div class="vote-card">
                 <div class="vote-card-header">
                     <div>
@@ -74,7 +75,7 @@ else
                     </div>
                 </div>
                 <div class="vote-card-footer">
-                    <button class="btn btn-outline btn-sm" @onclick="() => ViewApplication(voteAppId)">
+                    <button class="btn btn-outline btn-sm" @onclick="() => ViewApplication(voteUrl)" disabled="@(voteUrl is null)">
                         View Details
                     </button>
                     <button class="btn btn-primary btn-sm" @onclick="() => OpenVoteModal(vote)">
@@ -263,9 +264,10 @@ else
             pendingVotes = reviews.Select(r => new PendingVote
             {
                 ApplicationId = r.ApplicationId,
+                DetailUrl = r.DetailUrl,
                 ReviewId = r.ReviewId,
                 ApplicationNumber = r.ApplicationNumber,
-                CustomerName = r.CustomerName ?? "N/A",
+                CustomerName = string.IsNullOrWhiteSpace(r.CustomerName) ? "N/A" : r.CustomerName,
                 Amount = r.Amount,
                 CommitteeType = r.CommitteeType,
                 RiskRating = "N/A",
@@ -282,7 +284,16 @@ else
         isLoading = false;
     }
 
-    private void ViewApplication(Guid id) => Navigation.NavigateTo($"/applications/{id}");
+    // NAMP cases live under /namp/{id} and corporate ones under /applications/{id}, so the card is told
+    // where to go rather than assuming a corporate path. A null url means the case behind the review
+    // could not be resolved, and the button is disabled instead of leading to "Application not found".
+    private void ViewApplication(string? detailUrl)
+    {
+        if (!string.IsNullOrEmpty(detailUrl))
+        {
+            Navigation.NavigateTo(detailUrl);
+        }
+    }
 
     private void OpenVoteModal(PendingVote review)
     {
@@ -337,6 +348,7 @@ else
     private class PendingVote
     {
         public Guid ApplicationId { get; set; }
+        public string? DetailUrl { get; set; }
         public Guid ReviewId { get; set; }
         public string ApplicationNumber { get; set; } = string.Empty;
         public string CustomerName { get; set; } = string.Empty;

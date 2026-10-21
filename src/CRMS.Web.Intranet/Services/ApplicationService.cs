@@ -43,6 +43,7 @@ using CRMS.Domain.Aggregates.LoanApplication;
 using CRMS.Domain.Common;
 using CRMS.Domain.Constants;
 using CRMS.Domain.Enums;
+using CRMS.Domain.Aggregates.Namp;
 using CRMS.Domain.Interfaces;
 using CRMS.Domain.ValueObjects;
 using CRMS.Web.Intranet.Components.Pages.Applications.Modals;
@@ -2324,6 +2325,97 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>
+    /// What a committee review row needs but the review itself does not hold: the applicant, the
+    /// amount, and the page the row should open.
+    /// </summary>
+    private sealed record CommitteeReviewSubject(
+        Guid ApplicationId,
+        string CustomerName,
+        decimal Amount,
+        bool IsNamp,
+        string? DetailUrl);
+
+    /// <summary>
+    /// Resolves the case behind each committee review, keyed by review id.
+    /// <para>
+    /// NAMP circulates its committee reviews with a LoanApplicationId of Guid.Empty, because a NAMP
+    /// application is not a LoanApplication - the application number is the only link back. Reading
+    /// those rows through the loan repository returned nothing, so a NAMP review listed with a blank
+    /// applicant, a zero amount, and a link to /applications/{Guid.Empty} that lands on "Application
+    /// not found". That hit the admin review list and, worse, a committee member voting queue.
+    /// </para>
+    /// <para>
+    /// NAMP rows are resolved in one batched read rather than one read per row.
+    /// </para>
+    /// </summary>
+    private async Task<Dictionary<Guid, CommitteeReviewSubject>> ResolveCommitteeReviewSubjectsAsync(
+        IReadOnlyList<CommitteeReviewSummaryDto> reviews)
+    {
+        var subjects = new Dictionary<Guid, CommitteeReviewSubject>();
+        if (reviews.Count == 0)
+        {
+            return subjects;
+        }
+
+        var nampNumbers = reviews
+            .Where(r => r.LoanApplicationId == Guid.Empty)
+            .Select(r => r.ApplicationNumber)
+            .Distinct()
+            .ToList();
+
+        Dictionary<string, NampApplication> nampByNumber = new();
+        if (nampNumbers.Count > 0)
+        {
+            var nampRepo = _sp.GetRequiredService<INampApplicationRepository>();
+            var nampApps = await nampRepo.GetByApplicationNumbersAsync(nampNumbers, CancellationToken.None);
+            nampByNumber = nampApps.ToDictionary(a => a.ApplicationNumber, a => a);
+        }
+
+        var loanRepo = _sp.GetRequiredService<ILoanApplicationRepository>();
+
+        foreach (var r in reviews)
+        {
+            if (r.LoanApplicationId == Guid.Empty)
+            {
+                if (nampByNumber.TryGetValue(r.ApplicationNumber, out var namp))
+                {
+                    // The company is the borrower for an agro-service company; the applicant is the
+                    // borrower for every other category.
+                    var name = !string.IsNullOrWhiteSpace(namp.CompanyName)
+                        ? namp.CompanyName!
+                        : namp.ApplicantName;
+
+                    subjects[r.Id] = new CommitteeReviewSubject(
+                        namp.Id,
+                        name,
+                        namp.LoanAmount ?? namp.EquipmentValue,
+                        IsNamp: true,
+                        DetailUrl: $"/namp/{namp.Id}");
+                }
+                else
+                {
+                    // A NAMP review whose application cannot be found. Still listed, but not
+                    // clickable - better than sending the user to a not-found page.
+                    subjects[r.Id] = new CommitteeReviewSubject(
+                        Guid.Empty, string.Empty, 0m, IsNamp: true, DetailUrl: null);
+                }
+
+                continue;
+            }
+
+            var loan = await loanRepo.GetByIdAsync(r.LoanApplicationId, CancellationToken.None);
+            subjects[r.Id] = new CommitteeReviewSubject(
+                r.LoanApplicationId,
+                loan?.CustomerName ?? string.Empty,
+                loan?.RequestedAmount.Amount ?? 0m,
+                IsNamp: false,
+                DetailUrl: loan is null ? null : $"/applications/{r.LoanApplicationId}");
+        }
+
+        return subjects;
+    }
+
     public async Task<List<CommitteeReviewSummary>> GetMyPendingVotesAsync(Guid userId)
     {
         try
@@ -2335,31 +2427,33 @@ public partial class ApplicationService
                 return new List<CommitteeReviewSummary>();
             }
             
-            var loanRepo = _sp.GetRequiredService<ILoanApplicationRepository>();
+            var subjects = await ResolveCommitteeReviewSubjectsAsync(result.Data);
             var summaries = new List<CommitteeReviewSummary>();
 
             foreach (var r in result.Data)
             {
-                var loan = await loanRepo.GetByIdAsync(r.LoanApplicationId, CancellationToken.None);
+                var subject = subjects[r.Id];
                 var votesCast = r.ApprovalVotes + r.RejectionVotes;
                 var totalMembers = votesCast + r.PendingVotes;
 
                 summaries.Add(new CommitteeReviewSummary
                 {
                     ReviewId = r.Id,
-                    ApplicationId = r.LoanApplicationId,
+                    ApplicationId = subject.ApplicationId,
                     ApplicationNumber = r.ApplicationNumber,
-                    CustomerName = loan?.CustomerName ?? "",
+                    CustomerName = subject.CustomerName,
                     CommitteeType = r.CommitteeType,
                     Status = r.Status,
                     DueDate = r.DeadlineAt ?? DateTime.UtcNow.AddDays(7.0),
-                    RequestedAmount = loan?.RequestedAmount.Amount ?? 0m,
-                    Amount = loan?.RequestedAmount.Amount ?? 0m,
+                    RequestedAmount = subject.Amount,
+                    Amount = subject.Amount,
                     VotesCast = votesCast,
                     TotalMembers = totalMembers,
                     HasVoted = r.HasUserVoted,
                     MyVote = r.UserVote,
-                    CirculatedAt = r.CirculatedAt
+                    CirculatedAt = r.CirculatedAt,
+                    IsNamp = subject.IsNamp,
+                    DetailUrl = subject.DetailUrl
                 });
             }
             
@@ -2501,10 +2595,23 @@ public partial class ApplicationService
     {
         try
         {
-            CommitteeReviewStatus reviewStatus = string.IsNullOrEmpty(status) 
-                ? CommitteeReviewStatus.InProgress 
-                : Enum.Parse<CommitteeReviewStatus>(status, ignoreCase: true);
-            
+            // No status asked for means every status. It used to mean InProgress, so a list captioned
+            // "All Statuses" quietly hid every decided and closed review.
+            CommitteeReviewStatus? reviewStatus = null;
+            if (!string.IsNullOrEmpty(status))
+            {
+                // Parse, never throw. An unknown status used to blow up into the catch below and come
+                // back as an empty list, so a filter whose value did not match the enum looked exactly
+                // like "no reviews at this status".
+                if (!Enum.TryParse<CommitteeReviewStatus>(status, ignoreCase: true, out var parsed))
+                {
+                    _logger.LogWarning("Unknown committee review status filter {Status}", status);
+                    return new List<CommitteeReviewSummary>();
+                }
+
+                reviewStatus = parsed;
+            }
+
             var handler = _sp.GetRequiredService<GetCommitteeReviewsByStatusHandler>();
             var result = await handler.Handle(new GetCommitteeReviewsByStatusQuery(reviewStatus), CancellationToken.None);
             
@@ -2513,29 +2620,31 @@ public partial class ApplicationService
                 return new List<CommitteeReviewSummary>();
             }
             
-            var loanRepo = _sp.GetRequiredService<ILoanApplicationRepository>();
+            var subjects = await ResolveCommitteeReviewSubjectsAsync(result.Data);
             var summaries = new List<CommitteeReviewSummary>();
-            
+
             foreach (var r in result.Data)
             {
-                var loan = await loanRepo.GetByIdAsync(r.LoanApplicationId, CancellationToken.None);
+                var subject = subjects[r.Id];
                 var votesCast = r.ApprovalVotes + r.RejectionVotes;
                 var totalMembers = votesCast + r.PendingVotes;
-                
+
                 summaries.Add(new CommitteeReviewSummary
                 {
                     ReviewId = r.Id,
-                    ApplicationId = r.LoanApplicationId,
+                    ApplicationId = subject.ApplicationId,
                     ApplicationNumber = r.ApplicationNumber,
-                    CustomerName = loan?.CustomerName ?? "",
+                    CustomerName = subject.CustomerName,
                     CommitteeType = r.CommitteeType,
                     Status = r.Status,
                     DueDate = r.DeadlineAt ?? DateTime.UtcNow.AddDays(7.0),
-                    RequestedAmount = loan?.RequestedAmount.Amount ?? 0m,
-                    Amount = loan?.RequestedAmount.Amount ?? 0m,
+                    RequestedAmount = subject.Amount,
+                    Amount = subject.Amount,
                     VotesCast = votesCast,
                     TotalMembers = totalMembers > 0 ? totalMembers : 1,
-                    FinalDecision = r.FinalDecision
+                    FinalDecision = r.FinalDecision,
+                    IsNamp = subject.IsNamp,
+                    DetailUrl = subject.DetailUrl
                 });
             }
             

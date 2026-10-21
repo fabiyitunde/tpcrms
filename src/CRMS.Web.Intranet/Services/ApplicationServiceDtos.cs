@@ -485,6 +485,20 @@
         public int TotalMembers { get; set; }
 
         public string? FinalDecision { get; set; }
+
+        /// <summary>
+        /// True when the review belongs to a NAMP application rather than a corporate loan application.
+        /// NAMP reviews carry a LoanApplicationId of Guid.Empty, so without this flag the row reads as a
+        /// corporate case and links to a corporate page that does not exist.
+        /// </summary>
+        public bool IsNamp { get; set; }
+
+        /// <summary>
+        /// Where the row links to. NAMP cases live under /namp/{id} and corporate ones under
+        /// /applications/{id}. Null means the case behind the review could not be resolved, and the row
+        /// should not be clickable rather than lead to a not-found page.
+        /// </summary>
+        public string? DetailUrl { get; set; }
     }
     public class WorkflowQueueItem
     {

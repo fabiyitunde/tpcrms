@@ -1,4 +1,5 @@
 @page "/committee/reviews"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject ApplicationService AppService
 @inject NavigationManager Navigation
 
@@ -16,24 +17,30 @@
         <div style="display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 1; min-width: 200px;">
                 <label class="form-label">Search</label>
-                <input type="text" class="form-control" placeholder="Application #, Customer..." @bind="searchTerm" />
+                <input type="text" class="form-control" placeholder="Application #, Customer..."
+                       @bind="searchTerm" @bind:event="oninput" @onkeyup="OnSearchKey" />
             </div>
             <div style="width: 180px;">
                 <label class="form-label">Status</label>
                 <select class="form-control" @bind="selectedStatus">
                     <option value="">All Statuses</option>
                     <option value="Pending">Pending</option>
-                    <option value="Voting">Voting</option>
-                    <option value="Completed">Completed</option>
+                    <option value="InProgress">Voting in progress</option>
+                    <option value="VotingComplete">Voting complete</option>
+                    <option value="Decided">Decided</option>
+                    <option value="Closed">Closed</option>
                 </select>
             </div>
             <div style="width: 180px;">
                 <label class="form-label">Committee</label>
                 <select class="form-control" @bind="selectedCommittee">
                     <option value="">All Committees</option>
-                    <option value="Credit Committee">Credit Committee</option>
-                    <option value="Management Committee">Management Committee</option>
-                    <option value="Board Committee">Board Committee</option>
+                    <option value="BranchCredit">Branch Credit</option>
+                    <option value="ZonalCredit">Zonal Credit</option>
+                    <option value="RegionalCredit">Regional Credit</option>
+                    <option value="HeadOfficeCredit">Head Office Credit</option>
+                    <option value="ManagementCredit">Management Credit</option>
+                    <option value="BoardCredit">Board Credit</option>
                 </select>
             </div>
             <button class="btn btn-primary" @onclick="Search">Search</button>
@@ -77,20 +84,22 @@
                 <tbody>
                     @foreach (var review in reviews)
                     {
-                        var reviewAppId = review.ApplicationId;
-                        <tr @onclick="() => ViewApplication(reviewAppId)" style="cursor: pointer;">
+                        var reviewUrl = review.DetailUrl;
+                        var rowStyle = reviewUrl is null ? null : "cursor: pointer;";
+                        var rowTitle = reviewUrl is null ? "The application behind this review could not be found." : null;
+                        <tr @onclick="() => ViewApplication(reviewUrl)" style="@rowStyle" title="@rowTitle">
                             <td>
                                 <span style="font-weight: 600; color: var(--primary-600);">@review.ApplicationNumber</span>
                             </td>
                             <td>@review.CustomerName</td>
                             <td style="font-weight: 500;">₦@FormatAmount(review.Amount)</td>
                             <td>
-                                <span class="badge @GetCommitteeBadgeClass(review.CommitteeType)">@review.CommitteeType</span>
+                                <span class="badge @GetCommitteeBadgeClass(review.CommitteeType)">@FormatCommittee(review.CommitteeType)</span>
                             </td>
                             <td>
                                 <span class="badge @GetStatusBadgeClass(review.Status)">
                                     <span class="status-dot @GetStatusDotClass(review.Status)"></span>
-                                    @review.Status
+                                    @FormatStatus(review.Status)
                                 </span>
                             </td>
                             <td>
@@ -163,8 +172,9 @@
                 reviews = dbReviews.Select(r => new CommitteeReview
                 {
                     ApplicationId = r.ApplicationId,
+                    DetailUrl = r.DetailUrl,
                     ApplicationNumber = r.ApplicationNumber,
-                    CustomerName = r.CustomerName ?? "N/A",
+                    CustomerName = string.IsNullOrWhiteSpace(r.CustomerName) ? "N/A" : r.CustomerName,
                     Amount = r.Amount,
                     CommitteeType = r.CommitteeType,
                     Status = r.Status,
@@ -172,6 +182,8 @@
                     TotalMembers = r.TotalMembers > 0 ? r.TotalMembers : 1,
                     Decision = r.FinalDecision ?? ""
                 }).ToList();
+
+                reviews = ApplyFilters(reviews);
             }
             else
             {
@@ -189,7 +201,54 @@
         await LoadReviews();
     }
 
-    private void ViewApplication(Guid id) => Navigation.NavigateTo($"/applications/{id}");
+    private async Task OnSearchKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadReviews();
+        }
+    }
+
+    /// <summary>
+    /// Narrows the loaded rows by the search box and the committee picker.
+    /// <para>
+    /// Both controls were bound to fields nothing ever read, so typing an application number and
+    /// pressing Search changed nothing at all. The query itself only understands status; the rows for
+    /// one status are few enough that narrowing them here costs nothing and keeps the query simple.
+    /// </para>
+    /// </summary>
+    private List<CommitteeReview> ApplyFilters(List<CommitteeReview> rows)
+    {
+        if (!string.IsNullOrWhiteSpace(selectedCommittee))
+        {
+            rows = rows
+                .Where(r => string.Equals(r.CommitteeType, selectedCommittee, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        var term = searchTerm?.Trim();
+        if (!string.IsNullOrEmpty(term))
+        {
+            // Application number or customer, the two things printed on the row.
+            rows = rows
+                .Where(r => r.ApplicationNumber.Contains(term, StringComparison.OrdinalIgnoreCase)
+                            || r.CustomerName.Contains(term, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        return rows;
+    }
+
+    // NAMP cases live under /namp/{id} and corporate ones under /applications/{id}, so the row is told
+    // where to go rather than assuming a corporate path. A null url means the case behind the review
+    // could not be resolved; clicking then does nothing, instead of landing on "Application not found".
+    private void ViewApplication(string? detailUrl)
+    {
+        if (!string.IsNullOrEmpty(detailUrl))
+        {
+            Navigation.NavigateTo(detailUrl);
+        }
+    }
 
     private static string FormatAmount(decimal amount)
     {
@@ -198,28 +257,59 @@
         return $"{amount:N0}";
     }
 
+    // Keyed on the CommitteeType names the DTO emits. These used to read "Credit Committee" and
+    // friends, which that enum has never contained, so every committee badge rendered grey.
+    // The colour climbs with the tier, so the committee a case reached is readable at a glance.
     private static string GetCommitteeBadgeClass(string type) => type switch
     {
-        "Credit Committee" => "badge-primary",
-        "Management Committee" => "badge-warning",
-        "Board Committee" => "badge-danger",
+        "BoardCredit" => "badge-danger",
+        "ManagementCredit" => "badge-warning",
+        "HeadOfficeCredit" => "badge-warning",
+        "RegionalCredit" => "badge-info",
+        "ZonalCredit" => "badge-info",
+        "BranchCredit" => "badge-primary",
         _ => "badge-gray"
     };
 
+    private static string FormatCommittee(string type) => type switch
+    {
+        "BranchCredit" => "Branch Credit",
+        "ZonalCredit" => "Zonal Credit",
+        "RegionalCredit" => "Regional Credit",
+        "HeadOfficeCredit" => "Head Office Credit",
+        "ManagementCredit" => "Management Credit",
+        "BoardCredit" => "Board Credit",
+        _ => type
+    };
+
+    // Keyed on the CommitteeReviewStatus names the DTO actually emits. They used to be keyed on
+    // "Voting" and "Completed", which are not members of that enum, so every status but Pending
+    // fell through to grey.
     private static string GetStatusBadgeClass(string status) => status switch
     {
-        "Completed" => "badge-success",
-        "Voting" => "badge-primary",
+        "Decided" => "badge-success",
+        "Closed" => "badge-success",
+        "VotingComplete" => "badge-info",
+        "InProgress" => "badge-primary",
         "Pending" => "badge-warning",
         _ => "badge-gray"
     };
-
     private static string GetStatusDotClass(string status) => status switch
     {
-        "Completed" => "success",
-        "Voting" => "info",
+        "Decided" => "success",
+        "Closed" => "success",
+        "VotingComplete" => "info",
+        "InProgress" => "info",
         "Pending" => "warning",
         _ => "gray"
+    };
+
+    // The stored names read like internals; the list shows the plain-language equivalent.
+    private static string FormatStatus(string status) => status switch
+    {
+        "InProgress" => "Voting in progress",
+        "VotingComplete" => "Voting complete",
+        _ => status
     };
 
     private static string GetDecisionBadgeClass(string decision) => decision switch
@@ -232,6 +322,7 @@
     private class CommitteeReview
     {
         public Guid ApplicationId { get; set; }
+        public string? DetailUrl { get; set; }
         public string ApplicationNumber { get; set; } = string.Empty;
         public string CustomerName { get; set; } = string.Empty;
         public decimal Amount { get; set; }

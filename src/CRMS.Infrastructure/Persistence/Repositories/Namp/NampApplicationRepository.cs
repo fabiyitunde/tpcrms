@@ -61,6 +61,20 @@ public class NampApplicationRepository : INampApplicationRepository
             .Include(x => x.StatusHistory.OrderBy(h => h.ChangedAt))
             .FirstOrDefaultAsync(x => x.ApplicationNumber == applicationNumber, ct);
 
+    public async Task<IReadOnlyList<NampApplication>> GetByApplicationNumbersAsync(IReadOnlyList<string> applicationNumbers, CancellationToken ct = default)
+    {
+        if (applicationNumbers is null || applicationNumbers.Count == 0)
+            return Array.Empty<NampApplication>();
+
+        var numbers = applicationNumbers.Distinct().ToList();
+
+        // Deliberately no Includes: callers want the applicant, the amount and the id for a link.
+        // Pulling the child collections here would fan a list of reviews out into a cartesian read.
+        return await _context.NampApplications
+            .Where(x => numbers.Contains(x.ApplicationNumber))
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<NampApplication>> GetAllAsync(CancellationToken ct = default)
         => await _context.NampApplications.OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
 

@@ -129,7 +129,8 @@ public class GetMyCommitteeReviewsHandler : IRequestHandler<GetMyCommitteeReview
 }
 
 // Get reviews by status
-public record GetCommitteeReviewsByStatusQuery(CommitteeReviewStatus Status) : IRequest<ApplicationResult<List<CommitteeReviewSummaryDto>>>;
+/// <summary>Reviews at one status, or every review when <paramref name="Status"/> is null.</summary>
+public record GetCommitteeReviewsByStatusQuery(CommitteeReviewStatus? Status) : IRequest<ApplicationResult<List<CommitteeReviewSummaryDto>>>;
 
 public class GetCommitteeReviewsByStatusHandler : IRequestHandler<GetCommitteeReviewsByStatusQuery, ApplicationResult<List<CommitteeReviewSummaryDto>>>
 {
@@ -142,7 +143,9 @@ public class GetCommitteeReviewsByStatusHandler : IRequestHandler<GetCommitteeRe
 
     public async Task<ApplicationResult<List<CommitteeReviewSummaryDto>>> Handle(GetCommitteeReviewsByStatusQuery request, CancellationToken ct = default)
     {
-        var reviews = await _repository.GetByStatusAsync(request.Status, ct);
+        var reviews = request.Status is null
+            ? await _repository.GetAllAsync(ct)
+            : await _repository.GetByStatusAsync(request.Status.Value, ct);
         
         var summaries = reviews.Select(r => new CommitteeReviewSummaryDto(
             r.Id,
