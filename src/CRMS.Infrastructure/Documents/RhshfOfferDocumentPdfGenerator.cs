@@ -199,7 +199,7 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
             table.ColumnsDefinition(c => { c.ConstantColumn(130); c.RelativeColumn(); });
 
             Term(table, "Lender", $"{data.BankName} Limited");
-            Term(table, "Borrower", data.CompanyName + (string.IsNullOrWhiteSpace(data.RcNumber) ? "" : $" (RC {data.RcNumber})"));
+            Term(table, "Borrower", RcNumberText.WithCompany(data.CompanyName, data.RcNumber));
             Term(table, "Loan amount", $"{Money(data.Currency, data.ApprovedAmount)} ({NairaAmountInWords.Format(data.ApprovedAmount)}) only");
             Term(table, "Loan purpose",
                 "To finance the direct procurement of inputs from accredited input producers and onward "
@@ -466,7 +466,7 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
             c.Item().PaddingTop(8).Text(
                 $"We accept this loan offer, including the terms and conditions set out in it, for and on behalf "
                 + $"of {data.CompanyName}"
-                + (string.IsNullOrWhiteSpace(data.RcNumber) ? "" : $" (RC {data.RcNumber})") + ".");
+                + RcNumberText.Parenthesised(data.RcNumber) + ".");
             c.Item().PaddingTop(2).Text("To be signed over a ₦50 stamp.").FontSize(8.5f).Italic().FontColor(Muted);
         });
 

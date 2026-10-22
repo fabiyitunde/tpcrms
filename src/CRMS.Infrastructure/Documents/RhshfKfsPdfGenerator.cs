@@ -70,7 +70,7 @@ public class RhshfKfsPdfGenerator : IRhshfKfsPdfGenerator
                 table.ColumnsDefinition(c => { c.RelativeColumn(2); c.RelativeColumn(3); });
                 Detail(table, "Reference", data.Reference);
                 Detail(table, "Date", $"{data.GeneratedDate:dd MMMM yyyy}");
-                Detail(table, "Borrower", $"{data.CompanyName} (RC {data.RcNumber})");
+                Detail(table, "Borrower", RcNumberText.WithCompany(data.CompanyName, data.RcNumber));
                 Detail(table, "Programme", $"{data.ProgrammeName} — {data.SessionName}");
                 Detail(table, "Location", LocationText(data));
                 if (data.FarmerCount is { } farmers)

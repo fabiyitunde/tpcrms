@@ -67,8 +67,8 @@ public class RhshfOfferLetterPdfGenerator : IRhshfOfferLetterPdfGenerator
 
             col.Item().PaddingTop(16).Text("Dear Sir/Madam,").Bold();
             col.Item().PaddingTop(8).Text(
-                $"We are pleased to confirm that the credit profiling for {data.CompanyName} " +
-                $"(RC {data.RcNumber}) under the {data.ProgrammeName} programme, {data.SessionName}, " +
+                $"We are pleased to confirm that the credit profiling for " +
+                $"{RcNumberText.WithCompany(data.CompanyName, data.RcNumber)} under the {data.ProgrammeName} programme, {data.SessionName}, " +
                 "has been ratified. The facility is offered to you on the key terms set out below.");
 
             col.Item().PaddingTop(16).Background(Color.FromHex(BoaBrand.PanelGreen)).Padding(12).Column(box =>
@@ -131,7 +131,7 @@ public class RhshfOfferLetterPdfGenerator : IRhshfOfferLetterPdfGenerator
             // Borrower acceptance / countersignature — the gap the FAC fills before re-uploading.
             col.Item().PaddingTop(12).Text("ACCEPTANCE").Bold().FontColor(Color.FromHex(BoaBrand.Primary));
             col.Item().PaddingTop(4).Text(
-                $"We, for and on behalf of {data.CompanyName} (RC {data.RcNumber}), accept the facility on the " +
+                $"We, for and on behalf of {RcNumberText.WithCompany(data.CompanyName, data.RcNumber)}, accept the facility on the " +
                 "terms and conditions set out in this offer letter and the accompanying Key Facts Statement.")
                 .FontSize(9);
 
