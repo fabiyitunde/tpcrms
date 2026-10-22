@@ -815,9 +815,20 @@ else
                                         <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="d-flex gap-2 justify-content-end">
                                             <input type="hidden" name="reference" value="@Model.Session.Reference" />
                                             <input type="hidden" name="category" value="@req.Category" />
-                                            <input type="file" name="file" class="form-control form-control-sm" required />
+                                            <input type="file" name="file" class="form-control form-control-sm" required
+                                                   accept="@RhshfDisplayNames.AcceptAttribute(req.AllowedFormats)" />
                                             <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Upload</button>
                                         </form>
+                                        @if (req.AllowedFormats is { Count: > 0 })
+                                        {
+                                            <div class="small text-muted mt-1 text-end">
+                                                @RhshfDisplayNames.AcceptedFormatsText(req.AllowedFormats)
+                                                @if (req.MustMatchFinancialTemplate)
+                                                {
+                                                    <span>&mdash; it must be the downloaded template, filled in.</span>
+                                                }
+                                            </div>
+                                        }
                                         @* Carry-over: a CAM the FAC already supplied on an earlier season need not be
                                            uploaded again. Loaded only while this slot is empty, so it disappears once
                                            something is attached — including when the carry-over itself is what filled it. *@

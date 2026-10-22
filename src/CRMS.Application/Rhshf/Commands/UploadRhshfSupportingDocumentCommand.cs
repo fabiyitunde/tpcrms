@@ -1,4 +1,5 @@
 using CRMS.Application.Common;
+using CRMS.Application.Rhshf.Interfaces;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
@@ -19,12 +20,21 @@ public class UploadRhshfSupportingDocumentHandler : IRequestHandler<UploadRhshfS
     private const long MaxSizeBytes = 10 * 1024 * 1024; // 10 MB per file
 
     private readonly IRhshfCreditProfileRepository _repo;
+    private readonly IRhshfDocumentRequirementRepository _requirementRepo;
+    private readonly IRhshfDocumentUploadValidator _validator;
     private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _uow;
 
-    public UploadRhshfSupportingDocumentHandler(IRhshfCreditProfileRepository repo, IFileStorageService fileStorage, IUnitOfWork uow)
+    public UploadRhshfSupportingDocumentHandler(
+        IRhshfCreditProfileRepository repo,
+        IRhshfDocumentRequirementRepository requirementRepo,
+        IRhshfDocumentUploadValidator validator,
+        IFileStorageService fileStorage,
+        IUnitOfWork uow)
     {
         _repo = repo;
+        _requirementRepo = requirementRepo;
+        _validator = validator;
         _fileStorage = fileStorage;
         _uow = uow;
     }
@@ -40,7 +50,16 @@ public class UploadRhshfSupportingDocumentHandler : IRequestHandler<UploadRhshfS
         if (profile is null)
             return ApplicationResult.Failure("Case not found.");
 
-        // Upload first — the domain call below only fails on a stage mismatch, not on storage
+        // Is this the kind of document the slot asked for? Checked before the bytes go anywhere:
+        // a rejected file should leave nothing behind in storage.
+        var requirement = (await _requirementRepo.GetActiveAsync(ct))
+            .FirstOrDefault(r => r.Category == request.Category);
+
+        var valid = _validator.Validate(requirement, request.FileName, request.Content);
+        if (valid.IsFailure)
+            return ApplicationResult.Failure(valid.Error);
+
+        // Upload next — the domain call below only fails on a stage mismatch, not on storage
         // I/O, so there's no path where a stored blob is orphaned by a subsequent domain failure
         // under normal operation.
         var storagePath = await _fileStorage.UploadAsync(

@@ -22,10 +22,42 @@ public class RhshfDocumentRequirement : Entity
     public int SortOrder { get; private set; }
     public bool IsActive { get; private set; }
 
+    /// <summary>
+    /// Which formats this slot accepts, as comma-separated <see cref="RhshfDocumentFormat"/> names.
+    /// <para>
+    /// Empty means no restriction, which is how every row behaved before this rule existed — an
+    /// un-backfilled requirement therefore keeps accepting whatever it accepted yesterday rather
+    /// than suddenly rejecting the FAC's uploads.
+    /// </para>
+    /// </summary>
+    public string? AllowedFormats { get; private set; }
+
+    /// <summary>
+    /// Whether an uploaded workbook must be the bank's financial statements template, rather than
+    /// merely a spreadsheet. Set on the audited-financials slot: the officers' one-click import
+    /// parses that file, and a workbook of the wrong shape fails at appraisal instead of at upload,
+    /// by which time the FAC has gone.
+    /// </summary>
+    public bool MustMatchFinancialTemplate { get; private set; }
+
+    /// <summary>The configured formats, or an empty list where the slot accepts anything. Unknown
+    /// names are ignored rather than thrown: a rule nobody can parse must not block an upload.</summary>
+    public IReadOnlyList<RhshfDocumentFormat> AllowedFormatList =>
+        string.IsNullOrWhiteSpace(AllowedFormats)
+            ? []
+            : AllowedFormats.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(t => Enum.TryParse<RhshfDocumentFormat>(t, ignoreCase: true, out var f)
+                    ? (RhshfDocumentFormat?)f : null)
+                .Where(f => f is not null)
+                .Select(f => f!.Value)
+                .Distinct()
+                .ToList();
+
     protected RhshfDocumentRequirement() { }
 
     public static Result<RhshfDocumentRequirement> Create(
-        RhshfDocumentCategory category, string title, string? description, bool isMandatory, int sortOrder)
+        RhshfDocumentCategory category, string title, string? description, bool isMandatory, int sortOrder,
+        IEnumerable<RhshfDocumentFormat>? allowedFormats = null, bool mustMatchFinancialTemplate = false)
     {
         if (string.IsNullOrWhiteSpace(title))
             return Result.Failure<RhshfDocumentRequirement>("Title is required.");
@@ -38,6 +70,8 @@ public class RhshfDocumentRequirement : Entity
             IsMandatory = isMandatory,
             SortOrder = sortOrder,
             IsActive = true,
+            AllowedFormats = Join(allowedFormats),
+            MustMatchFinancialTemplate = mustMatchFinancialTemplate,
         });
     }
 
@@ -51,6 +85,23 @@ public class RhshfDocumentRequirement : Entity
         IsMandatory = isMandatory;
         SortOrder = sortOrder;
         return Result.Success();
+    }
+
+    /// <summary>
+    /// Sets what the slot will accept. Separate from <see cref="Update"/> so the existing admin
+    /// screen and seeder keep working untouched, and so changing a format rule is a deliberate act
+    /// rather than a side effect of renaming a requirement.
+    /// </summary>
+    public void SetFormatRules(IEnumerable<RhshfDocumentFormat>? allowedFormats, bool mustMatchFinancialTemplate)
+    {
+        AllowedFormats = Join(allowedFormats);
+        MustMatchFinancialTemplate = mustMatchFinancialTemplate;
+    }
+
+    private static string? Join(IEnumerable<RhshfDocumentFormat>? formats)
+    {
+        var list = formats?.Distinct().ToList();
+        return list is null || list.Count == 0 ? null : string.Join(",", list);
     }
 
     public void Activate() => IsActive = true;

@@ -6947,6 +6947,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("AllowedFormats")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -6975,6 +6978,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("ModifiedBy")
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("MustMatchFinancialTemplate")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");

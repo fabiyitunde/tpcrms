@@ -33,6 +33,43 @@ public static class RhshfDisplayNames
     public static string GuarantorRelationshipLabel(RhshfGuarantorRelationship relationship) =>
         SplitOnCapitals(relationship.ToString());
 
+    /// <summary>
+    /// The file picker's accept filter for a slot, so the FAC's file browser offers what will
+    /// actually be taken. Empty where the slot accepts anything, which leaves the picker unfiltered.
+    /// </summary>
+    public static string AcceptAttribute(IReadOnlyList<RhshfDocumentFormat>? formats)
+    {
+        if (formats is null || formats.Count == 0)
+            return string.Empty;
+
+        return string.Join(",", formats.SelectMany(f => f switch
+        {
+            RhshfDocumentFormat.Pdf => new[] { ".pdf" },
+            RhshfDocumentFormat.Spreadsheet => new[] { ".xlsx" },
+            RhshfDocumentFormat.Image => new[] { ".png", ".jpg", ".jpeg" },
+            _ => Array.Empty<string>(),
+        }).Distinct());
+    }
+
+    /// <summary>What the slot accepts, in a sentence the FAC can act on before choosing a file.</summary>
+    public static string AcceptedFormatsText(IReadOnlyList<RhshfDocumentFormat>? formats)
+    {
+        if (formats is null || formats.Count == 0)
+            return string.Empty;
+
+        var names = formats.Select(f => f switch
+        {
+            RhshfDocumentFormat.Pdf => "PDF",
+            RhshfDocumentFormat.Spreadsheet => "Excel (.xlsx)",
+            RhshfDocumentFormat.Image => "PNG or JPEG image",
+            _ => f.ToString(),
+        }).Distinct().ToList();
+
+        return names.Count == 1
+            ? $"Accepts {names[0]}."
+            : $"Accepts {string.Join(", ", names.Take(names.Count - 1))} or {names[^1]}.";
+    }
+
     private static string SplitOnCapitals(string value) =>
         System.Text.RegularExpressions.Regex.Replace(value, "(?<!^)([A-Z])", " $1");
 }

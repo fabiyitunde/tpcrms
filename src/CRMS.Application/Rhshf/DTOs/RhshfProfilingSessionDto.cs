@@ -78,7 +78,11 @@ public record RhshfSupportingDocumentDto(Guid Id, string FileName, long SizeByte
 
 public record RhshfDocumentRequirementStatusDto(
     RhshfDocumentCategory Category, string Title, string? Description,
-    bool IsMandatory, int SortOrder, bool IsSatisfied, int AttachedCount);
+    bool IsMandatory, int SortOrder, bool IsSatisfied, int AttachedCount,
+    /// <summary>Formats this slot accepts; empty means anything. Shown on the form so the FAC
+    /// learns the rule before choosing a file rather than from a rejection afterwards.</summary>
+    IReadOnlyList<RhshfDocumentFormat>? AllowedFormats = null,
+    bool MustMatchFinancialTemplate = false);
 
 /// <summary>A document from one of this FAC's earlier cases, offered for carry-over on the documents
 /// stage. The source reference, session and status are shown so the FAC can tell which document it

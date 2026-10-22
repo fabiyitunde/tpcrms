@@ -335,3 +335,27 @@ public enum RhshfFinancialYearType
     Draft,
     Projected,
 }
+
+/// <summary>
+/// The file formats a document slot will accept.
+/// <para>
+/// Held per requirement rather than hardcoded, because what counts as acceptable evidence is the
+/// bank's call and differs by document: a board resolution is a formal PDF, while land
+/// documentation and warehousing evidence are routinely photographed on a phone.
+/// </para>
+/// <para>
+/// Persisted by name on RhshfDocumentRequirements, so renaming a member orphans existing rows.
+/// </para>
+/// </summary>
+public enum RhshfDocumentFormat
+{
+    /// <summary>A PDF, verified by its signature rather than its extension.</summary>
+    Pdf,
+
+    /// <summary>An .xlsx workbook. The older binary .xls is deliberately excluded — the importer
+    /// that reads these cannot open it, so accepting one would only defer the failure.</summary>
+    Spreadsheet,
+
+    /// <summary>A PNG or JPEG photograph or scan.</summary>
+    Image,
+}

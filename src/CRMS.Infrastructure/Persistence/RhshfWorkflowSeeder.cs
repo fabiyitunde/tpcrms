@@ -17,6 +17,7 @@ public static class RhshfWorkflowSeeder
         await BackfillPreDeploymentKindsAsync(context, logger);
         await SeedAppraisalThresholdsAsync(context, logger);
         await SeedDocumentRequirementsAsync(context, logger);
+        await BackfillDocumentFormatRulesAsync(context, logger);
         await BackfillGuarantorRelationshipsAsync(context, logger);
     }
 
@@ -158,9 +159,73 @@ public static class RhshfWorkflowSeeder
     private static RhshfDocumentRequirement Requirement(
         RhshfDocumentCategory category, string title, string description, bool isMandatory, int sortOrder)
     {
-        var result = RhshfDocumentRequirement.Create(category, title, description, isMandatory, sortOrder);
+        var (formats, mustMatchTemplate) = FormatRule(category);
+        var result = RhshfDocumentRequirement.Create(
+            category, title, description, isMandatory, sortOrder, formats, mustMatchTemplate);
         result.Value.SetAuditInfo("System Seeder", isNew: true);
         return result.Value;
+    }
+
+    /// <summary>
+    /// What each slot accepts, as a starting position — tune via Admin &gt; RH-SHF Document Rules.
+    /// <para>
+    /// Chosen from what FACs actually send, not from an ideal: bank statements and farmer registers
+    /// arrive as workbooks as often as PDFs, and land and warehousing evidence are routinely
+    /// photographed, so restricting those to PDF would make the form fight the people filling it.
+    /// The formal instruments — certificate, resolution, agreement, memorandum — are PDFs.
+    /// </para>
+    /// </summary>
+    private static (RhshfDocumentFormat[] Formats, bool MustMatchFinancialTemplate) FormatRule(
+        RhshfDocumentCategory category) => category switch
+    {
+        // The one slot with a shape as well as a format: the officers' one-click import parses this
+        // workbook, so a spreadsheet that is not the template is no use to anyone.
+        RhshfDocumentCategory.AuditedFinancials =>
+            ([RhshfDocumentFormat.Spreadsheet], true),
+
+        RhshfDocumentCategory.BankStatement or RhshfDocumentCategory.FarmerRegister =>
+            ([RhshfDocumentFormat.Pdf, RhshfDocumentFormat.Spreadsheet], false),
+
+        RhshfDocumentCategory.LandDocumentation or RhshfDocumentCategory.WarehousingEvidence =>
+            ([RhshfDocumentFormat.Pdf, RhshfDocumentFormat.Image], false),
+
+        RhshfDocumentCategory.CacCertificate or RhshfDocumentCategory.BoardResolution
+            or RhshfDocumentCategory.OffTakeAgreement or RhshfDocumentCategory.CreditAppraisalMemorandum =>
+            ([RhshfDocumentFormat.Pdf], false),
+
+        // Including Other: a catch-all slot cannot say what belongs in it.
+        _ => ([], false),
+    };
+
+    /// <summary>
+    /// One-time, idempotent: gives a format rule to requirements seeded before the rules existed.
+    /// <para>
+    /// Only rows with no rule at all are touched, so a rule an admin has set — including one
+    /// deliberately cleared to accept anything — is never overwritten by a deployment.
+    /// </para>
+    /// </summary>
+    private static async Task BackfillDocumentFormatRulesAsync(CRMSDbContext context, ILogger logger)
+    {
+        var unruled = await context.RhshfDocumentRequirements
+            .Where(r => r.AllowedFormats == null)
+            .ToListAsync();
+
+        var updated = 0;
+        foreach (var requirement in unruled)
+        {
+            var (formats, mustMatchTemplate) = FormatRule(requirement.Category);
+            if (formats.Length == 0)
+                continue;   // nothing to say about this category; leave it unrestricted
+
+            requirement.SetFormatRules(formats, mustMatchTemplate);
+            updated++;
+        }
+
+        if (updated == 0)
+            return;
+
+        await context.SaveChangesAsync();
+        logger.LogInformation("Backfilled accepted-format rules on {Count} RH-SHF document requirement(s).", updated);
     }
 
     // ── Appraisal viability thresholds ─────────────────────────────────────

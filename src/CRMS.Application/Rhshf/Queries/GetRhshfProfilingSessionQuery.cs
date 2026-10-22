@@ -70,7 +70,9 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
                 .Select(r => new RhshfDocumentRequirementStatusDto(
                     r.Category, r.Title, r.Description, r.IsMandatory, r.SortOrder,
                     IsSatisfied: attachedByCategory.ContainsKey(r.Category),
-                    AttachedCount: attachedByCategory.GetValueOrDefault(r.Category)))
+                    AttachedCount: attachedByCategory.GetValueOrDefault(r.Category),
+                    AllowedFormats: r.AllowedFormatList,
+                    MustMatchFinancialTemplate: r.MustMatchFinancialTemplate))
                 .ToList(),
             FarmPlans: profile.GetTargetCycleFarmPlans()
                 .Select(p => new RhshfProfilingFarmPlanDto(
