@@ -166,7 +166,11 @@ public record RhshfDocumentRequirementDto(
     string? Description,
     bool IsMandatory,
     int SortOrder,
-    bool IsActive
+    bool IsActive,
+
+    /// <summary>Formats this slot accepts; empty accepts anything.</summary>
+    IReadOnlyList<RhshfDocumentFormat>? AllowedFormats = null,
+    bool MustMatchFinancialTemplate = false
 );
 
 public record RhshfRoutingConfigDto(

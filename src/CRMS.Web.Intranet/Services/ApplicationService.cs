@@ -7783,13 +7783,15 @@ public partial class ApplicationService
     }
 
     public async Task<ApiResponse> CreateRhshfDocumentRequirementAsync(
-        CRMS.Domain.Enums.RhshfDocumentCategory category, string title, string? description, bool isMandatory, int sortOrder)
+        CRMS.Domain.Enums.RhshfDocumentCategory category, string title, string? description, bool isMandatory, int sortOrder,
+        IReadOnlyList<CRMS.Domain.Enums.RhshfDocumentFormat>? allowedFormats = null, bool mustMatchFinancialTemplate = false)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.CreateRhshfDocumentRequirementHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.CreateRhshfDocumentRequirementCommand(category, title, description, isMandatory, sortOrder),
+                new CRMS.Application.Rhshf.Commands.CreateRhshfDocumentRequirementCommand(
+                    category, title, description, isMandatory, sortOrder, allowedFormats, mustMatchFinancialTemplate),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create document requirement");
         }
@@ -7800,13 +7802,16 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> UpdateRhshfDocumentRequirementAsync(Guid id, string title, string? description, bool isMandatory, int sortOrder)
+    public async Task<ApiResponse> UpdateRhshfDocumentRequirementAsync(
+        Guid id, string title, string? description, bool isMandatory, int sortOrder,
+        IReadOnlyList<CRMS.Domain.Enums.RhshfDocumentFormat>? allowedFormats = null, bool mustMatchFinancialTemplate = false)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.UpdateRhshfDocumentRequirementHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.UpdateRhshfDocumentRequirementCommand(id, title, description, isMandatory, sortOrder),
+                new CRMS.Application.Rhshf.Commands.UpdateRhshfDocumentRequirementCommand(
+                    id, title, description, isMandatory, sortOrder, allowedFormats, mustMatchFinancialTemplate),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update document requirement");
         }

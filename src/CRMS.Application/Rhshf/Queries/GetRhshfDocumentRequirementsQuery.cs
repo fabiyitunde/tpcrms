@@ -23,7 +23,8 @@ public class GetRhshfDocumentRequirementsHandler
 
         var dtos = requirements
             .Select(r => new RhshfDocumentRequirementDto(
-                r.Id, r.Category, r.Title, r.Description, r.IsMandatory, r.SortOrder, r.IsActive))
+                r.Id, r.Category, r.Title, r.Description, r.IsMandatory, r.SortOrder, r.IsActive,
+                r.AllowedFormatList, r.MustMatchFinancialTemplate))
             .ToList();
 
         return ApplicationResult<List<RhshfDocumentRequirementDto>>.Success(dtos);

@@ -11,7 +11,11 @@ namespace CRMS.Application.Rhshf.Commands;
 // bank policy, not code, so they live in a table an administrator can change.
 
 public record CreateRhshfDocumentRequirementCommand(
-    RhshfDocumentCategory Category, string Title, string? Description, bool IsMandatory, int SortOrder)
+    RhshfDocumentCategory Category, string Title, string? Description, bool IsMandatory, int SortOrder,
+    /// <summary>Formats the slot accepts. Empty accepts anything, which is how every slot behaved
+    /// before format rules existed.</summary>
+    IReadOnlyList<RhshfDocumentFormat>? AllowedFormats = null,
+    bool MustMatchFinancialTemplate = false)
     : IRequest<ApplicationResult<RhshfDocumentRequirementDto>>;
 
 public class CreateRhshfDocumentRequirementHandler
@@ -36,8 +40,17 @@ public class CreateRhshfDocumentRequirementHandler
             return ApplicationResult<RhshfDocumentRequirementDto>.Failure(
                 $"A requirement for '{request.Category}' already exists — edit it instead.");
 
+        // A format rule only binds a workbook, so asking for the financial-statements template
+        // without accepting spreadsheets would store a rule that can never fire.
+        if (request.MustMatchFinancialTemplate
+            && !(request.AllowedFormats ?? []).Contains(RhshfDocumentFormat.Spreadsheet))
+            return ApplicationResult<RhshfDocumentRequirementDto>.Failure(
+                "The financial statements template check only applies to a workbook. Accept Excel (.xlsx) on this " +
+                "slot, or turn the template check off.");
+
         var result = RhshfDocumentRequirement.Create(
-            request.Category, request.Title, request.Description, request.IsMandatory, request.SortOrder);
+            request.Category, request.Title, request.Description, request.IsMandatory, request.SortOrder,
+            request.AllowedFormats, request.MustMatchFinancialTemplate);
         if (result.IsFailure)
             return ApplicationResult<RhshfDocumentRequirementDto>.Failure(result.Error);
 
@@ -48,11 +61,14 @@ public class CreateRhshfDocumentRequirementHandler
     }
 
     internal static RhshfDocumentRequirementDto MapToDto(RhshfDocumentRequirement r) => new(
-        r.Id, r.Category, r.Title, r.Description, r.IsMandatory, r.SortOrder, r.IsActive);
+        r.Id, r.Category, r.Title, r.Description, r.IsMandatory, r.SortOrder, r.IsActive,
+        r.AllowedFormatList, r.MustMatchFinancialTemplate);
 }
 
 public record UpdateRhshfDocumentRequirementCommand(
-    Guid Id, string Title, string? Description, bool IsMandatory, int SortOrder)
+    Guid Id, string Title, string? Description, bool IsMandatory, int SortOrder,
+    IReadOnlyList<RhshfDocumentFormat>? AllowedFormats = null,
+    bool MustMatchFinancialTemplate = false)
     : IRequest<ApplicationResult<RhshfDocumentRequirementDto>>;
 
 public class UpdateRhshfDocumentRequirementHandler
@@ -79,6 +95,17 @@ public class UpdateRhshfDocumentRequirementHandler
         var result = requirement.Update(request.Title, request.Description, request.IsMandatory, request.SortOrder);
         if (result.IsFailure)
             return ApplicationResult<RhshfDocumentRequirementDto>.Failure(result.Error);
+
+        // A format rule only binds a workbook, so asking for the financial-statements template
+        // without accepting spreadsheets would store a rule that can never fire — say so rather
+        // than saving something that looks set and does nothing.
+        var formats = request.AllowedFormats ?? [];
+        if (request.MustMatchFinancialTemplate && !formats.Contains(RhshfDocumentFormat.Spreadsheet))
+            return ApplicationResult<RhshfDocumentRequirementDto>.Failure(
+                "The financial statements template check only applies to a workbook. Accept Excel (.xlsx) on this " +
+                "slot, or turn the template check off.");
+
+        requirement.SetFormatRules(formats, request.MustMatchFinancialTemplate);
 
         _repo.Update(requirement);
         await _uow.SaveChangesAsync(ct);

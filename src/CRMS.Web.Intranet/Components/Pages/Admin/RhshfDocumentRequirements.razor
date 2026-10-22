@@ -48,7 +48,7 @@
             <div class="table-wrapper">
                 <table class="table" style="margin-bottom: 0;">
                     <thead>
-                        <tr><th>Document</th><th>Category</th><th>Requirement</th><th>Sort</th><th>Status</th><th></th></tr>
+                        <tr><th>Document</th><th>Category</th><th>Requirement</th><th>Accepts</th><th>Sort</th><th>Status</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach (var r in requirements.OrderBy(r => r.SortOrder).ThenBy(r => r.Title))
@@ -63,6 +63,20 @@
                                 </td>
                                 <td><span class="badge badge-primary">@Humanise(r.Category)</span></td>
                                 <td><span class="badge @(r.IsMandatory ? "badge-warning" : "badge-gray")">@(r.IsMandatory ? "Mandatory" : "Optional")</span></td>
+                                <td>
+                                    @if (r.AllowedFormats is { Count: > 0 })
+                                    {
+                                        <span>@string.Join(", ", r.AllowedFormats.Select(FormatLabel))</span>
+                                        @if (r.MustMatchFinancialTemplate)
+                                        {
+                                            <div style="font-size: 0.75rem; color: var(--gray-500);">must be the template</div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span style="color: var(--gray-500);">Anything</span>
+                                    }
+                                </td>
                                 <td>@r.SortOrder</td>
                                 <td><span class="badge @(r.IsActive ? "badge-success" : "badge-gray")">@(r.IsActive ? "Active" : "Inactive")</span></td>
                                 <td style="white-space: nowrap;">
@@ -125,6 +139,32 @@
                 <div class="form-group">
                     <label class="form-label">Sort Order</label>
                     <input type="number" class="form-control" @bind="form.SortOrder" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Accepted file formats</label>
+                    @foreach (var format in AllFormats)
+                    {
+                        var current = format;
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" checked="@form.Formats.Contains(current)"
+                                   @onchange="e => ToggleFormat(current, (bool)(e.Value ?? false))" />
+                            <span>@FormatLabel(current)</span>
+                        </label>
+                    }
+                    <div style="font-size: 0.8rem; color: var(--gray-500); margin-top: 0.25rem;">
+                        Uploads are checked against the file itself, not its name. Tick nothing to accept any file,
+                        which is how slots behaved before these rules existed.
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" @bind="form.MustMatchFinancialTemplate" />
+                        <span>Must be the financial statements template, filled in</span>
+                    </label>
+                    <div style="font-size: 0.8rem; color: var(--gray-500);">
+                        Checks the workbook has a Balance Sheet, an Income Statement and the years filled in —
+                        the same shape the one-click import reads. Only applies where Excel is accepted.
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -194,6 +234,8 @@
             Description = r.Description ?? string.Empty,
             IsMandatory = r.IsMandatory,
             SortOrder = r.SortOrder,
+            Formats = r.AllowedFormats?.ToList() ?? [],
+            MustMatchFinancialTemplate = r.MustMatchFinancialTemplate,
         };
         editingId = r.Id;
         isEditing = true;
@@ -213,8 +255,12 @@
         try
         {
             var result = isEditing
-                ? await AppService.UpdateRhshfDocumentRequirementAsync(editingId, form.Title, form.Description, form.IsMandatory, form.SortOrder)
-                : await AppService.CreateRhshfDocumentRequirementAsync(form.Category, form.Title, form.Description, form.IsMandatory, form.SortOrder);
+                ? await AppService.UpdateRhshfDocumentRequirementAsync(
+                    editingId, form.Title, form.Description, form.IsMandatory, form.SortOrder,
+                    form.Formats, form.MustMatchFinancialTemplate)
+                : await AppService.CreateRhshfDocumentRequirementAsync(
+                    form.Category, form.Title, form.Description, form.IsMandatory, form.SortOrder,
+                    form.Formats, form.MustMatchFinancialTemplate);
 
             if (result.Success) { CloseModal(); await Load(); }
             else saveError = result.Error ?? "Failed to save";
@@ -241,5 +287,24 @@
         public string? Description { get; set; }
         public bool IsMandatory { get; set; } = true;
         public int SortOrder { get; set; }
+        public List<RhshfDocumentFormat> Formats { get; set; } = [];
+        public bool MustMatchFinancialTemplate { get; set; }
+    }
+
+    private static readonly RhshfDocumentFormat[] AllFormats =
+        Enum.GetValues<RhshfDocumentFormat>();
+
+    private static string FormatLabel(RhshfDocumentFormat format) => format switch
+    {
+        RhshfDocumentFormat.Pdf => "PDF",
+        RhshfDocumentFormat.Spreadsheet => "Excel (.xlsx)",
+        RhshfDocumentFormat.Image => "Image (PNG or JPEG)",
+        _ => format.ToString(),
+    };
+
+    private void ToggleFormat(RhshfDocumentFormat format, bool selected)
+    {
+        if (selected) { if (!form.Formats.Contains(format)) form.Formats.Add(format); }
+        else form.Formats.Remove(format);
     }
 }
