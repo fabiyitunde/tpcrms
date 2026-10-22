@@ -49,6 +49,25 @@ public class RhshfOfferTests
     }
 
     [Fact]
+    public void RegenerateDocument_DropsAKfsIssuedBeforeTheMerge()
+    {
+        // A reissue is always the single merged document. An offer from before the merge carries a
+        // Key Facts Statement, and leaving that pointer in place would keep demanding a signed copy
+        // of a statement the borrower is no longer issued — the facility could never be accepted.
+        var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "old/offer.pdf").Value;
+        offer.AttachKfs("old/kfs.pdf");
+
+        var result = offer.RegenerateDocument("new/offer.pdf");
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(offer.KfsDocumentPath);
+
+        offer.AddDocument("signed-offer.pdf", "application/pdf", "p1.pdf", 1024, RhshfOfferDocumentKind.SignedOfferLetter);
+        Assert.True(offer.HasRequiredSignedDocuments);   // one signature, not two
+        Assert.True(offer.Accept(null).IsSuccess);
+    }
+
+    [Fact]
     public void HasRequiredSignedDocuments_LetterOnly_NoKfsIssued_IsTrue()
     {
         var offer = RhshfOffer.Create(Guid.NewGuid(), 1, "offer.pdf").Value;

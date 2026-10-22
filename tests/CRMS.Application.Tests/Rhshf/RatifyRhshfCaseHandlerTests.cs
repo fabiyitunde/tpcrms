@@ -2,6 +2,7 @@ using CRMS.Domain.Common;
 using CRMS.Domain.Aggregates.ProductCatalog;
 using CRMS.Application.Rhshf.Commands;
 using CRMS.Application.Rhshf.Interfaces;
+using CRMS.Application.Rhshf.Services;
 using CRMS.Domain.Aggregates.Rhshf;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
@@ -11,6 +12,10 @@ namespace CRMS.Application.Tests.Rhshf;
 public class RatifyRhshfCaseHandlerTests
 {
     private const decimal TotalEopValue = 51_500_000.00m;
+
+    /// <summary>The document payload builder, with the fakes the handler itself no longer holds.</summary>
+    private static RhshfOfferDocumentDataBuilder Builder() =>
+        new(new FakeCollateralRepo(), new FakeLoanProductRepo(), new FakeFineract());
 
     private static RhshfCreditProfile MakeProfileAtRatification()
     {
@@ -53,8 +58,7 @@ public class RatifyRhshfCaseHandlerTests
         var fileStorage = new FakeFileStorage();
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(), offerRepo,
-            new FakeCollateralRepo(), new FakeOfferDocumentGenerator(), new FakeKfsGenerator(),
-            new FakeLoanProductRepo(), new FakeFineract(), fileStorage, new FakeUnitOfWork());
+            new FakeOfferDocumentGenerator(), Builder(), fileStorage, new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
@@ -75,8 +79,7 @@ public class RatifyRhshfCaseHandlerTests
         var generator = new FakeOfferDocumentGenerator();
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(),
-            new FakeOfferRepository(), new FakeCollateralRepo(), generator, new FakeKfsGenerator(),
-            new FakeLoanProductRepo(), new FakeFineract(), new FakeFileStorage(), new FakeUnitOfWork());
+            new FakeOfferRepository(), generator, Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
@@ -86,7 +89,6 @@ public class RatifyRhshfCaseHandlerTests
         Assert.Equal(TotalEopValue, data!.ApprovedAmount);
         Assert.Equal(profile.Reference, data.Reference);
         Assert.Equal(7, data.ValidityDays);              // the approved template's seven days
-        Assert.Null(data.GraceMonths);                   // unsettled, so left unstated
         Assert.Empty(data.ProductFees);                  // no product configured in this fake
         Assert.NotNull(data.FeesAccount);
         // No itemised financing on this case, so the plan falls back to a balancing row that still
@@ -104,8 +106,7 @@ public class RatifyRhshfCaseHandlerTests
         review.CastVote(committeeApproverId, RhshfCommitteeVoteChoice.Approve, null, []);
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(review), new SharedFakeLegalClearanceRepository(), new FakeOfferRepository(),
-            new FakeCollateralRepo(), new FakeOfferDocumentGenerator(), new FakeKfsGenerator(),
-            new FakeLoanProductRepo(), new FakeFineract(), new FakeFileStorage(), new FakeUnitOfWork());
+            new FakeOfferDocumentGenerator(), Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, committeeApproverId, RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
@@ -120,8 +121,7 @@ public class RatifyRhshfCaseHandlerTests
         var offerRepo = new FakeOfferRepository();
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(), offerRepo,
-            new FakeCollateralRepo(), new FakeOfferDocumentGenerator(), new FakeKfsGenerator(),
-            new FakeLoanProductRepo(), new FakeFineract(), new FakeFileStorage(), new FakeUnitOfWork());
+            new FakeOfferDocumentGenerator(), Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue - 1, null, null));
@@ -137,8 +137,7 @@ public class RatifyRhshfCaseHandlerTests
         var offerRepo = new FakeOfferRepository();
         var handler = new RatifyRhshfCaseHandler(
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(), offerRepo,
-            new FakeCollateralRepo(), new FakeOfferDocumentGenerator(), new FakeKfsGenerator(),
-            new FakeLoanProductRepo(), new FakeFineract(), new FakeFileStorage(), new FakeUnitOfWork());
+            new FakeOfferDocumentGenerator(), Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.ReturnToFac, null, "need more info", RhshfProfilingStage.SupportingDocuments));

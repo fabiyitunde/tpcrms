@@ -91,11 +91,13 @@ public class RhshfOfferDocumentPdfTests
     }
 
     [Fact]
-    public async Task RendersAGracePeriodOnceOneIsSettled()
+    public async Task RendersWithNoTenorOnFile()
     {
-        // Grace is null until the bank decides where it comes from; this proves the wording holds
-        // when it arrives, so turning it on later needs no layout work.
-        var bytes = await new RhshfOfferDocumentPdfGenerator().GenerateAsync(Data() with { GraceMonths = 6 });
+        // No appraisal recorded, so the facility period is unknown. The loan-period and tenor lines
+        // fall back to "per the approved credit terms" rather than inventing a figure — the one
+        // place a document could otherwise state a term nobody approved.
+        var bytes = await new RhshfOfferDocumentPdfGenerator().GenerateAsync(
+            Data() with { TenorMonths = null, InterestRatePercent = null, AmountDueAtHarvest = null, InterestCharge = null });
 
         Assert.True(IsPdf(bytes));
     }
@@ -128,7 +130,6 @@ public class RhshfOfferDocumentPdfTests
         AddressLines: ["KM 28 Rano – Rurum Road", "Farar Gada, Tiga Dam", "Kano"],
         InterestRatePercent: 9m,
         TenorMonths: 9,
-        GraceMonths: null,
         AmountDueAtHarvest: 262_752_163.28m,
         InterestCharge: 17_188_459.28m,
         FarmerCount: 450,

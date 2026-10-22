@@ -43,19 +43,26 @@ public class RhshfOffer : AggregateRoot
 
     /// <summary>
     /// Re-points the offer at a freshly generated PDF (recovery for a missing/corrupt file). Allowed
-    /// only while the FAC has not yet decided — the letter's content is fully determined by the
+    /// only while the FAC has not yet decided — the document's content is fully determined by the
     /// ratified amount and case data, which don't change in this state, so a regenerated copy is
     /// identical to one the FAC may already have downloaded. Once Accepted/Rejected the document is
     /// part of the record and must not be silently replaced; changing terms is a new offer instead.
+    /// <para>
+    /// A regenerated offer is always the single merged document, so any Key Facts Statement from
+    /// before the merge is dropped: the borrower now has one document to sign, and
+    /// <see cref="HasRequiredSignedDocuments"/> must ask for one signature rather than keep demanding
+    /// a signed copy of a statement that is no longer issued.
+    /// </para>
     /// </summary>
     public Result RegenerateDocument(string offerDocumentPath)
     {
         if (string.IsNullOrWhiteSpace(offerDocumentPath))
             return Result.Failure("offerDocumentPath is required.");
         if (Status is not (RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse))
-            return Result.Failure("The offer letter can only be regenerated before the FAC has accepted or rejected it.");
+            return Result.Failure("The offer document can only be regenerated before the FAC has accepted or rejected it.");
 
         OfferDocumentPath = offerDocumentPath;
+        KfsDocumentPath = null;
         GeneratedAt = DateTime.UtcNow;
         return Result.Success();
     }

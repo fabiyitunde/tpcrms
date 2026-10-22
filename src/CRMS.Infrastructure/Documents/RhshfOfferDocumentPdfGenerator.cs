@@ -174,11 +174,7 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
                 Fact(row, "Interest rate",
                     data.InterestRatePercent is { } r ? $"{r:0.##}% per annum" : "Per approved credit terms");
                 Fact(row, "Tenor",
-                    data.TenorMonths is { } m
-                        ? data.GraceMonths is { } g
-                            ? $"{m} months, {g} of them grace"
-                            : $"{m} months"
-                        : "Per approved credit terms");
+                    data.TenorMonths is { } m ? $"{m} months" : "Per approved credit terms");
                 Fact(row, "Total repayable",
                     data.AmountDueAtHarvest is { } due ? Money(data.Currency, due) : "Per repayment schedule");
             });
@@ -209,14 +205,11 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
                 "To finance the direct procurement of inputs from accredited input producers and onward "
                 + "distribution of the input bundles to certified farmer clusters under the supervision and "
                 + "control of the Farmer Aggregation Company.");
+            // No grace period: the facility is repaid in one bullet payment at harvest, so there are
+            // no instalments to defer. The cycle itself is the deferral.
             Term(table, "Loan period", data.TenorMonths is { } m
-                ? $"{NairaAmountInWords.Convert(m)} ({m}) months from the date of first disbursement"
-                  + (data.GraceMonths is { } g ? $", inclusive of a {NairaAmountInWords.Convert(g)} ({g}) month grace period." : ".")
+                ? $"{NairaAmountInWords.Convert(m)} ({m}) months from the date of first disbursement."
                 : "As set out in the approved credit terms.");
-
-            if (data.GraceMonths is { } grace)
-                Term(table, "Grace period",
-                    $"{grace} months. Principal and interest repayment commences at the end of month {grace}.");
 
             Term(table, "Interest rate", data.InterestRatePercent is { } rate
                 ? $"{rate:0.##}% per annum, subject to variation as advised by the Central Bank of Nigeria."
@@ -348,22 +341,12 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
     {
         Heading(col, "Repayment");
 
-        if (data.GraceMonths is { } grace)
-        {
-            col.Item().Text(
-                $"A grace period of {NairaAmountInWords.Convert(grace)} ({grace}) months shall apply from the date "
-                + "of first disbursement, during which no repayment falls due. On expiry of the grace period the "
-                + "borrower shall commence monthly repayment of principal and accrued interest. Any outstanding "
-                + "principal together with accrued but unpaid interest shall be repaid in full on or before expiry "
-                + "of the loan tenor.");
-        }
-        else
-        {
-            col.Item().Text(
-                "Repayment falls due in accordance with the schedule set out in the approved credit terms. Any "
-                + "outstanding principal together with accrued but unpaid interest shall be repaid in full on or "
-                + "before expiry of the loan tenor.");
-        }
+        // One bullet payment at harvest, so there is no instalment schedule and no grace period to
+        // describe — the wording below is the whole repayment obligation.
+        col.Item().Text(
+            "Repayment falls due in accordance with the schedule set out in the approved credit terms. Any "
+            + "outstanding principal together with accrued but unpaid interest shall be repaid in full on or "
+            + "before expiry of the loan tenor.");
 
         if (data.InterestCharge is { } interest && data.AmountDueAtHarvest is { } due)
             col.Item().PaddingTop(4).Text(

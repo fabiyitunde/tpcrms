@@ -41,11 +41,6 @@ public record RhshfOfferDocumentData(
     decimal? InterestRatePercent,
     int? TenorMonths,
 
-    /// <summary>Months of the tenor during which no repayment falls due. Null until the bank settles
-    /// whether this comes from the core banking product or is set per case; the repayment section
-    /// then describes the schedule without naming a grace period.</summary>
-    int? GraceMonths,
-
     decimal? AmountDueAtHarvest,
     decimal? InterestCharge,
     int? FarmerCount,
