@@ -2,6 +2,7 @@ using CRMS.Application.Rhshf.Interfaces;
 using CRMS.Domain.Aggregates.Rhshf;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace CRMS.Application.Rhshf.Services;
 
@@ -26,15 +27,18 @@ public class RhshfOfferDocumentDataBuilder
     private readonly IRhshfCollateralRepository _collateralRepo;
     private readonly ILoanProductRepository _loanProductRepo;
     private readonly IFineractDirectService _fineract;
+    private readonly ILogger<RhshfOfferDocumentDataBuilder> _logger;
 
     public RhshfOfferDocumentDataBuilder(
         IRhshfCollateralRepository collateralRepo,
         ILoanProductRepository loanProductRepo,
-        IFineractDirectService fineract)
+        IFineractDirectService fineract,
+        ILogger<RhshfOfferDocumentDataBuilder> logger)
     {
         _collateralRepo = collateralRepo;
         _loanProductRepo = loanProductRepo;
         _fineract = fineract;
+        _logger = logger;
     }
 
     public async Task<RhshfOfferDocumentData> BuildAsync(
@@ -42,7 +46,7 @@ public class RhshfOfferDocumentDataBuilder
     {
         var appraisal = profile.GetCurrentCycleFinancialAppraisal();
         var collateral = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
-        var productFees = await ResolveProductFeesAsync(ct);
+        var productFees = await ResolveProductFeesAsync(profile, ct);
 
         return new RhshfOfferDocumentData(
             Reference: profile.Reference,
@@ -128,8 +132,14 @@ public class RhshfOfferDocumentDataBuilder
     /// in CRMS — the letter must state what will actually be deducted. A lookup failure leaves the
     /// list empty and the document falls back to "per the approved credit terms": an offer must not
     /// fail to generate because a product catalogue call did not answer.
+    /// <para>
+    /// Anything the EOP already finances is dropped before it reaches the letter. The programme's
+    /// rule is that no fee may be financed and then deducted again, so a letter that lists insurance
+    /// or working capital as "deducted at disbursement" when the borrower has already borrowed it
+    /// would be promising exactly the double charge the rule forbids.
+    /// </para>
     /// </summary>
-    private async Task<List<RhshfOfferFee>> ResolveProductFeesAsync(CancellationToken ct)
+    private async Task<List<RhshfOfferFee>> ResolveProductFeesAsync(RhshfCreditProfile profile, CancellationToken ct)
     {
         var product = await _loanProductRepo.GetActiveRhshfProductAsync(ct);
         if (product?.FineractProductId is null or <= 0)
@@ -140,10 +150,36 @@ public class RhshfOfferDocumentDataBuilder
             return [];
 
         var match = catalogue.Value.FirstOrDefault(p => p.Id == product.FineractProductId);
-        return match is null
-            ? []
-            : match.ProductCharges.Select(c => new RhshfOfferFee(c.Name, c.Display)).ToList();
+        if (match is null)
+            return [];
+
+        var financed = profile.FinancingCharges
+            .Where(c => c.InLoan)
+            .Select(c => (c.Code, c.Label))
+            .ToList();
+
+        var fees = new List<RhshfOfferFee>();
+        foreach (var charge in match.ProductCharges)
+        {
+            if (RhshfFinancedChargeMatcher.IsAlreadyFinanced(charge.Name, financed))
+            {
+                // Suppressing the line keeps the letter honest, but it does not stop core banking
+                // deducting the fee — only fixing the product does. Logged with the reference so the
+                // misconfiguration is traceable to the case that exposed it.
+                _logger.LogWarning(
+                    "RH-SHF {Reference}: core banking product {ProductId} charges \"{Charge}\", which this " +
+                    "EOP already finances. Left off the offer letter; the product configuration needs fixing " +
+                    "or the borrower will be charged twice.",
+                    profile.Reference, match.Id, charge.Name);
+                continue;
+            }
+
+            fees.Add(new RhshfOfferFee(charge.Name, charge.Display));
+        }
+
+        return fees;
     }
+
 
     /// <summary>The CAC registered address where one was fetched, otherwise the location the portal
     /// supplied. Empty rather than a stub when neither is known.</summary>

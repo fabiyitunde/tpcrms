@@ -15,7 +15,8 @@ public class RatifyRhshfCaseHandlerTests
 
     /// <summary>The document payload builder, with the fakes the handler itself no longer holds.</summary>
     private static RhshfOfferDocumentDataBuilder Builder() =>
-        new(new FakeCollateralRepo(), new FakeLoanProductRepo(), new FakeFineract());
+        new(new FakeCollateralRepo(), new FakeLoanProductRepo(), new FakeFineract(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RhshfOfferDocumentDataBuilder>.Instance);
 
     private static RhshfCreditProfile MakeProfileAtRatification()
     {
