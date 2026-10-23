@@ -67,6 +67,24 @@
         else
         {
             <div class="card-body">
+                @* Core banking is configured to deduct something this EOP already financed. The letter
+                   is correct — the charge was left off it — but the deduction still happens at booking
+                   until somebody changes the product, so this has to reach a person, not just a log. *@
+                @if (!string.IsNullOrEmpty(Offer.SuppressedProductFees))
+                {
+                    <div class="alert alert-warning" style="margin-bottom: 1rem; font-size: 0.875rem;">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">error</span>
+                        <strong>Core banking would charge this borrower twice.</strong>
+                        The loan product in core banking charges <strong>@Offer.SuppressedProductFees</strong>,
+                        which this EOP already finances. It was left off the offer letter, but core banking
+                        will still deduct it at disbursement until the product is corrected.
+                        <div style="margin-top: 0.4rem;">
+                            Ask whoever maintains the core banking product to remove that charge, then use
+                            Regenerate to re-check. The programme's rule is that the approved EOP, this letter
+                            and the booking must reconcile to the same figures.
+                        </div>
+                    </div>
+                }
                 @if (string.IsNullOrEmpty(Offer.OfferDocumentPath))
                 {
                     <div class="alert alert-warning" style="margin-bottom: 1rem; font-size: 0.875rem;">

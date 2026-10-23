@@ -82,8 +82,8 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
             // FAC signs and returns a single file — and RhshfOffer.AttachKfs is deliberately NOT
             // called, which is what makes HasRequiredSignedDocuments ask for one signature instead
             // of two. Offers issued before this change keep their KFS and still require both.
-            var pdfBytes = await _offerDocumentGenerator.GenerateAsync(
-                await _documentDataBuilder.BuildAsync(profile, request.ApprovedAmount!.Value, ct), ct);
+            var build = await _documentDataBuilder.BuildAsync(profile, request.ApprovedAmount!.Value, ct);
+            var pdfBytes = await _offerDocumentGenerator.GenerateAsync(build.Data, ct);
 
             var storagePath = await _fileStorage.UploadAsync(
                 OfferContainerName, $"{profile.Reference}/offer-cycle{cycleNumber}.pdf", pdfBytes, "application/pdf", ct);
@@ -91,6 +91,10 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
             var offerResult = RhshfOffer.Create(profile.Id, cycleNumber, storagePath);
             if (offerResult.IsFailure)
                 return ApplicationResult.Failure(offerResult.Error);
+
+            // Anything core banking would have deducted twice. Recorded on the offer so the case
+            // shows it to whoever can get the product fixed.
+            offerResult.Value.RecordSuppressedProductFees(build.SuppressedProductFees);
 
             await _offerRepo.AddAsync(offerResult.Value, ct);
         }

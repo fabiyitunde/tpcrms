@@ -59,8 +59,8 @@ public class RegenerateRhshfOfferLetterHandler : IRequestHandler<RegenerateRhshf
         // different set of documents from the one they were first sent — and, worse, attached a Key
         // Facts Statement to an offer issued without one, which then demanded a second signed copy
         // the borrower had never been given.
-        var pdfBytes = await _offerDocumentGenerator.GenerateAsync(
-            await _documentDataBuilder.BuildAsync(profile, profile.ApprovedAmount.Value, ct), ct);
+        var build = await _documentDataBuilder.BuildAsync(profile, profile.ApprovedAmount.Value, ct);
+        var pdfBytes = await _offerDocumentGenerator.GenerateAsync(build.Data, ct);
 
         var storagePath = await _fileStorage.UploadAsync(
             OfferContainerName, $"{profile.Reference}/offer-cycle{offer.CycleNumber}.pdf", pdfBytes, "application/pdf", ct);
@@ -68,6 +68,10 @@ public class RegenerateRhshfOfferLetterHandler : IRequestHandler<RegenerateRhshf
         var result = offer.RegenerateDocument(storagePath);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
+
+        // Re-checked on every reissue, so fixing the product clears the warning and a product that
+        // has since drifted raises one.
+        offer.RecordSuppressedProductFees(build.SuppressedProductFees);
 
         // The offer was loaded tracked, so the document path change persists on save.
         await _uow.SaveChangesAsync(ct);

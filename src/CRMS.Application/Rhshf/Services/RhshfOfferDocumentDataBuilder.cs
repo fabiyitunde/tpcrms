@@ -41,14 +41,14 @@ public class RhshfOfferDocumentDataBuilder
         _logger = logger;
     }
 
-    public async Task<RhshfOfferDocumentData> BuildAsync(
+    public async Task<RhshfOfferDocumentBuild> BuildAsync(
         RhshfCreditProfile profile, decimal approvedAmount, CancellationToken ct)
     {
         var appraisal = profile.GetCurrentCycleFinancialAppraisal();
         var collateral = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
-        var productFees = await ResolveProductFeesAsync(profile, ct);
+        var (productFees, suppressed) = await ResolveProductFeesAsync(profile, ct);
 
-        return new RhshfOfferDocumentData(
+        var data = new RhshfOfferDocumentData(
             Reference: profile.Reference,
             CompanyName: profile.CompanyName,
             RcNumber: profile.RcNumber,
@@ -70,6 +70,8 @@ public class RhshfOfferDocumentDataBuilder
             SecurityDescriptions: collateral.Select(DescribeSecurity).ToList(),
             FeesAccount: FeesAccount,
             ValidityDays: OfferValidityDays);
+
+        return new RhshfOfferDocumentBuild(data, suppressed);
     }
 
     /// <summary>
@@ -139,19 +141,20 @@ public class RhshfOfferDocumentDataBuilder
     /// would be promising exactly the double charge the rule forbids.
     /// </para>
     /// </summary>
-    private async Task<List<RhshfOfferFee>> ResolveProductFeesAsync(RhshfCreditProfile profile, CancellationToken ct)
+    private async Task<(List<RhshfOfferFee> Fees, List<string> Suppressed)> ResolveProductFeesAsync(
+        RhshfCreditProfile profile, CancellationToken ct)
     {
         var product = await _loanProductRepo.GetActiveRhshfProductAsync(ct);
         if (product?.FineractProductId is null or <= 0)
-            return [];
+            return ([], []);
 
         var catalogue = await _fineract.GetLoanProductsAsync(activeOnly: true, ct);
         if (catalogue.IsFailure)
-            return [];
+            return ([], []);
 
         var match = catalogue.Value.FirstOrDefault(p => p.Id == product.FineractProductId);
         if (match is null)
-            return [];
+            return ([], []);
 
         var financed = profile.FinancingCharges
             .Where(c => c.InLoan)
@@ -159,25 +162,29 @@ public class RhshfOfferDocumentDataBuilder
             .ToList();
 
         var fees = new List<RhshfOfferFee>();
+        var suppressed = new List<string>();
+
         foreach (var charge in match.ProductCharges)
         {
             if (RhshfFinancedChargeMatcher.IsAlreadyFinanced(charge.Name, financed))
             {
                 // Suppressing the line keeps the letter honest, but it does not stop core banking
-                // deducting the fee — only fixing the product does. Logged with the reference so the
-                // misconfiguration is traceable to the case that exposed it.
+                // deducting the fee — only fixing the product does. Logged with the reference, and
+                // returned so the case itself can show it to whoever can act.
                 _logger.LogWarning(
                     "RH-SHF {Reference}: core banking product {ProductId} charges \"{Charge}\", which this " +
                     "EOP already finances. Left off the offer letter; the product configuration needs fixing " +
                     "or the borrower will be charged twice.",
                     profile.Reference, match.Id, charge.Name);
+
+                suppressed.Add(charge.Name);
                 continue;
             }
 
             fees.Add(new RhshfOfferFee(charge.Name, charge.Display));
         }
 
-        return fees;
+        return (fees, suppressed);
     }
 
 
@@ -225,3 +232,15 @@ public class RhshfOfferDocumentDataBuilder
         string.IsNullOrWhiteSpace(reference) ? "" : $" (reference {reference.Trim()})";
 
 }
+
+/// <summary>
+/// The offer document payload, plus anything the caller needs to act on afterwards.
+/// <para>
+/// The suppressed fees travel with the data rather than being left to a log line: the letter is
+/// correct without them, but core banking will still deduct them until the product is fixed, and
+/// that is a thing a person has to do.
+/// </para>
+/// </summary>
+public record RhshfOfferDocumentBuild(
+    RhshfOfferDocumentData Data,
+    IReadOnlyList<string> SuppressedProductFees);

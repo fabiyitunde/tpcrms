@@ -21,10 +21,34 @@ public class RhshfOffer : AggregateRoot
     public DateTime? FacRespondedAt { get; private set; }
     public string? FacResponseNotes { get; private set; }
 
+    /// <summary>
+    /// Core banking charges that were left off this letter because the EOP already finances them,
+    /// null when there were none.
+    /// <para>
+    /// Recorded on the offer rather than only logged: the letter is correct, but core banking will
+    /// still deduct the fee at booking unless somebody changes the product, and a log line is not
+    /// something an officer working this case will ever see. Kept as what was true when the letter
+    /// was issued, so a later product fix does not erase the fact that an offer went out against a
+    /// misconfigured product.
+    /// </para>
+    /// </summary>
+    public string? SuppressedProductFees { get; private set; }
+
     private readonly List<RhshfOfferDocument> _documents = [];
     public IReadOnlyCollection<RhshfOfferDocument> Documents => _documents.AsReadOnly();
 
     protected RhshfOffer() { }
+
+    /// <summary>
+    /// Notes the core banking charges left off the letter. Called on generation and again on a
+    /// reissue, so the record follows the document actually in the borrower's hands — including
+    /// clearing it once the product has been fixed and nothing collides any more.
+    /// </summary>
+    public void RecordSuppressedProductFees(IEnumerable<string>? feeNames)
+    {
+        var names = feeNames?.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).Distinct().ToList();
+        SuppressedProductFees = names is null || names.Count == 0 ? null : string.Join(", ", names);
+    }
 
     public static Result<RhshfOffer> Create(Guid rhshfCreditProfileId, int cycleNumber, string offerDocumentPath)
     {

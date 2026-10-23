@@ -7940,6 +7940,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
 
+                    b.Property<string>("SuppressedProductFees")
+                        .HasColumnType("longtext");
+
                     b.HasKey("Id");
 
                     b.HasIndex("RhshfCreditProfileId", "CycleNumber");

@@ -30,7 +30,11 @@ public record RhshfOfferDto(
     decimal? AmountDueAtHarvest,
     DateTime? FacRespondedAt,
     string? FacResponseNotes,
-    List<RhshfOfferDocumentDto> SignedDocuments);
+    List<RhshfOfferDocumentDto> SignedDocuments,
+
+    /// <summary>Core banking charges left off this letter because the EOP already finances them.
+    /// Null when there were none. The letter is right either way; the product still needs fixing.</summary>
+    string? SuppressedProductFees = null);
 
 public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, ApplicationResult<RhshfOfferDto>>
 {
@@ -60,6 +64,7 @@ public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, Applicat
             profile.ApprovedAmount, profile.Currency,
             appraisal?.InterestRatePercent, appraisal?.CycleMonths, appraisal?.AmountDueAtHarvest,
             offer.FacRespondedAt, offer.FacResponseNotes,
-            offer.Documents.Select(d => new RhshfOfferDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt, d.Kind)).ToList()));
+            offer.Documents.Select(d => new RhshfOfferDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt, d.Kind)).ToList(),
+            offer.SuppressedProductFees));
     }
 }
