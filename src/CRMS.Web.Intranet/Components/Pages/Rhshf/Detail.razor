@@ -205,7 +205,7 @@ else
         <div class="tab @(activeTab == "directors" ? "active" : "")" @onclick='async () => { activeTab = "directors"; await EnsureDirectorCrossCheckLoaded(); }'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">groups</span>Directors &amp; Signatories
         </div>
-        <div class="tab @(activeTab == "documents" ? "active" : "")" @onclick='() => activeTab = "documents"'>
+        <div class="tab @(activeTab == "documents" ? "active" : "")" @onclick='async () => { activeTab = "documents"; await RefreshSupportingDocuments(); }'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">folder_open</span>Documents
         </div>
         <div class="tab @(activeTab == "financialappraisal" ? "active" : "")" @onclick='() => activeTab = "financialappraisal"'>
@@ -685,19 +685,36 @@ else
     private async Task ImportFinancialsFromUpload()
     {
         financialImportMessage = null;
-        var doc = workspace!.SupportingDocuments
-            .Where(d => d.Category == RhshfDocumentCategory.AuditedFinancials)
-            .OrderByDescending(d => d.UploadedAt)
-            .FirstOrDefault();
-        if (doc is null)
-        {
-            financialImportMessage = "No audited-financials document has been uploaded by the FAC.";
-            return;
-        }
-
         isImportingFinancials = true;
         try
         {
+            // Re-read the documents now rather than trusting the copy loaded when the case was
+            // opened. An officer who had this case open while the FAC uploaded would otherwise
+            // import whatever was newest at page load — which is how a replacement sat on the case
+            // unnoticed while the previous file kept being imported.
+            await RefreshSupportingDocuments();
+
+            var doc = workspace!.SupportingDocuments
+                .Where(d => d.Category == RhshfDocumentCategory.AuditedFinancials)
+                .OrderByDescending(d => d.UploadedAt)
+                .FirstOrDefault();
+            if (doc is null)
+            {
+                financialImportMessage = "No audited-financials document has been uploaded by the FAC.";
+                return;
+            }
+
+            // Documents attached before the upload rules existed can be anything at all — a scan, a
+            // resume filed in the wrong slot. Say which file and what is wrong with it, rather than
+            // handing the officer the spreadsheet library's "corrupted data".
+            if (!LooksLikeAWorkbook(doc.FileName, doc.ContentType))
+            {
+                financialImportMessage =
+                    $"\"{doc.FileName}\" is not an Excel workbook, so there is nothing to import from it. " +
+                    "Ask the FAC to upload the filled financial statements template against Audited Financial Statements.";
+                return;
+            }
+
             var file = await AppService.DownloadRhshfSupportingDocumentAsync(doc.Id);
             if (file is null) { financialImportMessage = "Could not read the uploaded financials file."; return; }
 
@@ -730,6 +747,34 @@ else
         {
             isImportingFinancials = false;
         }
+    }
+
+    /// <summary>
+    /// Whether a document is worth handing to the spreadsheet parser at all.
+    /// <para>
+    /// Checked on the name and the stored content type rather than the bytes: this is a courtesy
+    /// message, not the gate. The gate is on upload, and it only protects documents attached since
+    /// it shipped — every slot filled before that can hold anything.
+    /// </para>
+    /// </summary>
+    private static bool LooksLikeAWorkbook(string fileName, string? contentType) =>
+        fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase)
+        || fileName.EndsWith(".xlsm", StringComparison.OrdinalIgnoreCase)
+        || (contentType ?? "").Contains("spreadsheet", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Re-reads just this case's documents.
+    /// <para>
+    /// The case page loads once and is not told when the FAC changes anything, so anything acting on
+    /// the document list has to ask again first. Narrower than a full reload: it does not disturb
+    /// whatever else the officer has open on the page.
+    /// </para>
+    /// </summary>
+    private async Task RefreshSupportingDocuments()
+    {
+        var fresh = await AppService.GetRhshfCaseWorkspaceAsync(Reference);
+        if (fresh is not null)
+            workspace = fresh;
     }
 
     private async Task SaveFinancialStatement(RhshfFinancialStatementModal.RhshfFinancialStatementFormData data)
