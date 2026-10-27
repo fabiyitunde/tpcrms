@@ -301,6 +301,50 @@ public class GetRhshfCaseStatusHandlerTests
         Assert.DoesNotContain("token=", result.Data.ActionUrl);
     }
 
+    // ── creditStatus (CRMSQA#1) ──────────────────────────────────────────────
+    //
+    // Polling must say the same as the webhook: the portal falls back to this when a push is missed.
+
+    [Fact]
+    public async Task CreditStatus_IsOfferReady_WhileTheOfferWaits()
+    {
+        var profile = AwaitingOfferAcceptance(out var offer);
+        var handler = new GetRhshfCaseStatusHandler(
+            new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
+
+        var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
+
+        Assert.Equal("UNDER_REVIEW", result.Data!.Status);
+        Assert.Equal("OFFER_READY", result.Data.CreditStatus);
+        Assert.Equal("AVAILABLE", result.Data.Offer!.Status);
+        Assert.Equal(TotalEopValue, result.Data.Offer.ApprovedAmount);
+    }
+
+    [Fact]
+    public async Task CreditStatus_IsCorrectionRequired_AfterAReturn_WithTheReasonAndProfilingLink()
+    {
+        var profile = MakeProfile();
+        foreach (var stage in new[]
+        {
+            RhshfProfilingStage.CompanyVerification, RhshfProfilingStage.CreditBureauCheck,
+            RhshfProfilingStage.EopReview, RhshfProfilingStage.SupportingDocuments, RhshfProfilingStage.ReviewAndSubmit,
+        })
+        {
+            profile.AdvanceStageForTest(stage);
+        }
+        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.ReturnToFac, "Upload the signed CAM.", RhshfProfilingStage.SupportingDocuments);
+        var handler = new GetRhshfCaseStatusHandler(
+            new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider());
+
+        var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
+
+        Assert.Equal("CORRECTION_REQUIRED", result.Data!.CreditStatus);
+        Assert.Equal("CORRECT_PROFILE", result.Data.ActionRequired);
+        Assert.Contains("/rhshf/profiling/", result.Data.ActionUrl);
+        Assert.Equal("Upload the signed CAM.", result.Data.Correction!.Message);
+        Assert.Equal("supportingDocuments", result.Data.Correction.Stage);
+    }
+
     private static RhshfCreditProfile AwaitingOfferAcceptance(out RhshfOffer offer)
     {
         var profile = MakeProfile();

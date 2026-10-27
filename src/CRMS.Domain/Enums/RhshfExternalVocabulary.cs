@@ -42,4 +42,24 @@ public static class RhshfExternalVocabulary
         RhshfProfilingStage.ReviewAndSubmit => "reviewAndSubmit",
         _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "Unmapped RhshfProfilingStage."),
     };
+
+    public static string ToExternalEventType(this RhshfCallbackEventType eventType) => eventType switch
+    {
+        RhshfCallbackEventType.Decided => "DECIDED",
+        RhshfCallbackEventType.OfferReady => "OFFER_READY",
+        RhshfCallbackEventType.SubmittedForReview => "SUBMITTED_FOR_REVIEW",
+        RhshfCallbackEventType.CorrectionRequired => "CORRECTION_REQUIRED",
+        RhshfCallbackEventType.CorrectionSubmitted => "CORRECTION_SUBMITTED",
+        RhshfCallbackEventType.OfferAccepted => "OFFER_ACCEPTED",
+        _ => throw new ArgumentOutOfRangeException(nameof(eventType), eventType, "Unmapped RhshfCallbackEventType."),
+    };
+
+    public static string ToExternalOfferStatus(this RhshfOfferStatus status) => status switch
+    {
+        RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse => "AVAILABLE",
+        RhshfOfferStatus.Accepted => "ACCEPTED",
+        RhshfOfferStatus.Rejected => "REJECTED",
+        RhshfOfferStatus.Expired => "EXPIRED",
+        _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unmapped RhshfOfferStatus."),
+    };
 }

@@ -42,6 +42,7 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
             .GroupBy(d => d.Category)
             .ToDictionary(g => g.Key, g => g.Count());
 
+        var outstandingReturn = profile.GetOutstandingReturn();
         var dto = new RhshfProfilingSessionDto(
             Reference: profile.Reference,
             Status: profile.Status,
@@ -98,7 +99,10 @@ public class GetRhshfProfilingSessionHandler : IRequestHandler<GetRhshfProfiling
                 .ToList(),
             IsAwaitingOfferAcceptance: await IsAwaitingOfferAcceptanceAsync(profile, ct),
             DeclaredShareholdingTotal: profile.DeclaredShareholdingTotal,
-            RemainingShareholding: profile.RemainingShareholding());
+            RemainingShareholding: profile.RemainingShareholding(),
+            ReturnReason: outstandingReturn?.Note,
+            ReturnedAt: outstandingReturn?.ChangedAt,
+            IsReturned: outstandingReturn is not null);
 
         return ApplicationResult<RhshfProfilingSessionDto>.Success(dto);
     }

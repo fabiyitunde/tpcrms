@@ -23,7 +23,14 @@ public record RhshfWebhookPayload(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActionRequired = null,
     /// <summary>Where the FAC must go to satisfy ActionRequired — the portal appends its own freshly
     /// minted token. Omitted from the JSON when null, same as ActionRequired.</summary>
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActionUrl = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ActionUrl = null,
+    /// <summary>Why this was sent. Additive — the fields below were added for the portal's credit
+    /// status display and are ignored by a consumer that does not know them.</summary>
+    string? EventType = null,
+    string? CreditStatus = null,
+    int StateVersion = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RhshfPortalOfferPayload? Offer = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RhshfPortalCorrectionPayload? Correction = null);
 
 public record RhshfWebhookDecisionPayload(
     string Outcome,
@@ -33,29 +40,21 @@ public record RhshfWebhookDecisionPayload(
     DateTime DecidedAt,
     string DecidedBy);
 
-/// <summary>Builds the exact envelope for either event type off the profile's CURRENT state —
-/// safe because both events only ever fire once the state they describe is settled (Decided is
-/// terminal; OfferReady's Ratification outcome doesn't change while a retry is pending).</summary>
+/// <summary>Builds the envelope off the profile's CURRENT state, not the state when the event fired.
+/// A retry that lands after the case has moved on therefore reports where the case is now — with a
+/// higher stateVersion — rather than replaying a stale instruction such as "review the offer" for an
+/// offer already accepted. The event type only records what prompted the send.</summary>
 public static class RhshfWebhookPayloadBuilder
 {
-    /// <param name="offerUrl">The FAC-facing offer page for this case, resolved by the caller (which
-    /// has the configured public host). Only meaningful for OfferReady; null omits it.</param>
+    /// <param name="currentOffer">The offer for the profile's current cycle, if any.</param>
+    /// <param name="offerUrl">The FAC-facing offer page, resolved by the caller (which has the
+    /// configured public host); null omits it.</param>
+    /// <param name="profilingUrl">The FAC-facing profiling form, for a correction; null omits it.</param>
     public static RhshfWebhookPayload Build(
         RhshfCreditProfile profile, RhshfCallbackEventType eventType, string eventId, DateTime eventOccurredAt,
-        string? offerUrl = null)
+        RhshfOffer? currentOffer = null, string? offerUrl = null, string? profilingUrl = null)
     {
-        if (eventType == RhshfCallbackEventType.OfferReady)
-        {
-            return new RhshfWebhookPayload(
-                Reference: profile.Reference,
-                SubmissionId: profile.SubmissionId,
-                Status: profile.Status.ToExternalStatus(),
-                Decision: null,
-                EventId: eventId,
-                OccurredAt: eventOccurredAt,
-                ActionRequired: "REVIEW_OFFER",
-                ActionUrl: offerUrl);
-        }
+        var state = RhshfPortalStateBuilder.Build(profile, currentOffer, offerUrl, profilingUrl);
 
         return new RhshfWebhookPayload(
             Reference: profile.Reference,
@@ -63,7 +62,14 @@ public static class RhshfWebhookPayloadBuilder
             Status: profile.Status.ToExternalStatus(),
             Decision: BuildDecision(profile, eventOccurredAt),
             EventId: eventId,
-            OccurredAt: eventOccurredAt);
+            OccurredAt: eventOccurredAt,
+            ActionRequired: state.ActionRequired,
+            ActionUrl: state.ActionUrl,
+            EventType: eventType.ToExternalEventType(),
+            CreditStatus: state.CreditStatus,
+            StateVersion: state.StateVersion,
+            Offer: state.Offer,
+            Correction: state.Correction);
     }
 
     /// <summary>"reasons" is populated on DECLINE / INFO_REQUIRED only (brief §4.4) — DecisionNotes

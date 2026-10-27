@@ -60,6 +60,20 @@ public class RhshfCallbackAttempt : AggregateRoot
             NextRetryAt = nextRetryAt,
         };
 
+    /// <summary>A staff-requested re-send of an event the automatic retries gave up on (or the
+    /// portal says it never saw). Same EventId so a portal that did process it ignores the repeat;
+    /// AttemptNumber restarts so the re-send gets its own full set of retries.</summary>
+    public RhshfCallbackAttempt CreateManualResend()
+        => new()
+        {
+            RhshfCreditProfileId = RhshfCreditProfileId,
+            EventId = EventId,
+            EventType = EventType,
+            EventOccurredAt = EventOccurredAt,
+            AttemptNumber = 1,
+            NextRetryAt = DateTime.UtcNow,
+        };
+
     /// <summary>Records the outcome of actually sending this attempt. Clears NextRetryAt regardless
     /// of outcome — on success there is nothing left to retry; on failure, the caller decides
     /// separately (via CreateRetry) whether a new row is warranted, so this row itself is done

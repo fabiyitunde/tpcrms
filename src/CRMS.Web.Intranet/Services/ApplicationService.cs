@@ -7996,6 +7996,38 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Every update sent (or being sent) to the portal for a case, newest first.</summary>
+    public async Task<List<CRMS.Application.Rhshf.Queries.RhshfPortalUpdateDto>> GetRhshfPortalUpdatesAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfPortalUpdatesHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfPortalUpdatesQuery(reference), CancellationToken.None);
+            return result.IsSuccess && result.Data is not null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF portal updates for {Reference}", reference);
+            return [];
+        }
+    }
+
+    /// <summary>Re-queues one portal update by its event id.</summary>
+    public async Task<ApiResponse> ResendRhshfPortalUpdateAsync(string reference, string eventId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ResendRhshfPortalUpdateHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.ResendRhshfPortalUpdateCommand(reference, eventId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Re-send failed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error re-sending RH-SHF portal update {EventId} for {Reference}", eventId, reference);
+            return ApiResponse.Fail("Re-send failed");
+        }
+    }
+
     /// <summary>Previews the committee a case will route to on risk clearance (tier + standing roster), no writes.</summary>
     public async Task<CRMS.Application.Rhshf.Queries.RhshfCommitteeRoutingPreviewDto?> GetRhshfCommitteeRoutingPreviewAsync(string reference)
     {

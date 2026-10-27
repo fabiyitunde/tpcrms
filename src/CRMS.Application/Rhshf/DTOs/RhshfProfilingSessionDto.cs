@@ -52,7 +52,13 @@ public record RhshfProfilingSessionDto(
     /// the running total, the input ceiling, and the over-/under-allocated messages — all computed
     /// on the aggregate so the page and the server agree on the arithmetic.</summary>
     decimal DeclaredShareholdingTotal = 0m,
-    decimal RemainingShareholding = 100m);
+    decimal RemainingShareholding = 100m,
+    /// <summary>Set while a return from the bank is unanswered: the officer's reason, and when.
+    /// The FAC arrives here from the portal's "correction required" prompt, so the form has to say
+    /// what to fix, not just reopen.</summary>
+    string? ReturnReason = null,
+    DateTime? ReturnedAt = null,
+    bool IsReturned = false);
 
 public record RhshfSupportingDocumentDto(Guid Id, string FileName, long SizeBytes, DateTime UploadedAt)
 {

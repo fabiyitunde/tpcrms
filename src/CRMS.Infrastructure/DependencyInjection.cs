@@ -816,6 +816,9 @@ public static class DependencyInjection
         services.AddScoped<IRhshfCallbackAttemptRepository, RhshfCallbackAttemptRepository>();
         services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfCaseDecidedEvent>, RhshfCaseDecidedCallbackHandler>();
         services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfOfferReadyEvent>, RhshfOfferReadyCallbackHandler>();
+        services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfPortalUpdateEvent>, RhshfPortalUpdateCallbackHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfPortalUpdatesHandler>();
+        services.AddScoped<Application.Rhshf.Commands.ResendRhshfPortalUpdateHandler>();
         services.AddScoped<RhshfCallbackDispatcher>();
         services.AddHostedService<RhshfCallbackBackgroundService>();
 

@@ -98,6 +98,22 @@ else
         }
     </form>
 
+    @if (Model.Session.IsReturned)
+    {
+        <div class="alert alert-warning">
+            <strong>The Bank of Agriculture has returned your profile for correction</strong>
+            @if (Model.Session.ReturnedAt is DateTime returnedAt)
+            {
+                <span class="text-muted small">(@returnedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm"))</span>
+            }
+            <div class="mt-1">
+                @(string.IsNullOrWhiteSpace(Model.Session.ReturnReason)
+                    ? "Please review your profile and resubmit it."
+                    : Model.Session.ReturnReason)
+            </div>
+            <div class="small text-muted mt-1">Make the changes, then submit again from the last step.</div>
+        </div>
+    }
     @if (!string.IsNullOrEmpty(Model.ErrorMessage))
     {
         <div class="alert alert-danger">@Model.ErrorMessage</div>

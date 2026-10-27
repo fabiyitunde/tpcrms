@@ -23,7 +23,12 @@ public record RhshfCaseStatusDto(
     /// <summary>Where the FAC must go to satisfy ActionRequired. Returned beside it so the portal
     /// never has to hardcode a CRMS route; the portal appends a freshly minted token itself. Null
     /// when no action is pending, or when no public host is configured.</summary>
-    string? ActionUrl);
+    string? ActionUrl,
+    /// <summary>The finer-grained status for display; see RhshfPortalState.</summary>
+    string CreditStatus,
+    int StateVersion,
+    RhshfPortalOfferPayload? Offer,
+    RhshfPortalCorrectionPayload? Correction);
 
 public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery, ApplicationResult<RhshfCaseStatusDto>>
 {
@@ -54,21 +59,12 @@ public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery
 
         var decision = RhshfWebhookPayloadBuilder.BuildDecision(profile, profile.DecidedAt ?? profile.UpdatedAt);
 
-        // "REVIEW_OFFER" only while an offer is awaiting the FAC's response (§6 #10) — not before
-        // (no offer generated yet) and not after (already accepted/rejected).
-        string? actionRequired = null;
-        string? actionUrl = null;
-        if (profile.InternalStage == RhshfInternalStage.AwaitingOfferAcceptance)
-        {
-            var offer = await _offerRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
-            if (offer is not null && offer.Status == RhshfOfferStatus.Generated)
-            {
-                actionRequired = "REVIEW_OFFER";
-                // The profiling URL the portal already holds points at a completed wizard with no
-                // route onward, so without this the FAC has nowhere to go and the case stalls.
-                actionUrl = _urls.OfferUrl(profile.Reference);
-            }
-        }
+        // Same derivation as the webhook, so polling and the push can never tell the portal two
+        // different things. "REVIEW_OFFER" only while an offer is awaiting the FAC's response (§6
+        // #10); "CORRECT_PROFILE" only while a return is unanswered.
+        var offer = await _offerRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
+        var state = RhshfPortalStateBuilder.Build(
+            profile, offer, _urls.OfferUrl(profile.Reference), _urls.ProfilingUrl(profile.Reference));
 
         var dto = new RhshfCaseStatusDto(
             Reference: profile.Reference,
@@ -77,8 +73,12 @@ public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery
             Stage: stage,
             Decision: decision,
             UpdatedAt: profile.UpdatedAt,
-            ActionRequired: actionRequired,
-            ActionUrl: actionUrl);
+            ActionRequired: state.ActionRequired,
+            ActionUrl: state.ActionUrl,
+            CreditStatus: state.CreditStatus,
+            StateVersion: state.StateVersion,
+            Offer: state.Offer,
+            Correction: state.Correction);
 
         return ApplicationResult<RhshfCaseStatusDto>.Success(dto);
     }

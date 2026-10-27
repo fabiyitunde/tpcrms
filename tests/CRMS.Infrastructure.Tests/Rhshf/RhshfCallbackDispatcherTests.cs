@@ -56,7 +56,8 @@ public class RhshfCallbackDispatcherTests
     }
 
     private static RhshfCallbackDispatcher MakeDispatcher(CRMSDbContext db, FakeCallbackService fakeCallback)
-        => new(db, new RhshfCreditProfileRepository(db), new RhshfCallbackAttemptRepository(db), fakeCallback, db,
+        => new(db, new RhshfCreditProfileRepository(db), new RhshfCallbackAttemptRepository(db),
+            new RhshfOfferRepository(db), fakeCallback, db,
             new FakeRhshfPublicUrlProvider(), NullLogger<RhshfCallbackDispatcher>.Instance);
 
     [Fact]
@@ -164,5 +165,54 @@ public class RhshfCallbackDispatcherTests
 
         Assert.Equal(0, processed);
         Assert.Empty(fakeCallback.SentPayloads);
+    }
+
+    // ── Staff view and manual re-send (CRMSQA#1) ─────────────────────────────
+
+    private static async Task<RhshfCallbackAttempt> ExhaustedAttempt(CRMSDbContext db, RhshfCreditProfile profile)
+    {
+        var attempt = RhshfCallbackAttempt.CreateFirst(profile.Id, RhshfCallbackEventType.OfferReady, DateTime.UtcNow);
+        typeof(RhshfCallbackAttempt).GetProperty(nameof(RhshfCallbackAttempt.AttemptNumber))!
+            .SetValue(attempt, RhshfCallbackDispatcher.MaxAttempts);
+        db.RhshfCallbackAttempts.Add(attempt);
+        await db.SaveChangesAsync();
+        await MakeDispatcher(db, new FakeCallbackService(new RhshfCallbackSendResult(false, 503, "down")))
+            .ProcessDueAttemptsAsync();
+        return attempt;
+    }
+
+    [Fact]
+    public async Task PortalUpdates_ShowAnExhaustedUpdateAsNotDelivered()
+    {
+        var (db, profile) = MakeHarness();
+        await ExhaustedAttempt(db, profile);
+        var query = new Application.Rhshf.Queries.GetRhshfPortalUpdatesHandler(
+            new RhshfCreditProfileRepository(db), new RhshfCallbackAttemptRepository(db));
+
+        var result = await query.Handle(new Application.Rhshf.Queries.GetRhshfPortalUpdatesQuery(profile.Reference));
+
+        var update = Assert.Single(result.Data!);
+        Assert.Equal(Application.Rhshf.Queries.RhshfPortalUpdateState.Failed, update.State);
+        Assert.Equal(503, update.LastResponseStatusCode);
+    }
+
+    [Fact]
+    public async Task Resend_RequeuesTheSameEvent_WithAFreshSetOfRetries()
+    {
+        var (db, profile) = MakeHarness();
+        var original = await ExhaustedAttempt(db, profile);
+        var resend = new Application.Rhshf.Commands.ResendRhshfPortalUpdateHandler(
+            new RhshfCreditProfileRepository(db), new RhshfCallbackAttemptRepository(db), db);
+
+        var result = await resend.Handle(new Application.Rhshf.Commands.ResendRhshfPortalUpdateCommand(profile.Reference, original.EventId));
+
+        Assert.True(result.IsSuccess);
+        var queued = Assert.Single(await db.RhshfCallbackAttempts.Where(a => a.NextRetryAt != null).ToListAsync());
+        Assert.Equal(original.EventId, queued.EventId); // the portal de-dupes on it
+        Assert.Equal(1, queued.AttemptNumber);
+
+        // A second click while that one is still queued would only send the same thing twice.
+        var again = await resend.Handle(new Application.Rhshf.Commands.ResendRhshfPortalUpdateCommand(profile.Reference, original.EventId));
+        Assert.False(again.IsSuccess);
     }
 }

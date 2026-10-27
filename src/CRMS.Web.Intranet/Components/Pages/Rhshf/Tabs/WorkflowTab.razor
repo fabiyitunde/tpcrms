@@ -65,6 +65,73 @@
     </div>
 </div>
 
+@* What the portal has been told, and whether it got through. The portal is where the FAC sees
+   their case, so an update stuck here is the usual reason "the FAC says it still shows under
+   review". *@
+<div class="card" style="margin-top: var(--space-6);">
+    <div class="card-header">
+        <h3 class="card-title">Portal Updates</h3>
+        @if (PortalUpdates.Any(u => u.State == RhshfPortalUpdateState.Failed))
+        {
+            <span class="badge badge-danger">Not delivered</span>
+        }
+    </div>
+    <div class="card-body">
+        @if (PortalUpdates.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">sync_alt</span></div>
+                <div class="empty-state-title">No updates sent yet</div>
+                <div class="empty-state-text">
+                    The portal is told when the case is submitted, returned to the FAC, resubmitted,
+                    offered, accepted and decided.
+                </div>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr><th>Update</th><th>Raised</th><th>Delivery</th><th>Tries</th><th>Last try</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in PortalUpdates)
+                    {
+                        <tr>
+                            <td>@UpdateLabel(u.EventType)</td>
+                            <td>@u.OccurredAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
+                            <td>
+                                <span class="badge @DeliveryBadgeClass(u.State)">@DeliveryLabel(u)</span>
+                            </td>
+                            <td>@u.Attempts</td>
+                            <td>
+                                @if (u.LastAttemptAt is not null)
+                                {
+                                    @u.LastAttemptAt.Value.ToLocalTime().ToString("MMM dd, HH:mm")
+                                    @if (u.LastResponseStatusCode is not null) { <span class="text-muted"> (HTTP @u.LastResponseStatusCode)</span> }
+                                }
+                                else { <span class="text-muted">Not yet</span> }
+                            </td>
+                            <td style="text-align: right;">
+                                @if (CanResend && u.State != RhshfPortalUpdateState.Retrying)
+                                {
+                                    <button class="btn btn-ghost btn-sm" disabled="@(ResendingEventId is not null)"
+                                            @onclick="() => OnResend.InvokeAsync(u.EventId)"
+                                            title="Queue this update to be sent to the portal again. It carries the case's current state.">
+                                        @if (ResendingEventId == u.EventId) { <span class="spinner" style="width: 12px; height: 12px;"></span> }
+                                        else { <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">send</span> }
+                                        Send again
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
 <style>
     .timeline {
         position: relative;
@@ -204,6 +271,36 @@
     [Parameter] public RhshfCaseStatus CurrentStatus { get; set; }
     [Parameter] public RhshfInternalStage? CurrentInternalStage { get; set; }
     [Parameter] public RhshfProfilingStage? CurrentProfilingStage { get; set; }
+    [Parameter] public List<RhshfPortalUpdateDto> PortalUpdates { get; set; } = [];
+    [Parameter] public bool CanResend { get; set; }
+    [Parameter] public string? ResendingEventId { get; set; }
+    [Parameter] public EventCallback<string> OnResend { get; set; }
+
+    private static string UpdateLabel(RhshfCallbackEventType type) => type switch
+    {
+        RhshfCallbackEventType.SubmittedForReview => "Submitted for review",
+        RhshfCallbackEventType.CorrectionRequired => "Returned to the FAC",
+        RhshfCallbackEventType.CorrectionSubmitted => "Correction resubmitted",
+        RhshfCallbackEventType.OfferReady => "Offer ready",
+        RhshfCallbackEventType.OfferAccepted => "Offer accepted",
+        RhshfCallbackEventType.Decided => "Final outcome",
+        _ => type.ToString(),
+    };
+
+    private static string DeliveryLabel(RhshfPortalUpdateDto u) => u.State switch
+    {
+        RhshfPortalUpdateState.Delivered => "Delivered",
+        RhshfPortalUpdateState.Retrying => u.NextRetryAt is DateTime next
+            ? $"Retrying {next.ToLocalTime():HH:mm}" : "Retrying",
+        _ => "Not delivered",
+    };
+
+    private static string DeliveryBadgeClass(RhshfPortalUpdateState state) => state switch
+    {
+        RhshfPortalUpdateState.Delivered => "badge-success",
+        RhshfPortalUpdateState.Retrying => "badge-warning",
+        _ => "badge-danger",
+    };
 
     private string CurrentStateLabel() =>
         CurrentInternalStage is not null ? Humanise(CurrentInternalStage.ToString()!)

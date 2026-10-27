@@ -19,6 +19,11 @@ public class RhshfCallbackAttemptRepository : IRhshfCallbackAttemptRepository
             .OrderBy(x => x.NextRetryAt)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<RhshfCallbackAttempt>> GetByProfileAsync(Guid rhshfCreditProfileId, CancellationToken ct = default)
+        => await _context.RhshfCallbackAttempts
+            .Where(x => x.RhshfCreditProfileId == rhshfCreditProfileId)
+            .ToListAsync(ct);
+
     public async Task AddAsync(RhshfCallbackAttempt attempt, CancellationToken ct = default)
         => await _context.RhshfCallbackAttempts.AddAsync(attempt, ct);
 }

@@ -267,7 +267,7 @@ else
         <div class="tab @(activeTab == "comments" ? "active" : "")" @onclick='() => activeTab = "comments"'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">forum</span>Comments
         </div>
-        <div class="tab @(activeTab == "workflow" ? "active" : "")" @onclick='() => activeTab = "workflow"'>
+        <div class="tab @(activeTab == "workflow" ? "active" : "")" @onclick='async () => { activeTab = "workflow"; await RefreshPortalUpdates(); }'>
             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">history</span>Workflow
         </div>
     </div>
@@ -351,7 +351,9 @@ else
             break;
         case "workflow":
             <WorkflowTab History="statusHistory" CurrentStatus="workspace.Status"
-                CurrentInternalStage="workspace.InternalStage" CurrentProfilingStage="workspace.CurrentProfilingStage" />
+                CurrentInternalStage="workspace.InternalStage" CurrentProfilingStage="workspace.CurrentProfilingStage"
+                PortalUpdates="portalUpdates" CanResend="CanResendPortalUpdate" ResendingEventId="@resendingEventId"
+                OnResend="ResendPortalUpdate" />
             break;
     }
 
@@ -441,6 +443,7 @@ else
     private CRMS.Application.Rhshf.Queries.RhshfCommitteeRoutingPreviewDto? committeeRoutingPreview;
     private RhshfOfferDto? offer;
     private List<RhshfStatusHistoryDto> statusHistory = [];
+    private List<CRMS.Application.Rhshf.Queries.RhshfPortalUpdateDto> portalUpdates = [];
     private AccountStatementDto? bankStatement;
     private string? bankStatementError;
     private bool isFetchingStatement;
@@ -581,6 +584,7 @@ else
                 await LoadLoanAccount();
             advisory = await AppService.GetRhshfAdvisoryAsync(Reference);
             statusHistory = await AppService.GetRhshfStatusHistoryAsync(Reference);
+            portalUpdates = await AppService.GetRhshfPortalUpdatesAsync(Reference);
             comments = await AppService.GetRhshfCommentsAsync(Reference);
             guarantors = await AppService.GetRhshfGuarantorsAsync(Reference);
         }
@@ -1222,6 +1226,23 @@ else
         if (!result.Success) { pageError = result.Error; return; }
         await JS.InvokeVoidAsync("alert", "Offer-ready callback re-queued — the portal will be notified on the next delivery cycle.");
     }
+    // Portal update delivery history (Workflow tab). Re-fetched on tab open: delivery happens in the
+    // background after the page loaded, so the snapshot from OnInitializedAsync goes stale.
+    private bool CanResendPortalUpdate => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer", "FinalApprover") ?? false;
+    private string? resendingEventId;
+
+    private async Task RefreshPortalUpdates() => portalUpdates = await AppService.GetRhshfPortalUpdatesAsync(Reference);
+
+    private async Task ResendPortalUpdate(string eventId)
+    {
+        resendingEventId = eventId;
+        pageError = null;
+        var result = await AppService.ResendRhshfPortalUpdateAsync(Reference, eventId);
+        resendingEventId = null;
+        if (!result.Success) { pageError = result.Error; return; }
+        await RefreshPortalUpdates();
+    }
+
     private async Task DownloadCollateralDocument(Guid documentId) => await TriggerDownload(await AppService.DownloadRhshfCollateralDocumentAsync(documentId));
 
     private async Task TriggerDownload(RhshfDownloadedFileDto? file)

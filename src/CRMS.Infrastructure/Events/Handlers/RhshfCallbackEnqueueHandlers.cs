@@ -37,6 +37,33 @@ public class RhshfCaseDecidedCallbackHandler : IDomainEventHandler<RhshfCaseDeci
     }
 }
 
+/// <summary>Same enqueue mechanics again, for the non-terminal points where the FAC's next step
+/// changes (submitted, returned for correction, resubmitted, offer accepted).</summary>
+public class RhshfPortalUpdateCallbackHandler : IDomainEventHandler<RhshfPortalUpdateEvent>
+{
+    private readonly IRhshfCallbackAttemptRepository _repo;
+    private readonly IUnitOfWork _uow;
+    private readonly ILogger<RhshfPortalUpdateCallbackHandler> _logger;
+
+    public RhshfPortalUpdateCallbackHandler(IRhshfCallbackAttemptRepository repo, IUnitOfWork uow, ILogger<RhshfPortalUpdateCallbackHandler> logger)
+    {
+        _repo = repo;
+        _uow = uow;
+        _logger = logger;
+    }
+
+    public async Task HandleAsync(RhshfPortalUpdateEvent domainEvent, CancellationToken ct = default)
+    {
+        var attempt = RhshfCallbackAttempt.CreateFirst(domainEvent.RhshfCreditProfileId, domainEvent.EventType, domainEvent.OccurredAt);
+        await _repo.AddAsync(attempt, ct);
+        await _uow.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Enqueued RH-SHF {EventType} webhook {EventId} for profile {ProfileId}",
+            domainEvent.EventType, attempt.EventId, domainEvent.RhshfCreditProfileId);
+    }
+}
+
 /// <summary>Same enqueue mechanics as RhshfCaseDecidedCallbackHandler, for the non-terminal
 /// actionRequired: "REVIEW_OFFER" signal (§6 #10) fired from Ratify()'s Ratified branch.</summary>
 public class RhshfOfferReadyCallbackHandler : IDomainEventHandler<RhshfOfferReadyEvent>

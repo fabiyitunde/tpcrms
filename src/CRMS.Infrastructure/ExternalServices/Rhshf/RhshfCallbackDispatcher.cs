@@ -31,6 +31,7 @@ public class RhshfCallbackDispatcher
     private readonly CRMSDbContext _db;
     private readonly IRhshfCreditProfileRepository _profileRepo;
     private readonly IRhshfCallbackAttemptRepository _attemptRepo;
+    private readonly IRhshfOfferRepository _offerRepo;
     private readonly IRhshfCallbackService _callbackService;
     private readonly IUnitOfWork _uow;
     private readonly IRhshfPublicUrlProvider _urls;
@@ -40,6 +41,7 @@ public class RhshfCallbackDispatcher
         CRMSDbContext db,
         IRhshfCreditProfileRepository profileRepo,
         IRhshfCallbackAttemptRepository attemptRepo,
+        IRhshfOfferRepository offerRepo,
         IRhshfCallbackService callbackService,
         IUnitOfWork uow,
         IRhshfPublicUrlProvider urls,
@@ -48,6 +50,7 @@ public class RhshfCallbackDispatcher
         _db = db;
         _profileRepo = profileRepo;
         _attemptRepo = attemptRepo;
+        _offerRepo = offerRepo;
         _callbackService = callbackService;
         _uow = uow;
         _urls = urls;
@@ -80,11 +83,12 @@ public class RhshfCallbackDispatcher
             return;
         }
 
-        // Resolved here rather than in the builder: the public host is Infrastructure configuration,
-        // and the builder lives in Application.
+        // URLs resolved here rather than in the builder: the public host is Infrastructure
+        // configuration, and the builder lives in Application.
+        var offer = await _offerRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
         var payload = RhshfWebhookPayloadBuilder.Build(
-            profile, attempt.EventType, attempt.EventId, attempt.EventOccurredAt,
-            offerUrl: _urls.OfferUrl(profile.Reference));
+            profile, attempt.EventType, attempt.EventId, attempt.EventOccurredAt, offer,
+            offerUrl: _urls.OfferUrl(profile.Reference), profilingUrl: _urls.ProfilingUrl(profile.Reference));
         var result = await _callbackService.SendAsync(profile.CallbackUrl, payload, ct);
 
         attempt.RecordResult(result.Succeeded, result.StatusCode);

@@ -119,6 +119,7 @@
             </div>
             @if (Intent == "ReturnToFac")
             {
+                <FacVisibleNoteHint />
                 <div class="form-group">
                     <label class="form-label">Reopen the FAC's form at:</label>
                     <select class="form-control" @bind="returnToStage">

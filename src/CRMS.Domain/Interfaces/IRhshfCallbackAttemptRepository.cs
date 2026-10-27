@@ -9,5 +9,8 @@ public interface IRhshfCallbackAttemptRepository
     /// since no further row gets a NextRetryAt.</summary>
     Task<IReadOnlyList<RhshfCallbackAttempt>> GetDueAsync(DateTime asOf, CancellationToken ct = default);
 
+    /// <summary>Every attempt ever made for one case, for the staff-facing delivery history.</summary>
+    Task<IReadOnlyList<RhshfCallbackAttempt>> GetByProfileAsync(Guid rhshfCreditProfileId, CancellationToken ct = default);
+
     Task AddAsync(RhshfCallbackAttempt attempt, CancellationToken ct = default);
 }

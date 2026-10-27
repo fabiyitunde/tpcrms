@@ -248,13 +248,18 @@ public enum RhshfDisbursementStatus
     Failed,
 }
 
-/// <summary>Which outbound webhook shape an RhshfCallbackAttempt represents (design doc §4.4,
-/// Phase 10). Decided is the terminal outcome call; OfferReady is the non-terminal
-/// actionRequired: "REVIEW_OFFER" nudge (§6 #10) — same signing/retry mechanics, different payload.</summary>
+/// <summary>What prompted an outbound webhook (design doc §4.4, Phase 10). Decided is the terminal
+/// outcome call; the rest are the non-terminal points at which the FAC's next step changes. Every
+/// payload carries the case's current state, so the type only says why it was sent. Persisted by
+/// name into a 20-character column — keep new names within that.</summary>
 public enum RhshfCallbackEventType
 {
     Decided,
     OfferReady,
+    SubmittedForReview,
+    CorrectionRequired,
+    CorrectionSubmitted,
+    OfferAccepted,
 }
 
 /// <summary>Collateral instrument types named in the RH-SHF programme document (S/N 16) — a fixed,

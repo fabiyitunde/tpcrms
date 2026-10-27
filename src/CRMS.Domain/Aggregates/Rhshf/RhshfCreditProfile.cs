@@ -519,6 +519,9 @@ public class RhshfCreditProfile : AggregateRoot
             // (design doc §6 #2/#8) applies again from Appraisal.
             CurrentCycleNumber++;
             InternalStage = RhshfInternalStage.Appraisal;
+            AddDomainEvent(new RhshfPortalUpdateEvent(Id, CurrentCycleNumber == 1
+                ? RhshfCallbackEventType.SubmittedForReview
+                : RhshfCallbackEventType.CorrectionSubmitted));
         }
         else
         {
@@ -692,6 +695,25 @@ public class RhshfCreditProfile : AggregateRoot
 
         CarryFarmPlanForward(completedCycle);
         RecordTransition(action, actorUserId, note: note);
+        AddDomainEvent(new RhshfPortalUpdateEvent(Id, RhshfCallbackEventType.CorrectionRequired));
+    }
+
+    /// <summary>Every ReturnToFac caller's action text starts with this; it is how the history row
+    /// that carries the officer's reason is told apart from the FAC's own profiling rows.</summary>
+    private const string ReturnedToFacAction = "Returned to the FAC";
+
+    /// <summary>The return the FAC has not yet answered by resubmitting — null when the case is not
+    /// back with the FAC after a review. The officer's note is the reason shown to the FAC; the
+    /// stage is where the form was reopened. Read from the audit trail rather than stored twice.</summary>
+    public RhshfStatusHistory? GetOutstandingReturn()
+    {
+        if (Status != RhshfCaseStatus.ProfilingInProgress || CurrentCycleNumber == 0)
+            return null;
+
+        return _statusHistory
+            .Where(h => h.Action.StartsWith(ReturnedToFacAction, StringComparison.Ordinal))
+            .OrderByDescending(h => h.ChangedAt)
+            .FirstOrDefault();
     }
 
     private void CarryFarmPlanForward(int completedCycle)
@@ -843,6 +865,7 @@ public class RhshfCreditProfile : AggregateRoot
 
         InternalStage = RhshfInternalStage.PreDeploymentVerification;
         RecordTransition("Offer accepted — pre-deployment verification opened", actorUserId: null, actorLabel: "FAC");
+        AddDomainEvent(new RhshfPortalUpdateEvent(Id, RhshfCallbackEventType.OfferAccepted));
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
@@ -1451,3 +1474,9 @@ public record RhshfCaseDecidedEvent(Guid RhshfCreditProfileId) : DomainEvent;
 /// including a re-ratification after a Legal Clearance Returned within the same cycle (Phase 8) —
 /// each is its own offer the FAC must separately act on.</summary>
 public record RhshfOfferReadyEvent(Guid RhshfCreditProfileId) : DomainEvent;
+
+/// <summary>Raised at the non-terminal points where the FAC's next step changes but nothing is
+/// decided: submitted, returned for correction, resubmitted, offer accepted. Without these the
+/// portal only heard about the offer and the final outcome, and a case returned to the FAC sat as
+/// "under review" on the portal until someone phoned them.</summary>
+public record RhshfPortalUpdateEvent(Guid RhshfCreditProfileId, RhshfCallbackEventType EventType) : DomainEvent;
