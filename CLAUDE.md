@@ -148,3 +148,79 @@ The deploy clears `/opt/crms` before extracting (keeping `.env`), because it pre
 over the old checkout and files deleted in git lingered on the server and broke the Docker build.
 If a deploy fails to produce containers, the build log on the box is the place to look — the
 build step pipes through `tee`, so a compile failure does not surface as a failed step.
+
+
+
+
+## QA issue workflow
+
+QA feedback is tracked as GitHub issues in **adeoluwagbemiga/CRMSQA**, separate from this code repo.
+Always pass `-R adeoluwagbemiga/CRMSQA` to `gh issue` commands.
+
+### Context
+QA tests through the **Farmers Portal**, not the CRMS directly. Each issue is a loan behaviour QA observed on the portal: status, decision, amounts, timing, messages. The CRMS drives most of that behaviour, so issues are used to fine-tune CRMS processes, rules and flow.
+- Trace each symptom back from the portal to its cause. The cause may be in a CRMS rule or workflow, in the data or API response the CRMS sends to the portal, or in the portal itself.
+- If the cause is in the Farmers Portal, not the CRMS, don't add a workaround in the CRMS. Stop and tell me what you found. I'll decide where the fix goes. If I say it belongs to the portal team, comment plainly to QA that it's a portal-side fix, then set `status:portal-side`.
+- **Screenshots:** QA's images show up in the issue as links (`https://github.com/user-attachments/...`). Look at every one before working on the issue:
+  1. Download each link with my GitHub login:
+     `curl -sL -H "Authorization: token $(gh auth token)" -o .claude/tmp/issue-<n>-<i>.png "<link>"`
+  2. Check that the download really is an image and not a login page, e.g. with `file .claude/tmp/issue-<n>-<i>.png`.
+  3. Open the image and read it.
+  4. If a download fails, tell me which image it is and ask me to save it into `.claude/tmp/`. Never guess what a screenshot shows.
+
+### Labels
+- `status:new`: logged by QA, unclaimed
+- `status:in-progress`: claimed by me
+- `status:needs-info`: waiting on QA's answer
+- `status:ready-for-qa`: fix done, awaiting verification
+- `status:rework`: QA says the fix failed
+- `status:portal-side`: the cause is in the Farmers Portal, not the CRMS. Waiting on the portal team.
+- `priority:high`: pick up first
+
+### Rules
+1. Work on one issue at a time. Never touch an issue assigned to someone else.
+2. Pick order: my `status:rework` issues first, then unassigned `status:new` with `priority:high`, then the oldest unassigned `status:new`.
+3. On pickup (after I approve the plan): assign `@me`, replace the status label with `status:in-progress`, and comment "Picked up."
+4. Read the full issue and all comments before changing code. Show me a short plan and wait for my approval before changing any code or claiming the issue.
+5. If the issue is ambiguous or can't be reproduced: comment numbered, specific questions, set `status:needs-info`, and stop work on it. Do not guess at requirements.
+6. Commits that touch an issue include `Refs adeoluwagbemiga/CRMSQA#<n>` in the message. Never use `Fixes` or `Closes`.
+7. When done: build and run the relevant tests. Then ask me whether the fix is live on the environment QA tests against. QA can only see a fix on the Farmers Portal after it has been deployed. Don't post the resolution comment or set `status:ready-for-qa` until I confirm the deployment, and put where and when it went live in the first line of the comment (e.g. "This is live on UAT since 2pm today, ready for you to check.").
+   - Cover every point QA raised, including points from later comments. Give each point its own numbered item. Don't merge or skip any.
+   - For each item, say what was wrong, what changed, what QA should now see on the Farmers Portal, and how to check it.
+   - If an item isn't fully done, say so plainly and say why.
+
+   Follow this shape:
+
+   ```
+   This is live on UAT since 2pm today, ready for you to check.
+
+   **1. Approve button not working for Credit Officer**
+   The CRMS wasn't recognising the Credit Officer role at this step, so the approval never went through. That's fixed.
+   You should now see the loan move to "Under Committee Review" on the portal straight after approval.
+   To check: log in as a Credit Officer, open any pending application and click Approve.
+
+   **2. Date showing in the wrong format**
+   Partly fixed. The application page now shows dates as 27/10/2026. The repayment schedule still shows the old format because that page is built on the portal side, and it needs a change there.
+
+   Also worth knowing: approval emails now go to the Branch Manager too.
+
+   - [ ] 1 checked
+   - [ ] 2 checked
+
+   Ref: a1b2c3d
+   ```
+
+   **Writing rules for every comment to QA.** These comments are posted under my name, so write them the way I would.
+   - Use plain, everyday words. Keep sentences short. Use first person ("I've changed…") only where it's natural.
+   - Use QA's own words for screens, fields and statuses.
+   - Avoid jargon. Say "the CRMS wasn't sending the approved amount to the portal", not "the API payload omitted the field".
+   - Don't use emojis, em dashes, filler openers ("Great catch!", "I've gone ahead and…"), or closing offers ("Let me know if…").
+   - Avoid AI-sounding words: ensure, seamless, robust, streamline, leverage, comprehensive, enhance.
+   - Don't use headings beyond the bold item titles. Don't add a summary of the summary.
+   - Mention internal details (file names, class names) only if QA needs them. Usually they don't.
+   - Keep each item to 2–4 lines where possible.
+
+   QA ticks the boxes. If everything passes, QA closes the issue. If anything fails, QA sets `status:rework` and says which item number failed.
+8. Never close, reopen or delete issues. QA closes after verification.
+9. Show me the text of every comment before posting it. Write the comment to `.claude/tmp/comment-<n>.md`, then post it with `gh issue comment <n> -R adeoluwagbemiga/CRMSQA --body-file .claude/tmp/comment-<n>.md`. Never use `--body` for multi-line comments. PowerShell breaks quotes and line breaks.
+10. Issue comments are visible to QA. Never include secrets, connection strings, real customer data or internal file paths beyond the repo.
