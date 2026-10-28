@@ -19,6 +19,12 @@ public class NotificationRepository : INotificationRepository
         return await _context.Notifications.FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
+    public async Task<IReadOnlyList<Notification>> GetByLoanApplicationNumberAsync(string loanApplicationNumber, CancellationToken ct = default)
+        => await _context.Notifications
+            .Where(x => x.LoanApplicationNumber == loanApplicationNumber)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<Notification>> GetByLoanApplicationIdAsync(Guid loanApplicationId, CancellationToken ct = default)
     {
         return await _context.Notifications

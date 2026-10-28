@@ -1,3 +1,4 @@
+@inject CRMS.Web.Intranet.Services.RhshfDocumentLinks Links
 @using CRMS.Application.Rhshf.Queries
 @using CRMS.Domain.Enums
 
@@ -206,7 +207,7 @@
                                         </td>
                                         <td style="text-align: right; font-size: 0.8rem; color: var(--gray-500);">@((doc.SizeBytes / 1024.0).ToString("N0")) KB</td>
                                         <td style="white-space: nowrap;">
-                                            <a href="/api/rhshf-collateral-documents/@doc.Id/view" target="_blank" rel="noopener"
+                                            <a href="@Links.Sign($"/api/rhshf-collateral-documents/{doc.Id}/view")" target="_blank" rel="noopener"
                                                class="btn btn-ghost btn-sm" title="View in browser">
                                                 <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
                                             </a>

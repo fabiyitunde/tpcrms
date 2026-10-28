@@ -18,7 +18,11 @@ namespace CRMS.Application.Rhshf.Services;
 public class RhshfOfferDocumentDataBuilder
 {
     private const string BankName = "Bank of Agriculture";
-    private const int OfferValidityDays = 7;
+    public const int OfferValidityDays = 7;
+
+    /// <summary>The lapse date the letter prints. The FAC emails and the expiry reminder use this
+    /// too, so all three state the same day.</summary>
+    public static DateTime ExpiresOn(DateTime issuedAt) => issuedAt.AddDays(OfferValidityDays);
 
     /// <summary>Where the borrower pays the up-front charges, as the approved template states it.</summary>
     private static readonly RhshfOfferFeesAccount FeesAccount =

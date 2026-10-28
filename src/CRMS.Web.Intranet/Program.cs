@@ -55,6 +55,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.Configure<CRMS.Web.Intranet.Services.BankSettings>(builder.Configuration.GetSection(CRMS.Web.Intranet.Services.BankSettings.SectionName));
 builder.Services.Configure<CRMS.Web.Intranet.Services.CollateralHaircutSettings>(builder.Configuration.GetSection(CRMS.Web.Intranet.Services.CollateralHaircutSettings.SectionName));
 builder.Services.AddScoped<ApplicationService>();
+builder.Services.AddSingleton<CRMS.Web.Intranet.Services.RhshfDocumentLinks>();
+// Here, not in AddInfrastructure: the API host loads that too, and two reminder loops would race.
+builder.Services.AddHostedService<CRMS.Infrastructure.BackgroundServices.RhshfOfferReminderBackgroundService>();
 builder.Services.AddSingleton<CRMS.Web.Intranet.Services.StatementFileParserService>();
 
 // Auth service for Blazor auth state
@@ -221,8 +224,11 @@ app.MapGet("/api/collateral-documents/{id:guid}/download", async (Guid id, CRMSD
 }).DisableAntiforgery();
 
 // RH-SHF collateral document file serving (evidence the FAC uploads per instrument during profiling)
-app.MapGet("/api/rhshf-collateral-documents/{id:guid}/view", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
+app.MapGet("/api/rhshf-collateral-documents/{id:guid}/view", async (Guid id, CRMSDbContext db, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext, CRMS.Web.Intranet.Services.RhshfDocumentLinks links) =>
 {
+    if (!links.IsValid(httpContext))
+        return CRMS.Web.Intranet.Services.RhshfDocumentLinks.Refusal();
+
     var document = await db.Set<CRMS.Domain.Aggregates.Rhshf.RhshfCollateralDocument>()
         .FirstOrDefaultAsync(d => d.Id == id);
 
@@ -246,8 +252,11 @@ app.MapGet("/api/rhshf-collateral-documents/{id:guid}/view", async (Guid id, CRM
 // RH-SHF generated offer letter (staff) — the offer PDF created at ratification lives on the offer's
 // OfferDocumentPath (not a document row), so it needs its own serving route, resolved by case reference.
 app.MapGet("/api/rhshf-offer-letters/{reference}/{mode}", async (string reference, string mode,
-    CRMS.Application.Rhshf.Queries.GetRhshfOfferHandler offerHandler, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
+    CRMS.Application.Rhshf.Queries.GetRhshfOfferHandler offerHandler, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext, CRMS.Web.Intranet.Services.RhshfDocumentLinks links) =>
 {
+    if (!links.IsValid(httpContext))
+        return CRMS.Web.Intranet.Services.RhshfDocumentLinks.Refusal();
+
     var result = await offerHandler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfOfferQuery(reference));
     if (!result.IsSuccess || result.Data is null || string.IsNullOrEmpty(result.Data.OfferDocumentPath))
         return Results.NotFound("No generated offer letter for this case.");
@@ -276,8 +285,11 @@ app.MapPost("/api/rhshf-dev/regenerate-offer/{reference}", async (string referen
 
 // RH-SHF Key Facts Statement (accompanies the offer letter) — served by case reference like the letter.
 app.MapGet("/api/rhshf-offer-kfs/{reference}/{mode}", async (string reference, string mode,
-    CRMS.Application.Rhshf.Queries.GetRhshfOfferHandler offerHandler, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext) =>
+    CRMS.Application.Rhshf.Queries.GetRhshfOfferHandler offerHandler, CRMS.Domain.Interfaces.IFileStorageService fileStorage, HttpContext httpContext, CRMS.Web.Intranet.Services.RhshfDocumentLinks links) =>
 {
+    if (!links.IsValid(httpContext))
+        return CRMS.Web.Intranet.Services.RhshfDocumentLinks.Refusal();
+
     var result = await offerHandler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfOfferQuery(reference));
     if (!result.IsSuccess || result.Data is null || string.IsNullOrEmpty(result.Data.KfsDocumentPath))
         return Results.NotFound("No Key Facts Statement for this case.");

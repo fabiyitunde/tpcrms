@@ -7269,6 +7269,22 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Every email queued for the FAC on the case, newest first, with its delivery status.</summary>
+    public async Task<List<CRMS.Application.Rhshf.Queries.RhshfFacEmailDto>> GetRhshfFacEmailsAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfFacEmailsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfFacEmailsQuery(reference), CancellationToken.None);
+            return result.IsSuccess && result.Data is not null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF FAC emails for {Reference}", reference);
+            return [];
+        }
+    }
+
     /// <summary>Every offer issued on the case, newest first, superseded ones included.</summary>
     public async Task<List<CRMS.Application.Rhshf.Queries.RhshfOfferHistoryItemDto>> GetRhshfOfferHistoryAsync(string reference)
     {

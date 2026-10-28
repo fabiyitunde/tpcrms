@@ -33,6 +33,7 @@ public static class SeedData
         await SeedRolesAsync(context, logger);
         await SeedSecurityEmailTemplatesAsync(context, logger);
         await SeedNampWorkflowEmailTemplatesAsync(context, logger);
+        await SeedRhshfFacEmailTemplatesAsync(context, logger);
 
         // NAMP workflow stage config, routing bands, and pre-deployment checklist templates.
         // System-generated and required in every environment — idempotent (skips if already seeded).
@@ -280,6 +281,126 @@ public static class SeedData
         {
             await context.SaveChangesAsync();
             logger.LogInformation("Seeded/updated {Count} NAMP workflow email template(s)", changes);
+        }
+    }
+
+    /// <summary>
+    /// Emails to the FAC on an RH-SHF case (CRMSQA#2). CRMS sends them because the credit decisions
+    /// are taken here. Deliberately no CRMS link: CRMS's FAC pages need a one-time token the portal
+    /// mints on "Continue on CRMS", so the email sends the FAC to the portal ({{PortalInstruction}}).
+    /// No credit findings, only what the FAC needs to act: reference, version, amount, deadline.
+    /// Add-missing and kept in step like the NAMP templates, so a wording change ships with a deploy.
+    /// </summary>
+    private static async Task SeedRhshfFacEmailTemplatesAsync(CRMSDbContext context, ILogger logger)
+    {
+        var actorId = (await context.Users.FirstOrDefaultAsync(u => u.Email == "admin@crms.ng"))?.Id
+            ?? Guid.Empty;
+
+        // Free text (the FAC name, the officer's reason) goes into the HTML through its *Html variable,
+        // escaped by the sender: the template engine substitutes values verbatim.
+        const string greeting = "<p style=\"margin:0 0 16px;\">Dear {{RecipientNameHtml}},</p>";
+        const string signOff = "<p style=\"margin:16px 0 0;color:#6b7280;font-size:13px;\">{{PortalInstruction}}</p>";
+        const string notSupply = "<p style=\"margin:8px 0 0;color:#6b7280;font-size:12px;\">This email is not an authorisation for any supplier to deliver inputs. Deliveries go ahead only against the Bank's release for each supplier.</p>";
+
+        var offerReadyInner = greeting +
+            "<p style=\"margin:0 0 16px;\">An offer for your RH-SHF credit facility is ready for you to review and accept.</p>" +
+            CredBox("Facility reference", "{{Reference}}", "Offer", "Version {{OfferVersion}}, {{ApprovedAmount}}") +
+            "<p style=\"margin:16px 0 0;\">{{ReplacesNote}}Please accept it by <strong>{{Deadline}}</strong>. After that date the offer lapses.</p>" +
+            signOff + notSupply;
+
+        var correctionInner = greeting +
+            "<p style=\"margin:0 0 16px;\">The Bank has returned your RH-SHF credit profile for correction before the assessment can continue.</p>" +
+            CredBox("Facility reference", "{{Reference}}", "Section to correct", "{{Stage}}") +
+            "<p style=\"margin:16px 0 8px;\"><strong>What needs correcting</strong></p>" +
+            "<p style=\"margin:0 0 16px;padding:12px 16px;background:#fff8e6;border:1px solid #f5e0a8;border-radius:8px;\">{{ReasonHtml}}</p>" +
+            signOff;
+
+        var acceptedInner = greeting +
+            "<p style=\"margin:0 0 16px;\">Thank you. The Bank has recorded your acceptance of the offer below.</p>" +
+            CredBox("Facility reference", "{{Reference}}", "Offer accepted", "Version {{OfferVersion}}, {{ApprovedAmount}}") +
+            "<p style=\"margin:16px 0 0;\">The Bank will now complete its checks before disbursement. You do not need to do anything further unless the Bank contacts you.</p>" +
+            notSupply;
+
+        var outcomeInner = greeting +
+            "<p style=\"margin:0 0 16px;\">{{OutcomeText}}</p>" +
+            CredBox("Facility reference", "{{Reference}}", "Outcome", "{{Outcome}}") +
+            "{{ReasonBlock}}" + signOff;
+
+        var reminderInner = greeting +
+            "<p style=\"margin:0 0 16px;\">The offer for your RH-SHF credit facility has not yet been accepted.</p>" +
+            CredBox("Facility reference", "{{Reference}}", "Offer", "Version {{OfferVersion}}, {{ApprovedAmount}}") +
+            "<p style=\"margin:16px 0 0;\">It lapses on <strong>{{Deadline}}</strong>. Please review and accept it before then if you wish to go ahead.</p>" +
+            signOff;
+
+        var defs = new (string Code, string Name, NotificationType Type, string Subject, string Body, string Html)[]
+        {
+            ("RHSHF_OFFER_READY", "RH-SHF Offer Ready (FAC)", NotificationType.Custom,
+                "Your RH-SHF offer is ready: {{Reference}}, version {{OfferVersion}}",
+                "Dear {{RecipientName}},\n\nAn offer for your RH-SHF credit facility is ready for you to review and accept.\n\n" +
+                "Facility reference: {{Reference}}\nOffer: version {{OfferVersion}}, {{ApprovedAmount}}\n\n" +
+                "{{ReplacesNote}}Please accept it by {{Deadline}}. After that date the offer lapses.\n\n{{PortalInstruction}}\n\n" +
+                "This email is not an authorisation for any supplier to deliver inputs.\n\nRegards,\nBank of Agriculture",
+                Shell(offerReadyInner)),
+
+            ("RHSHF_CORRECTION_REQUIRED", "RH-SHF Returned for Correction (FAC)", NotificationType.ApplicationReturned,
+                "Action required: correction to your RH-SHF credit profile {{Reference}}",
+                "Dear {{RecipientName}},\n\nThe Bank has returned your RH-SHF credit profile for correction before the assessment can continue.\n\n" +
+                "Facility reference: {{Reference}}\nSection to correct: {{Stage}}\n\nWhat needs correcting:\n{{Reason}}\n\n" +
+                "{{PortalInstruction}}\n\nRegards,\nBank of Agriculture",
+                Shell(correctionInner)),
+
+            ("RHSHF_OFFER_ACCEPTED", "RH-SHF Offer Accepted (FAC)", NotificationType.Custom,
+                "Offer accepted: {{Reference}}, version {{OfferVersion}}",
+                "Dear {{RecipientName}},\n\nThank you. The Bank has recorded your acceptance of the offer below.\n\n" +
+                "Facility reference: {{Reference}}\nOffer accepted: version {{OfferVersion}}, {{ApprovedAmount}}\n\n" +
+                "The Bank will now complete its checks before disbursement.\n\n" +
+                "This email is not an authorisation for any supplier to deliver inputs.\n\nRegards,\nBank of Agriculture",
+                Shell(acceptedInner)),
+
+            ("RHSHF_OUTCOME", "RH-SHF Final Outcome (FAC)", NotificationType.Custom,
+                "Your RH-SHF credit facility {{Reference}}: {{Outcome}}",
+                "Dear {{RecipientName}},\n\n{{OutcomeText}}\n\nFacility reference: {{Reference}}\nOutcome: {{Outcome}}\n\n{{ReasonText}}" +
+                "{{PortalInstruction}}\n\nRegards,\nBank of Agriculture",
+                Shell(outcomeInner)),
+
+            ("RHSHF_OFFER_REMINDER", "RH-SHF Offer Expiry Reminder (FAC)", NotificationType.Reminder,
+                "Reminder: your RH-SHF offer {{Reference}} lapses on {{Deadline}}",
+                "Dear {{RecipientName}},\n\nThe offer for your RH-SHF credit facility has not yet been accepted.\n\n" +
+                "Facility reference: {{Reference}}\nOffer: version {{OfferVersion}}, {{ApprovedAmount}}\n\n" +
+                "It lapses on {{Deadline}}. Please review and accept it before then if you wish to go ahead.\n\n" +
+                "{{PortalInstruction}}\n\nRegards,\nBank of Agriculture",
+                Shell(reminderInner)),
+        };
+
+        var changes = 0;
+        foreach (var d in defs)
+        {
+            var existing = await context.NotificationTemplates
+                .FirstOrDefaultAsync(t => t.Code == d.Code && t.Channel == NotificationChannel.Email);
+
+            if (existing is null)
+            {
+                var result = Domain.Aggregates.Notification.NotificationTemplate.Create(
+                    d.Code, d.Name, $"Template for {d.Name}", d.Type, NotificationChannel.Email,
+                    d.Body, actorId, subject: d.Subject, bodyHtmlTemplate: d.Html);
+                if (result.IsSuccess)
+                {
+                    await context.NotificationTemplates.AddAsync(result.Value);
+                    changes++;
+                }
+            }
+            else if (existing.Subject != d.Subject || existing.BodyTemplate != d.Body || existing.BodyHtmlTemplate != d.Html)
+            {
+                existing.Update(d.Name, $"Template for {d.Name}", d.Body, actorId, subject: d.Subject, bodyHtmlTemplate: d.Html);
+                context.NotificationTemplates.Update(existing);
+                changes++;
+            }
+        }
+
+        if (changes > 0)
+        {
+            await context.SaveChangesAsync();
+            logger.LogInformation("Seeded/updated {Count} RH-SHF FAC email template(s)", changes);
         }
     }
 

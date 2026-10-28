@@ -132,6 +132,60 @@
     </div>
 </div>
 
+@* What the FAC was emailed and whether it went. A status change on the case does not prove the FAC
+   was told; this does (CRMSQA#2). *@
+<div class="card" style="margin-top: var(--space-6);">
+    <div class="card-header">
+        <h3 class="card-title">Emails to the FAC</h3>
+        @if (FacEmails.Any(e => e.Status == NotificationStatus.Failed))
+        {
+            <span class="badge badge-danger">Not delivered</span>
+        }
+    </div>
+    <div class="card-body">
+        @if (FacEmails.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon"><span class="material-symbols-outlined">mail</span></div>
+                <div class="empty-state-title">No emails sent yet</div>
+                <div class="empty-state-text">
+                    The FAC is emailed when an offer is issued or corrected, when the case is returned for
+                    correction, when its acceptance is recorded, at the final outcome, and two days before an
+                    unanswered offer lapses.
+                </div>
+            </div>
+        }
+        else
+        {
+            <table class="table">
+                <thead>
+                    <tr><th>Subject</th><th>To</th><th>Queued</th><th>Delivery</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in FacEmails)
+                    {
+                        <tr>
+                            <td>@e.Subject</td>
+                            <td>@e.RecipientAddress</td>
+                            <td>@e.QueuedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
+                            <td>
+                                <span class="badge @EmailBadge(e.Status)">@EmailLabel(e)</span>
+                                @if (!string.IsNullOrWhiteSpace(e.FailureReason))
+                                {
+                                    <div class="text-muted" style="font-size: var(--text-xs); margin-top: 2px;">@e.FailureReason</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="text-muted" style="font-size: var(--text-xs);">
+                "Sent" means the email provider accepted it. It does not confirm the FAC opened it.
+            </div>
+        }
+    </div>
+</div>
+
 <style>
     .timeline {
         position: relative;
@@ -272,6 +326,23 @@
     [Parameter] public RhshfInternalStage? CurrentInternalStage { get; set; }
     [Parameter] public RhshfProfilingStage? CurrentProfilingStage { get; set; }
     [Parameter] public List<RhshfPortalUpdateDto> PortalUpdates { get; set; } = [];
+    [Parameter] public List<RhshfFacEmailDto> FacEmails { get; set; } = [];
+
+    private static string EmailLabel(RhshfFacEmailDto e) => e.Status switch
+    {
+        NotificationStatus.Sent or NotificationStatus.Delivered or NotificationStatus.Read =>
+            e.SentAt is { } at ? $"Sent {at.ToLocalTime():HH:mm}" : "Sent",
+        NotificationStatus.Failed => "Not delivered",
+        NotificationStatus.Retry => $"Retrying (attempt {e.RetryCount + 1})",
+        _ => "Queued",
+    };
+
+    private static string EmailBadge(NotificationStatus status) => status switch
+    {
+        NotificationStatus.Sent or NotificationStatus.Delivered or NotificationStatus.Read => "badge-success",
+        NotificationStatus.Failed => "badge-danger",
+        _ => "badge-warning",
+    };
     [Parameter] public bool CanResend { get; set; }
     [Parameter] public string? ResendingEventId { get; set; }
     [Parameter] public EventCallback<string> OnResend { get; set; }

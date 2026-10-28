@@ -795,6 +795,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Commands.RegenerateRhshfOfferLetterHandler>();
         services.AddScoped<Application.Rhshf.Commands.IssueCorrectedRhshfOfferHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfOfferHistoryHandler>();
+        services.AddScoped<Application.Rhshf.Queries.GetRhshfFacEmailsHandler>();
         services.AddScoped<Application.Rhshf.Interfaces.IRhshfLoanPackGenerator, Documents.RhshfLoanPackPdfGenerator>();
         services.AddScoped<Application.Rhshf.Commands.GenerateRhshfLoanPackHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfBoaAccountSnapshotHandler>();
@@ -819,6 +820,10 @@ public static class DependencyInjection
         services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfCaseDecidedEvent>, RhshfCaseDecidedCallbackHandler>();
         services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfOfferReadyEvent>, RhshfOfferReadyCallbackHandler>();
         services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfPortalUpdateEvent>, RhshfPortalUpdateCallbackHandler>();
+        // Emails to the FAC (CRMSQA#2), beside the portal callbacks for the same events.
+        services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfOfferReadyEvent>, RhshfFacEmailHandler>();
+        services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfPortalUpdateEvent>, RhshfFacEmailHandler>();
+        services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfCaseDecidedEvent>, RhshfFacEmailHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfPortalUpdatesHandler>();
         services.AddScoped<Application.Rhshf.Commands.ResendRhshfPortalUpdateHandler>();
         services.AddScoped<RhshfCallbackDispatcher>();

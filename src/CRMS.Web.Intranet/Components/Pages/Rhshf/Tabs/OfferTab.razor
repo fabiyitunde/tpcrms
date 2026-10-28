@@ -1,3 +1,4 @@
+@inject CRMS.Web.Intranet.Services.RhshfDocumentLinks Links
 @using CRMS.Application.Rhshf.Queries
 @using CRMS.Domain.Enums
 
@@ -13,19 +14,19 @@
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                     @if (!string.IsNullOrEmpty(Offer.OfferDocumentPath))
                     {
-                        <a href="/api/rhshf-offer-letters/@Reference/view" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="View the generated offer letter">
+                        <a href="@Links.Sign($"/api/rhshf-offer-letters/{Reference}/view")" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="View the generated offer letter">
                             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">visibility</span> View letter
                         </a>
-                        <a href="/api/rhshf-offer-letters/@Reference/download" class="btn btn-ghost btn-sm" title="Download the offer letter PDF">
+                        <a href="@Links.Sign($"/api/rhshf-offer-letters/{Reference}/download")" class="btn btn-ghost btn-sm" title="Download the offer letter PDF">
                             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">download</span>
                         </a>
                     }
                     @if (!string.IsNullOrEmpty(Offer.KfsDocumentPath))
                     {
-                        <a href="/api/rhshf-offer-kfs/@Reference/view" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="View the Key Facts Statement">
+                        <a href="@Links.Sign($"/api/rhshf-offer-kfs/{Reference}/view")" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="View the Key Facts Statement">
                             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">description</span> View KFS
                         </a>
-                        <a href="/api/rhshf-offer-kfs/@Reference/download" class="btn btn-ghost btn-sm" title="Download the Key Facts Statement PDF">
+                        <a href="@Links.Sign($"/api/rhshf-offer-kfs/{Reference}/download")" class="btn btn-ghost btn-sm" title="Download the Key Facts Statement PDF">
                             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">download</span>
                         </a>
                     }
@@ -126,7 +127,7 @@
             @if (showPreview)
             {
                 <div class="card-body" style="padding: 0;">
-                    <iframe src="/api/rhshf-offer-letters/@Reference/view" title="Offer letter"
+                    <iframe src="@Links.Sign($"/api/rhshf-offer-letters/{Reference}/view")" title="Offer letter"
                             style="width: 100%; height: 640px; border: 0; display: block;"></iframe>
                 </div>
             }

@@ -30,6 +30,12 @@ public class RhshfSettings
     /// read as a fallback so an environment configured the old way keeps working until migrated.</summary>
     public string ProfilingBaseUrl { get; set; } = string.Empty;
 
+    /// <summary>The RH-SHF portal's address, printed in the emails CRMS sends the FAC so they know
+    /// where to sign in. The emails carry no CRMS link: CRMS's FAC pages need a one-time token the
+    /// portal mints on "Continue on CRMS", and a link that expired before the email was read would
+    /// strand the FAC. Empty prints the instruction without an address.</summary>
+    public string PortalUrl { get; set; } = string.Empty;
+
     /// <summary>CRMS-owned route shapes. They live here, not in the portal's code, so that we stay
     /// free to change them.</summary>
     public const string ProfilingRoute = "/rhshf/profiling";

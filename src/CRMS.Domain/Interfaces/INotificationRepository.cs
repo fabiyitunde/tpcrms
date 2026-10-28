@@ -6,6 +6,9 @@ namespace CRMS.Domain.Interfaces;
 public interface INotificationRepository
 {
     Task<Notification?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Notifications filed under a case number. RH-SHF and NAMP cases are not
+    /// LoanApplications, so their reference goes in LoanApplicationNumber.</summary>
+    Task<IReadOnlyList<Notification>> GetByLoanApplicationNumberAsync(string loanApplicationNumber, CancellationToken ct = default);
     Task<IReadOnlyList<Notification>> GetByLoanApplicationIdAsync(Guid loanApplicationId, CancellationToken ct = default);
     Task<IReadOnlyList<Notification>> GetByRecipientUserIdAsync(Guid userId, CancellationToken ct = default);
     Task<IReadOnlyList<Notification>> GetPendingAsync(int limit = 100, CancellationToken ct = default);

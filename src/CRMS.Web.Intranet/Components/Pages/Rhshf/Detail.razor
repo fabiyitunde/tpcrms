@@ -358,7 +358,7 @@ else
             <WorkflowTab History="statusHistory" CurrentStatus="workspace.Status"
                 CurrentInternalStage="workspace.InternalStage" CurrentProfilingStage="workspace.CurrentProfilingStage"
                 PortalUpdates="portalUpdates" CanResend="CanResendPortalUpdate" ResendingEventId="@resendingEventId"
-                OnResend="ResendPortalUpdate" />
+                OnResend="ResendPortalUpdate" FacEmails="facEmails" />
             break;
     }
 
@@ -456,6 +456,7 @@ else
     private List<CRMS.Application.Rhshf.Queries.RhshfOfferHistoryItemDto> offerHistory = [];
     private List<RhshfStatusHistoryDto> statusHistory = [];
     private List<CRMS.Application.Rhshf.Queries.RhshfPortalUpdateDto> portalUpdates = [];
+    private List<CRMS.Application.Rhshf.Queries.RhshfFacEmailDto> facEmails = [];
     private AccountStatementDto? bankStatement;
     private string? bankStatementError;
     private bool isFetchingStatement;
@@ -601,6 +602,7 @@ else
             advisory = await AppService.GetRhshfAdvisoryAsync(Reference);
             statusHistory = await AppService.GetRhshfStatusHistoryAsync(Reference);
             portalUpdates = await AppService.GetRhshfPortalUpdatesAsync(Reference);
+            facEmails = await AppService.GetRhshfFacEmailsAsync(Reference);
             comments = await AppService.GetRhshfCommentsAsync(Reference);
             guarantors = await AppService.GetRhshfGuarantorsAsync(Reference);
         }
@@ -1272,7 +1274,12 @@ else
     private bool CanResendPortalUpdate => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer", "FinalApprover") ?? false;
     private string? resendingEventId;
 
-    private async Task RefreshPortalUpdates() => portalUpdates = await AppService.GetRhshfPortalUpdatesAsync(Reference);
+    // Emails are sent by the background queue after the page loaded, so they are re-read with the updates.
+    private async Task RefreshPortalUpdates()
+    {
+        portalUpdates = await AppService.GetRhshfPortalUpdatesAsync(Reference);
+        facEmails = await AppService.GetRhshfFacEmailsAsync(Reference);
+    }
 
     private async Task ResendPortalUpdate(string eventId)
     {
