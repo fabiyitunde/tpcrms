@@ -159,7 +159,7 @@
         {
             <table class="table">
                 <thead>
-                    <tr><th>Subject</th><th>To</th><th>Queued</th><th>Delivery</th></tr>
+                    <tr><th>Subject</th><th>To</th><th>Queued</th><th>Delivery</th><th>Sent by</th><th></th></tr>
                 </thead>
                 <tbody>
                     @foreach (var e in FacEmails)
@@ -169,10 +169,29 @@
                             <td>@e.RecipientAddress</td>
                             <td>@e.QueuedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
                             <td>
-                                <span class="badge @EmailBadge(e.Status)">@EmailLabel(e)</span>
+                                <span class="badge @EmailBadge(e)">@EmailLabel(e)</span>
                                 @if (!string.IsNullOrWhiteSpace(e.FailureReason))
                                 {
                                     <div class="text-muted" style="font-size: var(--text-xs); margin-top: 2px;">@e.FailureReason</div>
+                                }
+                            </td>
+                            <td style="font-size: var(--text-xs);">
+                                @(SenderLabel(e.ProviderName))
+                                @if (!string.IsNullOrWhiteSpace(e.ProviderMessageId))
+                                {
+                                    <div class="text-muted" title="The email provider's reference for this message">@e.ProviderMessageId</div>
+                                }
+                            </td>
+                            <td style="text-align: right;">
+                                @if (CanResend)
+                                {
+                                    <button class="btn btn-ghost btn-sm" disabled="@(ResendingEmailId is not null)"
+                                            @onclick="() => OnResendEmail.InvokeAsync(e.Id)"
+                                            title="Queue a copy of this email, exactly as first written. The original stays on record.">
+                                        @if (ResendingEmailId == e.Id) { <span class="spinner" style="width: 12px; height: 12px;"></span> }
+                                        else { <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">send</span> }
+                                        Send again
+                                    </button>
                                 }
                             </td>
                         </tr>
@@ -328,8 +347,17 @@
     [Parameter] public List<RhshfPortalUpdateDto> PortalUpdates { get; set; } = [];
     [Parameter] public List<RhshfFacEmailDto> FacEmails { get; set; } = [];
 
+    [Parameter] public Guid? ResendingEmailId { get; set; }
+    [Parameter] public EventCallback<Guid> OnResendEmail { get; set; }
+
+    private const string MockSender = "MockEmailSender";
+
+    // A mock "send" only wrote a log line. Calling it Sent is how TEST looked healthy while QA's
+    // inbox stayed empty (CRMSQA#2), so it is labelled for what it was.
     private static string EmailLabel(RhshfFacEmailDto e) => e.Status switch
     {
+        NotificationStatus.Sent or NotificationStatus.Delivered or NotificationStatus.Read when e.ProviderName == MockSender =>
+            "Not sent (test mode)",
         NotificationStatus.Sent or NotificationStatus.Delivered or NotificationStatus.Read =>
             e.SentAt is { } at ? $"Sent {at.ToLocalTime():HH:mm}" : "Sent",
         NotificationStatus.Failed => "Not delivered",
@@ -337,11 +365,19 @@
         _ => "Queued",
     };
 
-    private static string EmailBadge(NotificationStatus status) => status switch
+    private static string EmailBadge(RhshfFacEmailDto e) => e.Status switch
     {
+        _ when e.ProviderName == MockSender => "badge-gray",
         NotificationStatus.Sent or NotificationStatus.Delivered or NotificationStatus.Read => "badge-success",
         NotificationStatus.Failed => "badge-danger",
         _ => "badge-warning",
+    };
+
+    private static string SenderLabel(string? provider) => provider switch
+    {
+        null or "" => "—",
+        MockSender => "Test mode (logged only)",
+        _ => provider,
     };
     [Parameter] public bool CanResend { get; set; }
     [Parameter] public string? ResendingEventId { get; set; }

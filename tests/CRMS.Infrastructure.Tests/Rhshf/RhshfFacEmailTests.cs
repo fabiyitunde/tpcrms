@@ -111,6 +111,56 @@ public class RhshfFacEmailTests
     }
 
     [Fact]
+    public async Task SendAgain_QueuesAnExactCopy_KeepsTheOriginal_AndRefusesADoubleClick()
+    {
+        await using var sp = Services("RhshfEmail_" + Guid.NewGuid());
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CRMSDbContext>();
+        // The acceptance email TEST "sent" to the stand-in sender before real email was switched on.
+        var original = Notification.Create(NotificationType.Custom, NotificationChannel.Email, NotificationPriority.Normal,
+            "Grandbai Limited", "fac@grandbai.test", "RHSHF_OFFER_ACCEPTED", "Offer accepted: RHSHF-2026-142126, version 4",
+            "body", "<p>body</p>", loanApplicationNumber: "RHSHF-2026-142126").Value;
+        original.MarkAsSending();
+        original.MarkAsSent("mock-id", "MockEmailSender", null);
+        db.Notifications.Add(original);
+        await db.SaveChangesAsync();
+        var handler = new CRMS.Application.Rhshf.Commands.ResendRhshfFacEmailHandler(
+            scope.ServiceProvider.GetRequiredService<INotificationRepository>(), db);
+
+        var first = await handler.Handle(new CRMS.Application.Rhshf.Commands.ResendRhshfFacEmailCommand("RHSHF-2026-142126", original.Id));
+        var second = await handler.Handle(new CRMS.Application.Rhshf.Commands.ResendRhshfFacEmailCommand("RHSHF-2026-142126", original.Id));
+
+        Assert.True(first.IsSuccess);
+        Assert.False(second.IsSuccess); // the copy is still waiting to go
+        var all = await scope.ServiceProvider.GetRequiredService<INotificationRepository>().GetByLoanApplicationNumberAsync("RHSHF-2026-142126");
+        Assert.Equal(2, all.Count);
+        var copy = all.Single(n => n.Id != original.Id);
+        Assert.Equal(NotificationStatus.Pending, copy.Status);
+        Assert.Equal(original.Subject, copy.Subject);
+        Assert.Equal(original.RecipientAddress, copy.RecipientAddress);
+        Assert.Equal(NotificationStatus.Sent, all.Single(n => n.Id == original.Id).Status); // history kept as it was
+    }
+
+    [Fact]
+    public async Task SendAgain_IsRefused_ForAnEmailOnAnotherCase()
+    {
+        await using var sp = Services("RhshfEmail_" + Guid.NewGuid());
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CRMSDbContext>();
+        var other = Notification.Create(NotificationType.Custom, NotificationChannel.Email, NotificationPriority.Normal,
+            "Other FAC", "fac@other.test", "RHSHF_OFFER_READY", "Your RH-SHF offer is ready", "body",
+            loanApplicationNumber: "RHSHF-2026-000001").Value;
+        db.Notifications.Add(other);
+        await db.SaveChangesAsync();
+        var handler = new CRMS.Application.Rhshf.Commands.ResendRhshfFacEmailHandler(
+            scope.ServiceProvider.GetRequiredService<INotificationRepository>(), db);
+
+        var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.ResendRhshfFacEmailCommand("RHSHF-2026-142126", other.Id));
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
     public async Task EmailValues_EscapeTheOfficersNote_AndPointToThePortal()
     {
         await using var sp = Services("RhshfEmail_" + Guid.NewGuid());

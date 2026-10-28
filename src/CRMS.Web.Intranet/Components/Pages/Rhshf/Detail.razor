@@ -358,7 +358,8 @@ else
             <WorkflowTab History="statusHistory" CurrentStatus="workspace.Status"
                 CurrentInternalStage="workspace.InternalStage" CurrentProfilingStage="workspace.CurrentProfilingStage"
                 PortalUpdates="portalUpdates" CanResend="CanResendPortalUpdate" ResendingEventId="@resendingEventId"
-                OnResend="ResendPortalUpdate" FacEmails="facEmails" />
+                OnResend="ResendPortalUpdate" FacEmails="facEmails"
+                ResendingEmailId="resendingEmailId" OnResendEmail="ResendFacEmail" />
             break;
     }
 
@@ -1279,6 +1280,20 @@ else
     {
         portalUpdates = await AppService.GetRhshfPortalUpdatesAsync(Reference);
         facEmails = await AppService.GetRhshfFacEmailsAsync(Reference);
+    }
+
+    private Guid? resendingEmailId;
+
+    private async Task ResendFacEmail(Guid notificationId)
+    {
+        resendingEmailId = notificationId;
+        pageError = null;
+        pageNotice = null;
+        var result = await AppService.ResendRhshfFacEmailAsync(Reference, notificationId);
+        resendingEmailId = null;
+        if (!result.Success) { pageError = result.Error; return; }
+        pageNotice = "Email queued to send again. Reopen the Workflow tab in a minute to see whether it was delivered.";
+        await RefreshPortalUpdates();
     }
 
     private async Task ResendPortalUpdate(string eventId)

@@ -10,6 +10,7 @@ namespace CRMS.Application.Rhshf.Queries;
 public record GetRhshfFacEmailsQuery(string Reference) : IRequest<ApplicationResult<List<RhshfFacEmailDto>>>;
 
 public record RhshfFacEmailDto(
+    Guid Id,
     string Subject,
     string RecipientAddress,
     NotificationStatus Status,
@@ -17,7 +18,11 @@ public record RhshfFacEmailDto(
     DateTime? SentAt,
     DateTime? FailedAt,
     string? FailureReason,
-    int RetryCount);
+    int RetryCount,
+    /// <summary>Which sender handled it and the reference it returned: "MockEmailSender" means it was
+    /// only logged, never sent (how TEST ran until 28 Oct).</summary>
+    string? ProviderName = null,
+    string? ProviderMessageId = null);
 
 public class GetRhshfFacEmailsHandler : IRequestHandler<GetRhshfFacEmailsQuery, ApplicationResult<List<RhshfFacEmailDto>>>
 {
@@ -34,7 +39,9 @@ public class GetRhshfFacEmailsHandler : IRequestHandler<GetRhshfFacEmailsQuery, 
         var emails = all
             .Where(n => n.Channel == NotificationChannel.Email && n.TemplateCode.StartsWith(TemplatePrefix, StringComparison.Ordinal))
             .Select(n => new RhshfFacEmailDto(
-                n.Subject, n.RecipientAddress, n.Status, n.CreatedAt, n.SentAt, n.FailedAt, n.FailureReason, n.RetryCount))
+                n.Id,
+                n.Subject, n.RecipientAddress, n.Status, n.CreatedAt, n.SentAt, n.FailedAt, n.FailureReason, n.RetryCount,
+                n.ProviderName, n.ExternalMessageId))
             .ToList();
 
         return ApplicationResult<List<RhshfFacEmailDto>>.Success(emails);

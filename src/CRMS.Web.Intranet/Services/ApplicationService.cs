@@ -7285,6 +7285,22 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Queues a copy of an email to the FAC, sent exactly as first written.</summary>
+    public async Task<ApiResponse> ResendRhshfFacEmailAsync(string reference, Guid notificationId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ResendRhshfFacEmailHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.ResendRhshfFacEmailCommand(reference, notificationId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Could not send the email again");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error re-sending RH-SHF FAC email {NotificationId} for {Reference}", notificationId, reference);
+            return ApiResponse.Fail("Could not send the email again");
+        }
+    }
+
     /// <summary>Every offer issued on the case, newest first, superseded ones included.</summary>
     public async Task<List<CRMS.Application.Rhshf.Queries.RhshfOfferHistoryItemDto>> GetRhshfOfferHistoryAsync(string reference)
     {
