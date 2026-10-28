@@ -7936,6 +7936,22 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Replaces an accepted offer that was wrong with a corrected one the FAC must accept again.</summary>
+    public async Task<ApiResponse> IssueCorrectedRhshfOfferAsync(string reference, Guid actorUserId, string reason)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.IssueCorrectedRhshfOfferHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.IssueCorrectedRhshfOfferCommand(reference, actorUserId, reason), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Could not issue the corrected offer");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error issuing a corrected RH-SHF offer for {Reference}", reference);
+            return ApiResponse.Fail("Could not issue the corrected offer");
+        }
+    }
+
     public async Task<ApiResponse<byte[]>> GenerateRhshfLoanPackAsync(string reference, Guid userId, string userName)
     {
         try

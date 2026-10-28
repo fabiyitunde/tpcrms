@@ -330,6 +330,7 @@ else
         case "offer":
             <OfferTab Offer="offer" Reference="@Reference" OnDownload="DownloadOfferDocument"
                 CanRegenerate="CanRegenerateOffer" IsRegenerating="isRegeneratingOffer" OnRegenerate="RegenerateOffer"
+                CanIssueCorrected="CanIssueCorrectedOffer" OnIssueCorrected='() => { openModal = "correctedoffer"; modalError = null; }'
                 CanResendCallback="CanResendOfferCallback" IsResendingCallback="isResendingCallback" OnResendCallback="ResendOfferCallback"
                 CanCopyLink="CanCopyAcceptanceLink" OnCopyLink="CopyAcceptanceLink" />
             break;
@@ -355,6 +356,11 @@ else
                 PortalUpdates="portalUpdates" CanResend="CanResendPortalUpdate" ResendingEventId="@resendingEventId"
                 OnResend="ResendPortalUpdate" />
             break;
+    }
+
+    @if (openModal == "correctedoffer")
+    {
+        <CorrectedOfferModal OnClose="CloseModal" OnConfirm="IssueCorrectedOffer" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
 
     @if (openModal == "disbursement")
@@ -1174,6 +1180,24 @@ else
         isRegeneratingOffer = false;
         if (!result.Success) { pageError = result.Error; return; }
         offer = await AppService.GetRhshfOfferAsync(Reference);
+    }
+
+    // An accepted offer that was wrong is replaced, never rewritten: same approvers as Regenerate, but
+    // only after acceptance and before disbursement — the window ReopenOfferForCorrection enforces.
+    private bool CanIssueCorrectedOffer => CanRatify && offer?.Status == RhshfOfferStatus.Accepted
+        && workspace?.InternalStage is RhshfInternalStage.PreDeploymentVerification or RhshfInternalStage.Disbursement;
+
+    private async Task IssueCorrectedOffer(string reason)
+    {
+        isSubmitting = true;
+        modalError = null;
+        var result = await AppService.IssueCorrectedRhshfOfferAsync(Reference, CurrentUserId, reason);
+        isSubmitting = false;
+        if (!result.Success) { modalError = result.Error; return; }
+        openModal = null;
+        // The case has moved back to awaiting acceptance, so the stage, offer, checklist and history
+        // shown on this page are all stale.
+        await LoadAllAsync();
     }
 
     private async Task GenerateLoanPack()

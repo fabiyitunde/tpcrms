@@ -4,8 +4,9 @@ using CRMS.Domain.Enums;
 
 namespace CRMS.Application.Rhshf.Webhooks;
 
-/// <summary>The offer as the portal needs to see it. Version counts ratifications that issued an
-/// offer, so a re-issued offer is distinguishable from the one the FAC already saw.</summary>
+/// <summary>The offer as the portal needs to see it. Version goes up with every offer issued on the
+/// case — each ratification and each correction — so a corrected offer is distinguishable from the
+/// one the FAC already accepted.</summary>
 public record RhshfPortalOfferPayload(
     string Status,
     int Version,
@@ -63,7 +64,7 @@ public static class RhshfPortalStateBuilder
             ? null
             : new RhshfPortalOfferPayload(
                 Status: currentOffer.Status.ToExternalOfferStatus(),
-                Version: profile.Ratifications.Count(r => r.Outcome == RhshfRatificationOutcome.Ratified),
+                Version: profile.OfferVersion,
                 ApprovedAmount: profile.ApprovedAmount,
                 Currency: profile.Currency,
                 IssuedAt: currentOffer.GeneratedAt,

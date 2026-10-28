@@ -316,8 +316,8 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
 
         if (!data.PlanIsItemised)
             col.Item().PaddingTop(4).Text(
-                "This facility predates the itemised input breakdown, so individual suppliers are not named "
-                + "above. The allocation on record governs disbursement.")
+                "The itemised breakdown of inputs, suppliers and charges was not received for this application, "
+                + "so the plan above is shown at crop level only. The approved EOP on record governs disbursement.")
                 .FontSize(8).Italic().FontColor(Muted);
     }
 

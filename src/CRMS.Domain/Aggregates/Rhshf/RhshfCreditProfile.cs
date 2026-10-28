@@ -870,6 +870,38 @@ public class RhshfCreditProfile : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>Every corrected-offer transition's action text starts with this; OfferVersion counts them.</summary>
+    private const string CorrectedOfferAction = "Corrected offer issued";
+
+    /// <summary>
+    /// An accepted offer was wrong and a corrected one is being issued in its place. Sends the case
+    /// back to awaiting the FAC's acceptance; the credit decision — amount and terms as ratified —
+    /// is unchanged, so this is not a fresh ratification. Only before disbursement: once the loan is
+    /// booked, the accepted terms are what core banking holds, and a correction there is an
+    /// amendment, not a reissue. The pre-deployment items already confirmed stay confirmed; seeding
+    /// is idempotent per cycle, so re-acceptance does not duplicate them.
+    /// </summary>
+    public Result ReopenOfferForCorrection(Guid actorUserId, string reason)
+    {
+        if (Status != RhshfCaseStatus.UnderReview
+            || InternalStage is not (RhshfInternalStage.PreDeploymentVerification or RhshfInternalStage.Disbursement))
+            return Result.Failure("A corrected offer can only be issued after the offer is accepted and before disbursement.");
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Say what was wrong with the accepted offer.");
+
+        InternalStage = RhshfInternalStage.AwaitingOfferAcceptance;
+        RecordTransition($"{CorrectedOfferAction} — awaiting FAC acceptance", actorUserId, note: reason.Trim());
+        AddDomainEvent(new RhshfOfferReadyEvent(Id));
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>Which offer the FAC is looking at: one per ratification that issued an offer, plus one
+    /// per correction. Lets the portal tell a corrected offer from the one already accepted.</summary>
+    public int OfferVersion =>
+        _ratifications.Count(r => r.Outcome == RhshfRatificationOutcome.Ratified)
+        + _statusHistory.Count(h => h.Action.StartsWith(CorrectedOfferAction, StringComparison.Ordinal));
+
     /// <summary>FAC rejected the offer — a withdrawal, not a bank decision (design doc §6 #10), so
     /// this maps to Cancelled rather than Declined and DecisionOutcome stays null.</summary>
     public Result CancelDueToOfferRejection(string? notes)

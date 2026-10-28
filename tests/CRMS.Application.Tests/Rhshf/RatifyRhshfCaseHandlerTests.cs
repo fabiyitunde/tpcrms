@@ -18,7 +18,7 @@ public class RatifyRhshfCaseHandlerTests
         new(new FakeCollateralRepo(), new FakeLoanProductRepo(), new FakeFineract(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<RhshfOfferDocumentDataBuilder>.Instance);
 
-    private static RhshfCreditProfile MakeProfileAtRatification()
+    private static RhshfCreditProfile MakeProfileAtRatification(IEnumerable<RhshfEopLineInput>? eopLines = null)
     {
         var result = RhshfCreditProfile.Create(
             submissionId: Guid.NewGuid(), programmeCode: "RH-SHF-DRY-2026", programmeName: "Renewed Hope",
@@ -28,7 +28,7 @@ public class RatifyRhshfCaseHandlerTests
             state: "Kano", lga: "Nassarawa", totalEopValue: TotalEopValue, currency: "NGN", farmerCount: 1200,
             callbackUrl: "https://portal.example.gov.ng/api/integrations/crms/webhook",
             certifiedByAdmin: "admin@boa.gov.ng", certifiedAt: DateTime.UtcNow, rawSubmissionPayload: "{}",
-            eopLines: null, resolvedBranchId: null, resolvedOfficeId: null);
+            eopLines: eopLines, resolvedBranchId: null, resolvedOfficeId: null);
         var profile = result.Value;
 
         foreach (var stage in new[]
@@ -148,6 +148,99 @@ public class RatifyRhshfCaseHandlerTests
         Assert.Equal(RhshfCaseStatus.ProfilingInProgress, profile.Status);
     }
 
+    [Fact]
+    public async Task Ratify_UnitemisedPlan_NeverPrintsTheZeroQuantityPlaceholder()
+    {
+        // The portal's crop-level summary line always carries 0 kg. Printed, it read as a real figure.
+        var profile = MakeProfileAtRatification([new RhshfEopLineInput("Maize", 0m, 0m, TotalEopValue)]);
+        var generator = new FakeOfferDocumentGenerator();
+        var handler = new RatifyRhshfCaseHandler(
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(),
+            new FakeOfferRepository(), generator, Builder(), new FakeFileStorage(), new FakeUnitOfWork());
+
+        await handler.Handle(new RatifyRhshfCaseCommand(
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
+
+        var row = Assert.Single(generator.Received!.PlanRows);
+        Assert.Equal("Maize", row.Description);
+        Assert.Null(row.QuantityDisplay);
+    }
+
+    // ── Corrected offer (CRMSQA#2) ───────────────────────────────────────────────────────────────
+
+    private static (RhshfCreditProfile Profile, RhshfOffer Accepted) AcceptedOffer()
+    {
+        var profile = MakeProfileAtRatification();
+        profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
+        var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "rhshf-offers/offer-cycle1.pdf").Value;
+        offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
+        offer.Accept(null);
+        profile.AdvanceToPreDeploymentFromOffer();
+        return (profile, offer);
+    }
+
+    private static IssueCorrectedRhshfOfferHandler CorrectionHandler(
+        RhshfCreditProfile profile, FakeOfferRepository offers, FakeFileStorage storage) =>
+        new(new FakeProfileRepository(profile), offers, new FakeOfferDocumentGenerator(), Builder(), storage, new FakeUnitOfWork());
+
+    [Fact]
+    public async Task CorrectedOffer_KeepsTheAcceptedOne_IssuesANewOne_AndWaitsForTheFac()
+    {
+        var (profile, accepted) = AcceptedOffer();
+        var offers = new FakeOfferRepository(accepted);
+        var storage = new FakeFileStorage();
+
+        var result = await CorrectionHandler(profile, offers, storage).Handle(
+            new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "Plan did not list the EOP inputs."));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfOfferStatus.Superseded, accepted.Status);
+        Assert.Equal("rhshf-offers/offer-cycle1.pdf", accepted.OfferDocumentPath); // the signed record is untouched
+        Assert.Single(accepted.Documents);
+
+        var corrected = offers.Added!;
+        Assert.Equal(RhshfOfferStatus.Generated, corrected.Status);
+        Assert.NotEqual(accepted.OfferDocumentPath, corrected.OfferDocumentPath);
+        Assert.Contains("-v2", Assert.Single(storage.UploadedPaths));
+
+        Assert.Equal(RhshfInternalStage.AwaitingOfferAcceptance, profile.InternalStage);
+        Assert.Equal(2, profile.OfferVersion);
+        Assert.Equal("Plan did not list the EOP inputs.", profile.StatusHistory.Last().Note);
+        Assert.Contains(profile.DomainEvents, e => e is RhshfOfferReadyEvent); // the portal hears OFFER_READY
+    }
+
+    [Fact]
+    public async Task CorrectedOffer_IsRefused_BeforeTheFacHasAccepted()
+    {
+        // Before acceptance the document is reissued in place by Regenerate; a second offer row
+        // here would leave two live offers.
+        var profile = MakeProfileAtRatification();
+        profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
+        var pending = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "rhshf-offers/offer-cycle1.pdf").Value;
+        var offers = new FakeOfferRepository(pending);
+
+        var result = await CorrectionHandler(profile, offers, new FakeFileStorage()).Handle(
+            new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "Wrong plan."));
+
+        Assert.False(result.IsSuccess);
+        Assert.Null(offers.Added);
+        Assert.Equal(RhshfOfferStatus.Generated, pending.Status);
+    }
+
+    [Fact]
+    public async Task CorrectedOffer_NeedsAReason()
+    {
+        var (profile, accepted) = AcceptedOffer();
+        var offers = new FakeOfferRepository(accepted);
+
+        var result = await CorrectionHandler(profile, offers, new FakeFileStorage()).Handle(
+            new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "  "));
+
+        Assert.False(result.IsSuccess);
+        Assert.Null(offers.Added);
+        Assert.Equal(RhshfInternalStage.PreDeploymentVerification, profile.InternalStage);
+    }
+
     private class FakeProfileRepository : IRhshfCreditProfileRepository
     {
         private readonly RhshfCreditProfile? _profile;
@@ -178,9 +271,12 @@ public class RatifyRhshfCaseHandlerTests
 
     private class FakeOfferRepository : IRhshfOfferRepository
     {
+        private readonly RhshfOffer? _existing;
+        public FakeOfferRepository(RhshfOffer? existing = null) => _existing = existing;
         public RhshfOffer? Added { get; private set; }
+        // The most recent offer wins, as in the real repository.
         public Task<RhshfOffer?> GetByProfileAndCycleAsync(Guid rhshfCreditProfileId, int cycleNumber, CancellationToken ct = default)
-            => Task.FromResult(Added);
+            => Task.FromResult(Added ?? _existing);
         public Task AddAsync(RhshfOffer offer, CancellationToken ct = default)
         {
             Added = offer;

@@ -111,9 +111,13 @@ public class RhshfOfferDocumentDataBuilder
             return rows;
         }
 
+        // The portal's contract sends eopLines as a crop-level summary with zero quantities, so a
+        // quantity printed here would be "0 kg" — a placeholder a borrower reads as a real figure.
+        // Left blank instead; the note under the table says why the plan is not itemised.
         var fallback = profile.EopLines
             .Select(l => new RhshfOfferPlanRow(
-                Supplier: null, Description: l.Commodity, QuantityDisplay: l.QuantityDisplay,
+                Supplier: null, Description: l.Commodity,
+                QuantityDisplay: l.QuantityKg > 0 ? l.QuantityDisplay : null,
                 Amount: l.LineValue, IsCharge: false, Basis: null))
             .ToList();
 

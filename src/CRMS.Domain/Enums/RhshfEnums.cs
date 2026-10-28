@@ -211,6 +211,9 @@ public enum RhshfOfferStatus
     Accepted,
     Rejected,
     Expired,
+    /// <summary>Replaced by a corrected offer after acceptance. Kept, with its signed copies, as the
+    /// record of what the FAC first agreed to.</summary>
+    Superseded,
 }
 
 /// <summary>Legal Officer's outcome at the LegalClearance stage (design doc §3.6, Phase 8).

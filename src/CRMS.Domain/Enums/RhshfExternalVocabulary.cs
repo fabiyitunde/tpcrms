@@ -60,6 +60,7 @@ public static class RhshfExternalVocabulary
         RhshfOfferStatus.Accepted => "ACCEPTED",
         RhshfOfferStatus.Rejected => "REJECTED",
         RhshfOfferStatus.Expired => "EXPIRED",
+        RhshfOfferStatus.Superseded => "SUPERSEDED",
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unmapped RhshfOfferStatus."),
     };
 }

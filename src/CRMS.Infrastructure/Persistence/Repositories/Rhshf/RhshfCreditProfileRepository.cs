@@ -49,6 +49,11 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
             .Include(x => x.FinancialAppraisals)
             .Include(x => x.StageConfirmations)
             .Include(x => x.StatusHistory)
+            // The portal's itemised breakdown. Missing from this list when the breakdown was first
+            // ingested, so every loaded case looked un-itemised: the offer letter printed the
+            // crop-level "0 kg" fallback and listed already-financed charges as deductions.
+            .Include(x => x.FinancingLines)
+            .Include(x => x.FinancingCharges)
             .AsSplitQuery();
 
     public async Task AddAsync(RhshfCreditProfile profile, CancellationToken ct = default)
