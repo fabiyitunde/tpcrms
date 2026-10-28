@@ -483,6 +483,13 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
     private static bool IsInputComponent(string label) =>
         label is "Physical inputs" or "Services" || label.StartsWith("Packaging excess", StringComparison.Ordinal);
 
+    /// <summary>The financed charges (insurance, working capital, technology fee), not the input lines.</summary>
+    private static List<string> FinancedChargeLabels(RhshfOfferDocumentData data) =>
+        (data.Summary ?? [])
+            .Where(s => s.Treatment == RhshfOfferSummaryRow.FinancedInLoan && !IsInputComponent(s.Label))
+            .Select(s => s.Label)
+            .ToList();
+
     private static string JoinLabels(IReadOnlyList<string> labels) =>
         labels.Count == 1 ? labels[0] : $"{string.Join(", ", labels.Take(labels.Count - 1))} and {labels[^1]}";
 
@@ -516,7 +523,13 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
         if (data.InterestCharge is { } interest && data.AmountDueAtHarvest is { } due)
             col.Item().PaddingTop(4).Text(
                 $"On the terms above, interest over the facility period is {Money(data.Currency, interest)}, "
-                + $"and the total repayable is {Money(data.Currency, due)}.")
+                + $"and the total repayable is {Money(data.Currency, due)}."
+                // State the method so the figure can be checked: the appraisal charges the annual rate
+                // pro rata over the tenor, as simple interest on the approved amount.
+                + (data.InterestRatePercent is { } rate && data.TenorMonths is { } months
+                    ? $" Interest is calculated as simple interest at {rate:0.##}% per annum on the approved amount "
+                      + $"for {months} month{(months == 1 ? "" : "s")}."
+                    : ""))
                 .FontSize(9).FontColor(Muted);
     }
 
@@ -536,7 +549,11 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
         Numbered(col, 5,
             "Settlement of all documentation fees associated with perfection of the facility, including "
             + "solicitors' fees.");
-        Numbered(col, 6, "Evidence of payment of the up-front charges set out below.");
+        Numbered(col, 6, FinancedChargeLabels(data) is { Count: > 0 } financed
+            ? "Evidence of payment of the up-front charges set out below. These are the documentation fee, once "
+              + $"assessed, and any fee listed as deducted at disbursement. {JoinLabels(financed)} are financed in "
+              + "the loan and are not paid up front."
+            : "Evidence of payment of the up-front charges set out below.");
     }
 
     private static void OtherConditions(ColumnDescriptor col, RhshfOfferDocumentData data)
@@ -573,6 +590,12 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
         Heading(col, "Payment of up-front charges");
         col.Item().Text("On confirmation and acceptance, kindly pay all up-front charges into the account below.")
             .FontSize(9);
+        // QA read this beside the condition precedent as an instruction to pay the financed charges a
+        // second time (CRMSQA#2). Say which charges are not paid here.
+        if (FinancedChargeLabels(data) is { Count: > 0 } financed)
+            col.Item().PaddingTop(2).Text(
+                $"{JoinLabels(financed)} are already financed in the loan amount. Do not pay them into this account.")
+                .FontSize(9).SemiBold();
 
         col.Item().PaddingTop(6).Border(0.75f).BorderColor(Rule).Padding(10).Column(c =>
         {

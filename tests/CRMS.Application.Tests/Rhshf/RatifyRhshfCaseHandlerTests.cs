@@ -65,7 +65,7 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferDocumentGenerator(), Builder(), fileStorage, new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideMissingBreakdown: true, OverrideReason: "Legacy case"));
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideOfferGaps: true, OverrideReason: "Legacy case"));
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(offerRepo.Added);
@@ -86,7 +86,7 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferRepository(), generator, Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideMissingBreakdown: true, OverrideReason: "Legacy case"));
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideOfferGaps: true, OverrideReason: "Legacy case"));
 
         var data = generator.Received;
         Assert.NotNull(data);
@@ -113,7 +113,7 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferDocumentGenerator(), Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, committeeApproverId, RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideMissingBreakdown: true, OverrideReason: "Legacy case"));
+            profile.Reference, committeeApproverId, RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideOfferGaps: true, OverrideReason: "Legacy case"));
 
         Assert.False(result.IsSuccess);
     }
@@ -128,7 +128,7 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferDocumentGenerator(), Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue - 1, null, null, OverrideMissingBreakdown: true, OverrideReason: "Legacy case"));
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue - 1, null, null, OverrideOfferGaps: true, OverrideReason: "Legacy case"));
 
         Assert.False(result.IsSuccess);
         Assert.Null(offerRepo.Added);
@@ -162,7 +162,7 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferRepository(), generator, Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideMissingBreakdown: true, OverrideReason: "Legacy case"));
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideOfferGaps: true, OverrideReason: "Legacy case"));
 
         var row = Assert.Single(generator.Received!.PlanRows);
         Assert.Equal("Maize", row.Description);
@@ -351,14 +351,17 @@ public class RatifyRhshfCaseHandlerTests
 
         var noReason = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null,
-            OverrideMissingBreakdown: true, OverrideReason: " "));
+            OverrideOfferGaps: true, OverrideReason: " "));
         Assert.False(noReason.IsSuccess);
 
         var overridden = await handler.Handle(new RatifyRhshfCaseCommand(
             profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null,
-            OverrideMissingBreakdown: true, OverrideReason: "Pre-October case; portal cannot resend."));
+            OverrideOfferGaps: true, OverrideReason: "Pre-October case; portal cannot resend."));
         Assert.True(overridden.IsSuccess);
-        Assert.Contains(profile.StatusHistory, h => h.Note == "Pre-October case; portal cannot resend.");
+        // The reason, then the gaps it overrode — both kept, so the exception stays readable later.
+        Assert.Contains(profile.StatusHistory, h => h.Note is { } note
+            && note.StartsWith("Pre-October case; portal cannot resend.", StringComparison.Ordinal)
+            && note.Contains("No itemised breakdown", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -406,7 +409,8 @@ public class RatifyRhshfCaseHandlerTests
             new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(),
             new FakeOfferRepository(), generator, Builder(), new FakeFileStorage(), new FakeUnitOfWork());
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, total, null, null));
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, total, null, null,
+            OverrideOfferGaps: true, OverrideReason: "Portal has not sent the Extension Services provider."));
         Assert.True(result.IsSuccess, result.Error);
         return generator.Received!;
     }
@@ -446,6 +450,54 @@ public class RatifyRhshfCaseHandlerTests
         Assert.Equal(10_749_600m, data.Summary!.Single(s => s.Label == "Physical inputs").Amount);
         Assert.Equal(900_000m, data.Summary!.Single(s => s.Label == "Services").Amount);
         Assert.All(data.Summary!, s => Assert.Equal(RhshfOfferSummaryRow.FinancedInLoan, s.Treatment));
+    }
+
+    [Fact]
+    public async Task Ratify_IsRefused_WhenAFinancedServiceHasNoProvider()
+    {
+        // Grandbai's real data: the portal sent Extension Services with no provider. QA asked that a
+        // new offer not silently print "To be confirmed".
+        var profile = MakeProfileAtRatification(null, GrandbaiFinancing(Guid.NewGuid()), GrandbaiTotal, farmerCount: 220);
+        var offers = new FakeOfferRepository();
+        var handler = new RatifyRhshfCaseHandler(
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(),
+            offers, new FakeOfferDocumentGenerator(), Builder(), new FakeFileStorage(), new FakeUnitOfWork());
+
+        var refused = await handler.Handle(new RatifyRhshfCaseCommand(
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, GrandbaiTotal, null, null));
+
+        Assert.False(refused.IsSuccess);
+        Assert.Contains("Extension Services has no provider", refused.Error);
+        Assert.Null(offers.Added);
+        Assert.Single(profile.OfferDataGaps());
+    }
+
+    [Fact]
+    public void OfferDataGaps_AreEmpty_WhenEveryServiceHasItsProvider()
+    {
+        var eopId = Guid.NewGuid();
+        var withProvider = GrandbaiFinancing(eopId) with
+        {
+            InputLines = GrandbaiFinancing(eopId).InputLines
+                .Select(l => l.Item == "Extension Services" ? l with { Supplier = "Greenfield Agricultural Extension Services Ltd" } : l)
+                .ToList(),
+        };
+        var profile = MakeProfileAtRatification(null, withProvider, GrandbaiTotal, farmerCount: 220);
+
+        Assert.Empty(profile.OfferDataGaps());
+    }
+
+    [Fact]
+    public async Task ScheduleB_StatesEachChargesActualRate()
+    {
+        // QA: the portal's generic formula text read like a template. The letter now states the rate.
+        var profile = MakeProfileAtRatification(null, GrandbaiFinancing(Guid.NewGuid()), GrandbaiTotal, farmerCount: 220);
+
+        var data = await RatifiedDocument(profile, GrandbaiTotal);
+
+        Assert.Equal("4% of the per-farmer input subtotal, for 30 farmers", data.Summary!.Single(s => s.Label == "Insurance").Basis);
+        Assert.Equal("5% of the per-farmer input subtotal, for 30 farmers", data.Summary!.Single(s => s.Label == "Working capital").Basis);
+        Assert.Equal("NGN 4,000.00 per farmer, for 30 farmers", data.Summary!.Single(s => s.Label == "Technology services fee").Basis);
     }
 
     [Fact]
@@ -492,7 +544,8 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferRepository(), generator, builder, new FakeFileStorage(), new FakeUnitOfWork());
 
         await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, GrandbaiTotal, null, null));
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, GrandbaiTotal, null, null,
+            OverrideOfferGaps: true, OverrideReason: "Portal has not sent the Extension Services provider."));
 
         var security = Assert.Single(generator.Received!.SecurityDescriptions);
         Assert.Contains("0.47% of the facility amount", security);

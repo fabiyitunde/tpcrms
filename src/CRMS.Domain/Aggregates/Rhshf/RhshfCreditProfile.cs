@@ -904,19 +904,42 @@ public class RhshfCreditProfile : AggregateRoot
     }
 
     /// <summary>
-    /// Records that a Final Approver ratified a case with no itemised breakdown, overriding the block
-    /// on it. Ratification is otherwise refused for such a case, because its offer letter can only
-    /// print a crop-level plan. The override exists for cases the portal will never resend; the reason
-    /// is kept in the trail so the exception stays visible.
+    /// What the offer letter would be missing if this case were ratified now — the gaps that make a
+    /// letter the borrower cannot reconcile to their EOP. Empty when the offer would be complete.
+    /// <para>
+    /// No itemised breakdown means a crop-level plan (CRMSQA#2). A service line with no provider means
+    /// the letter names no one responsible for a financed service ("To be confirmed"): QA asked that a
+    /// new offer not let that through silently.
+    /// </para>
     /// </summary>
-    public Result RecordRatificationWithoutBreakdown(Guid actorUserId, string reason)
+    public IReadOnlyList<string> OfferDataGaps()
     {
-        if (HasItemisedFinancing)
-            return Result.Failure("This case has an itemised breakdown; no override is needed.");
-        if (string.IsNullOrWhiteSpace(reason))
-            return Result.Failure("Give a reason for ratifying without the itemised breakdown.");
+        if (!HasItemisedFinancing)
+            return ["No itemised breakdown was received from the portal, so the plan can only be shown at crop level."];
 
-        RecordTransition("Ratification without the itemised breakdown authorised", actorUserId, note: reason.Trim());
+        return _financingLines
+            .Where(l => string.Equals(l.Category, "Services", StringComparison.OrdinalIgnoreCase)
+                        && (l.Amount != 0m || l.PackagingExcess != 0m)
+                        && string.IsNullOrWhiteSpace(l.Supplier))
+            .Select(l => $"{l.Item} has no provider from the portal, so the letter would show it as \"To be confirmed\".")
+            .ToList();
+    }
+
+    /// <summary>
+    /// Records that a Final Approver ratified a case despite <see cref="OfferDataGaps"/>, overriding
+    /// the block on it. For cases the portal will not correct in time; the gaps and the reason are
+    /// kept in the trail so the exception stays visible.
+    /// </summary>
+    public Result RecordRatificationOverride(Guid actorUserId, string reason)
+    {
+        var gaps = OfferDataGaps();
+        if (gaps.Count == 0)
+            return Result.Failure("The offer would be complete; no override is needed.");
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Give a reason for ratifying with the offer incomplete.");
+
+        RecordTransition("Ratification with an incomplete offer authorised", actorUserId,
+            note: $"{reason.Trim()} (Gaps: {string.Join(" ", gaps)})");
         return Result.Success();
     }
 

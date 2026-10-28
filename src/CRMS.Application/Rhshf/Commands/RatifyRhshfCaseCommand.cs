@@ -16,7 +16,7 @@ namespace CRMS.Application.Rhshf.Commands;
 public record RatifyRhshfCaseCommand(
     string Reference, Guid FinalApproverId, RhshfRatificationOutcome Outcome, decimal? ApprovedAmount,
     string? Notes, RhshfProfilingStage? ReturnToStage,
-    bool OverrideMissingBreakdown = false, string? OverrideReason = null) : IRequest<ApplicationResult>;
+    bool OverrideOfferGaps = false, string? OverrideReason = null) : IRequest<ApplicationResult>;
 
 public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, ApplicationResult>
 {
@@ -74,25 +74,24 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
         var clearances = await _legalRepo.GetByProfileAndCycleAsync(profile.Id, cycleNumber, ct);
         excludedActorIds.AddRange(clearances.Select(c => c.LegalOfficerId));
 
-        // No offer without the portal's itemised breakdown: the letter would print a crop-level plan
-        // the borrower cannot reconcile to their EOP (CRMSQA#2). The portal can still send it — a
-        // repeat submission now attaches one — and for a case it never will, a Final Approver can
-        // override with a reason, which goes into the trail.
-        var ratifyingWithoutBreakdown = request.Outcome == RhshfRatificationOutcome.Ratified && !profile.HasItemisedFinancing;
-        if (ratifyingWithoutBreakdown && !request.OverrideMissingBreakdown)
+        // No offer the borrower cannot reconcile to their EOP (CRMSQA#2): refused while the letter would
+        // lack the itemised breakdown or name no provider for a financed service. The portal can still
+        // supply them — a repeat submission attaches a missing breakdown — and for a case it will not,
+        // a Final Approver can override with a reason, which goes into the trail with the gaps.
+        var gaps = request.Outcome == RhshfRatificationOutcome.Ratified ? profile.OfferDataGaps() : [];
+        if (gaps.Count > 0 && !request.OverrideOfferGaps)
             return ApplicationResult.Failure(
-                "This case has no itemised breakdown from the portal, so its offer letter could only show a " +
-                "crop-level plan. Ask the portal team to resend the submission with the breakdown, or ratify " +
-                "with the override and give a reason.");
-        if (ratifyingWithoutBreakdown && string.IsNullOrWhiteSpace(request.OverrideReason))
-            return ApplicationResult.Failure("Give a reason for ratifying without the itemised breakdown.");
+                "The offer letter would be incomplete: " + string.Join(" ", gaps) +
+                " Ask the portal team to resend the submission with the missing details, or ratify with the override and give a reason.");
+        if (gaps.Count > 0 && string.IsNullOrWhiteSpace(request.OverrideReason))
+            return ApplicationResult.Failure("Give a reason for ratifying with the offer incomplete.");
 
         var result = profile.Ratify(request.FinalApproverId, request.Outcome, request.ApprovedAmount, request.Notes, request.ReturnToStage, excludedActorIds);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 
-        if (ratifyingWithoutBreakdown)
-            profile.RecordRatificationWithoutBreakdown(request.FinalApproverId, request.OverrideReason!);
+        if (gaps.Count > 0)
+            profile.RecordRatificationOverride(request.FinalApproverId, request.OverrideReason!);
 
         if (request.Outcome == RhshfRatificationOutcome.Ratified)
         {

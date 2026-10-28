@@ -68,9 +68,14 @@ public record RhshfCaseWorkspaceDto(
     /// registered under the FAC, which the portal sends in its place (220 against 30 for Grandbai),
     /// so displays prefer this and fall back to FarmerCount only when no breakdown was sent.</summary>
     int? FinancedFarmerCount = null,
-    /// <summary>False when the portal sent no itemised breakdown — ratification then needs an override.</summary>
-    bool HasItemisedFinancing = true)
+    /// <summary>False when the portal sent no itemised breakdown.</summary>
+    bool HasItemisedFinancing = true,
+    /// <summary>What the offer letter would be missing if ratified now — ratification then needs an
+    /// override with a reason. Null or empty when the offer would be complete.</summary>
+    List<string>? OfferGapList = null)
 {
+    public List<string> OfferGaps => OfferGapList ?? [];
+
     /// <summary>The farmer count to show: financed where known, otherwise what the portal sent.</summary>
     public int? FarmersFinanced => FinancedFarmerCount ?? FarmerCount;
 }

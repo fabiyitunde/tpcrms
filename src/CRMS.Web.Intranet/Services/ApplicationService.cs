@@ -7236,14 +7236,14 @@ public partial class ApplicationService
 
     public async Task<ApiResponse> RatifyRhshfCaseAsync(
         string reference, Guid finalApproverId, CRMS.Domain.Enums.RhshfRatificationOutcome outcome, decimal? approvedAmount,
-        string? notes, CRMS.Domain.Enums.RhshfProfilingStage? returnToStage, string? overrideMissingBreakdownReason = null)
+        string? notes, CRMS.Domain.Enums.RhshfProfilingStage? returnToStage, string? overrideOfferGapsReason = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RatifyRhshfCaseHandler>();
             var result = await handler.Handle(
                 new CRMS.Application.Rhshf.Commands.RatifyRhshfCaseCommand(reference, finalApproverId, outcome, approvedAmount, notes, returnToStage,
-                    OverrideMissingBreakdown: overrideMissingBreakdownReason is not null, OverrideReason: overrideMissingBreakdownReason),
+                    OverrideOfferGaps: overrideOfferGapsReason is not null, OverrideReason: overrideOfferGapsReason),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Ratification failed");
         }

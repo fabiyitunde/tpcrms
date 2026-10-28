@@ -177,7 +177,8 @@ public class RhshfOfferDocumentDataBuilder
             rows.Add(new("Packaging excess (whole supplier packs)", excess, null, RhshfOfferSummaryRow.FinancedInLoan));
 
         rows.AddRange(profile.FinancingCharges.Select(c => new RhshfOfferSummaryRow(
-            c.Label, c.Amount, c.RateBasis, c.InLoan ? RhshfOfferSummaryRow.FinancedInLoan : "Not financed")));
+            c.Label, c.Amount, ChargeBasis(c, profile.Currency, profile.FinancedFarmerCount),
+            c.InLoan ? RhshfOfferSummaryRow.FinancedInLoan : "Not financed")));
 
         return rows;
     }
@@ -202,6 +203,26 @@ public class RhshfOfferDocumentDataBuilder
         if (eop.PackagingExcess != 0m)
             basis += $" + {currency} {eop.PackagingExcess:N2} whole-pack adjustments";
         return $"{basis} = {currency} {eop.ApprovedTotal:N2}";
+    }
+
+    /// <summary>
+    /// How a charge was worked out, with its actual rate — "4% of the per-farmer input subtotal, for 30
+    /// farmers" — rather than the portal's generic formula text, which QA flagged as reading like a
+    /// template. The two percentage charges and the per-farmer fee are known by code; a charge the
+    /// portal sent with no single rate (EOPs on different rates) keeps the portal's own wording.
+    /// </summary>
+    private static string? ChargeBasis(RhshfFinancingCharge charge, string currency, int? farmers)
+    {
+        if (charge.Rate is not { } rate)
+            return charge.RateBasis;
+
+        var forFarmers = farmers is { } f ? $", for {f:N0} farmers" : "";
+        return charge.Code switch
+        {
+            "insurance" or "workingCapital" => $"{rate:0.##}% of the per-farmer input subtotal{forFarmers}",
+            "techServicesFee" => $"{currency} {rate:N2} per farmer{forFarmers}",
+            _ => charge.RateBasis,
+        };
     }
 
     private static bool IsService(RhshfFinancingLine line) =>
