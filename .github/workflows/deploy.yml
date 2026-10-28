@@ -61,6 +61,11 @@ jobs:
           # appsettings.json's placeholder and the portal answered every callback with 401 — on TEST,
           # none of Grandbai's updates ever arrived (CRMSQA#1/#2). Must match the portal's value.
           RHSHF_CALLBACK_SIGNING_SECRET: ${{ secrets.RHSHF_CALLBACK_SIGNING_SECRET }}
+          # Real email on TEST. appsettings.json ships Email:UseMock=true, so TEST "sent" every email
+          # to a mock that only logs — QA never received one (CRMSQA#2). With keys set they are used;
+          # without, SES falls back to the EC2 instance role, which then needs ses:SendEmail.
+          EMAIL_SES_ACCESS_KEY: ${{ secrets.EMAIL_SES_ACCESS_KEY }}
+          EMAIL_SES_SECRET_KEY: ${{ secrets.EMAIL_SES_SECRET_KEY }}
         run: |
           # One shared connection string for BOTH apps (CRMS.API + CRMS.Web.Intranet).
           cat > crms.env << EOF
@@ -69,7 +74,14 @@ jobs:
           Rhshf__ApiKey=$RHSHF_API_KEY
           Rhshf__CallbackUseMock=false
           Rhshf__PortalUrl=http://18.132.3.119:8982
+          Email__UseMock=false
           EOF
+          if [ -n "$EMAIL_SES_ACCESS_KEY" ] && [ -n "$EMAIL_SES_SECRET_KEY" ]; then
+            echo "Email__AccessKey=$EMAIL_SES_ACCESS_KEY" >> crms.env
+            echo "Email__SecretKey=$EMAIL_SES_SECRET_KEY" >> crms.env
+          else
+            echo "::warning::EMAIL_SES_ACCESS_KEY/EMAIL_SES_SECRET_KEY not set — SES will use the EC2 instance role; emails show as not delivered if it lacks ses:SendEmail."
+          fi
           # Only when set: an empty override would sign with an empty key, which is no better than the
           # placeholder and harder to spot.
           if [ -n "$RHSHF_CALLBACK_SIGNING_SECRET" ]; then
