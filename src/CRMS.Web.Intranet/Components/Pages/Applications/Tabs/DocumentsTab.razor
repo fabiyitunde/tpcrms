@@ -1,3 +1,4 @@
+@inject CRMS.Web.Intranet.Services.DocumentLinks Links
 
 @inject IJSRuntime JS
 
@@ -189,13 +190,13 @@
 
     private async Task DownloadDocument(DocumentInfo doc)
     {
-        var url = $"/api/documents/{doc.Id}/download";
+        var url = Links.Sign($"/api/documents/{doc.Id}/download");
         await JS.InvokeVoidAsync("open", url, "_blank");
     }
 
     private string BuildDocumentViewUrl(DocumentInfo doc)
     {
-        return $"/api/documents/{doc.Id}/view";
+        return Links.Sign($"/api/documents/{doc.Id}/view");
     }
 
     private static bool IsViewableInBrowser(string name)

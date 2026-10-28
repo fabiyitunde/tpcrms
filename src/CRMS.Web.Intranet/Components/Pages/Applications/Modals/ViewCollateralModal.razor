@@ -1,3 +1,4 @@
+@inject CRMS.Web.Intranet.Services.DocumentLinks Links
 @inject ApplicationService AppService
 @inject IJSRuntime JS
 
@@ -499,13 +500,13 @@
 
     private async Task ViewDocument(CollateralDocumentInfo doc)
     {
-        var url = $"/api/collateral-documents/{doc.Id}/view";
+        var url = Links.Sign($"/api/collateral-documents/{doc.Id}/view");
         await JS.InvokeVoidAsync("open", url, "_blank");
     }
 
     private async Task DownloadDocument(CollateralDocumentInfo doc)
     {
-        var url = $"/api/collateral-documents/{doc.Id}/download";
+        var url = Links.Sign($"/api/collateral-documents/{doc.Id}/download");
         await JS.InvokeVoidAsync("open", url, "_blank");
     }
 }

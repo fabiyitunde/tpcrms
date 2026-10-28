@@ -1,3 +1,4 @@
+@inject CRMS.Web.Intranet.Services.DocumentLinks Links
 @inject ApplicationService AppService
 @inject AuthService AuthService
 @inject IJSRuntime JS
@@ -525,7 +526,7 @@ else
                 </button>
             </div>
             <div class="modal-body" style="padding: 0; flex: 1; overflow: hidden;">
-                <iframe src="/api/documents/@evidenceViewerDocumentId/view" style="width: 100%; height: 100%; border: none;"></iframe>
+                <iframe src="@Links.Sign($"/api/documents/{evidenceViewerDocumentId}/view")" style="width: 100%; height: 100%; border: none;"></iframe>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-ghost" @onclick="() => DownloadEvidenceAsync(evidenceViewerDocumentId!.Value)">
@@ -713,7 +714,7 @@ else
 
     private async Task DownloadEvidenceAsync(Guid documentId)
     {
-        await JS.InvokeVoidAsync("open", $"/api/documents/{documentId}/download", "_blank");
+        await JS.InvokeVoidAsync("open", Links.Sign($"/api/documents/{documentId}/download"), "_blank");
     }
 
     private async Task LoadChecklist()

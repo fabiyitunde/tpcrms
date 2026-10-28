@@ -1,4 +1,5 @@
 @page "/namp/{Id:guid}"
+@inject CRMS.Web.Intranet.Services.DocumentLinks Links
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using CRMS.Application.Namp.Commands
 @using CRMS.Application.Namp.DTOs
@@ -5621,7 +5622,7 @@ else
 
     private async Task DownloadSignedOfferLetter(Guid documentId)
     {
-        await JS.InvokeVoidAsync("open", $"/api/namp-documents/{documentId}/view", "_blank");
+        await JS.InvokeVoidAsync("open", Links.Sign($"/api/namp-documents/{documentId}/view"), "_blank");
     }
 
     private async Task ExecuteNoteAction()
@@ -6012,7 +6013,7 @@ else
 
     private void OpenDocView(Guid docId, string fileName, string contentType)
     {
-        viewDocUrl = $"/api/namp-documents/{docId}/view";
+        viewDocUrl = Links.Sign($"/api/namp-documents/{docId}/view");
         viewDocName = fileName;
         // Infer content type from extension when browser didn't supply it
         viewDocContentType = InferContentType(fileName, contentType);
