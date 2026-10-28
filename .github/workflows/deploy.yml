@@ -68,6 +68,7 @@ jobs:
           Rhshf__PublicBaseUrl=$RHSHF_PUBLIC_BASE_URL
           Rhshf__ApiKey=$RHSHF_API_KEY
           Rhshf__CallbackUseMock=false
+          Rhshf__PortalUrl=http://18.132.3.119:8982
           EOF
           # Only when set: an empty override would sign with an empty key, which is no better than the
           # placeholder and harder to spot.
