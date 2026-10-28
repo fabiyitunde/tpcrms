@@ -183,6 +183,10 @@ else
     {
         <div class="alert alert-danger" style="margin-bottom: 1rem;">@pageError</div>
     }
+    @if (!string.IsNullOrEmpty(pageNotice))
+    {
+        <div class="alert alert-success" style="margin-bottom: 1rem;">@pageNotice</div>
+    }
 
     @* Tab order mirrors Corporate (Applications/Detail.razor) exactly for the tabs they share:
        Overview, Directors & Signatories, Documents, Financial, Credit Bureau, Collateral, AI Advisory,
@@ -489,6 +493,9 @@ else
     private bool isLoading = true;
     private bool isSubmitting;
     private string? pageError;
+    // A confirmation that something with an outside effect happened — without one, an officer who
+    // issued a corrected offer saw the same page and issued it again (CRMSQA#2).
+    private string? pageNotice;
     private string? modalError;
     private string? openModal;
     private string modalIntent = string.Empty;
@@ -1194,13 +1201,18 @@ else
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.IssueCorrectedRhshfOfferAsync(Reference, CurrentUserId, reason);
+        pageNotice = null;
+        var result = await AppService.IssueCorrectedRhshfOfferAsync(Reference, CurrentUserId, reason, offer?.Id);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         openModal = null;
         // The case has moved back to awaiting acceptance, so the stage, offer, checklist and history
         // shown on this page are all stale.
         await LoadAllAsync();
+        pageNotice = offer is not null
+            ? $"Corrected offer version {offer.Version} issued at {offer.GeneratedAt.ToLocalTime():HH:mm} and sent to the FAC. "
+              + "The previous version can no longer be accepted."
+            : "Corrected offer issued and sent to the FAC.";
     }
 
     private async Task GenerateLoanPack()

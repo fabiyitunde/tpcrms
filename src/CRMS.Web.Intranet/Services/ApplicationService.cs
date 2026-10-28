@@ -7938,12 +7938,12 @@ public partial class ApplicationService
     }
 
     /// <summary>Replaces an accepted offer that was wrong with a corrected one the FAC must accept again.</summary>
-    public async Task<ApiResponse> IssueCorrectedRhshfOfferAsync(string reference, Guid actorUserId, string reason)
+    public async Task<ApiResponse> IssueCorrectedRhshfOfferAsync(string reference, Guid actorUserId, string reason, Guid? expectedOfferId = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.IssueCorrectedRhshfOfferHandler>();
-            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.IssueCorrectedRhshfOfferCommand(reference, actorUserId, reason), CancellationToken.None);
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.IssueCorrectedRhshfOfferCommand(reference, actorUserId, reason, expectedOfferId), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Could not issue the corrected offer");
         }
         catch (Exception ex)

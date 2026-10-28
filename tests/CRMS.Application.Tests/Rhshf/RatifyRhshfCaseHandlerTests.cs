@@ -219,11 +219,11 @@ public class RatifyRhshfCaseHandlerTests
         // answered it. Replacing it in place would leave two documents in circulation as one version.
         var profile = MakeProfileAtRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
-        var pending = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "rhshf-offers/offer-cycle1.pdf").Value;
+        var pending = IssuedMinutesAgo(profile, 15);
         var offers = new FakeOfferRepository(pending);
 
         var result = await CorrectionHandler(profile, offers, new FakeFileStorage()).Handle(
-            new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "Wrong farmer count."));
+            new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "Wrong farmer count.", pending.Id));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfOfferStatus.Superseded, pending.Status);
@@ -231,6 +231,62 @@ public class RatifyRhshfCaseHandlerTests
         Assert.Equal(RhshfOfferStatus.Generated, offers.Added!.Status);
         Assert.Equal(2, profile.OfferVersion);
         Assert.Equal(RhshfInternalStage.AwaitingOfferAcceptance, profile.InternalStage);
+    }
+
+    private static RhshfOffer IssuedMinutesAgo(RhshfCreditProfile profile, int minutes)
+    {
+        var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "rhshf-offers/offer-cycle1.pdf").Value;
+        typeof(RhshfOffer).GetProperty(nameof(RhshfOffer.GeneratedAt))!.SetValue(offer, DateTime.UtcNow.AddMinutes(-minutes));
+        return offer;
+    }
+
+    [Fact]
+    public async Task CorrectedOffer_IsRefused_WhenTheOfferWasIssuedMinutesAgo()
+    {
+        // Grandbai's double issue: a second correction 25 seconds after the first sent the FAC two
+        // versions. An unanswered offer this fresh is not replaced again.
+        var profile = MakeProfileAtRatification();
+        profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
+        var fresh = IssuedMinutesAgo(profile, 1);
+        var offers = new FakeOfferRepository(fresh);
+
+        var result = await CorrectionHandler(profile, offers, new FakeFileStorage()).Handle(
+            new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "Again.", fresh.Id));
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("Wait 10 minutes", result.Error);
+        Assert.Null(offers.Added);
+        Assert.Equal(RhshfOfferStatus.Generated, fresh.Status);
+    }
+
+    [Fact]
+    public async Task CorrectedOffer_FromAStalePage_IsRefused()
+    {
+        // The officer's page still shows the offer that has since been replaced.
+        var (profile, accepted) = AcceptedOffer();
+        var offers = new FakeOfferRepository(accepted);
+
+        var result = await CorrectionHandler(profile, offers, new FakeFileStorage()).Handle(
+            new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "Wrong plan.", ExpectedOfferId: Guid.NewGuid()));
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("already been replaced", result.Error);
+        Assert.Null(offers.Added);
+        Assert.Equal(RhshfOfferStatus.Accepted, accepted.Status);
+    }
+
+    [Fact]
+    public async Task CorrectedOffer_OfAFreshlyAcceptedOffer_IsNotHeldBack()
+    {
+        // The wait protects an offer the FAC has not seen through yet. Once they have accepted, a
+        // correction is a deliberate act on a settled document and goes ahead at once.
+        var (profile, accepted) = AcceptedOffer();
+        var offers = new FakeOfferRepository(accepted);
+
+        var result = await CorrectionHandler(profile, offers, new FakeFileStorage()).Handle(
+            new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "Wrong plan.", accepted.Id));
+
+        Assert.True(result.IsSuccess);
     }
 
     [Fact]

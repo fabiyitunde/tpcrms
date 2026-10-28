@@ -34,7 +34,15 @@ public record RhshfOfferDto(
 
     /// <summary>Core banking charges left off this letter because the EOP already finances them.
     /// Null when there were none. The letter is right either way; the product still needs fixing.</summary>
-    string? SuppressedProductFees = null);
+    string? SuppressedProductFees = null)
+{
+    /// <summary>Which offer row this is. A corrected offer is issued against the one the officer was
+    /// looking at, so a stale page cannot replace an offer that has already been replaced.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>The version printed on the letter.</summary>
+    public int Version { get; init; }
+}
 
 public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, ApplicationResult<RhshfOfferDto>>
 {
@@ -65,6 +73,10 @@ public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, Applicat
             appraisal?.InterestRatePercent, appraisal?.CycleMonths, appraisal?.AmountDueAtHarvest,
             offer.FacRespondedAt, offer.FacResponseNotes,
             offer.Documents.Select(d => new RhshfOfferDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt, d.Kind)).ToList(),
-            offer.SuppressedProductFees));
+            offer.SuppressedProductFees)
+        {
+            Id = offer.Id,
+            Version = Math.Max(profile.OfferVersion, 1),
+        });
     }
 }

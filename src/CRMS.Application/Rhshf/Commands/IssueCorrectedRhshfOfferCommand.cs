@@ -19,11 +19,17 @@ namespace CRMS.Application.Rhshf.Commands;
 /// corrects the document, it does not re-decide the credit.
 /// </para>
 /// </summary>
-public record IssueCorrectedRhshfOfferCommand(string Reference, Guid ActorUserId, string Reason) : IRequest<ApplicationResult>;
+/// <param name="ExpectedOfferId">The offer the officer was looking at when they asked for the
+/// correction. Null skips the check (kept for callers that predate it).</param>
+public record IssueCorrectedRhshfOfferCommand(
+    string Reference, Guid ActorUserId, string Reason, Guid? ExpectedOfferId = null) : IRequest<ApplicationResult>;
 
 public class IssueCorrectedRhshfOfferHandler : IRequestHandler<IssueCorrectedRhshfOfferCommand, ApplicationResult>
 {
     private const string OfferContainerName = "rhshf-offers";
+
+    /// <summary>How long an unanswered offer is protected from being replaced again.</summary>
+    internal static readonly TimeSpan RecentIssueWindow = TimeSpan.FromMinutes(10);
 
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfOfferRepository _offerRepo;
@@ -61,6 +67,20 @@ public class IssueCorrectedRhshfOfferHandler : IRequestHandler<IssueCorrectedRhs
 
         if (current.Status is not (RhshfOfferStatus.Accepted or RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse))
             return ApplicationResult.Failure("Only an issued or accepted offer can be replaced by a corrected one.");
+
+        // Grandbai's offer was corrected twice 25 seconds apart (CRMSQA#2): the second request came
+        // from a page that still offered the button. Each correction sends the FAC a new version, so
+        // a duplicate is not harmless. Two guards: the request must name the offer it means to
+        // replace, and an offer issued minutes ago that the FAC has not answered is not replaced again.
+        if (request.ExpectedOfferId is { } expected && expected != current.Id)
+            return ApplicationResult.Failure(
+                $"This offer has already been replaced: version {profile.OfferVersion} is now current. Reload the case before correcting it again.");
+
+        if (current.Status is RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse
+            && DateTime.UtcNow - current.GeneratedAt < RecentIssueWindow)
+            return ApplicationResult.Failure(
+                $"Version {profile.OfferVersion} was issued at {current.GeneratedAt:HH:mm} UTC and has gone to the FAC. " +
+                $"Wait {RecentIssueWindow.TotalMinutes:0} minutes from its issue before replacing it, so the FAC is not sent two versions at once.");
 
         // The document is generated and stored before anything on the case changes. The circuit
         // shares one DbContext, so a half-applied change left tracked here — offer superseded, no
