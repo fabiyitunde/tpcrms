@@ -174,7 +174,13 @@ public class NotificationOrchestrator : INotificationService
             }
             else
             {
-                notification.MarkAsFailed(result.ErrorMessage ?? "Unknown error", result.CanRetry);
+                // Keep the provider's own words with the summary. "Message rejected by SES." alone gave
+                // no way to tell an unverified sender from an unverified recipient or the wrong region;
+                // SES's message names which identity failed and where. Capped to the column's 1000.
+                var reason = result.ErrorMessage ?? "Unknown error";
+                if (!string.IsNullOrWhiteSpace(result.ProviderResponse) && result.ProviderResponse != reason)
+                    reason = $"{reason} {result.ProviderResponse}";
+                notification.MarkAsFailed(reason.Length > 1000 ? reason[..1000] : reason, result.CanRetry);
             }
         }
         catch (Exception ex)
