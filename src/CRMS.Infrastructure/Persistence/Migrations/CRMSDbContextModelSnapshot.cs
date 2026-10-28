@@ -7648,6 +7648,70 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("RhshfFinancingCharges", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFinancingEop", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("ApprovedTotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Crop")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid?>("EopId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int?>("Farmers")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Inputs")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Insurance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("LoanAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("PackagingExcess")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("State")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal>("TechServicesFee")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("WorkingCapital")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RhshfCreditProfileId");
+
+                    b.ToTable("RhshfFinancingEops", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFinancingLine", b =>
                 {
                     b.Property<Guid>("Id")
@@ -10259,6 +10323,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFinancingEop", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany("FinancingEops")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfFinancingLine", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
@@ -10710,6 +10783,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Navigation("FinancialAppraisals");
 
                     b.Navigation("FinancingCharges");
+
+                    b.Navigation("FinancingEops");
 
                     b.Navigation("FinancingLines");
 

@@ -47,6 +47,19 @@ public class SubmitConsolidatedEopHandler
         var existing = await _repo.GetBySubmissionIdAsync(req.SubmissionId, ct);
         if (existing is not null)
         {
+            // A repeat is otherwise answered with the case as it stands, but a breakdown the case
+            // never received is taken now: ratification is refused without one, and this is the
+            // only way the portal can supply it after the fact. One already held is never replaced,
+            // and past offer acceptance the repeat stays the plain idempotent answer it always was —
+            // a retry must not start failing. A breakdown that does not reconcile is refused, as it
+            // would be on a first submission.
+            if (req.Financing is not null && existing.CanTakeLateFinancing)
+            {
+                var attached = existing.AttachLateFinancing(MapFinancing(req.Financing)!);
+                if (attached.IsFailure)
+                    return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(attached.Error);
+            }
+
             var existingResponse = IssueTokenAndBuildResponse(existing);
             await _uow.SaveChangesAsync(ct);
             return ApplicationResult<SubmitConsolidatedEopResultDto>.Success(existingResponse);
@@ -128,8 +141,18 @@ public class SubmitConsolidatedEopHandler
         return new RhshfFinancingInput(
             lines, charges, financing.InputsTotal, financing.PackagingExcessTotal,
             financing.ChargesTotal, financing.ApprovedEopTotal, financing.LoanAmount,
-            financing.ExcludedFromLoan);
+            financing.ExcludedFromLoan, MapEops(financing.Eops));
     }
+
+    /// <summary>The per-EOP summary. Sent from the start but not read until CRMSQA#2 — it is the only
+    /// place the portal states each EOP's own farmer count, and the only source for per-EOP subtotals
+    /// of the charges. Public so the startup back-fill reads stored submissions the same way.</summary>
+    public static List<RhshfFinancingEopInput>? MapEops(List<RhshfFinancingEopDto>? eops) =>
+        eops?.Select(e => new RhshfFinancingEopInput(
+                e.EopId, e.Crop, e.State, e.Farmers, e.Inputs ?? 0m, e.PackagingExcess ?? 0m,
+                e.Insurance ?? 0m, e.WorkingCapital ?? 0m, e.TechServicesFee ?? 0m,
+                e.ApprovedTotal ?? 0m, e.LoanAmount ?? 0m))
+            .ToList();
 
     /// <summary>Best-effort branch resolution (design doc §3.1) — mirrors the algorithm
     /// NampWebhookController uses (BOA account -> Fineract client -> office -> CRMS branch), calling

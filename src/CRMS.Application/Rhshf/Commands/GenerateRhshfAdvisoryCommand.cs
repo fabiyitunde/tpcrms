@@ -399,7 +399,7 @@ public class GenerateRhshfAdvisoryHandler : IRequestHandler<GenerateRhshfAdvisor
         var lines = new List<string>
         {
             $"Programme: {profile.ProgrammeName} ({profile.SessionName}).",
-            $"Farmer count served: {profile.FarmerCount?.ToString("N0") ?? "not recorded"}.",
+            $"Farmers financed: {(profile.FinancedFarmerCount ?? profile.FarmerCount)?.ToString("N0") ?? "not recorded"}.",
             // Quantity and unit price were 0 on every line the portal sent before it began sending a
             // unit per line. Stating "0kg @ 0.00/kg" to the model is worse than saying nothing: it
             // reads as a real measurement of zero. Where a quantity IS present it is stated in the

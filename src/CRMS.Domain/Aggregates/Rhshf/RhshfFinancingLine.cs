@@ -143,6 +143,49 @@ public class RhshfFinancingCharge : Entity
     }
 }
 
+/// <summary>
+/// One approved EOP within the case, as the portal summarised it: its farmers and what it costs,
+/// charge by charge. A case can carry several, and each needs its own schedule on the offer letter.
+/// <para>
+/// <see cref="Farmers"/> is the EOP's own target — the farmers this facility actually finances. It
+/// is not the profile's <c>FarmerCount</c>, which the portal sends as everyone registered under the
+/// FAC (220 for Grandbai, against 30 financed). Amounts are stored exactly as sent, like the lines.
+/// </para>
+/// </summary>
+public class RhshfFinancingEop : Entity
+{
+    public Guid RhshfCreditProfileId { get; private set; }
+    public Guid? EopId { get; private set; }
+    public string? Crop { get; private set; }
+    public string? State { get; private set; }
+    public int? Farmers { get; private set; }
+    public decimal Inputs { get; private set; }
+    public decimal PackagingExcess { get; private set; }
+    public decimal Insurance { get; private set; }
+    public decimal WorkingCapital { get; private set; }
+    public decimal TechServicesFee { get; private set; }
+    public decimal ApprovedTotal { get; private set; }
+    public decimal LoanAmount { get; private set; }
+
+    protected RhshfFinancingEop() { }
+
+    public RhshfFinancingEop(Guid rhshfCreditProfileId, RhshfFinancingEopInput input)
+    {
+        RhshfCreditProfileId = rhshfCreditProfileId;
+        EopId = input.EopId;
+        Crop = string.IsNullOrWhiteSpace(input.Crop) ? null : input.Crop.Trim();
+        State = string.IsNullOrWhiteSpace(input.State) ? null : input.State.Trim();
+        Farmers = input.Farmers;
+        Inputs = input.Inputs;
+        PackagingExcess = input.PackagingExcess;
+        Insurance = input.Insurance;
+        WorkingCapital = input.WorkingCapital;
+        TechServicesFee = input.TechServicesFee;
+        ApprovedTotal = input.ApprovedTotal;
+        LoanAmount = input.LoanAmount;
+    }
+}
+
 /// <summary>The itemised financing breakdown as it arrives from the portal, for
 /// RhshfCreditProfile.Create.</summary>
 public record RhshfFinancingInput(
@@ -153,7 +196,13 @@ public record RhshfFinancingInput(
     decimal? ChargesTotal,
     decimal? ApprovedEopTotal,
     decimal? LoanAmount,
-    decimal? ExcludedFromLoan);
+    decimal? ExcludedFromLoan,
+    IReadOnlyList<RhshfFinancingEopInput>? Eops = null);
+
+public record RhshfFinancingEopInput(
+    Guid? EopId, string? Crop, string? State, int? Farmers, decimal Inputs, decimal PackagingExcess,
+    decimal Insurance, decimal WorkingCapital, decimal TechServicesFee, decimal ApprovedTotal,
+    decimal LoanAmount);
 
 public record RhshfFinancingLineInput(
     Guid? EopId, string? Crop, string Item, string? Category, string? SpecificInput, string? Supplier,

@@ -107,7 +107,7 @@ public class RhshfLoanPackPdfGenerator : IRhshfLoanPackGenerator
             ("TIN", w.Tin ?? "—"),
             ("BOA account", w.BoaAccountNumber),
             ("Location", JoinNonBlank(", ", w.Lga, w.State)),
-            ("Number of farmers", w.FarmerCount?.ToString("N0") ?? "—"),
+            ("Farmers financed", w.FarmersFinanced?.ToString("N0") ?? "—"),
             ("Total EOP value", $"{ccy} {w.TotalEopValue:N2}"),
             ("Approved amount", w.ApprovedAmount is { } a ? $"{ccy} {a:N2}" : "—"),
             ("Decision", w.DecisionOutcome?.ToString() ?? "Pending"),

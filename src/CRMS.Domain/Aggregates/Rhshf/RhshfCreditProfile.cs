@@ -55,6 +55,29 @@ public class RhshfCreditProfile : AggregateRoot
     private readonly List<RhshfFinancingCharge> _financingCharges = [];
     public IReadOnlyList<RhshfFinancingCharge> FinancingCharges => _financingCharges.AsReadOnly();
 
+    /// <summary>The portal's per-EOP summary — farmers and subtotals for each approved EOP. Empty on
+    /// cases that predate it, until the startup back-fill reads it from the stored submission.</summary>
+    private readonly List<RhshfFinancingEop> _financingEops = [];
+    public IReadOnlyList<RhshfFinancingEop> FinancingEops => _financingEops.AsReadOnly();
+
+    /// <summary>
+    /// Farmers this facility actually finances: the sum of each approved EOP's own target. Null when
+    /// the portal sent no breakdown, in which case nothing better than <see cref="FarmerCount"/> is
+    /// known.
+    /// <para>
+    /// Not <see cref="FarmerCount"/>. The portal sends that as everyone registered under the FAC —
+    /// for Grandbai 220, against the 30 its one approved EOP finances — and the offer letter printed
+    /// it as the farmers covered. Where two EOPs share farmers this double-counts them; the portal
+    /// would have to send a distinct count for that, and does not yet.
+    /// </para>
+    /// </summary>
+    public int? FinancedFarmerCount =>
+        _financingEops.Count > 0
+            ? _financingEops.Sum(e => e.Farmers ?? 0)
+            : _financingLines.Count > 0 && _financingLines.Any(l => l.Farmers is not null)
+                ? _financingLines.GroupBy(l => l.EopId).Sum(g => g.Max(l => l.Farmers ?? 0))
+                : null;
+
     /// <summary>Totals as the portal sent them, kept rather than recomputed so a mismatch between
     /// their arithmetic and ours stays visible instead of being silently papered over.</summary>
     public decimal? FinancingInputsTotal { get; private set; }
@@ -280,27 +303,9 @@ public class RhshfCreditProfile : AggregateRoot
 
         if (financing is not null)
         {
-            foreach (var line in financing.InputLines)
-                profile._financingLines.Add(new RhshfFinancingLine(
-                    profile.Id, line.EopId, line.Crop, line.Item, line.Category, line.SpecificInput,
-                    line.Supplier, line.QuantityPerFarmer, line.Unit, line.UnitPrice, line.Basis,
-                    line.Farmers, line.Amount, line.PackagingExcess, line.InLoan));
-
-            foreach (var charge in financing.Charges)
-                profile._financingCharges.Add(new RhshfFinancingCharge(
-                    profile.Id, charge.Code, charge.Label, charge.Rate, charge.RateBasis,
-                    charge.Amount, charge.InLoan));
-
-            profile.FinancingInputsTotal = financing.InputsTotal;
-            profile.FinancingPackagingExcessTotal = financing.PackagingExcessTotal;
-            profile.FinancingChargesTotal = financing.ChargesTotal;
-            profile.ApprovedEopTotal = financing.ApprovedEopTotal;
-            profile.FinancedLoanAmount = financing.LoanAmount;
-            profile.ExcludedFromLoan = financing.ExcludedFromLoan;
-
-            var reconciliation = profile.CheckFinancingReconciles(totalEopValue);
-            if (reconciliation.IsFailure)
-                return Result.Failure<RhshfCreditProfile>(reconciliation.Error);
+            var applied = profile.ApplyFinancing(financing);
+            if (applied.IsFailure)
+                return Result.Failure<RhshfCreditProfile>(applied.Error);
         }
 
         // The trail starts where the case does — otherwise the first entry a reader sees is the
@@ -874,18 +879,20 @@ public class RhshfCreditProfile : AggregateRoot
     private const string CorrectedOfferAction = "Corrected offer issued";
 
     /// <summary>
-    /// An accepted offer was wrong and a corrected one is being issued in its place. Sends the case
-    /// back to awaiting the FAC's acceptance; the credit decision — amount and terms as ratified —
-    /// is unchanged, so this is not a fresh ratification. Only before disbursement: once the loan is
-    /// booked, the accepted terms are what core banking holds, and a correction there is an
-    /// amendment, not a reissue. The pre-deployment items already confirmed stay confirmed; seeding
-    /// is idempotent per cycle, so re-acceptance does not duplicate them.
+    /// An issued offer was wrong and a corrected one is being issued in its place — whether the FAC
+    /// has accepted it or not yet answered. Either way the case ends up awaiting the FAC's acceptance
+    /// of the corrected version, and the wrong one can no longer be accepted. The credit decision —
+    /// amount and terms as ratified — is unchanged, so this is not a fresh ratification. Only before
+    /// disbursement: once the loan is booked, the accepted terms are what core banking holds, and a
+    /// correction there is an amendment, not a reissue. Pre-deployment items already confirmed stay
+    /// confirmed; seeding is idempotent per cycle, so re-acceptance does not duplicate them.
     /// </summary>
     public Result ReopenOfferForCorrection(Guid actorUserId, string reason)
     {
         if (Status != RhshfCaseStatus.UnderReview
-            || InternalStage is not (RhshfInternalStage.PreDeploymentVerification or RhshfInternalStage.Disbursement))
-            return Result.Failure("A corrected offer can only be issued after the offer is accepted and before disbursement.");
+            || InternalStage is not (RhshfInternalStage.AwaitingOfferAcceptance
+                or RhshfInternalStage.PreDeploymentVerification or RhshfInternalStage.Disbursement))
+            return Result.Failure("A corrected offer can only be issued once an offer exists and before disbursement.");
         if (string.IsNullOrWhiteSpace(reason))
             return Result.Failure("Say what was wrong with the accepted offer.");
 
@@ -893,6 +900,23 @@ public class RhshfCreditProfile : AggregateRoot
         RecordTransition($"{CorrectedOfferAction} — awaiting FAC acceptance", actorUserId, note: reason.Trim());
         AddDomainEvent(new RhshfOfferReadyEvent(Id));
         UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Records that a Final Approver ratified a case with no itemised breakdown, overriding the block
+    /// on it. Ratification is otherwise refused for such a case, because its offer letter can only
+    /// print a crop-level plan. The override exists for cases the portal will never resend; the reason
+    /// is kept in the trail so the exception stays visible.
+    /// </summary>
+    public Result RecordRatificationWithoutBreakdown(Guid actorUserId, string reason)
+    {
+        if (HasItemisedFinancing)
+            return Result.Failure("This case has an itemised breakdown; no override is needed.");
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Give a reason for ratifying without the itemised breakdown.");
+
+        RecordTransition("Ratification without the itemised breakdown authorised", actorUserId, note: reason.Trim());
         return Result.Success();
     }
 
@@ -1130,6 +1154,140 @@ public class RhshfCreditProfile : AggregateRoot
              (!cacDirectorId.HasValue && string.Equals(d.FullName, fullName, StringComparison.OrdinalIgnoreCase))));
 
     /// <summary>
+    /// Takes on the portal's itemised breakdown and checks it reconciles. On failure every row and
+    /// total it added is taken off again, so a rejected breakdown leaves the case exactly as it was —
+    /// which matters when it arrives late, on a case already in review.
+    /// </summary>
+    private Result ApplyFinancing(RhshfFinancingInput financing)
+    {
+        foreach (var line in financing.InputLines)
+            _financingLines.Add(new RhshfFinancingLine(
+                Id, line.EopId, line.Crop, line.Item, line.Category, line.SpecificInput,
+                line.Supplier, line.QuantityPerFarmer, line.Unit, line.UnitPrice, line.Basis,
+                line.Farmers, line.Amount, line.PackagingExcess, line.InLoan));
+
+        foreach (var charge in financing.Charges)
+            _financingCharges.Add(new RhshfFinancingCharge(
+                Id, charge.Code, charge.Label, charge.Rate, charge.RateBasis, charge.Amount, charge.InLoan));
+
+        foreach (var eop in financing.Eops ?? [])
+            _financingEops.Add(new RhshfFinancingEop(Id, eop));
+
+        FinancingInputsTotal = financing.InputsTotal;
+        FinancingPackagingExcessTotal = financing.PackagingExcessTotal;
+        FinancingChargesTotal = financing.ChargesTotal;
+        ApprovedEopTotal = financing.ApprovedEopTotal;
+        FinancedLoanAmount = financing.LoanAmount;
+        ExcludedFromLoan = financing.ExcludedFromLoan;
+
+        var reconciliation = CheckFinancingReconciles(TotalEopValue);
+        if (reconciliation.IsSuccess)
+            return reconciliation;
+
+        _financingLines.Clear();
+        _financingCharges.Clear();
+        _financingEops.Clear();
+        FinancingInputsTotal = FinancingPackagingExcessTotal = FinancingChargesTotal = null;
+        ApprovedEopTotal = FinancedLoanAmount = ExcludedFromLoan = null;
+        return reconciliation;
+    }
+
+    /// <summary>
+    /// Takes a breakdown the portal sends after the case already exists. A repeat submission used to
+    /// be answered with the existing case and its payload ignored, so a case created before the
+    /// portal sent the breakdown could never get one — and since an offer is now refused without one,
+    /// such a case would be stuck.
+    /// <para>
+    /// Only while no breakdown is on the case (one already received is never replaced: it may be the
+    /// basis of an offer) and only until the FAC has accepted an offer, after which the terms are
+    /// fixed and a different breakdown is an amendment, not a late arrival.
+    /// </para>
+    /// </summary>
+    public Result AttachLateFinancing(RhshfFinancingInput financing)
+    {
+        if (!CanTakeLateFinancing)
+            return Result.Failure("This case already has a breakdown, or its offer has been accepted or the case is closed.");
+
+        var applied = ApplyFinancing(financing);
+        if (applied.IsFailure)
+            return applied;
+
+        RecordTransition("Itemised breakdown received from the portal", actorUserId: null, actorLabel: "Portal");
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>Whether <see cref="AttachLateFinancing"/> would consider a breakdown at all.</summary>
+    public bool CanTakeLateFinancing =>
+        !HasItemisedFinancing
+        && Status is not (RhshfCaseStatus.Approved or RhshfCaseStatus.Declined or RhshfCaseStatus.Cancelled or RhshfCaseStatus.Expired)
+        && InternalStage is not (RhshfInternalStage.PreDeploymentVerification or RhshfInternalStage.Disbursement
+            or RhshfInternalStage.Active or RhshfInternalStage.Closed);
+
+    /// <summary>
+    /// Fills in the per-EOP summary for a case whose breakdown arrived before CRMS stored it. Read
+    /// from the submission the portal actually sent (kept verbatim), so nothing is reconstructed or
+    /// inferred. Only when none is held, and only if it reconciles — otherwise left empty, which the
+    /// offer letter handles by printing the lines without per-EOP subtotals.
+    /// </summary>
+    public Result BackfillFinancingEops(IReadOnlyList<RhshfFinancingEopInput> eops)
+    {
+        if (_financingEops.Count > 0 || !HasItemisedFinancing || eops.Count == 0)
+            return Result.Failure("Nothing to back-fill.");
+
+        foreach (var eop in eops)
+            _financingEops.Add(new RhshfFinancingEop(Id, eop));
+
+        var reconciliation = CheckEopSummariesReconcile();
+        if (reconciliation.IsFailure)
+            _financingEops.Clear();
+        return reconciliation;
+    }
+
+    /// <summary>
+    /// Rule 4, ours rather than the portal's: each EOP's summary must agree with its own lines and
+    /// add up, and the EOPs together must make the approved total. The letter prints a schedule per
+    /// EOP from these figures; if they did not agree with the lines beneath them, the borrower would
+    /// be signing a schedule whose subtotal is not the sum of its rows.
+    /// </summary>
+    private Result CheckEopSummariesReconcile()
+    {
+        const decimal tolerance = 0.01m;
+        if (_financingEops.Count == 0)
+            return Result.Success();
+
+        foreach (var eop in _financingEops)
+        {
+            var label = $"EOP {eop.Crop ?? eop.EopId?.ToString() ?? "(unnamed)"}";
+            var parts = eop.Inputs + eop.PackagingExcess + eop.Insurance + eop.WorkingCapital + eop.TechServicesFee;
+            if (Math.Abs(parts - eop.ApprovedTotal) > tolerance)
+                return Result.Failure(
+                    $"Financing does not reconcile (rule 4): {label} components total {parts:N2}, but its " +
+                    $"approved total is {eop.ApprovedTotal:N2}.");
+
+            var lines = _financingLines.Where(l => l.EopId == eop.EopId).ToList();
+            if (lines.Count > 0)
+            {
+                var lineInputs = lines.Sum(l => l.Amount);
+                var lineExcess = lines.Sum(l => l.PackagingExcess);
+                if (Math.Abs(lineInputs - eop.Inputs) > tolerance || Math.Abs(lineExcess - eop.PackagingExcess) > tolerance)
+                    return Result.Failure(
+                        $"Financing does not reconcile (rule 4): {label} states inputs {eop.Inputs:N2} and packaging " +
+                        $"excess {eop.PackagingExcess:N2}, but its lines total {lineInputs:N2} and {lineExcess:N2}.");
+            }
+        }
+
+        var eopTotal = _financingEops.Sum(e => e.ApprovedTotal);
+        var approvedTotal = ApprovedEopTotal ?? TotalEopValue;
+        if (Math.Abs(eopTotal - approvedTotal) > tolerance)
+            return Result.Failure(
+                $"Financing does not reconcile (rule 4): the EOPs total {eopTotal:N2}, but the approved EOP " +
+                $"total is {approvedTotal:N2}.");
+
+        return Result.Success();
+    }
+
+    /// <summary>
     /// The portal's reconciliation rules 1 to 3, re-checked here on receipt at its request.
     /// <para>
     /// The portal refuses to send a case that fails them, so this is a second pair of eyes rather
@@ -1180,7 +1338,7 @@ public class RhshfCreditProfile : AggregateRoot
                 $"Financing does not reconcile (rule 3): the loan amount is {loanAmount:N2}, but the " +
                 $"submitted EOP value is {totalEopValue:N2} (difference {Math.Abs(loanAmount - totalEopValue):N2}).");
 
-        return Result.Success();
+        return CheckEopSummariesReconcile();
     }
 
     /// <summary>

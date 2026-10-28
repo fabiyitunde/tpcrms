@@ -169,7 +169,7 @@ else
                 </div>
                 <div>
                     <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Farmers</div>
-                    <div style="font-weight: 500; margin-top: var(--space-1);">@(workspace.FarmerCount?.ToString("N0") ?? "—")</div>
+                    <div style="font-weight: 500; margin-top: var(--space-1);">@(workspace.FarmersFinanced?.ToString("N0") ?? "—")</div>
                 </div>
                 <div>
                     <div style="font-size: var(--text-xs); color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em;">Received</div>
@@ -390,7 +390,8 @@ else
     {
         <RatificationModal Intent="@modalIntent" TotalEopValue="workspace.TotalEopValue" Currency="@workspace.Currency"
             OnClose="CloseModal" OnConfirm="SubmitRatify" IsSubmitting="isSubmitting" ErrorMessage="@modalError"
-            CompanyName="@workspace.CompanyName" Reference="@Reference" FarmerCount="workspace.FarmerCount"
+            CompanyName="@workspace.CompanyName" Reference="@Reference" FarmerCount="workspace.FarmersFinanced"
+            HasItemisedFinancing="workspace.HasItemisedFinancing"
             CommitteeTier="@workspace.CommitteeTier" CommitteeTierBand="@workspace.CommitteeTierBand"
             Report="financialAppraisal?.Report" Committee="committeeReview"
             LegalClearance="currentLegalClearance" Collateral="collateralRecords" />
@@ -925,11 +926,11 @@ else
         await LoadAllAsync();
     }
 
-    private async Task SubmitRatify((RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage) input)
+    private async Task SubmitRatify((RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage, string? OverrideReason) input)
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.RatifyRhshfCaseAsync(Reference, CurrentUserId, input.Outcome, input.ApprovedAmount, input.Notes, input.ReturnToStage);
+        var result = await AppService.RatifyRhshfCaseAsync(Reference, CurrentUserId, input.Outcome, input.ApprovedAmount, input.Notes, input.ReturnToStage, input.OverrideReason);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();
@@ -1182,10 +1183,12 @@ else
         offer = await AppService.GetRhshfOfferAsync(Reference);
     }
 
-    // An accepted offer that was wrong is replaced, never rewritten: same approvers as Regenerate, but
-    // only after acceptance and before disbursement — the window ReopenOfferForCorrection enforces.
-    private bool CanIssueCorrectedOffer => CanRatify && offer?.Status == RhshfOfferStatus.Accepted
-        && workspace?.InternalStage is RhshfInternalStage.PreDeploymentVerification or RhshfInternalStage.Disbursement;
+    // An issued offer that was wrong is replaced, never rewritten: same approvers as Regenerate, from
+    // issue until disbursement — the window ReopenOfferForCorrection enforces.
+    private bool CanIssueCorrectedOffer => CanRatify
+        && offer?.Status is RhshfOfferStatus.Accepted or RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse
+        && workspace?.InternalStage is RhshfInternalStage.AwaitingOfferAcceptance
+            or RhshfInternalStage.PreDeploymentVerification or RhshfInternalStage.Disbursement;
 
     private async Task IssueCorrectedOffer(string reason)
     {

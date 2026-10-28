@@ -63,9 +63,9 @@ else
                     <dt class="col-sm-4">Total repayable at harvest</dt>
                     <dd class="col-sm-8"><strong>@(string.IsNullOrWhiteSpace(Model.Offer.Currency) ? Model.Workspace.Currency : Model.Offer.Currency) @Model.Offer.AmountDueAtHarvest.Value.ToString("N2")</strong></dd>
                 }
-                @if (Model.Workspace.FarmerCount.HasValue)
+                @if (Model.Workspace.FarmersFinanced.HasValue)
                 {
-                    <dt class="col-sm-4">Farmers</dt><dd class="col-sm-8">@Model.Workspace.FarmerCount.Value.ToString("N0")</dd>
+                    <dt class="col-sm-4">Farmers financed</dt><dd class="col-sm-8">@Model.Workspace.FarmersFinanced.Value.ToString("N0")</dd>
                 }
                 <dt class="col-sm-4">Location</dt><dd class="col-sm-8">@Model.Workspace.Lga, @Model.Workspace.State</dd>
                 <dt class="col-sm-4">Offer generated</dt><dd class="col-sm-8">@Model.Offer.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy")</dd>

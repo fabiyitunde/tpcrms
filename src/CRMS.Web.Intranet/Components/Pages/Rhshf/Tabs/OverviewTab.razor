@@ -38,8 +38,8 @@
                     <span class="info-value">@Workspace.Lga, @Workspace.State</span>
                 </div>
                 <div class="info-item">
-                    <span class="info-label">Farmers Served</span>
-                    <span class="info-value">@(Workspace.FarmerCount?.ToString("N0") ?? "N/A")</span>
+                    <span class="info-label">Farmers Financed</span>
+                    <span class="info-value">@(Workspace.FarmersFinanced?.ToString("N0") ?? "N/A")</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Received</span>
@@ -130,7 +130,7 @@
                     <div class="summary-stat-label">EOP Lines</div>
                 </div>
                 <div class="summary-stat">
-                    <div class="summary-stat-value">@(Workspace.FarmerCount?.ToString("N0") ?? "0")</div>
+                    <div class="summary-stat-value">@(Workspace.FarmersFinanced?.ToString("N0") ?? "0")</div>
                     <div class="summary-stat-label">Farmers</div>
                 </div>
             </div>

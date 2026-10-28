@@ -1,4 +1,4 @@
-@* Replaces an accepted offer that turned out to be wrong. Spelled out in the dialog because the
+@* Replaces an issued offer that turned out to be wrong, accepted or not. Spelled out in the dialog because the
    consequence is not obvious from the button: the case goes back to waiting for the FAC, and the
    reason is written to the case history. *@
 <div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
@@ -10,10 +10,10 @@
         <div class="modal-body">
             <div class="alert alert-warning" style="margin-bottom: var(--space-3); font-size: var(--text-sm);">
                 A new offer letter is generated from the case as it stands now, for the same approved amount and terms.
-                The FAC must accept it again before the case can move on. The accepted offer and its signed copies are kept on record.
+                The FAC must accept it before the case can move on, and the current offer can no longer be accepted. The current offer, and any signed copy, is kept on record.
             </div>
             <div class="form-group">
-                <label class="form-label">What was wrong with the accepted offer? (required)</label>
+                <label class="form-label">What was wrong with the current offer? (required)</label>
                 <textarea class="form-control" rows="3" @bind="reason" placeholder="e.g. The implementation plan did not list the EOP inputs and suppliers."></textarea>
             </div>
             @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
@@ -45,7 +45,7 @@
         clientError = null;
         if (string.IsNullOrWhiteSpace(reason))
         {
-            clientError = "Say what was wrong with the accepted offer.";
+            clientError = "Say what was wrong with the current offer.";
             return;
         }
         await OnConfirm.InvokeAsync(reason.Trim());

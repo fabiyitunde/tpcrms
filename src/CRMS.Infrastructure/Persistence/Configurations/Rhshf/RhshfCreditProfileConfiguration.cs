@@ -64,6 +64,12 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
             .HasForeignKey(x => x.RhshfCreditProfileId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(x => x.FinancingEops)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Ignore(x => x.FinancedFarmerCount);
+
         builder.Property(x => x.CallbackUrl).IsRequired().HasMaxLength(500);
         builder.Property(x => x.CertifiedByAdmin).HasMaxLength(200);
 
@@ -296,6 +302,28 @@ public class RhshfFinancingLineConfiguration : IEntityTypeConfiguration<RhshfFin
 
         builder.Ignore(x => x.Description);
         builder.Ignore(x => x.QuantityDisplay);
+
+        builder.HasIndex(x => x.RhshfCreditProfileId);
+    }
+}
+
+public class RhshfFinancingEopConfiguration : IEntityTypeConfiguration<RhshfFinancingEop>
+{
+    public void Configure(EntityTypeBuilder<RhshfFinancingEop> builder)
+    {
+        builder.ToTable("RhshfFinancingEops");
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Crop).HasMaxLength(100);
+        builder.Property(x => x.State).HasMaxLength(100);
+
+        builder.Property(x => x.Inputs).IsRequired().HasColumnType("decimal(18,2)");
+        builder.Property(x => x.PackagingExcess).IsRequired().HasColumnType("decimal(18,2)");
+        builder.Property(x => x.Insurance).IsRequired().HasColumnType("decimal(18,2)");
+        builder.Property(x => x.WorkingCapital).IsRequired().HasColumnType("decimal(18,2)");
+        builder.Property(x => x.TechServicesFee).IsRequired().HasColumnType("decimal(18,2)");
+        builder.Property(x => x.ApprovedTotal).IsRequired().HasColumnType("decimal(18,2)");
+        builder.Property(x => x.LoanAmount).IsRequired().HasColumnType("decimal(18,2)");
 
         builder.HasIndex(x => x.RhshfCreditProfileId);
     }

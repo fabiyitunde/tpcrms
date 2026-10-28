@@ -185,6 +185,80 @@ public class RhshfEopReconciliationTests
         Assert.False(result.Value.HasItemisedFinancing);
     }
 
+    // ── Per-EOP summary, financed farmers and late breakdowns (CRMSQA#2) ─────────────────────────
+
+    private static readonly Guid EopId = Guid.Parse("9f982067-fff9-47f4-9b20-6e9b2c717606");
+
+    private static RhshfFinancingInput OneEop(int farmers = 7, decimal? summaryInputs = null) => new(
+        [new RhshfFinancingLineInput(EopId, "Maize", "NPK Fertilizer", "Fertilizer", null, "Supplier", 2m, "Kg", 1_000m,
+            "perFarmer", farmers, 14_000m, 0m, true)],
+        [new RhshfFinancingChargeInput("insurance", "Insurance", 4m, null, 560m, true)],
+        InputsTotal: 14_000m, PackagingExcessTotal: 0m, ChargesTotal: 560m,
+        ApprovedEopTotal: 14_560m, LoanAmount: 14_560m, ExcludedFromLoan: 0m,
+        Eops: [new RhshfFinancingEopInput(EopId, "Maize", "Kano", farmers, summaryInputs ?? 14_000m, 0m, 560m, 0m, 0m, 14_560m, 14_560m)]);
+
+    [Fact]
+    public void FinancedFarmers_ComeFromTheEops_NotTheFacsRegisteredCount()
+    {
+        // The portal sends farmerCount as everyone registered under the FAC (10 here); the EOP says 7.
+        var profile = Create(14_560m, OneEop(farmers: 7)).Value;
+
+        Assert.Equal(10, profile.FarmerCount);
+        Assert.Equal(7, profile.FinancedFarmerCount);
+    }
+
+    [Fact]
+    public void Rule4_RejectsAnEopSummaryThatDisagreesWithItsOwnLines()
+    {
+        var result = Create(14_560m, OneEop(summaryInputs: 15_000m));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("rule 4", result.Error);
+    }
+
+    [Fact]
+    public void LateBreakdown_IsTakenOnACaseWithoutOne_AndNeverReplacesOne()
+    {
+        var profile = Create(14_560m, financing: null).Value;
+        Assert.True(profile.CanTakeLateFinancing);
+
+        var attached = profile.AttachLateFinancing(OneEop());
+
+        Assert.True(attached.IsSuccess);
+        Assert.True(profile.HasItemisedFinancing);
+        Assert.Single(profile.FinancingEops);
+        Assert.False(profile.CanTakeLateFinancing);
+        Assert.True(profile.AttachLateFinancing(OneEop()).IsFailure);
+        Assert.Single(profile.FinancingLines);
+    }
+
+    [Fact]
+    public void LateBreakdown_ThatDoesNotReconcile_LeavesTheCaseExactlyAsItWas()
+    {
+        var profile = Create(14_560m, financing: null).Value;
+
+        var attached = profile.AttachLateFinancing(OneEop(summaryInputs: 15_000m));
+
+        Assert.True(attached.IsFailure);
+        Assert.False(profile.HasItemisedFinancing);
+        Assert.Empty(profile.FinancingEops);
+        Assert.Null(profile.ApprovedEopTotal);
+    }
+
+    [Fact]
+    public void Backfill_AddsTheEopSummary_OnlyWhereNoneIsHeld()
+    {
+        var withoutEops = OneEop() with { Eops = null };
+        var profile = Create(14_560m, withoutEops).Value;
+        Assert.Empty(profile.FinancingEops);
+
+        var eops = OneEop().Eops!;
+        Assert.True(profile.BackfillFinancingEops(eops).IsSuccess);
+        Assert.Equal(7, profile.FinancedFarmerCount);
+        Assert.True(profile.BackfillFinancingEops(eops).IsFailure);
+        Assert.Single(profile.FinancingEops);
+    }
+
     // ── Fixtures ──────────────────────────────────────────────────────────────────────────────────
 
     private static List<RhshfFinancingLineInput> Lines() =>

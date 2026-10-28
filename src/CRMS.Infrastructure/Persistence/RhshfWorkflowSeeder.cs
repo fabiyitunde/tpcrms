@@ -19,6 +19,61 @@ public static class RhshfWorkflowSeeder
         await SeedDocumentRequirementsAsync(context, logger);
         await BackfillDocumentFormatRulesAsync(context, logger);
         await BackfillGuarantorRelationshipsAsync(context, logger);
+        await BackfillFinancingEopsAsync(context, logger);
+    }
+
+    /// <summary>
+    /// One-time, idempotent: stores the portal's per-EOP summary on cases whose breakdown arrived
+    /// before CRMS kept it (CRMSQA#2). Read from the submission exactly as the portal sent it, so
+    /// nothing is reconstructed. A case that already has the summary is skipped, and one whose summary
+    /// does not reconcile with its lines is left without it and logged — the letter then prints the
+    /// lines without per-EOP subtotals rather than figures that disagree with them.
+    /// </summary>
+    private static async Task BackfillFinancingEopsAsync(CRMSDbContext context, ILogger logger)
+    {
+        var profiles = await context.RhshfCreditProfiles
+            .Where(p => p.FinancingLines.Any() && !p.FinancingEops.Any())
+            .Include(p => p.FinancingLines)
+            .Include(p => p.FinancingCharges)
+            .Include(p => p.FinancingEops)
+            .AsSplitQuery()
+            .ToListAsync();
+
+        if (profiles.Count == 0)
+            return;
+
+        var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        var filled = 0;
+        foreach (var profile in profiles)
+        {
+            List<RhshfFinancingEopInput>? eops;
+            try
+            {
+                var payload = System.Text.Json.JsonSerializer.Deserialize<CRMS.Application.Rhshf.DTOs.SubmitConsolidatedEopRequest>(
+                    profile.RawSubmissionPayload, json);
+                eops = CRMS.Application.Rhshf.Commands.SubmitConsolidatedEopHandler.MapEops(payload?.Financing?.Eops);
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                logger.LogWarning(ex, "RH-SHF {Reference}: stored submission could not be read for the per-EOP back-fill.", profile.Reference);
+                continue;
+            }
+
+            if (eops is not { Count: > 0 })
+                continue;
+
+            var result = profile.BackfillFinancingEops(eops);
+            if (result.IsSuccess)
+                filled++;
+            else
+                logger.LogWarning("RH-SHF {Reference}: per-EOP summary not back-filled — {Reason}", profile.Reference, result.Error);
+        }
+
+        if (filled == 0)
+            return;
+
+        await context.SaveChangesAsync();
+        logger.LogInformation("Back-filled the per-EOP financing summary on {Count} RH-SHF case(s).", filled);
     }
 
     /// <summary>

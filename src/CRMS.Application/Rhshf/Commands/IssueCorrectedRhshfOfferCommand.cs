@@ -8,12 +8,13 @@ using CRMS.Domain.Interfaces;
 namespace CRMS.Application.Rhshf.Commands;
 
 /// <summary>
-/// Replaces an accepted offer that was wrong with a corrected one the FAC must accept again.
+/// Replaces an issued offer that was wrong — accepted or not yet answered — with a corrected one the
+/// FAC must accept.
 /// <para>
-/// RegenerateRhshfOfferLetterCommand cannot do this: it overwrites the document in place, and only
-/// before the FAC has answered, because an accepted offer is contractual. Here nothing is
-/// overwritten. The accepted offer is marked superseded and keeps its document and the FAC's signed
-/// copies; the corrected offer is a new row with its own file, built from the case as it now stands
+/// RegenerateRhshfOfferLetterCommand cannot do this: it overwrites the document in place under the
+/// same version, which is recovery for a lost file, not a correction the FAC may already have read.
+/// Here nothing is overwritten. The current offer is marked superseded and keeps its document and
+/// any signed copies; the corrected offer is a new row with its own file, built from the case as it now stands
 /// through the same builder ratification uses. The amount and terms are the ratified ones — this
 /// corrects the document, it does not re-decide the credit.
 /// </para>
@@ -54,30 +55,31 @@ public class IssueCorrectedRhshfOfferHandler : IRequestHandler<IssueCorrectedRhs
         if (profile.ApprovedAmount is null)
             return ApplicationResult.Failure("No ratified amount is on file for this case.");
 
-        var accepted = await _offerRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
-        if (accepted is null)
+        var current = await _offerRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
+        if (current is null)
             return ApplicationResult.Failure("No offer exists for this case's current cycle.");
 
-        if (accepted.Status != RhshfOfferStatus.Accepted)
-            return ApplicationResult.Failure("Only an accepted offer can be replaced by a corrected one.");
+        if (current.Status is not (RhshfOfferStatus.Accepted or RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse))
+            return ApplicationResult.Failure("Only an issued or accepted offer can be replaced by a corrected one.");
 
         // The document is generated and stored before anything on the case changes. The circuit
         // shares one DbContext, so a half-applied change left tracked here — offer superseded, no
         // replacement — would be saved by the next unrelated action on the page. A failure after
         // this point leaves at worst an unreferenced file.
-        var build = await _documentDataBuilder.BuildAsync(profile, profile.ApprovedAmount.Value, ct);
+        var version = profile.OfferVersion + 1;
+        var build = await _documentDataBuilder.BuildAsync(profile, profile.ApprovedAmount.Value, ct, offerVersion: version);
         var pdfBytes = await _offerDocumentGenerator.GenerateAsync(build.Data, ct);
 
-        // A new file, never the accepted offer's: that document is what the FAC signed, and it stays.
+        // A new file, never the current offer's: that document may be signed, or already in the FAC's hands, and it stays.
         var storagePath = await _fileStorage.UploadAsync(
-            OfferContainerName, $"{profile.Reference}/offer-cycle{profile.CurrentCycleNumber}-v{profile.OfferVersion + 1}.pdf",
+            OfferContainerName, $"{profile.Reference}/offer-cycle{profile.CurrentCycleNumber}-v{version}.pdf",
             pdfBytes, "application/pdf", ct);
 
         var reopened = profile.ReopenOfferForCorrection(request.ActorUserId, request.Reason);
         if (reopened.IsFailure)
             return ApplicationResult.Failure(reopened.Error);
 
-        accepted.Supersede();
+        current.Supersede();
 
         var corrected = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, storagePath);
         if (corrected.IsFailure)

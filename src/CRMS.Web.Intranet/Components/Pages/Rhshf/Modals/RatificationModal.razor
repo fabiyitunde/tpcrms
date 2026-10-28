@@ -113,6 +113,29 @@
                     </div>
                 </div>
             }
+            @if (Intent == "Ratified" && !HasItemisedFinancing)
+            {
+                @* Refused by default: the offer letter could only show a crop-level plan. The override
+                   is for a case the portal will never resend; its reason goes into the case history. *@
+                <div class="alert alert-warning" style="font-size: var(--text-sm);">
+                    <strong>No itemised breakdown from the portal.</strong>
+                    The offer letter can only show a crop-level plan, without the inputs, suppliers and charges.
+                    Ask the portal team to resend the submission with the breakdown. Ratify now only if it will not be resent.
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; gap: 8px; align-items: center; font-size: var(--text-sm);">
+                        <input type="checkbox" @bind="overrideMissingBreakdown" />
+                        Ratify without the itemised breakdown
+                    </label>
+                </div>
+                @if (overrideMissingBreakdown)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Reason for the override (required)</label>
+                        <textarea class="form-control" rows="2" @bind="overrideReason"></textarea>
+                    </div>
+                }
+            }
             <div class="form-group">
                 <label class="form-label">Notes @(RequiresNotes ? "(required)" : "(optional)")</label>
                 <textarea class="form-control" rows="3" @bind="notes" placeholder="Enter notes..."></textarea>
@@ -181,10 +204,13 @@
         __builder.CloseElement();
     };
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback<(RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage)> OnConfirm { get; set; }
+    [Parameter] public EventCallback<(RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage, string? OverrideReason)> OnConfirm { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public bool HasItemisedFinancing { get; set; } = true;
 
+    private bool overrideMissingBreakdown;
+    private string overrideReason = string.Empty;
     private string notes = string.Empty;
     private string? clientError;
     private RhshfProfilingStage returnToStage = RhshfProfilingStage.ReviewAndSubmit;
@@ -201,12 +227,24 @@
             clientError = "Notes are required for this decision.";
             return;
         }
+        var needsOverride = Intent == "Ratified" && !HasItemisedFinancing;
+        if (needsOverride && !overrideMissingBreakdown)
+        {
+            clientError = "This case has no itemised breakdown. Tick the override and give a reason, or ask the portal team to resend it.";
+            return;
+        }
+        if (needsOverride && string.IsNullOrWhiteSpace(overrideReason))
+        {
+            clientError = "Give a reason for ratifying without the itemised breakdown.";
+            return;
+        }
         clientError = null;
         var outcome = Enum.Parse<RhshfRatificationOutcome>(Intent);
         await OnConfirm.InvokeAsync((
             outcome,
             outcome == RhshfRatificationOutcome.Ratified ? TotalEopValue : null,
             string.IsNullOrWhiteSpace(notes) ? null : notes,
-            Intent == "ReturnToFac" ? returnToStage : null));
+            Intent == "ReturnToFac" ? returnToStage : null,
+            needsOverride ? overrideReason.Trim() : null));
     }
 }

@@ -63,7 +63,17 @@ public record RhshfCaseWorkspaceDto(
     /// the header/Overview can show it up front. Null only if no band matches (misconfiguration).
     /// "Regional", "Branch", etc. — the friendly label, with CommitteeTierBand carrying the range.</summary>
     string? CommitteeTier = null,
-    string? CommitteeTierBand = null);
+    string? CommitteeTierBand = null,
+    /// <summary>Farmers the facility finances, from the approved EOPs. FarmerCount is everyone
+    /// registered under the FAC, which the portal sends in its place (220 against 30 for Grandbai),
+    /// so displays prefer this and fall back to FarmerCount only when no breakdown was sent.</summary>
+    int? FinancedFarmerCount = null,
+    /// <summary>False when the portal sent no itemised breakdown — ratification then needs an override.</summary>
+    bool HasItemisedFinancing = true)
+{
+    /// <summary>The farmer count to show: financed where known, otherwise what the portal sent.</summary>
+    public int? FarmersFinanced => FinancedFarmerCount ?? FarmerCount;
+}
 
 // Every actor-carrying DTO below gets a resolved *Name companion alongside the raw id. The id stays
 // (callers still need it for "is this me?" comparisons); the name is what the UI renders. Populated

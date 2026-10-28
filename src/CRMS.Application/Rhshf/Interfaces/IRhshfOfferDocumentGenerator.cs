@@ -67,7 +67,55 @@ public record RhshfOfferDocumentData(
     RhshfOfferFeesAccount? FeesAccount,
 
     /// <summary>Days the offer stands before it lapses. The approved template says seven.</summary>
-    int ValidityDays);
+    int ValidityDays,
+
+    /// <summary>Which offer this is on the case — printed on every page, so a corrected offer can
+    /// never be mistaken for the one it replaced.</summary>
+    int OfferVersion = 1,
+
+    /// <summary>Everyone registered under the FAC, as the portal sends it. Printed beside
+    /// <see cref="FarmerCount"/> (the farmers financed) only when they differ, so neither is read
+    /// as the other.</summary>
+    int? RegisteredFarmerCount = null,
+
+    /// <summary>Schedule A: one per approved EOP, each with its own input rows and subtotals. Empty
+    /// when the case has no itemised breakdown, in which case <see cref="PlanRows"/> carries the
+    /// crop-level fallback.</summary>
+    IReadOnlyList<RhshfOfferEopSchedule>? Schedules = null,
+
+    /// <summary>Schedule B: the whole facility by component — inputs, services, packaging excess and
+    /// each charge — footing to the approved amount, each charge marked with how it is paid.</summary>
+    IReadOnlyList<RhshfOfferSummaryRow>? Summary = null);
+
+/// <summary>One approved EOP's part of the facility.</summary>
+public record RhshfOfferEopSchedule(
+    string Title,
+    int? Farmers,
+    IReadOnlyList<RhshfOfferInputRow> Rows,
+    /// <summary>Inputs, packaging excess and the EOP's own share of each charge. Empty when the
+    /// portal sent no per-EOP summary — the rows are then printed without subtotals rather than with
+    /// figures CRMS worked out itself.</summary>
+    IReadOnlyList<RhshfOfferSummaryRow> Subtotals,
+    decimal? Total);
+
+/// <summary>One input or service as financed for an EOP. Every figure is the portal's own; the total
+/// quantity is the per-farmer quantity times the EOP's farmers, which is how the portal counts it.</summary>
+public record RhshfOfferInputRow(
+    string Input,
+    string? Product,
+    string? Supplier,
+    string? PerFarmer,
+    string? TotalQuantity,
+    decimal? UnitPrice,
+    decimal Amount,
+    decimal PackagingExcess);
+
+/// <summary>A component of the facility. Treatment says how the borrower pays it — "Financed in the
+/// loan" for everything the EOP finances, so nothing on the letter reads as payable twice.</summary>
+public record RhshfOfferSummaryRow(string Label, decimal Amount, string? Basis, string? Treatment)
+{
+    public const string FinancedInLoan = "Financed in the loan";
+}
 
 /// <summary>
 /// One row of the implementation plan. Supplier and quantity are null on charge rows and on

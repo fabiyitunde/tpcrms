@@ -159,15 +159,16 @@ public class RhshfOffer : AggregateRoot
     }
 
     /// <summary>
-    /// Retires an accepted offer that turned out to be wrong, so a corrected one can be issued in its
-    /// place. Not a rewrite: this row, its document and the FAC's signed copies stay exactly as they
-    /// were. Only an accepted offer — one still awaiting the FAC's answer is reissued in place by
-    /// RegenerateDocument instead.
+    /// Retires an offer that turned out to be wrong, so a corrected one can be issued in its place.
+    /// Not a rewrite: this row, its document and any signed copies stay exactly as they were. Works
+    /// on an accepted offer and on one the FAC has not answered yet — the second matters because the
+    /// FAC may already hold that version, and replacing it in place would leave two documents in
+    /// circulation under one version. A rejected offer has ended the case and is not replaced.
     /// </summary>
     public Result Supersede()
     {
-        if (Status != RhshfOfferStatus.Accepted)
-            return Result.Failure("Only an accepted offer can be replaced by a corrected one.");
+        if (Status is not (RhshfOfferStatus.Accepted or RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse))
+            return Result.Failure("Only an issued or accepted offer can be replaced by a corrected one.");
 
         Status = RhshfOfferStatus.Superseded;
         return Result.Success();

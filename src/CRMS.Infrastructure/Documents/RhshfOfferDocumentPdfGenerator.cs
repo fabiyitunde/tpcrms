@@ -65,6 +65,7 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
                 row.ConstantItem(150).AlignRight().Column(c =>
                 {
                     c.Item().AlignRight().Text($"Ref: {data.Reference}").FontSize(8).SemiBold();
+                    c.Item().AlignRight().Text($"Offer version {data.OfferVersion}").FontSize(8).SemiBold();
                     c.Item().AlignRight().Text(data.GeneratedDate.ToString("d MMMM yyyy")).FontSize(8).FontColor(Muted);
                 });
             });
@@ -81,7 +82,10 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
             {
                 row.RelativeItem().Text(t =>
                 {
-                    t.Span($"{data.CompanyName} · {data.Reference}").FontSize(7.5f).FontColor(Muted);
+                    // Version on every page, not just the first: a corrected offer must not be
+                    // confusable with the one it replaced from any single page of it.
+                    t.Span($"{data.CompanyName} · {data.Reference} · Offer version {data.OfferVersion} · "
+                        + $"issued {data.GeneratedDate:d MMM yyyy}").FontSize(7.5f).FontColor(Muted);
                 });
                 row.ConstantItem(70).AlignRight().Text(t =>
                 {
@@ -216,13 +220,28 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
                 : "As set out in the approved credit terms, subject to variation.");
 
             if (data.FarmerCount is { } farmers)
-                Term(table, "Farmers covered", $"{farmers:N0} smallholder farmers under this aggregator.");
+                Term(table, "Farmers covered", data.RegisteredFarmerCount is { } registered
+                    ? $"{farmers:N0} smallholder farmers financed under this facility, of the {registered:N0} registered "
+                      + "with this aggregator."
+                    : $"{farmers:N0} smallholder farmers under this aggregator.");
 
             // Fees come from the core banking product, which is what actually deducts them at
             // booking. Stating a figure held anywhere else risks the letter and the deduction
             // disagreeing, which is the one thing this programme's reconciliation rules forbid.
             Term(table, "Charges and fees", null, cell =>
             {
+                // Three ways a charge reaches the borrower, stated separately so none reads as payable
+                // twice: financed inside the loan (Schedule B), deducted at disbursement by the core
+                // banking product, or paid separately before disbursement.
+                var financed = (data.Summary ?? [])
+                    .Where(s => s.Treatment == RhshfOfferSummaryRow.FinancedInLoan && !IsInputComponent(s.Label))
+                    .Select(s => s.Label)
+                    .ToList();
+                if (financed.Count > 0)
+                    cell.Item().PaddingBottom(4).Text(
+                        $"{JoinLabels(financed)}: financed in the loan amount, as set out in Schedule B. "
+                        + "They are not deducted again at disbursement.");
+
                 if (data.ProductFees.Count == 0)
                 {
                     cell.Item().Text("As set out in the approved credit terms, advised before disbursement.");
@@ -247,14 +266,20 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
     }
 
     /// <summary>
-    /// The implementation plan, printed from the portal's itemised rows and footed to the approved
-    /// amount. The charge rows are set apart from the supplier lines, because a borrower reading
-    /// "Working capital" needs to see it is a financed charge and not something a supplier delivers.
+    /// The implementation plan. With the portal's itemised breakdown it is two schedules: A, each
+    /// approved EOP line by line with its supplier, quantities and price; B, the facility by component,
+    /// footing to the approved amount. Without one, a single crop-level table and a note saying so.
     /// </summary>
     private static void ImplementationPlan(ColumnDescriptor col, RhshfOfferDocumentData data)
     {
         Heading(col, "Implementation plan");
         col.Item().Text("The approved loan will be applied in accordance with the plan below.").FontSize(9);
+
+        if (data.Schedules is { Count: > 0 } schedules)
+        {
+            ItemisedSchedules(col, data, schedules);
+            return;
+        }
 
         if (data.PlanRows.Count == 0)
         {
@@ -320,6 +345,136 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
                 + "so the plan above is shown at crop level only. The approved EOP on record governs disbursement.")
                 .FontSize(8).Italic().FontColor(Muted);
     }
+
+    private static void ItemisedSchedules(
+        ColumnDescriptor col, RhshfOfferDocumentData data, IReadOnlyList<RhshfOfferEopSchedule> schedules)
+    {
+        for (var i = 0; i < schedules.Count; i++)
+        {
+            var schedule = schedules[i];
+            var name = schedules.Count == 1 ? "Schedule A" : $"Schedule A{i + 1}";
+
+            col.Item().PaddingTop(8).Text($"{name}: approved EOP inputs and services — {schedule.Title}")
+                .SemiBold().FontSize(9.5f).FontColor(Brand);
+
+            col.Item().PaddingTop(4).Table(table =>
+            {
+                table.ColumnsDefinition(c =>
+                {
+                    // Money columns sized for "NGN 12,884,464.00" on one line: a figure split across
+                    // two lines reads as two numbers.
+                    c.RelativeColumn(2.3f);   // input and product
+                    c.RelativeColumn(2.1f);   // supplier
+                    c.RelativeColumn(1.0f);   // per farmer
+                    c.RelativeColumn(1.1f);   // total quantity
+                    c.RelativeColumn(1.6f);   // unit price
+                    c.RelativeColumn(2.1f);   // amount
+                });
+
+                table.Header(h =>
+                {
+                    Th(h.Cell(), "Input");
+                    Th(h.Cell(), "Supplier / provider");
+                    Th(h.Cell(), "Per farmer");
+                    Th(h.Cell(), "Total qty");
+                    Th(h.Cell(), "Unit price", right: true);
+                    Th(h.Cell(), "Amount", right: true);
+                });
+
+                foreach (var row in schedule.Rows)
+                {
+                    Cell(table).Column(c =>
+                    {
+                        c.Item().Text(row.Input).FontSize(8.5f).SemiBold();
+                        if (row.Product is not null && !string.Equals(row.Product, row.Input, StringComparison.OrdinalIgnoreCase))
+                            c.Item().Text(row.Product).FontSize(7.5f).FontColor(Muted);
+                        if (row.PackagingExcess != 0m)
+                            c.Item().Text($"Plus {Money(data.Currency, row.PackagingExcess)} whole-pack excess")
+                                .FontSize(7.5f).FontColor(Muted);
+                    });
+                    // An unassigned supplier is printed as such, not left blank: the borrower should see
+                    // that the provider is still to be confirmed, not wonder whether it was omitted.
+                    Cell(table).Text(row.Supplier ?? "To be confirmed").FontSize(8.5f);
+                    Cell(table).Text(row.PerFarmer ?? "").FontSize(8.5f);
+                    Cell(table).Text(row.TotalQuantity ?? "").FontSize(8.5f);
+                    Cell(table).AlignRight().Text(row.UnitPrice is { } p ? Money(data.Currency, p) : "").FontSize(8.5f);
+                    Cell(table).AlignRight().Text(Money(data.Currency, row.Amount + row.PackagingExcess)).FontSize(8.5f);
+                }
+
+                foreach (var sub in schedule.Subtotals)
+                {
+                    table.Cell().ColumnSpan(5).Background(Panel).BorderBottom(0.5f).BorderColor(Rule).Padding(4)
+                        .Text(sub.Label).FontSize(8.5f);
+                    table.Cell().Background(Panel).BorderBottom(0.5f).BorderColor(Rule).Padding(4)
+                        .AlignRight().Text(Money(data.Currency, sub.Amount)).FontSize(8.5f);
+                }
+
+                if (schedule.Total is { } total)
+                {
+                    table.Cell().ColumnSpan(5).BorderTop(1f).BorderColor(Brand).Padding(4)
+                        .Text("EOP total").Bold().FontSize(8.5f);
+                    table.Cell().BorderTop(1f).BorderColor(Brand).Padding(4)
+                        .AlignRight().Text(Money(data.Currency, total)).Bold().FontSize(8.5f);
+                }
+            });
+        }
+
+        if (data.Summary is not { Count: > 0 } summary)
+            return;
+
+        col.Item().PaddingTop(10).Text("Schedule B: financing components of the facility")
+            .SemiBold().FontSize(9.5f).FontColor(Brand);
+
+        col.Item().PaddingTop(4).Table(table =>
+        {
+            table.ColumnsDefinition(c =>
+            {
+                c.RelativeColumn(4f);     // component and basis
+                c.RelativeColumn(2.2f);   // treatment
+                c.RelativeColumn(1.8f);   // amount
+            });
+
+            table.Header(h =>
+            {
+                Th(h.Cell(), "Component");
+                Th(h.Cell(), "How it is paid");
+                Th(h.Cell(), "Amount", right: true);
+            });
+
+            foreach (var row in summary)
+            {
+                Cell(table).Column(c =>
+                {
+                    c.Item().Text(row.Label).FontSize(8.5f);
+                    if (!string.IsNullOrWhiteSpace(row.Basis))
+                        c.Item().Text(row.Basis).FontSize(7.5f).FontColor(Muted);
+                });
+                Cell(table).Text(row.Treatment ?? "").FontSize(8.5f);
+                Cell(table).AlignRight().Text(Money(data.Currency, row.Amount)).FontSize(8.5f);
+            }
+
+            // The approved amount itself, not a sum of the rows: the portal's contract guarantees they
+            // reconcile and CRMS refuses a breakdown that does not, so a gap here would be visible.
+            table.Cell().ColumnSpan(2).BorderTop(1.2f).BorderColor(Brand).Padding(5)
+                .Text("Total loan amount").Bold().FontSize(9);
+            table.Cell().BorderTop(1.2f).BorderColor(Brand).Padding(5)
+                .AlignRight().Text(Money(data.Currency, data.ApprovedAmount)).Bold().FontSize(9).FontColor(Brand);
+        });
+
+        col.Item().ShowEntire().PaddingTop(4).Text(
+            "Suppliers and providers are named to show how the facility is applied. Naming them does not by "
+            + "itself authorise any supply: deliveries proceed only against the Bank's release for each supplier.")
+            .FontSize(8).Italic().FontColor(Muted);
+    }
+
+    private static IContainer Cell(TableDescriptor table) =>
+        table.Cell().BorderBottom(0.5f).BorderColor(Rule).Padding(4);
+
+    private static bool IsInputComponent(string label) =>
+        label is "Physical inputs" or "Services" || label.StartsWith("Packaging excess", StringComparison.Ordinal);
+
+    private static string JoinLabels(IReadOnlyList<string> labels) =>
+        labels.Count == 1 ? labels[0] : $"{string.Join(", ", labels.Take(labels.Count - 1))} and {labels[^1]}";
 
     private static void Security(ColumnDescriptor col, RhshfOfferDocumentData data)
     {

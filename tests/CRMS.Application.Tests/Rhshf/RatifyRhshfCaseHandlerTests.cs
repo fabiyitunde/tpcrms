@@ -18,17 +18,20 @@ public class RatifyRhshfCaseHandlerTests
         new(new FakeCollateralRepo(), new FakeLoanProductRepo(), new FakeFineract(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<RhshfOfferDocumentDataBuilder>.Instance);
 
-    private static RhshfCreditProfile MakeProfileAtRatification(IEnumerable<RhshfEopLineInput>? eopLines = null)
+    private static RhshfCreditProfile MakeProfileAtRatification(
+        IEnumerable<RhshfEopLineInput>? eopLines = null, RhshfFinancingInput? financing = null,
+        decimal totalEopValue = TotalEopValue, int farmerCount = 1200)
     {
         var result = RhshfCreditProfile.Create(
             submissionId: Guid.NewGuid(), programmeCode: "RH-SHF-DRY-2026", programmeName: "Renewed Hope",
             sessionCode: "2026-DRY", sessionName: "Dry Season 2026", facId: Guid.NewGuid(),
             companyName: "Alliedsoft Limited", rcNumber: "RC123456", tin: "01234567-0001",
             boaAccountNumber: "0123456789", contactEmail: "fac@company.com", contactPhone: "+2348012345678",
-            state: "Kano", lga: "Nassarawa", totalEopValue: TotalEopValue, currency: "NGN", farmerCount: 1200,
+            state: "Kano", lga: "Nassarawa", totalEopValue: totalEopValue, currency: "NGN", farmerCount: farmerCount,
             callbackUrl: "https://portal.example.gov.ng/api/integrations/crms/webhook",
             certifiedByAdmin: "admin@boa.gov.ng", certifiedAt: DateTime.UtcNow, rawSubmissionPayload: "{}",
-            eopLines: eopLines, resolvedBranchId: null, resolvedOfficeId: null);
+            eopLines: eopLines, resolvedBranchId: null, resolvedOfficeId: null, financing: financing);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error : null);
         var profile = result.Value;
 
         foreach (var stage in new[]
@@ -62,7 +65,7 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferDocumentGenerator(), Builder(), fileStorage, new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideMissingBreakdown: true, OverrideReason: "Legacy case"));
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(offerRepo.Added);
@@ -83,7 +86,7 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferRepository(), generator, Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideMissingBreakdown: true, OverrideReason: "Legacy case"));
 
         var data = generator.Received;
         Assert.NotNull(data);
@@ -110,7 +113,7 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferDocumentGenerator(), Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, committeeApproverId, RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
+            profile.Reference, committeeApproverId, RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideMissingBreakdown: true, OverrideReason: "Legacy case"));
 
         Assert.False(result.IsSuccess);
     }
@@ -125,7 +128,7 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferDocumentGenerator(), Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue - 1, null, null));
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue - 1, null, null, OverrideMissingBreakdown: true, OverrideReason: "Legacy case"));
 
         Assert.False(result.IsSuccess);
         Assert.Null(offerRepo.Added);
@@ -159,7 +162,7 @@ public class RatifyRhshfCaseHandlerTests
             new FakeOfferRepository(), generator, Builder(), new FakeFileStorage(), new FakeUnitOfWork());
 
         await handler.Handle(new RatifyRhshfCaseCommand(
-            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideMissingBreakdown: true, OverrideReason: "Legacy case"));
 
         var row = Assert.Single(generator.Received!.PlanRows);
         Assert.Equal("Maize", row.Description);
@@ -210,21 +213,206 @@ public class RatifyRhshfCaseHandlerTests
     }
 
     [Fact]
-    public async Task CorrectedOffer_IsRefused_BeforeTheFacHasAccepted()
+    public async Task CorrectedOffer_ReplacesAnUnansweredOffer_SoTheWrongOneCanNoLongerBeAccepted()
     {
-        // Before acceptance the document is reissued in place by Regenerate; a second offer row
-        // here would leave two live offers.
+        // Grandbai's case: a corrected offer went out with the wrong farmer count and the FAC had not
+        // answered it. Replacing it in place would leave two documents in circulation as one version.
         var profile = MakeProfileAtRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
         var pending = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "rhshf-offers/offer-cycle1.pdf").Value;
         var offers = new FakeOfferRepository(pending);
 
         var result = await CorrectionHandler(profile, offers, new FakeFileStorage()).Handle(
+            new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "Wrong farmer count."));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RhshfOfferStatus.Superseded, pending.Status);
+        Assert.False(pending.Accept(null).IsSuccess);
+        Assert.Equal(RhshfOfferStatus.Generated, offers.Added!.Status);
+        Assert.Equal(2, profile.OfferVersion);
+        Assert.Equal(RhshfInternalStage.AwaitingOfferAcceptance, profile.InternalStage);
+    }
+
+    [Fact]
+    public async Task CorrectedOffer_IsRefused_OnceTheFacHasRejected()
+    {
+        // A rejection cancels the case; there is nothing left to correct.
+        var profile = MakeProfileAtRatification();
+        profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
+        var rejected = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "rhshf-offers/offer-cycle1.pdf").Value;
+        rejected.Reject("No");
+        profile.CancelDueToOfferRejection("No");
+        var offers = new FakeOfferRepository(rejected);
+
+        var result = await CorrectionHandler(profile, offers, new FakeFileStorage()).Handle(
             new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "Wrong plan."));
 
         Assert.False(result.IsSuccess);
         Assert.Null(offers.Added);
-        Assert.Equal(RhshfOfferStatus.Generated, pending.Status);
+    }
+
+    // ── Ratification without a breakdown (CRMSQA#2) ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Ratify_WithoutABreakdown_IsRefused_UnlessOverridden()
+    {
+        var profile = MakeProfileAtRatification();
+        var offers = new FakeOfferRepository();
+        var handler = new RatifyRhshfCaseHandler(
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(),
+            offers, new FakeOfferDocumentGenerator(), Builder(), new FakeFileStorage(), new FakeUnitOfWork());
+
+        var refused = await handler.Handle(new RatifyRhshfCaseCommand(
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null));
+        Assert.False(refused.IsSuccess);
+        Assert.Null(offers.Added);
+        Assert.Equal(RhshfInternalStage.Ratification, profile.InternalStage);
+
+        var noReason = await handler.Handle(new RatifyRhshfCaseCommand(
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null,
+            OverrideMissingBreakdown: true, OverrideReason: " "));
+        Assert.False(noReason.IsSuccess);
+
+        var overridden = await handler.Handle(new RatifyRhshfCaseCommand(
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null,
+            OverrideMissingBreakdown: true, OverrideReason: "Pre-October case; portal cannot resend."));
+        Assert.True(overridden.IsSuccess);
+        Assert.Contains(profile.StatusHistory, h => h.Note == "Pre-October case; portal cannot resend.");
+    }
+
+    [Fact]
+    public async Task Ratify_ReturnToFac_NeedsNoBreakdown()
+    {
+        // The block is on issuing an offer, not on every ratification decision.
+        var profile = MakeProfileAtRatification();
+        var handler = new RatifyRhshfCaseHandler(
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(),
+            new FakeOfferRepository(), new FakeOfferDocumentGenerator(), Builder(), new FakeFileStorage(), new FakeUnitOfWork());
+
+        var result = await handler.Handle(new RatifyRhshfCaseCommand(
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.ReturnToFac, null, "fix it", RhshfProfilingStage.EopReview));
+
+        Assert.True(result.IsSuccess);
+    }
+
+    // ── The itemised offer (CRMSQA#2) ────────────────────────────────────────────────────────────
+
+    private const decimal GrandbaiTotal = 12_884_464.00m;
+
+    /// <summary>Grandbai's breakdown exactly as the portal sent it on 23 Oct.</summary>
+    private static RhshfFinancingInput GrandbaiFinancing(Guid eopId) => new(
+        [
+            new(eopId, "Maize", "NPK Fertilizer", "Fertilizer", "NPK 20:10:10", "AgroEquip Solutions Ltd", 2m, "Kg", 1_120m, "perFarmer", 30, 67_200m, 44_800m, true),
+            new(eopId, "Maize", "Urea Fertilizer", "Fertilizer", null, "Leorichardson Input Nigeria Limited", 1m, "Kg", 1_080m, "perFarmer", 30, 32_400m, 21_600m, true),
+            new(eopId, "Maize", "Herbicide", "Agrochemical", "Hallakat", "AgriKnowledge Services Ltd", 5m, "Litre", 58_000m, "perFarmer", 30, 8_700_000m, 0m, true),
+            new(eopId, "Maize", "Pesticide", "Agrochemical", "Insecticide", "Leorichardson Input Nigeria Limited", 1m, "Litre", 15_000m, "perFarmer", 30, 450_000m, 0m, true),
+            new(eopId, "Maize", "Improved Seeds", "Seeds", "improved Maize Seeds", "AgriLime Nigeria Ltd", 1m, "Kg", 50_000m, "perFarmer", 30, 1_500_000m, 0m, true),
+            new(eopId, "Maize", "Extension Services", "Services", null, null, 1m, "Per Farmer", 30_000m, "perFarmer", 30, 900_000m, 0m, true),
+        ],
+        [
+            new("insurance", "Insurance", 4m, "percent of the per-farmer input subtotal", 465_984m, true),
+            new("workingCapital", "Working capital", 5m, "percent of the per-farmer input subtotal", 582_480m, true),
+            new("techServicesFee", "Technology services fee", 4_000m, "naira per farmer, x farmers", 120_000m, true),
+        ],
+        InputsTotal: 11_649_600m, PackagingExcessTotal: 66_400m, ChargesTotal: 1_168_464m,
+        ApprovedEopTotal: GrandbaiTotal, LoanAmount: GrandbaiTotal, ExcludedFromLoan: 0m,
+        Eops: [new(eopId, "Maize", "Kano", 30, 11_649_600m, 66_400m, 465_984m, 582_480m, 120_000m, GrandbaiTotal, GrandbaiTotal)]);
+
+    private static async Task<RhshfOfferDocumentData> RatifiedDocument(RhshfCreditProfile profile, decimal total)
+    {
+        var generator = new FakeOfferDocumentGenerator();
+        var handler = new RatifyRhshfCaseHandler(
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(),
+            new FakeOfferRepository(), generator, Builder(), new FakeFileStorage(), new FakeUnitOfWork());
+        var result = await handler.Handle(new RatifyRhshfCaseCommand(
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, total, null, null));
+        Assert.True(result.IsSuccess, result.Error);
+        return generator.Received!;
+    }
+
+    [Fact]
+    public async Task Grandbai_OfferCarriesEveryInput_TheFinancedFarmers_AndFootsToTheApprovedAmount()
+    {
+        var eopId = Guid.NewGuid();
+        var profile = MakeProfileAtRatification(
+            [new RhshfEopLineInput("Maize", 0m, 0m, GrandbaiTotal)], GrandbaiFinancing(eopId), GrandbaiTotal, farmerCount: 220);
+
+        var data = await RatifiedDocument(profile, GrandbaiTotal);
+
+        Assert.Equal(30, data.FarmerCount);              // financed, from the EOP
+        Assert.Equal(220, data.RegisteredFarmerCount);   // registered under the FAC, shown beside it
+        Assert.Equal(1, data.OfferVersion);
+
+        var schedule = Assert.Single(data.Schedules!);
+        Assert.Equal(6, schedule.Rows.Count);
+        var npk = schedule.Rows.Single(r => r.Input == "NPK Fertilizer");
+        Assert.Equal("AgroEquip Solutions Ltd", npk.Supplier);
+        Assert.Equal("2 Kg", npk.PerFarmer);
+        Assert.Equal("60 Kg", npk.TotalQuantity);
+        Assert.Equal(1_120m, npk.UnitPrice);
+        Assert.Equal(44_800m, npk.PackagingExcess);
+        Assert.Equal("30 farmers", schedule.Rows.Single(r => r.Input == "Extension Services").TotalQuantity);
+        Assert.Null(schedule.Rows.Single(r => r.Input == "Extension Services").Supplier); // the portal sends none
+        Assert.Equal(GrandbaiTotal, schedule.Total);
+        Assert.Equal(GrandbaiTotal, schedule.Subtotals.Sum(s => s.Amount));
+        Assert.Equal(GrandbaiTotal, schedule.Rows.Sum(r => r.Amount + r.PackagingExcess)
+            + schedule.Subtotals.Where(s => s.Label is "Insurance" or "Working capital" or "Technology services fee").Sum(s => s.Amount));
+
+        Assert.Equal(GrandbaiTotal, data.Summary!.Sum(s => s.Amount));
+        Assert.Equal(10_749_600m, data.Summary!.Single(s => s.Label == "Physical inputs").Amount);
+        Assert.Equal(900_000m, data.Summary!.Single(s => s.Label == "Services").Amount);
+        Assert.All(data.Summary!, s => Assert.Equal(RhshfOfferSummaryRow.FinancedInLoan, s.Treatment));
+    }
+
+    [Fact]
+    public async Task TwoEops_GetAScheduleEach_AndTheSummaryCoversBoth()
+    {
+        var maize = Guid.NewGuid();
+        var rice = Guid.NewGuid();
+        var financing = new RhshfFinancingInput(
+            [
+                new(maize, "Maize", "NPK Fertilizer", "Fertilizer", null, "Supplier A", 2m, "Kg", 1_000m, "perFarmer", 10, 20_000m, 0m, true),
+                new(rice, "Rice", "Urea Fertilizer", "Fertilizer", null, "Supplier B", 3m, "Kg", 1_000m, "perFarmer", 20, 60_000m, 0m, true),
+            ],
+            [new("insurance", "Insurance", 4m, null, 3_200m, true)],
+            InputsTotal: 80_000m, PackagingExcessTotal: 0m, ChargesTotal: 3_200m,
+            ApprovedEopTotal: 83_200m, LoanAmount: 83_200m, ExcludedFromLoan: 0m,
+            Eops:
+            [
+                new(maize, "Maize", "Kano", 10, 20_000m, 0m, 800m, 0m, 0m, 20_800m, 20_800m),
+                new(rice, "Rice", "Kebbi", 20, 60_000m, 0m, 2_400m, 0m, 0m, 62_400m, 62_400m),
+            ]);
+        var profile = MakeProfileAtRatification(null, financing, 83_200m, farmerCount: 500);
+
+        var data = await RatifiedDocument(profile, 83_200m);
+
+        Assert.Equal(2, data.Schedules!.Count);
+        Assert.Contains(data.Schedules!, s => s.Title.StartsWith("Maize, Kano, 10 farmers") && s.Total == 20_800m);
+        Assert.Contains(data.Schedules!, s => s.Title.StartsWith("Rice, Kebbi, 20 farmers") && s.Total == 62_400m);
+        Assert.Equal(30, data.FarmerCount);
+        Assert.Equal(83_200m, data.Summary!.Sum(s => s.Amount));
+    }
+
+    [Fact]
+    public async Task ABankGuaranteeSmallerThanTheFacility_IsNotDescribedAsCoveringIt()
+    {
+        var profile = MakeProfileAtRatification(null, GrandbaiFinancing(Guid.NewGuid()), GrandbaiTotal, farmerCount: 220);
+        var guarantee = RhshfCollateral.Create(
+            profile.Id, profile.CurrentCycleNumber, RhshfCollateralType.BankGuarantee, Guid.NewGuid(), null,
+            "4839895", null, null, "GT Bank", 60_000m, true, null, null, null, null, null).Value;
+        var generator = new FakeOfferDocumentGenerator();
+        var builder = new RhshfOfferDocumentDataBuilder(new FakeCollateralRepo(guarantee), new FakeLoanProductRepo(), new FakeFineract(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RhshfOfferDocumentDataBuilder>.Instance);
+        var handler = new RatifyRhshfCaseHandler(
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(),
+            new FakeOfferRepository(), generator, builder, new FakeFileStorage(), new FakeUnitOfWork());
+
+        await handler.Handle(new RatifyRhshfCaseCommand(
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, GrandbaiTotal, null, null));
+
+        var security = Assert.Single(generator.Received!.SecurityDescriptions);
+        Assert.Contains("0.47% of the facility amount", security);
+        Assert.DoesNotContain("principal and accrued interest", security);
     }
 
     [Fact]
@@ -298,8 +486,10 @@ public class RatifyRhshfCaseHandlerTests
 
     private class FakeCollateralRepo : IRhshfCollateralRepository
     {
+        private readonly RhshfCollateral[] _collateral;
+        public FakeCollateralRepo(params RhshfCollateral[] collateral) => _collateral = collateral;
         public Task<IReadOnlyList<RhshfCollateral>> GetByProfileAndCycleAsync(Guid rhshfCreditProfileId, int cycleNumber, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<RhshfCollateral>>([]);
+            => Task.FromResult<IReadOnlyList<RhshfCollateral>>(_collateral);
         public Task<RhshfCollateral?> GetByIdAsync(Guid id, CancellationToken ct = default)
             => Task.FromResult<RhshfCollateral?>(null);
         public Task AddAsync(RhshfCollateral collateral, CancellationToken ct = default) => Task.CompletedTask;

@@ -41,8 +41,11 @@ public class RhshfOfferDocumentDataBuilder
         _logger = logger;
     }
 
+    /// <param name="offerVersion">The version this document will carry. Defaults to the case's
+    /// current one; a corrected offer builds its document before the case records the correction, so
+    /// it passes the next version itself.</param>
     public async Task<RhshfOfferDocumentBuild> BuildAsync(
-        RhshfCreditProfile profile, decimal approvedAmount, CancellationToken ct)
+        RhshfCreditProfile profile, decimal approvedAmount, CancellationToken ct, int? offerVersion = null)
     {
         var appraisal = profile.GetCurrentCycleFinancialAppraisal();
         var collateral = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
@@ -63,15 +66,136 @@ public class RhshfOfferDocumentDataBuilder
             TenorMonths: appraisal?.CycleMonths,
             AmountDueAtHarvest: appraisal?.AmountDueAtHarvest,
             InterestCharge: appraisal?.InterestCharge,
-            FarmerCount: profile.FarmerCount,
+            // The farmers the facility finances, from the approved EOPs — not FarmerCount, which the
+            // portal sends as everyone registered under the FAC (CRMSQA#2: 220 printed against 30).
+            FarmerCount: profile.FinancedFarmerCount ?? profile.FarmerCount,
             PlanRows: BuildPlanRows(profile, approvedAmount),
             PlanIsItemised: profile.HasItemisedFinancing,
             ProductFees: productFees,
-            SecurityDescriptions: collateral.Select(DescribeSecurity).ToList(),
+            SecurityDescriptions: collateral.Select(c => DescribeSecurity(c, approvedAmount)).ToList(),
             FeesAccount: FeesAccount,
-            ValidityDays: OfferValidityDays);
+            ValidityDays: OfferValidityDays,
+            OfferVersion: offerVersion ?? Math.Max(profile.OfferVersion, 1),
+            RegisteredFarmerCount: profile.FinancedFarmerCount is { } financed && profile.FarmerCount is { } registered
+                && financed != registered ? registered : null,
+            Schedules: profile.HasItemisedFinancing ? BuildSchedules(profile) : [],
+            Summary: profile.HasItemisedFinancing ? BuildSummary(profile, approvedAmount) : []);
 
         return new RhshfOfferDocumentBuild(data, suppressed);
+    }
+
+    /// <summary>
+    /// Schedule A, one per approved EOP: its lines in full, then its own subtotals from the portal's
+    /// per-EOP summary. Lines are grouped by the EOP the portal tagged them with; a line with no EOP
+    /// on a single-EOP case belongs to that EOP, and on a multi-EOP case is printed in its own group
+    /// rather than guessed into one.
+    /// </summary>
+    private static List<RhshfOfferEopSchedule> BuildSchedules(RhshfCreditProfile profile)
+    {
+        var eops = profile.FinancingEops.ToList();
+        var singleEopId = eops.Count == 1 ? eops[0].EopId
+            : profile.FinancingLines.Select(l => l.EopId).Where(id => id is not null).Distinct().Count() == 1
+                ? profile.FinancingLines.First(l => l.EopId is not null).EopId
+                : null;
+
+        var groups = profile.FinancingLines
+            .Where(l => l.Amount != 0m || l.PackagingExcess != 0m)
+            .GroupBy(l => l.EopId ?? singleEopId)
+            .ToList();
+
+        var schedules = new List<RhshfOfferEopSchedule>();
+        foreach (var group in groups)
+        {
+            var eop = eops.FirstOrDefault(e => e.EopId == group.Key);
+            var lines = group.ToList();
+            var farmers = eop?.Farmers ?? lines.Max(l => l.Farmers);
+            var crop = eop?.Crop ?? lines.Select(l => l.Crop).FirstOrDefault(c => c is not null);
+
+            var title = group.Key is null
+                ? "Other financed items"
+                : string.Join(", ", new[]
+                {
+                    crop, eop?.State,
+                    farmers is { } f ? $"{f:N0} farmers" : null,
+                    $"EOP {group.Key.Value.ToString()[..8].ToUpperInvariant()}",
+                }.Where(s => !string.IsNullOrWhiteSpace(s)));
+
+            var rows = lines
+                .OrderBy(l => IsService(l) ? 1 : 0).ThenBy(l => l.Item)
+                .Select(l => new RhshfOfferInputRow(
+                    Input: l.Item,
+                    Product: string.IsNullOrWhiteSpace(l.SpecificInput) ? null : l.SpecificInput,
+                    Supplier: l.Supplier,
+                    PerFarmer: IsPerFarmer(l) ? l.QuantityDisplay : null,
+                    TotalQuantity: TotalQuantity(l),
+                    UnitPrice: l.UnitPrice,
+                    Amount: l.Amount,
+                    PackagingExcess: l.PackagingExcess))
+                .ToList();
+
+            var subtotals = new List<RhshfOfferSummaryRow>();
+            if (eop is not null)
+            {
+                subtotals.Add(new("Inputs and services", eop.Inputs, null, RhshfOfferSummaryRow.FinancedInLoan));
+                if (eop.PackagingExcess != 0m)
+                    subtotals.Add(new("Packaging excess (whole supplier packs)", eop.PackagingExcess, null, RhshfOfferSummaryRow.FinancedInLoan));
+                subtotals.Add(new("Insurance", eop.Insurance, null, RhshfOfferSummaryRow.FinancedInLoan));
+                subtotals.Add(new("Working capital", eop.WorkingCapital, null, RhshfOfferSummaryRow.FinancedInLoan));
+                subtotals.Add(new("Technology services fee", eop.TechServicesFee, null, RhshfOfferSummaryRow.FinancedInLoan));
+            }
+
+            schedules.Add(new RhshfOfferEopSchedule(title, farmers, rows, subtotals, eop?.ApprovedTotal));
+        }
+
+        return schedules;
+    }
+
+    /// <summary>
+    /// Schedule B, the whole facility by component, footing to the approved amount. Physical inputs
+    /// and services are separated because they are fulfilled differently — a supplier delivers one, a
+    /// provider performs the other — and the charges carry the portal's own wording for their basis.
+    /// </summary>
+    private static List<RhshfOfferSummaryRow> BuildSummary(RhshfCreditProfile profile, decimal approvedAmount)
+    {
+        var lines = profile.FinancingLines;
+        var rows = new List<RhshfOfferSummaryRow>
+        {
+            new("Physical inputs", lines.Where(l => !IsService(l)).Sum(l => l.Amount), null, RhshfOfferSummaryRow.FinancedInLoan),
+        };
+
+        var services = lines.Where(IsService).Sum(l => l.Amount);
+        if (services != 0m)
+            rows.Add(new("Services", services, null, RhshfOfferSummaryRow.FinancedInLoan));
+
+        var excess = lines.Sum(l => l.PackagingExcess);
+        if (excess != 0m)
+            rows.Add(new("Packaging excess (whole supplier packs)", excess, null, RhshfOfferSummaryRow.FinancedInLoan));
+
+        rows.AddRange(profile.FinancingCharges.Select(c => new RhshfOfferSummaryRow(
+            c.Label, c.Amount, c.RateBasis, c.InLoan ? RhshfOfferSummaryRow.FinancedInLoan : "Not financed")));
+
+        return rows;
+    }
+
+    private static bool IsService(RhshfFinancingLine line) =>
+        string.Equals(line.Category, "Services", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPerFarmer(RhshfFinancingLine line) =>
+        !string.Equals(line.Basis, "wholeEop", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Per-farmer quantity times the EOP's farmers, in the line's own unit — the quantity the
+    /// EOP finances before rounding up to whole packs. A whole-EOP service is stated as sent.</summary>
+    private static string? TotalQuantity(RhshfFinancingLine line)
+    {
+        if (line.QuantityPerFarmer is not { } perFarmer || string.IsNullOrWhiteSpace(line.Unit))
+            return null;
+        if (!IsPerFarmer(line) || line.Farmers is not { } farmers)
+            return $"{perFarmer:0.###} {line.Unit.Trim()}";
+
+        // "Per Farmer" is a unit of service, not a quantity of goods: 30 farmers served, not "30 Per Farmer".
+        return line.Unit.Trim().StartsWith("Per ", StringComparison.OrdinalIgnoreCase)
+            ? $"{farmers:N0} farmers"
+            : $"{perFarmer * farmers:#,0.###} {line.Unit.Trim()}";
     }
 
     /// <summary>
@@ -215,11 +339,17 @@ public class RhshfOfferDocumentDataBuilder
         return lines;
     }
 
-    private static string DescribeSecurity(RhshfCollateral collateral) => collateral.Type switch
+    /// <summary>
+    /// One security, as recorded. A bank guarantee is described as covering the facility only when its
+    /// amount does; otherwise the letter states the share it covers. It used to say every guarantee
+    /// covered "the principal and accrued interest" — printed beside a ₦60,000 guarantee on a
+    /// ₦12.9m facility (CRMSQA#2), a contractual claim the security cannot support.
+    /// </summary>
+    private static string DescribeSecurity(RhshfCollateral collateral, decimal approvedAmount) => collateral.Type switch
     {
         RhshfCollateralType.BankGuarantee =>
-            $"Bank guarantee{Named(collateral.GuarantorBankName)}{Valued(collateral.GuaranteeAmount)}, covering the "
-            + "principal and accrued interest of the facility.",
+            $"Bank guarantee{Named(collateral.GuarantorBankName)}{Valued(collateral.GuaranteeAmount)}"
+            + GuaranteeCoverage(collateral.GuaranteeAmount, approvedAmount) + ".",
         RhshfCollateralType.NirsalCrg =>
             $"NIRSAL Credit Risk Guarantee{Covering(collateral.CrgCoveragePercentage)}"
             + $"{Referenced(collateral.ReferenceNumber)}.",
@@ -228,6 +358,11 @@ public class RhshfOfferDocumentDataBuilder
             + $"{Valued(collateral.PropertyValue)}.",
         _ => "Security as recorded on this facility.",
     };
+
+    private static string GuaranteeCoverage(decimal? amount, decimal approvedAmount) =>
+        amount is not { } guaranteed || approvedAmount <= 0m ? ""
+        : guaranteed >= approvedAmount ? ", covering the principal of the facility"
+        : $", covering {guaranteed / approvedAmount * 100m:0.##}% of the facility amount";
 
     private static string Named(string? name) => string.IsNullOrWhiteSpace(name) ? "" : $" from {name.Trim()}";
     private static string Valued(decimal? amount) => amount is null ? "" : $" for NGN {amount:N2}";

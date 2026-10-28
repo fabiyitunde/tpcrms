@@ -39,7 +39,7 @@
                     }
                     @if (CanIssueCorrected)
                     {
-                        <button class="btn btn-warning btn-sm" @onclick="() => OnIssueCorrected.InvokeAsync()" title="The accepted offer is wrong: issue a corrected one for the FAC to accept again. The accepted offer and its signed copies are kept.">
+                        <button class="btn btn-warning btn-sm" @onclick="() => OnIssueCorrected.InvokeAsync()" title="This offer is wrong: issue a corrected one for the FAC to accept. This offer, and any signed copy, is kept on record.">
                             <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">edit_document</span>
                             Issue corrected offer
                         </button>

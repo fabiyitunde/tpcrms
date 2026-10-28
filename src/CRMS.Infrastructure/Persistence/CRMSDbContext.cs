@@ -174,6 +174,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<RH.RhshfDocumentRequirement> RhshfDocumentRequirements => Set<RH.RhshfDocumentRequirement>();
     public DbSet<RH.RhshfStageConfirmation> RhshfStageConfirmations => Set<RH.RhshfStageConfirmation>();
     public DbSet<RH.RhshfStatusHistory> RhshfStatusHistory => Set<RH.RhshfStatusHistory>();
+    public DbSet<RH.RhshfFinancingEop> RhshfFinancingEops => Set<RH.RhshfFinancingEop>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -334,6 +335,24 @@ public class CRMSDbContext : DbContext, IUnitOfWork
         // Status history is append-only for the same reason, and more strongly: an audit
         // trail whose rows can be rewritten is not an audit trail.
         foreach (var entry in ChangeTracker.Entries<RH.RhshfStatusHistory>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        // The itemised breakdown is written once and never edited, but since CRMSQA#2 it can arrive
+        // on an already-loaded case (a late breakdown, or the per-EOP back-fill), which is exactly
+        // the append that gets mis-tracked as Modified.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfFinancingLine>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfFinancingCharge>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfFinancingEop>()
             .Where(e => e.State == EntityState.Modified))
         {
             entry.State = EntityState.Added;

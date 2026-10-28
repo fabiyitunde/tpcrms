@@ -10,11 +10,13 @@ namespace CRMS.Application.Rhshf.Commands;
 /// <summary>
 /// Final Approver's ratification (design doc §3.6, Phase 6). On Ratified, generates the offer
 /// document and creates the RhshfOffer for this cycle in the same transaction — external status
-/// stays UnderReview throughout (design doc §6 #9); no webhook fires here.
+/// stays UnderReview throughout (design doc §6 #9). The Ratified outcome raises the offer-ready
+/// event, which sends the portal its callback after commit.
 /// </summary>
 public record RatifyRhshfCaseCommand(
     string Reference, Guid FinalApproverId, RhshfRatificationOutcome Outcome, decimal? ApprovedAmount,
-    string? Notes, RhshfProfilingStage? ReturnToStage) : IRequest<ApplicationResult>;
+    string? Notes, RhshfProfilingStage? ReturnToStage,
+    bool OverrideMissingBreakdown = false, string? OverrideReason = null) : IRequest<ApplicationResult>;
 
 public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, ApplicationResult>
 {
@@ -72,9 +74,25 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
         var clearances = await _legalRepo.GetByProfileAndCycleAsync(profile.Id, cycleNumber, ct);
         excludedActorIds.AddRange(clearances.Select(c => c.LegalOfficerId));
 
+        // No offer without the portal's itemised breakdown: the letter would print a crop-level plan
+        // the borrower cannot reconcile to their EOP (CRMSQA#2). The portal can still send it — a
+        // repeat submission now attaches one — and for a case it never will, a Final Approver can
+        // override with a reason, which goes into the trail.
+        var ratifyingWithoutBreakdown = request.Outcome == RhshfRatificationOutcome.Ratified && !profile.HasItemisedFinancing;
+        if (ratifyingWithoutBreakdown && !request.OverrideMissingBreakdown)
+            return ApplicationResult.Failure(
+                "This case has no itemised breakdown from the portal, so its offer letter could only show a " +
+                "crop-level plan. Ask the portal team to resend the submission with the breakdown, or ratify " +
+                "with the override and give a reason.");
+        if (ratifyingWithoutBreakdown && string.IsNullOrWhiteSpace(request.OverrideReason))
+            return ApplicationResult.Failure("Give a reason for ratifying without the itemised breakdown.");
+
         var result = profile.Ratify(request.FinalApproverId, request.Outcome, request.ApprovedAmount, request.Notes, request.ReturnToStage, excludedActorIds);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
+
+        if (ratifyingWithoutBreakdown)
+            profile.RecordRatificationWithoutBreakdown(request.FinalApproverId, request.OverrideReason!);
 
         if (request.Outcome == RhshfRatificationOutcome.Ratified)
         {

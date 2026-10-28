@@ -97,7 +97,9 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
             ReceivedAt: profile.ReceivedAt,
             UpdatedAt: profile.UpdatedAt,
             CommitteeTier: tierLabel,
-            CommitteeTierBand: tierBand);
+            CommitteeTierBand: tierBand,
+            FinancedFarmerCount: profile.FinancedFarmerCount,
+            HasItemisedFinancing: profile.HasItemisedFinancing);
 
         return ApplicationResult<RhshfCaseWorkspaceDto>.Success(dto);
     }

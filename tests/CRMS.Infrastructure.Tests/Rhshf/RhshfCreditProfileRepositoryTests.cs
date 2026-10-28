@@ -54,6 +54,81 @@ public class RhshfCreditProfileRepositoryTests
         Assert.Equal("Insurance", Assert.Single(loaded.FinancingCharges).Label);
     }
 
+    private static readonly Guid EopId = Guid.NewGuid();
+
+    private static RhshfFinancingInput Breakdown(bool withEops = true) => new(
+        [new RhshfFinancingLineInput(EopId, "Maize", "NPK Fertilizer", "Fertilizer", null,
+            "AgroEquip Solutions Ltd", 2m, "Kg", 1_120m, "perFarmer", 30, Inputs, 0m, true)],
+        [new RhshfFinancingChargeInput("insurance", "Insurance", 4m, "4% of inputs", Insurance, true)],
+        InputsTotal: Inputs, PackagingExcessTotal: 0m, ChargesTotal: Insurance,
+        ApprovedEopTotal: Total, LoanAmount: Total, ExcludedFromLoan: 0m,
+        Eops: withEops ? [new RhshfFinancingEopInput(EopId, "Maize", "Kano", 30, Inputs, 0m, Insurance, 0m, 0m, Total, Total)] : null);
+
+    private static RhshfCreditProfile NewCase(RhshfFinancingInput? financing, string rawPayload = "{}") =>
+        RhshfCreditProfile.Create(
+            submissionId: Guid.NewGuid(), programmeCode: "RH-SHF-DRY-2026", programmeName: "Renewed Hope",
+            sessionCode: "2026-DRY", sessionName: "Dry Season 2026", facId: Guid.NewGuid(),
+            companyName: "Alliedsoft Limited", rcNumber: "RC123456", tin: null,
+            boaAccountNumber: "0123456789", contactEmail: "fac@company.com", contactPhone: "+2348012345678",
+            state: "Kano", lga: "Nassarawa", totalEopValue: Total, currency: "NGN", farmerCount: 220,
+            callbackUrl: "https://portal.example.gov.ng/api/integrations/crms/webhook",
+            certifiedByAdmin: null, certifiedAt: null, rawSubmissionPayload: rawPayload,
+            eopLines: null, resolvedBranchId: null, resolvedOfficeId: null, financing: financing).Value;
+
+    [Fact]
+    public async Task ALateBreakdown_OnALoadedCase_IsSavedAsNewRows()
+    {
+        // The append-to-a-loaded-aggregate case CLAUDE.md warns about: without the Modified->Added
+        // compensation the rows are written as UPDATEs of rows that do not exist.
+        var dbName = "RhshfRepo_" + Guid.NewGuid();
+        var profile = NewCase(financing: null);
+        await using (var write = NewContext(dbName))
+        {
+            write.RhshfCreditProfiles.Add(profile);
+            await write.SaveChangesAsync();
+        }
+
+        await using (var attach = NewContext(dbName))
+        {
+            var loaded = await new RhshfCreditProfileRepository(attach).GetByReferenceAsync(profile.Reference);
+            Assert.True(loaded!.AttachLateFinancing(Breakdown()).IsSuccess);
+            await attach.SaveChangesAsync();
+        }
+
+        await using var read = NewContext(dbName);
+        var reloaded = await new RhshfCreditProfileRepository(read).GetByReferenceAsync(profile.Reference);
+        Assert.Single(reloaded!.FinancingLines);
+        Assert.Single(reloaded.FinancingCharges);
+        Assert.Equal(30, reloaded.FinancedFarmerCount);
+    }
+
+    [Fact]
+    public async Task StartupBackfill_ReadsTheEopSummaryFromTheStoredSubmission()
+    {
+        // Grandbai's shape: breakdown stored, per-EOP summary only in the raw payload.
+        const string payload =
+            "{\"financing\":{\"eops\":[{\"eopId\":\"EOPID\",\"crop\":\"Maize\",\"state\":\"Kano\",\"farmers\":30," +
+            "\"inputs\":1000000.00,\"packagingExcess\":0,\"insurance\":40000.00,\"workingCapital\":0,\"techServicesFee\":0," +
+            "\"approvedTotal\":1040000.00,\"loanAmount\":1040000.00}]}}";
+        var dbName = "RhshfRepo_" + Guid.NewGuid();
+        var profile = NewCase(Breakdown(withEops: false), payload.Replace("EOPID", EopId.ToString()));
+        await using (var write = NewContext(dbName))
+        {
+            write.RhshfCreditProfiles.Add(profile);
+            await write.SaveChangesAsync();
+        }
+
+        await using (var seed = NewContext(dbName))
+            await RhshfWorkflowSeeder.SeedAsync(seed, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+
+        await using var read = NewContext(dbName);
+        var loaded = await new RhshfCreditProfileRepository(read).GetByReferenceAsync(profile.Reference);
+        var eop = Assert.Single(loaded!.FinancingEops);
+        Assert.Equal(30, eop.Farmers);
+        Assert.Equal(30, loaded.FinancedFarmerCount);
+        Assert.Equal(220, loaded.FarmerCount); // the portal's registered count is kept, not overwritten
+    }
+
     private static CRMSDbContext NewContext(string dbName) =>
         new(new DbContextOptionsBuilder<CRMSDbContext>().UseInMemoryDatabase(dbName).Options);
 }

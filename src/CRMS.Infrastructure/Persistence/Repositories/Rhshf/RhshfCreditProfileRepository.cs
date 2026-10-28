@@ -54,6 +54,7 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
             // crop-level "0 kg" fallback and listed already-financed charges as deductions.
             .Include(x => x.FinancingLines)
             .Include(x => x.FinancingCharges)
+            .Include(x => x.FinancingEops)
             .AsSplitQuery();
 
     public async Task AddAsync(RhshfCreditProfile profile, CancellationToken ct = default)
