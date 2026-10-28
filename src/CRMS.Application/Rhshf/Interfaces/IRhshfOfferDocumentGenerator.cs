@@ -96,7 +96,11 @@ public record RhshfOfferEopSchedule(
     /// portal sent no per-EOP summary — the rows are then printed without subtotals rather than with
     /// figures CRMS worked out itself.</summary>
     IReadOnlyList<RhshfOfferSummaryRow> Subtotals,
-    decimal? Total);
+    decimal? Total,
+    /// <summary>How the EOP total is built — "30 farmers × NGN 427,268.80 per farmer + NGN 66,400.00
+    /// whole-pack adjustments" — the form the approved EOP itself states it in. Null when the
+    /// per-farmer figure does not divide exactly, rather than printing a rounded one that does not add up.</summary>
+    string? Basis = null);
 
 /// <summary>One input or service as financed for an EOP. Every figure is the portal's own; the total
 /// quantity is the per-farmer quantity times the EOP's farmers, which is how the portal counts it.</summary>
@@ -108,7 +112,9 @@ public record RhshfOfferInputRow(
     string? TotalQuantity,
     decimal? UnitPrice,
     decimal Amount,
-    decimal PackagingExcess);
+    decimal PackagingExcess,
+    /// <summary>Farmers the line is costed for, so "2 Kg per farmer" is never read as 2 kg in total.</summary>
+    int? Farmers = null);
 
 /// <summary>A component of the facility. Treatment says how the borrower pays it — "Financed in the
 /// loan" for everything the EOP finances, so nothing on the letter reads as payable twice.</summary>

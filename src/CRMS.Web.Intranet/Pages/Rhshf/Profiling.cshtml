@@ -135,7 +135,7 @@ else
                         <dt class="col-sm-4">RC number</dt><dd class="col-sm-8">@Model.Session.RcNumber</dd>
                         <dt class="col-sm-4">TIN</dt><dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.Session.Tin) ? "Not provided" : Model.Session.Tin)</dd>
                         <dt class="col-sm-4">BOA account</dt><dd class="col-sm-8">@Model.Session.BoaAccountNumber</dd>
-                        <dt class="col-sm-4">Location</dt><dd class="col-sm-8">@Model.Session.Lga, @Model.Session.State</dd>
+                        <dt class="col-sm-4">Location</dt><dd class="col-sm-8">@string.Join(", ", new[] { Model.Session.Lga, Model.Session.State }.Where(s => !string.IsNullOrWhiteSpace(s)))</dd>
                     </dl>
                     <form method="post" asp-page-handler="Confirm">
                         <input type="hidden" name="reference" value="@Model.Session.Reference" />

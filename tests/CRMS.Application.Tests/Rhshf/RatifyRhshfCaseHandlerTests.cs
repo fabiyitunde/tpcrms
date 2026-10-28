@@ -290,6 +290,31 @@ public class RatifyRhshfCaseHandlerTests
     }
 
     [Fact]
+    public async Task OfferHistory_ShowsTheAcceptedVersion_AlongsideItsReplacement()
+    {
+        var (profile, accepted) = AcceptedOffer();
+        typeof(RhshfOffer).GetProperty(nameof(RhshfOffer.GeneratedAt))!.SetValue(accepted, DateTime.UtcNow.AddDays(-1));
+        var offers = new FakeOfferRepository(accepted);
+        await CorrectionHandler(profile, offers, new FakeFileStorage()).Handle(
+            new IssueCorrectedRhshfOfferCommand(profile.Reference, Guid.NewGuid(), "Wrong plan.", accepted.Id));
+
+        var history = await new CRMS.Application.Rhshf.Queries.GetRhshfOfferHistoryHandler(new FakeProfileRepository(profile), offers)
+            .Handle(new CRMS.Application.Rhshf.Queries.GetRhshfOfferHistoryQuery(profile.Reference));
+
+        Assert.Equal(2, history.Data!.Count);
+        var current = history.Data[0];
+        Assert.Equal(2, current.Version);
+        Assert.True(current.IsCurrent);
+        Assert.Equal(RhshfOfferStatus.Generated, current.Status);
+        var original = history.Data[1];
+        Assert.Equal(1, original.Version);
+        Assert.Equal(RhshfOfferStatus.Superseded, original.Status);
+        Assert.NotNull(original.FacRespondedAt);         // it was accepted before being replaced
+        Assert.Single(original.SignedDocuments);         // and its signed copy is still reachable
+        Assert.Equal(profile.OfferVersion, current.Version); // matches the version printed on the letter
+    }
+
+    [Fact]
     public async Task CorrectedOffer_IsRefused_OnceTheFacHasRejected()
     {
         // A rejection cancels the case; there is nothing left to correct.
@@ -407,6 +432,9 @@ public class RatifyRhshfCaseHandlerTests
         Assert.Equal("60 Kg", npk.TotalQuantity);
         Assert.Equal(1_120m, npk.UnitPrice);
         Assert.Equal(44_800m, npk.PackagingExcess);
+        Assert.Equal(30, npk.Farmers); // printed beside "2 Kg" so it is not read as 2 kg in total
+        Assert.Equal("30 farmers × NGN 427,268.80 per farmer + NGN 66,400.00 whole-pack adjustments = NGN 12,884,464.00",
+            schedule.Basis); // the form QA's approved EOP states it in
         Assert.Equal("30 farmers", schedule.Rows.Single(r => r.Input == "Extension Services").TotalQuantity);
         Assert.Null(schedule.Rows.Single(r => r.Input == "Extension Services").Supplier); // the portal sends none
         Assert.Equal(GrandbaiTotal, schedule.Total);
@@ -527,6 +555,8 @@ public class RatifyRhshfCaseHandlerTests
             return Task.CompletedTask;
         }
         public Task<RhshfOfferDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<RhshfOffer>> GetAllByProfileAsync(Guid rhshfCreditProfileId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<RhshfOffer>>(new[] { _existing, Added }.OfType<RhshfOffer>().OrderBy(o => o.GeneratedAt).ToList());
     }
 
     private class FakeOfferDocumentGenerator : IRhshfOfferDocumentGenerator

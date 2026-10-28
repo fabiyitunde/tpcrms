@@ -332,7 +332,7 @@ else
             <CommitteeTab Committee="committeeReview" Roster="committeeRoster" CurrentUserId="CurrentUserId" />
             break;
         case "offer":
-            <OfferTab Offer="offer" Reference="@Reference" OnDownload="DownloadOfferDocument"
+            <OfferTab Offer="offer" History="offerHistory" Reference="@Reference" OnDownload="DownloadOfferDocument"
                 CanRegenerate="CanRegenerateOffer" IsRegenerating="isRegeneratingOffer" OnRegenerate="RegenerateOffer"
                 CanIssueCorrected="CanIssueCorrectedOffer" OnIssueCorrected='() => { openModal = "correctedoffer"; modalError = null; }'
                 CanResendCallback="CanResendOfferCallback" IsResendingCallback="isResendingCallback" OnResendCallback="ResendOfferCallback"
@@ -453,6 +453,7 @@ else
     private StandingCommitteeInfo? committeeRoster;
     private CRMS.Application.Rhshf.Queries.RhshfCommitteeRoutingPreviewDto? committeeRoutingPreview;
     private RhshfOfferDto? offer;
+    private List<CRMS.Application.Rhshf.Queries.RhshfOfferHistoryItemDto> offerHistory = [];
     private List<RhshfStatusHistoryDto> statusHistory = [];
     private List<CRMS.Application.Rhshf.Queries.RhshfPortalUpdateDto> portalUpdates = [];
     private AccountStatementDto? bankStatement;
@@ -592,6 +593,7 @@ else
                 ? await AppService.GetStandingCommitteeByTypeAsync(committeeReview.Tier.ToString(), committeeReview.BranchId)
                 : null;
             offer = await AppService.GetRhshfOfferAsync(Reference);
+            offerHistory = await AppService.GetRhshfOfferHistoryAsync(Reference);
             preDeploymentChecklist = await AppService.GetRhshfPreDeploymentChecklistAsync(Reference);
             disbursementHistory = await AppService.GetRhshfDisbursementHistoryAsync(Reference);
             if (workspace.InternalStage is RhshfInternalStage.Active or RhshfInternalStage.Closed)

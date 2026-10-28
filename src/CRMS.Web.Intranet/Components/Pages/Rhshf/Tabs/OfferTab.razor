@@ -177,9 +177,71 @@
             }
         </div>
     }
+
+    @* Every version, so an officer can see what the FAC accepted before a correction replaced it and
+       open its signed copy. The card above only ever shows the current offer. *@
+    @if (History.Count > 1)
+    {
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Version history</h3>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr><th>Version</th><th>Issued</th><th>Status</th><th>FAC response</th><th>Signed copies</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var v in History)
+                        {
+                            <tr>
+                                <td>
+                                    Version @v.Version
+                                    @if (v.IsCurrent) { <span class="badge badge-primary" style="margin-left: 4px;">Current</span> }
+                                </td>
+                                <td>@v.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
+                                <td><span class="badge @HistoryBadge(v.Status)">@HistoryLabel(v)</span></td>
+                                <td>@(v.FacRespondedAt?.ToLocalTime().ToString("MMM dd, yyyy HH:mm") ?? "—")</td>
+                                <td>
+                                    @if (v.SignedDocuments.Count == 0) { <span class="text-muted">None</span> }
+                                    @foreach (var doc in v.SignedDocuments)
+                                    {
+                                        <button class="btn btn-ghost btn-sm" title="Download @doc.FileName" @onclick='() => OnDownload.InvokeAsync(doc.Id)'>
+                                            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">download</span>
+                                            @KindLabel(doc.Kind)
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
+    [Parameter] public List<RhshfOfferHistoryItemDto> History { get; set; } = [];
+
+    /// <summary>"Accepted, then superseded" rather than just "Superseded": that a version was
+    /// accepted before it was replaced is the part an officer needs to see.</summary>
+    private static string HistoryLabel(RhshfOfferHistoryItemDto v) => v.Status switch
+    {
+        RhshfOfferStatus.Superseded when v.FacRespondedAt is not null => "Accepted, then superseded",
+        RhshfOfferStatus.Superseded => "Superseded unanswered",
+        RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse => "Awaiting FAC acceptance",
+        _ => v.Status.ToString(),
+    };
+
+    private static string HistoryBadge(RhshfOfferStatus status) => status switch
+    {
+        RhshfOfferStatus.Accepted => "badge-success",
+        RhshfOfferStatus.Rejected => "badge-danger",
+        RhshfOfferStatus.Superseded => "badge-gray",
+        _ => "badge-warning",
+    };
+
     [Parameter] public RhshfOfferDto? Offer { get; set; }
     [Parameter] public string Reference { get; set; } = "";
     [Parameter] public bool CanRegenerate { get; set; }

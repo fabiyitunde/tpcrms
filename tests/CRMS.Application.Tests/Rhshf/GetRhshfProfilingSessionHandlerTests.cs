@@ -178,5 +178,6 @@ public class GetRhshfProfilingSessionHandlerTests
         public Task AddAsync(RhshfOffer offer, CancellationToken ct = default) => Task.CompletedTask;
         public Task<RhshfOfferDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
             => throw new NotSupportedException();
+        public Task<IReadOnlyList<RhshfOffer>> GetAllByProfileAsync(Guid rhshfCreditProfileId, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<RhshfOffer>>([]);
     }
 }

@@ -35,7 +35,7 @@
                 </div>
                 <div class="info-item">
                     <span class="info-label">Location</span>
-                    <span class="info-value">@Workspace.Lga, @Workspace.State</span>
+                    <span class="info-value">@string.Join(", ", new[] { Workspace.Lga, Workspace.State }.Where(s => !string.IsNullOrWhiteSpace(s)))</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Farmers Financed</span>

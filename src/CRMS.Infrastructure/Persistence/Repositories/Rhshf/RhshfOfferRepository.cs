@@ -25,4 +25,11 @@ public class RhshfOfferRepository : IRhshfOfferRepository
 
     public async Task<RhshfOfferDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken ct = default)
         => await _context.RhshfOfferDocuments.FirstOrDefaultAsync(x => x.Id == documentId, ct);
+
+    public async Task<IReadOnlyList<RhshfOffer>> GetAllByProfileAsync(Guid rhshfCreditProfileId, CancellationToken ct = default)
+        => await _context.RhshfOffers
+            .Include(x => x.Documents)
+            .Where(x => x.RhshfCreditProfileId == rhshfCreditProfileId)
+            .OrderBy(x => x.GeneratedAt)
+            .ToListAsync(ct);
 }

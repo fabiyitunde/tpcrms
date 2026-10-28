@@ -130,7 +130,8 @@ public class RhshfOfferDocumentDataBuilder
                     TotalQuantity: TotalQuantity(l),
                     UnitPrice: l.UnitPrice,
                     Amount: l.Amount,
-                    PackagingExcess: l.PackagingExcess))
+                    PackagingExcess: l.PackagingExcess,
+                    Farmers: IsPerFarmer(l) ? l.Farmers : null))
                 .ToList();
 
             var subtotals = new List<RhshfOfferSummaryRow>();
@@ -144,7 +145,7 @@ public class RhshfOfferDocumentDataBuilder
                 subtotals.Add(new("Technology services fee", eop.TechServicesFee, null, RhshfOfferSummaryRow.FinancedInLoan));
             }
 
-            schedules.Add(new RhshfOfferEopSchedule(title, farmers, rows, subtotals, eop?.ApprovedTotal));
+            schedules.Add(new RhshfOfferEopSchedule(title, farmers, rows, subtotals, eop?.ApprovedTotal, CostBasis(eop, profile.Currency)));
         }
 
         return schedules;
@@ -175,6 +176,28 @@ public class RhshfOfferDocumentDataBuilder
             c.Label, c.Amount, c.RateBasis, c.InLoan ? RhshfOfferSummaryRow.FinancedInLoan : "Not financed")));
 
         return rows;
+    }
+
+    /// <summary>
+    /// The EOP total as the approved EOP states it: farmers times the cost per farmer, plus the
+    /// whole-EOP adjustments (packaging excess). Grandbai: 30 × 427,268.80 + 66,400.00. Null unless
+    /// the per-farmer figure divides to the kobo — a rounded figure that did not multiply back to
+    /// the total would be worse on a contract than no figure.
+    /// </summary>
+    private static string? CostBasis(RhshfFinancingEop? eop, string currency)
+    {
+        if (eop?.Farmers is not { } farmers || farmers <= 0)
+            return null;
+
+        var perFarmerTotal = eop.ApprovedTotal - eop.PackagingExcess;
+        var perFarmer = Math.Round(perFarmerTotal / farmers, 2);
+        if (perFarmer * farmers != perFarmerTotal)
+            return null;
+
+        var basis = $"{farmers:N0} farmers × {currency} {perFarmer:N2} per farmer";
+        if (eop.PackagingExcess != 0m)
+            basis += $" + {currency} {eop.PackagingExcess:N2} whole-pack adjustments";
+        return $"{basis} = {currency} {eop.ApprovedTotal:N2}";
     }
 
     private static bool IsService(RhshfFinancingLine line) =>

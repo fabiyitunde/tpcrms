@@ -205,6 +205,7 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
             Term(table, "Lender", $"{data.BankName} Limited");
             Term(table, "Borrower", RcNumberText.WithCompany(data.CompanyName, data.RcNumber));
             Term(table, "Loan amount", $"{Money(data.Currency, data.ApprovedAmount)} ({NairaAmountInWords.Format(data.ApprovedAmount)}) only");
+            Term(table, "Programme and season", $"{data.ProgrammeName}, {data.SessionName} season");
             Term(table, "Loan purpose",
                 "To finance the direct procurement of inputs from accredited input producers and onward "
                 + "distribution of the input bundles to certified farmer clusters under the supervision and "
@@ -356,6 +357,8 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
 
             col.Item().PaddingTop(8).Text($"{name}: approved EOP inputs and services — {schedule.Title}")
                 .SemiBold().FontSize(9.5f).FontColor(Brand);
+            if (schedule.Basis is not null)
+                col.Item().PaddingTop(2).Text(schedule.Basis).FontSize(8).FontColor(Muted);
 
             col.Item().PaddingTop(4).Table(table =>
             {
@@ -395,7 +398,14 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
                     // An unassigned supplier is printed as such, not left blank: the borrower should see
                     // that the provider is still to be confirmed, not wonder whether it was omitted.
                     Cell(table).Text(row.Supplier ?? "To be confirmed").FontSize(8.5f);
-                    Cell(table).Text(row.PerFarmer ?? "").FontSize(8.5f);
+                    // The farmers beside the per-farmer quantity, so "2 Kg" cannot be read as the whole
+                    // EOP's allocation (CRMSQA#2).
+                    Cell(table).Column(c =>
+                    {
+                        c.Item().Text(row.PerFarmer ?? "").FontSize(8.5f);
+                        if (row.PerFarmer is not null && row.Farmers is { } f)
+                            c.Item().Text($"× {f:N0} farmers").FontSize(7.5f).FontColor(Muted);
+                    });
                     Cell(table).Text(row.TotalQuantity ?? "").FontSize(8.5f);
                     Cell(table).AlignRight().Text(row.UnitPrice is { } p ? Money(data.Currency, p) : "").FontSize(8.5f);
                     Cell(table).AlignRight().Text(Money(data.Currency, row.Amount + row.PackagingExcess)).FontSize(8.5f);

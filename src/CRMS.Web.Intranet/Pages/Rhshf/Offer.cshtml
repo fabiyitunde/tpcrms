@@ -47,12 +47,17 @@ else
             <dl class="row mb-3">
                 <dt class="col-sm-4">Company</dt><dd class="col-sm-8">@Model.Workspace.CompanyName</dd>
                 <dt class="col-sm-4">Reference</dt><dd class="col-sm-8">@Model.Workspace.Reference</dd>
+                @* The version on the letter, so the FAC can tell a corrected offer from the one it replaced. *@
+                <dt class="col-sm-4">Offer version</dt><dd class="col-sm-8">Version @Model.Offer.Version</dd>
                 <dt class="col-sm-4">Financing cycle</dt><dd class="col-sm-8">Cycle @Model.Offer.CycleNumber</dd>
                 <dt class="col-sm-4">Approved amount</dt>
                 <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.Offer.Currency) ? Model.Workspace.Currency : Model.Offer.Currency) @((Model.Offer.ApprovedAmount ?? Model.Workspace.TotalEopValue).ToString("N2"))</dd>
                 @if (Model.Offer.InterestRatePercent.HasValue)
                 {
-                    <dt class="col-sm-4">Interest rate</dt><dd class="col-sm-8">@Model.Offer.InterestRatePercent.Value.ToString("0.##")% for the cycle</dd>
+                    @* Per annum, as the letter states it: the appraisal charges the annual rate pro rata
+                       over the cycle (9% a year over six months is 4.5% of the loan). "For the cycle"
+                       read as the whole charge and contradicted the letter (CRMSQA#2). *@
+                    <dt class="col-sm-4">Interest rate</dt><dd class="col-sm-8">@Model.Offer.InterestRatePercent.Value.ToString("0.##")% per annum</dd>
                 }
                 @if (Model.Offer.CycleMonths.HasValue)
                 {
@@ -67,7 +72,18 @@ else
                 {
                     <dt class="col-sm-4">Farmers financed</dt><dd class="col-sm-8">@Model.Workspace.FarmersFinanced.Value.ToString("N0")</dd>
                 }
-                <dt class="col-sm-4">Location</dt><dd class="col-sm-8">@Model.Workspace.Lga, @Model.Workspace.State</dd>
+                @if (Model.Workspace.FinancedFarmerCount is { } financedFarmers && Model.Workspace.FarmerCount is { } registered && registered != financedFarmers)
+                {
+                    <dt class="col-sm-4">Farmers registered with the FAC</dt><dd class="col-sm-8">@registered.ToString("N0")</dd>
+                }
+                @{
+                    // The portal sends no LGA for some FACs; joining blindly printed ", Kano".
+                    var location = string.Join(", ", new[] { Model.Workspace.Lga, Model.Workspace.State }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                }
+                @if (!string.IsNullOrEmpty(location))
+                {
+                    <dt class="col-sm-4">Location</dt><dd class="col-sm-8">@location</dd>
+                }
                 <dt class="col-sm-4">Offer generated</dt><dd class="col-sm-8">@Model.Offer.GeneratedAt.ToLocalTime().ToString("MMM dd, yyyy")</dd>
             </dl>
 

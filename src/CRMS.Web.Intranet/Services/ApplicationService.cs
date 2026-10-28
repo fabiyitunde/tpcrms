@@ -7269,6 +7269,22 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Every offer issued on the case, newest first, superseded ones included.</summary>
+    public async Task<List<CRMS.Application.Rhshf.Queries.RhshfOfferHistoryItemDto>> GetRhshfOfferHistoryAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfOfferHistoryHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfOfferHistoryQuery(reference), CancellationToken.None);
+            return result.IsSuccess && result.Data is not null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF offer history for {Reference}", reference);
+            return [];
+        }
+    }
+
     // ── RH-SHF Legal Clearance (Phase 8) ───────────────────────────────────
 
     public async Task<ApiResponse> ClearRhshfLegalAsync(
