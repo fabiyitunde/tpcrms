@@ -57,6 +57,10 @@ jobs:
           # (which never reaches the box via CI), so they MUST be supplied here as secrets.
           RHSHF_PUBLIC_BASE_URL: ${{ secrets.RHSHF_PUBLIC_BASE_URL }}
           RHSHF_API_KEY: ${{ secrets.RHSHF_API_KEY }}
+          # The secret the portal verifies X-CRMS-Signature against. Without it the apps signed with
+          # appsettings.json's placeholder and the portal answered every callback with 401 — on TEST,
+          # none of Grandbai's updates ever arrived (CRMSQA#1/#2). Must match the portal's value.
+          RHSHF_CALLBACK_SIGNING_SECRET: ${{ secrets.RHSHF_CALLBACK_SIGNING_SECRET }}
         run: |
           # One shared connection string for BOTH apps (CRMS.API + CRMS.Web.Intranet).
           cat > crms.env << EOF
@@ -65,6 +69,13 @@ jobs:
           Rhshf__ApiKey=$RHSHF_API_KEY
           Rhshf__CallbackUseMock=false
           EOF
+          # Only when set: an empty override would sign with an empty key, which is no better than the
+          # placeholder and harder to spot.
+          if [ -n "$RHSHF_CALLBACK_SIGNING_SECRET" ]; then
+            echo "Rhshf__CallbackSigningSecret=$RHSHF_CALLBACK_SIGNING_SECRET" >> crms.env
+          else
+            echo "::warning::RHSHF_CALLBACK_SIGNING_SECRET is not set — portal callbacks will be rejected."
+          fi
 
       - name: Deploy to EC2
         timeout-minutes: 40
