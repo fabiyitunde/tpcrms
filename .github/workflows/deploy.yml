@@ -6,6 +6,13 @@ on:
       - master
   workflow_dispatch:  # Allow manual deploys from the Actions tab
 
+# One deploy at a time. On 28 Oct two pushes minutes apart ran their server builds side by side on
+# the shared TEST box (which also hosts the RH-SHF portal); it ran out of resources, the build hung,
+# and both the CRMS and the portal went down. A newer push now waits for the running one to finish.
+concurrency:
+  group: deploy-test
+  cancel-in-progress: false
+
 jobs:
   migration-safety:
     runs-on: ubuntu-latest
@@ -155,11 +162,22 @@ jobs:
             # named volume holds CRMS uploaded documents.)
             sudo docker image prune -f || true
 
-            # Build & (re)start only this project. `down` (no -v) keeps the crms-storage
-            # volume, so uploaded documents survive the redeploy.
+            # Build first, one image at a time, while the current containers keep serving. Building
+            # both at once on this shared box exhausted it on 28 Oct. A failed build now stops the
+            # deploy here with the old version still running, instead of after `down` with nothing
+            # running — and pipefail stops `tee` from hiding the failure.
+            set -o pipefail
+            echo "Building CRMS.API..."
+            sudo docker compose build crms-api 2>&1 | tee /tmp/crms-build.log \
+              || { echo "CRMS.API build failed; the running version was left in place."; exit 1; }
+            echo "Building CRMS.Web.Intranet..."
+            sudo docker compose build crms-intranet 2>&1 | tee -a /tmp/crms-build.log \
+              || { echo "CRMS.Web.Intranet build failed; the running version was left in place."; exit 1; }
+
+            # Swap to the new images. `down` (no -v) keeps the crms-storage volume, so uploaded
+            # documents survive the redeploy.
             sudo docker compose down || true
-            echo "Starting Docker build (CRMS.API + CRMS.Web.Intranet)..."
-            sudo docker compose up -d --build 2>&1 | tee /tmp/crms-build.log
+            sudo docker compose up -d
 
             echo "Deployment complete!"
             sudo docker ps
