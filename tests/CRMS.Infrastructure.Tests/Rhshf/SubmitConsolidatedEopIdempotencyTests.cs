@@ -31,7 +31,7 @@ public class SubmitConsolidatedEopIdempotencyTests
         var db = new CRMSDbContext(options);
         var handler = new SubmitConsolidatedEopHandler(
             new RhshfCreditProfileRepository(db), new FakeTokenService(), new FakeFineractDirectService(),
-            new FakeLocationRepository(), db);
+            new FakeLocationRepository(), db, new RhshfScheduleFarmerRepository(db));
         return (db, handler);
     }
 

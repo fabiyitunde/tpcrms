@@ -35,7 +35,7 @@ public class SubmitConsolidatedEopHandlerTests
     public async Task Handle_HappyPath_ReturnsExpectedShape()
     {
         var repo = new FakeRepository();
-        var handler = new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork());
+        var handler = new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork(), new FakeScheduleRepository());
 
         var result = await handler.Handle(new SubmitConsolidatedEopCommand(ValidRequest(Guid.NewGuid()), "{}"));
 
@@ -52,7 +52,7 @@ public class SubmitConsolidatedEopHandlerTests
     public async Task Handle_ResubmittingSameSubmissionId_ReturnsSameCase_NotADuplicate()
     {
         var repo = new FakeRepository();
-        var handler = new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork());
+        var handler = new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork(), new FakeScheduleRepository());
         var submissionId = Guid.NewGuid();
         var request = ValidRequest(submissionId);
 
@@ -69,7 +69,7 @@ public class SubmitConsolidatedEopHandlerTests
     public async Task Handle_MissingCompanyName_ReturnsFailure()
     {
         var repo = new FakeRepository();
-        var handler = new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork());
+        var handler = new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork(), new FakeScheduleRepository());
         var request = ValidRequest(Guid.NewGuid()) with
         {
             Fac = ValidRequest(Guid.NewGuid()).Fac with { CompanyName = "" }
@@ -123,7 +123,7 @@ public class SubmitConsolidatedEopHandlerTests
         """);
         var request = System.Text.Json.JsonSerializer.Deserialize<SubmitConsolidatedEopRequest>(json, System.Text.Json.JsonSerializerOptions.Web)!;
         var repo = new FakeRepository();
-        var handler = new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork());
+        var handler = new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork(), new FakeScheduleRepository());
 
         var result = await handler.Handle(new SubmitConsolidatedEopCommand(request, json.ToJsonString()));
 
@@ -152,6 +152,93 @@ public class SubmitConsolidatedEopHandlerTests
             CRMS.Application.Rhshf.Services.RhshfOfferDocumentDataBuilder.LineDetail(npk, "NGN"));
         Assert.Equal("provider rate NGN 4,000.00 per farmer; rate version RV-2",
             CRMS.Application.Rhshf.Services.RhshfOfferDocumentDataBuilder.LineDetail(service, "NGN"));
+    }
+
+    // ── Farmer schedule (CRMSQA#4) ───────────────────────────────────────────────────────────────
+
+    private static SubmitConsolidatedEopHandler Handler(FakeRepository repo, FakeScheduleRepository schedule)
+        => new(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork(), schedule);
+
+    private static List<RhshfScheduleFarmerDto> Farmers(params (string? Bvn, string? Nuban)[] farmers)
+        => farmers.Select((f, i) => new RhshfScheduleFarmerDto(null, $"F-{i}", f.Bvn, null, f.Nuban)).ToList();
+
+    [Fact]
+    public async Task Handle_StoresTheFarmerSchedule_DigitsOnly()
+    {
+        var repo = new FakeRepository();
+        var schedule = new FakeScheduleRepository();
+        var request = ValidRequest(Guid.NewGuid()) with { FarmerSchedule = Farmers(("222 1234 5678", null), (null, "0123-456-789")) };
+
+        var result = await Handler(repo, schedule).Handle(new SubmitConsolidatedEopCommand(request, "{}"));
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(2, schedule.Rows.Count);
+        Assert.Equal("22212345678", schedule.Rows[0].Bvn);
+        Assert.Equal("0123456789", schedule.Rows[1].Nuban);
+        Assert.All(schedule.Rows, r => Assert.Equal(repo.Added.Single().Id, r.RhshfCreditProfileId));
+    }
+
+    [Theory]
+    [InlineData("1234", null, "farmerSchedule[0] has a BVN that is not 11 digits.")]
+    [InlineData(null, null, "farmerSchedule[0] has no BVN, NIN or account number.")]
+    public async Task Handle_RefusesABadScheduleWhole_WithoutEchoingIdentifiers(string? bvn, string? nuban, string expected)
+    {
+        var repo = new FakeRepository();
+        var schedule = new FakeScheduleRepository();
+        var request = ValidRequest(Guid.NewGuid()) with { FarmerSchedule = Farmers((bvn, nuban), ("22212345678", null)) };
+
+        var result = await Handler(repo, schedule).Handle(new SubmitConsolidatedEopCommand(request, "{}"));
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(expected, result.Error);
+        Assert.Empty(repo.Added);
+        Assert.Empty(schedule.Rows);
+    }
+
+    [Fact]
+    public async Task Handle_RefusesTheSameFarmerTwiceUnderOneEop()
+    {
+        var schedule = new FakeScheduleRepository();
+        var request = ValidRequest(Guid.NewGuid()) with { FarmerSchedule = Farmers(("22212345678", null), ("22212345678", null)) };
+
+        var result = await Handler(new FakeRepository(), schedule).Handle(new SubmitConsolidatedEopCommand(request, "{}"));
+
+        Assert.Equal("farmerSchedule[1] repeats a farmer already listed under the same EOP.", result.Error);
+    }
+
+    [Fact]
+    public async Task Handle_ARepeatAddsTheScheduleToACaseWithNone_AndNeverReplacesOne()
+    {
+        var repo = new FakeRepository();
+        var schedule = new FakeScheduleRepository();
+        var handler = Handler(repo, schedule);
+        var submissionId = Guid.NewGuid();
+
+        await handler.Handle(new SubmitConsolidatedEopCommand(ValidRequest(submissionId), "{}"));
+        Assert.Empty(schedule.Rows);
+
+        var late = ValidRequest(submissionId) with { FarmerSchedule = Farmers(("22212345678", null)) };
+        Assert.True((await handler.Handle(new SubmitConsolidatedEopCommand(late, "{}"))).IsSuccess);
+        Assert.Single(schedule.Rows);
+
+        var again = ValidRequest(submissionId) with { FarmerSchedule = Farmers(("33312345678", null), ("44412345678", null)) };
+        Assert.True((await handler.Handle(new SubmitConsolidatedEopCommand(again, "{}"))).IsSuccess);
+        Assert.Equal("22212345678", Assert.Single(schedule.Rows).Bvn);
+        Assert.Single(repo.Added);
+    }
+
+    private class FakeScheduleRepository : IRhshfScheduleFarmerRepository
+    {
+        public List<RhshfScheduleFarmer> Rows { get; } = [];
+
+        public Task<int> CountForProfileAsync(Guid rhshfCreditProfileId, CancellationToken ct = default)
+            => Task.FromResult(Rows.Count(r => r.RhshfCreditProfileId == rhshfCreditProfileId));
+
+        public Task AddRangeAsync(IEnumerable<RhshfScheduleFarmer> farmers, CancellationToken ct = default)
+        {
+            Rows.AddRange(farmers);
+            return Task.CompletedTask;
+        }
     }
 
     private class FakeRepository : IRhshfCreditProfileRepository

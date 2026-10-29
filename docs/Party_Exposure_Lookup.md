@@ -113,7 +113,7 @@ What the CRMS holds, as returned in `coverage`:
 |---|---|---|
 | `BORROWER` | PARTIAL | Individual borrowers on NAMP only: BVN, NIN and account, since May 2026. Corporate and RH-SHF borrowers are companies, found by account only. |
 | `CO_BORROWER` | NONE | Not held. |
-| `SCHEDULE_BENEFICIARY` | NONE | Only farmer counts per EOP are held, not the farmers. |
+| `SCHEDULE_BENEFICIARY` | PARTIAL | RH-SHF cases for which the portal has sent `farmerSchedule` (from 29 Oct 2026). Earlier cases hold only the farmer count per EOP until the portal sends their list. |
 | `GUARANTOR` | PARTIAL | BVN on all tracks: corporate since Feb 2026, NAMP since May 2026, RH-SHF since Oct 2026. NIN on NAMP guarantors only. |
 | `ACCOUNT_SIGNATORY` | PARTIAL | Corporate applications only (BVN, since Feb 2026). NAMP and RH-SHF signatories are read from core banking when needed and not stored. |
 | `DIRECTOR_OR_OWNER` | PARTIAL | BVN only: corporate since Feb 2026, NAMP since Jun 2026, RH-SHF since Sep 2026. Often blank where it is entered by hand. |

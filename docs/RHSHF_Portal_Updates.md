@@ -111,3 +111,28 @@ financed service with a provider no longer blocks ratification.
 Text values longer than 200 characters are shortened rather than refused. A repeat of a submission
 the CRMS already holds does not replace a breakdown it already has, so these fields reach new cases,
 not existing ones (see CRMSQA#3).
+
+## The farmer schedule
+
+`farmerSchedule` is optional, at the top level of the submission. It holds one entry per farmer
+per EOP:
+
+```json
+"farmerSchedule": [
+  { "eopId": "…", "farmerRef": "portal farmer id", "bvn": "22212345678", "nin": null, "nuban": "0123456789" }
+]
+```
+
+- **Each entry:** needs at least one of `bvn`, `nin` or `nuban`. BVN and NIN are 11 digits and
+  NUBAN is 10. Spaces and hyphens are stripped.
+- **Which EOP:** `eopId` must be one of the case's EOPs when the breakdown names them.
+- **Duplicates:** the same farmer may not appear twice under one EOP.
+- **Refusal:** a schedule with any bad entry is refused whole (400). The error gives the entry's
+  position, never its identifiers.
+- **Size:** at most 20,000 farmers.
+- **What is kept:** only the identifiers and `farmerRef`. No name, phone or address.
+- **What it is for:** the party-exposure lookup (CRMSQA#4), which can then report a farmer as a
+  `SCHEDULE_BENEFICIARY` of the FAC's facility. It changes no amount and no decision.
+- **Repeats:** a repeat of a submission the CRMS already holds adds the schedule if the case has
+  none, at any stage. This is how existing cases, Grandbai among them, get their farmer list. A
+  schedule already held is never replaced.

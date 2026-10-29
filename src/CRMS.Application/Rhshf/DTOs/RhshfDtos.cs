@@ -78,7 +78,23 @@ public record SubmitConsolidatedEopRequest(
     /// submission without it behaves exactly as before, which is what lets the portal roll it out
     /// independently of this deployment.
     /// </summary>
-    RhshfFinancingDto? Financing = null);
+    RhshfFinancingDto? Financing = null,
+    /// <summary>
+    /// The farmers behind the case, one entry per farmer per EOP (CRMSQA#4). Optional. Kept so the
+    /// party-exposure lookup can find a farmer as a beneficiary of a FAC's facility; it changes no
+    /// amount and no decision. Taken once: a repeat of the submission adds it to a case that has none,
+    /// and never replaces one already held.
+    /// </summary>
+    List<RhshfScheduleFarmerDto>? FarmerSchedule = null);
+
+/// <summary>One farmer on the case's schedule. At least one identifier is required.</summary>
+public record RhshfScheduleFarmerDto(
+    Guid? EopId = null,
+    /// <summary>The portal's own farmer id.</summary>
+    string? FarmerRef = null,
+    string? Bvn = null,
+    string? Nin = null,
+    string? Nuban = null);
 
 /// <summary>
 /// The approved EOP broken into the rows the offer letter prints, with the totals they reconcile to.

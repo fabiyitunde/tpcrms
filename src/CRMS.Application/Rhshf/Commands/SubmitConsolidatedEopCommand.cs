@@ -24,19 +24,22 @@ public class SubmitConsolidatedEopHandler
     private readonly IFineractDirectService _fineract;
     private readonly ILocationRepository _locationRepo;
     private readonly IUnitOfWork _uow;
+    private readonly IRhshfScheduleFarmerRepository _schedule;
 
     public SubmitConsolidatedEopHandler(
         IRhshfCreditProfileRepository repo,
         IRhshfTokenService tokenService,
         IFineractDirectService fineract,
         ILocationRepository locationRepo,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IRhshfScheduleFarmerRepository schedule)
     {
         _repo = repo;
         _tokenService = tokenService;
         _fineract = fineract;
         _locationRepo = locationRepo;
         _uow = uow;
+        _schedule = schedule;
     }
 
     public async Task<ApplicationResult<SubmitConsolidatedEopResultDto>> Handle(
@@ -58,6 +61,17 @@ public class SubmitConsolidatedEopHandler
                 var attached = existing.AttachLateFinancing(MapFinancing(req.Financing)!);
                 if (attached.IsFailure)
                     return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(attached.Error);
+            }
+
+            // The farmer list is taken at any stage, even after acceptance: it changes no amount and
+            // no decision, and it is the only way cases submitted before the portal sent it (Grandbai
+            // among them) can be found by the party-exposure lookup. Taken once, never replaced.
+            if (req.FarmerSchedule is { Count: > 0 }
+                && await _schedule.CountForProfileAsync(existing.Id, ct) == 0)
+            {
+                var scheduled = await AddScheduleAsync(existing, req.FarmerSchedule, ct);
+                if (scheduled.IsFailure)
+                    return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(scheduled.Error);
             }
 
             var existingResponse = IssueTokenAndBuildResponse(existing);
@@ -100,12 +114,38 @@ public class SubmitConsolidatedEopHandler
             return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(result.Error);
 
         var profile = result.Value;
+        if (req.FarmerSchedule is { Count: > 0 })
+        {
+            var scheduled = await AddScheduleAsync(profile, req.FarmerSchedule, ct);
+            if (scheduled.IsFailure)
+                return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(scheduled.Error);
+        }
         await ResolveBranchAsync(profile, req.Fac.BoaAccountNumber, ct);
         await _repo.AddAsync(profile, ct);
         var response = IssueTokenAndBuildResponse(profile);
         await _uow.SaveChangesAsync(ct);
 
         return ApplicationResult<SubmitConsolidatedEopResultDto>.Success(response);
+    }
+
+    /// <summary>Checks the farmer list against the case's own EOPs and queues its rows to be saved
+    /// with the case. Refused whole if any entry is wrong.</summary>
+    private async Task<CRMS.Domain.Common.Result> AddScheduleAsync(
+        RhshfCreditProfile profile, List<RhshfScheduleFarmerDto> schedule, CancellationToken ct)
+    {
+        var knownEops = profile.FinancingEops.Select(e => e.EopId)
+            .Concat(profile.FinancingLines.Select(l => l.EopId))
+            .OfType<Guid>()
+            .ToHashSet();
+        var built = RhshfScheduleFarmer.BuildSchedule(
+            profile.Id,
+            schedule.Select(f => new RhshfScheduleFarmerInput(f?.EopId, f?.FarmerRef, f?.Bvn, f?.Nin, f?.Nuban)).ToList(),
+            knownEops);
+        if (built.IsFailure)
+            return CRMS.Domain.Common.Result.Failure(built.Error);
+
+        await _schedule.AddRangeAsync(built.Value, ct);
+        return CRMS.Domain.Common.Result.Success();
     }
 
     /// <summary>

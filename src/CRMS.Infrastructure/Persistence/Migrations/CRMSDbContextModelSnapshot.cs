@@ -8597,6 +8597,62 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.ToTable("RhshfRoutingConfigs", (string)null);
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfScheduleFarmer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Bvn")
+                        .HasMaxLength(11)
+                        .HasColumnType("varchar(11)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid?>("EopId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("FarmerRef")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Nin")
+                        .HasMaxLength(11)
+                        .HasColumnType("varchar(11)");
+
+                    b.Property<string>("Nuban")
+                        .HasMaxLength(10)
+                        .HasColumnType("varchar(10)");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Bvn");
+
+                    b.HasIndex("Nin");
+
+                    b.HasIndex("Nuban");
+
+                    b.HasIndex("RhshfCreditProfileId");
+
+                    b.ToTable("RhshfScheduleFarmers", (string)null);
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfStageConfirmation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -10653,6 +10709,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
                         .WithMany("RiskReviews")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfScheduleFarmer", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany()
                         .HasForeignKey("RhshfCreditProfileId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

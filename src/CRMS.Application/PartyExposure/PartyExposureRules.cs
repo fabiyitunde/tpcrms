@@ -417,7 +417,7 @@ public static class PartyExposureRules
     {
         [RelationshipTypes.Borrower] = "PARTIAL",
         [RelationshipTypes.CoBorrower] = "NONE",
-        [RelationshipTypes.ScheduleBeneficiary] = "NONE",
+        [RelationshipTypes.ScheduleBeneficiary] = "PARTIAL",
         [RelationshipTypes.Guarantor] = "PARTIAL",
         [RelationshipTypes.AccountSignatory] = "PARTIAL",
         [RelationshipTypes.DirectorOrOwner] = "PARTIAL",
@@ -427,7 +427,8 @@ public static class PartyExposureRules
         ["notes"] =
             "Borrower: individual borrowers exist only on NAMP (BVN, NIN, account number, held since May 2026); " +
             "corporate and RH-SHF borrowers are companies, found by account number only. " +
-            "Schedule beneficiary: the CRMS holds farmer counts per EOP, not the farmers themselves. " +
+            "Schedule beneficiary: RH-SHF cases for which the portal has sent the farmer list (BVN, NIN or account, from 29 Oct 2026); " +
+            "for other cases the CRMS holds only the farmer count per EOP. " +
             "Guarantor: BVN on all three tracks (corporate since Feb 2026, NAMP since May 2026, RH-SHF since Oct 2026); " +
             "NIN on NAMP guarantors only. " +
             "Account signatory: corporate applications only (BVN, since Feb 2026); NAMP and RH-SHF signatories are read " +

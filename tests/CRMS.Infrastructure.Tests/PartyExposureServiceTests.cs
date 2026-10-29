@@ -199,6 +199,24 @@ public class PartyExposureServiceTests
     }
 
     [Fact]
+    public async Task Finds_a_farmer_on_a_facs_schedule_by_account()
+    {
+        var profile = await SeedFacAsync();
+        var farmers = RhshfScheduleFarmer.BuildSchedule(profile.Id,
+            [new RhshfScheduleFarmerInput(null, "F-1", null, null, "0222222222")], null).Value;
+        _db.RhshfScheduleFarmers.AddRange(farmers);
+        await _db.SaveChangesAsync();
+
+        var reply = await Service().LookupAsync("r1", Query(bvn: null, nubans: "0222222222"));
+
+        var row = Assert.Single(reply.Relationships);
+        Assert.Equal(RelationshipTypes.ScheduleBeneficiary, row.RelationshipType);
+        Assert.Equal("Grandbai Limited", row.Obligor.DisplayName);
+        Assert.Equal(1, reply.Summary.IndirectFacilities);
+        Assert.Equal(MatchStatuses.Match, reply.MatchStatus);
+    }
+
+    [Fact]
     public async Task Nothing_found_is_no_match()
     {
         var reply = await Service().LookupAsync("r1", Query(bvn: "33312345678"));

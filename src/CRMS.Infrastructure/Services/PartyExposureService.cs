@@ -302,6 +302,22 @@ public class PartyExposureService : IPartyExposureService
                 g.Bvn, (string?)null, (string?)null, IdentifierTypes.Bvn, g.GuaranteeAmount, g.CreatedAt, (DateTime?)null)));
         }
 
+        // Farmers on a FAC's schedule — held only for cases the portal sent the list with.
+        async Task Scheduled(IQueryable<Domain.Aggregates.Rhshf.RhshfScheduleFarmer> source, string matched)
+        {
+            var rows = await source.AsNoTracking()
+                .Select(f => new { f.RhshfCreditProfileId, f.Bvn, f.Nin, f.Nuban, f.CreatedAt })
+                .ToListAsync(ct);
+            found.AddRange(rows.Select(f => (f.RhshfCreditProfileId, RelationshipTypes.ScheduleBeneficiary,
+                (string?)"Farmer on the FAC's financing schedule", f.Bvn, f.Nin, f.Nuban, matched,
+                (decimal?)null, f.CreatedAt, (DateTime?)null)));
+        }
+
+        if (q.Bvn is not null) await Scheduled(_db.RhshfScheduleFarmers.Where(f => f.Bvn == q.Bvn), IdentifierTypes.Bvn);
+        if (q.Nin is not null) await Scheduled(_db.RhshfScheduleFarmers.Where(f => f.Nin == q.Nin), IdentifierTypes.Nin);
+        if (q.Nubans.Count > 0)
+            await Scheduled(_db.RhshfScheduleFarmers.Where(f => f.Nuban != null && q.Nubans.Contains(f.Nuban)), IdentifierTypes.Nuban);
+
         if (found.Count == 0)
             return [];
 

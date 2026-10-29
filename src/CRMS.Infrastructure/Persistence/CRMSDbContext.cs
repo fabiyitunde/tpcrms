@@ -176,6 +176,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<RH.RhshfStageConfirmation> RhshfStageConfirmations => Set<RH.RhshfStageConfirmation>();
     public DbSet<RH.RhshfStatusHistory> RhshfStatusHistory => Set<RH.RhshfStatusHistory>();
     public DbSet<RH.RhshfFinancingEop> RhshfFinancingEops => Set<RH.RhshfFinancingEop>();
+    public DbSet<RH.RhshfScheduleFarmer> RhshfScheduleFarmers => Set<RH.RhshfScheduleFarmer>();
 
     // Party-exposure lookup (CRMSQA#4): audit of every lookup, and batch progress
     public DbSet<PE.PartyExposureLookupLog> PartyExposureLookupLogs => Set<PE.PartyExposureLookupLog>();

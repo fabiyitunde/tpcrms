@@ -137,7 +137,7 @@ public class PartyExposureRulesTests
 
         Assert.Equal(MatchStatuses.NoMatch, reply.MatchStatus);
         Assert.Equal("NOT_FOUND", reply.IdentifierResults.Single().Result);
-        Assert.Equal("NONE", reply.Coverage[RelationshipTypes.ScheduleBeneficiary]);
+        Assert.Equal("PARTIAL", reply.Coverage[RelationshipTypes.ScheduleBeneficiary]);
         Assert.Equal("NONE", reply.Coverage["classification"]);
     }
 
