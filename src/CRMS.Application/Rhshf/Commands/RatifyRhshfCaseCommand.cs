@@ -112,6 +112,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
             // Anything core banking would have deducted twice. Recorded on the offer so the case
             // shows it to whoever can get the product fixed.
             offerResult.Value.RecordSuppressedProductFees(build.SuppressedProductFees);
+            RhshfOfferDocumentDataBuilder.RecordTerms(offerResult.Value, build.Data);
 
             await _offerRepo.AddAsync(offerResult.Value, ct);
         }

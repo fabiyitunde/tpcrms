@@ -413,6 +413,7 @@ else
     @if (openModal == "financialappraisal" && financialAppraisal is not null)
     {
         <FinancialAppraisalModal Data="financialAppraisal" OnClose="CloseModal"
+            ProductTerms="productTerms" ProductTermsError="@productTermsError"
             OnConfirm="SubmitFinancialAppraisal" IsSubmitting="isSubmitting" ErrorMessage="@modalError" />
     }
     @if (openModal == "director")
@@ -994,7 +995,19 @@ else
 
     private void OpenAddFarmPlanModal() { editingFarmPlan = null; openModal = "farmplan"; modalError = null; }
     private void OpenEditFarmPlanModal(RhshfFarmPlanDto p) { editingFarmPlan = p; openModal = "farmplan"; modalError = null; }
-    private void OpenFinancialAppraisalModal() { openModal = "financialappraisal"; modalError = null; }
+    // Tenor and rate are the core banking product's, read when the modal opens so the officer sees
+    // the terms the appraisal will be saved on. They are not editable (the save reads them again).
+    private CRMS.Application.Rhshf.Services.RhshfProductTerms? productTerms;
+    private string? productTermsError;
+
+    private async Task OpenFinancialAppraisalModal()
+    {
+        modalError = null;
+        var terms = await AppService.GetRhshfProductTermsAsync();
+        productTerms = terms.Success ? terms.Data : null;
+        productTermsError = terms.Success ? null : terms.Error;
+        openModal = "financialappraisal";
+    }
 
     private async Task SubmitAddFarmPlan((string Crop, decimal Hectares, decimal YieldPerHa, decimal PricePerKg) input)
     {
@@ -1029,14 +1042,14 @@ else
     }
 
     private async Task SubmitFinancialAppraisal(
-        (decimal OwnProductionCost, decimal HarvestAndLogisticsCost, int CycleMonths, decimal InterestRatePercent,
+        (decimal OwnProductionCost, decimal HarvestAndLogisticsCost,
          string? AssumptionBasisNote, string Recommendation, string? SummaryNotes, string? OverrideJustification) input)
     {
         isSubmitting = true;
         modalError = null;
         var result = await AppService.SaveRhshfFinancialAppraisalAsync(
             Reference, CurrentUserId, input.OwnProductionCost, input.HarvestAndLogisticsCost,
-            input.CycleMonths, input.InterestRatePercent, input.AssumptionBasisNote,
+            input.AssumptionBasisNote,
             input.Recommendation, input.SummaryNotes, input.OverrideJustification);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }

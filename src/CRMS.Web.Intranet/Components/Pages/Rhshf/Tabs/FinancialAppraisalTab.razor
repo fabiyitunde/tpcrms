@@ -244,7 +244,7 @@ else
                         @FieldChip("Expected Price (blended)", $"{Data.Currency} {r.BlendedPricePerKg:N2}/kg")
                         @FieldChip("Break-Even Price", r.BreakEvenPricePerKg.HasValue ? $"{Data.Currency} {r.BreakEvenPricePerKg.Value:N2}/kg" : null)
                         @FieldChip("Total Hectares", $"{r.TotalHectares:N2}")
-                        @FieldChip("Cycle Length", $"{r.CycleMonths} months @ {r.InterestRatePercent:N2}% p.a.")
+                        @FieldChip("Tenor and rate", $"{r.CycleMonths} months at {r.InterestRatePercent:N2}% a year")
                     </div>
                 </div>
             </div>

@@ -32,16 +32,31 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div class="form-group">
-                    <label class="form-label">Cycle Length (months) *</label>
-                    <input type="number" class="form-control" min="1" max="24" @bind="cycleMonths" />
+            @* Tenor and rate are the loan's terms, set on the core banking product. They are shown, not
+               entered, so the appraisal, the offer letter and the booked loan cannot disagree. *@
+            @if (ProductTerms is { } terms)
+            {
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Tenor</label>
+                        <div class="form-control" style="background: var(--gray-50);">@terms.TenorMonths month@(terms.TenorMonths == 1 ? "" : "s")</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Interest Rate</label>
+                        <div class="form-control" style="background: var(--gray-50);">@terms.AnnualRatePercent.ToString("0.##")% a year</div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Interest Rate (% p.a.) *</label>
-                    <input type="number" class="form-control" min="0" step="0.01" @bind="interestRatePercent" />
+                <small class="form-hint" style="display: block; margin: -0.5rem 0 1rem;">
+                    From the core banking product "@terms.ProductName". Change them there, not here.
+                </small>
+            }
+            else
+            {
+                <div class="alert alert-danger">
+                    The tenor and interest rate could not be read from core banking, so the appraisal cannot be
+                    saved yet. @ProductTermsError
                 </div>
-            </div>
+            }
 
             <div class="form-group">
                 <label class="form-label">Basis for Yield / Price Assumptions</label>
@@ -86,7 +101,7 @@
 
         <div class="modal-footer">
             <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
-            <button class="btn btn-primary" disabled="@IsSubmitting" @onclick="Submit">
+            <button class="btn btn-primary" disabled="@(IsSubmitting || ProductTerms is null)" @onclick="Submit">
                 @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
                 Save Appraisal
             </button>
@@ -97,16 +112,17 @@
 @code {
     [Parameter, EditorRequired] public RhshfFinancialAppraisalDto Data { get; set; } = null!;
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback<(decimal OwnProductionCost, decimal HarvestAndLogisticsCost, int CycleMonths,
-        decimal InterestRatePercent, string? AssumptionBasisNote, string Recommendation,
+    [Parameter] public EventCallback<(decimal OwnProductionCost, decimal HarvestAndLogisticsCost,
+        string? AssumptionBasisNote, string Recommendation,
         string? SummaryNotes, string? OverrideJustification)> OnConfirm { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
+    /// <summary>The core banking product's tenor and rate. Null when they could not be read.</summary>
+    [Parameter] public CRMS.Application.Rhshf.Services.RhshfProductTerms? ProductTerms { get; set; }
+    [Parameter] public string? ProductTermsError { get; set; }
 
     private decimal ownProductionCost;
     private decimal harvestAndLogisticsCost;
-    private int cycleMonths = 6;
-    private decimal interestRatePercent;
     private string? assumptionBasisNote;
     private string? summaryNotes;
     private string? overrideJustification;
@@ -122,8 +138,6 @@
         {
             ownProductionCost = r.OwnProductionCost;
             harvestAndLogisticsCost = r.HarvestAndLogisticsCost;
-            cycleMonths = r.CycleMonths;
-            interestRatePercent = r.InterestRatePercent;
             assumptionBasisNote = r.AssumptionBasisNote;
             summaryNotes = r.SummaryNotes;
             overrideJustification = r.OverrideJustification;
@@ -136,12 +150,10 @@
     {
         clientError = null;
 
-        if (cycleMonths <= 0) { clientError = "Cycle length must be at least one month."; return; }
         if (ownProductionCost < 0 || harvestAndLogisticsCost < 0) { clientError = "Costs cannot be negative."; return; }
-        if (interestRatePercent < 0) { clientError = "Interest rate cannot be negative."; return; }
 
         await OnConfirm.InvokeAsync((
-            ownProductionCost, harvestAndLogisticsCost, cycleMonths, interestRatePercent,
+            ownProductionCost, harvestAndLogisticsCost,
             string.IsNullOrWhiteSpace(assumptionBasisNote) ? null : assumptionBasisNote,
             recommendation,
             string.IsNullOrWhiteSpace(summaryNotes) ? null : summaryNotes,

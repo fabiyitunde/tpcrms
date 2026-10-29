@@ -8245,6 +8245,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<int>("CycleNumber")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("EstimatedInterest")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime?>("FacRespondedAt")
                         .HasColumnType("datetime(6)");
 
@@ -8253,6 +8256,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("GeneratedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<decimal?>("InterestRatePercent")
+                        .HasColumnType("decimal(9,4)");
 
                     b.Property<string>("KfsDocumentPath")
                         .HasColumnType("longtext");
@@ -8278,6 +8284,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("SuppressedProductFees")
                         .HasColumnType("longtext");
+
+                    b.Property<int?>("TenorMonths")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 

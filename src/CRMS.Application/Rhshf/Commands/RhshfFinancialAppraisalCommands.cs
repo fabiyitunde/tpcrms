@@ -105,10 +105,15 @@ public class RemoveRhshfFarmPlanHandler : IRequestHandler<RemoveRhshfFarmPlanCom
 // ── Financial appraisal ────────────────────────────────────────────────────
 
 /// <summary>Saves (or re-saves) the cycle's financial appraisal. Every computed figure is derived
-/// inside the domain from these inputs — the caller supplies assumptions only.</summary>
+/// inside the domain from these inputs — the caller supplies assumptions only.
+/// <para>
+/// Tenor and interest rate are not among them. They are the loan's terms, not assumptions, and are
+/// read from the core banking product at save time: the officer cannot type a different figure, so
+/// the appraisal, the offer letter and the booked loan all use the same ones.
+/// </para></summary>
 public record SaveRhshfFinancialAppraisalCommand(
     string Reference, Guid UserId,
-    decimal OwnProductionCost, decimal HarvestAndLogisticsCost, int CycleMonths, decimal InterestRatePercent,
+    decimal OwnProductionCost, decimal HarvestAndLogisticsCost,
     string? AssumptionBasisNote, string Recommendation, string? SummaryNotes, string? OverrideJustification)
     : IRequest<ApplicationResult>;
 
@@ -116,13 +121,16 @@ public class SaveRhshfFinancialAppraisalHandler : IRequestHandler<SaveRhshfFinan
 {
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfAppraisalThresholdsRepository _thresholdsRepo;
+    private readonly Services.RhshfProductTermsResolver _terms;
     private readonly IUnitOfWork _uow;
 
     public SaveRhshfFinancialAppraisalHandler(
-        IRhshfCreditProfileRepository repo, IRhshfAppraisalThresholdsRepository thresholdsRepo, IUnitOfWork uow)
+        IRhshfCreditProfileRepository repo, IRhshfAppraisalThresholdsRepository thresholdsRepo,
+        Services.RhshfProductTermsResolver terms, IUnitOfWork uow)
     {
         _repo = repo;
         _thresholdsRepo = thresholdsRepo;
+        _terms = terms;
         _uow = uow;
     }
 
@@ -142,9 +150,15 @@ public class SaveRhshfFinancialAppraisalHandler : IRequestHandler<SaveRhshfFinan
             return ApplicationResult.Failure(
                 "No active appraisal thresholds are configured. Set them in Admin > RH-SHF Appraisal Thresholds first.");
 
+        // No fallback: an appraisal on terms core banking will not book is worse than none.
+        var terms = await _terms.ResolveAsync(ct);
+        if (terms.IsFailure)
+            return ApplicationResult.Failure(
+                $"The appraisal needs the loan's tenor and interest rate from core banking. {terms.Error}");
+
         var result = profile.SaveFinancialAppraisal(
             request.UserId, request.OwnProductionCost, request.HarvestAndLogisticsCost,
-            request.CycleMonths, request.InterestRatePercent, request.AssumptionBasisNote,
+            terms.Value.TenorMonths, terms.Value.AnnualRatePercent, request.AssumptionBasisNote,
             thresholds, recommendation, request.SummaryNotes, request.OverrideJustification);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);

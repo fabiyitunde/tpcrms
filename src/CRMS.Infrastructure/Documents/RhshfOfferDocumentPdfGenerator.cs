@@ -179,7 +179,7 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
                     data.InterestRatePercent is { } r ? $"{r:0.##}% per annum" : "Per approved credit terms");
                 Fact(row, "Tenor",
                     data.TenorMonths is { } m ? $"{m} months" : "Per approved credit terms");
-                Fact(row, "Total repayable",
+                Fact(row, "Total repayable (estimate)",
                     data.AmountDueAtHarvest is { } due ? Money(data.Currency, due) : "Per repayment schedule");
             });
         });
@@ -210,10 +210,11 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
                 "To finance the direct procurement of inputs from accredited input producers and onward "
                 + "distribution of the input bundles to certified farmer clusters under the supervision and "
                 + "control of the Farmer Aggregation Company.");
-            // No grace period: the facility is repaid in one bullet payment at harvest, so there are
-            // no instalments to defer. The cycle itself is the deferral.
+            // No grace period: the facility is repaid in one bullet payment at the end, so there are
+            // no instalments to defer. The tenor is the core banking product's, the one it books.
             Term(table, "Loan period", data.TenorMonths is { } m
-                ? $"{NairaAmountInWords.Convert(m)} ({m}) months from the date of first disbursement."
+                ? $"{NairaAmountInWords.Convert(m)} ({m}) months from the date of disbursement, repaid in a single "
+                  + "payment of principal and interest at the end of the period."
                 : "As set out in the approved credit terms.");
 
             Term(table, "Interest rate", data.InterestRatePercent is { } rate
@@ -252,16 +253,8 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
                     foreach (var fee in data.ProductFees)
                         cell.Item().Text($"{fee.Name}: {fee.Display}, deducted at disbursement.");
                 }
-
-                cell.Item().PaddingTop(4).Text(
-                    "Documentation fee: to be assessed and forwarded to the borrower for settlement prior to "
-                    + "disbursement of the facility.")
-                    .FontSize(9);
-                cell.Item().PaddingTop(4).Text(
-                    "The legal documentation fee covers charges relating to the perfection of legal and other "
-                    + "documentation required for the loan. Where the provision proves inadequate, the borrower "
-                    + "will be advised to make up the difference.")
-                    .FontSize(8.5f).Italic().FontColor(Muted);
+                // No documentation fee: neither the product paper nor the core banking product has
+                // one, and the letter states only what the borrower will actually be charged.
             });
         });
     }
@@ -522,16 +515,21 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
             + "outstanding principal together with accrued but unpaid interest shall be repaid in full on or "
             + "before expiry of the loan tenor.");
 
+        // The method is core banking's own: interest accrues daily on the outstanding principal from
+        // the actual disbursement date, counting actual days. With one repayment that is the whole
+        // principal for the whole period, so the figure here is an estimate that moves with the
+        // disbursement date by a few days' interest — and is said to be one.
         if (data.InterestCharge is { } interest && data.AmountDueAtHarvest is { } due)
             col.Item().PaddingTop(4).Text(
-                $"On the terms above, interest over the facility period is {Money(data.Currency, interest)}, "
-                + $"and the total repayable is {Money(data.Currency, due)}."
-                // State the method so the figure can be checked: the appraisal charges the annual rate
-                // pro rata over the tenor, as simple interest on the approved amount.
-                + (data.InterestRatePercent is { } rate && data.TenorMonths is { } months
-                    ? $" Interest is calculated as simple interest at {rate:0.##}% per annum on the approved amount "
-                      + $"for {months} month{(months == 1 ? "" : "s")}."
-                    : ""))
+                (data.InterestRatePercent is { } rate
+                    ? $"Interest accrues daily at {rate:0.##}% per annum on the outstanding principal from the date "
+                      + "of disbursement, counting the actual number of days. "
+                    : "")
+                + (data.TenorMonths is { } months
+                    ? $"On the approved amount over {months} month{(months == 1 ? "" : "s")}, interest is estimated at "
+                    : "Interest over the facility period is estimated at ")
+                + $"{Money(data.Currency, interest)}, making about {Money(data.Currency, due)} repayable. "
+                + "The exact amount depends on the date the loan is disbursed.")
                 .FontSize(9).FontColor(Muted);
     }
 
@@ -548,14 +546,18 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
             + "set out in it.");
         Numbered(col, 4,
             "CAC status report confirming the company's status as active on the Companies Registration Portal.");
+        // Third-party costs of perfecting the security (a legal mortgage's solicitors and registry),
+        // not a Bank fee: the product has no documentation fee.
         Numbered(col, 5,
-            "Settlement of all documentation fees associated with perfection of the facility, including "
-            + "solicitors' fees.");
-        Numbered(col, 6, FinancedChargeLabels(data) is { Count: > 0 } financed
-            ? "Evidence of payment of the up-front charges set out below. These are the documentation fee, once "
-              + $"assessed, and any fee listed as deducted at disbursement. {JoinLabels(financed)} are financed in "
-              + "the loan and are not paid up front."
-            : "Evidence of payment of the up-front charges set out below.");
+            "Settlement of any third-party costs of perfecting the security, such as solicitors' and "
+            + "registration fees.");
+        var fees = data.ProductFees.Select(f => f.Name).ToList();
+        Numbered(col, 6,
+            "No Bank charge is payable before disbursement."
+            + (fees.Count > 0 ? $" {JoinLabels(fees)} {(fees.Count == 1 ? "is" : "are")} deducted at disbursement." : "")
+            + (FinancedChargeLabels(data) is { Count: > 0 } financed
+                ? $" {JoinLabels(financed)} {(financed.Count == 1 ? "is" : "are")} financed in the loan."
+                : ""));
     }
 
     private static void OtherConditions(ColumnDescriptor col, RhshfOfferDocumentData data)

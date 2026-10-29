@@ -34,6 +34,25 @@ public class RhshfOffer : AggregateRoot
     /// </summary>
     public string? SuppressedProductFees { get; private set; }
 
+    // ── Terms printed on this offer ───────────────────────────────────────
+    // What the letter told the FAC, kept with the offer. The appraisal's figures can differ for offers
+    // made before tenor and rate came from core banking (Grandbai's version 4 said six months while
+    // the product books nine), so screens that show "the offer" read these, not the appraisal.
+    // Null on offers issued before these were recorded.
+
+    public int? TenorMonths { get; private set; }
+    public decimal? InterestRatePercent { get; private set; }
+    /// <summary>The interest the letter estimated over the full tenor. The booked figure depends on
+    /// the actual disbursement date.</summary>
+    public decimal? EstimatedInterest { get; private set; }
+
+    public void RecordTerms(int tenorMonths, decimal interestRatePercent, decimal estimatedInterest)
+    {
+        TenorMonths = tenorMonths;
+        InterestRatePercent = interestRatePercent;
+        EstimatedInterest = estimatedInterest;
+    }
+
     private readonly List<RhshfOfferDocument> _documents = [];
     public IReadOnlyCollection<RhshfOfferDocument> Documents => _documents.AsReadOnly();
 

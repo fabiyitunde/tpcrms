@@ -8313,18 +8313,36 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>The RH-SHF product's tenor and rate from core banking, for the appraisal screen to show.
+    /// Null data with an error when core banking cannot be read.</summary>
+    public async Task<ApiResponse<CRMS.Application.Rhshf.Services.RhshfProductTerms>> GetRhshfProductTermsAsync()
+    {
+        try
+        {
+            var resolver = _sp.GetRequiredService<CRMS.Application.Rhshf.Services.RhshfProductTermsResolver>();
+            var terms = await resolver.ResolveAsync(CancellationToken.None);
+            return terms.IsSuccess
+                ? ApiResponse<CRMS.Application.Rhshf.Services.RhshfProductTerms>.Ok(terms.Value)
+                : ApiResponse<CRMS.Application.Rhshf.Services.RhshfProductTerms>.Fail(terms.Error);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reading the RH-SHF product terms from core banking");
+            return ApiResponse<CRMS.Application.Rhshf.Services.RhshfProductTerms>.Fail("Could not read the RH-SHF product from core banking.");
+        }
+    }
+
     public async Task<ApiResponse> SaveRhshfFinancialAppraisalAsync(
         string reference, Guid userId, decimal ownProductionCost, decimal harvestAndLogisticsCost,
-        int cycleMonths, decimal interestRatePercent, string? assumptionBasisNote,
-        string recommendation, string? summaryNotes, string? overrideJustification)
+        string? assumptionBasisNote, string recommendation, string? summaryNotes, string? overrideJustification)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.SaveRhshfFinancialAppraisalHandler>();
             var result = await handler.Handle(
                 new CRMS.Application.Rhshf.Commands.SaveRhshfFinancialAppraisalCommand(
-                    reference, userId, ownProductionCost, harvestAndLogisticsCost, cycleMonths,
-                    interestRatePercent, assumptionBasisNote, recommendation, summaryNotes, overrideJustification),
+                    reference, userId, ownProductionCost, harvestAndLogisticsCost,
+                    assumptionBasisNote, recommendation, summaryNotes, overrideJustification),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to save the appraisal");
         }

@@ -53,7 +53,15 @@ public class RhshfOfferDocumentDataBuilder
     {
         var appraisal = profile.GetCurrentCycleFinancialAppraisal();
         var collateral = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
-        var (productFees, suppressed) = await ResolveProductFeesAsync(profile, ct);
+        var (productFees, suppressed, terms) = await ResolveProductAsync(profile, ct);
+
+        // Tenor, rate and interest as core banking will book them. Only when the product cannot be
+        // read does the letter fall back to the appraisal — which, since tenor and rate stopped being
+        // typed in, holds the product's own figures for any appraisal saved after that change.
+        var tenorMonths = terms?.TenorMonths ?? appraisal?.CycleMonths;
+        var ratePercent = terms?.AnnualRatePercent ?? appraisal?.InterestRatePercent;
+        var interest = terms?.EstimatedInterest(approvedAmount) ?? appraisal?.InterestCharge;
+        var amountDue = terms is not null ? approvedAmount + interest : appraisal?.AmountDueAtHarvest;
 
         var data = new RhshfOfferDocumentData(
             Reference: profile.Reference,
@@ -66,10 +74,10 @@ public class RhshfOfferDocumentDataBuilder
             GeneratedDate: DateTime.UtcNow,
             BankName: BankName,
             AddressLines: BuildAddressLines(profile),
-            InterestRatePercent: appraisal?.InterestRatePercent,
-            TenorMonths: appraisal?.CycleMonths,
-            AmountDueAtHarvest: appraisal?.AmountDueAtHarvest,
-            InterestCharge: appraisal?.InterestCharge,
+            InterestRatePercent: ratePercent,
+            TenorMonths: tenorMonths,
+            AmountDueAtHarvest: amountDue,
+            InterestCharge: interest,
             // The farmers the facility finances, from the approved EOPs — not FarmerCount, which the
             // portal sends as everyone registered under the FAC (CRMSQA#2: 220 printed against 30).
             FarmerCount: profile.FinancedFarmerCount ?? profile.FarmerCount,
@@ -86,6 +94,14 @@ public class RhshfOfferDocumentDataBuilder
             Summary: profile.HasItemisedFinancing ? BuildSummary(profile, approvedAmount) : []);
 
         return new RhshfOfferDocumentBuild(data, suppressed);
+    }
+
+    /// <summary>Records on the offer the terms its letter printed, so screens showing the offer show
+    /// what the FAC signed rather than recomputing from the appraisal.</summary>
+    public static void RecordTerms(RhshfOffer offer, RhshfOfferDocumentData data)
+    {
+        if (data.TenorMonths is { } tenor && data.InterestRatePercent is { } rate && data.InterestCharge is { } interest)
+            offer.RecordTerms(tenor, rate, interest);
     }
 
     /// <summary>
@@ -347,20 +363,30 @@ public class RhshfOfferDocumentDataBuilder
     /// would be promising exactly the double charge the rule forbids.
     /// </para>
     /// </summary>
-    private async Task<(List<RhshfOfferFee> Fees, List<string> Suppressed)> ResolveProductFeesAsync(
+    /// <para>
+    /// The same product read also gives the tenor and rate (the letter's terms), so the letter
+    /// states the loan core banking will actually book. Null terms when the product could not be
+    /// read; the caller then falls back to the appraisal's figures.
+    /// </para>
+    private async Task<(List<RhshfOfferFee> Fees, List<string> Suppressed, RhshfProductTerms? Terms)> ResolveProductAsync(
         RhshfCreditProfile profile, CancellationToken ct)
     {
         var product = await _loanProductRepo.GetActiveRhshfProductAsync(ct);
         if (product?.FineractProductId is null or <= 0)
-            return ([], []);
+            return ([], [], null);
 
         var catalogue = await _fineract.GetLoanProductsAsync(activeOnly: true, ct);
         if (catalogue.IsFailure)
-            return ([], []);
+            return ([], [], null);
 
         var match = catalogue.Value.FirstOrDefault(p => p.Id == product.FineractProductId);
         if (match is null)
-            return ([], []);
+            return ([], [], null);
+
+        var terms = RhshfProductTermsResolver.Build(match);
+        if (terms.IsFailure)
+            _logger.LogWarning("RH-SHF {Reference}: product terms could not be read for the letter: {Error}",
+                profile.Reference, terms.Error);
 
         var financed = profile.FinancingCharges
             .Where(c => c.InLoan)
@@ -390,7 +416,7 @@ public class RhshfOfferDocumentDataBuilder
             fees.Add(new RhshfOfferFee(charge.Name, charge.Display));
         }
 
-        return (fees, suppressed);
+        return (fees, suppressed, terms.IsSuccess ? terms.Value : null);
     }
 
 

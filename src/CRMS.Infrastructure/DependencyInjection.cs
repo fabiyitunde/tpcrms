@@ -797,6 +797,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Interfaces.IRhshfKfsPdfGenerator, Documents.RhshfKfsPdfGenerator>();
         services.AddScoped<Application.Rhshf.Interfaces.IRhshfDocumentUploadValidator, Documents.RhshfDocumentUploadValidator>();
         services.AddScoped<Application.Rhshf.Services.RhshfOfferDocumentDataBuilder>();
+        services.AddScoped<Application.Rhshf.Services.RhshfProductTermsResolver>();
         services.AddScoped<Application.Rhshf.Commands.RatifyRhshfCaseHandler>();
         services.AddScoped<Application.Rhshf.Commands.RegenerateRhshfOfferLetterHandler>();
         services.AddScoped<Application.Rhshf.Commands.IssueCorrectedRhshfOfferHandler>();

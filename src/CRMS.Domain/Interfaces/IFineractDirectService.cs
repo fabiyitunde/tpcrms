@@ -284,7 +284,11 @@ public record FineractLoanProductCharge(
         || CalculationType.Contains("percent", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The fee as it should read on a document: "1% of approved amount" or "NGN 5,000.00".</summary>
+    /// Core banking names its percentage basis "% Amount" (of the loan amount), which reads as noise
+    /// on a letter, so that one is spelled out; any other basis is kept in its own words.
     public string Display => IsPercentage
-        ? $"{Amount:0.##}% ({CalculationType})"
+        ? string.Equals(CalculationType.Trim(), "% Amount", StringComparison.OrdinalIgnoreCase)
+            ? $"{Amount:0.##}% of the loan amount"
+            : $"{Amount:0.##}% ({CalculationType})"
         : $"{CurrencyCode ?? "NGN"} {Amount:N2}";
 }

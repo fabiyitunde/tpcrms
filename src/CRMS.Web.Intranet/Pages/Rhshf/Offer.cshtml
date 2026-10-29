@@ -61,11 +61,11 @@ else
                 }
                 @if (Model.Offer.CycleMonths.HasValue)
                 {
-                    <dt class="col-sm-4">Crop cycle</dt><dd class="col-sm-8">@Model.Offer.CycleMonths.Value month@(Model.Offer.CycleMonths.Value == 1 ? "" : "s")</dd>
+                    <dt class="col-sm-4">Loan period</dt><dd class="col-sm-8">@Model.Offer.CycleMonths.Value month@(Model.Offer.CycleMonths.Value == 1 ? "" : "s") from disbursement, repaid in one payment</dd>
                 }
                 @if (Model.Offer.AmountDueAtHarvest.HasValue)
                 {
-                    <dt class="col-sm-4">Total repayable at harvest</dt>
+                    <dt class="col-sm-4">Total repayable (estimate)</dt>
                     <dd class="col-sm-8"><strong>@(string.IsNullOrWhiteSpace(Model.Offer.Currency) ? Model.Workspace.Currency : Model.Offer.Currency) @Model.Offer.AmountDueAtHarvest.Value.ToString("N2")</strong></dd>
                 }
                 @if (Model.Workspace.FarmersFinanced.HasValue)

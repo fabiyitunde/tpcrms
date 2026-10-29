@@ -14,11 +14,11 @@
                     <div style="color: var(--gray-600);">Reference</div><div>@Reference</div>
                     @if (InterestRatePercent is not null)
                     {
-                        <div style="color: var(--gray-600);">Interest rate</div><div>@InterestRatePercent.Value.ToString("0.##")% for the cycle</div>
+                        <div style="color: var(--gray-600);">Interest rate</div><div>@InterestRatePercent.Value.ToString("0.##")% a year</div>
                     }
                     @if (CycleMonths is not null)
                     {
-                        <div style="color: var(--gray-600);">Crop cycle</div><div>@CycleMonths.Value month@(CycleMonths.Value == 1 ? "" : "s")</div>
+                        <div style="color: var(--gray-600);">Tenor</div><div>@CycleMonths.Value month@(CycleMonths.Value == 1 ? "" : "s")</div>
                     }
                     @if (AmountDueAtHarvest is not null)
                     {

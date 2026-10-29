@@ -70,7 +70,13 @@ public class GetRhshfOfferHandler : IRequestHandler<GetRhshfOfferQuery, Applicat
         return ApplicationResult<RhshfOfferDto>.Success(new RhshfOfferDto(
             offer.CycleNumber, offer.GeneratedAt, offer.OfferDocumentPath, offer.KfsDocumentPath, offer.Status,
             profile.ApprovedAmount, profile.Currency,
-            appraisal?.InterestRatePercent, appraisal?.CycleMonths, appraisal?.AmountDueAtHarvest,
+            // The terms this offer's letter printed; the appraisal only for offers issued before
+            // offers recorded their own.
+            offer.InterestRatePercent ?? appraisal?.InterestRatePercent,
+            offer.TenorMonths ?? appraisal?.CycleMonths,
+            offer.EstimatedInterest is { } interest && profile.ApprovedAmount is { } approved
+                ? approved + interest
+                : appraisal?.AmountDueAtHarvest,
             offer.FacRespondedAt, offer.FacResponseNotes,
             offer.Documents.Select(d => new RhshfOfferDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt, d.Kind)).ToList(),
             offer.SuppressedProductFees)

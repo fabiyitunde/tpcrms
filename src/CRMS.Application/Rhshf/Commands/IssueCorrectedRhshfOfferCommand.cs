@@ -106,6 +106,7 @@ public class IssueCorrectedRhshfOfferHandler : IRequestHandler<IssueCorrectedRhs
             return ApplicationResult.Failure(corrected.Error);
 
         corrected.Value.RecordSuppressedProductFees(build.SuppressedProductFees);
+        RhshfOfferDocumentDataBuilder.RecordTerms(corrected.Value, build.Data);
         await _offerRepo.AddAsync(corrected.Value, ct);
 
         await _uow.SaveChangesAsync(ct);
