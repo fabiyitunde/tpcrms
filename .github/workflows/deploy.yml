@@ -71,6 +71,8 @@ jobs:
           # Real email on TEST. appsettings.json ships Email:UseMock=true, so TEST "sent" every email
           # to a mock that only logs — QA never received one (CRMSQA#2). With keys set they are used;
           # without, SES falls back to the EC2 instance role, which then needs ses:SendEmail.
+          # Region is Frankfurt (eu-central-1): that is where BOA's SES identities are verified. The
+          # appsettings default, eu-west-1, refused every send as "identity not verified".
           EMAIL_SES_ACCESS_KEY: ${{ secrets.EMAIL_SES_ACCESS_KEY }}
           EMAIL_SES_SECRET_KEY: ${{ secrets.EMAIL_SES_SECRET_KEY }}
         run: |
@@ -82,6 +84,7 @@ jobs:
           Rhshf__CallbackUseMock=false
           Rhshf__PortalUrl=http://18.132.3.119:8982
           Email__UseMock=false
+          Email__Region=eu-central-1
           EOF
           if [ -n "$EMAIL_SES_ACCESS_KEY" ] && [ -n "$EMAIL_SES_SECRET_KEY" ]; then
             echo "Email__AccessKey=$EMAIL_SES_ACCESS_KEY" >> crms.env
