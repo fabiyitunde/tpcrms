@@ -135,7 +135,30 @@ public record RhshfFinancingInputLineDto(
     /// <summary>What whole supplier packs cost beyond the per-farmer requirement — three bags bought
     /// where 2.4 are needed. Usually zero, and part of the amount financed when it is not.</summary>
     decimal? PackagingExcess = null,
-    bool? InLoan = null);
+    bool? InLoan = null,
+    // ── Optional from the portal's Slice B (CRMSQA#3 items 1 and 2). Descriptive only: no amount is
+    // computed or checked from them.
+    string? BaseUnit = null,
+    decimal? PackSize = null,
+    string? PackUnit = null,
+    decimal? PackCount = null,
+    decimal? PricePerPack = null,
+    decimal? ProcurementQuantity = null,
+    decimal? PackagingExcessQuantity = null,
+    string? PriceVersionId = null,
+    string? SupplierProductId = null,
+    /// <summary>On a service line, the provider BOA approved for the EOP.</summary>
+    RhshfServiceProviderDto? ServiceProvider = null);
+
+public record RhshfServiceProviderDto(
+    string? ProviderId = null,
+    string? RegisteredName = null,
+    string? ServiceType = null,
+    decimal? Rate = null,
+    string? RateBasis = null,
+    string? RateVersion = null,
+    decimal? BillableQuantity = null,
+    string? AssignmentId = null);
 
 public record RhshfFinancingChargeDto(
     /// <summary>"insurance", "workingCapital" or "techServicesFee".</summary>
@@ -162,4 +185,9 @@ public record RhshfFinancingEopDto(
     decimal? WorkingCapital = null,
     decimal? TechServicesFee = null,
     decimal? ApprovedTotal = null,
-    decimal? LoanAmount = null);
+    decimal? LoanAmount = null,
+    // ── Optional from the portal's Slice B (CRMSQA#3 item 3).
+    string? EopReference = null,
+    DateTime? ApprovedAt = null,
+    int? Revision = null,
+    string? SnapshotHash = null);

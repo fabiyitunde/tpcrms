@@ -81,6 +81,79 @@ public class SubmitConsolidatedEopHandlerTests
         Assert.Empty(repo.Added);
     }
 
+    /// <summary>
+    /// The portal's Slice B fields (CRMSQA#3 items 1 to 3), sent as JSON under the names the portal
+    /// proposed in its assessment, are kept on the case. A name that drifts shows up here as null.
+    /// </summary>
+    [Fact]
+    public async Task Handle_KeepsSliceBDetail_UnderThePortalsFieldNames()
+    {
+        var eopId = Guid.NewGuid();
+        var json = System.Text.Json.Nodes.JsonNode.Parse(
+            System.Text.Json.JsonSerializer.Serialize(ValidRequest(Guid.NewGuid()) with { TotalEopValue = 254_400m },
+                System.Text.Json.JsonSerializerOptions.Web))!;
+        json["financing"] = System.Text.Json.Nodes.JsonNode.Parse($$"""
+        {
+          "currency": "NGN",
+          "inputLines": [
+            { "eopId": "{{eopId}}", "crop": "Maize", "item": "NPK Fertilizer", "category": "Fertilizer",
+              "supplier": "Agro Supplies Ltd", "quantityPerFarmer": 10, "unit": "Kg", "unitPrice": 448,
+              "basis": "perFarmer", "farmers": 30, "amount": 134400, "packagingExcess": 0, "inLoan": true,
+              "baseUnit": "Kg", "packSize": 50, "packUnit": "Bag", "packCount": 6, "pricePerPack": 22400,
+              "procurementQuantity": 300, "packagingExcessQuantity": 0,
+              "priceVersionId": "pv-123", "supplierProductId": "sp-9" },
+            { "eopId": "{{eopId}}", "crop": "Maize", "item": "Extension Services", "category": "Services",
+              "quantityPerFarmer": 1, "unit": "Per Farmer", "unitPrice": 4000, "basis": "perFarmer",
+              "farmers": 30, "amount": 120000, "packagingExcess": 0, "inLoan": true,
+              "serviceProvider": { "providerId": "p-1", "registeredName": "Kano Extension Co-op",
+                "serviceType": "Extension", "rate": 4000, "rateBasis": "per farmer", "rateVersion": "rv-2",
+                "billableQuantity": 30, "assignmentId": "as-9" } }
+          ],
+          "charges": [],
+          "inputsTotal": 254400, "packagingExcessTotal": 0, "chargesTotal": 0,
+          "approvedEopTotal": 254400, "loanAmount": 254400, "excludedFromLoan": 0,
+          "eops": [
+            { "eopId": "{{eopId}}", "crop": "Maize", "state": "Kano", "farmers": 30, "inputs": 254400,
+              "packagingExcess": 0, "insurance": 0, "workingCapital": 0, "techServicesFee": 0,
+              "approvedTotal": 254400, "loanAmount": 254400,
+              "eopReference": "EOP-1A2B3C4D", "approvedAt": "2026-10-12T09:00:00Z", "revision": 2,
+              "snapshotHash": "sha256:abc" }
+          ]
+        }
+        """);
+        var request = System.Text.Json.JsonSerializer.Deserialize<SubmitConsolidatedEopRequest>(json, System.Text.Json.JsonSerializerOptions.Web)!;
+        var repo = new FakeRepository();
+        var handler = new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork());
+
+        var result = await handler.Handle(new SubmitConsolidatedEopCommand(request, json.ToJsonString()));
+
+        Assert.True(result.IsSuccess, result.Error);
+        var profile = Assert.Single(repo.Added);
+        var npk = profile.FinancingLines.Single(l => l.Item == "NPK Fertilizer");
+        Assert.Equal("6 Bags of 50 Kg at NGN 22,400.00 each", npk.PackDisplay("NGN"));
+        Assert.Equal("pv-123", npk.PriceVersionId);
+        Assert.Equal("sp-9", npk.SupplierProductId);
+        Assert.Equal(300m, npk.ProcurementQuantity);
+
+        var service = profile.FinancingLines.Single(l => l.Item == "Extension Services");
+        Assert.Equal("Kano Extension Co-op", service.ResponsibleParty);
+        Assert.Equal(4_000m, service.ProviderRate);
+        Assert.Equal("rv-2", service.ProviderRateVersion);
+        Assert.Equal("as-9", service.ProviderAssignmentId);
+        Assert.Empty(profile.OfferDataGaps());
+
+        var eop = Assert.Single(profile.FinancingEops);
+        Assert.Equal("EOP-1A2B3C4D", eop.EopReference);
+        Assert.Equal(2, eop.EopRevision);
+        Assert.Equal("sha256:abc", eop.SnapshotHash);
+        Assert.Equal(new DateTime(2026, 10, 12, 9, 0, 0, DateTimeKind.Utc), eop.EopApprovedAt?.ToUniversalTime());
+
+        Assert.Equal("6 Bags of 50 Kg at NGN 22,400.00 each; price version PV-123",
+            CRMS.Application.Rhshf.Services.RhshfOfferDocumentDataBuilder.LineDetail(npk, "NGN"));
+        Assert.Equal("provider rate NGN 4,000.00 per farmer; rate version RV-2",
+            CRMS.Application.Rhshf.Services.RhshfOfferDocumentDataBuilder.LineDetail(service, "NGN"));
+    }
+
     private class FakeRepository : IRhshfCreditProfileRepository
     {
         public List<RhshfCreditProfile> Added { get; } = [];

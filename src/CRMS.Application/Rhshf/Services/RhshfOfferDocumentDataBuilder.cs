@@ -121,7 +121,11 @@ public class RhshfOfferDocumentDataBuilder
                 {
                     crop, eop?.State,
                     farmers is { } f ? $"{f:N0} farmers" : null,
-                    $"EOP {group.Key.Value.ToString()[..8].ToUpperInvariant()}",
+                    // The portal's own reference where it sent one, so the offer and BOA's supplier
+                    // release letter name the EOP the same way (CRMSQA#3 item 3).
+                    eop?.DisplayReference ?? $"EOP {group.Key.Value.ToString()[..8].ToUpperInvariant()}",
+                    eop?.EopRevision is { } rev ? $"revision {rev}" : null,
+                    eop?.EopApprovedAt is { } at ? $"approved {at:d MMM yyyy}" : null,
                 }.Where(s => !string.IsNullOrWhiteSpace(s)));
 
             var rows = lines
@@ -129,13 +133,14 @@ public class RhshfOfferDocumentDataBuilder
                 .Select(l => new RhshfOfferInputRow(
                     Input: l.Item,
                     Product: string.IsNullOrWhiteSpace(l.SpecificInput) ? null : l.SpecificInput,
-                    Supplier: l.Supplier,
+                    Supplier: l.ResponsibleParty,
                     PerFarmer: IsPerFarmer(l) ? l.QuantityDisplay : null,
                     TotalQuantity: TotalQuantity(l),
                     UnitPrice: l.UnitPrice,
                     Amount: l.Amount,
                     PackagingExcess: l.PackagingExcess,
-                    Farmers: IsPerFarmer(l) ? l.Farmers : null))
+                    Farmers: IsPerFarmer(l) ? l.Farmers : null,
+                    Detail: LineDetail(l, profile.Currency)))
                 .ToList();
 
             var subtotals = new List<RhshfOfferSummaryRow>();
@@ -233,6 +238,31 @@ public class RhshfOfferDocumentDataBuilder
 
     /// <summary>Per-farmer quantity times the EOP's farmers, in the line's own unit — the quantity the
     /// EOP finances before rounding up to whole packs. A whole-EOP service is stated as sent.</summary>
+    /// <summary>
+    /// What was actually bought and at which price version, or for a service the provider's rate —
+    /// the detail QA asked for so a line can be traced to the supplier's pack and price list
+    /// (CRMSQA#2 items 6 and 7). Null when the portal sent none of it, which is every case before its
+    /// Slice B. Ids are shortened the way the letter already prints EOP ids.
+    /// </summary>
+    public static string? LineDetail(RhshfFinancingLine line, string currency)
+    {
+        var parts = new List<string>();
+        if (line.PackDisplay(currency) is { } packs)
+            parts.Add(packs);
+        if (line.PriceVersionId is { } price)
+            parts.Add($"price version {Short(price)}");
+        if (line.ProviderRate is { } rate)
+        {
+            var basis = string.IsNullOrWhiteSpace(line.ProviderRateBasis) ? "" : $" {line.ProviderRateBasis}";
+            parts.Add($"provider rate {currency} {rate:N2}{basis}");
+        }
+        if (line.ProviderRateVersion is { } rateVersion)
+            parts.Add($"rate version {Short(rateVersion)}");
+        return parts.Count == 0 ? null : string.Join("; ", parts);
+    }
+
+    private static string Short(string id) => id.Length > 8 ? id[..8].ToUpperInvariant() : id.ToUpperInvariant();
+
     private static string? TotalQuantity(RhshfFinancingLine line)
     {
         if (line.QuantityPerFarmer is not { } perFarmer || string.IsNullOrWhiteSpace(line.Unit))
@@ -261,7 +291,7 @@ public class RhshfOfferDocumentDataBuilder
                 .Where(l => l.Amount != 0m || l.PackagingExcess != 0m)
                 .OrderBy(l => l.Crop).ThenBy(l => l.Item)
                 .Select(l => new RhshfOfferPlanRow(
-                    Supplier: l.Supplier,
+                    Supplier: l.ResponsibleParty,
                     Description: l.Description,
                     QuantityDisplay: l.QuantityDisplay,
                     Amount: l.Amount + l.PackagingExcess,

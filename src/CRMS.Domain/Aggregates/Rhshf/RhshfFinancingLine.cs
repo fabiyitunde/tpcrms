@@ -61,6 +61,58 @@ public class RhshfFinancingLine : Entity
     /// today, but the flag is what decides it — not an assumption that approved equals financed.</summary>
     public bool InLoan { get; private set; }
 
+    // ── Pack and price detail (CRMSQA#3 item 2) ───────────────────────────────────────────────────
+    // Optional: sent by the portal from its Slice B onwards, null on every earlier case. Descriptive
+    // only — none of these is used to compute or check an amount; Amount stays the figure as sent.
+
+    /// <summary>The unit the per-farmer quantity is counted in — "Kg".</summary>
+    public string? BaseUnit { get; private set; }
+    /// <summary>How much one supplier pack holds, in <see cref="BaseUnit"/> — 50 for a 50 Kg bag.</summary>
+    public decimal? PackSize { get; private set; }
+    /// <summary>What a pack is called — "Bag".</summary>
+    public string? PackUnit { get; private set; }
+    /// <summary>Whole packs bought for the EOP.</summary>
+    public decimal? PackCount { get; private set; }
+    public decimal? PricePerPack { get; private set; }
+    /// <summary>Base units actually bought — the requirement rounded up to whole packs.</summary>
+    public decimal? ProcurementQuantity { get; private set; }
+    /// <summary>Base units bought above the requirement because packs are whole.</summary>
+    public decimal? PackagingExcessQuantity { get; private set; }
+    /// <summary>The supplier price list entry the line was priced from, so a later price change can
+    /// be told apart from the price this offer used.</summary>
+    public string? PriceVersionId { get; private set; }
+    public string? SupplierProductId { get; private set; }
+
+    // ── Service provider (CRMSQA#3 item 1) ────────────────────────────────────────────────────────
+    // The provider BOA approved for this EOP's service line. Services are not supplied by an input
+    // supplier, so until the portal sent this a financed service printed as "To be confirmed".
+
+    public string? ProviderId { get; private set; }
+    public string? ProviderName { get; private set; }
+    public string? ProviderServiceType { get; private set; }
+    public decimal? ProviderRate { get; private set; }
+    public string? ProviderRateBasis { get; private set; }
+    public string? ProviderRateVersion { get; private set; }
+    public decimal? ProviderBillableQuantity { get; private set; }
+    /// <summary>The portal's assignment of this provider to this line, for tracing the approval.</summary>
+    public string? ProviderAssignmentId { get; private set; }
+
+    /// <summary>Who delivers the line: the input supplier, or for a service the approved provider.</summary>
+    public string? ResponsibleParty => Supplier ?? ProviderName;
+
+    /// <summary>"6 Bags of 50 Kg at NGN 22,400.00 each" — what was actually bought, or null where the
+    /// portal sent no pack detail.</summary>
+    public string? PackDisplay(string currency)
+    {
+        if (PackCount is not { } count || PackSize is not { } size)
+            return null;
+        var unit = PackUnit ?? "pack";
+        var plural = count == 1m || unit.EndsWith('s') ? unit : unit + "s";
+        var of = BaseUnit is null ? $"{size:0.###}" : $"{size:0.###} {BaseUnit}";
+        var price = PricePerPack is { } p ? $" at {currency} {p:N2} each" : "";
+        return $"{count:0.###} {plural} of {of}{price}";
+    }
+
     /// <summary>What this line is, at its most specific: the chosen product where one was recorded,
     /// otherwise the programme input.</summary>
     public string Description =>
@@ -79,7 +131,7 @@ public class RhshfFinancingLine : Entity
         Guid rhshfCreditProfileId, Guid? eopId, string? crop, string item, string? category,
         string? specificInput, string? supplier, decimal? quantityPerFarmer, string? unit,
         decimal? unitPrice, string? basis, int? farmers, decimal amount, decimal packagingExcess,
-        bool inLoan)
+        bool inLoan, RhshfFinancingLineDetail? detail = null)
     {
         RhshfCreditProfileId = rhshfCreditProfileId;
         EopId = eopId;
@@ -96,9 +148,33 @@ public class RhshfFinancingLine : Entity
         Amount = amount;
         PackagingExcess = packagingExcess;
         InLoan = inLoan;
+
+        if (detail is null)
+            return;
+        BaseUnit = Text(detail.BaseUnit);
+        PackSize = detail.PackSize;
+        PackUnit = Text(detail.PackUnit);
+        PackCount = detail.PackCount;
+        PricePerPack = detail.PricePerPack;
+        ProcurementQuantity = detail.ProcurementQuantity;
+        PackagingExcessQuantity = detail.PackagingExcessQuantity;
+        PriceVersionId = Text(detail.PriceVersionId);
+        SupplierProductId = Text(detail.SupplierProductId);
+        ProviderId = Text(detail.ProviderId);
+        ProviderName = Text(detail.ProviderName);
+        ProviderServiceType = Text(detail.ProviderServiceType);
+        ProviderRate = detail.ProviderRate;
+        ProviderRateBasis = Text(detail.ProviderRateBasis);
+        ProviderRateVersion = Text(detail.ProviderRateVersion);
+        ProviderBillableQuantity = detail.ProviderBillableQuantity;
+        ProviderAssignmentId = Text(detail.ProviderAssignmentId);
     }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>Optional detail is capped at its column, so an unusually long value from the portal is
+    /// shortened rather than failing the whole submission.</summary>
+    private static string? Text(string? value) => Clean(value) is { } v && v.Length > 200 ? v[..200] : Clean(value);
 }
 
 /// <summary>
@@ -167,6 +243,23 @@ public class RhshfFinancingEop : Entity
     public decimal ApprovedTotal { get; private set; }
     public decimal LoanAmount { get; private set; }
 
+    // ── EOP snapshot reference (CRMSQA#3 item 3) ──────────────────────────────────────────────────
+    // Optional, from the portal's Slice B. Lets the offer, the portal's EOP and BOA's supplier release
+    // letter name the same version of the same plan.
+
+    /// <summary>The portal's readable EOP reference, the same one its release letters print.</summary>
+    public string? EopReference { get; private set; }
+    public DateTime? EopApprovedAt { get; private set; }
+    /// <summary>Which approved revision of the EOP this is, where the portal numbers them.</summary>
+    public int? EopRevision { get; private set; }
+    /// <summary>The portal's fingerprint of the EOP's lines and charges as sent.</summary>
+    public string? SnapshotHash { get; private set; }
+
+    /// <summary>"EOP-1A2B3C4D" when the portal sent a reference, otherwise the short id the letter has
+    /// always printed.</summary>
+    public string? DisplayReference =>
+        EopReference ?? (EopId is { } id ? $"EOP {id.ToString()[..8].ToUpperInvariant()}" : null);
+
     protected RhshfFinancingEop() { }
 
     public RhshfFinancingEop(Guid rhshfCreditProfileId, RhshfFinancingEopInput input)
@@ -183,6 +276,19 @@ public class RhshfFinancingEop : Entity
         TechServicesFee = input.TechServicesFee;
         ApprovedTotal = input.ApprovedTotal;
         LoanAmount = input.LoanAmount;
+        EopReference = Cap(input.EopReference);
+        EopApprovedAt = input.EopApprovedAt;
+        EopRevision = input.EopRevision;
+        SnapshotHash = Cap(input.SnapshotHash);
+    }
+
+    /// <summary>Capped at the column, so an unusually long value shortens rather than failing the
+    /// submission.</summary>
+    private static string? Cap(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var v = value.Trim();
+        return v.Length > 200 ? v[..200] : v;
     }
 }
 
@@ -202,12 +308,23 @@ public record RhshfFinancingInput(
 public record RhshfFinancingEopInput(
     Guid? EopId, string? Crop, string? State, int? Farmers, decimal Inputs, decimal PackagingExcess,
     decimal Insurance, decimal WorkingCapital, decimal TechServicesFee, decimal ApprovedTotal,
-    decimal LoanAmount);
+    decimal LoanAmount, string? EopReference = null, DateTime? EopApprovedAt = null, int? EopRevision = null,
+    string? SnapshotHash = null);
 
 public record RhshfFinancingLineInput(
     Guid? EopId, string? Crop, string Item, string? Category, string? SpecificInput, string? Supplier,
     decimal? QuantityPerFarmer, string? Unit, decimal? UnitPrice, string? Basis, int? Farmers,
-    decimal Amount, decimal PackagingExcess, bool InLoan);
+    decimal Amount, decimal PackagingExcess, bool InLoan, RhshfFinancingLineDetail? Detail = null);
+
+/// <summary>The optional pack, price-version and service-provider detail of one line (CRMSQA#3
+/// items 1 and 2). Every field may be absent.</summary>
+public record RhshfFinancingLineDetail(
+    string? BaseUnit = null, decimal? PackSize = null, string? PackUnit = null, decimal? PackCount = null,
+    decimal? PricePerPack = null, decimal? ProcurementQuantity = null, decimal? PackagingExcessQuantity = null,
+    string? PriceVersionId = null, string? SupplierProductId = null,
+    string? ProviderId = null, string? ProviderName = null, string? ProviderServiceType = null,
+    decimal? ProviderRate = null, string? ProviderRateBasis = null, string? ProviderRateVersion = null,
+    decimal? ProviderBillableQuantity = null, string? ProviderAssignmentId = null);
 
 public record RhshfFinancingChargeInput(
     string Code, string Label, decimal? Rate, string? RateBasis, decimal Amount, bool InLoan);

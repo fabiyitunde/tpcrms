@@ -129,7 +129,13 @@ public class SubmitConsolidatedEopHandler
                 l.Amount ?? 0m, l.PackagingExcess ?? 0m,
                 // Absent means financed: the programme finances everything today, and the
                 // reconciliation rules would catch it at once if that stopped being true.
-                l.InLoan ?? true))
+                l.InLoan ?? true,
+                new RhshfFinancingLineDetail(
+                    l.BaseUnit, l.PackSize, l.PackUnit, l.PackCount, l.PricePerPack, l.ProcurementQuantity,
+                    l.PackagingExcessQuantity, l.PriceVersionId, l.SupplierProductId,
+                    l.ServiceProvider?.ProviderId, l.ServiceProvider?.RegisteredName, l.ServiceProvider?.ServiceType,
+                    l.ServiceProvider?.Rate, l.ServiceProvider?.RateBasis, l.ServiceProvider?.RateVersion,
+                    l.ServiceProvider?.BillableQuantity, l.ServiceProvider?.AssignmentId)))
             .ToList();
 
         var charges = (financing.Charges ?? [])
@@ -151,7 +157,8 @@ public class SubmitConsolidatedEopHandler
         eops?.Select(e => new RhshfFinancingEopInput(
                 e.EopId, e.Crop, e.State, e.Farmers, e.Inputs ?? 0m, e.PackagingExcess ?? 0m,
                 e.Insurance ?? 0m, e.WorkingCapital ?? 0m, e.TechServicesFee ?? 0m,
-                e.ApprovedTotal ?? 0m, e.LoanAmount ?? 0m))
+                e.ApprovedTotal ?? 0m, e.LoanAmount ?? 0m,
+                e.EopReference, e.ApprovedAt, e.Revision, e.SnapshotHash))
             .ToList();
 
     /// <summary>Best-effort branch resolution (design doc §3.1) — mirrors the algorithm

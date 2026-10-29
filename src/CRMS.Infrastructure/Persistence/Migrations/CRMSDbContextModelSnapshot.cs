@@ -7863,8 +7863,18 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 
+                    b.Property<DateTime?>("EopApprovedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<Guid?>("EopId")
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("EopReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int?>("EopRevision")
+                        .HasColumnType("int");
 
                     b.Property<int?>("Farmers")
                         .HasColumnType("int");
@@ -7889,6 +7899,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("RhshfCreditProfileId")
                         .HasColumnType("char(36)");
+
+                    b.Property<string>("SnapshotHash")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
                     b.Property<string>("State")
                         .HasMaxLength(100)
@@ -7915,6 +7929,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BaseUnit")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
                     b.Property<string>("Basis")
                         .HasMaxLength(20)
@@ -7955,8 +7973,61 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("ModifiedBy")
                         .HasColumnType("longtext");
 
+                    b.Property<decimal?>("PackCount")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal?>("PackSize")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("PackUnit")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
                     b.Property<decimal>("PackagingExcess")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PackagingExcessQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal?>("PricePerPack")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("PriceVersionId")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<decimal?>("ProcurementQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("ProviderAssignmentId")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<decimal?>("ProviderBillableQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("ProviderId")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ProviderName")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<decimal?>("ProviderRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ProviderRateBasis")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ProviderRateVersion")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ProviderServiceType")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
                     b.Property<decimal?>("QuantityPerFarmer")
                         .HasColumnType("decimal(18,3)");
@@ -7969,6 +8040,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("varchar(200)");
 
                     b.Property<string>("Supplier")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("SupplierProductId")
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 

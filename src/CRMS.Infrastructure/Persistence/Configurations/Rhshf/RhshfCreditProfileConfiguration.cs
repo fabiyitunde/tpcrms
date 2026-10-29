@@ -302,8 +302,28 @@ public class RhshfFinancingLineConfiguration : IEntityTypeConfiguration<RhshfFin
         builder.Property(x => x.Amount).IsRequired().HasColumnType("decimal(18,2)");
         builder.Property(x => x.PackagingExcess).IsRequired().HasColumnType("decimal(18,2)");
 
+        // Pack, price-version and provider detail (CRMSQA#3 items 1 and 2) — optional, descriptive.
+        builder.Property(x => x.BaseUnit).HasMaxLength(200);
+        builder.Property(x => x.PackSize).HasColumnType("decimal(18,3)");
+        builder.Property(x => x.PackUnit).HasMaxLength(200);
+        builder.Property(x => x.PackCount).HasColumnType("decimal(18,3)");
+        builder.Property(x => x.PricePerPack).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.ProcurementQuantity).HasColumnType("decimal(18,3)");
+        builder.Property(x => x.PackagingExcessQuantity).HasColumnType("decimal(18,3)");
+        builder.Property(x => x.PriceVersionId).HasMaxLength(200);
+        builder.Property(x => x.SupplierProductId).HasMaxLength(200);
+        builder.Property(x => x.ProviderId).HasMaxLength(200);
+        builder.Property(x => x.ProviderName).HasMaxLength(200);
+        builder.Property(x => x.ProviderServiceType).HasMaxLength(200);
+        builder.Property(x => x.ProviderRate).HasColumnType("decimal(18,2)");
+        builder.Property(x => x.ProviderRateBasis).HasMaxLength(200);
+        builder.Property(x => x.ProviderRateVersion).HasMaxLength(200);
+        builder.Property(x => x.ProviderBillableQuantity).HasColumnType("decimal(18,3)");
+        builder.Property(x => x.ProviderAssignmentId).HasMaxLength(200);
+
         builder.Ignore(x => x.Description);
         builder.Ignore(x => x.QuantityDisplay);
+        builder.Ignore(x => x.ResponsibleParty);
 
         builder.HasIndex(x => x.RhshfCreditProfileId);
     }
@@ -326,6 +346,11 @@ public class RhshfFinancingEopConfiguration : IEntityTypeConfiguration<RhshfFina
         builder.Property(x => x.TechServicesFee).IsRequired().HasColumnType("decimal(18,2)");
         builder.Property(x => x.ApprovedTotal).IsRequired().HasColumnType("decimal(18,2)");
         builder.Property(x => x.LoanAmount).IsRequired().HasColumnType("decimal(18,2)");
+
+        // EOP snapshot reference (CRMSQA#3 item 3) — optional.
+        builder.Property(x => x.EopReference).HasMaxLength(200);
+        builder.Property(x => x.SnapshotHash).HasMaxLength(200);
+        builder.Ignore(x => x.DisplayReference);
 
         builder.HasIndex(x => x.RhshfCreditProfileId);
     }

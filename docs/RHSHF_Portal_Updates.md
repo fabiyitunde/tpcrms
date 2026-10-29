@@ -74,5 +74,40 @@ letters and fulfilment stay with the portal and BOA's own release controls.
 
 - Offer expiry: offers state a 7-day validity and the FAC is emailed a reminder two days before, but
   the CRMS does not yet expire an offer, so there is no `OFFER_EXPIRED`.
-- EOP snapshot reference, revision, approval date and hash: printed once the portal sends them
-  (CRMSQA#3).
+
+## What the CRMS reads from a submission (portal Slice B)
+
+All of these are optional. When the portal sends them, the CRMS stores them and prints them on the
+offer letter. A case submitted without them works exactly as before. None of them is used to compute
+or check an amount; `amount` stays the figure that counts.
+
+**On each `financing.inputLines[]` entry:**
+
+| Field | Meaning |
+|---|---|
+| `baseUnit` | The unit the requirement is counted in, e.g. "Kg". |
+| `packSize` | What one supplier pack holds, in `baseUnit`. |
+| `packUnit` | The name of a pack, e.g. "Bag". |
+| `packCount` | Whole packs bought. |
+| `pricePerPack` | The price of one pack. |
+| `procurementQuantity` | What was actually bought, in `baseUnit`. |
+| `packagingExcessQuantity` | What was bought above the requirement because packs are whole. |
+| `priceVersionId` | The supplier price-list entry used. |
+| `supplierProductId` | The supplier's product. |
+| `serviceProvider` | On a service line, the provider BOA approved for the EOP: `{ providerId, registeredName, serviceType, rate, rateBasis, rateVersion, billableQuantity, assignmentId }`. |
+
+When `serviceProvider` is present, the letter names the provider instead of "To be confirmed". A
+financed service with a provider no longer blocks ratification.
+
+**On each `financing.eops[]` entry:**
+
+| Field | Meaning |
+|---|---|
+| `eopReference` | The EOP reference the portal's release letters print. The letter uses it in Schedule A. |
+| `approvedAt` | When the EOP was approved. |
+| `revision` | Which approved revision of the EOP this is. |
+| `snapshotHash` | The portal's fingerprint of the EOP. |
+
+Text values longer than 200 characters are shortened rather than refused. A repeat of a submission
+the CRMS already holds does not replace a breakdown it already has, so these fields reach new cases,
+not existing ones (see CRMSQA#3).

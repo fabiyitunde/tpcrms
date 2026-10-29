@@ -394,6 +394,8 @@ public class RhshfOfferDocumentPdfGenerator : IRhshfOfferDocumentGenerator
                         if (row.PackagingExcess != 0m)
                             c.Item().Text($"Plus {Money(data.Currency, row.PackagingExcess)} whole-pack excess")
                                 .FontSize(7.5f).FontColor(Muted);
+                        if (row.Detail is not null)
+                            c.Item().Text(row.Detail).FontSize(7.5f).FontColor(Muted);
                     });
                     // An unassigned supplier is printed as such, not left blank: the borrower should see
                     // that the provider is still to be confirmed, not wonder whether it was omitted.

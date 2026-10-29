@@ -114,7 +114,10 @@ public record RhshfOfferInputRow(
     decimal Amount,
     decimal PackagingExcess,
     /// <summary>Farmers the line is costed for, so "2 Kg per farmer" is never read as 2 kg in total.</summary>
-    int? Farmers = null);
+    int? Farmers = null,
+    /// <summary>Packs bought and the price version, or a service provider's rate, where the portal
+    /// sent them. Null otherwise.</summary>
+    string? Detail = null);
 
 /// <summary>A component of the facility. Treatment says how the borrower pays it — "Financed in the
 /// loan" for everything the EOP finances, so nothing on the letter reads as payable twice.</summary>

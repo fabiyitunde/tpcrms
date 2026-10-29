@@ -920,7 +920,7 @@ public class RhshfCreditProfile : AggregateRoot
         return _financingLines
             .Where(l => string.Equals(l.Category, "Services", StringComparison.OrdinalIgnoreCase)
                         && (l.Amount != 0m || l.PackagingExcess != 0m)
-                        && string.IsNullOrWhiteSpace(l.Supplier))
+                        && string.IsNullOrWhiteSpace(l.ResponsibleParty))
             .Select(l => $"{l.Item} has no provider from the portal, so the letter would show it as \"To be confirmed\".")
             .ToList();
     }
@@ -1187,7 +1187,7 @@ public class RhshfCreditProfile : AggregateRoot
             _financingLines.Add(new RhshfFinancingLine(
                 Id, line.EopId, line.Crop, line.Item, line.Category, line.SpecificInput,
                 line.Supplier, line.QuantityPerFarmer, line.Unit, line.UnitPrice, line.Basis,
-                line.Farmers, line.Amount, line.PackagingExcess, line.InLoan));
+                line.Farmers, line.Amount, line.PackagingExcess, line.InLoan, line.Detail));
 
         foreach (var charge in financing.Charges)
             _financingCharges.Add(new RhshfFinancingCharge(
