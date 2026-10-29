@@ -146,7 +146,7 @@ public class LoanApplication : AggregateRoot
             Status = LoanApplicationStatus.Draft,
             LoanProductId = loanProductId,
             ProductCode = productCode,
-            AccountNumber = accountNumber,
+            AccountNumber = Identifiers.Digits(accountNumber) ?? accountNumber,
             CustomerId = customerId,
             CustomerName = customerName,
             RegistrationNumber = registrationNumber,

@@ -228,7 +228,7 @@ public class NampApplication : AggregateRoot
             Status = NampApplicationStatus.Draft,
             LoanProductId = loanProductId,
             ApplicantName = applicantName,
-            BoaAccountNumber = boaAccountNumber,
+            BoaAccountNumber = Identifiers.Digits(boaAccountNumber) ?? boaAccountNumber,
             ApplicantCategory = applicantCategory,
             EquipmentDescription = equipmentDescription,
             EquipmentValue = equipmentValue,
@@ -730,8 +730,8 @@ public class NampApplication : AggregateRoot
         string? stateOfResidence, string? localGovernmentArea,
         string? companyName, string? rcNumber)
     {
-        Nin = nin;
-        Bvn = bvn;
+        Nin = Identifiers.Digits(nin);
+        Bvn = Identifiers.Digits(bvn);
         BoaAccountName = boaAccountName;
         LoanPurpose = loanPurpose;
         IndustrySector = industrySector;

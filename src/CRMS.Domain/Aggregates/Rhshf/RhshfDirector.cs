@@ -115,7 +115,7 @@ public class RhshfDirector : Entity
             RhshfCreditProfileId = rhshfCreditProfileId,
             SourcedFromCac = false,
             FullName = fullName.Trim(),
-            Bvn = string.IsNullOrWhiteSpace(bvn) ? null : bvn.Trim(),
+            Bvn = Identifiers.Digits(bvn),
             ShareholdingPercent = shareholdingPercent,
             IsChairman = isChairman,
             Email = email,
@@ -163,7 +163,7 @@ public class RhshfDirector : Entity
         if (!IsValidBvn(bvn))
             return Result.Failure("BVN must be exactly 11 digits.");
 
-        Bvn = string.IsNullOrWhiteSpace(bvn) ? null : bvn.Trim();
+        Bvn = Identifiers.Digits(bvn);
         return Result.Success();
     }
 

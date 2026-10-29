@@ -105,7 +105,7 @@ public class Guarantor : AggregateRoot
             Status = GuarantorStatus.Proposed,
             GuaranteeType = guaranteeType,
             FullName = fullName,
-            BVN = bvn,
+            BVN = Identifiers.Digits(bvn),
             Email = email,
             Phone = phone,
             Address = address,
@@ -305,7 +305,7 @@ public class Guarantor : AggregateRoot
             return Result.Failure("Full name is required");
 
         FullName = fullName;
-        BVN = bvn;
+        BVN = Identifiers.Digits(bvn);
         Email = email;
         Phone = phone;
         Address = address;

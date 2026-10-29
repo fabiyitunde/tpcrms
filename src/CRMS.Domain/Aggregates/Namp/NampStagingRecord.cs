@@ -58,7 +58,7 @@ public class NampStagingRecord : AggregateRoot
             CrmsApplicationNumber = GenerateCrmsApplicationNumber(),
             RawPayload = rawPayload,
             ApplicantName = applicantName,
-            BoaAccountNumber = boaAccountNumber,
+            BoaAccountNumber = Identifiers.Digits(boaAccountNumber) ?? boaAccountNumber,
             ApplicantCategory = applicantCategory,
             EquipmentDescription = equipmentDescription,
             EquipmentValue = equipmentValue,

@@ -19,6 +19,7 @@ public class GuarantorConfiguration : IEntityTypeConfiguration<Domain.Aggregates
         builder.HasIndex(x => x.GuarantorReference).IsUnique();
         builder.HasIndex(x => x.LoanApplicationId);
         builder.HasIndex(x => x.BVN);
+        builder.HasIndex(x => x.NIN);
 
         builder.Property(x => x.Type)
             .HasConversion<string>()

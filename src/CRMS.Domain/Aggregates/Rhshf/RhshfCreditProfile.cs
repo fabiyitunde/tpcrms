@@ -273,7 +273,7 @@ public class RhshfCreditProfile : AggregateRoot
             CompanyName = companyName,
             RcNumber = rcNumber,
             Tin = tin,
-            BoaAccountNumber = boaAccountNumber,
+            BoaAccountNumber = Identifiers.Digits(boaAccountNumber) ?? boaAccountNumber,
             ContactEmail = contactEmail,
             ContactPhone = contactPhone,
             State = state,

@@ -92,6 +92,12 @@ builder.Services.AddApplicationServices();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
+// Party-exposure lookup for the portal's Farmer 360 (CRMSQA#4). The limiter and queue are in-memory
+// and must be single instances; batch identifiers are never written to the database.
+builder.Services.AddSingleton<CRMS.API.PartyExposure.PartyExposureRateLimiter>();
+builder.Services.AddSingleton<CRMS.API.PartyExposure.PartyExposureBatchQueue>();
+builder.Services.AddHostedService<CRMS.API.PartyExposure.PartyExposureBatchWorker>();
+
 var app = builder.Build();
 
 // Apply database migrations and seed data automatically on startup
@@ -159,12 +165,13 @@ if (app.Environment.IsDevelopment())
 
 app.UseRateLimiter();
 
-// RH-SHF submissions persist the verbatim request body for traceability, which means the body has
-// to survive model binding. Scoped to that one path — buffering every request would hold whole
-// payloads in memory for no reason.
+// RH-SHF submissions persist the verbatim request body for traceability, and party-exposure
+// lookups verify a signature over it, so on those paths the body has to survive being read. Scoped to
+// them — buffering every request would hold whole payloads in memory for no reason.
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/v1/credit-profiles", StringComparison.OrdinalIgnoreCase)
+    if ((context.Request.Path.StartsWithSegments("/v1/credit-profiles", StringComparison.OrdinalIgnoreCase)
+            || context.Request.Path.StartsWithSegments("/api/v1/party-exposure", StringComparison.OrdinalIgnoreCase))
         && HttpMethods.IsPost(context.Request.Method))
     {
         context.Request.EnableBuffering();

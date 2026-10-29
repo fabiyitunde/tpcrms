@@ -206,5 +206,9 @@ public class NampApplicationConfiguration : IEntityTypeConfiguration<NampApplica
         builder.HasIndex(x => x.Status);
         builder.HasIndex(x => x.BranchId);
         builder.HasIndex(x => new { x.Status, x.BranchId });
+        // The party-exposure lookup (CRMSQA#4) finds applicants by each identifier separately.
+        builder.HasIndex(x => x.Bvn);
+        builder.HasIndex(x => x.Nin);
+        builder.HasIndex(x => x.BoaAccountNumber);
     }
 }

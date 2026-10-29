@@ -32,5 +32,6 @@ public class RhshfGuarantorConfiguration : IEntityTypeConfiguration<RhshfGuarant
         builder.Property(x => x.Notes).HasColumnType("longtext");
 
         builder.HasIndex(x => x.RhshfCreditProfileId);
+        builder.HasIndex(x => x.Bvn);
     }
 }

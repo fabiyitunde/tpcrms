@@ -19,6 +19,7 @@ using NA = CRMS.Domain.Aggregates.Namp;
 using NF = CRMS.Domain.Aggregates.Notification;
 using SA = CRMS.Domain.Aggregates.StatementAnalysis;
 using OL = CRMS.Domain.Aggregates.OfferLetter;
+using PE = CRMS.Domain.Aggregates.PartyExposure;
 using RH = CRMS.Domain.Aggregates.Rhshf;
 using WF = CRMS.Domain.Aggregates.Workflow;
 
@@ -175,6 +176,10 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<RH.RhshfStageConfirmation> RhshfStageConfirmations => Set<RH.RhshfStageConfirmation>();
     public DbSet<RH.RhshfStatusHistory> RhshfStatusHistory => Set<RH.RhshfStatusHistory>();
     public DbSet<RH.RhshfFinancingEop> RhshfFinancingEops => Set<RH.RhshfFinancingEop>();
+
+    // Party-exposure lookup (CRMSQA#4): audit of every lookup, and batch progress
+    public DbSet<PE.PartyExposureLookupLog> PartyExposureLookupLogs => Set<PE.PartyExposureLookupLog>();
+    public DbSet<PE.PartyExposureBatch> PartyExposureBatches => Set<PE.PartyExposureBatch>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

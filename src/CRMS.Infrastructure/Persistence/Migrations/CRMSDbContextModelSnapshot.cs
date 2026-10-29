@@ -2331,6 +2331,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("LoanApplicationId");
 
+                    b.HasIndex("NIN");
+
                     b.HasIndex("Status");
 
                     b.ToTable("Guarantors", (string)null);
@@ -3024,6 +3026,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(5,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BVN");
 
                     b.HasIndex("LoanApplicationId");
 
@@ -3860,7 +3864,13 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("ApplicationReference")
                         .IsUnique();
 
+                    b.HasIndex("BoaAccountNumber");
+
                     b.HasIndex("BranchId");
+
+                    b.HasIndex("Bvn");
+
+                    b.HasIndex("Nin");
 
                     b.HasIndex("Status");
 
@@ -4082,6 +4092,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("varchar(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Bvn");
 
                     b.HasIndex("NampApplicationId");
 
@@ -4761,7 +4773,11 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Bvn");
+
                     b.HasIndex("NampApplicationId");
+
+                    b.HasIndex("Nin");
 
                     b.ToTable("NampGuarantors", (string)null);
                 });
@@ -5619,6 +5635,183 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("OfferLetters", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.PartyExposure.PartyExposureBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("CallbackSentAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("CallbackStatusCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CallbackUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Failure")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("ProcessedCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("RequestId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("RequestedByRole")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("RequestedByUserId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("ResultsJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("SubjectCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("PartyExposureBatches", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.PartyExposure.PartyExposureLookupLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("BatchId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("BvnHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("DirectFacilities")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DurationMs")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<bool>("IdentityConflict")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int>("IndirectFacilities")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MatchStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("NinHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("NubanHashes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<int>("RelationshipCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RequestId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("RequestedByRole")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("RequestedByUserId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("SubjectRef")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<bool>("Truncated")
+                        .HasColumnType("tinyint(1)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId");
+
+                    b.HasIndex("BvnHash");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("RequestId");
+
+                    b.ToTable("PartyExposureLookupLogs", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.ProductCatalog.DisbursementChecklistTemplate", b =>
@@ -6698,6 +6891,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BoaAccountNumber");
 
                     b.HasIndex("Reference")
                         .IsUnique();
@@ -7859,6 +8054,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("char(36)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Bvn");
 
                     b.HasIndex("RhshfCreditProfileId");
 

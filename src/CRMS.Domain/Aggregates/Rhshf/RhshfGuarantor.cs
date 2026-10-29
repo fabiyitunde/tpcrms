@@ -107,7 +107,7 @@ public class RhshfGuarantor : AggregateRoot
         FullName = fullName.Trim();
         // The bureau key for the other type is cleared, so a type switch can't leave a stale identifier
         // that would be checked against the wrong bureau.
-        Bvn = type == RhshfGuarantorType.Individual ? Clean(bvn) : null;
+        Bvn = type == RhshfGuarantorType.Individual ? Identifiers.Digits(bvn) : null;
         RcNumber = type == RhshfGuarantorType.Corporate ? NormaliseRcNumber(rcNumber) : null;
         RelationshipCategory = relationshipCategory;
         // Cleared for every category but Other, so changing away from Other cannot leave the old

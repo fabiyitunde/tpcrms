@@ -41,7 +41,7 @@ public class LoanApplicationParty : Entity
             LoanApplicationId = loanApplicationId,
             PartyType = partyType,
             FullName = fullName,
-            BVN = bvn,
+            BVN = Identifiers.Digits(bvn),
             Email = email,
             PhoneNumber = phoneNumber,
             Designation = designation,
@@ -61,7 +61,7 @@ public class LoanApplicationParty : Entity
         DateOfBirth = dateOfBirth;
     }
 
-    public void UpdateBVN(string bvn) { BVN = bvn; }
+    public void UpdateBVN(string bvn) { BVN = Identifiers.Digits(bvn); }
 
     public void UpdateShareholdingPercent(decimal pct) { ShareholdingPercent = pct; }
 }

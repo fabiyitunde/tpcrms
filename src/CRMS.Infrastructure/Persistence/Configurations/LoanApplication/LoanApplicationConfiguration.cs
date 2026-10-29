@@ -271,6 +271,8 @@ public class LoanApplicationPartyConfiguration : IEntityTypeConfiguration<LA.Loa
 
         builder.Property(x => x.BVN)
             .HasMaxLength(11);
+        // The party-exposure lookup (CRMSQA#4) finds directors and signatories by BVN.
+        builder.HasIndex(x => x.BVN);
 
         builder.Property(x => x.Email)
             .HasMaxLength(200);

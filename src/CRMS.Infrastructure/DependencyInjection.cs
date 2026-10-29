@@ -363,6 +363,11 @@ public static class DependencyInjection
         // Reporting
         services.AddScoped<IReportingService, ReportingService>();
 
+        // Party-exposure lookup for the portal's Farmer 360 (CRMSQA#4) — read-only, all three tracks
+        services.Configure<Application.PartyExposure.PartyExposureSettings>(
+            configuration.GetSection(Application.PartyExposure.PartyExposureSettings.SectionName));
+        services.AddScoped<Application.PartyExposure.IPartyExposureService, PartyExposureService>();
+
         // Notification Event Handlers
         services.AddScoped<IDomainEventHandler<WorkflowSLABreachedEvent>, WorkflowSLABreachedNotificationHandler>();
         services.AddScoped<IDomainEventHandler<WorkflowEscalatedEvent>, WorkflowEscalatedNotificationHandler>();

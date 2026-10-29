@@ -17,6 +17,8 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
 
         builder.Property(x => x.SubmissionId).IsRequired();
         builder.HasIndex(x => x.SubmissionId).IsUnique();
+        // The party-exposure lookup (CRMSQA#4) finds a FAC by its BOA account.
+        builder.HasIndex(x => x.BoaAccountNumber);
 
         builder.Property(x => x.ProgrammeCode).IsRequired().HasMaxLength(100);
         builder.Property(x => x.ProgrammeName).HasMaxLength(200);

@@ -74,8 +74,8 @@ public class NampGuarantor : Entity
         {
             NampApplicationId = nampApplicationId,
             FullName = fullName,
-            Bvn = bvn,
-            Nin = nin,
+            Bvn = Identifiers.Digits(bvn),
+            Nin = Identifiers.Digits(nin),
             DateOfBirth = dateOfBirth,
             Gender = gender,
             CompanyName = companyName,

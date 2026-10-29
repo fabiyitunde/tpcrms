@@ -128,7 +128,7 @@ public class NampDirector : Entity
             NampApplicationId = nampApplicationId,
             SourcedFromCac = false,
             FullName = fullName.Trim(),
-            Bvn = string.IsNullOrWhiteSpace(bvn) ? null : bvn.Trim(),
+            Bvn = Identifiers.Digits(bvn),
             ShareholdingPercent = shareholdingPercent,
             IsChairman = isChairman,
             Email = email,
@@ -189,7 +189,7 @@ public class NampDirector : Entity
         if (!string.IsNullOrWhiteSpace(bvn) && bvn.Trim().Length != 11)
             return Result.Failure("BVN must be exactly 11 digits.");
 
-        Bvn = string.IsNullOrWhiteSpace(bvn) ? null : bvn.Trim();
+        Bvn = Identifiers.Digits(bvn);
         BvnVerified = false;
         return Result.Success();
     }

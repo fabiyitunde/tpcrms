@@ -49,5 +49,6 @@ public class NampDirectorConfiguration : IEntityTypeConfiguration<NampDirector>
         builder.Property(x => x.ModifiedBy).HasMaxLength(100);
 
         builder.HasIndex(x => x.NampApplicationId);
+        builder.HasIndex(x => x.Bvn);
     }
 }
