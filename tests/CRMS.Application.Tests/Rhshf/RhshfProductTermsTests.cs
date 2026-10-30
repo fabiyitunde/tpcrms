@@ -41,6 +41,16 @@ public class RhshfProductTermsTests
     }
 
     [Fact]
+    public void A_product_repaid_in_instalments_is_refused()
+    {
+        // TEST's RH-SHF product was once linked to "MICRO NON AGRIC": six monthly repayments at 15%.
+        var result = RhshfProductTermsResolver.Build(Product(repayments: 6, every: 1, rate: 15m));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("single payment", result.Error);
+    }
+
+    [Fact]
     public void A_product_without_a_schedule_is_refused()
         => Assert.True(RhshfProductTermsResolver.Build(Product(repayments: 0)).IsFailure);
 }

@@ -71,6 +71,13 @@ public class RhshfProductTermsResolver
                 + "the CRMS expects a tenor counted in months.");
         if (product.DefaultNumberOfRepayments <= 0 || product.RepaymentEvery <= 0)
             return Result.Failure<RhshfProductTerms>("The core banking product has no repayment schedule set.");
+        // RH-SHF is repaid in one payment at the end of the tenor, and the letter and the interest
+        // estimate both say so. TEST was once linked to a six-instalment product; the letter promised
+        // one payment and overstated the interest, and the loan was booked in six (CRMSQA#2).
+        if (product.DefaultNumberOfRepayments != 1)
+            return Result.Failure<RhshfProductTerms>(
+                $"The core banking product \"{product.Name}\" is repaid in {product.DefaultNumberOfRepayments} instalments; "
+                + "RH-SHF is repaid in a single payment. Link the RH-SHF product to the right core banking product in Admin > Products.");
 
         return Result.Success(new RhshfProductTerms(
             product.Id,

@@ -65,6 +65,13 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
         if (fineractProduct is null)
             return await RecordAndSaveAsync(profile, request, null, null, $"The configured Core Banking product was not found in the catalogue.", ct);
 
+        // The same check the appraisal and the letter go through, so a product changed after the
+        // offer was accepted cannot book a loan on terms the FAC never saw. A setup problem, not a
+        // booking attempt, so nothing is recorded on the case.
+        var terms = Services.RhshfProductTermsResolver.Build(fineractProduct);
+        if (terms.IsFailure)
+            return ApplicationResult.Failure(terms.Error);
+
         var bookingRequest = new FineractLoanBookingRequest(
             ClientId: accountResult.Value.ClientId,
             ProductId: product.FineractProductId.Value,

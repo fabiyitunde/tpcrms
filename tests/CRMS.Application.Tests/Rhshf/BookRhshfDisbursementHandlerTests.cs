@@ -66,13 +66,13 @@ public class BookRhshfDisbursementHandlerTests
         return product;
     }
 
-    private static FineractLoanProduct MakeFineractProduct(int id, decimal annualRate, int defaultRepayments) => new(
+    private static FineractLoanProduct MakeFineractProduct(int id, decimal annualRate, int defaultRepayments, int repaymentEvery = 9) => new(
         Id: id, Name: "RHSHF", ShortName: "RHSHF", Description: null, CurrencyCode: "NGN", CurrencySymbol: "N",
         MinPrincipal: 100_000, DefaultPrincipal: 1_000_000, MaxPrincipal: 100_000_000,
         DefaultInterestRatePerPeriod: annualRate, MinInterestRatePerPeriod: null, MaxInterestRatePerPeriod: null,
         AnnualInterestRate: annualRate, InterestRateFrequencyType: "Per year",
         DefaultNumberOfRepayments: defaultRepayments, MinNumberOfRepayments: null, MaxNumberOfRepayments: null,
-        RepaymentEvery: 1, RepaymentFrequencyType: "Months", AmortizationType: "Equal installments",
+        RepaymentEvery: repaymentEvery, RepaymentFrequencyType: "Months", AmortizationType: "Equal installments",
         InterestType: "Declining Balance", TransactionProcessingStrategyId: 1,
         StartDate: null, CloseDate: null, IsActive: true);
 
@@ -84,7 +84,7 @@ public class BookRhshfDisbursementHandlerTests
         var fineract = new FakeFineractDirectService
         {
             ClientId = 555,
-            Products = [MakeFineractProduct(77, 9.5m, 6)],
+            Products = [MakeFineractProduct(77, 9.5m, 1)],
             BookingResult = new FineractBookingResult(9001, "LN-009001", true, true, true, "Active"),
         };
         var handler = new BookRhshfDisbursementHandler(
@@ -97,7 +97,7 @@ public class BookRhshfDisbursementHandlerTests
         Assert.Equal(RhshfCaseStatus.Approved, profile.Status);
         Assert.NotNull(fineract.LastBookingRequest);
         Assert.Equal(9.5m, fineract.LastBookingRequest!.InterestRatePerAnnum);
-        Assert.Equal(6, fineract.LastBookingRequest.TenorMonths);
+        Assert.Equal(1, fineract.LastBookingRequest.TenorMonths);
         Assert.False(fineract.LastBookingRequest.DisburseToSavings);
         Assert.Equal("0123456789", fineract.LastBookingRequest.RepaymentAccountNumber);
         Assert.Equal(TotalEopValue, fineract.LastBookingRequest.Principal);
@@ -110,7 +110,7 @@ public class BookRhshfDisbursementHandlerTests
         var fineract = new FakeFineractDirectService
         {
             ClientId = 555,
-            Products = [MakeFineractProduct(77, 9.5m, 6)],
+            Products = [MakeFineractProduct(77, 9.5m, 1)],
             BookingResult = new FineractBookingResult(9001, "LN-009001", true, true, true, "Active"),
         };
         var handler = new BookRhshfDisbursementHandler(
@@ -128,7 +128,7 @@ public class BookRhshfDisbursementHandlerTests
         var fineract = new FakeFineractDirectService
         {
             ClientId = 555,
-            Products = [MakeFineractProduct(77, 9.5m, 6)],
+            Products = [MakeFineractProduct(77, 9.5m, 1)],
             // Core banking created and approved the loan, then the disburse step failed.
             BookingResult = new FineractBookingResult(9001, "", true, true, false, "Approved"),
         };
@@ -151,7 +151,7 @@ public class BookRhshfDisbursementHandlerTests
     public async Task Book_WithoutSupplierAccount_Fails_DoesNotCallFineract()
     {
         var profile = MakeProfileAtDisbursement();
-        var fineract = new FakeFineractDirectService { ClientId = 555, Products = [MakeFineractProduct(77, 9.5m, 6)] };
+        var fineract = new FakeFineractDirectService { ClientId = 555, Products = [MakeFineractProduct(77, 9.5m, 1)] };
         var handler = new BookRhshfDisbursementHandler(
             new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
 
@@ -160,6 +160,28 @@ public class BookRhshfDisbursementHandlerTests
         Assert.False(result.IsSuccess);
         Assert.Null(fineract.LastBookingRequest);
         Assert.Empty(profile.Disbursements);
+    }
+
+    [Fact]
+    public async Task Book_ProductWithSeveralInstalments_Fails_DoesNotCallFineract()
+    {
+        var profile = MakeProfileAtDisbursement();
+        var fineract = new FakeFineractDirectService
+        {
+            ClientId = 555,
+            Products = [MakeFineractProduct(77, 15m, 6, repaymentEvery: 1)],
+            BookingResult = new FineractBookingResult(9001, "LN-009001", true, true, true, "Active"),
+        };
+        var handler = new BookRhshfDisbursementHandler(
+            new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
+
+        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("single payment", result.Error);
+        Assert.Null(fineract.LastBookingRequest);
+        Assert.Empty(profile.Disbursements);
+        Assert.Equal(RhshfInternalStage.Disbursement, profile.InternalStage);
     }
 
     [Fact]
@@ -184,7 +206,7 @@ public class BookRhshfDisbursementHandlerTests
         var fineract = new FakeFineractDirectService
         {
             ClientId = 555,
-            Products = [MakeFineractProduct(77, 9.5m, 6)],
+            Products = [MakeFineractProduct(77, 9.5m, 1)],
             BookingFailureMessage = "Fineract unavailable",
         };
         var handler = new BookRhshfDisbursementHandler(
