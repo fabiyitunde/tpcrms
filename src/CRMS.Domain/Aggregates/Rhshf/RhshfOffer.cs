@@ -53,6 +53,23 @@ public class RhshfOffer : AggregateRoot
         EstimatedInterest = estimatedInterest;
     }
 
+    /// <summary>The days the letter gave the FAC to accept, from the product setting when the offer
+    /// was issued. Null on offers issued before the setting existed; they were all given
+    /// <see cref="DefaultValidityDays"/>.</summary>
+    public int? ValidityDays { get; private set; }
+
+    public const int DefaultValidityDays = ProductCatalog.LoanProduct.DefaultOfferValidityDays;
+
+    /// <summary>The date the letter says the offer expires. Nothing lapses the offer on this date
+    /// yet; it drives the date in the emails and the reminder.</summary>
+    public DateTime ExpiresAt => GeneratedAt.AddDays(ValidityDays ?? DefaultValidityDays);
+
+    public void RecordValidity(int days)
+    {
+        if (days > 0)
+            ValidityDays = days;
+    }
+
     private readonly List<RhshfOfferDocument> _documents = [];
     public IReadOnlyCollection<RhshfOfferDocument> Documents => _documents.AsReadOnly();
 

@@ -39,7 +39,7 @@ public class RhshfFacEmailTests
     }
 
     /// <summary>A case awaiting the FAC's acceptance of an offer issued <paramref name="daysAgo"/> days ago.</summary>
-    private static async Task<(RhshfCreditProfile Profile, RhshfOffer Offer)> SeedAwaitingAcceptance(IServiceProvider sp, double daysAgo)
+    private static async Task<(RhshfCreditProfile Profile, RhshfOffer Offer)> SeedAwaitingAcceptance(IServiceProvider sp, double daysAgo, int? validityDays = null)
     {
         var db = sp.GetRequiredService<CRMSDbContext>();
         db.NotificationTemplates.Add(NotificationTemplate.Create(
@@ -70,6 +70,7 @@ public class RhshfFacEmailTests
 
         var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "rhshf-offers/x.pdf").Value;
         typeof(RhshfOffer).GetProperty(nameof(RhshfOffer.GeneratedAt))!.SetValue(offer, DateTime.UtcNow.AddDays(-daysAgo));
+        if (validityDays is { } days) offer.RecordValidity(days);
 
         db.RhshfCreditProfiles.Add(profile);
         db.RhshfOffers.Add(offer);
@@ -94,6 +95,26 @@ public class RhshfFacEmailTests
         Assert.Equal("fac@grandbai.test", queued.RecipientAddress);
         Assert.Equal(NotificationStatus.Pending, queued.Status); // the queue sends it; the record is the evidence
         Assert.Contains(offer.GeneratedAt.AddDays(7).ToString("d MMMM yyyy"), queued.Subject);
+    }
+
+    [Theory]
+    [InlineData(12.5, 1)] // 14-day offer, a day and a half left
+    [InlineData(5.5, 0)]  // 14-day offer: the seven-day window would wrongly remind it now
+    public async Task Reminder_FollowsTheOffersOwnAcceptancePeriod(double daysAgo, int expected)
+    {
+        await using var sp = Services("RhshfEmail_" + Guid.NewGuid());
+        using var scope = sp.CreateScope();
+        var (profile, offer) = await SeedAwaitingAcceptance(scope.ServiceProvider, daysAgo, validityDays: 14);
+
+        var sent = await RhshfOfferReminderBackgroundService.SendDueRemindersAsync(scope.ServiceProvider, DateTime.UtcNow);
+
+        Assert.Equal(expected, sent);
+        if (expected == 1)
+        {
+            var queued = Assert.Single(await scope.ServiceProvider.GetRequiredService<INotificationRepository>()
+                .GetByLoanApplicationNumberAsync(profile.Reference));
+            Assert.Contains(offer.GeneratedAt.AddDays(14).ToString("d MMMM yyyy"), queued.Subject);
+        }
     }
 
     [Theory]

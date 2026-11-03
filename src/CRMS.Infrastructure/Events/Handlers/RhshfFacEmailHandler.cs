@@ -125,7 +125,7 @@ public static class RhshfFacEmailVariables
             ["OfferVersion"] = version.ToString(),
             ["ApprovedAmount"] = $"{currency} {(profile.ApprovedAmount ?? profile.TotalEopValue):N2}",
             ["Deadline"] = offer is null ? "the date stated in the offer"
-                : RhshfOfferDocumentDataBuilder.ExpiresOn(offer.GeneratedAt).ToString("d MMMM yyyy"),
+                : offer.ExpiresAt.ToString("d MMMM yyyy"),
             ["ReplacesNote"] = version > 1
                 ? $"This offer replaces the earlier version, which can no longer be accepted. "
                 : "",

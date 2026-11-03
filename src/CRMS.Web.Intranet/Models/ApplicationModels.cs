@@ -665,6 +665,9 @@ public class LoanProduct
 
     /// <summary>Loan segment/channel: Retail, Corporate, or Namp.</summary>
     public string Segment { get; set; } = "Corporate";
+
+    /// <summary>RH-SHF only: days an offer stays open for acceptance; null means the default.</summary>
+    public int? OfferValidityDays { get; set; }
 }
 
 public class FinancialStatementInfo

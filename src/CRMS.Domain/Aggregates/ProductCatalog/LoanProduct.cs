@@ -26,6 +26,32 @@ public class LoanProduct : AggregateRoot
     /// </summary>
     public int? FineractProductId { get; private set; }
 
+    /// <summary>
+    /// RH-SHF only: how many days an offer stays open for the FAC to accept. Set by an administrator,
+    /// since neither the product paper nor core banking defines it. Null means the default,
+    /// <see cref="DefaultOfferValidityDays"/>. Each offer keeps the period it was issued with, so a
+    /// change here only affects offers issued afterwards.
+    /// </summary>
+    public int? OfferValidityDays { get; private set; }
+
+    public const int DefaultOfferValidityDays = 7;
+    public const int MaxOfferValidityDays = 90;
+
+    /// <summary>The period an offer issued now is given.</summary>
+    public int EffectiveOfferValidityDays => OfferValidityDays ?? DefaultOfferValidityDays;
+
+    /// <summary>Null clears it back to the default.</summary>
+    public Result SetOfferValidityDays(int? days)
+    {
+        if (Status == ProductStatus.Discontinued)
+            return Result.Failure("Cannot modify a discontinued product");
+        if (days is < 1 or > MaxOfferValidityDays)
+            return Result.Failure($"Offer validity must be between 1 and {MaxOfferValidityDays} days.");
+
+        OfferValidityDays = days;
+        return Result.Success();
+    }
+
     private readonly List<PricingTier> _pricingTiers = [];
     private readonly List<EligibilityRule> _eligibilityRules = [];
     private readonly List<DocumentRequirement> _documentRequirements = [];

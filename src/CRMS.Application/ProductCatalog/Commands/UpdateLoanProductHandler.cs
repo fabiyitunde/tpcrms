@@ -44,6 +44,10 @@ public class UpdateLoanProductHandler : IRequestHandler<UpdateLoanProductCommand
         if (segmentResult.IsFailure)
             return ApplicationResult<LoanProductDto>.Failure(segmentResult.Error);
 
+        var validityResult = product.SetOfferValidityDays(request.OfferValidityDays);
+        if (validityResult.IsFailure)
+            return ApplicationResult<LoanProductDto>.Failure(validityResult.Error);
+
         await _repository.UpdateAsync(product, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 

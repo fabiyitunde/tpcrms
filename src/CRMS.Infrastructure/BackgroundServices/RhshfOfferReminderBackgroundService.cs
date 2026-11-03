@@ -1,5 +1,5 @@
 using CRMS.Application.Notification.Interfaces;
-using CRMS.Application.Rhshf.Services;
+using CRMS.Domain.Aggregates.ProductCatalog;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 using CRMS.Infrastructure.Events.Handlers;
@@ -14,8 +14,9 @@ using Microsoft.Extensions.Options;
 namespace CRMS.Infrastructure.BackgroundServices;
 
 /// <summary>
-/// Reminds the FAC before an RH-SHF offer lapses (CRMSQA#2). The letter states it is valid for
-/// seven days; nothing enforces that yet, but a FAC who has not answered by day five is reminded once,
+/// Reminds the FAC before an RH-SHF offer lapses (CRMSQA#2). The letter states how long it is valid
+/// for (the RH-SHF product's setting, seven days by default); nothing enforces that yet, but a FAC who
+/// has not answered two days before the date is reminded once,
 /// per offer version, through the same email queue as every other FAC email.
 /// <para>
 /// "Once" is decided from the case's own email history — a reminder already queued for this offer
@@ -76,13 +77,16 @@ public class RhshfOfferReminderBackgroundService : BackgroundService
         var history = services.GetRequiredService<INotificationRepository>();
         var settings = services.GetRequiredService<IOptions<RhshfSettings>>().Value;
 
-        // Unanswered offers whose lapse date falls inside the lead window and has not passed.
-        var windowStart = now.AddDays(-RhshfOfferDocumentDataBuilder.OfferValidityDays);
-        var windowEnd = now.Add(Lead).AddDays(-RhshfOfferDocumentDataBuilder.OfferValidityDays);
-        var due = await db.RhshfOffers
-            .Where(o => (o.Status == RhshfOfferStatus.Generated || o.Status == RhshfOfferStatus.AwaitingFacResponse)
-                        && o.GeneratedAt > windowStart && o.GeneratedAt <= windowEnd)
-            .ToListAsync(ct);
+        // Unanswered offers whose lapse date falls inside the lead window and has not passed. Each offer
+        // carries its own acceptance period, so the database narrows to offers young enough to still be
+        // open under the longest period allowed, and the lapse date itself is checked here.
+        var oldestOpen = now.AddDays(-LoanProduct.MaxOfferValidityDays);
+        var due = (await db.RhshfOffers
+                .Where(o => (o.Status == RhshfOfferStatus.Generated || o.Status == RhshfOfferStatus.AwaitingFacResponse)
+                            && o.GeneratedAt > oldestOpen)
+                .ToListAsync(ct))
+            .Where(o => o.ExpiresAt > now && o.ExpiresAt <= now.Add(Lead))
+            .ToList();
 
         var sent = 0;
         foreach (var offer in due)

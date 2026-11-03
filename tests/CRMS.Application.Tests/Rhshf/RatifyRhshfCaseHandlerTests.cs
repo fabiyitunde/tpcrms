@@ -6,6 +6,7 @@ using CRMS.Application.Rhshf.Services;
 using CRMS.Domain.Aggregates.Rhshf;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
+using CRMS.Domain.ValueObjects;
 
 namespace CRMS.Application.Tests.Rhshf;
 
@@ -14,8 +15,8 @@ public class RatifyRhshfCaseHandlerTests
     private const decimal TotalEopValue = 51_500_000.00m;
 
     /// <summary>The document payload builder, with the fakes the handler itself no longer holds.</summary>
-    private static RhshfOfferDocumentDataBuilder Builder() =>
-        new(new FakeCollateralRepo(), new FakeLoanProductRepo(), new FakeFineract(),
+    private static RhshfOfferDocumentDataBuilder Builder(LoanProduct? rhshfProduct = null) =>
+        new(new FakeCollateralRepo(), new FakeLoanProductRepo { Rhshf = rhshfProduct }, new FakeFineract(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<RhshfOfferDocumentDataBuilder>.Instance);
 
     private static RhshfCreditProfile MakeProfileAtRatification(
@@ -77,6 +78,28 @@ public class RatifyRhshfCaseHandlerTests
     }
 
     [Fact]
+    public async Task Ratify_GivesTheOfferTheProductsAcceptancePeriod_AndKeepsItOnTheOffer()
+    {
+        var product = LoanProduct.Create("RHSH", "RH-SHF", "", LoanProductType.Rhshf,
+            Money.Create(1_000_000), Money.Create(100_000_000), 1, 1).Value;
+        product.SetOfferValidityDays(14);
+        product.Activate();
+        var profile = MakeProfileAtRatification();
+        var generator = new FakeOfferDocumentGenerator();
+        var offerRepo = new FakeOfferRepository();
+        var handler = new RatifyRhshfCaseHandler(
+            new FakeProfileRepository(profile), new FakeCommitteeRepository(), new SharedFakeLegalClearanceRepository(),
+            offerRepo, generator, Builder(product), new FakeFileStorage(), new FakeUnitOfWork());
+
+        await handler.Handle(new RatifyRhshfCaseCommand(
+            profile.Reference, Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, OverrideOfferGaps: true, OverrideReason: "Legacy case"));
+
+        Assert.Equal(14, generator.Received!.ValidityDays);
+        Assert.Equal(14, offerRepo.Added!.ValidityDays);
+        Assert.Equal(offerRepo.Added.GeneratedAt.AddDays(14), offerRepo.Added.ExpiresAt);
+    }
+
+    [Fact]
     public async Task Ratify_PassesTheApprovedTermsIntoTheDocument()
     {
         var profile = MakeProfileAtRatification();
@@ -92,7 +115,7 @@ public class RatifyRhshfCaseHandlerTests
         Assert.NotNull(data);
         Assert.Equal(TotalEopValue, data!.ApprovedAmount);
         Assert.Equal(profile.Reference, data.Reference);
-        Assert.Equal(7, data.ValidityDays);              // the approved template's seven days
+        Assert.Equal(7, data.ValidityDays);              // the default when the product sets none
         Assert.Empty(data.ProductFees);                  // no product configured in this fake
         Assert.NotNull(data.FeesAccount);
         // No itemised financing on this case, so the plan falls back to a balancing row that still
@@ -641,8 +664,9 @@ public class RatifyRhshfCaseHandlerTests
     /// per the approved credit terms rather than failing on a catalogue lookup.</summary>
     private class FakeLoanProductRepo : ILoanProductRepository
     {
+        public LoanProduct? Rhshf { get; init; }
         public Task<LoanProduct?> GetActiveRhshfProductAsync(CancellationToken ct = default)
-            => Task.FromResult<LoanProduct?>(null);
+            => Task.FromResult(Rhshf);
         public Task<LoanProduct?> GetActiveNampProductAsync(CancellationToken ct = default)
             => Task.FromResult<LoanProduct?>(null);
         public Task<LoanProduct?> GetByIdAsync(Guid id, CancellationToken ct = default)

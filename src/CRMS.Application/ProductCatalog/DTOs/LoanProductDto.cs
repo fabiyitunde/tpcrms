@@ -20,7 +20,8 @@ public record LoanProductDto(
     List<PricingTierDto> PricingTiers,
     List<EligibilityRuleDto> EligibilityRules,
     List<DocumentRequirementDto> DocumentRequirements,
-    List<ChecklistTemplateItemDto> DisbursementChecklist
+    List<ChecklistTemplateItemDto> DisbursementChecklist,
+    int? OfferValidityDays = null
 );
 
 public record LoanProductSummaryDto(
@@ -35,7 +36,8 @@ public record LoanProductSummaryDto(
     int MinTenorMonths,
     int MaxTenorMonths,
     decimal BaseInterestRate,
-    int? FineractProductId
+    int? FineractProductId,
+    int? OfferValidityDays = null
 );
 
 public record PricingTierDto(

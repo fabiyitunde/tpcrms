@@ -3102,7 +3102,8 @@ public partial class ApplicationService
                 BaseInterestRate = p.BaseInterestRate,
                 IsActive = (p.Status == "Active"),
                 FineractProductId = p.FineractProductId,
-                Segment = p.Type
+                Segment = p.Type,
+                OfferValidityDays = p.OfferValidityDays
             }).ToList();
         }
         catch (Exception ex)
@@ -3143,7 +3144,7 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, string segment = "Corporate", int? fineractProductId = null)
+    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, string segment = "Corporate", int? fineractProductId = null, int? offerValidityDays = null)
     {
         try
         {
@@ -3152,7 +3153,8 @@ public partial class ApplicationService
             var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.CreateLoanProductHandler>();
             var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.CreateLoanProductCommand(
                 code, name, description, segmentType,
-                minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate, fineractProductId
+                minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate, fineractProductId,
+                segmentType == CRMS.Domain.Enums.LoanProductType.Rhshf ? offerValidityDays : null
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create product");
         }
@@ -3163,7 +3165,7 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, int? fineractProductId = null, string segment = "Corporate")
+    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, int? fineractProductId = null, string segment = "Corporate", int? offerValidityDays = null)
     {
         try
         {
@@ -3171,7 +3173,8 @@ public partial class ApplicationService
                 ? st : CRMS.Domain.Enums.LoanProductType.Corporate;
             var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.UpdateLoanProductHandler>();
             var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.UpdateLoanProductCommand(
-                id, name, description ?? string.Empty, segmentType, minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate, fineractProductId
+                id, name, description ?? string.Empty, segmentType, minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate, fineractProductId,
+                segmentType == CRMS.Domain.Enums.LoanProductType.Rhshf ? offerValidityDays : null
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update product");
         }

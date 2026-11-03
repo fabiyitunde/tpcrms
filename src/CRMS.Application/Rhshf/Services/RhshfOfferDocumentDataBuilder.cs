@@ -18,11 +18,6 @@ namespace CRMS.Application.Rhshf.Services;
 public class RhshfOfferDocumentDataBuilder
 {
     private const string BankName = "Bank of Agriculture";
-    public const int OfferValidityDays = 7;
-
-    /// <summary>The lapse date the letter prints. The FAC emails and the expiry reminder use this
-    /// too, so all three state the same day.</summary>
-    public static DateTime ExpiresOn(DateTime issuedAt) => issuedAt.AddDays(OfferValidityDays);
 
     /// <summary>Where the borrower pays the up-front charges, as the approved template states it.</summary>
     private static readonly RhshfOfferFeesAccount FeesAccount =
@@ -48,12 +43,22 @@ public class RhshfOfferDocumentDataBuilder
     /// <param name="offerVersion">The version this document will carry. Defaults to the case's
     /// current one; a corrected offer builds its document before the case records the correction, so
     /// it passes the next version itself.</param>
+    /// <param name="reprintOf">An offer already issued whose document is being rebuilt. The letter keeps
+    /// that offer's date and acceptance period, so a reprint cannot move the deadline the FAC was given.</param>
     public async Task<RhshfOfferDocumentBuild> BuildAsync(
-        RhshfCreditProfile profile, decimal approvedAmount, CancellationToken ct, int? offerVersion = null)
+        RhshfCreditProfile profile, decimal approvedAmount, CancellationToken ct, int? offerVersion = null,
+        RhshfOffer? reprintOf = null)
     {
         var appraisal = profile.GetCurrentCycleFinancialAppraisal();
         var collateral = await _collateralRepo.GetByProfileAndCycleAsync(profile.Id, profile.CurrentCycleNumber, ct);
-        var (productFees, suppressed, terms) = await ResolveProductAsync(profile, ct);
+        var product = await _loanProductRepo.GetActiveRhshfProductAsync(ct);
+        var (productFees, suppressed, terms) = await ResolveProductAsync(profile, product, ct);
+
+        // The acceptance period is an administrator's setting on the RH-SHF product; neither the
+        // product paper nor core banking defines one.
+        var validityDays = reprintOf is not null
+            ? reprintOf.ValidityDays ?? RhshfOffer.DefaultValidityDays
+            : product?.EffectiveOfferValidityDays ?? RhshfOffer.DefaultValidityDays;
 
         // Tenor, rate and interest as core banking will book them. Only when the product cannot be
         // read does the letter fall back to the appraisal — which, since tenor and rate stopped being
@@ -71,7 +76,7 @@ public class RhshfOfferDocumentDataBuilder
             SessionName: profile.SessionName,
             ApprovedAmount: approvedAmount,
             Currency: profile.Currency,
-            GeneratedDate: DateTime.UtcNow,
+            GeneratedDate: reprintOf?.GeneratedAt ?? DateTime.UtcNow,
             BankName: BankName,
             AddressLines: BuildAddressLines(profile),
             InterestRatePercent: ratePercent,
@@ -86,7 +91,7 @@ public class RhshfOfferDocumentDataBuilder
             ProductFees: productFees,
             SecurityDescriptions: collateral.Select(c => DescribeSecurity(c, approvedAmount)).ToList(),
             FeesAccount: FeesAccount,
-            ValidityDays: OfferValidityDays,
+            ValidityDays: validityDays,
             OfferVersion: offerVersion ?? Math.Max(profile.OfferVersion, 1),
             RegisteredFarmerCount: profile.FinancedFarmerCount is { } financed && profile.FarmerCount is { } registered
                 && financed != registered ? registered : null,
@@ -102,6 +107,7 @@ public class RhshfOfferDocumentDataBuilder
     {
         if (data.TenorMonths is { } tenor && data.InterestRatePercent is { } rate && data.InterestCharge is { } interest)
             offer.RecordTerms(tenor, rate, interest);
+        offer.RecordValidity(data.ValidityDays);
     }
 
     /// <summary>
@@ -369,9 +375,8 @@ public class RhshfOfferDocumentDataBuilder
     /// read; the caller then falls back to the appraisal's figures.
     /// </para>
     private async Task<(List<RhshfOfferFee> Fees, List<string> Suppressed, RhshfProductTerms? Terms)> ResolveProductAsync(
-        RhshfCreditProfile profile, CancellationToken ct)
+        RhshfCreditProfile profile, Domain.Aggregates.ProductCatalog.LoanProduct? product, CancellationToken ct)
     {
-        var product = await _loanProductRepo.GetActiveRhshfProductAsync(ct);
         if (product?.FineractProductId is null or <= 0)
             return ([], [], null);
 

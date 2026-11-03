@@ -17,6 +17,7 @@ public class RhshfOfferConfiguration : IEntityTypeConfiguration<RhshfOffer>
         builder.Property(x => x.FacResponseNotes).HasColumnType("longtext");
         builder.Property(x => x.InterestRatePercent).HasColumnType("decimal(9,4)");
         builder.Property(x => x.EstimatedInterest).HasColumnType("decimal(18,2)");
+        builder.Ignore(x => x.ExpiresAt);
 
         // Not unique (as of Phase 8): a Legal Clearance "Returned" outcome routes back to
         // Ratification within the SAME cycle, and a second Ratified there generates a second offer

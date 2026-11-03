@@ -6036,6 +6036,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
+                    b.Property<int?>("OfferValidityDays")
+                        .HasColumnType("int");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -8286,6 +8289,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<int?>("TenorMonths")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ValidityDays")
                         .HasColumnType("int");
 
                     b.HasKey("Id");

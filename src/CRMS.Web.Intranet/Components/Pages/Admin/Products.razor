@@ -47,6 +47,13 @@
                     <span class="product-stat-label">Base Rate</span>
                     <span class="product-stat-value">@product.BaseInterestRate% p.a.</span>
                 </div>
+                @if (product.Segment == "Rhshf")
+                {
+                    <div class="product-stat">
+                        <span class="product-stat-label">Offer Validity</span>
+                        <span class="product-stat-value">@(product.OfferValidityDays ?? CRMS.Domain.Aggregates.ProductCatalog.LoanProduct.DefaultOfferValidityDays) days@(product.OfferValidityDays is null ? " (default)" : "")</span>
+                    </div>
+                }
                 <div class="product-stat">
                     <span class="product-stat-label">Applications</span>
                     <span class="product-stat-value">@product.ApplicationCount active</span>
@@ -170,6 +177,15 @@
                         </select>
                         <small class="form-hint">Determines the origination flow. Select NAMP for agricultural mechanisation products, RH-SHF for Renewed Hope dry season input financing.</small>
                     </div>
+                    @if (editingProduct.Segment == "Rhshf")
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Offer Validity (Days)</label>
+                            <input type="number" min="1" max="@CRMS.Domain.Aggregates.ProductCatalog.LoanProduct.MaxOfferValidityDays" class="form-control" @bind="editingProduct.OfferValidityDays"
+                                   placeholder="@CRMS.Domain.Aggregates.ProductCatalog.LoanProduct.DefaultOfferValidityDays" />
+                            <small class="form-hint">How long the FAC has to accept an offer, counted from the day it is issued. Leave blank for @CRMS.Domain.Aggregates.ProductCatalog.LoanProduct.DefaultOfferValidityDays days. A change applies to offers issued afterwards.</small>
+                        </div>
+                    }
                     <div class="form-group" style="grid-column: span 2;">
                         <label class="form-label">Description</label>
                         <textarea class="form-control" rows="2" @bind="editingProduct.Description"></textarea>
@@ -489,7 +505,8 @@
                     BaseInterestRate = p.BaseInterestRate,
                     IsActive = p.IsActive,
                     FineractProductId = p.FineractProductId,
-                    Segment = string.IsNullOrEmpty(p.Segment) ? "Corporate" : p.Segment
+                    Segment = string.IsNullOrEmpty(p.Segment) ? "Corporate" : p.Segment,
+                    OfferValidityDays = p.OfferValidityDays
                 }).ToList();
             }
             else if (AuthService.CurrentUser?.Username == "admin")
@@ -534,7 +551,8 @@
             ProductType = product.ProductType,
             Segment = product.Segment,
             Description = product.Description,
-            FineractProductId = product.FineractProductId
+            FineractProductId = product.FineractProductId,
+            OfferValidityDays = product.OfferValidityDays
         };
         isEditing = true;
         showProductModal = true;
@@ -607,7 +625,8 @@
                     editingProduct.MaxTenorMonths,
                     editingProduct.BaseInterestRate,
                     editingProduct.FineractProductId,
-                    editingProduct.Segment);
+                    editingProduct.Segment,
+                    editingProduct.OfferValidityDays);
             }
             else
             {
@@ -621,7 +640,8 @@
                     editingProduct.MaxTenorMonths,
                     editingProduct.BaseInterestRate,
                     editingProduct.Segment,
-                    editingProduct.FineractProductId);
+                    editingProduct.FineractProductId,
+                    editingProduct.OfferValidityDays);
             }
 
             if (result.Success)
@@ -792,5 +812,6 @@
         public bool IsActive { get; set; }
         public int ApplicationCount { get; set; }
         public int? FineractProductId { get; set; }
+        public int? OfferValidityDays { get; set; }
     }
 }

@@ -15,5 +15,7 @@ public record CreateLoanProductCommand(
     int MinTenorMonths,
     int MaxTenorMonths,
     decimal BaseInterestRate = 0m,
-    int? FineractProductId = null
+    int? FineractProductId = null,
+    // RH-SHF only: days an offer stays open for acceptance; null means the default.
+    int? OfferValidityDays = null
 ) : IRequest<ApplicationResult<LoanProductDto>>;

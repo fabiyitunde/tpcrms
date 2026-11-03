@@ -59,7 +59,7 @@ public class RegenerateRhshfOfferLetterHandler : IRequestHandler<RegenerateRhshf
         // different set of documents from the one they were first sent — and, worse, attached a Key
         // Facts Statement to an offer issued without one, which then demanded a second signed copy
         // the borrower had never been given.
-        var build = await _documentDataBuilder.BuildAsync(profile, profile.ApprovedAmount.Value, ct);
+        var build = await _documentDataBuilder.BuildAsync(profile, profile.ApprovedAmount.Value, ct, reprintOf: offer);
         var pdfBytes = await _offerDocumentGenerator.GenerateAsync(build.Data, ct);
 
         var storagePath = await _fileStorage.UploadAsync(

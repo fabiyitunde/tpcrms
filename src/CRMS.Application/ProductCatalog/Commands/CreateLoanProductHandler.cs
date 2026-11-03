@@ -42,6 +42,10 @@ public class CreateLoanProductHandler : IRequestHandler<CreateLoanProductCommand
         if (productResult.IsFailure)
             return ApplicationResult<LoanProductDto>.Failure(productResult.Error);
 
+        var validityResult = productResult.Value.SetOfferValidityDays(request.OfferValidityDays);
+        if (validityResult.IsFailure)
+            return ApplicationResult<LoanProductDto>.Failure(validityResult.Error);
+
         await _repository.AddAsync(productResult.Value, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 

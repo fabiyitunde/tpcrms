@@ -26,7 +26,8 @@ public static class LoanProductMappings
             product.PricingTiers.Select(t => t.ToDto()).ToList(),
             product.EligibilityRules.Select(r => r.ToDto()).ToList(),
             product.DocumentRequirements.Select(d => d.ToDto()).ToList(),
-            product.DisbursementChecklist.OrderBy(c => c.SortOrder).Select(c => c.ToChecklistTemplateItemDto()).ToList()
+            product.DisbursementChecklist.OrderBy(c => c.SortOrder).Select(c => c.ToChecklistTemplateItemDto()).ToList(),
+            product.OfferValidityDays
         );
     }
 
@@ -44,7 +45,8 @@ public static class LoanProductMappings
             product.MinTenorMonths,
             product.MaxTenorMonths,
             product.BaseInterestRate,
-            product.FineractProductId
+            product.FineractProductId,
+            product.OfferValidityDays
         );
     }
 
