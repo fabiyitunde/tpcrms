@@ -350,7 +350,13 @@ public class RhshfFinancingEopConfiguration : IEntityTypeConfiguration<RhshfFina
         // EOP snapshot reference (CRMSQA#3 item 3) — optional.
         builder.Property(x => x.EopReference).HasMaxLength(200);
         builder.Property(x => x.SnapshotHash).HasMaxLength(200);
+        builder.Property(x => x.SnapshotHashScheme).HasMaxLength(200);
+        builder.Property(x => x.SnapshotHashV2).HasMaxLength(200);
+        builder.Property(x => x.SnapshotHashV2Scheme).HasMaxLength(200);
+        builder.Property(x => x.SnapshotHashCheck).IsRequired().HasConversion<string>().HasMaxLength(20)
+            .HasDefaultValue(CRMS.Domain.Enums.RhshfSnapshotHashCheck.NotSent);
         builder.Ignore(x => x.DisplayReference);
+        builder.Ignore(x => x.DecisionHash);
 
         builder.HasIndex(x => x.RhshfCreditProfileId);
     }

@@ -15,6 +15,18 @@ public record RhshfPortalOfferPayload(
     DateTime IssuedAt,
     DateTime? RespondedAt);
 
+/// <summary>
+/// One EOP a CRMS decision was made on (CRMSQA#3 contract points 4 and 5). The portal compares it with
+/// its current EOP and does not carry the decision over to an amended one. The hash is v2 when the
+/// portal sent one, because it also covers the provider assignment and rate, otherwise v1.
+/// </summary>
+public record RhshfPortalDecisionBasis(
+    Guid EopId,
+    string? EopReference,
+    int? Revision,
+    string? SnapshotHash,
+    string? SnapshotHashScheme);
+
 /// <summary>What the FAC was asked to correct. Message is the returning officer's note, which the
 /// return dialogs warn staff the FAC will read.</summary>
 public record RhshfPortalCorrectionPayload(
@@ -37,7 +49,9 @@ public record RhshfPortalState(
     string? ActionRequired,
     string? ActionUrl,
     RhshfPortalOfferPayload? Offer,
-    RhshfPortalCorrectionPayload? Correction);
+    RhshfPortalCorrectionPayload? Correction,
+    /// <summary>The EOPs the offer or decision was made on. Null until there is one.</summary>
+    IReadOnlyList<RhshfPortalDecisionBasis>? DecisionBasis = null);
 
 public static class RhshfPortalStateBuilder
 {
@@ -81,7 +95,30 @@ public static class RhshfPortalStateBuilder
         // version without a column of its own. Cases from before the trail existed start low, but
         // still climb from wherever they are.
         return new RhshfPortalState(
-            creditStatus, profile.StatusHistory.Count, actionRequired, actionUrl, offer, correction);
+            creditStatus, profile.StatusHistory.Count, actionRequired, actionUrl, offer, correction,
+            DecisionBasis(profile, currentOffer));
+    }
+
+    /// <summary>
+    /// The EOPs behind an offer or a final decision, as the case holds them. The case never replaces
+    /// a breakdown once held and refuses an amended one, so what it holds is what was decided on.
+    /// </summary>
+    private static IReadOnlyList<RhshfPortalDecisionBasis>? DecisionBasis(RhshfCreditProfile profile, RhshfOffer? currentOffer)
+    {
+        var decided = currentOffer is not null
+                      || profile.Status is RhshfCaseStatus.Approved or RhshfCaseStatus.Declined;
+        if (!decided)
+            return null;
+
+        var basis = profile.FinancingEops
+            .Where(e => e.EopId is not null)
+            .Select(e =>
+            {
+                var (hash, scheme) = e.DecisionHash;
+                return new RhshfPortalDecisionBasis(e.EopId!.Value, e.EopReference, e.EopRevision, hash, scheme);
+            })
+            .ToList();
+        return basis.Count == 0 ? null : basis;
     }
 
     private static string CreditStatus(

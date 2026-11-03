@@ -1,3 +1,4 @@
+using CRMS.Application.Common;
 using CRMS.Application.Rhshf.Commands;
 using CRMS.Application.Rhshf.DTOs;
 using CRMS.Application.Rhshf.Interfaces;
@@ -196,7 +197,7 @@ public class SubmitConsolidatedEopHandlerTests
               "packagingExcess": 0, "insurance": 0, "workingCapital": 0, "techServicesFee": 0,
               "approvedTotal": 254400, "loanAmount": 254400,
               "eopReference": "EOP-1A2B3C4D", "revision": 1, "boaApprovalDate": "2026-10-12T09:00:00Z",
-              "snapshotHash": "52b1c95a", "snapshotHashScheme": "rhshf-eop-snapshot-v1" }
+              "snapshotHash": null, "snapshotHashScheme": null }
           ]
         }
         """);
@@ -295,6 +296,113 @@ public class SubmitConsolidatedEopHandlerTests
         Assert.True((await handler.Handle(new SubmitConsolidatedEopCommand(again, "{}"))).IsSuccess);
         Assert.Equal("22212345678", Assert.Single(schedule.Rows).Bvn);
         Assert.Single(repo.Added);
+    }
+
+    // ── EOP snapshot hash and amended EOPs (CRMSQA#3 contract points 3 to 5) ─────────────────────
+
+    /// <summary>One EOP with one line, in v1 shape. <paramref name="hash"/> null means "work out the
+    /// right v1 hash"; anything else is sent as it is.</summary>
+    private static SubmitConsolidatedEopRequest WithEop(Guid submissionId, Guid eopId, decimal unitPrice,
+        string? hash = null, string? hashV2 = null)
+    {
+        var json = System.Text.Json.Nodes.JsonNode.Parse(
+            System.Text.Json.JsonSerializer.Serialize(ValidRequest(submissionId) with { TotalEopValue = 30m * unitPrice },
+                System.Text.Json.JsonSerializerOptions.Web))!;
+        var amount = 30m * unitPrice;
+        json["financing"] = System.Text.Json.Nodes.JsonNode.Parse($$"""
+        {
+          "currency": "NGN",
+          "inputLines": [
+            { "eopId": "{{eopId}}", "crop": "Maize", "item": "NPK Fertilizer", "category": "Fertilizer",
+              "supplier": "Agro Supplies Ltd", "quantityPerFarmer": 1, "unit": "Kg", "unitPrice": {{unitPrice}},
+              "basis": "perFarmer", "farmers": 30, "amount": {{amount}}, "packagingExcess": 0, "inLoan": true,
+              "lineId": "00000000-0000-0000-0000-0000000000a1" }
+          ],
+          "charges": [],
+          "inputsTotal": {{amount}}, "packagingExcessTotal": 0, "chargesTotal": 0,
+          "approvedEopTotal": {{amount}}, "loanAmount": {{amount}}, "excludedFromLoan": 0,
+          "eops": [
+            { "eopId": "{{eopId}}", "crop": "Maize", "state": "Kano", "farmers": 30, "inputs": {{amount}},
+              "packagingExcess": 0, "insurance": 0, "workingCapital": 0, "techServicesFee": 0,
+              "approvedTotal": {{amount}}, "loanAmount": {{amount}},
+              "eopReference": "EOP-1A2B3C4D", "revision": 1, "boaApprovalDate": "2026-10-12T09:00:00Z",
+              "snapshotHash": "placeholder", "snapshotHashScheme": "rhshf-eop-snapshot-v1",
+              "snapshotHashV2": {{(hashV2 is null ? "null" : $"\"{hashV2}\"")}},
+              "snapshotHashV2Scheme": {{(hashV2 is null ? "null" : "\"rhshf-eop-snapshot-v2\"")}} }
+          ]
+        }
+        """);
+        var request = System.Text.Json.JsonSerializer.Deserialize<SubmitConsolidatedEopRequest>(json, System.Text.Json.JsonSerializerOptions.Web)!;
+        var eop = request.Financing!.Eops!.Single();
+        var sent = hash ?? CRMS.Application.Rhshf.Services.RhshfEopSnapshotHash.ComputeV1(request.Financing, eop);
+        return request with { Financing = request.Financing with { Eops = [eop with { SnapshotHash = sent }] } };
+    }
+
+    private static Task<ApplicationResult<SubmitConsolidatedEopResultDto>> Submit(FakeRepository repo, SubmitConsolidatedEopRequest request)
+        => new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(),
+                new FakeLocationRepository(), new FakeUnitOfWork(), new FakeScheduleRepository())
+            .Handle(new SubmitConsolidatedEopCommand(request, "{}"));
+
+    [Fact]
+    public async Task Handle_ChecksTheEopHash_AndBlocksRatificationOnAMismatch()
+    {
+        var right = new FakeRepository();
+        await Submit(right, WithEop(Guid.NewGuid(), Guid.NewGuid(), 4_000m));
+        var wrong = new FakeRepository();
+        await Submit(wrong, WithEop(Guid.NewGuid(), Guid.NewGuid(), 4_000m, hash: new string('0', 64)));
+
+        Assert.Equal(RhshfSnapshotHashCheck.Verified, right.Added.Single().FinancingEops.Single().SnapshotHashCheck);
+        Assert.Empty(right.Added.Single().OfferDataGaps());
+
+        var mismatched = wrong.Added.Single();
+        Assert.Equal(RhshfSnapshotHashCheck.Mismatch, mismatched.FinancingEops.Single().SnapshotHashCheck);
+        Assert.Contains(mismatched.OfferDataGaps(), g => g.Contains("EOP-1A2B3C4D") && g.Contains("hash does not match"));
+    }
+
+    [Fact]
+    public async Task Handle_ARetryWithTheSameEop_ReturnsTheCase()
+    {
+        var repo = new FakeRepository();
+        var submissionId = Guid.NewGuid();
+        var eopId = Guid.NewGuid();
+        await Submit(repo, WithEop(submissionId, eopId, 4_000m));
+
+        var retry = await Submit(repo, WithEop(submissionId, eopId, 4_000m));
+
+        Assert.True(retry.IsSuccess, retry.Error);
+        Assert.Single(repo.Added);
+    }
+
+    [Fact]
+    public async Task Handle_AnAmendedEop_IsRefusedNotIgnored_NamingTheEop()
+    {
+        var repo = new FakeRepository();
+        var submissionId = Guid.NewGuid();
+        var eopId = Guid.NewGuid();
+        await Submit(repo, WithEop(submissionId, eopId, 4_000m));
+
+        var amended = await Submit(repo, WithEop(submissionId, eopId, 4_200m));
+
+        Assert.False(amended.IsSuccess);
+        Assert.StartsWith(SubmitConsolidatedEopHandler.EopChangedError, amended.Error);
+        Assert.Equal(["EOP-1A2B3C4D"], amended.Errors.Skip(1));
+        Assert.Equal(4_000m, repo.Added.Single().FinancingEops.Single().Inputs / 30m); // the held version stands
+    }
+
+    [Fact]
+    public async Task Handle_TheV2Hash_DecidesWhenBothSidesHaveIt()
+    {
+        var repo = new FakeRepository();
+        var submissionId = Guid.NewGuid();
+        var eopId = Guid.NewGuid();
+        await Submit(repo, WithEop(submissionId, eopId, 4_000m, hashV2: "v2-original"));
+
+        // Same content and v1 hash, but the provider was reassigned: only v2 sees it.
+        var reassigned = await Submit(repo, WithEop(submissionId, eopId, 4_000m, hashV2: "v2-reassigned"));
+
+        Assert.False(reassigned.IsSuccess);
+        Assert.StartsWith(SubmitConsolidatedEopHandler.EopChangedError, reassigned.Error);
+        Assert.Equal(("v2-original", "rhshf-eop-snapshot-v2"), repo.Added.Single().FinancingEops.Single().DecisionHash);
     }
 
     private class FakeScheduleRepository : IRhshfScheduleFarmerRepository

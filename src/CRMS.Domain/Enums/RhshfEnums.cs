@@ -367,3 +367,24 @@ public enum RhshfDocumentFormat
     /// <summary>A PNG or JPEG photograph or scan.</summary>
     Image,
 }
+
+/// <summary>
+/// Whether the CRMS could confirm the portal's EOP snapshot hash against the EOP content it received
+/// (CRMSQA#3). A decision is tied to the hash, so the hash has to describe what was actually decided.
+/// Persisted by name.
+/// </summary>
+public enum RhshfSnapshotHashCheck
+{
+    /// <summary>The portal sent no hash.</summary>
+    NotSent,
+
+    /// <summary>The CRMS worked the hash out from the payload and it matched.</summary>
+    Verified,
+
+    /// <summary>The hash does not match the content received. Blocks ratification unless a Final
+    /// Approver overrides with a reason.</summary>
+    Mismatch,
+
+    /// <summary>A hash scheme the CRMS does not know how to check. Kept, not checked.</summary>
+    UnsupportedScheme,
+}

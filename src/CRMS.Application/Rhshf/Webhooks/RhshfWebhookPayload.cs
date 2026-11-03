@@ -30,7 +30,10 @@ public record RhshfWebhookPayload(
     string? CreditStatus = null,
     int StateVersion = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RhshfPortalOfferPayload? Offer = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RhshfPortalCorrectionPayload? Correction = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RhshfPortalCorrectionPayload? Correction = null,
+    /// <summary>The EOPs the offer or decision was made on (CRMSQA#3 contract point 4). Omitted until
+    /// there is an offer or a final decision.</summary>
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<RhshfPortalDecisionBasis>? DecisionBasis = null);
 
 public record RhshfWebhookDecisionPayload(
     string Outcome,
@@ -69,7 +72,8 @@ public static class RhshfWebhookPayloadBuilder
             CreditStatus: state.CreditStatus,
             StateVersion: state.StateVersion,
             Offer: state.Offer,
-            Correction: state.Correction);
+            Correction: state.Correction,
+            DecisionBasis: state.DecisionBasis);
     }
 
     /// <summary>"reasons" is populated on DECLINE / INFO_REQUIRED only (brief §4.4) — DecisionNotes

@@ -74,6 +74,11 @@ public class RhshfSubmissionController : ControllerBase
 
         if (!result.IsSuccess)
         {
+            // An amended EOP for a case the CRMS already holds (CRMSQA#3 contract point 4). Not a
+            // malformed request: the portal needs to know which EOPs the CRMS's version differs on.
+            if (result.Error?.StartsWith(SubmitConsolidatedEopHandler.EopChangedError, StringComparison.Ordinal) == true)
+                return Conflict(new { error = "eop_changed", message = result.Error, changedEops = result.Errors.Skip(1).ToList() });
+
             // A dedicated code for reconciliation, at the portal team's request: their sender checks
             // the same rules before dispatch, so this code tells them their own guard was bypassed or
             // their arithmetic and ours disagree — a different problem from a malformed field, and

@@ -51,7 +51,9 @@ public static class RhshfWorkflowSeeder
             {
                 var payload = System.Text.Json.JsonSerializer.Deserialize<CRMS.Application.Rhshf.DTOs.SubmitConsolidatedEopRequest>(
                     profile.RawSubmissionPayload, json);
-                eops = CRMS.Application.Rhshf.Commands.SubmitConsolidatedEopHandler.MapEops(payload?.Financing?.Eops);
+                eops = payload?.Financing is { } financing
+                    ? CRMS.Application.Rhshf.Commands.SubmitConsolidatedEopHandler.MapEops(financing.Eops, financing)
+                    : null;
             }
             catch (System.Text.Json.JsonException ex)
             {

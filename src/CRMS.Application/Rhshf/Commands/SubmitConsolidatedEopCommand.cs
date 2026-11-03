@@ -1,7 +1,9 @@
 using CRMS.Application.Common;
 using CRMS.Application.Rhshf.DTOs;
 using CRMS.Application.Rhshf.Interfaces;
+using CRMS.Application.Rhshf.Services;
 using CRMS.Domain.Aggregates.Rhshf;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 using static CRMS.Application.Rhshf.RhshfStatusMapper;
 
@@ -19,6 +21,10 @@ public record SubmitConsolidatedEopCommand(SubmitConsolidatedEopRequest Request,
 public class SubmitConsolidatedEopHandler
     : IRequestHandler<SubmitConsolidatedEopCommand, ApplicationResult<SubmitConsolidatedEopResultDto>>
 {
+    /// <summary>How a refused amendment's error begins; the API answers it with 409
+    /// <c>eop_changed</c>, listing the changed EOPs from the rest of the error list.</summary>
+    public const string EopChangedError = "The EOP has changed since the CRMS received this case:";
+
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfTokenService _tokenService;
     private readonly IFineractDirectService _fineract;
@@ -50,6 +56,27 @@ public class SubmitConsolidatedEopHandler
         var existing = await _repo.GetBySubmissionIdAsync(req.SubmissionId, ct);
         if (existing is not null)
         {
+            // An amended EOP is refused, not ignored: the case keeps the breakdown it was decided
+            // on, and the portal must not read this answer as the decision covering the amendment
+            // (CRMSQA#3 contract point 4). A plain retry carries the same hashes and passes.
+            if (req.Financing?.Eops is { Count: > 0 } incomingEops)
+            {
+                var changed = existing.ChangedEops(MapEops(incomingEops, req.Financing)!);
+                if (changed.Count > 0)
+                {
+                    var decided = existing.Status is RhshfCaseStatus.Approved or RhshfCaseStatus.Declined
+                                  || existing.OfferVersion > 0;
+                    return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(
+                    [
+                        $"{EopChangedError} {existing.Reference} holds a different version of {string.Join(", ", changed)}. "
+                        + (decided
+                            ? "The CRMS decision on this case was made on the version it holds and does not cover the amended EOP."
+                            : "The CRMS keeps the version it received and reviews that one, not the amendment."),
+                        .. changed,
+                    ]);
+                }
+            }
+
             // A repeat is otherwise answered with the case as it stands, but a breakdown the case
             // never received is taken now: ratification is refused without one, and this is the
             // only way the portal can supply it after the fact. One already held is never replaced,
@@ -194,18 +221,22 @@ public class SubmitConsolidatedEopHandler
         return new RhshfFinancingInput(
             lines, charges, financing.InputsTotal, financing.PackagingExcessTotal,
             financing.ChargesTotal, financing.ApprovedEopTotal, financing.LoanAmount,
-            financing.ExcludedFromLoan, MapEops(financing.Eops));
+            financing.ExcludedFromLoan, MapEops(financing.Eops, financing));
     }
 
     /// <summary>The per-EOP summary. Sent from the start but not read until CRMSQA#2 — it is the only
     /// place the portal states each EOP's own farmer count, and the only source for per-EOP subtotals
     /// of the charges. Public so the startup back-fill reads stored submissions the same way.</summary>
-    public static List<RhshfFinancingEopInput>? MapEops(List<RhshfFinancingEopDto>? eops) =>
+    /// <param name="financing">The whole breakdown the EOPs came in, so each EOP's snapshot hash is
+    /// checked against its own lines.</param>
+    public static List<RhshfFinancingEopInput>? MapEops(List<RhshfFinancingEopDto>? eops, RhshfFinancingDto financing) =>
         eops?.Select(e => new RhshfFinancingEopInput(
                 e.EopId, e.Crop, e.State, e.Farmers, e.Inputs ?? 0m, e.PackagingExcess ?? 0m,
                 e.Insurance ?? 0m, e.WorkingCapital ?? 0m, e.TechServicesFee ?? 0m,
                 e.ApprovedTotal ?? 0m, e.LoanAmount ?? 0m,
-                e.EopReference, e.BoaApprovalDate ?? e.ApprovedAt, e.Revision, e.SnapshotHash))
+                e.EopReference, e.BoaApprovalDate ?? e.ApprovedAt, e.Revision, e.SnapshotHash,
+                e.SnapshotHashScheme, e.SnapshotHashV2, e.SnapshotHashV2Scheme,
+                RhshfEopSnapshotHash.Check(financing, e)))
             .ToList();
 
     /// <summary>Best-effort branch resolution (design doc §3.1) — mirrors the algorithm

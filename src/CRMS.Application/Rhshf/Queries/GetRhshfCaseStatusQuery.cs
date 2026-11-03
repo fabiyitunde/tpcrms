@@ -28,7 +28,9 @@ public record RhshfCaseStatusDto(
     string CreditStatus,
     int StateVersion,
     RhshfPortalOfferPayload? Offer,
-    RhshfPortalCorrectionPayload? Correction);
+    RhshfPortalCorrectionPayload? Correction,
+    /// <summary>The EOPs the offer or decision was made on; null until there is one.</summary>
+    IReadOnlyList<RhshfPortalDecisionBasis>? DecisionBasis = null);
 
 public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery, ApplicationResult<RhshfCaseStatusDto>>
 {
@@ -78,7 +80,8 @@ public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery
             CreditStatus: state.CreditStatus,
             StateVersion: state.StateVersion,
             Offer: state.Offer,
-            Correction: state.Correction);
+            Correction: state.Correction,
+            DecisionBasis: state.DecisionBasis);
 
         return ApplicationResult<RhshfCaseStatusDto>.Success(dto);
     }

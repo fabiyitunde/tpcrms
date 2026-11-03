@@ -205,6 +205,44 @@ public class RhshfWebhookPayloadBuilderTests
         Assert.False(root.TryGetProperty("correction", out _));
     }
 
+    /// <summary>
+    /// CRMSQA#3 contract points 4 and 5: the offer and the decision tell the portal which EOP version
+    /// they were made on, using the v2 hash when the portal sent one (it also covers the provider
+    /// assignment and rate), so the portal can refuse to carry them over to an amended EOP.
+    /// </summary>
+    [Fact]
+    public void Build_OfferReady_NamesTheEopVersionTheDecisionWasMadeOn()
+    {
+        var eopId = Guid.NewGuid();
+        var profile = Submitted();
+        Assert.True(profile.AttachLateFinancing(new RhshfFinancingInput(
+            [new RhshfFinancingLineInput(eopId, "Maize", "NPK Fertilizer", "Fertilizer", null, "Agro Ltd",
+                1m, "Kg", TotalEopValue / 1200m, "perFarmer", 1200, TotalEopValue, 0m, true)],
+            [], TotalEopValue, 0m, 0m, TotalEopValue, TotalEopValue, 0m,
+            [new RhshfFinancingEopInput(eopId, "Maize", "Kano", 1200, TotalEopValue, 0m, 0m, 0m, 0m,
+                TotalEopValue, TotalEopValue, "EOP-1A2B3C4D", DateTime.UtcNow, 1,
+                "v1hash", "rhshf-eop-snapshot-v1", "v2hash", "rhshf-eop-snapshot-v2")])).IsSuccess);
+
+        var beforeOffer = Serialize(RhshfWebhookPayloadBuilder.Build(profile, RhshfCallbackEventType.OfferReady, "evt_0", DateTime.UtcNow));
+        Assert.False(beforeOffer.TryGetProperty("decisionBasis", out _)); // nothing decided yet
+
+        profile.AppraiseWithFinancials(Guid.NewGuid(), RhshfAppraisalOutcome.Proceed, null);
+        profile.ClearLegalForTest();
+        profile.ReviewRisk(Guid.NewGuid(), RhshfRiskReviewOutcome.Cleared, null);
+        profile.AdvanceToRatification();
+        profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
+        var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
+
+        var root = Serialize(RhshfWebhookPayloadBuilder.Build(profile, RhshfCallbackEventType.OfferReady, "evt_1", DateTime.UtcNow, offer));
+
+        var basis = Assert.Single(root.GetProperty("decisionBasis").EnumerateArray());
+        Assert.Equal(eopId, basis.GetProperty("eopId").GetGuid());
+        Assert.Equal("EOP-1A2B3C4D", basis.GetProperty("eopReference").GetString());
+        Assert.Equal(1, basis.GetProperty("revision").GetInt32());
+        Assert.Equal("v2hash", basis.GetProperty("snapshotHash").GetString());
+        Assert.Equal("rhshf-eop-snapshot-v2", basis.GetProperty("snapshotHashScheme").GetString());
+    }
+
     [Fact]
     public void Build_LateOfferReadyRetry_ReportsWhereTheCaseIsNow_NotTheStaleInstruction()
     {

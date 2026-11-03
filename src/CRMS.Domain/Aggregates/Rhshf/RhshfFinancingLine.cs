@@ -1,4 +1,5 @@
 using CRMS.Domain.Common;
+using CRMS.Domain.Enums;
 
 namespace CRMS.Domain.Aggregates.Rhshf;
 
@@ -257,6 +258,22 @@ public class RhshfFinancingEop : Entity
     public int? EopRevision { get; private set; }
     /// <summary>The portal's fingerprint of the EOP's lines and charges as sent.</summary>
     public string? SnapshotHash { get; private set; }
+    /// <summary>The rules that hash was built by, e.g. "rhshf-eop-snapshot-v1".</summary>
+    public string? SnapshotHashScheme { get; private set; }
+    /// <summary>The portal's second hash, which also covers the provider assignment and rate
+    /// (CRMSQA#3 contract point 3). Sent beside the v1 hash, not instead of it.</summary>
+    public string? SnapshotHashV2 { get; private set; }
+    public string? SnapshotHashV2Scheme { get; private set; }
+    /// <summary>Whether the v1 hash matched the content received.</summary>
+    public RhshfSnapshotHashCheck SnapshotHashCheck { get; private set; } = RhshfSnapshotHashCheck.NotSent;
+
+    /// <summary>
+    /// The hash a decision on this EOP is tied to: v2 when the portal sent one, because it also covers
+    /// the provider and rate, otherwise v1. Reported back to the portal with every decision so it can
+    /// refuse to carry a decision over to an amended EOP.
+    /// </summary>
+    public (string? Hash, string? Scheme) DecisionHash =>
+        SnapshotHashV2 is not null ? (SnapshotHashV2, SnapshotHashV2Scheme) : (SnapshotHash, SnapshotHashScheme);
 
     /// <summary>"EOP-1A2B3C4D" when the portal sent a reference, otherwise the short id the letter has
     /// always printed.</summary>
@@ -283,6 +300,10 @@ public class RhshfFinancingEop : Entity
         EopApprovedAt = input.EopApprovedAt;
         EopRevision = input.EopRevision;
         SnapshotHash = Cap(input.SnapshotHash);
+        SnapshotHashScheme = Cap(input.SnapshotHashScheme);
+        SnapshotHashV2 = Cap(input.SnapshotHashV2);
+        SnapshotHashV2Scheme = Cap(input.SnapshotHashV2Scheme);
+        SnapshotHashCheck = input.SnapshotHashCheck;
     }
 
     /// <summary>Capped at the column, so an unusually long value shortens rather than failing the
@@ -312,7 +333,8 @@ public record RhshfFinancingEopInput(
     Guid? EopId, string? Crop, string? State, int? Farmers, decimal Inputs, decimal PackagingExcess,
     decimal Insurance, decimal WorkingCapital, decimal TechServicesFee, decimal ApprovedTotal,
     decimal LoanAmount, string? EopReference = null, DateTime? EopApprovedAt = null, int? EopRevision = null,
-    string? SnapshotHash = null);
+    string? SnapshotHash = null, string? SnapshotHashScheme = null, string? SnapshotHashV2 = null,
+    string? SnapshotHashV2Scheme = null, RhshfSnapshotHashCheck SnapshotHashCheck = RhshfSnapshotHashCheck.NotSent);
 
 public record RhshfFinancingLineInput(
     Guid? EopId, string? Crop, string Item, string? Category, string? SpecificInput, string? Supplier,

@@ -917,12 +917,20 @@ public class RhshfCreditProfile : AggregateRoot
         if (!HasItemisedFinancing)
             return ["No itemised breakdown was received from the portal, so the plan can only be shown at crop level."];
 
-        return _financingLines
+        var gaps = _financingLines
             .Where(l => string.Equals(l.Category, "Services", StringComparison.OrdinalIgnoreCase)
                         && (l.Amount != 0m || l.PackagingExcess != 0m)
                         && string.IsNullOrWhiteSpace(l.ResponsibleParty))
             .Select(l => $"{l.Item} has no provider from the portal, so the letter would show it as \"To be confirmed\".")
             .ToList();
+
+        // The decision is reported to the portal against the EOP's hash, so a hash that does not
+        // describe what was received would tie the decision to content nobody here has seen.
+        gaps.AddRange(_financingEops
+            .Where(e => e.SnapshotHashCheck == RhshfSnapshotHashCheck.Mismatch)
+            .Select(e => $"{e.DisplayReference ?? "An EOP"}: the portal's snapshot hash does not match the EOP content received."));
+
+        return gaps;
     }
 
     /// <summary>
@@ -1238,6 +1246,53 @@ public class RhshfCreditProfile : AggregateRoot
         RecordTransition("Itemised breakdown received from the portal", actorUserId: null, actorLabel: "Portal");
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
+    }
+
+    /// <summary>
+    /// The EOPs in a repeat submission that differ from the ones this case holds, judged by the
+    /// portal's snapshot hash: v2 where both sides have it, otherwise v1. An EOP added or dropped
+    /// counts as changed. Empty when the case holds no EOPs yet, or when neither side carries a hash to
+    /// compare, since a change could not be told from a retry.
+    /// <para>
+    /// The CRMS never replaces a breakdown it holds, so without this an amended EOP sent for an
+    /// existing case was silently ignored, and the portal could take the existing decision as covering
+    /// it (CRMSQA#3 contract point 4).
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<string> ChangedEops(IReadOnlyList<RhshfFinancingEopInput> incoming)
+    {
+        if (_financingEops.Count == 0)
+            return [];
+        if (!incoming.Any(e => e.SnapshotHash is not null || e.SnapshotHashV2 is not null))
+            return [];
+
+        static string Name(Guid? id, string? reference) => reference ?? id?.ToString() ?? "An EOP without an id";
+
+        var changed = new List<string>();
+        foreach (var held in _financingEops)
+        {
+            var match = incoming.FirstOrDefault(e => e.EopId == held.EopId);
+            if (match is null)
+            {
+                changed.Add(Name(held.EopId, held.EopReference));
+                continue;
+            }
+
+            bool? same = held.SnapshotHashV2 is not null && match.SnapshotHashV2 is not null
+                ? string.Equals(held.SnapshotHashV2, match.SnapshotHashV2.Trim(), StringComparison.OrdinalIgnoreCase)
+                : held.SnapshotHash is not null && match.SnapshotHash is not null
+                    ? string.Equals(held.SnapshotHash, match.SnapshotHash.Trim(), StringComparison.OrdinalIgnoreCase)
+                    : held.SnapshotHash is null && held.SnapshotHashV2 is null
+                        ? null    // held from before hashes were sent: nothing to compare against
+                        : false;  // the portal dropped the hash it sent before
+            if (same == false)
+                changed.Add(Name(held.EopId, held.EopReference));
+        }
+
+        changed.AddRange(incoming
+            .Where(e => _financingEops.All(h => h.EopId != e.EopId))
+            .Select(e => Name(e.EopId, e.EopReference)));
+        return changed;
     }
 
     /// <summary>Whether <see cref="AttachLateFinancing"/> would consider a breakdown at all.</summary>

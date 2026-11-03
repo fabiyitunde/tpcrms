@@ -116,11 +116,47 @@ financed service with a provider no longer blocks ratification.
 | `eopReference` | The EOP reference the portal's release letters print. The letter uses it in Schedule A. |
 | `boaApprovalDate` (`approvedAt`) | When BOA approved the EOP. |
 | `revision` | Which approved revision of the EOP this is. |
-| `snapshotHash` | The portal's fingerprint of the EOP. `snapshotHashScheme` is kept in the stored submission. |
+| `snapshotHash`, `snapshotHashScheme` | The portal's v1 fingerprint of the EOP and the rules it was built by. |
+| `snapshotHashV2`, `snapshotHashV2Scheme` | The portal's second fingerprint, which also covers the provider assignment and rate. Sent beside v1. |
 
 Text values longer than 200 characters are shortened rather than refused. A repeat of a submission
 the CRMS already holds does not replace a breakdown it already has, so these fields reach new cases,
 not existing ones (see CRMSQA#3).
+
+## EOP versions and decisions (CRMSQA#3 contract points 3 to 5)
+
+**The v1 hash is checked.** When an EOP arrives with `snapshotHashScheme` `rhshf-eop-snapshot-v1`, the
+CRMS works the hash out from the EOP and its lines in the same payload, by the portal's published rules,
+and compares. The result is kept on the EOP: verified, mismatch, not sent, or unsupported scheme. A
+mismatch does not refuse the submission, but it blocks ratification until a Final Approver overrides it
+with a reason, the same way a service line without a provider does. The v2 hash is stored but not
+checked until the portal publishes its rules.
+
+**Each offer and decision names the EOP version it was made on.** Once a case has an offer or a final
+decision, the webhook and `GET /v1/credit-profiles/{reference}/status` carry `decisionBasis`:
+
+```json
+"decisionBasis": [
+  { "eopId": "3cc02579-…", "eopReference": "EOP-3CC02579", "revision": 1,
+    "snapshotHash": "…", "snapshotHashScheme": "rhshf-eop-snapshot-v2" }
+]
+```
+
+The hash is v2 when the portal sent one, otherwise v1. Before an offer or decision it is left out of
+the webhook and null on the status check. A decision applies only to the versions listed; the portal
+does not carry it over to an amended EOP.
+
+**An amended EOP for a case the CRMS already holds is refused, not ignored.** A repeat with the same
+`submissionId` whose EOP hash differs from the one held (v2 where both sides have it, otherwise v1),
+or that adds or drops an EOP, is answered with **409**:
+
+```json
+{ "error": "eop_changed", "message": "…", "changedEops": ["EOP-3CC02579"] }
+```
+
+Nothing from that repeat is taken, the farmer list included. A plain retry carries the same hashes and
+is answered as before. When neither side carries a hash, the CRMS cannot tell an amendment from a retry,
+and the repeat is answered as before.
 
 ## The farmer schedule
 

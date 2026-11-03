@@ -258,4 +258,8 @@ public record RhshfFinancingEopDto(
     string? SnapshotHash = null,
     // v1 names.
     DateTime? BoaApprovalDate = null,
-    string? SnapshotHashScheme = null);
+    string? SnapshotHashScheme = null,
+    /// <summary>The portal's second hash, which also covers provider assignment and rate (CRMSQA#3
+    /// contract point 3). Sent beside the v1 hash.</summary>
+    string? SnapshotHashV2 = null,
+    string? SnapshotHashV2Scheme = null);
