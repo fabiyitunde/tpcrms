@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace CRMS.Application.Rhshf.DTOs;
 
 /// <summary>Response shape for POST /v1/credit-profiles, matching brief §4.1 exactly.</summary>
@@ -153,7 +156,8 @@ public record RhshfFinancingInputLineDto(
     decimal? PackagingExcess = null,
     bool? InLoan = null,
     // ── Optional from the portal's Slice B (CRMSQA#3 items 1 and 2). Descriptive only: no amount is
-    // computed or checked from them.
+    // computed or checked from them. The portal's frozen v1 contract (CRMSQA#3, 29 Oct) names some of
+    // these differently from the earlier assessment the CRMS first read; both are accepted, v1 first.
     string? BaseUnit = null,
     decimal? PackSize = null,
     string? PackUnit = null,
@@ -164,7 +168,17 @@ public record RhshfFinancingInputLineDto(
     string? PriceVersionId = null,
     string? SupplierProductId = null,
     /// <summary>On a service line, the provider BOA approved for the EOP.</summary>
-    RhshfServiceProviderDto? ServiceProvider = null);
+    RhshfServiceProviderDto? ServiceProvider = null,
+    // v1 names.
+    string? PackSizeUnit = null,
+    decimal? NumberOfPacks = null,
+    decimal? PackagingAdjustmentQuantity = null,
+    /// <summary>The readable number of the price version (3), beside its id.</summary>
+    int? PriceVersion = null,
+    Guid? LineId = null,
+    string? SupplierCatalogueReference = null,
+    /// <summary>"ASSIGNED" or "UNASSIGNED" on a service line, null otherwise.</summary>
+    string? ProviderStatus = null);
 
 public record RhshfServiceProviderDto(
     string? ProviderId = null,
@@ -172,9 +186,44 @@ public record RhshfServiceProviderDto(
     string? ServiceType = null,
     decimal? Rate = null,
     string? RateBasis = null,
-    string? RateVersion = null,
+    // v1 sends a number. Read as text either way: a number here used to fail the whole submission.
+    [property: JsonConverter(typeof(StringOrNumberJsonConverter))] string? RateVersion = null,
     decimal? BillableQuantity = null,
-    string? AssignmentId = null);
+    string? AssignmentId = null,
+    // v1 names.
+    /// <summary>The name on BOA's provider register. Not checked against CAC.</summary>
+    string? LegalName = null,
+    string? RegistrationReference = null,
+    string? RateId = null,
+    decimal? ApprovedRate = null,
+    decimal? Quantity = null,
+    string? AssignmentReference = null,
+    string? AssignmentStatus = null);
+
+/// <summary>Reads a JSON string or number as text; anything else as null.</summary>
+public sealed class StringOrNumberJsonConverter : JsonConverter<string?>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.String:
+                return reader.GetString();
+            case JsonTokenType.Number:
+                using (var doc = JsonDocument.ParseValue(ref reader))
+                    return doc.RootElement.GetRawText();
+            default:
+                reader.Skip();
+                return null;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
+    {
+        if (value is null) writer.WriteNullValue();
+        else writer.WriteStringValue(value);
+    }
+}
 
 public record RhshfFinancingChargeDto(
     /// <summary>"insurance", "workingCapital" or "techServicesFee".</summary>
@@ -206,4 +255,7 @@ public record RhshfFinancingEopDto(
     string? EopReference = null,
     DateTime? ApprovedAt = null,
     int? Revision = null,
-    string? SnapshotHash = null);
+    string? SnapshotHash = null,
+    // v1 names.
+    DateTime? BoaApprovalDate = null,
+    string? SnapshotHashScheme = null);

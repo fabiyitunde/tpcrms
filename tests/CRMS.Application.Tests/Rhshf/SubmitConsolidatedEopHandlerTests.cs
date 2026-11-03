@@ -154,6 +154,76 @@ public class SubmitConsolidatedEopHandlerTests
             CRMS.Application.Rhshf.Services.RhshfOfferDocumentDataBuilder.LineDetail(service, "NGN"));
     }
 
+    /// <summary>
+    /// The same, under the portal's frozen v1 names (CRMSQA#3, 29 Oct), which is what the portal sends
+    /// today. v1 sends rateVersion as a number; read as text it used to fail the whole submission.
+    /// </summary>
+    [Fact]
+    public async Task Handle_KeepsSliceBDetail_UnderThePortalsV1FieldNames()
+    {
+        var eopId = Guid.NewGuid();
+        var json = System.Text.Json.Nodes.JsonNode.Parse(
+            System.Text.Json.JsonSerializer.Serialize(ValidRequest(Guid.NewGuid()) with { TotalEopValue = 254_400m },
+                System.Text.Json.JsonSerializerOptions.Web))!;
+        json["financedFarmerCount"] = 30;
+        json["financedFarmerCountBasis"] = "aggregate-sum";
+        json["financing"] = System.Text.Json.Nodes.JsonNode.Parse($$"""
+        {
+          "currency": "NGN",
+          "inputLines": [
+            { "eopId": "{{eopId}}", "crop": "Maize", "item": "NPK Fertilizer", "category": "Fertilizer",
+              "supplier": "Agro Supplies Ltd", "quantityPerFarmer": 10, "unit": "Kg", "unitPrice": 448,
+              "basis": "perFarmer", "farmers": 30, "amount": 134400, "packagingExcess": 0, "inLoan": true,
+              "lineId": "00000000-0000-0000-0000-0000000000a1", "supplierProductId": "sp-9",
+              "supplierCatalogueReference": "SP-5B000000", "priceVersionId": "pv-123", "priceVersion": 3,
+              "packSize": 50, "packSizeUnit": "Kg", "packUnit": "Bag", "numberOfPacks": 6, "pricePerPack": 22400,
+              "procurementQuantity": 300, "packagingAdjustmentQuantity": 0, "packagingAdjustment": 0,
+              "providerStatus": null, "serviceProvider": null },
+            { "eopId": "{{eopId}}", "crop": "Maize", "item": "Extension Services", "category": "Services",
+              "supplier": null, "quantityPerFarmer": 1, "unit": "Per Farmer", "unitPrice": 4000, "basis": "perFarmer",
+              "farmers": 30, "amount": 120000, "packagingExcess": 0, "inLoan": true,
+              "lineId": "00000000-0000-0000-0000-0000000000a3", "providerStatus": "ASSIGNED",
+              "serviceProvider": { "providerId": "p-1", "legalName": "Kano Extension Co-op",
+                "registrationReference": "RC-1", "serviceType": "Extension", "rateId": "r-1", "rateVersion": 2,
+                "rateBasis": "per farmer", "approvedRate": 4000, "quantity": 30,
+                "assignmentReference": "as-9", "assignmentStatus": "Assigned" } }
+          ],
+          "charges": [],
+          "inputsTotal": 254400, "packagingExcessTotal": 0, "chargesTotal": 0,
+          "approvedEopTotal": 254400, "loanAmount": 254400, "excludedFromLoan": 0,
+          "eops": [
+            { "eopId": "{{eopId}}", "crop": "Maize", "state": "Kano", "farmers": 30, "inputs": 254400,
+              "packagingExcess": 0, "insurance": 0, "workingCapital": 0, "techServicesFee": 0,
+              "approvedTotal": 254400, "loanAmount": 254400,
+              "eopReference": "EOP-1A2B3C4D", "revision": 1, "boaApprovalDate": "2026-10-12T09:00:00Z",
+              "snapshotHash": "52b1c95a", "snapshotHashScheme": "rhshf-eop-snapshot-v1" }
+          ]
+        }
+        """);
+        var request = System.Text.Json.JsonSerializer.Deserialize<SubmitConsolidatedEopRequest>(json, System.Text.Json.JsonSerializerOptions.Web)!;
+        var repo = new FakeRepository();
+        var handler = new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(), new FakeLocationRepository(), new FakeUnitOfWork(), new FakeScheduleRepository());
+
+        var result = await handler.Handle(new SubmitConsolidatedEopCommand(request, json.ToJsonString()));
+
+        Assert.True(result.IsSuccess, result.Error);
+        var profile = Assert.Single(repo.Added);
+        var npk = profile.FinancingLines.Single(l => l.Item == "NPK Fertilizer");
+        Assert.Equal("6 Bags of 50 Kg at NGN 22,400.00 each; price version 3",
+            CRMS.Application.Rhshf.Services.RhshfOfferDocumentDataBuilder.LineDetail(npk, "NGN"));
+
+        var service = profile.FinancingLines.Single(l => l.Item == "Extension Services");
+        Assert.Equal("Kano Extension Co-op", service.ResponsibleParty);
+        Assert.Equal("as-9", service.ProviderAssignmentId);
+        Assert.Equal("provider rate NGN 4,000.00 per farmer; rate version 2",
+            CRMS.Application.Rhshf.Services.RhshfOfferDocumentDataBuilder.LineDetail(service, "NGN"));
+        Assert.Empty(profile.OfferDataGaps());
+
+        var eop = Assert.Single(profile.FinancingEops);
+        Assert.Equal(new DateTime(2026, 10, 12, 9, 0, 0, DateTimeKind.Utc), eop.EopApprovedAt?.ToUniversalTime());
+        Assert.Equal(1, eop.EopRevision);
+    }
+
     // ── Farmer schedule (CRMSQA#4) ───────────────────────────────────────────────────────────────
 
     private static SubmitConsolidatedEopHandler Handler(FakeRepository repo, FakeScheduleRepository schedule)

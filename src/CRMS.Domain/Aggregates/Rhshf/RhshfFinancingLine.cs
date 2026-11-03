@@ -81,6 +81,8 @@ public class RhshfFinancingLine : Entity
     /// <summary>The supplier price list entry the line was priced from, so a later price change can
     /// be told apart from the price this offer used.</summary>
     public string? PriceVersionId { get; private set; }
+    /// <summary>The readable number of that price version (3), as BOA's supply release letter shows it.</summary>
+    public int? PriceVersion { get; private set; }
     public string? SupplierProductId { get; private set; }
 
     // ── Service provider (CRMSQA#3 item 1) ────────────────────────────────────────────────────────
@@ -159,6 +161,7 @@ public class RhshfFinancingLine : Entity
         ProcurementQuantity = detail.ProcurementQuantity;
         PackagingExcessQuantity = detail.PackagingExcessQuantity;
         PriceVersionId = Text(detail.PriceVersionId);
+        PriceVersion = detail.PriceVersion;
         SupplierProductId = Text(detail.SupplierProductId);
         ProviderId = Text(detail.ProviderId);
         ProviderName = Text(detail.ProviderName);
@@ -324,7 +327,7 @@ public record RhshfFinancingLineDetail(
     string? PriceVersionId = null, string? SupplierProductId = null,
     string? ProviderId = null, string? ProviderName = null, string? ProviderServiceType = null,
     decimal? ProviderRate = null, string? ProviderRateBasis = null, string? ProviderRateVersion = null,
-    decimal? ProviderBillableQuantity = null, string? ProviderAssignmentId = null);
+    decimal? ProviderBillableQuantity = null, string? ProviderAssignmentId = null, int? PriceVersion = null);
 
 public record RhshfFinancingChargeInput(
     string Code, string Label, decimal? Rate, string? RateBasis, decimal Amount, bool InLoan);

@@ -271,7 +271,9 @@ public class RhshfOfferDocumentDataBuilder
         var parts = new List<string>();
         if (line.PackDisplay(currency) is { } packs)
             parts.Add(packs);
-        if (line.PriceVersionId is { } price)
+        if (line.PriceVersion is { } priceVersion)
+            parts.Add($"price version {priceVersion}");
+        else if (line.PriceVersionId is { } price)
             parts.Add($"price version {Short(price)}");
         if (line.ProviderRate is { } rate)
         {

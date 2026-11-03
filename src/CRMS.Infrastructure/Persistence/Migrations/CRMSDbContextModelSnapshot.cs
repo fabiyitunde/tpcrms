@@ -7995,6 +7995,9 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("PricePerPack")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int?>("PriceVersion")
+                        .HasColumnType("int");
+
                     b.Property<string>("PriceVersionId")
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");

@@ -81,20 +81,30 @@ All of these are optional. When the portal sends them, the CRMS stores them and 
 offer letter. A case submitted without them works exactly as before. None of them is used to compute
 or check an amount; `amount` stays the figure that counts.
 
+The names are the portal's frozen v1 contract (CRMSQA#3, 29 Oct). The CRMS first read the names from
+the portal's earlier assessment; those are still accepted, shown in brackets, and a v1 name wins
+when both are sent.
+
 **On each `financing.inputLines[]` entry:**
 
 | Field | Meaning |
 |---|---|
-| `baseUnit` | The unit the requirement is counted in, e.g. "Kg". |
-| `packSize` | What one supplier pack holds, in `baseUnit`. |
-| `packUnit` | The name of a pack, e.g. "Bag". |
-| `packCount` | Whole packs bought. |
+| `packSizeUnit` (`baseUnit`) | The unit a pack is counted in, e.g. "Kg". |
+| `packSize` | What one supplier pack holds, in `packSizeUnit`. |
+| `packUnit` | The name of a pack, e.g. "50 Kg Bag". |
+| `numberOfPacks` (`packCount`) | Whole packs bought for the EOP. |
 | `pricePerPack` | The price of one pack. |
-| `procurementQuantity` | What was actually bought, in `baseUnit`. |
-| `packagingExcessQuantity` | What was bought above the requirement because packs are whole. |
+| `procurementQuantity` | What was actually bought, in `packSizeUnit`. |
+| `packagingAdjustmentQuantity` (`packagingExcessQuantity`) | What was bought above the requirement because packs are whole. |
 | `priceVersionId` | The supplier price-list entry used. |
+| `priceVersion` | That entry's version number. The letter prints it ("price version 3"). |
 | `supplierProductId` | The supplier's product. |
-| `serviceProvider` | On a service line, the provider BOA approved for the EOP: `{ providerId, registeredName, serviceType, rate, rateBasis, rateVersion, billableQuantity, assignmentId }`. |
+| `serviceProvider` | On a service line, the provider BOA approved for the EOP: `{ providerId, legalName (registeredName), serviceType, approvedRate (rate), rateBasis, rateVersion, quantity (billableQuantity), assignmentReference (assignmentId) }`. `rateVersion` may be a number or text. |
+
+`legalName` is the name on BOA's provider register; it is not checked against CAC. The other v1
+fields (`lineId`, `supplierCatalogueReference`, `packagingAdjustment`, `providerStatus`,
+`serviceProvider.registrationReference`, `rateId`, `assignmentStatus`) are kept in the stored
+submission but not used yet.
 
 When `serviceProvider` is present, the letter names the provider instead of "To be confirmed". A
 financed service with a provider no longer blocks ratification.
@@ -104,9 +114,9 @@ financed service with a provider no longer blocks ratification.
 | Field | Meaning |
 |---|---|
 | `eopReference` | The EOP reference the portal's release letters print. The letter uses it in Schedule A. |
-| `approvedAt` | When the EOP was approved. |
+| `boaApprovalDate` (`approvedAt`) | When BOA approved the EOP. |
 | `revision` | Which approved revision of the EOP this is. |
-| `snapshotHash` | The portal's fingerprint of the EOP. |
+| `snapshotHash` | The portal's fingerprint of the EOP. `snapshotHashScheme` is kept in the stored submission. |
 
 Text values longer than 200 characters are shortened rather than refused. A repeat of a submission
 the CRMS already holds does not replace a breakdown it already has, so these fields reach new cases,

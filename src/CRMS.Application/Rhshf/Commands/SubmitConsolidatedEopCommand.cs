@@ -157,7 +157,7 @@ public class SubmitConsolidatedEopHandler
     /// recomputation lands a few kobo away from the figure the borrower signs against.
     /// </para>
     /// </summary>
-    private static RhshfFinancingInput? MapFinancing(RhshfFinancingDto? financing)
+    public static RhshfFinancingInput? MapFinancing(RhshfFinancingDto? financing)
     {
         if (financing is null)
             return null;
@@ -170,12 +170,19 @@ public class SubmitConsolidatedEopHandler
                 // Absent means financed: the programme finances everything today, and the
                 // reconciliation rules would catch it at once if that stopped being true.
                 l.InLoan ?? true,
+                // The portal's frozen v1 names first, the earlier names as a fallback (CRMSQA#3).
                 new RhshfFinancingLineDetail(
-                    l.BaseUnit, l.PackSize, l.PackUnit, l.PackCount, l.PricePerPack, l.ProcurementQuantity,
-                    l.PackagingExcessQuantity, l.PriceVersionId, l.SupplierProductId,
-                    l.ServiceProvider?.ProviderId, l.ServiceProvider?.RegisteredName, l.ServiceProvider?.ServiceType,
-                    l.ServiceProvider?.Rate, l.ServiceProvider?.RateBasis, l.ServiceProvider?.RateVersion,
-                    l.ServiceProvider?.BillableQuantity, l.ServiceProvider?.AssignmentId)))
+                    l.PackSizeUnit ?? l.BaseUnit, l.PackSize, l.PackUnit, l.NumberOfPacks ?? l.PackCount,
+                    l.PricePerPack, l.ProcurementQuantity,
+                    l.PackagingAdjustmentQuantity ?? l.PackagingExcessQuantity, l.PriceVersionId, l.SupplierProductId,
+                    l.ServiceProvider?.ProviderId,
+                    l.ServiceProvider?.LegalName ?? l.ServiceProvider?.RegisteredName,
+                    l.ServiceProvider?.ServiceType,
+                    l.ServiceProvider?.ApprovedRate ?? l.ServiceProvider?.Rate, l.ServiceProvider?.RateBasis,
+                    l.ServiceProvider?.RateVersion,
+                    l.ServiceProvider?.Quantity ?? l.ServiceProvider?.BillableQuantity,
+                    l.ServiceProvider?.AssignmentReference ?? l.ServiceProvider?.AssignmentId,
+                    l.PriceVersion)))
             .ToList();
 
         var charges = (financing.Charges ?? [])
@@ -198,7 +205,7 @@ public class SubmitConsolidatedEopHandler
                 e.EopId, e.Crop, e.State, e.Farmers, e.Inputs ?? 0m, e.PackagingExcess ?? 0m,
                 e.Insurance ?? 0m, e.WorkingCapital ?? 0m, e.TechServicesFee ?? 0m,
                 e.ApprovedTotal ?? 0m, e.LoanAmount ?? 0m,
-                e.EopReference, e.ApprovedAt, e.Revision, e.SnapshotHash))
+                e.EopReference, e.BoaApprovalDate ?? e.ApprovedAt, e.Revision, e.SnapshotHash))
             .ToList();
 
     /// <summary>Best-effort branch resolution (design doc §3.1) — mirrors the algorithm
