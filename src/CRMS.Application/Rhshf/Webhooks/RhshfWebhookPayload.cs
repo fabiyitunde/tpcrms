@@ -33,7 +33,11 @@ public record RhshfWebhookPayload(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RhshfPortalCorrectionPayload? Correction = null,
     /// <summary>The EOPs the offer or decision was made on (CRMSQA#3 contract point 4). Omitted until
     /// there is an offer or a final decision.</summary>
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<RhshfPortalDecisionBasis>? DecisionBasis = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<RhshfPortalDecisionBasis>? DecisionBasis = null,
+    /// <summary>By when the FAC must act on ActionRequired; omitted when there is no deadline.</summary>
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTime? ActionDeadline = null,
+    /// <summary>See <see cref="RhshfPortalStateBuilder.SchemaVersion"/>.</summary>
+    int SchemaVersion = RhshfPortalStateBuilder.SchemaVersion);
 
 public record RhshfWebhookDecisionPayload(
     string Outcome,
@@ -73,7 +77,8 @@ public static class RhshfWebhookPayloadBuilder
             StateVersion: state.StateVersion,
             Offer: state.Offer,
             Correction: state.Correction,
-            DecisionBasis: state.DecisionBasis);
+            DecisionBasis: state.DecisionBasis,
+            ActionDeadline: state.ActionDeadline);
     }
 
     /// <summary>"reasons" is populated on DECLINE / INFO_REQUIRED only (brief §4.4) — DecisionNotes

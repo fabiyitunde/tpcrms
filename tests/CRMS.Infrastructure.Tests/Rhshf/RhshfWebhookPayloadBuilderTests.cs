@@ -197,6 +197,10 @@ public class RhshfWebhookPayloadBuilderTests
         Assert.Equal("OFFER_READY", root.GetProperty("eventType").GetString());
         Assert.True(root.GetProperty("stateVersion").GetInt32() > 0);
 
+        // CRMSQA#1: a deadline beside the action, and the contract version on every update.
+        Assert.Equal(offer.ExpiresAt, root.GetProperty("actionDeadline").GetDateTime());
+        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+
         var offerJson = root.GetProperty("offer");
         Assert.Equal("AVAILABLE", offerJson.GetProperty("status").GetString());
         Assert.Equal(1, offerJson.GetProperty("version").GetInt32());

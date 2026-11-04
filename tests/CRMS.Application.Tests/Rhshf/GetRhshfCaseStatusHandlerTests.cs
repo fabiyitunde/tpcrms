@@ -27,7 +27,7 @@ public class GetRhshfCaseStatusHandlerTests
     public async Task Status_RightAfterCreate_IsProfilingPending_WithFirstStage()
     {
         var profile = MakeProfile();
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -48,7 +48,7 @@ public class GetRhshfCaseStatusHandlerTests
         profile.AdvanceStage(RhshfProfilingStage.CompanyVerification);
         profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck);
         profile.AdvanceStage(RhshfProfilingStage.EopReview);
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -78,7 +78,7 @@ public class GetRhshfCaseStatusHandlerTests
         offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
         offer.Accept(null);
         profile.AdvanceToPreDeploymentFromOffer();
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -106,7 +106,7 @@ public class GetRhshfCaseStatusHandlerTests
         profile.AdvanceToRatification();
         profile.Ratify(Guid.NewGuid(), RhshfRatificationOutcome.Ratified, TotalEopValue, null, null, []);
         var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -137,7 +137,7 @@ public class GetRhshfCaseStatusHandlerTests
         offer.AddDocument("signed.pdf", "application/pdf", "path/signed.pdf", 1024);
         offer.Accept(null);
         profile.AdvanceToPreDeploymentFromOffer();
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -171,7 +171,7 @@ public class GetRhshfCaseStatusHandlerTests
         profile.ConfirmPreDeploymentChecklistItem(item.Id, Guid.NewGuid(), true, null);
         profile.CompletePreDeploymentVerification(Guid.NewGuid(), null);
         profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 9001L, "LN-009001", null);
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -202,7 +202,7 @@ public class GetRhshfCaseStatusHandlerTests
         var offer = RhshfOffer.Create(profile.Id, profile.CurrentCycleNumber, "path/offer.pdf").Value;
         offer.Reject("not interested");
         profile.CancelDueToOfferRejection("not interested");
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -214,7 +214,7 @@ public class GetRhshfCaseStatusHandlerTests
     [Fact]
     public async Task Status_CaseNotFound_Fails()
     {
-        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(null), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider());
+        var handler = new GetRhshfCaseStatusHandler(new FakeProfileRepository(null), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery("RHSHF-2026-999999"));
 
@@ -240,6 +240,51 @@ public class GetRhshfCaseStatusHandlerTests
         public Task<RhshfSupportingDocument?> GetSupportingDocumentByIdAsync(Guid documentId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
+    /// <summary>The updates already sent for the case, for the status check's eventType.</summary>
+    private class FakeUpdates : IRhshfCallbackAttemptRepository
+    {
+        private readonly List<RhshfCallbackAttempt> _sent;
+        public FakeUpdates(params RhshfCallbackAttempt[] sent) => _sent = [.. sent];
+        public Task<IReadOnlyList<RhshfCallbackAttempt>> GetDueAsync(DateTime asOf, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<RhshfCallbackAttempt>>([]);
+        public Task<IReadOnlyList<RhshfCallbackAttempt>> GetByProfileAsync(Guid rhshfCreditProfileId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<RhshfCallbackAttempt>>(_sent.Where(a => a.RhshfCreditProfileId == rhshfCreditProfileId).ToList());
+        public Task AddAsync(RhshfCallbackAttempt attempt, CancellationToken ct = default) => Task.CompletedTask;
+    }
+
+    // ── eventType, actionDeadline, schemaVersion (CRMSQA#3 Slice A, CRMSQA#1) ─────────────────────
+
+    [Fact]
+    public async Task Status_ReportsTheLastUpdateSent_TheOfferDeadline_AndTheSchemaVersion()
+    {
+        var profile = AwaitingOfferAcceptance(out var offer);
+        var handler = new GetRhshfCaseStatusHandler(
+            new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider(),
+            new FakeUpdates(
+                RhshfCallbackAttempt.CreateFirst(profile.Id, RhshfCallbackEventType.SubmittedForReview, DateTime.UtcNow.AddDays(-3)),
+                RhshfCallbackAttempt.CreateFirst(profile.Id, RhshfCallbackEventType.OfferReady, DateTime.UtcNow.AddMinutes(-5))));
+
+        var result = (await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference))).Data!;
+
+        Assert.Equal("OFFER_READY", result.EventType);
+        Assert.Equal(offer.ExpiresAt, result.ActionDeadline);
+        Assert.Equal(1, result.SchemaVersion);
+    }
+
+    [Fact]
+    public async Task Status_BeforeAnyUpdate_HasNoEventType_AndNoDeadlineWithoutAnOffer()
+    {
+        var profile = MakeProfile();
+        var handler = new GetRhshfCaseStatusHandler(
+            new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
+
+        var result = (await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference))).Data!;
+
+        Assert.Null(result.EventType);
+        Assert.Null(result.ActionDeadline);
+        Assert.Equal(1, result.SchemaVersion);
+    }
+
     private class FakeOfferRepository : IRhshfOfferRepository
     {
         private readonly RhshfOffer? _offer;
@@ -262,7 +307,7 @@ public class GetRhshfCaseStatusHandlerTests
     {
         var profile = MakeProfile();
         var handler = new GetRhshfCaseStatusHandler(
-            new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider());
+            new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -278,7 +323,7 @@ public class GetRhshfCaseStatusHandlerTests
         var profile = AwaitingOfferAcceptance(out var offer);
         var handler = new GetRhshfCaseStatusHandler(
             new FakeProfileRepository(profile), new FakeOfferRepository(offer),
-            new FakeRhshfPublicUrlProvider(host: null));
+            new FakeRhshfPublicUrlProvider(host: null), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -291,7 +336,7 @@ public class GetRhshfCaseStatusHandlerTests
     {
         var profile = AwaitingOfferAcceptance(out var offer);
         var handler = new GetRhshfCaseStatusHandler(
-            new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
+            new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -311,7 +356,7 @@ public class GetRhshfCaseStatusHandlerTests
     {
         var profile = AwaitingOfferAcceptance(out var offer);
         var handler = new GetRhshfCaseStatusHandler(
-            new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider());
+            new FakeProfileRepository(profile), new FakeOfferRepository(offer), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 
@@ -335,7 +380,7 @@ public class GetRhshfCaseStatusHandlerTests
         }
         profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.ReturnToFac, "Upload the signed CAM.", RhshfProfilingStage.SupportingDocuments);
         var handler = new GetRhshfCaseStatusHandler(
-            new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider());
+            new FakeProfileRepository(profile), new FakeOfferRepository(), new FakeRhshfPublicUrlProvider(), new FakeUpdates());
 
         var result = await handler.Handle(new GetRhshfCaseStatusQuery(profile.Reference));
 

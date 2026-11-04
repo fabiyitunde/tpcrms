@@ -17,8 +17,11 @@ CRMSQA#3.
 - **Ordered:** every update carries the case **as it stands when it is sent**, plus `stateVersion`,
   which only goes up. Ignore an update whose `stateVersion` is lower than the one you hold. A late
   retry therefore never moves a case backwards.
-- **Recovery:** `GET /v1/credit-profiles/{reference}/status` (API key) returns the same fields. Use
-  it for the Refresh Status button and for a scheduled check of open cases.
+- **Recovery:** `GET /v1/credit-profiles/{reference}/status` (API key) returns the same fields:
+  `creditStatus`, `stateVersion`, `offer`, `actionRequired`, `actionUrl`, `actionDeadline`,
+  `correction`, `decision`, `decisionBasis` and `schemaVersion`. Its `eventType` is the type of the last
+  update the CRMS sent for the case, null if none, since a poll is not an event of its own. Use it for
+  the Refresh Status button and for a scheduled check of open cases.
 
 ## Payload
 
@@ -34,6 +37,8 @@ CRMSQA#3.
   "stateVersion": 41,
   "actionRequired": null,
   "actionUrl": null,
+  "actionDeadline": null,
+  "schemaVersion": 1,
   "offer": { "status": "ACCEPTED", "version": 4, "approvedAmount": 12884464.00, "currency": "NGN",
              "issuedAt": "2026-10-28T10:24:36Z", "respondedAt": "2026-10-28T16:56:40Z" },
   "correction": null,
@@ -42,7 +47,15 @@ CRMSQA#3.
 ```
 
 `status` is the original coarse field, kept so older handling keeps working. Display `creditStatus`.
-`actionRequired`, `actionUrl`, `offer`, `correction` and `decision` are left out when empty.
+`actionRequired`, `actionUrl`, `actionDeadline`, `offer`, `correction`, `decision` and `decisionBasis`
+are left out when empty.
+
+- **`actionDeadline`:** by when the FAC must act. While an offer awaits acceptance it is the offer's
+  expiry date, which an administrator sets on the RH-SHF product (7 days unless changed). A correction
+  has no deadline. The CRMS does not yet lapse an offer on this date.
+- **`schemaVersion`:** the version of this contract, on every update and status check. It goes up only
+  for a change a reader must act on: a field removed, renamed or given a new meaning, or a new value in
+  an existing field. A new optional field does not change it.
 
 ## Events
 

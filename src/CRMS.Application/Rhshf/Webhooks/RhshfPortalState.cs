@@ -51,12 +51,23 @@ public record RhshfPortalState(
     RhshfPortalOfferPayload? Offer,
     RhshfPortalCorrectionPayload? Correction,
     /// <summary>The EOPs the offer or decision was made on. Null until there is one.</summary>
-    IReadOnlyList<RhshfPortalDecisionBasis>? DecisionBasis = null);
+    IReadOnlyList<RhshfPortalDecisionBasis>? DecisionBasis = null,
+    /// <summary>By when the FAC must act on ActionRequired: the offer's expiry date while an offer
+    /// awaits acceptance. Null when there is no deadline, including for a correction, which has none.
+    /// The CRMS does not yet lapse an offer on this date.</summary>
+    DateTime? ActionDeadline = null);
 
 public static class RhshfPortalStateBuilder
 {
     public const string ReviewOffer = "REVIEW_OFFER";
     public const string CorrectProfile = "CORRECT_PROFILE";
+
+    /// <summary>
+    /// The version of the update contract, sent on every webhook and status check (CRMSQA#1). Goes up
+    /// only for a change a reader must act on: a field removed, renamed or given a new meaning, or a
+    /// new value in an existing field. A new optional field does not change it.
+    /// </summary>
+    public const int SchemaVersion = 1;
 
     /// <param name="currentOffer">The offer for the profile's current cycle, if one was issued.</param>
     /// <param name="offerUrl">FAC-facing offer page, without a token; null when no public host is set.</param>
@@ -94,9 +105,11 @@ public static class RhshfPortalStateBuilder
         // Every transition writes one history row, so the count only ever goes up — a monotonic
         // version without a column of its own. Cases from before the trail existed start low, but
         // still climb from wherever they are.
+        DateTime? actionDeadline = creditStatus == "OFFER_READY" ? currentOffer?.ExpiresAt : null;
+
         return new RhshfPortalState(
             creditStatus, profile.StatusHistory.Count, actionRequired, actionUrl, offer, correction,
-            DecisionBasis(profile, currentOffer));
+            DecisionBasis(profile, currentOffer), actionDeadline);
     }
 
     /// <summary>

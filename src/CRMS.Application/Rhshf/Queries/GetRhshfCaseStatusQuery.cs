@@ -30,20 +30,29 @@ public record RhshfCaseStatusDto(
     RhshfPortalOfferPayload? Offer,
     RhshfPortalCorrectionPayload? Correction,
     /// <summary>The EOPs the offer or decision was made on; null until there is one.</summary>
-    IReadOnlyList<RhshfPortalDecisionBasis>? DecisionBasis = null);
+    IReadOnlyList<RhshfPortalDecisionBasis>? DecisionBasis = null,
+    /// <summary>The type of the last update the CRMS sent for this case (OFFER_READY, DECIDED, …);
+    /// null if none has been sent. A poll is not an event of its own, so it reports the last one.</summary>
+    string? EventType = null,
+    /// <summary>By when the FAC must act on ActionRequired; null when there is no deadline.</summary>
+    DateTime? ActionDeadline = null,
+    int SchemaVersion = RhshfPortalStateBuilder.SchemaVersion);
 
 public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery, ApplicationResult<RhshfCaseStatusDto>>
 {
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfOfferRepository _offerRepo;
     private readonly IRhshfPublicUrlProvider _urls;
+    private readonly IRhshfCallbackAttemptRepository _updates;
 
     public GetRhshfCaseStatusHandler(
-        IRhshfCreditProfileRepository repo, IRhshfOfferRepository offerRepo, IRhshfPublicUrlProvider urls)
+        IRhshfCreditProfileRepository repo, IRhshfOfferRepository offerRepo, IRhshfPublicUrlProvider urls,
+        IRhshfCallbackAttemptRepository updates)
     {
         _repo = repo;
         _offerRepo = offerRepo;
         _urls = urls;
+        _updates = updates;
     }
 
     public async Task<ApplicationResult<RhshfCaseStatusDto>> Handle(GetRhshfCaseStatusQuery request, CancellationToken ct = default)
@@ -81,7 +90,11 @@ public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery
             StateVersion: state.StateVersion,
             Offer: state.Offer,
             Correction: state.Correction,
-            DecisionBasis: state.DecisionBasis);
+            DecisionBasis: state.DecisionBasis,
+            EventType: (await _updates.GetByProfileAsync(profile.Id, ct))
+                .OrderByDescending(a => a.EventOccurredAt)
+                .FirstOrDefault()?.EventType.ToExternalEventType(),
+            ActionDeadline: state.ActionDeadline);
 
         return ApplicationResult<RhshfCaseStatusDto>.Success(dto);
     }
