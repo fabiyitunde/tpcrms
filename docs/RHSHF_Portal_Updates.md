@@ -162,12 +162,16 @@ not existing ones (see CRMSQA#3).
 
 ## EOP versions and decisions (CRMSQA#3 contract points 3 to 5)
 
-**The v1 hash is checked.** When an EOP arrives with `snapshotHashScheme` `rhshf-eop-snapshot-v1`, the
-CRMS works the hash out from the EOP and its lines in the same payload, by the portal's published rules,
-and compares. The result is kept on the EOP: verified, mismatch, not sent, or unsupported scheme. A
+**Both hashes are checked.** When an EOP arrives with `snapshotHashScheme` `rhshf-eop-snapshot-v1`, or
+`snapshotHashV2Scheme` `rhshf-eop-snapshot-v2`, the CRMS works each hash out from the EOP and its lines in
+the same payload, by the portal's published rules, and compares. The v2 rules are the portal's of 4 Nov;
+the CRMS reproduces all five of its worked hashes. The result is kept on the EOP: verified, mismatch, not
+sent, or unsupported scheme. Either hash not matching is a mismatch, since both describe the same EOP. A
 mismatch does not refuse the submission, but it blocks ratification until a Final Approver overrides it
-with a reason, the same way a service line without a provider does. The v2 hash is stored but not
-checked until the portal publishes its rules.
+with a reason, the same way a service line without a provider does.
+
+In v2, `rateVersion` is hashed as a JSON integer, `assignmentReference` and `rateId` as lowercase GUIDs,
+and `serviceInputReference` is read from the line as sent (null until the portal's Slice 2).
 
 **Each offer and decision names the EOP version it was made on.** Once a case has an offer or a final
 decision, the webhook and `GET /v1/credit-profiles/{reference}/status` carry `decisionBasis`:
@@ -194,6 +198,19 @@ or that adds or drops an EOP, is answered with **409**:
 Nothing from that repeat is taken, the farmer list included. A plain retry carries the same hashes and
 is answered as before. When neither side carries a hash, the CRMS cannot tell an amendment from a retry,
 and the repeat is answered as before.
+
+**The same EOP is not taken on two live cases.** A new submission (a new `submissionId`) carrying an
+EOP that is already on another case that is open or approved is answered with **409**, and no case is
+created:
+
+```json
+{ "error": "eop_on_another_case", "message": "…",
+  "eops": [ { "eopId": "3cc02579-…", "eopReference": "EOP-3CC02579", "caseReference": "RHSHF-2026-142126" } ] }
+```
+
+It is permanent: a retry gets the same answer. A declined, cancelled or expired case does not hold its
+EOPs, so a new submission after one of those is taken as a new case. Amending a case's EOP is a separate
+process, not built yet; until it is, an amendment must not be sent as a new submission.
 
 ## The farmer schedule
 

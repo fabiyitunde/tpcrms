@@ -178,7 +178,10 @@ public record RhshfFinancingInputLineDto(
     Guid? LineId = null,
     string? SupplierCatalogueReference = null,
     /// <summary>"ASSIGNED" or "UNASSIGNED" on a service line, null otherwise.</summary>
-    string? ProviderStatus = null);
+    string? ProviderStatus = null,
+    /// <summary>The service input a service line delivers. Null until the portal's Slice 2; hashed in
+    /// v2 as sent and never inferred.</summary>
+    string? ServiceInputReference = null);
 
 public record RhshfServiceProviderDto(
     string? ProviderId = null,
