@@ -19,7 +19,7 @@ CRMSQA#3.
   retry therefore never moves a case backwards.
 - **Recovery:** `GET /v1/credit-profiles/{reference}/status` (API key) returns the same fields:
   `creditStatus`, `stateVersion`, `offer`, `actionRequired`, `actionUrl`, `actionDeadline`,
-  `correction`, `decision`, `decisionBasis`, `statusReasonCode` and `schemaVersion`. Its `eventType` is the type of the last
+  `correction`, `decision`, `decisionBasis`, `statusReasonCode`, `amendment` and `schemaVersion`. Its `eventType` is the type of the last
   update the CRMS sent for the case, null if none, since a poll is not an event of its own. Use it for
   the Refresh Status button and for a scheduled check of open cases.
 
@@ -47,8 +47,8 @@ CRMSQA#3.
 ```
 
 `status` is the original coarse field, kept so older handling keeps working. Display `creditStatus`.
-`actionRequired`, `actionUrl`, `actionDeadline`, `offer`, `correction`, `decision`, `decisionBasis` and
-`statusReasonCode` are left out when empty.
+`actionRequired`, `actionUrl`, `actionDeadline`, `offer`, `correction`, `decision`, `decisionBasis`,
+`statusReasonCode` and `amendment` are left out when empty.
 
 - **`actionDeadline`:** by when the FAC must act. While an offer awaits acceptance it is the offer's
   expiry date, which an administrator sets on the RH-SHF product (7 days unless changed). A correction
@@ -209,8 +209,50 @@ created:
 ```
 
 It is permanent: a retry gets the same answer. A declined, cancelled or expired case does not hold its
-EOPs, so a new submission after one of those is taken as a new case. Amending a case's EOP is a separate
-process, not built yet; until it is, an amendment must not be sent as a new submission.
+EOPs, so a new submission after one of those is taken as a new case. To change the EOPs of a live case,
+send an amendment (below), not a new submission.
+
+## Amending a case's EOPs
+
+An amendment is a submission to `POST /v1/credit-profiles` with its own new `submissionId` and
+`amendsReference` set to the case reference. It carries the whole case as it now stands:
+
+- **Every EOP on the case is listed**, each with its snapshot hash. An unchanged EOP keeps the revision
+  and hash the CRMS holds. A changed one carries a higher `revision` and its new hash. An EOP not yet on
+  the case is an addition. An amendment that changes nothing is refused.
+- **The FAC must be the case's FAC**, and the breakdown must reconcile as on a first submission.
+  `totalEopValue`, `farmerCount` and `eopLines` are taken from the amendment.
+- **`farmerSchedule`**, if sent, replaces the case's farmer list. If not sent, farmers on EOPs the case
+  no longer has come off and the rest stay.
+- **A repeat** with the same `submissionId` is a retry and is answered with the case, unchanged.
+
+What the CRMS does with it:
+
+1. The case takes the amended breakdown. The replaced one is kept on the case's record, with the
+   revisions and hashes anything decided before the amendment was decided on.
+2. A case in review starts a new review cycle from appraisal, so every stage looks at the amended EOPs
+   again. (An administrator can set it to start from legal clearance instead, on the RH-SHF product.)
+   An offer not yet accepted, or accepted but not yet disbursed, is withdrawn. The case's collateral is
+   carried into the new review as declared; Legal confirms its perfection again.
+3. A case back with the FAC for correction takes the amended breakdown and is reviewed when the FAC
+   resubmits.
+4. Refused once the case is declined, cancelled or expired (send a new submission instead) or the loan
+   is booked (a change then needs a new facility).
+
+The portal hears of it as an update with `eventType` `CORRECTION_SUBMITTED` and `creditStatus`
+`UNDER_CREDIT_REVIEW`. `offer` and `decisionBasis` are left out until the new review makes an offer.
+From then until the case moves to another review, updates and the status check carry `amendment`:
+
+```json
+"amendment": {
+  "submissionId": "…", "amendedAt": "2026-11-04T15:14:03Z", "offerWithdrawn": true,
+  "eops": [ { "eopId": "3cc02579-…", "eopReference": "EOP-3CC02579", "fromRevision": 1, "toRevision": 2, "added": false } ]
+}
+```
+
+Refusals: **404** `{ "error": "case_not_found" }` when no case has the reference; **409**
+`{ "error": "amendment_refused", "message": "…" }` naming what is wrong; **409** `eop_on_another_case`
+when an EOP is on another live case. All are permanent.
 
 ## The farmer schedule
 

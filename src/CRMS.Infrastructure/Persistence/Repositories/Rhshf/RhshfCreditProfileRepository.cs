@@ -55,6 +55,7 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
             .Include(x => x.FinancingLines)
             .Include(x => x.FinancingCharges)
             .Include(x => x.FinancingEops)
+            .Include(x => x.Amendments)
             .AsSplitQuery();
 
     public async Task AddAsync(RhshfCreditProfile profile, CancellationToken ct = default)

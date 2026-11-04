@@ -70,6 +70,13 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
             .WithOne()
             .HasForeignKey(x => x.RhshfCreditProfileId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.Amendments)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Ignore(x => x.CurrentCycleAmendment);
+        builder.Ignore(x => x.IsBooked);
         builder.Ignore(x => x.FinancedFarmerCount);
 
         builder.Property(x => x.CallbackUrl).IsRequired().HasMaxLength(500);
@@ -329,6 +336,26 @@ public class RhshfFinancingLineConfiguration : IEntityTypeConfiguration<RhshfFin
         builder.HasIndex(x => x.RhshfCreditProfileId);
         // Finds the case already holding an EOP, so a second live case for it is refused (CRMSQA#3).
         builder.HasIndex(x => x.EopId);
+    }
+}
+
+public class RhshfEopAmendmentConfiguration : IEntityTypeConfiguration<RhshfEopAmendment>
+{
+    public void Configure(EntityTypeBuilder<RhshfEopAmendment> builder)
+    {
+        builder.ToTable("RhshfEopAmendments");
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.PreviousTotalEopValue).IsRequired().HasColumnType("decimal(18,2)");
+        builder.Property(x => x.NewTotalEopValue).IsRequired().HasColumnType("decimal(18,2)");
+        builder.Property(x => x.ChangesJson).IsRequired().HasColumnType("longtext");
+        builder.Property(x => x.PreviousBreakdownJson).IsRequired().HasColumnType("longtext");
+        builder.Property(x => x.RawPayload).IsRequired().HasColumnType("longtext");
+        builder.Ignore(x => x.Changes);
+
+        builder.HasIndex(x => x.RhshfCreditProfileId);
+        // One amendment per portal submission: a repeat is a retry.
+        builder.HasIndex(x => x.SubmissionId).IsUnique();
     }
 }
 

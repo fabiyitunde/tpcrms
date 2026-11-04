@@ -33,6 +33,11 @@ public class LoanProductConfiguration : IEntityTypeConfiguration<LoanProduct>
         builder.Property(x => x.Status)
             .IsRequired();
 
+        // RH-SHF only; by name, like every other enum.
+        builder.Property(x => x.AmendmentRestartStage)
+            .HasConversion<string>()
+            .HasMaxLength(30);
+
         builder.Property(x => x.MinTenorMonths)
             .IsRequired();
 

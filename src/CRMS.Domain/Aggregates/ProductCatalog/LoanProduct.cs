@@ -52,6 +52,29 @@ public class LoanProduct : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>
+    /// RH-SHF only: where a case's new review starts when the portal amends its EOPs (CRMSQA#3). Set
+    /// by an administrator; null means <see cref="DefaultAmendmentRestartStage"/>, so every stage
+    /// looks at the amended EOPs again.
+    /// </summary>
+    public RhshfInternalStage? AmendmentRestartStage { get; private set; }
+
+    public const RhshfInternalStage DefaultAmendmentRestartStage = RhshfInternalStage.Appraisal;
+
+    public RhshfInternalStage EffectiveAmendmentRestartStage => AmendmentRestartStage ?? DefaultAmendmentRestartStage;
+
+    /// <summary>Null clears it back to the default.</summary>
+    public Result SetAmendmentRestartStage(RhshfInternalStage? stage)
+    {
+        if (Status == ProductStatus.Discontinued)
+            return Result.Failure("Cannot modify a discontinued product");
+        if (stage is not null && !Rhshf.RhshfCreditProfile.AmendmentRestartStages.Contains(stage.Value))
+            return Result.Failure("An amended case can restart at appraisal or legal clearance only.");
+
+        AmendmentRestartStage = stage;
+        return Result.Success();
+    }
+
     private readonly List<PricingTier> _pricingTiers = [];
     private readonly List<EligibilityRule> _eligibilityRules = [];
     private readonly List<DocumentRequirement> _documentRequirements = [];

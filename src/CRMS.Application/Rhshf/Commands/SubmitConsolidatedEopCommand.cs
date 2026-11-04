@@ -29,6 +29,12 @@ public class SubmitConsolidatedEopHandler
     /// with 409 <c>eop_on_another_case</c>, the holders following as <see cref="FormatHolder"/> lines.</summary>
     public const string EopOnAnotherCaseError = "An EOP in this submission is already on another CRMS case:";
 
+    /// <summary>How the refusal of an amendment begins; the API answers it with 409 <c>amendment_refused</c>.</summary>
+    public const string AmendmentRefusedError = "The CRMS did not take this amendment:";
+
+    /// <summary>How an amendment naming an unknown case begins; the API answers it with 404 <c>case_not_found</c>.</summary>
+    public const string AmendedCaseNotFoundError = "No CRMS case has the reference in amendsReference:";
+
     public static string FormatHolder(RhshfEopHolder h) => $"{h.EopId}|{h.EopReference}|{h.CaseReference}";
 
     public static RhshfEopHolder ParseHolder(string line)
@@ -44,6 +50,9 @@ public class SubmitConsolidatedEopHandler
     private readonly IUnitOfWork _uow;
     private readonly IRhshfScheduleFarmerRepository _schedule;
     private readonly IRhshfEopHolderLookup? _eopHolders;
+    private readonly IRhshfOfferRepository? _offers;
+    private readonly IRhshfCollateralRepository? _collateral;
+    private readonly ILoanProductRepository? _products;
 
     public SubmitConsolidatedEopHandler(
         IRhshfCreditProfileRepository repo,
@@ -52,7 +61,10 @@ public class SubmitConsolidatedEopHandler
         ILocationRepository locationRepo,
         IUnitOfWork uow,
         IRhshfScheduleFarmerRepository schedule,
-        IRhshfEopHolderLookup? eopHolders = null)
+        IRhshfEopHolderLookup? eopHolders = null,
+        IRhshfOfferRepository? offers = null,
+        IRhshfCollateralRepository? collateral = null,
+        ILoanProductRepository? products = null)
     {
         _repo = repo;
         _tokenService = tokenService;
@@ -61,12 +73,18 @@ public class SubmitConsolidatedEopHandler
         _uow = uow;
         _schedule = schedule;
         _eopHolders = eopHolders;
+        _offers = offers;
+        _collateral = collateral;
+        _products = products;
     }
 
     public async Task<ApplicationResult<SubmitConsolidatedEopResultDto>> Handle(
         SubmitConsolidatedEopCommand request, CancellationToken ct = default)
     {
         var req = request.Request;
+
+        if (!string.IsNullOrWhiteSpace(req.AmendsReference))
+            return await AmendAsync(request, ct);
 
         var existing = await _repo.GetBySubmissionIdAsync(req.SubmissionId, ct);
         if (existing is not null)
@@ -122,22 +140,10 @@ public class SubmitConsolidatedEopHandler
         }
 
         // A new case for an EOP another live case already holds would finance the same farmers twice.
-        // An amendment to a case is not a new case, and is not accepted this way.
-        if (_eopHolders is not null)
-        {
-            var eopIds = (req.Financing?.Eops ?? []).Select(e => e?.EopId)
-                .Concat((req.Financing?.InputLines ?? []).Select(l => l?.EopId))
-                .OfType<Guid>().Distinct().ToList();
-            var holders = await _eopHolders.GetLiveHoldersAsync(eopIds, ct);
-            if (holders.Count > 0)
-                return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(
-                [
-                    $"{EopOnAnotherCaseError} "
-                    + string.Join("; ", holders.Select(h => $"{h.EopReference ?? h.EopId.ToString()} is on {h.CaseReference}"))
-                    + ". A case that is open or approved keeps its EOPs; a declined or cancelled one does not.",
-                    .. holders.Select(FormatHolder),
-                ]);
-        }
+        // An amendment to a case comes with amendsReference instead.
+        var heldElsewhere = await EopsHeldElsewhereAsync(req.Financing, exceptCase: null, ct);
+        if (heldElsewhere is not null)
+            return heldElsewhere;
 
         var eopLines = req.EopLines?.Select(l => new RhshfEopLineInput(
             l.Commodity, l.QuantityKg, l.UnitPricePerKg, l.LineValue,
@@ -185,6 +191,112 @@ public class SubmitConsolidatedEopHandler
         var response = IssueTokenAndBuildResponse(profile);
         await _uow.SaveChangesAsync(ct);
 
+        return ApplicationResult<SubmitConsolidatedEopResultDto>.Success(response);
+    }
+
+    /// <summary>The refusal when any EOP in <paramref name="financing"/> is on another live case, else null.</summary>
+    private async Task<ApplicationResult<SubmitConsolidatedEopResultDto>?> EopsHeldElsewhereAsync(
+        RhshfFinancingDto? financing, string? exceptCase, CancellationToken ct)
+    {
+        if (_eopHolders is null)
+            return null;
+        var eopIds = (financing?.Eops ?? []).Select(e => e?.EopId)
+            .Concat((financing?.InputLines ?? []).Select(l => l?.EopId))
+            .OfType<Guid>().Distinct().ToList();
+        var holders = (await _eopHolders.GetLiveHoldersAsync(eopIds, ct))
+            .Where(h => h.CaseReference != exceptCase).ToList();
+        if (holders.Count == 0)
+            return null;
+        return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(
+        [
+            $"{EopOnAnotherCaseError} "
+            + string.Join("; ", holders.Select(h => $"{h.EopReference ?? h.EopId.ToString()} is on {h.CaseReference}"))
+            + ". A case that is open or approved keeps its EOPs; a declined or cancelled one does not.",
+            .. holders.Select(FormatHolder),
+        ]);
+    }
+
+    /// <summary>
+    /// An amendment of an existing case's EOPs (CRMSQA#3). The case takes the amended breakdown; a case
+    /// in review starts a new review cycle at the stage the RH-SHF product sets (appraisal unless an
+    /// administrator chose otherwise). Its open offer is superseded, its collateral is carried into the
+    /// new cycle, and its farmer list follows the new EOPs. A repeat with the same submissionId is a retry.
+    /// </summary>
+    private async Task<ApplicationResult<SubmitConsolidatedEopResultDto>> AmendAsync(
+        SubmitConsolidatedEopCommand request, CancellationToken ct)
+    {
+        var req = request.Request;
+        var reference = req.AmendsReference!.Trim();
+        static ApplicationResult<SubmitConsolidatedEopResultDto> Refused(string why)
+            => ApplicationResult<SubmitConsolidatedEopResultDto>.Failure($"{AmendmentRefusedError} {why}");
+
+        var profile = await _repo.GetByReferenceAsync(reference, ct);
+        if (profile is null)
+            return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure($"{AmendedCaseNotFoundError} {reference}.");
+
+        if (profile.HasAmendment(req.SubmissionId))
+        {
+            var retried = IssueTokenAndBuildResponse(profile);
+            await _uow.SaveChangesAsync(ct);
+            return ApplicationResult<SubmitConsolidatedEopResultDto>.Success(retried);
+        }
+        if (profile.SubmissionId == req.SubmissionId || await _repo.GetBySubmissionIdAsync(req.SubmissionId, ct) is not null)
+            return Refused("an amendment needs a submissionId of its own, not one a case was submitted with.");
+        if (profile.FacId != req.Fac.FacId)
+            return Refused($"{reference} belongs to a different FAC.");
+        if (req.Financing is null)
+            return Refused("an amendment must carry the financing breakdown.");
+
+        var heldElsewhere = await EopsHeldElsewhereAsync(req.Financing, exceptCase: profile.Reference, ct);
+        if (heldElsewhere is not null)
+            return heldElsewhere;
+
+        var restartAt = _products is null
+            ? CRMS.Domain.Aggregates.ProductCatalog.LoanProduct.DefaultAmendmentRestartStage
+            : (await _products.GetActiveRhshfProductAsync(ct))?.EffectiveAmendmentRestartStage ?? CRMS.Domain.Aggregates.ProductCatalog.LoanProduct.DefaultAmendmentRestartStage;
+        var replacedCycle = profile.CurrentCycleNumber;
+        var openOffer = _offers is null || replacedCycle == 0 ? null : await _offers.GetByProfileAndCycleAsync(profile.Id, replacedCycle, ct);
+
+        var eopLines = req.EopLines?.Select(l => new RhshfEopLineInput(
+            l.Commodity, l.QuantityKg, l.UnitPricePerKg, l.LineValue,
+            l.Supplier, l.Product, l.UnitOfMeasurement)).ToList();
+        var amended = profile.AmendEops(
+            req.SubmissionId, MapFinancing(req.Financing)!, req.TotalEopValue, req.FarmerCount,
+            eopLines, restartAt, request.RawPayload);
+        if (amended.IsFailure)
+            return Refused(amended.Error);
+
+        if (profile.CurrentCycleNumber != replacedCycle)
+        {
+            // The offer was made on the EOPs as they were; it can no longer be accepted or acted on.
+            if (openOffer?.Status is RhshfOfferStatus.Generated or RhshfOfferStatus.AwaitingFacResponse or RhshfOfferStatus.Accepted)
+                openOffer.Supersede();
+
+            // The security has not changed: the new review starts with it on file, not re-declared.
+            if (_collateral is not null)
+                foreach (var held in await _collateral.GetByProfileAndCycleAsync(profile.Id, replacedCycle, ct))
+                    await _collateral.AddAsync(held.CopyToCycle(profile.CurrentCycleNumber), ct);
+        }
+
+        // The farmer list follows the EOPs: a new list replaces the old one; without one, farmers on an
+        // EOP the case no longer has come off.
+        if (req.FarmerSchedule is { Count: > 0 })
+        {
+            await _schedule.RemoveForProfileAsync(profile.Id, keepEopIds: null, ct);
+            var scheduled = await AddScheduleAsync(profile, req.FarmerSchedule, ct);
+            if (scheduled.IsFailure)
+                return Refused(scheduled.Error);
+        }
+        else
+        {
+            var eopIds = profile.FinancingEops.Select(e => e.EopId)
+                .Concat(profile.FinancingLines.Select(l => l.EopId))
+                .OfType<Guid>().ToHashSet();
+            await _schedule.RemoveForProfileAsync(profile.Id, eopIds, ct);
+        }
+
+        var response = IssueTokenAndBuildResponse(profile);
+        await _uow.SaveChangesAsync(ct);
         return ApplicationResult<SubmitConsolidatedEopResultDto>.Success(response);
     }
 

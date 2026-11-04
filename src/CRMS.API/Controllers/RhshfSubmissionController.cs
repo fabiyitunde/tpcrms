@@ -79,6 +79,13 @@ public class RhshfSubmissionController : ControllerBase
             if (result.Error?.StartsWith(SubmitConsolidatedEopHandler.EopChangedError, StringComparison.Ordinal) == true)
                 return Conflict(new { error = "eop_changed", message = result.Error, changedEops = result.Errors.Skip(1).ToList() });
 
+            // An amendment (CRMSQA#3): the case named is not known, or the amendment cannot be taken.
+            // Both permanent: a retry gets the same answer.
+            if (result.Error?.StartsWith(SubmitConsolidatedEopHandler.AmendedCaseNotFoundError, StringComparison.Ordinal) == true)
+                return NotFound(new { error = "case_not_found", message = result.Error });
+            if (result.Error?.StartsWith(SubmitConsolidatedEopHandler.AmendmentRefusedError, StringComparison.Ordinal) == true)
+                return Conflict(new { error = "amendment_refused", message = result.Error });
+
             // The same EOP on a second live case (CRMSQA#3). Permanent: a retry gets the same answer.
             if (result.Error?.StartsWith(SubmitConsolidatedEopHandler.EopOnAnotherCaseError, StringComparison.Ordinal) == true)
                 return Conflict(new

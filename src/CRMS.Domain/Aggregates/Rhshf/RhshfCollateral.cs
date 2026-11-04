@@ -98,6 +98,39 @@ public class RhshfCollateral : AggregateRoot
         });
     }
 
+    /// <summary>
+    /// This instrument as declared, with its documents, for a new review cycle — used when the portal
+    /// amends the case's EOPs and the review starts again (CRMSQA#3). The security has not changed, so
+    /// nobody re-declares it. Perfection is not carried: Legal asserts it afresh in the new cycle, as
+    /// the committee votes on that cycle's legal view.
+    /// </summary>
+    public RhshfCollateral CopyToCycle(int cycleNumber)
+    {
+        var copy = new RhshfCollateral
+        {
+            RhshfCreditProfileId = RhshfCreditProfileId,
+            CycleNumber = cycleNumber,
+            Type = Type,
+            ReferenceNumber = ReferenceNumber,
+            IssuedDate = IssuedDate,
+            ExpiryDate = ExpiryDate,
+            RecordedBy = RecordedBy,
+            RecordedAt = RecordedAt,
+            Notes = Notes,
+            GuarantorBankName = GuarantorBankName,
+            GuaranteeAmount = GuaranteeAmount,
+            IsUnconditional = IsUnconditional,
+            CrgCoveragePercentage = CrgCoveragePercentage,
+            PropertyDescription = PropertyDescription,
+            PropertyValue = PropertyValue,
+            TitleReferenceNumber = TitleReferenceNumber,
+            RegistrationAuthority = RegistrationAuthority,
+        };
+        foreach (var document in _documents)
+            copy.AddDocument(document.FileName, document.ContentType, document.StoragePath, document.SizeBytes);
+        return copy;
+    }
+
     public RhshfCollateralDocument AddDocument(string fileName, string contentType, string storagePath, long sizeBytes)
     {
         var document = new RhshfCollateralDocument(Id, fileName, contentType, storagePath, sizeBytes);

@@ -38,7 +38,9 @@ public record RhshfCaseStatusDto(
     DateTime? ActionDeadline = null,
     int SchemaVersion = RhshfPortalStateBuilder.SchemaVersion,
     /// <summary>Why the case is where it is; null when there is no reason to give.</summary>
-    string? StatusReasonCode = null);
+    string? StatusReasonCode = null,
+    /// <summary>Set while the current review follows an amendment of the EOPs; null otherwise.</summary>
+    RhshfPortalAmendment? Amendment = null);
 
 public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery, ApplicationResult<RhshfCaseStatusDto>>
 {
@@ -97,7 +99,8 @@ public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery
                 .OrderByDescending(a => a.EventOccurredAt)
                 .FirstOrDefault()?.EventType.ToExternalEventType(),
             ActionDeadline: state.ActionDeadline,
-            StatusReasonCode: state.StatusReasonCode);
+            StatusReasonCode: state.StatusReasonCode,
+            Amendment: state.Amendment);
 
         return ApplicationResult<RhshfCaseStatusDto>.Success(dto);
     }

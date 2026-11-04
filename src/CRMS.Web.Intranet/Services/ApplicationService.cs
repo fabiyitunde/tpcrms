@@ -3103,7 +3103,8 @@ public partial class ApplicationService
                 IsActive = (p.Status == "Active"),
                 FineractProductId = p.FineractProductId,
                 Segment = p.Type,
-                OfferValidityDays = p.OfferValidityDays
+                OfferValidityDays = p.OfferValidityDays,
+                AmendmentRestartStage = p.AmendmentRestartStage
             }).ToList();
         }
         catch (Exception ex)
@@ -3144,7 +3145,7 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, string segment = "Corporate", int? fineractProductId = null, int? offerValidityDays = null)
+    public async Task<ApiResponse> CreateLoanProductAsync(string code, string name, string description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, string segment = "Corporate", int? fineractProductId = null, int? offerValidityDays = null, string? amendmentRestartStage = null)
     {
         try
         {
@@ -3154,7 +3155,8 @@ public partial class ApplicationService
             var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.CreateLoanProductCommand(
                 code, name, description, segmentType,
                 minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate, fineractProductId,
-                segmentType == CRMS.Domain.Enums.LoanProductType.Rhshf ? offerValidityDays : null
+                segmentType == CRMS.Domain.Enums.LoanProductType.Rhshf ? offerValidityDays : null,
+                segmentType == CRMS.Domain.Enums.LoanProductType.Rhshf ? ParseRestartStage(amendmentRestartStage) : null
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to create product");
         }
@@ -3165,7 +3167,7 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, int? fineractProductId = null, string segment = "Corporate", int? offerValidityDays = null)
+    public async Task<ApiResponse> UpdateLoanProductAsync(Guid id, string name, string? description, decimal minAmount, decimal maxAmount, int minTenorMonths, int maxTenorMonths, decimal baseInterestRate = 0m, int? fineractProductId = null, string segment = "Corporate", int? offerValidityDays = null, string? amendmentRestartStage = null)
     {
         try
         {
@@ -3174,7 +3176,8 @@ public partial class ApplicationService
             var handler = _sp.GetRequiredService<CRMS.Application.ProductCatalog.Commands.UpdateLoanProductHandler>();
             var result = await handler.Handle(new CRMS.Application.ProductCatalog.Commands.UpdateLoanProductCommand(
                 id, name, description ?? string.Empty, segmentType, minAmount, maxAmount, "NGN", minTenorMonths, maxTenorMonths, baseInterestRate, fineractProductId,
-                segmentType == CRMS.Domain.Enums.LoanProductType.Rhshf ? offerValidityDays : null
+                segmentType == CRMS.Domain.Enums.LoanProductType.Rhshf ? offerValidityDays : null,
+                segmentType == CRMS.Domain.Enums.LoanProductType.Rhshf ? ParseRestartStage(amendmentRestartStage) : null
             ), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update product");
         }
@@ -3184,6 +3187,9 @@ public partial class ApplicationService
             return ApiResponse.Fail("Failed to update product");
         }
     }
+
+    private static CRMS.Domain.Enums.RhshfInternalStage? ParseRestartStage(string? stage)
+        => Enum.TryParse<CRMS.Domain.Enums.RhshfInternalStage>(stage, out var parsed) ? parsed : null;
 
     public async Task<ApiResponse> ToggleLoanProductAsync(Guid id, bool currentlyActive)
     {

@@ -46,6 +46,10 @@ public class CreateLoanProductHandler : IRequestHandler<CreateLoanProductCommand
         if (validityResult.IsFailure)
             return ApplicationResult<LoanProductDto>.Failure(validityResult.Error);
 
+        var restartResult = productResult.Value.SetAmendmentRestartStage(request.AmendmentRestartStage);
+        if (restartResult.IsFailure)
+            return ApplicationResult<LoanProductDto>.Failure(restartResult.Error);
+
         await _repository.AddAsync(productResult.Value, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 

@@ -332,8 +332,23 @@ public static class SeedData
             "<p style=\"margin:16px 0 0;\">It lapses on <strong>{{Deadline}}</strong>. Please review and accept it before then if you wish to go ahead.</p>" +
             signOff;
 
+        // To staff, not the FAC: the portal amended a case's EOPs (CRMSQA#3).
+        var amendedInner = greeting +
+            "<p style=\"margin:0 0 16px;\">The Farmers Portal has amended the EOPs of an RH-SHF case. {{StageText}}</p>" +
+            CredBox("Case", "{{Reference}}", "FAC", "{{CompanyNameHtml}}") +
+            "<p style=\"margin:16px 0 8px;\"><strong>What changed</strong></p>" +
+            "<p style=\"margin:0 0 16px;padding:12px 16px;background:#fff8e6;border:1px solid #f5e0a8;border-radius:8px;\">{{ChangesHtml}}</p>" +
+            "<p style=\"margin:0;\"><a href=\"{{ActionUrl}}\">Open the case in the CRMS</a></p>";
+
         var defs = new (string Code, string Name, NotificationType Type, string Subject, string Body, string Html)[]
         {
+            ("RHSHF_EOP_AMENDED", "RH-SHF EOP Amended (Staff)", NotificationType.WorkflowAssigned,
+                "EOP amended by the portal: {{Reference}}",
+                "Dear {{RecipientName}},\n\nThe Farmers Portal has amended the EOPs of an RH-SHF case. {{StageText}}\n\n" +
+                "Case: {{Reference}}\nFAC: {{CompanyName}}\n\nWhat changed:\n{{Changes}}\n\n" +
+                "Open the case: {{ActionUrl}}\n\nRegards,\nCRMS",
+                Shell(amendedInner)),
+
             ("RHSHF_OFFER_READY", "RH-SHF Offer Ready (FAC)", NotificationType.Custom,
                 "Your RH-SHF offer is ready: {{Reference}}, version {{OfferVersion}}",
                 "Dear {{RecipientName}},\n\nAn offer for your RH-SHF credit facility is ready for you to review and accept.\n\n" +

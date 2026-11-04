@@ -53,6 +53,10 @@
                         <span class="product-stat-label">Offer Validity</span>
                         <span class="product-stat-value">@(product.OfferValidityDays ?? CRMS.Domain.Aggregates.ProductCatalog.LoanProduct.DefaultOfferValidityDays) days@(product.OfferValidityDays is null ? " (default)" : "")</span>
                     </div>
+                    <div class="product-stat">
+                        <span class="product-stat-label">Amended EOP Restarts At</span>
+                        <span class="product-stat-value">@(product.AmendmentRestartStage == "LegalClearance" ? "Legal clearance" : "Appraisal (default)")</span>
+                    </div>
                 }
                 <div class="product-stat">
                     <span class="product-stat-label">Applications</span>
@@ -184,6 +188,14 @@
                             <input type="number" min="1" max="@CRMS.Domain.Aggregates.ProductCatalog.LoanProduct.MaxOfferValidityDays" class="form-control" @bind="editingProduct.OfferValidityDays"
                                    placeholder="@CRMS.Domain.Aggregates.ProductCatalog.LoanProduct.DefaultOfferValidityDays" />
                             <small class="form-hint">How long the FAC has to accept an offer, counted from the day it is issued. Leave blank for @CRMS.Domain.Aggregates.ProductCatalog.LoanProduct.DefaultOfferValidityDays days. A change applies to offers issued afterwards.</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">When the Portal Amends an EOP</label>
+                            <select class="form-control" @bind="editingProduct.AmendmentRestartStage">
+                                <option value="">Restart from appraisal (default)</option>
+                                <option value="LegalClearance">Restart from legal clearance</option>
+                            </select>
+                            <small class="form-hint">An amended EOP starts a new review of the case from this stage. From appraisal, every stage looks at the amended EOP again. From legal clearance, the credit officer's appraisal is not repeated.</small>
                         </div>
                     }
                     <div class="form-group" style="grid-column: span 2;">
@@ -506,7 +518,8 @@
                     IsActive = p.IsActive,
                     FineractProductId = p.FineractProductId,
                     Segment = string.IsNullOrEmpty(p.Segment) ? "Corporate" : p.Segment,
-                    OfferValidityDays = p.OfferValidityDays
+                    OfferValidityDays = p.OfferValidityDays,
+                    AmendmentRestartStage = p.AmendmentRestartStage
                 }).ToList();
             }
             else if (AuthService.CurrentUser?.Username == "admin")
@@ -552,7 +565,8 @@
             Segment = product.Segment,
             Description = product.Description,
             FineractProductId = product.FineractProductId,
-            OfferValidityDays = product.OfferValidityDays
+            OfferValidityDays = product.OfferValidityDays,
+            AmendmentRestartStage = product.AmendmentRestartStage
         };
         isEditing = true;
         showProductModal = true;
@@ -626,7 +640,8 @@
                     editingProduct.BaseInterestRate,
                     editingProduct.FineractProductId,
                     editingProduct.Segment,
-                    editingProduct.OfferValidityDays);
+                    editingProduct.OfferValidityDays,
+                    editingProduct.AmendmentRestartStage);
             }
             else
             {
@@ -641,7 +656,8 @@
                     editingProduct.BaseInterestRate,
                     editingProduct.Segment,
                     editingProduct.FineractProductId,
-                    editingProduct.OfferValidityDays);
+                    editingProduct.OfferValidityDays,
+                    editingProduct.AmendmentRestartStage);
             }
 
             if (result.Success)
@@ -813,5 +829,6 @@
         public int ApplicationCount { get; set; }
         public int? FineractProductId { get; set; }
         public int? OfferValidityDays { get; set; }
+        public string? AmendmentRestartStage { get; set; }
     }
 }

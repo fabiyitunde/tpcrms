@@ -187,6 +187,27 @@ else
     {
         <div class="alert alert-success" style="margin-bottom: 1rem;">@pageNotice</div>
     }
+    @if (workspace.Amendment is { } amendment)
+    {
+        @* The portal amended the EOPs (CRMSQA#3). Every stage of this review is looking at the amended
+           version, so say so where everyone acting on the case will see it. *@
+        <div class="alert alert-warning" style="margin-bottom: 1rem;">
+            <strong>EOP amended by the portal</strong> on @amendment.AmendedAt.ToLocalTime().ToString("dd MMM yyyy, h:mm tt").
+            @if (amendment.CycleNumber != amendment.ReplacedCycleNumber)
+            {
+                <span>This review (cycle @amendment.CycleNumber) is of the amended EOP. Cycle @amendment.ReplacedCycleNumber, and any offer made in it, was on the earlier version.</span>
+            }
+            else
+            {
+                <span>The case is with the FAC; its next review will be of the amended EOP.</span>
+            }
+            <div style="margin-top: 0.25rem;">@string.Join("; ", amendment.Changes).</div>
+            @if (amendment.PreviousTotalEopValue != amendment.NewTotalEopValue)
+            {
+                <div>Total EOP value: ₦@amendment.PreviousTotalEopValue.ToString("N2") to ₦@amendment.NewTotalEopValue.ToString("N2").</div>
+            }
+        </div>
+    }
 
     @* Tab order mirrors Corporate (Applications/Detail.razor) exactly for the tabs they share:
        Overview, Directors & Signatories, Documents, Financial, Credit Bureau, Collateral, AI Advisory,

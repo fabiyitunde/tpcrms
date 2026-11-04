@@ -27,7 +27,8 @@ public static class LoanProductMappings
             product.EligibilityRules.Select(r => r.ToDto()).ToList(),
             product.DocumentRequirements.Select(d => d.ToDto()).ToList(),
             product.DisbursementChecklist.OrderBy(c => c.SortOrder).Select(c => c.ToChecklistTemplateItemDto()).ToList(),
-            product.OfferValidityDays
+            product.OfferValidityDays,
+            product.AmendmentRestartStage?.ToString()
         );
     }
 
@@ -46,7 +47,8 @@ public static class LoanProductMappings
             product.MaxTenorMonths,
             product.BaseInterestRate,
             product.FineractProductId,
-            product.OfferValidityDays
+            product.OfferValidityDays,
+            product.AmendmentRestartStage?.ToString()
         );
     }
 

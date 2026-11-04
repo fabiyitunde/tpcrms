@@ -465,6 +465,12 @@ public class SubmitConsolidatedEopHandlerTests
             Rows.AddRange(farmers);
             return Task.CompletedTask;
         }
+
+        public Task RemoveForProfileAsync(Guid rhshfCreditProfileId, IReadOnlyCollection<Guid>? keepEopIds = null, CancellationToken ct = default)
+        {
+            Rows.RemoveAll(r => r.RhshfCreditProfileId == rhshfCreditProfileId && (keepEopIds is null || r.EopId is { } e && !keepEopIds.Contains(e)));
+            return Task.CompletedTask;
+        }
     }
 
     private class FakeRepository : IRhshfCreditProfileRepository

@@ -5993,6 +5993,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("AmendmentRestartStage")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
                     b.Property<decimal>("BaseInterestRate")
                         .HasPrecision(8, 4)
                         .HasColumnType("decimal(8,4)");
@@ -7200,6 +7204,68 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("IsActive");
 
                     b.ToTable("RhshfDocumentRequirements", (string)null);
+                });
+
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfEopAmendment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("AmendedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ChangesJson")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("CycleNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("NewTotalEopValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("PreviousBreakdownJson")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("PreviousTotalEopValue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("RawPayload")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("ReplacedCycleNumber")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RhshfCreditProfileId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RhshfCreditProfileId");
+
+                    b.HasIndex("SubmissionId")
+                        .IsUnique();
+
+                    b.ToTable("RhshfEopAmendments", (string)null);
                 });
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfEopLine", b =>
@@ -10712,6 +10778,15 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfEopAmendment", b =>
+                {
+                    b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
+                        .WithMany("Amendments")
+                        .HasForeignKey("RhshfCreditProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfEopLine", b =>
                 {
                     b.HasOne("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", null)
@@ -11204,6 +11279,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile", b =>
                 {
+                    b.Navigation("Amendments");
+
                     b.Navigation("Appraisals");
 
                     b.Navigation("Directors");

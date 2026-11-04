@@ -668,6 +668,9 @@ public class LoanProduct
 
     /// <summary>RH-SHF only: days an offer stays open for acceptance; null means the default.</summary>
     public int? OfferValidityDays { get; set; }
+
+    /// <summary>RH-SHF only: where an amended case restarts (Appraisal or LegalClearance); null means appraisal.</summary>
+    public string? AmendmentRestartStage { get; set; }
 }
 
 public class FinancialStatementInfo

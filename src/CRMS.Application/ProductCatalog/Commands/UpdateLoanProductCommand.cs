@@ -17,5 +17,7 @@ public record UpdateLoanProductCommand(
     decimal BaseInterestRate = 0m,
     int? FineractProductId = null,
     // RH-SHF only: days an offer stays open for acceptance; null means the default.
-    int? OfferValidityDays = null
+    int? OfferValidityDays = null,
+    // RH-SHF only: where an amended case restarts; null means appraisal.
+    RhshfInternalStage? AmendmentRestartStage = null
 ) : IRequest<ApplicationResult<LoanProductDto>>;

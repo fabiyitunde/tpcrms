@@ -364,6 +364,12 @@ public class CRMSDbContext : DbContext, IUnitOfWork
         {
             entry.State = EntityState.Added;
         }
+        // An EOP amendment (CRMSQA#3): append-only, written once.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfEopAmendment>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
+        }
         foreach (var entry in ChangeTracker.Entries<RH.RhshfFarmPlan>()
             .Where(e => e.State == EntityState.Modified))
         {

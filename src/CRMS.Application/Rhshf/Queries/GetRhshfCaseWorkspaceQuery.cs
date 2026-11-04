@@ -100,7 +100,13 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
             CommitteeTierBand: tierBand,
             FinancedFarmerCount: profile.FinancedFarmerCount,
             HasItemisedFinancing: profile.HasItemisedFinancing,
-            OfferGapList: profile.OfferDataGaps().ToList());
+            OfferGapList: profile.OfferDataGaps().ToList(),
+            Amendment: profile.CurrentCycleAmendment is { } amendment
+                ? new RhshfAmendmentNoticeDto(
+                    amendment.AmendedAt, amendment.CycleNumber, amendment.ReplacedCycleNumber,
+                    amendment.PreviousTotalEopValue, amendment.NewTotalEopValue,
+                    amendment.Changes.Select(c => c.Describe()).ToList())
+                : null);
 
         return ApplicationResult<RhshfCaseWorkspaceDto>.Success(dto);
     }

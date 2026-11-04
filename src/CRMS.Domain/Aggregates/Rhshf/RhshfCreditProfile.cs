@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CRMS.Domain.Common;
 using CRMS.Domain.Enums;
 
@@ -180,6 +181,10 @@ public class RhshfCreditProfile : AggregateRoot
 
     private readonly List<RhshfEopLine> _eopLines = [];
     public IReadOnlyCollection<RhshfEopLine> EopLines => _eopLines.AsReadOnly();
+
+    /// <summary>Each time the portal amended this case's EOPs (CRMSQA#3), with what it replaced.</summary>
+    private readonly List<RhshfEopAmendment> _amendments = [];
+    public IReadOnlyList<RhshfEopAmendment> Amendments => _amendments.AsReadOnly();
 
     private readonly List<RhshfIssuedToken> _issuedTokens = [];
     public IReadOnlyCollection<RhshfIssuedToken> IssuedTokens => _issuedTokens.AsReadOnly();
@@ -727,15 +732,17 @@ public class RhshfCreditProfile : AggregateRoot
     }
 
     private void CarryFarmPlanForward(int completedCycle)
+        => CopyFarmPlans(completedCycle, ProfilingTargetCycleNumber);
+
+    private void CopyFarmPlans(int fromCycle, int toCycle)
     {
-        var nextCycle = ProfilingTargetCycleNumber;
-        if (_farmPlans.Any(p => p.CycleNumber == nextCycle))
+        if (_farmPlans.Any(p => p.CycleNumber == toCycle))
             return;
 
-        foreach (var plan in _farmPlans.Where(p => p.CycleNumber == completedCycle).ToList())
+        foreach (var plan in _farmPlans.Where(p => p.CycleNumber == fromCycle).ToList())
         {
             var copy = RhshfFarmPlan.Create(
-                Id, nextCycle, plan.Crop, plan.Hectares,
+                Id, toCycle, plan.Crop, plan.Hectares,
                 plan.ExpectedYieldKgPerHectare, plan.ExpectedPricePerKg, FacId);
             if (copy.IsSuccess)
                 _farmPlans.Add(copy.Value);
@@ -1289,14 +1296,7 @@ public class RhshfCreditProfile : AggregateRoot
                 continue;
             }
 
-            bool? same = held.SnapshotHashV2 is not null && match.SnapshotHashV2 is not null
-                ? string.Equals(held.SnapshotHashV2, match.SnapshotHashV2.Trim(), StringComparison.OrdinalIgnoreCase)
-                : held.SnapshotHash is not null && match.SnapshotHash is not null
-                    ? string.Equals(held.SnapshotHash, match.SnapshotHash.Trim(), StringComparison.OrdinalIgnoreCase)
-                    : held.SnapshotHash is null && held.SnapshotHashV2 is null
-                        ? null    // held from before hashes were sent: nothing to compare against
-                        : false;  // the portal dropped the hash it sent before
-            if (same == false)
+            if (SameHash(held, match) == false)
                 changed.Add(Name(held.EopId, held.EopReference));
         }
 
@@ -1305,6 +1305,223 @@ public class RhshfCreditProfile : AggregateRoot
             .Select(e => Name(e.EopId, e.EopReference)));
         return changed;
     }
+
+    /// <summary>Whether an incoming EOP has the content of the one held, judged by the portal's hash: v2
+    /// where both sides have it, otherwise v1. Null when the held EOP predates hashes, so there is
+    /// nothing to compare against; false when the portal dropped a hash it sent before.</summary>
+    private static bool? SameHash(RhshfFinancingEop held, RhshfFinancingEopInput match)
+        => held.SnapshotHashV2 is not null && match.SnapshotHashV2 is not null
+            ? string.Equals(held.SnapshotHashV2, match.SnapshotHashV2.Trim(), StringComparison.OrdinalIgnoreCase)
+            : held.SnapshotHash is not null && match.SnapshotHash is not null
+                ? string.Equals(held.SnapshotHash, match.SnapshotHash.Trim(), StringComparison.OrdinalIgnoreCase)
+                : held.SnapshotHash is null && held.SnapshotHashV2 is null
+                    ? null
+                    : false;
+
+    // ── EOP amendments (CRMSQA#3) ──────────────────────────────────────────
+
+    private const string EopsAmendedAction = "EOP amended by the portal";
+
+    /// <summary>Where an amended case's new review may start. Later stages need records of the new
+    /// cycle that only these stages create.</summary>
+    public static readonly IReadOnlyList<RhshfInternalStage> AmendmentRestartStages =
+        [RhshfInternalStage.Appraisal, RhshfInternalStage.LegalClearance];
+
+    /// <summary>The loan exists in core banking: the terms are what it holds, so the case can no
+    /// longer be amended.</summary>
+    public bool IsBooked =>
+        _disbursements.Any(d => d.FineractLoanId is not null)
+        || InternalStage is RhshfInternalStage.Completed or RhshfInternalStage.Active or RhshfInternalStage.Closed;
+
+    public bool HasAmendment(Guid submissionId) => _amendments.Any(a => a.SubmissionId == submissionId);
+
+    /// <summary>The amendment the current review cycle (or, with the FAC, the next one) is reviewing.</summary>
+    public RhshfEopAmendment? CurrentCycleAmendment
+    {
+        get
+        {
+            var cycle = CurrentStage is not null ? ProfilingTargetCycleNumber : CurrentCycleNumber;
+            return _amendments.Where(a => a.CycleNumber == cycle).MaxBy(a => a.AmendedAt);
+        }
+    }
+
+    /// <summary>
+    /// Checks an amendment's EOPs against the ones held and says which changed. Every EOP on the case
+    /// must be listed with a hash. An unchanged one keeps its revision; a changed one needs a higher
+    /// revision. An EOP not on the case is an addition. Refused when nothing differs.
+    /// </summary>
+    public Result<IReadOnlyList<RhshfEopRevisionChange>> CompareAmendedEops(IReadOnlyList<RhshfFinancingEopInput> incoming)
+    {
+        static string Name(Guid? id, string? reference) => reference ?? id?.ToString() ?? "An EOP without an id";
+        var problems = new List<string>();
+        var changes = new List<RhshfEopRevisionChange>();
+
+        if (incoming.Any(e => e.EopId is null))
+            problems.Add("Every EOP in an amendment needs its eopId.");
+        foreach (var repeated in incoming.Where(e => e.EopId is not null).GroupBy(e => e.EopId).Where(g => g.Count() > 1))
+            problems.Add($"{Name(repeated.Key, repeated.First().EopReference)} is listed more than once.");
+        foreach (var unhashed in incoming.Where(e => string.IsNullOrWhiteSpace(e.SnapshotHash) && string.IsNullOrWhiteSpace(e.SnapshotHashV2)))
+            problems.Add($"{Name(unhashed.EopId, unhashed.EopReference)} has no snapshot hash; an amendment needs one for every EOP.");
+
+        foreach (var held in _financingEops.Where(h => h.EopId is not null))
+        {
+            var name = Name(held.EopId, held.EopReference);
+            var match = incoming.FirstOrDefault(e => e.EopId == held.EopId);
+            if (match is null)
+            {
+                problems.Add($"{name} is on the case but not in the amendment. Every EOP on the case must be listed.");
+                continue;
+            }
+
+            var same = SameHash(held, match);
+            var changed = same is { } sameContent
+                ? !sameContent
+                : match.EopRevision is not null && held.EopRevision is not null && match.EopRevision != held.EopRevision;
+            if (same is null && (match.EopRevision is null || held.EopRevision is null))
+                problems.Add($"{name} was received before hashes were sent, so it can only be compared by revision, and the revision is missing.");
+            else if (changed is false && match.EopRevision != held.EopRevision)
+                problems.Add($"{name} is unchanged, so it must keep revision {held.EopRevision?.ToString() ?? "(none)"}, not {match.EopRevision?.ToString() ?? "(none)"}.");
+            else if (changed is true && (match.EopRevision is null || (held.EopRevision is not null && match.EopRevision <= held.EopRevision)))
+                problems.Add($"{name} has changed, so its revision must be higher than {held.EopRevision?.ToString() ?? "the one held"}.");
+            else if (changed is true)
+                changes.Add(new RhshfEopRevisionChange(held.EopId!.Value, match.EopReference ?? held.EopReference, held.EopRevision, match.EopRevision, Added: false));
+        }
+
+        foreach (var added in incoming.Where(e => e.EopId is not null && _financingEops.All(h => h.EopId != e.EopId)))
+            changes.Add(new RhshfEopRevisionChange(added.EopId!.Value, added.EopReference, null, added.EopRevision, Added: true));
+
+        if (problems.Count == 0 && changes.Count == 0)
+            problems.Add("No EOP in the amendment differs from the version the CRMS holds.");
+        return problems.Count > 0
+            ? Result.Failure<IReadOnlyList<RhshfEopRevisionChange>>(string.Join(" ", problems))
+            : Result.Success<IReadOnlyList<RhshfEopRevisionChange>>(changes);
+    }
+
+    /// <summary>
+    /// Takes the portal's amended EOPs in place of the ones held (CRMSQA#3). The replaced breakdown is
+    /// kept on the amendment record, so anything decided earlier stays readable against it. A case in
+    /// review starts a new review cycle at <paramref name="restartAt"/>, so every stage looks at the
+    /// amended EOPs; its farm plan comes with it. A case with the FAC just takes the new breakdown and
+    /// is reviewed when the FAC resubmits. Refused once the case is closed or the loan is booked.
+    /// The caller supersedes any open offer and carries the collateral into the new cycle.
+    /// </summary>
+    public Result<RhshfEopAmendment> AmendEops(
+        Guid submissionId, RhshfFinancingInput financing, decimal totalEopValue, int? farmerCount,
+        IReadOnlyList<RhshfEopLineInput>? eopLines, RhshfInternalStage restartAt, string rawPayload)
+    {
+        if (IsTerminal)
+            return Result.Failure<RhshfEopAmendment>(
+                $"{Reference} is closed ({Status}), so it cannot be amended. Send a new submission without amendsReference.");
+        if (IsBooked)
+            return Result.Failure<RhshfEopAmendment>(
+                $"The loan on {Reference} has been booked, so it cannot be amended. A change now needs a new facility.");
+        if (!AmendmentRestartStages.Contains(restartAt))
+            return Result.Failure<RhshfEopAmendment>($"An amended case cannot restart at {restartAt}.");
+        if (financing.Eops is not { Count: > 0 } incomingEops)
+            return Result.Failure<RhshfEopAmendment>("An amendment must carry the EOP summaries (financing.eops).");
+
+        var compared = CompareAmendedEops(incomingEops);
+        if (compared.IsFailure)
+            return Result.Failure<RhshfEopAmendment>(compared.Error);
+
+        var previousBreakdown = SnapshotBreakdown();
+        var previousTotal = TotalEopValue;
+        var previousFarmers = FarmerCount;
+        List<RhshfFinancingLine> oldLines = [.. _financingLines];
+        List<RhshfFinancingCharge> oldCharges = [.. _financingCharges];
+        List<RhshfFinancingEop> oldEops = [.. _financingEops];
+        var oldTotals = (FinancingInputsTotal, FinancingPackagingExcessTotal, FinancingChargesTotal,
+            ApprovedEopTotal, FinancedLoanAmount, ExcludedFromLoan);
+
+        _financingLines.Clear();
+        _financingCharges.Clear();
+        _financingEops.Clear();
+        TotalEopValue = totalEopValue;
+        FarmerCount = farmerCount;
+        var applied = ApplyFinancing(financing);
+        if (applied.IsFailure)
+        {
+            // Left exactly as it was: a refused amendment changes nothing.
+            _financingLines.Clear(); _financingLines.AddRange(oldLines);
+            _financingCharges.Clear(); _financingCharges.AddRange(oldCharges);
+            _financingEops.Clear(); _financingEops.AddRange(oldEops);
+            (FinancingInputsTotal, FinancingPackagingExcessTotal, FinancingChargesTotal,
+                ApprovedEopTotal, FinancedLoanAmount, ExcludedFromLoan) = oldTotals;
+            TotalEopValue = previousTotal;
+            FarmerCount = previousFarmers;
+            return Result.Failure<RhshfEopAmendment>(applied.Error);
+        }
+
+        if (eopLines is { Count: > 0 })
+        {
+            _eopLines.Clear();
+            foreach (var line in eopLines)
+                _eopLines.Add(new RhshfEopLine(
+                    Id, line.Commodity, line.QuantityKg, line.UnitPricePerKg, line.LineValue,
+                    line.Supplier, line.Product, line.UnitOfMeasurement));
+        }
+
+        var replacedCycle = CurrentCycleNumber;
+        var inReview = Status == RhshfCaseStatus.UnderReview;
+        if (inReview)
+        {
+            CurrentCycleNumber++;
+            InternalStage = restartAt;
+            ApprovedAmount = null;
+            CopyFarmPlans(replacedCycle, CurrentCycleNumber);
+        }
+
+        var amendment = new RhshfEopAmendment(
+            Id, submissionId, inReview ? CurrentCycleNumber : ProfilingTargetCycleNumber, replacedCycle,
+            previousTotal, totalEopValue, compared.Value, previousBreakdown, rawPayload);
+        _amendments.Add(amendment);
+
+        var note = string.Join("; ", compared.Value.Select(c => c.Describe()))
+                   + (previousTotal != totalEopValue ? $". Total EOP value {previousTotal:N2} to {totalEopValue:N2}." : ".");
+        RecordTransition(
+            inReview
+                ? $"{EopsAmendedAction}: new review from {(restartAt == RhshfInternalStage.Appraisal ? "appraisal" : "legal clearance")}"
+                : $"{EopsAmendedAction} while the case is with the FAC",
+            actorUserId: null, actorLabel: "Portal", note: note);
+
+        // The portal hears of it as a resubmission; the update's amendment block says it was one.
+        if (inReview)
+            AddDomainEvent(new RhshfPortalUpdateEvent(Id, RhshfCallbackEventType.CorrectionSubmitted));
+        AddDomainEvent(new RhshfEopsAmendedEvent(Id, amendment.Id));
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success(amendment);
+    }
+
+    /// <summary>The breakdown as held now, with the hashes and revisions anything decided on it was
+    /// decided against.</summary>
+    private string SnapshotBreakdown() => JsonSerializer.Serialize(new
+    {
+        cycleNumber = CurrentCycleNumber,
+        totalEopValue = TotalEopValue,
+        farmerCount = FarmerCount,
+        approvedAmount = ApprovedAmount,
+        inputsTotal = FinancingInputsTotal,
+        packagingExcessTotal = FinancingPackagingExcessTotal,
+        chargesTotal = FinancingChargesTotal,
+        approvedEopTotal = ApprovedEopTotal,
+        loanAmount = FinancedLoanAmount,
+        excludedFromLoan = ExcludedFromLoan,
+        eops = _financingEops.Select(e => new
+        {
+            e.EopId, e.EopReference, e.EopRevision, e.EopApprovedAt, e.Crop, e.State, e.Farmers,
+            e.Inputs, e.PackagingExcess, e.Insurance, e.WorkingCapital, e.TechServicesFee, e.ApprovedTotal, e.LoanAmount,
+            e.SnapshotHash, e.SnapshotHashScheme, e.SnapshotHashV2, e.SnapshotHashV2Scheme,
+            SnapshotHashCheck = e.SnapshotHashCheck.ToString(),
+        }),
+        lines = _financingLines.Select(l => new
+        {
+            l.EopId, l.Crop, l.Item, l.Category, l.SpecificInput, l.Supplier, l.QuantityPerFarmer, l.Unit,
+            l.UnitPrice, l.Basis, l.Farmers, l.Amount, l.PackagingExcess, l.InLoan,
+            l.PriceVersionId, l.ProviderId, l.ProviderAssignmentId, l.ProviderRate, l.ProviderRateVersion,
+        }),
+        charges = _financingCharges.Select(c => new { c.Code, c.Label, c.Rate, c.RateBasis, c.Amount, c.InLoan }),
+        eopLines = _eopLines.Select(l => new { l.Commodity, l.QuantityKg, l.UnitPricePerKg, l.LineValue }),
+    });
 
     /// <summary>Whether <see cref="AttachLateFinancing"/> would consider a breakdown at all.</summary>
     public bool CanTakeLateFinancing =>
@@ -1760,3 +1977,6 @@ public record RhshfOfferReadyEvent(Guid RhshfCreditProfileId) : DomainEvent;
 /// portal only heard about the offer and the final outcome, and a case returned to the FAC sat as
 /// "under review" on the portal until someone phoned them.</summary>
 public record RhshfPortalUpdateEvent(Guid RhshfCreditProfileId, RhshfCallbackEventType EventType) : DomainEvent;
+
+/// <summary>Raised when the portal amends a case's EOPs (CRMSQA#3), so staff are told.</summary>
+public record RhshfEopsAmendedEvent(Guid RhshfCreditProfileId, Guid AmendmentId) : DomainEvent;

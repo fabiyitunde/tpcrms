@@ -39,7 +39,9 @@ public record RhshfWebhookPayload(
     /// <summary>See <see cref="RhshfPortalStateBuilder.SchemaVersion"/>.</summary>
     int SchemaVersion = RhshfPortalStateBuilder.SchemaVersion,
     /// <summary>Why the case is where it is; omitted when there is no reason to give.</summary>
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? StatusReasonCode = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? StatusReasonCode = null,
+    /// <summary>Set while the current review follows an amendment of the EOPs (CRMSQA#3); omitted otherwise.</summary>
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RhshfPortalAmendment? Amendment = null);
 
 public record RhshfWebhookDecisionPayload(
     string Outcome,
@@ -81,7 +83,8 @@ public static class RhshfWebhookPayloadBuilder
             Correction: state.Correction,
             DecisionBasis: state.DecisionBasis,
             ActionDeadline: state.ActionDeadline,
-            StatusReasonCode: state.StatusReasonCode);
+            StatusReasonCode: state.StatusReasonCode,
+            Amendment: state.Amendment);
     }
 
     /// <summary>"reasons" is populated on DECLINE / INFO_REQUIRED only (brief §4.4) — DecisionNotes

@@ -72,13 +72,24 @@ public record RhshfCaseWorkspaceDto(
     bool HasItemisedFinancing = true,
     /// <summary>What the offer letter would be missing if ratified now — ratification then needs an
     /// override with a reason. Null or empty when the offer would be complete.</summary>
-    List<string>? OfferGapList = null)
+    List<string>? OfferGapList = null,
+    /// <summary>Set when the review under way follows an amendment of the EOPs by the portal (CRMSQA#3).</summary>
+    RhshfAmendmentNoticeDto? Amendment = null)
 {
     public List<string> OfferGaps => OfferGapList ?? [];
 
     /// <summary>The farmer count to show: financed where known, otherwise what the portal sent.</summary>
     public int? FarmersFinanced => FinancedFarmerCount ?? FarmerCount;
 }
+
+/// <summary>What staff are told when a case's review follows an amendment of its EOPs.</summary>
+public record RhshfAmendmentNoticeDto(
+    DateTime AmendedAt,
+    int CycleNumber,
+    int ReplacedCycleNumber,
+    decimal PreviousTotalEopValue,
+    decimal NewTotalEopValue,
+    List<string> Changes);
 
 // Every actor-carrying DTO below gets a resolved *Name companion alongside the raw id. The id stays
 // (callers still need it for "is this me?" comparisons); the name is what the UI renders. Populated

@@ -88,7 +88,13 @@ public record SubmitConsolidatedEopRequest(
     /// amount and no decision. Taken once: a repeat of the submission adds it to a case that has none,
     /// and never replaces one already held.
     /// </summary>
-    List<RhshfScheduleFarmerDto>? FarmerSchedule = null);
+    List<RhshfScheduleFarmerDto>? FarmerSchedule = null,
+    /// <summary>
+    /// Set when this submission amends the EOPs of an existing case (CRMSQA#3): that case's
+    /// reference. The submission carries its own new submissionId and every EOP of the case, changed
+    /// ones with a higher revision. The case takes the amended breakdown and is reviewed again.
+    /// </summary>
+    string? AmendsReference = null);
 
 /// <summary>One farmer on the case's schedule. At least one identifier is required.</summary>
 public record RhshfScheduleFarmerDto(

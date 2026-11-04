@@ -836,6 +836,8 @@ public static class DependencyInjection
         services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfOfferReadyEvent>, RhshfFacEmailHandler>();
         services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfPortalUpdateEvent>, RhshfFacEmailHandler>();
         services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfCaseDecidedEvent>, RhshfFacEmailHandler>();
+        // Staff told when the portal amends a case's EOPs (CRMSQA#3).
+        services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfEopsAmendedEvent>, RhshfEopAmendedStaffNotificationHandler>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfPortalUpdatesHandler>();
         services.AddScoped<Application.Rhshf.Commands.ResendRhshfPortalUpdateHandler>();
         services.AddScoped<RhshfCallbackDispatcher>();

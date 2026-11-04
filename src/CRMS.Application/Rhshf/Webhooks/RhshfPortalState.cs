@@ -38,6 +38,19 @@ public record RhshfPortalCorrectionPayload(
     string? ReasonCode = null);
 
 /// <summary>
+/// The amendment the case's current review is reviewing (CRMSQA#3). The update itself is sent as
+/// CORRECTION_SUBMITTED; this block says it was an amendment of the EOPs, which ones changed, and
+/// whether an offer made on the earlier EOPs was withdrawn.
+/// </summary>
+public record RhshfPortalAmendment(
+    Guid SubmissionId,
+    DateTime AmendedAt,
+    bool OfferWithdrawn,
+    IReadOnlyList<RhshfPortalAmendedEop> Eops);
+
+public record RhshfPortalAmendedEop(Guid EopId, string? EopReference, int? FromRevision, int? ToRevision, bool Added);
+
+/// <summary>
 /// Everything the portal needs to show the FAC where their case stands, derived in one place so the
 /// webhook and the status endpoint can never disagree.
 ///
@@ -62,7 +75,9 @@ public record RhshfPortalState(
     /// <summary>Why the case is where it is (CRMSQA#1): the correction's reason code while it is back
     /// with the FAC, the decline's reason code once declined, OFFER_REJECTED_BY_FAC once the FAC
     /// rejected the offer. Null otherwise, and for decisions made before codes existed.</summary>
-    string? StatusReasonCode = null);
+    string? StatusReasonCode = null,
+    /// <summary>Set while the current review follows an amendment of the EOPs; null otherwise.</summary>
+    RhshfPortalAmendment? Amendment = null);
 
 public static class RhshfPortalStateBuilder
 {
@@ -129,7 +144,20 @@ public static class RhshfPortalStateBuilder
 
         return new RhshfPortalState(
             creditStatus, profile.StatusHistory.Count, actionRequired, actionUrl, offer, correction,
-            DecisionBasis(profile, currentOffer), actionDeadline, statusReasonCode);
+            DecisionBasis(profile, currentOffer), actionDeadline, statusReasonCode, Amendment(profile));
+    }
+
+    private static RhshfPortalAmendment? Amendment(RhshfCreditProfile profile)
+    {
+        if (profile.CurrentCycleAmendment is not { } amendment)
+            return null;
+
+        var offerWithdrawn = profile.Ratifications.Any(r =>
+            r.CycleNumber == amendment.ReplacedCycleNumber && r.Outcome == RhshfRatificationOutcome.Ratified)
+            && amendment.CycleNumber != amendment.ReplacedCycleNumber;
+        return new RhshfPortalAmendment(
+            amendment.SubmissionId, amendment.AmendedAt, offerWithdrawn,
+            amendment.Changes.Select(c => new RhshfPortalAmendedEop(c.EopId, c.EopReference, c.FromRevision, c.ToRevision, c.Added)).ToList());
     }
 
     /// <summary>
