@@ -273,9 +273,7 @@ public class SubmitConsolidatedEopHandler
                 openOffer.Supersede();
 
             // The security has not changed: the new review starts with it on file, not re-declared.
-            if (_collateral is not null)
-                foreach (var held in await _collateral.GetByProfileAndCycleAsync(profile.Id, replacedCycle, ct))
-                    await _collateral.AddAsync(held.CopyToCycle(profile.CurrentCycleNumber), ct);
+            await RhshfCollateralCarryForward.CarryAsync(_collateral, profile.Id, replacedCycle, profile.CurrentCycleNumber, ct);
         }
 
         // The farmer list follows the EOPs: a new list replaces the old one; without one, farmers on an

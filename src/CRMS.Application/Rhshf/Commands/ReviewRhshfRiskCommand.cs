@@ -29,6 +29,7 @@ public class ReviewRhshfRiskHandler : IRequestHandler<ReviewRhshfRiskCommand, Ap
     private readonly IRhshfLegalClearanceRepository _legalRepo;
     private readonly IUnitOfWork _uow;
     private readonly IRhshfReasonCodeRepository? _reasonCodes;
+    private readonly IRhshfCollateralRepository? _collateral;
 
     public ReviewRhshfRiskHandler(
         IRhshfCreditProfileRepository repo,
@@ -37,8 +38,10 @@ public class ReviewRhshfRiskHandler : IRequestHandler<ReviewRhshfRiskCommand, Ap
         IStandingCommitteeRepository standingCommitteeRepo,
         IRhshfLegalClearanceRepository legalRepo,
         IUnitOfWork uow,
-        IRhshfReasonCodeRepository? reasonCodes = null)
+        IRhshfReasonCodeRepository? reasonCodes = null,
+        IRhshfCollateralRepository? collateral = null)
     {
+        _collateral = collateral;
         _reasonCodes = reasonCodes;
         _repo = repo;
         _committeeRepo = committeeRepo;
@@ -99,6 +102,8 @@ public class ReviewRhshfRiskHandler : IRequestHandler<ReviewRhshfRiskCommand, Ap
             await _committeeRepo.AddAsync(committeeResult.Value, ct);
         }
 
+        // Back with the FAC: the next review starts with the security already declared.
+        await RhshfCollateralCarryForward.CarryIntoNextCycleAsync(_collateral, profile, ct);
         await _uow.SaveChangesAsync(ct);
         return ApplicationResult.Success();
     }

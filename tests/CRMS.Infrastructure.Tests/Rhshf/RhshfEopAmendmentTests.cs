@@ -21,7 +21,7 @@ public class RhshfEopAmendmentTests
     private static readonly Guid FacId = Guid.Parse("11111111-2222-3333-4444-555555555555");
     private static readonly Guid EopId = Guid.Parse("3cc02579-d786-40fb-b87d-17d6195c5847");
 
-    private static (CRMSDbContext Db, SubmitConsolidatedEopHandler Handler) MakeHarness()
+    internal static (CRMSDbContext Db, SubmitConsolidatedEopHandler Handler) MakeHarness()
     {
         var options = new DbContextOptionsBuilder<CRMSDbContext>()
             .UseInMemoryDatabase("RhshfEopAmendment_" + Guid.NewGuid())
@@ -36,7 +36,7 @@ public class RhshfEopAmendmentTests
     }
 
     /// <summary>One EOP of 30 farmers on one input line, with its v1 hash worked out.</summary>
-    private static SubmitConsolidatedEopRequest Request(
+    internal static SubmitConsolidatedEopRequest Request(
         decimal unitPrice, int revision, string? amendsReference = null, Guid? submissionId = null, Guid? facId = null)
     {
         var amount = 30m * unitPrice;

@@ -36,6 +36,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
     private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _uow;
     private readonly IRhshfReasonCodeRepository? _reasonCodes;
+    private readonly IRhshfCollateralRepository? _collateral;
 
     public RatifyRhshfCaseHandler(
         IRhshfCreditProfileRepository repo,
@@ -46,8 +47,10 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
         RhshfOfferDocumentDataBuilder documentDataBuilder,
         IFileStorageService fileStorage,
         IUnitOfWork uow,
-        IRhshfReasonCodeRepository? reasonCodes = null)
+        IRhshfReasonCodeRepository? reasonCodes = null,
+        IRhshfCollateralRepository? collateral = null)
     {
+        _collateral = collateral;
         _reasonCodes = reasonCodes;
         _repo = repo;
         _committeeRepo = committeeRepo;
@@ -132,6 +135,8 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
             await _offerRepo.AddAsync(offerResult.Value, ct);
         }
 
+        // Back with the FAC: the next review starts with the security already declared.
+        await RhshfCollateralCarryForward.CarryIntoNextCycleAsync(_collateral, profile, ct);
         await _uow.SaveChangesAsync(ct);
         return ApplicationResult.Success();
     }

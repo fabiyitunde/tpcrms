@@ -18,10 +18,13 @@ public class AppraiseRhshfCaseHandler : IRequestHandler<AppraiseRhshfCaseCommand
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IUnitOfWork _uow;
     private readonly IRhshfReasonCodeRepository? _reasonCodes;
+    private readonly IRhshfCollateralRepository? _collateral;
 
     public AppraiseRhshfCaseHandler(IRhshfCreditProfileRepository repo, IUnitOfWork uow,
-        IRhshfReasonCodeRepository? reasonCodes = null)
+        IRhshfReasonCodeRepository? reasonCodes = null,
+        IRhshfCollateralRepository? collateral = null)
     {
+        _collateral = collateral;
         _repo = repo;
         _uow = uow;
         _reasonCodes = reasonCodes;
@@ -47,6 +50,8 @@ public class AppraiseRhshfCaseHandler : IRequestHandler<AppraiseRhshfCaseCommand
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 
+        // Back with the FAC: the next review starts with the security already declared.
+        await RhshfCollateralCarryForward.CarryIntoNextCycleAsync(_collateral, profile, ct);
         await _uow.SaveChangesAsync(ct);
         return ApplicationResult.Success();
     }

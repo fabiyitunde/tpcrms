@@ -18,11 +18,14 @@ public class ReturnRhshfCommitteeToFacHandler : IRequestHandler<ReturnRhshfCommi
     private readonly IRhshfCommitteeReviewRepository _committeeRepo;
     private readonly IUnitOfWork _uow;
     private readonly IRhshfReasonCodeRepository? _reasonCodes;
+    private readonly IRhshfCollateralRepository? _collateral;
 
     public ReturnRhshfCommitteeToFacHandler(
         IRhshfCreditProfileRepository repo, IRhshfCommitteeReviewRepository committeeRepo, IUnitOfWork uow,
-        IRhshfReasonCodeRepository? reasonCodes = null)
+        IRhshfReasonCodeRepository? reasonCodes = null,
+        IRhshfCollateralRepository? collateral = null)
     {
+        _collateral = collateral;
         _reasonCodes = reasonCodes;
         _repo = repo;
         _committeeRepo = committeeRepo;
@@ -53,6 +56,8 @@ public class ReturnRhshfCommitteeToFacHandler : IRequestHandler<ReturnRhshfCommi
         if (profileResult.IsFailure)
             return ApplicationResult.Failure(profileResult.Error);
 
+        // Back with the FAC: the next review starts with the security already declared.
+        await RhshfCollateralCarryForward.CarryIntoNextCycleAsync(_collateral, profile, ct);
         await _uow.SaveChangesAsync(ct);
         return ApplicationResult.Success();
     }

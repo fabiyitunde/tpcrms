@@ -21,6 +21,42 @@ public static class RhshfWorkflowSeeder
         await BackfillGuarantorRelationshipsAsync(context, logger);
         await BackfillFinancingEopsAsync(context, logger);
         await SeedReasonCodesAsync(context, logger);
+        await BackfillCollateralCarryForwardAsync(context, logger);
+    }
+
+    /// <summary>
+    /// Cases already back with the FAC when the carry-forward was added had their profiling form open
+    /// with no security declared. Gives each one the collateral of the cycle it was returned from,
+    /// documents included, unless the FAC has already declared something for the next cycle. Runs
+    /// every startup and only fills what is missing.
+    /// </summary>
+    private static async Task BackfillCollateralCarryForwardAsync(CRMSDbContext context, ILogger logger)
+    {
+        var returned = await context.RhshfCreditProfiles
+            .Where(p => p.Status == RhshfCaseStatus.ProfilingInProgress && p.CurrentCycleNumber > 0)
+            .Select(p => new { p.Id, p.Reference, p.CurrentCycleNumber })
+            .ToListAsync();
+
+        var carried = 0;
+        foreach (var profile in returned)
+        {
+            var next = profile.CurrentCycleNumber + 1;
+            if (await context.RhshfCollaterals.AnyAsync(c => c.RhshfCreditProfileId == profile.Id && c.CycleNumber == next))
+                continue;
+
+            var held = await context.RhshfCollaterals.Include(c => c.Documents)
+                .Where(c => c.RhshfCreditProfileId == profile.Id && c.CycleNumber == profile.CurrentCycleNumber)
+                .ToListAsync();
+            if (held.Count == 0)
+                continue;
+
+            await context.RhshfCollaterals.AddRangeAsync(held.Select(c => c.CopyToCycle(next)));
+            carried++;
+            logger.LogInformation("RH-SHF {Reference}: collateral carried into cycle {Cycle} for the FAC's resubmission.", profile.Reference, next);
+        }
+
+        if (carried > 0)
+            await context.SaveChangesAsync();
     }
 
     /// <summary>

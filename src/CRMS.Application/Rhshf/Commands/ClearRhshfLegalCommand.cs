@@ -87,6 +87,8 @@ public class ClearRhshfLegalHandler : IRequestHandler<ClearRhshfLegalCommand, Ap
             return ApplicationResult.Failure(transitionResult.Error);
 
         await _legalRepo.AddAsync(clearanceResult.Value, ct);
+        // Back with the FAC: the next review starts with the security already declared.
+        await RhshfCollateralCarryForward.CarryIntoNextCycleAsync(_collateralRepo, profile, ct);
         await _uow.SaveChangesAsync(ct);
         return ApplicationResult.Success();
     }
