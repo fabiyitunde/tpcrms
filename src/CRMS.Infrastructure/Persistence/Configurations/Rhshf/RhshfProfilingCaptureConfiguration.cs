@@ -59,6 +59,7 @@ public class RhshfStatusHistoryConfiguration : IEntityTypeConfiguration<RhshfSta
         builder.Property(x => x.Action).IsRequired().HasMaxLength(200);
         builder.Property(x => x.ActorLabel).HasMaxLength(50);
         builder.Property(x => x.Note).HasMaxLength(2000);
+        builder.Property(x => x.ReasonCode).HasMaxLength(50);
 
         builder.Property(x => x.CreatedBy).HasMaxLength(100);
         builder.Property(x => x.ModifiedBy).HasMaxLength(100);

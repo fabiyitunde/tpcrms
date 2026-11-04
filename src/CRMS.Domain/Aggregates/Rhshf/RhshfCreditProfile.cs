@@ -143,6 +143,9 @@ public class RhshfCreditProfile : AggregateRoot
     public DateTime? DecidedAt { get; private set; }
     public string? DecidedBy { get; private set; }
     public string? DecisionNotes { get; private set; }
+    /// <summary>The reason code behind a decline (an RhshfReasonCode). Null for any other outcome and
+    /// for cases declined before codes existed.</summary>
+    public string? DecisionReasonCode { get; private set; }
 
     // ── CreditBureauCheck stage result (§4 stage 2) — informational for Phase 4+'s review, not an
     // automated gate. Singleton per case (not a collection) — v1 runs the check exactly once. ────
@@ -601,7 +604,8 @@ public class RhshfCreditProfile : AggregateRoot
 
     /// <summary>Credit Officer's appraisal — first stage of the post-profiling pipeline (design doc
     /// §3.6). One per CycleNumber; a second call for the same cycle fails (no re-appraising).</summary>
-    public Result Appraise(Guid creditOfficerId, RhshfAppraisalOutcome outcome, string? notes, RhshfProfilingStage? returnToStage = null)
+    public Result Appraise(Guid creditOfficerId, RhshfAppraisalOutcome outcome, string? notes, RhshfProfilingStage? returnToStage = null,
+        string? reasonCode = null)
     {
         if (Status != RhshfCaseStatus.UnderReview)
             return Result.Failure("Case is not under review.");
@@ -626,10 +630,10 @@ public class RhshfCreditProfile : AggregateRoot
                 RecordTransition("Appraisal completed — sent for legal clearance", creditOfficerId, note: notes);
                 break;
             case RhshfAppraisalOutcome.ReturnToFac:
-                ReturnToFac(returnToStage, "Returned to the FAC at appraisal", creditOfficerId, notes);
+                ReturnToFac(returnToStage, "Returned to the FAC at appraisal", creditOfficerId, notes, reasonCode);
                 break;
             case RhshfAppraisalOutcome.Decline:
-                Decline("CRMS Appraisal", notes, "Declined at appraisal", creditOfficerId);
+                Decline("CRMS Appraisal", notes, "Declined at appraisal", creditOfficerId, reasonCode);
                 break;
         }
 
@@ -644,7 +648,7 @@ public class RhshfCreditProfile : AggregateRoot
     /// legalOfficerId is supplied by the Application layer from that cycle's RhshfLegalClearance, which
     /// is a separate aggregate this one cannot read.</summary>
     public Result ReviewRisk(Guid riskOfficerId, RhshfRiskReviewOutcome outcome, string? notes,
-        RhshfProfilingStage? returnToStage = null, Guid? legalOfficerId = null)
+        RhshfProfilingStage? returnToStage = null, Guid? legalOfficerId = null, string? reasonCode = null)
     {
         if (Status != RhshfCaseStatus.UnderReview)
             return Result.Failure("Case is not under review.");
@@ -670,10 +674,10 @@ public class RhshfCreditProfile : AggregateRoot
                 RecordTransition("Risk review cleared — circulated to committee", riskOfficerId, note: notes);
                 break;
             case RhshfRiskReviewOutcome.ReturnToFac:
-                ReturnToFac(returnToStage, "Returned to the FAC at risk review", riskOfficerId, notes);
+                ReturnToFac(returnToStage, "Returned to the FAC at risk review", riskOfficerId, notes, reasonCode);
                 break;
             case RhshfRiskReviewOutcome.Decline:
-                Decline("CRMS Risk Review", notes, "Declined at risk review", riskOfficerId);
+                Decline("CRMS Risk Review", notes, "Declined at risk review", riskOfficerId, reasonCode);
                 break;
         }
 
@@ -690,7 +694,8 @@ public class RhshfCreditProfile : AggregateRoot
     /// questioned — and submission is gated on a plan existing, so without this a case returned
     /// over (say) a missing document could not be resubmitted at all. The copy is independent:
     /// editing it during profiling leaves the appraised cycle's figures intact for the audit trail.</summary>
-    private void ReturnToFac(RhshfProfilingStage? returnToStage, string action, Guid? actorUserId, string? note)
+    private void ReturnToFac(RhshfProfilingStage? returnToStage, string action, Guid? actorUserId, string? note,
+        string? reasonCode = null)
     {
         var completedCycle = CurrentCycleNumber;
 
@@ -699,7 +704,7 @@ public class RhshfCreditProfile : AggregateRoot
         InternalStage = null;
 
         CarryFarmPlanForward(completedCycle);
-        RecordTransition(action, actorUserId, note: note);
+        RecordTransition(action, actorUserId, note: note, reasonCode: reasonCode);
         AddDomainEvent(new RhshfPortalUpdateEvent(Id, RhshfCallbackEventType.CorrectionRequired));
     }
 
@@ -739,23 +744,25 @@ public class RhshfCreditProfile : AggregateRoot
 
     /// <summary>Shared by every stage's Decline outcome — terminal, fires the domain event Phase 10's
     /// webhook dispatcher listens for.</summary>
-    private void Decline(string decidedBy, string? notes, string action, Guid? actorUserId)
-        => Terminate(RhshfCaseStatus.Declined, RhshfDecisionOutcome.Declined, decidedBy, notes, action, actorUserId);
+    private void Decline(string decidedBy, string? notes, string action, Guid? actorUserId, string? reasonCode)
+        => Terminate(RhshfCaseStatus.Declined, RhshfDecisionOutcome.Declined, decidedBy, notes, action, actorUserId,
+            reasonCode: reasonCode);
 
     /// <summary>Shared terminal-transition helper. DecisionOutcome is null for a terminal status
     /// that isn't actually a credit decision (design doc §6 #10) — e.g. a FAC withdrawing from
     /// their own offer (Cancelled) is a lapse, not an adjudication, unlike Declined.</summary>
     private void Terminate(
         RhshfCaseStatus status, RhshfDecisionOutcome? outcome, string decidedBy, string? notes,
-        string action, Guid? actorUserId, string? actorLabel = null)
+        string action, Guid? actorUserId, string? actorLabel = null, string? reasonCode = null)
     {
         Status = status;
         DecisionOutcome = outcome;
         DecidedAt = DateTime.UtcNow;
         DecidedBy = decidedBy;
         DecisionNotes = notes;
+        DecisionReasonCode = string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim().ToUpperInvariant();
         InternalStage = null;
-        RecordTransition(action, actorUserId, actorLabel, notes);
+        RecordTransition(action, actorUserId, actorLabel, notes, DecisionReasonCode);
         AddDomainEvent(new RhshfCaseDecidedEvent(Id));
     }
 
@@ -793,19 +800,22 @@ public class RhshfCreditProfile : AggregateRoot
         if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.CommitteeVoting)
             return Result.Failure("Case is not at the committee voting stage.");
 
+        // The decision comes from the vote, which has no reason picker, so the reason is the
+        // committee's notes.
         Terminate(RhshfCaseStatus.Declined, RhshfDecisionOutcome.Declined, "CRMS Committee", notes,
-            "Committee rejected the application", decidingVoterId, "Committee");
+            "Committee rejected the application", decidingVoterId, "Committee", RhshfReasonCode.Other);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
 
     /// <summary>Committee sent the case back to the FAC before reaching a vote tally.</summary>
-    public Result ReturnToFacFromCommittee(RhshfProfilingStage? returnToStage, Guid? actorUserId = null, string? notes = null)
+    public Result ReturnToFacFromCommittee(RhshfProfilingStage? returnToStage, Guid? actorUserId = null, string? notes = null,
+        string? reasonCode = null)
     {
         if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.CommitteeVoting)
             return Result.Failure("Case is not at the committee voting stage.");
 
-        ReturnToFac(returnToStage, "Returned to the FAC by the committee", actorUserId, notes);
+        ReturnToFac(returnToStage, "Returned to the FAC by the committee", actorUserId, notes, reasonCode);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
@@ -823,7 +833,7 @@ public class RhshfCreditProfile : AggregateRoot
     /// re-entry (every other path out of Ratification sets InternalStage away from Ratification).</summary>
     public Result Ratify(
         Guid finalApproverId, RhshfRatificationOutcome outcome, decimal? approvedAmount, string? notes,
-        RhshfProfilingStage? returnToStage, IReadOnlyCollection<Guid> excludedActorIds)
+        RhshfProfilingStage? returnToStage, IReadOnlyCollection<Guid> excludedActorIds, string? reasonCode = null)
     {
         if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.Ratification)
             return Result.Failure("Case is not at the ratification stage.");
@@ -846,10 +856,10 @@ public class RhshfCreditProfile : AggregateRoot
                 AddDomainEvent(new RhshfOfferReadyEvent(Id));
                 break;
             case RhshfRatificationOutcome.ReturnToFac:
-                ReturnToFac(returnToStage, "Returned to the FAC at ratification", finalApproverId, notes);
+                ReturnToFac(returnToStage, "Returned to the FAC at ratification", finalApproverId, notes, reasonCode);
                 break;
             case RhshfRatificationOutcome.Declined:
-                Decline("CRMS Ratification", notes, "Declined at ratification", finalApproverId);
+                Decline("CRMS Ratification", notes, "Declined at ratification", finalApproverId, reasonCode);
                 break;
         }
 
@@ -1078,12 +1088,13 @@ public class RhshfCreditProfile : AggregateRoot
     /// Legal now runs before the committee, so the old "return to Ratification" target no longer
     /// exists at this point in the flow: the defect is in what the FAC supplied, and the FAC is who
     /// can correct it. Reserved for fixable problems — falsification and the like are a Decline.</summary>
-    public Result ReturnToFacFromLegal(RhshfProfilingStage? returnToStage = null, Guid? legalOfficerId = null, string? note = null)
+    public Result ReturnToFacFromLegal(RhshfProfilingStage? returnToStage = null, Guid? legalOfficerId = null, string? note = null,
+        string? reasonCode = null)
     {
         if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.LegalClearance)
             return Result.Failure("Case is not at the legal clearance stage.");
 
-        ReturnToFac(returnToStage, "Returned to the FAC at legal clearance", legalOfficerId, note);
+        ReturnToFac(returnToStage, "Returned to the FAC at legal clearance", legalOfficerId, note, reasonCode);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
@@ -1091,12 +1102,12 @@ public class RhshfCreditProfile : AggregateRoot
     /// <summary>Legal Clearance Declined — terminal, same as every other stage's Decline (design doc
     /// §6 #9's timing question applies the same way it does to Phase 7's offer rejection: a negative
     /// terminal outcome is reported immediately, unlike the deferred "Approved" signal).</summary>
-    public Result DeclineAtLegalClearance(string? notes, Guid? legalOfficerId = null)
+    public Result DeclineAtLegalClearance(string? notes, Guid? legalOfficerId = null, string? reasonCode = null)
     {
         if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.LegalClearance)
             return Result.Failure("Case is not at the legal clearance stage.");
 
-        Decline("CRMS Legal Clearance", notes, "Declined at legal clearance", legalOfficerId);
+        Decline("CRMS Legal Clearance", notes, "Declined at legal clearance", legalOfficerId, reasonCode);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
@@ -1702,14 +1713,15 @@ public class RhshfCreditProfile : AggregateRoot
     /// asserts the trail matches the states actually visited, which is what keeps a future
     /// transition from being added without one.
     /// </summary>
-    private void RecordTransition(string action, Guid? actorUserId, string? actorLabel = null, string? note = null)
+    private void RecordTransition(string action, Guid? actorUserId, string? actorLabel = null, string? note = null,
+        string? reasonCode = null)
     {
         // Profiling rows belong to the cycle being assembled, not the last completed one — the same
         // reasoning as RhshfStageConfirmation, so the two line up when read side by side.
         var cycle = CurrentStage is not null ? ProfilingTargetCycleNumber : CurrentCycleNumber;
 
         _statusHistory.Add(new RhshfStatusHistory(
-            Id, cycle, Status, InternalStage, CurrentStage, action, actorUserId, actorLabel, note));
+            Id, cycle, Status, InternalStage, CurrentStage, action, actorUserId, actorLabel, note, reasonCode));
     }
 
     /// <summary>"SupportingDocuments" → "Supporting Documents". The trail is read by people, and a

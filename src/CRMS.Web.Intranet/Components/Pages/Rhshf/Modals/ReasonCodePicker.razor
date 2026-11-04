@@ -1,0 +1,48 @@
+@* The reason a case is returned or declined, from the administrator's list (Admin > RH-SHF Reason
+   Codes). Sent to the portal as a code beside the note (CRMSQA#1). Loads its own list when shown: a
+   dialog opens on a page that has finished loading, so this is the only call in flight. *@
+@using CRMS.Domain.Enums
+@using CRMS.Application.Rhshf.Commands
+@inject ApplicationService AppService
+
+<div class="form-group">
+    <label class="form-label">Reason (required)</label>
+    @if (codes is null)
+    {
+        <div style="font-size: var(--text-sm); color: var(--text-muted);">Loading reasons...</div>
+    }
+    else if (codes.Count == 0)
+    {
+        <div class="alert alert-warning" style="font-size: var(--text-sm);">
+            No reasons are set up. An administrator adds them in Admin &gt; RH-SHF Reason Codes.
+        </div>
+    }
+    else
+    {
+        <select class="form-control" value="@(Value ?? "")" @onchange="Changed">
+            <option value="">Choose a reason...</option>
+            @foreach (var reason in codes)
+            {
+                <option value="@reason.Code">@reason.Label</option>
+            }
+        </select>
+        <small class="form-hint">The portal receives this reason as a code, with your note beside it.</small>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RhshfReasonCodeType Type { get; set; }
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+
+    private List<RhshfReasonCodeDto>? codes;
+
+    protected override async Task OnInitializedAsync()
+        => codes = await AppService.GetRhshfReasonCodesAsync(Type);
+
+    private Task Changed(ChangeEventArgs e)
+    {
+        var picked = e.Value?.ToString();
+        return ValueChanged.InvokeAsync(string.IsNullOrEmpty(picked) ? null : picked);
+    }
+}

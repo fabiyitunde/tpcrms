@@ -102,6 +102,7 @@ public class RhshfWebhookPayloadBuilderTests
 
         Assert.Equal("CANCELLED", root.GetProperty("status").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("decision").ValueKind);
+        Assert.Equal("OFFER_REJECTED_BY_FAC", root.GetProperty("statusReasonCode").GetString());
     }
 
     [Fact]
@@ -290,6 +291,38 @@ public class RhshfWebhookPayloadBuilderTests
         var correction = root.GetProperty("correction");
         Assert.Equal("supportingDocuments", correction.GetProperty("stage").GetString());
         Assert.Equal("The bank statement is missing June.", correction.GetProperty("message").GetString());
+    }
+
+    /// <summary>CRMSQA#1: the reason picked from the administrator's list travels as a code beside
+    /// the note, on the correction and as the case's status reason.</summary>
+    [Fact]
+    public void Build_ReturnedToFac_CarriesTheReasonCode()
+    {
+        var profile = Submitted();
+        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.ReturnToFac, "The bank statement is missing June.",
+            RhshfProfilingStage.SupportingDocuments, "DOCUMENT_MISSING");
+
+        var root = Serialize(RhshfWebhookPayloadBuilder.Build(profile, RhshfCallbackEventType.CorrectionRequired, "evt_r", DateTime.UtcNow));
+
+        Assert.Equal("DOCUMENT_MISSING", root.GetProperty("correction").GetProperty("reasonCode").GetString());
+        Assert.Equal("DOCUMENT_MISSING", root.GetProperty("statusReasonCode").GetString());
+    }
+
+    [Fact]
+    public void Build_Declined_CarriesTheDeclineReasonCode_AndAnOpenCaseHasNone()
+    {
+        var open = Submitted();
+        Assert.False(Serialize(RhshfWebhookPayloadBuilder.Build(open, RhshfCallbackEventType.SubmittedForReview, "evt_o", DateTime.UtcNow))
+            .TryGetProperty("statusReasonCode", out _));
+
+        var profile = Submitted();
+        profile.Appraise(Guid.NewGuid(), RhshfAppraisalOutcome.Decline, "Adverse bureau report.", null, "ADVERSE_CREDIT_HISTORY");
+
+        var root = Serialize(RhshfWebhookPayloadBuilder.Build(profile, RhshfCallbackEventType.Decided, "evt_d", DateTime.UtcNow));
+
+        Assert.Equal("CREDIT_DECLINED", root.GetProperty("creditStatus").GetString());
+        Assert.Equal("ADVERSE_CREDIT_HISTORY", root.GetProperty("statusReasonCode").GetString());
+        Assert.Equal("Adverse bureau report.", root.GetProperty("decision").GetProperty("reasons")[0].GetString());
     }
 
     [Fact]

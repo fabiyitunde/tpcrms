@@ -11,6 +11,10 @@
                 <label class="form-label">Comments @(RequiresNotes ? "(required)" : "(optional)")</label>
                 <textarea class="form-control" rows="3" @bind="comments" placeholder="Enter comments..."></textarea>
             </div>
+            @if (ReasonType is { } reasonType)
+            {
+                <ReasonCodePicker Type="reasonType" @bind-Value="reasonCode" />
+            }
             @if (Intent == "Returned")
             {
                 <FacVisibleNoteHint />
@@ -42,7 +46,7 @@
 @code {
     [Parameter, EditorRequired] public string Intent { get; set; } = "Granted";
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback<(RhshfLegalClearanceOutcome Outcome, string? Comments, RhshfProfilingStage? ReturnToStage)> OnConfirm { get; set; }
+    [Parameter] public EventCallback<(RhshfLegalClearanceOutcome Outcome, string? Comments, RhshfProfilingStage? ReturnToStage, string? ReasonCode)> OnConfirm { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
 
@@ -50,6 +54,9 @@
     private string? clientError;
     private RhshfProfilingStage returnToStage = RhshfProfilingStage.CreditBureauCheck;
 
+    private string? reasonCode;
+    /// <summary>Which reasons apply: a return's or a decline's, or none for a forward decision.</summary>
+    private RhshfReasonCodeType? ReasonType => Intent switch { "Returned" => RhshfReasonCodeType.Correction, "Declined" => RhshfReasonCodeType.Decline, _ => null };
     private bool RequiresNotes => Intent != "Granted";
     // Clearance runs before the committee votes, so a defect goes back to the FAC that declared the
     // security — there is no ratification to return to at this point.
@@ -64,11 +71,17 @@
             clientError = "Comments are required for this decision.";
             return;
         }
+        if (ReasonType is not null && reasonCode is null)
+        {
+            clientError = "Pick a reason.";
+            return;
+        }
         clientError = null;
         var outcome = Enum.Parse<RhshfLegalClearanceOutcome>(Intent);
         await OnConfirm.InvokeAsync((
             outcome,
             string.IsNullOrWhiteSpace(comments) ? null : comments,
-            outcome == RhshfLegalClearanceOutcome.Returned ? returnToStage : null));
+            outcome == RhshfLegalClearanceOutcome.Returned ? returnToStage : null,
+            ReasonType is null ? null : reasonCode));
     }
 }

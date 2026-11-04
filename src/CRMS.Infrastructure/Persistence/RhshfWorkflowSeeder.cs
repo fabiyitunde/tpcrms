@@ -20,6 +20,60 @@ public static class RhshfWorkflowSeeder
         await BackfillDocumentFormatRulesAsync(context, logger);
         await BackfillGuarantorRelationshipsAsync(context, logger);
         await BackfillFinancingEopsAsync(context, logger);
+        await SeedReasonCodesAsync(context, logger);
+    }
+
+    /// <summary>
+    /// The default reasons staff pick from when they return or decline a case (CRMSQA#1). STARTING
+    /// VALUES: BOA changes them in Admin > RH-SHF Reason Codes. Add-missing, matched on the code, so a
+    /// deploy adds a new default without touching an administrator's wording, order or switch-off.
+    /// The decline reasons follow the product paper's eligibility list.
+    /// </summary>
+    public static readonly (string Code, RhshfReasonCodeType Type, string Label)[] DefaultReasonCodes =
+    [
+        ("DOCUMENT_MISSING", RhshfReasonCodeType.Correction, "A required document is missing"),
+        ("DOCUMENT_UNREADABLE", RhshfReasonCodeType.Correction, "A document cannot be read or opened"),
+        ("DOCUMENT_INVALID", RhshfReasonCodeType.Correction, "A document is the wrong one, expired or unrelated"),
+        ("COMPANY_DETAILS_MISMATCH", RhshfReasonCodeType.Correction, "Company details differ from CAC or the bank's records"),
+        ("DIRECTOR_DETAILS_INCOMPLETE", RhshfReasonCodeType.Correction, "Director details are incomplete or incorrect"),
+        ("GUARANTOR_DETAILS_INCOMPLETE", RhshfReasonCodeType.Correction, "Guarantor details are incomplete or incorrect"),
+        ("COLLATERAL_DETAILS_INCOMPLETE", RhshfReasonCodeType.Correction, "Collateral details are incomplete or incorrect"),
+        ("FINANCIAL_INFORMATION_INCOMPLETE", RhshfReasonCodeType.Correction, "Financial information is incomplete or inconsistent"),
+        ("EOP_INFORMATION_INCONSISTENT", RhshfReasonCodeType.Correction, "The farm plan or EOP information is inconsistent"),
+        (RhshfReasonCode.Other, RhshfReasonCodeType.Correction, "Other: see the officer's note"),
+        ("ELIGIBILITY_NOT_MET", RhshfReasonCodeType.Decline, "Does not meet the programme's eligibility criteria"),
+        ("ADVERSE_CREDIT_HISTORY", RhshfReasonCodeType.Decline, "The credit bureau report is adverse"),
+        ("NON_PERFORMING_OBLIGATIONS", RhshfReasonCodeType.Decline, "Has non-performing obligations with a financial institution"),
+        ("KYC_VERIFICATION_FAILED", RhshfReasonCodeType.Decline, "Identity, CAC or account verification failed"),
+        ("INSUFFICIENT_SECURITY", RhshfReasonCodeType.Decline, "The security offered is not acceptable"),
+        ("INSUFFICIENT_CAPACITY", RhshfReasonCodeType.Decline, "Insufficient capacity to deliver and repay"),
+        ("INCOMPLETE_APPLICATION", RhshfReasonCodeType.Decline, "The application was not completed"),
+        ("POLICY_EXCLUSION", RhshfReasonCodeType.Decline, "Outside the Bank's lending policy"),
+    ];
+
+    private static async Task SeedReasonCodesAsync(CRMSDbContext context, ILogger logger)
+    {
+        var existing = await context.RhshfReasonCodes.Select(x => x.Code).ToListAsync();
+        var added = 0;
+        var order = 0;
+        foreach (var (code, type, label) in DefaultReasonCodes)
+        {
+            order += 10;
+            // OTHER is one code shared by both lists; it is created once, as a correction reason, and
+            // staff can pick it for a decline too.
+            if (existing.Contains(code))
+                continue;
+            var created = RhshfReasonCode.Create(code, type, label, code == RhshfReasonCode.Other ? 1000 : order);
+            created.Value.SetAuditInfo("System Seeder", isNew: true);
+            await context.RhshfReasonCodes.AddAsync(created.Value);
+            existing.Add(code);
+            added++;
+        }
+
+        if (added == 0)
+            return;
+        await context.SaveChangesAsync();
+        logger.LogInformation("Seeded {Count} default RH-SHF reason code(s).", added);
     }
 
     /// <summary>

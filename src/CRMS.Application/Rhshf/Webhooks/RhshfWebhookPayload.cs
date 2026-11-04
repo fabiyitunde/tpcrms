@@ -37,7 +37,9 @@ public record RhshfWebhookPayload(
     /// <summary>By when the FAC must act on ActionRequired; omitted when there is no deadline.</summary>
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTime? ActionDeadline = null,
     /// <summary>See <see cref="RhshfPortalStateBuilder.SchemaVersion"/>.</summary>
-    int SchemaVersion = RhshfPortalStateBuilder.SchemaVersion);
+    int SchemaVersion = RhshfPortalStateBuilder.SchemaVersion,
+    /// <summary>Why the case is where it is; omitted when there is no reason to give.</summary>
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? StatusReasonCode = null);
 
 public record RhshfWebhookDecisionPayload(
     string Outcome,
@@ -78,7 +80,8 @@ public static class RhshfWebhookPayloadBuilder
             Offer: state.Offer,
             Correction: state.Correction,
             DecisionBasis: state.DecisionBasis,
-            ActionDeadline: state.ActionDeadline);
+            ActionDeadline: state.ActionDeadline,
+            StatusReasonCode: state.StatusReasonCode);
     }
 
     /// <summary>"reasons" is populated on DECLINE / INFO_REQUIRED only (brief §4.4) — DecisionNotes

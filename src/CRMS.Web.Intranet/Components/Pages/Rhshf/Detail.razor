@@ -885,22 +885,22 @@ else
         await LoadAllAsync();
     }
 
-    private async Task SubmitAppraisal((RhshfAppraisalOutcome Outcome, string? Notes, RhshfProfilingStage? ReturnToStage) input)
+    private async Task SubmitAppraisal((RhshfAppraisalOutcome Outcome, string? Notes, RhshfProfilingStage? ReturnToStage, string? ReasonCode) input)
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.AppraiseRhshfCaseAsync(Reference, CurrentUserId, input.Outcome, input.Notes, input.ReturnToStage);
+        var result = await AppService.AppraiseRhshfCaseAsync(Reference, CurrentUserId, input.Outcome, input.Notes, input.ReturnToStage, input.ReasonCode);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();
         await LoadAllAsync();
     }
 
-    private async Task SubmitRiskReview((RhshfRiskReviewOutcome Outcome, string? Notes, RhshfProfilingStage? ReturnToStage) input)
+    private async Task SubmitRiskReview((RhshfRiskReviewOutcome Outcome, string? Notes, RhshfProfilingStage? ReturnToStage, string? ReasonCode) input)
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.ReviewRhshfRiskAsync(Reference, CurrentUserId, input.Outcome, input.Notes, input.ReturnToStage);
+        var result = await AppService.ReviewRhshfRiskAsync(Reference, CurrentUserId, input.Outcome, input.Notes, input.ReturnToStage, input.ReasonCode);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();
@@ -928,22 +928,22 @@ else
         await LoadAllAsync();
     }
 
-    private async Task SubmitCommitteeReturnToFac((string Notes, RhshfProfilingStage ReturnToStage) input)
+    private async Task SubmitCommitteeReturnToFac((string Notes, RhshfProfilingStage ReturnToStage, string? ReasonCode) input)
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.ReturnRhshfCommitteeToFacAsync(Reference, CurrentUserId, input.Notes, input.ReturnToStage);
+        var result = await AppService.ReturnRhshfCommitteeToFacAsync(Reference, CurrentUserId, input.Notes, input.ReturnToStage, input.ReasonCode);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();
         await LoadAllAsync();
     }
 
-    private async Task SubmitRatify((RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage, string? OverrideReason) input)
+    private async Task SubmitRatify((RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage, string? OverrideReason, string? ReasonCode) input)
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.RatifyRhshfCaseAsync(Reference, CurrentUserId, input.Outcome, input.ApprovedAmount, input.Notes, input.ReturnToStage, input.OverrideReason);
+        var result = await AppService.RatifyRhshfCaseAsync(Reference, CurrentUserId, input.Outcome, input.ApprovedAmount, input.Notes, input.ReturnToStage, input.OverrideReason, input.ReasonCode);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();
@@ -969,11 +969,11 @@ else
         await LoadAllAsync();
     }
 
-    private async Task SubmitLegalClearance((RhshfLegalClearanceOutcome Outcome, string? Comments, RhshfProfilingStage? ReturnToStage) input)
+    private async Task SubmitLegalClearance((RhshfLegalClearanceOutcome Outcome, string? Comments, RhshfProfilingStage? ReturnToStage, string? ReasonCode) input)
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.ClearRhshfLegalAsync(Reference, CurrentUserId, input.Outcome, input.Comments, input.ReturnToStage);
+        var result = await AppService.ClearRhshfLegalAsync(Reference, CurrentUserId, input.Outcome, input.Comments, input.ReturnToStage, input.ReasonCode);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();

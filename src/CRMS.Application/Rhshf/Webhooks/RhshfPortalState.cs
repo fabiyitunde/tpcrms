@@ -32,7 +32,10 @@ public record RhshfPortalDecisionBasis(
 public record RhshfPortalCorrectionPayload(
     string? Stage,
     string? Message,
-    DateTime RequestedAt);
+    DateTime RequestedAt,
+    /// <summary>The reason picked from the administrator's list (CRMSQA#1); null for returns made
+    /// before codes existed.</summary>
+    string? ReasonCode = null);
 
 /// <summary>
 /// Everything the portal needs to show the FAC where their case stands, derived in one place so the
@@ -55,12 +58,20 @@ public record RhshfPortalState(
     /// <summary>By when the FAC must act on ActionRequired: the offer's expiry date while an offer
     /// awaits acceptance. Null when there is no deadline, including for a correction, which has none.
     /// The CRMS does not yet lapse an offer on this date.</summary>
-    DateTime? ActionDeadline = null);
+    DateTime? ActionDeadline = null,
+    /// <summary>Why the case is where it is (CRMSQA#1): the correction's reason code while it is back
+    /// with the FAC, the decline's reason code once declined, OFFER_REJECTED_BY_FAC once the FAC
+    /// rejected the offer. Null otherwise, and for decisions made before codes existed.</summary>
+    string? StatusReasonCode = null);
 
 public static class RhshfPortalStateBuilder
 {
     public const string ReviewOffer = "REVIEW_OFFER";
     public const string CorrectProfile = "CORRECT_PROFILE";
+
+    /// <summary>The status reason when the FAC rejected the offer. Fixed, not from the administrator's
+    /// list: no member of staff picks it.</summary>
+    public const string OfferRejectedByFac = "OFFER_REJECTED_BY_FAC";
 
     /// <summary>
     /// The version of the update contract, sent on every webhook and status check (CRMSQA#1). Goes up
@@ -100,16 +111,25 @@ public static class RhshfPortalStateBuilder
             : new RhshfPortalCorrectionPayload(
                 Stage: outstandingReturn.ProfilingStage?.ToExternalStageName(),
                 Message: string.IsNullOrWhiteSpace(outstandingReturn.Note) ? null : outstandingReturn.Note,
-                RequestedAt: outstandingReturn.ChangedAt);
+                RequestedAt: outstandingReturn.ChangedAt,
+                ReasonCode: outstandingReturn.ReasonCode);
 
         // Every transition writes one history row, so the count only ever goes up — a monotonic
         // version without a column of its own. Cases from before the trail existed start low, but
         // still climb from wherever they are.
         DateTime? actionDeadline = creditStatus == "OFFER_READY" ? currentOffer?.ExpiresAt : null;
 
+        var statusReasonCode = creditStatus switch
+        {
+            "CORRECTION_REQUIRED" => outstandingReturn?.ReasonCode,
+            "CREDIT_DECLINED" => profile.DecisionReasonCode,
+            "CANCELLED" => OfferRejectedByFac,
+            _ => null,
+        };
+
         return new RhshfPortalState(
             creditStatus, profile.StatusHistory.Count, actionRequired, actionUrl, offer, correction,
-            DecisionBasis(profile, currentOffer), actionDeadline);
+            DecisionBasis(profile, currentOffer), actionDeadline, statusReasonCode);
     }
 
     /// <summary>

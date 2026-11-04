@@ -19,7 +19,7 @@ CRMSQA#3.
   retry therefore never moves a case backwards.
 - **Recovery:** `GET /v1/credit-profiles/{reference}/status` (API key) returns the same fields:
   `creditStatus`, `stateVersion`, `offer`, `actionRequired`, `actionUrl`, `actionDeadline`,
-  `correction`, `decision`, `decisionBasis` and `schemaVersion`. Its `eventType` is the type of the last
+  `correction`, `decision`, `decisionBasis`, `statusReasonCode` and `schemaVersion`. Its `eventType` is the type of the last
   update the CRMS sent for the case, null if none, since a poll is not an event of its own. Use it for
   the Refresh Status button and for a scheduled check of open cases.
 
@@ -47,8 +47,8 @@ CRMSQA#3.
 ```
 
 `status` is the original coarse field, kept so older handling keeps working. Display `creditStatus`.
-`actionRequired`, `actionUrl`, `actionDeadline`, `offer`, `correction`, `decision` and `decisionBasis`
-are left out when empty.
+`actionRequired`, `actionUrl`, `actionDeadline`, `offer`, `correction`, `decision`, `decisionBasis` and
+`statusReasonCode` are left out when empty.
 
 - **`actionDeadline`:** by when the FAC must act. While an offer awaits acceptance it is the offer's
   expiry date, which an administrator sets on the RH-SHF product (7 days unless changed). A correction
@@ -56,6 +56,30 @@ are left out when empty.
 - **`schemaVersion`:** the version of this contract, on every update and status check. It goes up only
   for a change a reader must act on: a field removed, renamed or given a new meaning, or a new value in
   an existing field. A new optional field does not change it.
+
+## Reason codes
+
+A return or a decline carries a reason code beside the officer's note. The officer picks the reason
+from a list an administrator keeps in the CRMS (Admin, RH-SHF Reason Codes). The list starts with the
+defaults below and can be changed without a release: wording reworded, reasons added or switched off.
+A code itself never changes once created, so a code the portal has stored keeps its meaning.
+
+- **`correction.reasonCode`:** on a return, the reason for it.
+- **`statusReasonCode`:** why the case is where it is. The return's code while a correction is
+  outstanding, the decline's code when declined, `OFFER_REJECTED_BY_FAC` when the FAC rejected the
+  offer, and left out otherwise.
+
+Returns: `DOCUMENT_MISSING`, `DOCUMENT_UNREADABLE`, `DOCUMENT_INVALID`, `COMPANY_DETAILS_MISMATCH`,
+`DIRECTOR_DETAILS_INCOMPLETE`, `GUARANTOR_DETAILS_INCOMPLETE`, `COLLATERAL_DETAILS_INCOMPLETE`,
+`FINANCIAL_INFORMATION_INCOMPLETE`, `EOP_INFORMATION_INCONSISTENT`.
+
+Declines: `ELIGIBILITY_NOT_MET`, `ADVERSE_CREDIT_HISTORY`, `NON_PERFORMING_OBLIGATIONS`,
+`KYC_VERIFICATION_FAILED`, `INSUFFICIENT_SECURITY`, `INSUFFICIENT_CAPACITY`, `INCOMPLETE_APPLICATION`,
+`POLICY_EXCLUSION`.
+
+`OTHER` serves both, and is what a committee decline carries. Treat a code you do not recognise as
+`OTHER` and show the note: an administrator may add codes at any time. Cases returned or declined
+before reason codes existed carry none.
 
 ## Events
 

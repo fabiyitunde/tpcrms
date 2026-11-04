@@ -16,7 +16,9 @@ namespace CRMS.Application.Rhshf.Commands;
 public record RatifyRhshfCaseCommand(
     string Reference, Guid FinalApproverId, RhshfRatificationOutcome Outcome, decimal? ApprovedAmount,
     string? Notes, RhshfProfilingStage? ReturnToStage,
-    bool OverrideOfferGaps = false, string? OverrideReason = null) : IRequest<ApplicationResult>;
+    bool OverrideOfferGaps = false, string? OverrideReason = null,
+    /// <summary>The reason picked for a return or a decline (CRMSQA#1); OTHER when none is given.</summary>
+    string? ReasonCode = null) : IRequest<ApplicationResult>;
 
 public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, ApplicationResult>
 {
@@ -33,6 +35,7 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
     private readonly RhshfOfferDocumentDataBuilder _documentDataBuilder;
     private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _uow;
+    private readonly IRhshfReasonCodeRepository? _reasonCodes;
 
     public RatifyRhshfCaseHandler(
         IRhshfCreditProfileRepository repo,
@@ -42,8 +45,10 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
         IRhshfOfferDocumentGenerator offerDocumentGenerator,
         RhshfOfferDocumentDataBuilder documentDataBuilder,
         IFileStorageService fileStorage,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IRhshfReasonCodeRepository? reasonCodes = null)
     {
+        _reasonCodes = reasonCodes;
         _repo = repo;
         _committeeRepo = committeeRepo;
         _legalRepo = legalRepo;
@@ -86,7 +91,17 @@ public class RatifyRhshfCaseHandler : IRequestHandler<RatifyRhshfCaseCommand, Ap
         if (gaps.Count > 0 && string.IsNullOrWhiteSpace(request.OverrideReason))
             return ApplicationResult.Failure("Give a reason for ratifying with the offer incomplete.");
 
-        var result = profile.Ratify(request.FinalApproverId, request.Outcome, request.ApprovedAmount, request.Notes, request.ReturnToStage, excludedActorIds);
+        string? reasonCode = null;
+        if (request.Outcome is RhshfRatificationOutcome.ReturnToFac or RhshfRatificationOutcome.Declined)
+        {
+            var reason = await RhshfReasonCodeRules.ResolveAsync(_reasonCodes, request.ReasonCode,
+                request.Outcome == RhshfRatificationOutcome.Declined ? RhshfReasonCodeType.Decline : RhshfReasonCodeType.Correction, ct);
+            if (reason.IsFailure)
+                return ApplicationResult.Failure(reason.Error);
+            reasonCode = reason.Value;
+        }
+
+        var result = profile.Ratify(request.FinalApproverId, request.Outcome, request.ApprovedAmount, request.Notes, request.ReturnToStage, excludedActorIds, reasonCode);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

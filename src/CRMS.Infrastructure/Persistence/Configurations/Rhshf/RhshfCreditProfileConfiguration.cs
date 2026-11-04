@@ -91,6 +91,7 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
         builder.Property(x => x.BranchResolutionNote).HasMaxLength(500);
         builder.Property(x => x.InternalStage).HasConversion<string>().HasMaxLength(30);
         builder.Property(x => x.DecisionNotes).HasColumnType("longtext");
+        builder.Property(x => x.DecisionReasonCode).HasMaxLength(50);
 
         // CAC company profile (Phase B)
         builder.Property(x => x.CacStatus).HasMaxLength(100);

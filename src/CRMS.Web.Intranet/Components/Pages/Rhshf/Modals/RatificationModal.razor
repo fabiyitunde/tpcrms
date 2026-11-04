@@ -143,6 +143,10 @@
                 <label class="form-label">Notes @(RequiresNotes ? "(required)" : "(optional)")</label>
                 <textarea class="form-control" rows="3" @bind="notes" placeholder="Enter notes..."></textarea>
             </div>
+            @if (ReasonType is { } reasonType)
+            {
+                <ReasonCodePicker Type="reasonType" @bind-Value="reasonCode" />
+            }
             @if (Intent == "ReturnToFac")
             {
                 <FacVisibleNoteHint />
@@ -207,7 +211,7 @@
         __builder.CloseElement();
     };
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback<(RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage, string? OverrideReason)> OnConfirm { get; set; }
+    [Parameter] public EventCallback<(RhshfRatificationOutcome Outcome, decimal? ApprovedAmount, string? Notes, RhshfProfilingStage? ReturnToStage, string? OverrideReason, string? ReasonCode)> OnConfirm { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
     /// <summary>What the offer letter would be missing; empty when it would be complete.</summary>
@@ -219,6 +223,9 @@
     private string? clientError;
     private RhshfProfilingStage returnToStage = RhshfProfilingStage.ReviewAndSubmit;
 
+    private string? reasonCode;
+    /// <summary>Which reasons apply: a return's or a decline's, or none for a forward decision.</summary>
+    private RhshfReasonCodeType? ReasonType => Intent switch { "ReturnToFac" => RhshfReasonCodeType.Correction, "Declined" => RhshfReasonCodeType.Decline, _ => null };
     private bool RequiresNotes => Intent != "Ratified";
     private string Title => Intent switch { "ReturnToFac" => "Return to FAC", "Declined" => "Decline Ratification", _ => "Ratify Case" };
     private string ConfirmLabel => Intent switch { "ReturnToFac" => "Return to FAC", "Declined" => "Confirm Decline", _ => $"Ratify ({Currency} {TotalEopValue:N2})" };
@@ -229,6 +236,11 @@
         if (RequiresNotes && string.IsNullOrWhiteSpace(notes))
         {
             clientError = "Notes are required for this decision.";
+            return;
+        }
+        if (ReasonType is not null && reasonCode is null)
+        {
+            clientError = "Pick a reason.";
             return;
         }
         var needsOverride = Intent == "Ratified" && OfferGaps.Count > 0;
@@ -249,6 +261,7 @@
             outcome == RhshfRatificationOutcome.Ratified ? TotalEopValue : null,
             string.IsNullOrWhiteSpace(notes) ? null : notes,
             Intent == "ReturnToFac" ? returnToStage : null,
-            needsOverride ? overrideReason.Trim() : null));
+            needsOverride ? overrideReason.Trim() : null,
+            ReasonType is null ? null : reasonCode));
     }
 }

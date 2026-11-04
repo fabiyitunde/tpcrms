@@ -1,4 +1,5 @@
 using CRMS.Application.Common;
+using CRMS.Application.Rhshf.Services;
 using CRMS.Domain.Aggregates.Rhshf;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
@@ -14,7 +15,9 @@ namespace CRMS.Application.Rhshf.Commands;
 /// and creates the RhshfCommitteeReview for this cycle right away, no separate manual "circulate"
 /// step.</summary>
 public record ReviewRhshfRiskCommand(
-    string Reference, Guid RiskOfficerId, RhshfRiskReviewOutcome Outcome, string? Notes, RhshfProfilingStage? ReturnToStage)
+    string Reference, Guid RiskOfficerId, RhshfRiskReviewOutcome Outcome, string? Notes, RhshfProfilingStage? ReturnToStage,
+    /// <summary>The reason picked for a return or a decline (CRMSQA#1); OTHER when none is given.</summary>
+    string? ReasonCode = null)
     : IRequest<ApplicationResult>;
 
 public class ReviewRhshfRiskHandler : IRequestHandler<ReviewRhshfRiskCommand, ApplicationResult>
@@ -25,6 +28,7 @@ public class ReviewRhshfRiskHandler : IRequestHandler<ReviewRhshfRiskCommand, Ap
     private readonly IStandingCommitteeRepository _standingCommitteeRepo;
     private readonly IRhshfLegalClearanceRepository _legalRepo;
     private readonly IUnitOfWork _uow;
+    private readonly IRhshfReasonCodeRepository? _reasonCodes;
 
     public ReviewRhshfRiskHandler(
         IRhshfCreditProfileRepository repo,
@@ -32,8 +36,10 @@ public class ReviewRhshfRiskHandler : IRequestHandler<ReviewRhshfRiskCommand, Ap
         IRhshfRoutingConfigRepository routingRepo,
         IStandingCommitteeRepository standingCommitteeRepo,
         IRhshfLegalClearanceRepository legalRepo,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IRhshfReasonCodeRepository? reasonCodes = null)
     {
+        _reasonCodes = reasonCodes;
         _repo = repo;
         _committeeRepo = committeeRepo;
         _routingRepo = routingRepo;
@@ -57,7 +63,17 @@ public class ReviewRhshfRiskHandler : IRequestHandler<ReviewRhshfRiskCommand, Ap
             .OrderByDescending(c => c.ClearedAt)
             .FirstOrDefault()?.LegalOfficerId;
 
-        var result = profile.ReviewRisk(request.RiskOfficerId, request.Outcome, request.Notes, request.ReturnToStage, legalOfficerId);
+        string? reasonCode = null;
+        if (request.Outcome is RhshfRiskReviewOutcome.ReturnToFac or RhshfRiskReviewOutcome.Decline)
+        {
+            var reason = await RhshfReasonCodeRules.ResolveAsync(_reasonCodes, request.ReasonCode,
+                request.Outcome == RhshfRiskReviewOutcome.Decline ? RhshfReasonCodeType.Decline : RhshfReasonCodeType.Correction, ct);
+            if (reason.IsFailure)
+                return ApplicationResult.Failure(reason.Error);
+            reasonCode = reason.Value;
+        }
+
+        var result = profile.ReviewRisk(request.RiskOfficerId, request.Outcome, request.Notes, request.ReturnToStage, legalOfficerId, reasonCode);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

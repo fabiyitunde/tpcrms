@@ -1,4 +1,5 @@
 using CRMS.Application.Common;
+using CRMS.Application.Rhshf.Services;
 using CRMS.Domain.Aggregates.Rhshf;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
@@ -13,7 +14,9 @@ namespace CRMS.Application.Rhshf.Commands;
 /// </summary>
 public record ClearRhshfLegalCommand(
     string Reference, Guid LegalOfficerId, RhshfLegalClearanceOutcome Outcome, string? Comments,
-    RhshfProfilingStage? ReturnToStage = null) : IRequest<ApplicationResult>;
+    RhshfProfilingStage? ReturnToStage = null,
+    /// <summary>The reason picked for a return or a decline (CRMSQA#1); OTHER when none is given.</summary>
+    string? ReasonCode = null) : IRequest<ApplicationResult>;
 
 public class ClearRhshfLegalHandler : IRequestHandler<ClearRhshfLegalCommand, ApplicationResult>
 {
@@ -21,11 +24,14 @@ public class ClearRhshfLegalHandler : IRequestHandler<ClearRhshfLegalCommand, Ap
     private readonly IRhshfLegalClearanceRepository _legalRepo;
     private readonly IRhshfCollateralRepository _collateralRepo;
     private readonly IUnitOfWork _uow;
+    private readonly IRhshfReasonCodeRepository? _reasonCodes;
 
     public ClearRhshfLegalHandler(
         IRhshfCreditProfileRepository repo, IRhshfLegalClearanceRepository legalRepo,
-        IRhshfCollateralRepository collateralRepo, IUnitOfWork uow)
+        IRhshfCollateralRepository collateralRepo, IUnitOfWork uow,
+        IRhshfReasonCodeRepository? reasonCodes = null)
     {
+        _reasonCodes = reasonCodes;
         _repo = repo;
         _legalRepo = legalRepo;
         _collateralRepo = collateralRepo;
@@ -51,6 +57,16 @@ public class ClearRhshfLegalHandler : IRequestHandler<ClearRhshfLegalCommand, Ap
                     "Confirm each one on the Collateral tab, or use \"Grant with Caveat\" to send the case on with the defect documented.");
         }
 
+        string? reasonCode = null;
+        if (request.Outcome is RhshfLegalClearanceOutcome.Returned or RhshfLegalClearanceOutcome.Declined)
+        {
+            var reason = await RhshfReasonCodeRules.ResolveAsync(_reasonCodes, request.ReasonCode,
+                request.Outcome == RhshfLegalClearanceOutcome.Declined ? RhshfReasonCodeType.Decline : RhshfReasonCodeType.Correction, ct);
+            if (reason.IsFailure)
+                return ApplicationResult.Failure(reason.Error);
+            reasonCode = reason.Value;
+        }
+
         var clearanceResult = RhshfLegalClearance.Create(
             profile.Id, profile.CurrentCycleNumber, request.LegalOfficerId, request.Outcome, request.Comments);
         if (clearanceResult.IsFailure)
@@ -63,8 +79,8 @@ public class ClearRhshfLegalHandler : IRequestHandler<ClearRhshfLegalCommand, Ap
             // answer for it explicitly when it votes (defer perfection, or waive it).
             RhshfLegalClearanceOutcome.Granted or RhshfLegalClearanceOutcome.GrantedWithCaveat
                 => profile.AdvanceToRiskReviewFromLegal(request.LegalOfficerId, request.Comments),
-            RhshfLegalClearanceOutcome.Returned => profile.ReturnToFacFromLegal(request.ReturnToStage, request.LegalOfficerId, request.Comments),
-            RhshfLegalClearanceOutcome.Declined => profile.DeclineAtLegalClearance(request.Comments, request.LegalOfficerId),
+            RhshfLegalClearanceOutcome.Returned => profile.ReturnToFacFromLegal(request.ReturnToStage, request.LegalOfficerId, request.Comments, reasonCode),
+            RhshfLegalClearanceOutcome.Declined => profile.DeclineAtLegalClearance(request.Comments, request.LegalOfficerId, reasonCode),
             _ => throw new ArgumentOutOfRangeException(nameof(request.Outcome)),
         };
         if (transitionResult.IsFailure)

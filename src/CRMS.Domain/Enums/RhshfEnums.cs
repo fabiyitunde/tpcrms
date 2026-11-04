@@ -368,6 +368,16 @@ public enum RhshfDocumentFormat
     Image,
 }
 
+/// <summary>Which decision a reason code explains. Persisted by name.</summary>
+public enum RhshfReasonCodeType
+{
+    /// <summary>Why a case was sent back to the FAC.</summary>
+    Correction,
+
+    /// <summary>Why a case was declined.</summary>
+    Decline,
+}
+
 /// <summary>
 /// Whether the CRMS could confirm the portal's EOP snapshot hash against the EOP content it received
 /// (CRMSQA#3). A decision is tied to the hash, so the hash has to describe what was actually decided.

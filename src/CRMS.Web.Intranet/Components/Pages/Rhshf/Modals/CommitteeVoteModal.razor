@@ -11,6 +11,10 @@
                 <label class="form-label">@(Intent == "ReturnToFac" ? "Notes (required)" : "Comment (optional)")</label>
                 <textarea class="form-control" rows="3" @bind="notes" placeholder="Enter notes..."></textarea>
             </div>
+            @if (ReasonType is { } reasonType)
+            {
+                <ReasonCodePicker Type="reasonType" @bind-Value="reasonCode" />
+            }
             @if (Intent == "ReturnToFac")
             {
                 <FacVisibleNoteHint />
@@ -63,7 +67,7 @@
     [Parameter, EditorRequired] public string Intent { get; set; } = "Approve";
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<(RhshfCommitteeVoteChoice Vote, string? Comment, RhshfPerfectionDisposition? PerfectionDisposition)> OnVote { get; set; }
-    [Parameter] public EventCallback<(string Notes, RhshfProfilingStage ReturnToStage)> OnReturnToFac { get; set; }
+    [Parameter] public EventCallback<(string Notes, RhshfProfilingStage ReturnToStage, string? ReasonCode)> OnReturnToFac { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
 
@@ -77,6 +81,9 @@
     private string? clientError;
     private RhshfProfilingStage returnToStage = RhshfProfilingStage.ReviewAndSubmit;
     private RhshfPerfectionDisposition? perfectionDisposition;
+    private string? reasonCode;
+    /// <summary>Which reasons apply: a return's or a decline's, or none for a forward decision.</summary>
+    private RhshfReasonCodeType? ReasonType => Intent switch { "ReturnToFac" => RhshfReasonCodeType.Correction, _ => null };
 
     private string Title => Intent switch { "ReturnToFac" => "Return to FAC", "Reject" => "Cast Reject Vote", "Abstain" => "Cast Abstain Vote", _ => "Cast Approve Vote" };
     private string ConfirmLabel => Intent switch { "ReturnToFac" => "Return to FAC", _ => $"Confirm {Intent}" };
@@ -91,8 +98,13 @@
                 clientError = "Notes are required to return a case to the FAC.";
                 return;
             }
+            if (ReasonType is not null && reasonCode is null)
+            {
+                clientError = "Pick a reason.";
+                return;
+            }
             clientError = null;
-            await OnReturnToFac.InvokeAsync((notes, returnToStage));
+            await OnReturnToFac.InvokeAsync((notes, returnToStage, reasonCode));
             return;
         }
 

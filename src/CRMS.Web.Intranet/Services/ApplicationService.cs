@@ -7143,15 +7143,53 @@ public partial class ApplicationService
         }
     }
 
+    // ── RH-SHF reason codes (CRMSQA#1) ─────────────────────────────────────
+
+    /// <summary>All codes for the admin page, or the active ones staff can pick for a return or a
+    /// decline when <paramref name="pickFor"/> is given.</summary>
+    public async Task<List<CRMS.Application.Rhshf.Commands.RhshfReasonCodeDto>> GetRhshfReasonCodesAsync(
+        CRMS.Domain.Enums.RhshfReasonCodeType? pickFor = null)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.GetRhshfReasonCodesHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Commands.GetRhshfReasonCodesQuery(pickFor), CancellationToken.None);
+            return result.IsSuccess && result.Data is not null ? result.Data : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading RH-SHF reason codes");
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse> SaveRhshfReasonCodeAsync(
+        string code, CRMS.Domain.Enums.RhshfReasonCodeType type, string label, int sortOrder, bool isActive, string actorName)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.SaveRhshfReasonCodeHandler>();
+            var result = await handler.Handle(
+                new CRMS.Application.Rhshf.Commands.SaveRhshfReasonCodeCommand(code, type, label, sortOrder, isActive, actorName),
+                CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Could not save the reason code");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving RH-SHF reason code {Code}", code);
+            return ApiResponse.Fail("Could not save the reason code");
+        }
+    }
+
     public async Task<ApiResponse> AppraiseRhshfCaseAsync(
         string reference, Guid creditOfficerId, CRMS.Domain.Enums.RhshfAppraisalOutcome outcome, string? notes,
-        CRMS.Domain.Enums.RhshfProfilingStage? returnToStage)
+        CRMS.Domain.Enums.RhshfProfilingStage? returnToStage, string? reasonCode = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.AppraiseRhshfCaseHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.AppraiseRhshfCaseCommand(reference, creditOfficerId, outcome, notes, returnToStage),
+                new CRMS.Application.Rhshf.Commands.AppraiseRhshfCaseCommand(reference, creditOfficerId, outcome, notes, returnToStage, reasonCode),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Appraisal failed");
         }
@@ -7164,13 +7202,13 @@ public partial class ApplicationService
 
     public async Task<ApiResponse> ReviewRhshfRiskAsync(
         string reference, Guid riskOfficerId, CRMS.Domain.Enums.RhshfRiskReviewOutcome outcome, string? notes,
-        CRMS.Domain.Enums.RhshfProfilingStage? returnToStage)
+        CRMS.Domain.Enums.RhshfProfilingStage? returnToStage, string? reasonCode = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ReviewRhshfRiskHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.ReviewRhshfRiskCommand(reference, riskOfficerId, outcome, notes, returnToStage),
+                new CRMS.Application.Rhshf.Commands.ReviewRhshfRiskCommand(reference, riskOfficerId, outcome, notes, returnToStage, reasonCode),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Risk review failed");
         }
@@ -7218,13 +7256,14 @@ public partial class ApplicationService
     }
 
     public async Task<ApiResponse> ReturnRhshfCommitteeToFacAsync(
-        string reference, Guid userId, string? notes, CRMS.Domain.Enums.RhshfProfilingStage? returnToStage)
+        string reference, Guid userId, string? notes, CRMS.Domain.Enums.RhshfProfilingStage? returnToStage,
+        string? reasonCode = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ReturnRhshfCommitteeToFacHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.ReturnRhshfCommitteeToFacCommand(reference, userId, notes, returnToStage),
+                new CRMS.Application.Rhshf.Commands.ReturnRhshfCommitteeToFacCommand(reference, userId, notes, returnToStage, reasonCode),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Return to FAC failed");
         }
@@ -7239,14 +7278,16 @@ public partial class ApplicationService
 
     public async Task<ApiResponse> RatifyRhshfCaseAsync(
         string reference, Guid finalApproverId, CRMS.Domain.Enums.RhshfRatificationOutcome outcome, decimal? approvedAmount,
-        string? notes, CRMS.Domain.Enums.RhshfProfilingStage? returnToStage, string? overrideOfferGapsReason = null)
+        string? notes, CRMS.Domain.Enums.RhshfProfilingStage? returnToStage, string? overrideOfferGapsReason = null,
+        string? reasonCode = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.RatifyRhshfCaseHandler>();
             var result = await handler.Handle(
                 new CRMS.Application.Rhshf.Commands.RatifyRhshfCaseCommand(reference, finalApproverId, outcome, approvedAmount, notes, returnToStage,
-                    OverrideOfferGaps: overrideOfferGapsReason is not null, OverrideReason: overrideOfferGapsReason),
+                    OverrideOfferGaps: overrideOfferGapsReason is not null, OverrideReason: overrideOfferGapsReason,
+                    ReasonCode: reasonCode),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Ratification failed");
         }
@@ -7324,13 +7365,13 @@ public partial class ApplicationService
 
     public async Task<ApiResponse> ClearRhshfLegalAsync(
         string reference, Guid legalOfficerId, CRMS.Domain.Enums.RhshfLegalClearanceOutcome outcome, string? comments,
-        CRMS.Domain.Enums.RhshfProfilingStage? returnToStage = null)
+        CRMS.Domain.Enums.RhshfProfilingStage? returnToStage = null, string? reasonCode = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ClearRhshfLegalHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.ClearRhshfLegalCommand(reference, legalOfficerId, outcome, comments, returnToStage),
+                new CRMS.Application.Rhshf.Commands.ClearRhshfLegalCommand(reference, legalOfficerId, outcome, comments, returnToStage, reasonCode),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Legal clearance failed");
         }

@@ -49,6 +49,9 @@ public class RhshfStatusHistory : Entity
     public string? ActorLabel { get; private set; }
 
     public string? Note { get; private set; }
+    /// <summary>The reason code picked for a return or a decline (an RhshfReasonCode), sent to the
+    /// portal beside the note. Null for every other row and for rows from before codes existed.</summary>
+    public string? ReasonCode { get; private set; }
     public DateTime ChangedAt { get; private set; }
 
     protected RhshfStatusHistory() { }
@@ -62,7 +65,8 @@ public class RhshfStatusHistory : Entity
         string action,
         Guid? actorUserId,
         string? actorLabel,
-        string? note)
+        string? note,
+        string? reasonCode = null)
     {
         RhshfCreditProfileId = rhshfCreditProfileId;
         CycleNumber = cycleNumber;
@@ -75,6 +79,7 @@ public class RhshfStatusHistory : Entity
         // which one to believe.
         ActorLabel = actorUserId is null ? (actorLabel ?? "System") : null;
         Note = Truncate(note, 2000);
+        ReasonCode = string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim().ToUpperInvariant();
         ChangedAt = DateTime.UtcNow;
     }
 

@@ -36,7 +36,9 @@ public record RhshfCaseStatusDto(
     string? EventType = null,
     /// <summary>By when the FAC must act on ActionRequired; null when there is no deadline.</summary>
     DateTime? ActionDeadline = null,
-    int SchemaVersion = RhshfPortalStateBuilder.SchemaVersion);
+    int SchemaVersion = RhshfPortalStateBuilder.SchemaVersion,
+    /// <summary>Why the case is where it is; null when there is no reason to give.</summary>
+    string? StatusReasonCode = null);
 
 public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery, ApplicationResult<RhshfCaseStatusDto>>
 {
@@ -94,7 +96,8 @@ public class GetRhshfCaseStatusHandler : IRequestHandler<GetRhshfCaseStatusQuery
             EventType: (await _updates.GetByProfileAsync(profile.Id, ct))
                 .OrderByDescending(a => a.EventOccurredAt)
                 .FirstOrDefault()?.EventType.ToExternalEventType(),
-            ActionDeadline: state.ActionDeadline);
+            ActionDeadline: state.ActionDeadline,
+            StatusReasonCode: state.StatusReasonCode);
 
         return ApplicationResult<RhshfCaseStatusDto>.Success(dto);
     }
