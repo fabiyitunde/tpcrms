@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CRMS.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CRMSDbContext))]
-    [Migration("20261104130907_AddRhshfReasonCodes")]
+    [Migration("20261104114742_AddRhshfReasonCodes")]
     partial class AddRhshfReasonCodes
     {
         /// <inheritdoc />
