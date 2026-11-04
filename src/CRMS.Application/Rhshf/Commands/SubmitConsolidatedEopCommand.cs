@@ -25,12 +25,25 @@ public class SubmitConsolidatedEopHandler
     /// <c>eop_changed</c>, listing the changed EOPs from the rest of the error list.</summary>
     public const string EopChangedError = "The EOP has changed since the CRMS received this case:";
 
+    /// <summary>How the refusal of an EOP already on another live case begins; the API answers it
+    /// with 409 <c>eop_on_another_case</c>, the holders following as <see cref="FormatHolder"/> lines.</summary>
+    public const string EopOnAnotherCaseError = "An EOP in this submission is already on another CRMS case:";
+
+    public static string FormatHolder(RhshfEopHolder h) => $"{h.EopId}|{h.EopReference}|{h.CaseReference}";
+
+    public static RhshfEopHolder ParseHolder(string line)
+    {
+        var parts = line.Split('|');
+        return new RhshfEopHolder(Guid.Parse(parts[0]), string.IsNullOrEmpty(parts[1]) ? null : parts[1], parts[2]);
+    }
+
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfTokenService _tokenService;
     private readonly IFineractDirectService _fineract;
     private readonly ILocationRepository _locationRepo;
     private readonly IUnitOfWork _uow;
     private readonly IRhshfScheduleFarmerRepository _schedule;
+    private readonly IRhshfEopHolderLookup? _eopHolders;
 
     public SubmitConsolidatedEopHandler(
         IRhshfCreditProfileRepository repo,
@@ -38,7 +51,8 @@ public class SubmitConsolidatedEopHandler
         IFineractDirectService fineract,
         ILocationRepository locationRepo,
         IUnitOfWork uow,
-        IRhshfScheduleFarmerRepository schedule)
+        IRhshfScheduleFarmerRepository schedule,
+        IRhshfEopHolderLookup? eopHolders = null)
     {
         _repo = repo;
         _tokenService = tokenService;
@@ -46,6 +60,7 @@ public class SubmitConsolidatedEopHandler
         _locationRepo = locationRepo;
         _uow = uow;
         _schedule = schedule;
+        _eopHolders = eopHolders;
     }
 
     public async Task<ApplicationResult<SubmitConsolidatedEopResultDto>> Handle(
@@ -104,6 +119,24 @@ public class SubmitConsolidatedEopHandler
             var existingResponse = IssueTokenAndBuildResponse(existing);
             await _uow.SaveChangesAsync(ct);
             return ApplicationResult<SubmitConsolidatedEopResultDto>.Success(existingResponse);
+        }
+
+        // A new case for an EOP another live case already holds would finance the same farmers twice.
+        // An amendment to a case is not a new case, and is not accepted this way.
+        if (_eopHolders is not null)
+        {
+            var eopIds = (req.Financing?.Eops ?? []).Select(e => e?.EopId)
+                .Concat((req.Financing?.InputLines ?? []).Select(l => l?.EopId))
+                .OfType<Guid>().Distinct().ToList();
+            var holders = await _eopHolders.GetLiveHoldersAsync(eopIds, ct);
+            if (holders.Count > 0)
+                return ApplicationResult<SubmitConsolidatedEopResultDto>.Failure(
+                [
+                    $"{EopOnAnotherCaseError} "
+                    + string.Join("; ", holders.Select(h => $"{h.EopReference ?? h.EopId.ToString()} is on {h.CaseReference}"))
+                    + ". A case that is open or approved keeps its EOPs; a declined or cancelled one does not.",
+                    .. holders.Select(FormatHolder),
+                ]);
         }
 
         var eopLines = req.EopLines?.Select(l => new RhshfEopLineInput(

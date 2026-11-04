@@ -81,7 +81,7 @@ public class SubmitConsolidatedEopIdempotencyTests
         Assert.Equal(3, profile.IssuedTokens.Count);
     }
 
-    private class FakeTokenService : IRhshfTokenService
+    internal class FakeTokenService : IRhshfTokenService
     {
         private int _counter;
         public RhshfIssuedTokenResult IssueToken(Guid rhshfCreditProfileId, string reference, Guid facId, string programmeCode)
@@ -92,7 +92,7 @@ public class SubmitConsolidatedEopIdempotencyTests
         public RhshfTokenValidationResult? ValidateToken(string token) => throw new NotSupportedException();
     }
 
-    private class FakeFineractDirectService : IFineractDirectService
+    internal class FakeFineractDirectService : IFineractDirectService
     {
         public Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
             => Task.FromResult(Result.Failure<NampBoaAccountInfo>("not resolvable in test"));
@@ -105,7 +105,7 @@ public class SubmitConsolidatedEopIdempotencyTests
         public Task<Result<FineractBookingResult>> BookApprovedLoanAsync(FineractLoanBookingRequest request, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
-    private class FakeLocationRepository : ILocationRepository
+    internal class FakeLocationRepository : ILocationRepository
     {
         public Task<Location?> GetByIdAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<Location?> GetByIdWithChildrenAsync(Guid id, CancellationToken ct = default) => throw new NotSupportedException();

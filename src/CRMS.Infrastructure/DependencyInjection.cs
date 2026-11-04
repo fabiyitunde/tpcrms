@@ -792,6 +792,7 @@ public static class DependencyInjection
         services.AddScoped<IRhshfOfferRepository, RhshfOfferRepository>();
         services.AddScoped<IRhshfScheduleFarmerRepository, RhshfScheduleFarmerRepository>();
         services.AddScoped<IRhshfReasonCodeRepository, RhshfReasonCodeRepository>();
+        services.AddScoped<IRhshfEopHolderLookup, RhshfEopHolderLookup>();
         // The merged post-approval document. The old pair stay registered: offers already issued
         // still serve their stored offer letter and KFS, and the regenerate path uses them for a
         // cycle that was issued under the two-document arrangement.

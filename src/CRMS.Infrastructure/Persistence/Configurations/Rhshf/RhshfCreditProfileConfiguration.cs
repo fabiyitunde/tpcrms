@@ -327,6 +327,8 @@ public class RhshfFinancingLineConfiguration : IEntityTypeConfiguration<RhshfFin
         builder.Ignore(x => x.ResponsibleParty);
 
         builder.HasIndex(x => x.RhshfCreditProfileId);
+        // Finds the case already holding an EOP, so a second live case for it is refused (CRMSQA#3).
+        builder.HasIndex(x => x.EopId);
     }
 }
 
@@ -360,6 +362,7 @@ public class RhshfFinancingEopConfiguration : IEntityTypeConfiguration<RhshfFina
         builder.Ignore(x => x.DecisionHash);
 
         builder.HasIndex(x => x.RhshfCreditProfileId);
+        builder.HasIndex(x => x.EopId);
     }
 }
 

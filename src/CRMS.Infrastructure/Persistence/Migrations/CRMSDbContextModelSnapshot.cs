@@ -7942,6 +7942,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("EopId");
+
                     b.HasIndex("RhshfCreditProfileId");
 
                     b.ToTable("RhshfFinancingEops", (string)null);
@@ -8084,6 +8086,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EopId");
 
                     b.HasIndex("RhshfCreditProfileId");
 

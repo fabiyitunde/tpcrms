@@ -405,6 +405,54 @@ public class SubmitConsolidatedEopHandlerTests
         Assert.Equal(("v2-original", "rhshf-eop-snapshot-v2"), repo.Added.Single().FinancingEops.Single().DecisionHash);
     }
 
+    // ── The same EOP on two live cases (CRMSQA#3) ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task Handle_ANewCaseForAnEopAnotherLiveCaseHolds_IsRefused()
+    {
+        var repo = new FakeRepository();
+        var eopId = Guid.NewGuid();
+        var holders = new FakeEopHolders(new RhshfEopHolder(eopId, "EOP-1A2B3C4D", "RHSHF-2026-000001"));
+
+        var result = await new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(),
+                new FakeLocationRepository(), new FakeUnitOfWork(), new FakeScheduleRepository(), holders)
+            .Handle(new SubmitConsolidatedEopCommand(WithEop(Guid.NewGuid(), eopId, 4_000m), "{}"));
+
+        Assert.False(result.IsSuccess);
+        Assert.StartsWith(SubmitConsolidatedEopHandler.EopOnAnotherCaseError, result.Error);
+        Assert.Contains("EOP-1A2B3C4D is on RHSHF-2026-000001", result.Error);
+        Assert.Equal([eopId], holders.AskedFor);
+        Assert.Empty(repo.Added);
+    }
+
+    [Fact]
+    public async Task Handle_ARetryOfTheSameSubmission_IsNotRefusedByItsOwnCase()
+    {
+        var repo = new FakeRepository();
+        var submissionId = Guid.NewGuid();
+        var eopId = Guid.NewGuid();
+        await Submit(repo, WithEop(submissionId, eopId, 4_000m));
+        var holders = new FakeEopHolders(new RhshfEopHolder(eopId, "EOP-1A2B3C4D", repo.Added.Single().Reference));
+
+        var retry = await new SubmitConsolidatedEopHandler(repo, new FakeTokenService(), new FakeFineractDirectService(),
+                new FakeLocationRepository(), new FakeUnitOfWork(), new FakeScheduleRepository(), holders)
+            .Handle(new SubmitConsolidatedEopCommand(WithEop(submissionId, eopId, 4_000m), "{}"));
+
+        Assert.True(retry.IsSuccess, retry.Error);
+    }
+
+    private class FakeEopHolders : IRhshfEopHolderLookup
+    {
+        private readonly RhshfEopHolder[] _holders;
+        public FakeEopHolders(params RhshfEopHolder[] holders) => _holders = holders;
+        public List<Guid> AskedFor { get; } = [];
+        public Task<IReadOnlyList<RhshfEopHolder>> GetLiveHoldersAsync(IReadOnlyCollection<Guid> eopIds, CancellationToken ct = default)
+        {
+            AskedFor.AddRange(eopIds);
+            return Task.FromResult<IReadOnlyList<RhshfEopHolder>>(_holders.Where(h => eopIds.Contains(h.EopId)).ToList());
+        }
+    }
+
     private class FakeScheduleRepository : IRhshfScheduleFarmerRepository
     {
         public List<RhshfScheduleFarmer> Rows { get; } = [];

@@ -79,6 +79,17 @@ public class RhshfSubmissionController : ControllerBase
             if (result.Error?.StartsWith(SubmitConsolidatedEopHandler.EopChangedError, StringComparison.Ordinal) == true)
                 return Conflict(new { error = "eop_changed", message = result.Error, changedEops = result.Errors.Skip(1).ToList() });
 
+            // The same EOP on a second live case (CRMSQA#3). Permanent: a retry gets the same answer.
+            if (result.Error?.StartsWith(SubmitConsolidatedEopHandler.EopOnAnotherCaseError, StringComparison.Ordinal) == true)
+                return Conflict(new
+                {
+                    error = "eop_on_another_case",
+                    message = result.Error,
+                    eops = result.Errors.Skip(1).Select(SubmitConsolidatedEopHandler.ParseHolder)
+                        .Select(h => new { eopId = h.EopId, eopReference = h.EopReference, caseReference = h.CaseReference })
+                        .ToList(),
+                });
+
             // A dedicated code for reconciliation, at the portal team's request: their sender checks
             // the same rules before dispatch, so this code tells them their own guard was bypassed or
             // their arithmetic and ours disagree — a different problem from a malformed field, and
