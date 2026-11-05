@@ -36,6 +36,8 @@ public class AdvisoryController : ControllerBase
     /// Generate a new AI-powered credit advisory for a loan application.
     /// </summary>
     [HttpPost("generate")]
+    [ProducesResponseType(typeof(CreditAdvisoryDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Generate([FromBody] GenerateAdvisoryRequest request, CancellationToken ct)
     {
         var command = new GenerateCreditAdvisoryCommand(request.LoanApplicationId, request.GeneratedByUserId);
@@ -50,6 +52,8 @@ public class AdvisoryController : ControllerBase
     /// Get a credit advisory by ID.
     /// </summary>
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(CreditAdvisoryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _getByIdHandler.Handle(new GetCreditAdvisoryByIdQuery(id), ct);
@@ -60,6 +64,8 @@ public class AdvisoryController : ControllerBase
     /// Get the latest completed credit advisory for a loan application.
     /// </summary>
     [HttpGet("by-loan-application/{loanApplicationId}/latest")]
+    [ProducesResponseType(typeof(CreditAdvisoryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetLatestByLoanApplication(Guid loanApplicationId, CancellationToken ct)
     {
         var result = await _getLatestHandler.Handle(new GetLatestAdvisoryByLoanApplicationQuery(loanApplicationId), ct);
@@ -70,6 +76,8 @@ public class AdvisoryController : ControllerBase
     /// Get all credit advisories for a loan application (history).
     /// </summary>
     [HttpGet("by-loan-application/{loanApplicationId}/history")]
+    [ProducesResponseType(typeof(List<CreditAdvisorySummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetHistoryByLoanApplication(Guid loanApplicationId, CancellationToken ct)
     {
         var result = await _getHistoryHandler.Handle(new GetAdvisoryHistoryByLoanApplicationQuery(loanApplicationId), ct);
@@ -80,6 +88,8 @@ public class AdvisoryController : ControllerBase
     /// Get the score matrix for a specific advisory.
     /// </summary>
     [HttpGet("{id}/score-matrix")]
+    [ProducesResponseType(typeof(ScoreMatrixDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetScoreMatrix(Guid id, CancellationToken ct)
     {
         var result = await _getScoreMatrixHandler.Handle(new GetScoreMatrixQuery(id), ct);

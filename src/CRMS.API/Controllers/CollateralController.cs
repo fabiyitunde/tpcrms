@@ -39,7 +39,10 @@ public class CollateralController : ControllerBase
         _calculateLTVHandler = calculateLTVHandler;
     }
 
+    /// <summary>Add a collateral item to a loan application.</summary>
     [HttpPost]
+    [ProducesResponseType(typeof(CollateralDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Add([FromBody] AddCollateralApiRequest request, CancellationToken ct)
     {
         if (!Enum.TryParse<CollateralType>(request.Type, true, out var type))
@@ -60,21 +63,30 @@ public class CollateralController : ControllerBase
         return result.IsSuccess ? CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Get one collateral item.</summary>
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(CollateralDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _getByIdHandler.Handle(new GetCollateralByIdQuery(id), ct);
         return result.IsSuccess ? Ok(result.Data) : NotFound(result.Error);
     }
 
+    /// <summary>List the collateral on a loan application.</summary>
     [HttpGet("by-loan-application/{loanApplicationId}")]
+    [ProducesResponseType(typeof(List<CollateralSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetByLoanApplication(Guid loanApplicationId, CancellationToken ct)
     {
         var result = await _getByLoanAppHandler.Handle(new GetCollateralByLoanApplicationQuery(loanApplicationId), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Record a collateral item's market and forced-sale value.</summary>
     [HttpPut("{id}/valuation")]
+    [ProducesResponseType(typeof(CollateralDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SetValuation(Guid id, [FromBody] SetCollateralValuationRequest request, CancellationToken ct)
     {
         var command = new SetCollateralValuationCommand(
@@ -89,14 +101,20 @@ public class CollateralController : ControllerBase
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Approve a valued collateral item.</summary>
     [HttpPost("{id}/approve")]
+    [ProducesResponseType(typeof(CollateralDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApproveCollateralApiRequest request, CancellationToken ct)
     {
         var result = await _approveHandler.Handle(new ApproveCollateralCommand(id, request.ApprovedByUserId), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Record that the lien on a collateral item has been perfected.</summary>
     [HttpPost("{id}/perfection")]
+    [ProducesResponseType(typeof(CollateralDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RecordPerfection(Guid id, [FromBody] RecordPerfectionRequest request, CancellationToken ct)
     {
         if (!Enum.TryParse<LienType>(request.LienType, true, out var lienType))
@@ -114,7 +132,10 @@ public class CollateralController : ControllerBase
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Calculate the loan-to-value of a loan application against its collateral.</summary>
     [HttpGet("ltv/{loanApplicationId}")]
+    [ProducesResponseType(typeof(LTVCalculationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CalculateLTV(Guid loanApplicationId, [FromQuery] decimal loanAmount, [FromQuery] string currency = "NGN", CancellationToken ct = default)
     {
         var result = await _calculateLTVHandler.Handle(new CalculateLTVQuery(loanApplicationId, loanAmount, currency), ct);

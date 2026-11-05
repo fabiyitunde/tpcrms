@@ -25,7 +25,10 @@ public class CoreBankingController : ControllerBase
         _getStatementHandler = getStatementHandler;
     }
 
+    /// <summary>Get a corporate customer's record, directors and signatories from core banking, by account number.</summary>
     [HttpGet("corporate/{accountNumber}")]
+    [ProducesResponseType(typeof(CorporateAccountDataDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetCorporateAccountData(
         string accountNumber,
         [FromQuery] bool includeStatement = true,
@@ -37,14 +40,20 @@ public class CoreBankingController : ControllerBase
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Get an account's details from core banking.</summary>
     [HttpGet("accounts/{accountNumber}")]
+    [ProducesResponseType(typeof(AccountInfoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAccountInfo(string accountNumber, CancellationToken ct)
     {
         var result = await _getAccountInfoHandler.Handle(new GetAccountInfoQuery(accountNumber), ct);
         return result.IsSuccess ? Ok(result.Data) : NotFound(result.Error);
     }
 
+    /// <summary>Get an account's statement from core banking for a period.</summary>
     [HttpGet("accounts/{accountNumber}/statement")]
+    [ProducesResponseType(typeof(AccountStatementDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAccountStatement(
         string accountNumber,
         [FromQuery] DateTime? fromDate,

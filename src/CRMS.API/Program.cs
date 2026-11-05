@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using CRMS.API;
+using CRMS.API.OpenApi;
 using CRMS.Infrastructure;
 using Scalar.AspNetCore;
 using CRMS.Infrastructure.Identity;
@@ -90,7 +91,9 @@ builder.Services.AddInfrastructure(connectionString, builder.Configuration);
 builder.Services.AddApplicationServices();
 
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+// The API reference: start-here guide, authentication schemes, summaries and schemas for every
+// operation. See OpenApi/CrmsOpenApi.cs.
+builder.Services.AddCrmsOpenApi();
 
 // Party-exposure lookup for the portal's Farmer 360 (CRMSQA#4). The limiter and queue are in-memory
 // and must be single instances; batch identifiers are never written to the database.
@@ -160,7 +163,7 @@ var enableApiDocs = app.Environment.IsDevelopment()
 if (enableApiDocs)
 {
     app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapScalarApiReference(options => options.Title = "CRMS API");
 }
 
 //app.UseHttpsRedirection();

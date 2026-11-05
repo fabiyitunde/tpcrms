@@ -88,6 +88,11 @@ public class NotificationController : ControllerBase
     /// Mark a notification as read.
     /// </summary>
     [HttpPost("{id:guid}/mark-read")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> MarkAsRead(Guid id, CancellationToken ct)
     {
         var notification = await _notificationRepository.GetByIdAsync(id, ct);
@@ -218,6 +223,9 @@ public class NotificationController : ControllerBase
     /// </summary>
     [HttpPut("templates/{id:guid}")]
     [Authorize(Roles = "SystemAdmin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateTemplate(Guid id, [FromBody] UpdateNotificationTemplateRequest request, CancellationToken ct)
     {
         var template = await _templateRepository.GetByIdAsync(id, ct);
@@ -249,6 +257,8 @@ public class NotificationController : ControllerBase
     /// </summary>
     [HttpPost("templates/{id:guid}/deactivate")]
     [Authorize(Roles = "SystemAdmin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeactivateTemplate(Guid id, CancellationToken ct)
     {
         var template = await _templateRepository.GetByIdAsync(id, ct);

@@ -6,6 +6,7 @@ using CRMS.Infrastructure.ExternalServices.Namp;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using CRMS.Domain.Aggregates.Location;
+using CRMS.API.OpenApi;
 
 namespace CRMS.API.Controllers;
 
@@ -15,6 +16,7 @@ namespace CRMS.API.Controllers;
 /// Returns { applicationId, applicationNumber } on success.
 /// </summary>
 [ApiController]
+[ApiKeyAuth("The NAMP portal's key.")]
 [Route("api/v1/namp/webhook")]
 public class NampWebhookController : ControllerBase
 {
@@ -52,6 +54,10 @@ public class NampWebhookController : ControllerBase
     /// Inbound payload from PAYS when an applicant submits a NAMP request.
     /// </summary>
     [HttpPost("application")]
+    [ProducesResponseType(typeof(NampWebhookAccepted), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(NampWebhookValidationProblem), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> ReceiveApplication([FromBody] NampWebhookPayload? payload, CancellationToken ct)
     {
         // Validate API key
@@ -179,6 +185,8 @@ public class NampWebhookController : ControllerBase
     /// Auth: X-Api-Key header (same key as POST endpoint).
     /// </summary>
     [HttpGet("application/{crmsApplicationNumber}")]
+    [ProducesResponseType(typeof(NampPortalStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetApplicationStatus(string crmsApplicationNumber, CancellationToken ct)
     {
         if (!string.IsNullOrEmpty(_settings.ApiKey))

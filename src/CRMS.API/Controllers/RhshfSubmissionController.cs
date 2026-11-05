@@ -5,6 +5,7 @@ using CRMS.Application.Rhshf.Queries;
 using CRMS.Infrastructure.ExternalServices.Rhshf;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using CRMS.API.OpenApi;
 
 namespace CRMS.API.Controllers;
 
@@ -15,6 +16,7 @@ namespace CRMS.API.Controllers;
 /// track from NAMP.
 /// </summary>
 [ApiController]
+[ApiKeyAuth("The Farmers Portal's key for the RH-SHF integration.")]
 [Route("v1/credit-profiles")]
 public class RhshfSubmissionController : ControllerBase
 {
@@ -40,6 +42,11 @@ public class RhshfSubmissionController : ControllerBase
 
     /// <summary>POST /v1/credit-profiles — §4.1 of the integration brief.</summary>
     [HttpPost]
+    [ProducesResponseType(typeof(SubmitConsolidatedEopResultDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Submit([FromBody] SubmitConsolidatedEopRequest? request, CancellationToken ct)
     {
         if (!IsAuthorized())
@@ -112,6 +119,9 @@ public class RhshfSubmissionController : ControllerBase
 
     /// <summary>POST /v1/credit-profiles/{reference}/token — §4.6 of the integration brief.</summary>
     [HttpPost("{reference}/token")]
+    [ProducesResponseType(typeof(RhshfTokenRefreshResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Refresh(string reference, CancellationToken ct)
     {
         if (!IsAuthorized())
@@ -129,6 +139,9 @@ public class RhshfSubmissionController : ControllerBase
 
     /// <summary>GET /v1/credit-profiles/{reference}/status — §4.5 of the integration brief.</summary>
     [HttpGet("{reference}/status")]
+    [ProducesResponseType(typeof(RhshfCaseStatusDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Status(string reference, CancellationToken ct)
     {
         if (!IsAuthorized())

@@ -8,6 +8,7 @@
     <Project Path="src/CRMS.Web.Intranet/CRMS.Web.Intranet.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/CRMS.API.Tests/CRMS.API.Tests.csproj" />
     <Project Path="tests/CRMS.Application.Tests/CRMS.Application.Tests.csproj" />
     <Project Path="tests/CRMS.Domain.Tests/CRMS.Domain.Tests.csproj" />
     <Project Path="tests/CRMS.Infrastructure.Tests/CRMS.Infrastructure.Tests.csproj" />

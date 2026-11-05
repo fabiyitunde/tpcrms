@@ -4,6 +4,8 @@ using CRMS.Application.Namp.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using CRMS.Application.CreditBureau.Commands;
+using CRMS.Application.Namp.DTOs;
 
 namespace CRMS.API.Controllers;
 
@@ -76,14 +78,21 @@ public class NampApplicationsController : ControllerBase
 
     // ── Staging Queue ──────────────────────────────────────────────────────
 
+    /// <summary>List the NAMP applications waiting in the staging queue.</summary>
+    /// <remarks>An application the portal sends lands here first, and stays until a loan officer recalls it.</remarks>
     [HttpGet("staging")]
+    [ProducesResponseType(typeof(List<NampStagingRecordSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetStagingQueue([FromQuery] Guid? branchId, CancellationToken ct)
     {
         var result = await _getStagingQueue.Handle(new GetNampStagingQueueQuery(branchId), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Get one staged NAMP application as the portal sent it.</summary>
     [HttpGet("staging/{id:guid}")]
+    [ProducesResponseType(typeof(NampStagingRecordDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetStagingRecordById(Guid id, CancellationToken ct)
     {
         var result = await _getStagingById.Handle(new GetNampStagingRecordByIdQuery(id), ct);
@@ -92,14 +101,20 @@ public class NampApplicationsController : ControllerBase
 
     // ── Applications ───────────────────────────────────────────────────────
 
+    /// <summary>Get one NAMP application.</summary>
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _getAppById.Handle(new GetNampApplicationByIdQuery(id), ct);
         return result.IsSuccess ? Ok(result.Data) : NotFound(result.Error);
     }
 
+    /// <summary>List NAMP applications, optionally only those in a status.</summary>
     [HttpGet]
+    [ProducesResponseType(typeof(List<NampApplicationSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetByStatus([FromQuery] string status, [FromQuery] Guid? branchId, CancellationToken ct)
     {
         var result = await _getAppsByStatus.Handle(new GetNampApplicationsByStatusQuery(status, branchId), ct);
@@ -108,7 +123,10 @@ public class NampApplicationsController : ControllerBase
 
     // ── Stage 1: Recall ────────────────────────────────────────────────────
 
+    /// <summary>Recall a staged application into the CRMS as a NAMP application.</summary>
     [HttpPost("recall")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Recall([FromBody] RecallRequest body, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -119,7 +137,10 @@ public class NampApplicationsController : ControllerBase
 
     // ── Stage 1b: Submit ───────────────────────────────────────────────────
 
+    /// <summary>Submit a recalled NAMP application for appraisal.</summary>
     [HttpPost("{id:guid}/submit")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Submit(Guid id, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -129,7 +150,10 @@ public class NampApplicationsController : ControllerBase
 
     // ── Stage 2: Financial Appraisal Decision ─────────────────────────────
 
+    /// <summary>Record the financial appraisal of a NAMP application.</summary>
     [HttpPost("{id:guid}/financial-appraisal")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SubmitFinancialAppraisal(Guid id, [FromBody] AppraisalRequest body, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -140,7 +164,10 @@ public class NampApplicationsController : ControllerBase
 
     // ── Stage 4a: Circulate to Committee ──────────────────────────────────
 
+    /// <summary>Send a NAMP application to its committee.</summary>
     [HttpPost("{id:guid}/circulate")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CirculateToCommittee(Guid id, [FromBody] CirculateRequest body, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -151,7 +178,10 @@ public class NampApplicationsController : ControllerBase
 
     // ── Stage 5: Ratification ─────────────────────────────────────────────
 
+    /// <summary>Ratify a committee-approved NAMP application.</summary>
     [HttpPost("{id:guid}/ratify")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Ratify(Guid id, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -162,7 +192,10 @@ public class NampApplicationsController : ControllerBase
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Decline to ratify a NAMP application.</summary>
     [HttpPost("{id:guid}/decline-ratification")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeclineRatification(Guid id, [FromBody] NoteRequest? body, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -173,7 +206,10 @@ public class NampApplicationsController : ControllerBase
 
     // ── Stage 5b: Offer ───────────────────────────────────────────────────
 
+    /// <summary>Record that the applicant accepted the offer.</summary>
     [HttpPost("{id:guid}/accept-offer")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AcceptOffer(Guid id, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -181,7 +217,10 @@ public class NampApplicationsController : ControllerBase
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Record that the offer lapsed without being accepted.</summary>
     [HttpPost("{id:guid}/lapse-offer")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> LapseOffer(Guid id, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -191,7 +230,10 @@ public class NampApplicationsController : ControllerBase
 
     // ── Stage 6: Pre-Deployment Verification ──────────────────────────────
 
+    /// <summary>Start pre-deployment verification.</summary>
     [HttpPost("{id:guid}/begin-pdv")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> BeginPreDeploymentVerification(Guid id, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -199,7 +241,10 @@ public class NampApplicationsController : ControllerBase
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Complete pre-deployment verification.</summary>
     [HttpPost("{id:guid}/complete-pdv")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CompletePreDeploymentVerification(Guid id, [FromBody] NoteRequest? body, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -210,7 +255,10 @@ public class NampApplicationsController : ControllerBase
 
     // ── Stage 7: Deployment ───────────────────────────────────────────────
 
+    /// <summary>Confirm that the equipment has been deployed.</summary>
     [HttpPost("{id:guid}/confirm-deployment")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ConfirmDeployment(Guid id, [FromBody] DeploymentRequest body, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -221,7 +269,11 @@ public class NampApplicationsController : ControllerBase
 
     // ── Credit Bureau Checks ──────────────────────────────────────────────
 
+    /// <summary>Run credit bureau checks on the parties to a NAMP application.</summary>
+    /// <remarks>Each party checked is a billed bureau call.</remarks>
     [HttpPost("{id:guid}/run-credit-checks")]
+    [ProducesResponseType(typeof(NampCreditCheckBatchResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RunCreditChecks(Guid id, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
@@ -232,7 +284,10 @@ public class NampApplicationsController : ControllerBase
 
     // ── Documents ─────────────────────────────────────────────────────────
 
+    /// <summary>Attach a document to a NAMP application.</summary>
     [HttpPost("{id:guid}/documents")]
+    [ProducesResponseType(typeof(NampApplicationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadDocument(Guid id, [FromBody] NampUploadDocumentRequest body, CancellationToken ct)
     {
         var userId = GetCurrentUserId();

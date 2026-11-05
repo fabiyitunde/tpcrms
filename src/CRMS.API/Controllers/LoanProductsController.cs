@@ -43,42 +43,61 @@ public class LoanProductsController : ControllerBase
         _getActiveByTypeHandler = getActiveByTypeHandler;
     }
 
+    /// <summary>List loan products.</summary>
     [HttpGet]
+    [ProducesResponseType(typeof(List<LoanProductSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
         var result = await _getAllHandler.Handle(new GetAllLoanProductsQuery(), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Get one loan product with its pricing tiers.</summary>
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(LoanProductDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _getByIdHandler.Handle(new GetLoanProductByIdQuery(id), ct);
         return result.IsSuccess ? Ok(result.Data) : NotFound(result.Error);
     }
 
+    /// <summary>Get a loan product by its code.</summary>
     [HttpGet("code/{code}")]
+    [ProducesResponseType(typeof(LoanProductDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetByCode(string code, CancellationToken ct)
     {
         var result = await _getByCodeHandler.Handle(new GetLoanProductByCodeQuery(code), ct);
         return result.IsSuccess ? Ok(result.Data) : NotFound(result.Error);
     }
 
+    /// <summary>List the loan products of a type.</summary>
     [HttpGet("type/{type}")]
+    [ProducesResponseType(typeof(List<LoanProductSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetByType(LoanProductType type, CancellationToken ct)
     {
         var result = await _getByTypeHandler.Handle(new GetLoanProductsByTypeQuery(type), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>List the active loan products of a type.</summary>
     [HttpGet("type/{type}/active")]
+    [ProducesResponseType(typeof(List<LoanProductSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetActiveByType(LoanProductType type, CancellationToken ct)
     {
         var result = await _getActiveByTypeHandler.Handle(new GetActiveLoanProductsByTypeQuery(type), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Create a loan product.</summary>
+    /// <remarks>The product starts inactive. Activate it once its pricing and its core banking product are set.</remarks>
     [HttpPost]
+    [ProducesResponseType(typeof(LoanProductDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] CreateLoanProductRequest request, CancellationToken ct)
     {
         var command = new CreateLoanProductCommand(
@@ -99,7 +118,10 @@ public class LoanProductsController : ControllerBase
             : BadRequest(result.Error);
     }
 
+    /// <summary>Update a loan product.</summary>
     [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(LoanProductDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateLoanProductRequest request, CancellationToken ct)
     {
         var command = new UpdateLoanProductCommand(
@@ -118,14 +140,20 @@ public class LoanProductsController : ControllerBase
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Activate a loan product so applications can use it.</summary>
     [HttpPost("{id:guid}/activate")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Activate(Guid id, CancellationToken ct)
     {
         var result = await _activateHandler.Handle(new ActivateLoanProductCommand(id), ct);
         return result.IsSuccess ? NoContent() : BadRequest(result.Error);
     }
 
+    /// <summary>Add a pricing tier to a loan product.</summary>
     [HttpPost("{id:guid}/pricing-tiers")]
+    [ProducesResponseType(typeof(PricingTierDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddPricingTier(Guid id, [FromBody] AddPricingTierRequest request, CancellationToken ct)
     {
         var command = new AddPricingTierCommand(

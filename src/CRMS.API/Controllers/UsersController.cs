@@ -27,21 +27,30 @@ public class UsersController : ControllerBase
         _getAllHandler = getAllHandler;
     }
 
+    /// <summary>List staff accounts.</summary>
     [HttpGet]
+    [ProducesResponseType(typeof(List<UserSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
         var result = await _getAllHandler.Handle(new GetAllUsersQuery(), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Get one staff account.</summary>
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _getByIdHandler.Handle(new GetUserByIdQuery(id), ct);
         return result.IsSuccess ? Ok(result.Data) : NotFound(result.Error);
     }
 
+    /// <summary>Create a staff account.</summary>
     [HttpPost]
+    [ProducesResponseType(typeof(UserDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Register([FromBody] RegisterUserApiRequest request, CancellationToken ct)
     {
         var userType = Enum.Parse<UserType>(request.UserType, true);

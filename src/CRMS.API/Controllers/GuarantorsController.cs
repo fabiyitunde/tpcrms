@@ -39,7 +39,10 @@ public class GuarantorsController : ControllerBase
         _getByBVNHandler = getByBVNHandler;
     }
 
+    /// <summary>Add an individual guarantor to a loan application.</summary>
     [HttpPost("individual")]
+    [ProducesResponseType(typeof(GuarantorDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddIndividual([FromBody] AddIndividualGuarantorRequest request, CancellationToken ct)
     {
         if (!Enum.TryParse<GuaranteeType>(request.GuaranteeType, true, out var guaranteeType))
@@ -70,35 +73,51 @@ public class GuarantorsController : ControllerBase
         return result.IsSuccess ? CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Get one guarantor.</summary>
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(GuarantorDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _getByIdHandler.Handle(new GetGuarantorByIdQuery(id), ct);
         return result.IsSuccess ? Ok(result.Data) : NotFound(result.Error);
     }
 
+    /// <summary>List the guarantors on a loan application.</summary>
     [HttpGet("by-loan-application/{loanApplicationId}")]
+    [ProducesResponseType(typeof(List<GuarantorSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetByLoanApplication(Guid loanApplicationId, CancellationToken ct)
     {
         var result = await _getByLoanAppHandler.Handle(new GetGuarantorsByLoanApplicationQuery(loanApplicationId), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>List the guarantees a person has given, by BVN.</summary>
     [HttpGet("by-bvn/{bvn}")]
+    [ProducesResponseType(typeof(List<GuarantorSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetByBVN(string bvn, CancellationToken ct)
     {
         var result = await _getByBVNHandler.Handle(new GetGuarantorsByBVNQuery(bvn), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Run a credit bureau check on a guarantor.</summary>
+    /// <remarks>Legacy single-guarantor check. Queueing the checks for the whole application (Credit bureau > queue) is preferred.</remarks>
     [HttpPost("{id}/credit-check")]
+    [ProducesResponseType(typeof(GuarantorCreditCheckResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RunCreditCheck(Guid id, [FromBody] CreditCheckApiRequest request, CancellationToken ct)
     {
         var result = await _creditCheckHandler.Handle(new RunGuarantorCreditCheckCommand(id, request.RequestedByUserId, request.ConsentRecordId), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Approve a guarantor.</summary>
     [HttpPost("{id}/approve")]
+    [ProducesResponseType(typeof(GuarantorDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApproveGuarantorApiRequest request, CancellationToken ct)
     {
         var command = new ApproveGuarantorCommand(id, request.ApprovedByUserId, request.VerifiedNetWorth, request.Currency ?? "NGN");
@@ -106,7 +125,10 @@ public class GuarantorsController : ControllerBase
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Reject a guarantor, with the reason.</summary>
     [HttpPost("{id}/reject")]
+    [ProducesResponseType(typeof(GuarantorDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectGuarantorApiRequest request, CancellationToken ct)
     {
         var result = await _rejectHandler.Handle(new RejectGuarantorCommand(id, request.RejectedByUserId, request.Reason), ct);

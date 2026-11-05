@@ -5,10 +5,12 @@ using CRMS.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using CRMS.API.OpenApi;
 
 namespace CRMS.API.Controllers;
 
 [ApiController]
+[DevelopmentOnly]
 [Route("api/[controller]")]
 public class SeedController : ControllerBase
 {
@@ -35,6 +37,8 @@ public class SeedController : ControllerBase
     /// </summary>
     [HttpPost("comprehensive")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(DevSeedResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SeedComprehensiveData()
     {
         if (!_environment.IsDevelopment())
@@ -69,6 +73,8 @@ public class SeedController : ControllerBase
     /// </summary>
     [HttpPost("reset-passwords")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(DevSeedResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ResetPasswords([FromQuery] string password = "Password1$$$")
     {
         if (!_environment.IsDevelopment())
@@ -110,6 +116,8 @@ public class SeedController : ControllerBase
     /// </summary>
     [HttpPost("basic")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(DevSeedResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SeedBasicData()
     {
         if (!_environment.IsDevelopment())
@@ -145,6 +153,8 @@ public class SeedController : ControllerBase
     /// </summary>
     [HttpPost("namp-cleanup-migration")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(DevSeedResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ApplyNampCleanupMigration()
     {
         if (!_environment.IsDevelopment())
@@ -214,6 +224,8 @@ public class SeedController : ControllerBase
     /// </summary>
     [HttpPost("namp")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(DevSeedResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SeedNamp()
     {
         if (!_environment.IsDevelopment())
@@ -237,6 +249,7 @@ public class SeedController : ControllerBase
     /// </summary>
     [HttpGet("status")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(SeedStatusReport), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSeedStatus()
     {
         var counts = new Dictionary<string, int>
@@ -316,6 +329,8 @@ public class SeedController : ControllerBase
     /// </summary>
     [HttpPost("namp-repair-checklist")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(DevSeedResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RepairNampChecklist()
     {
         if (!_environment.IsDevelopment())

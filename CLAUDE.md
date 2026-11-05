@@ -132,6 +132,28 @@ overwritten by a deploy.
 Migrations run at startup too, gated by `Database:AutoMigrate` (default true, settable as
 `Database__AutoMigrate`).
 
+### API reference (Scalar)
+
+`CRMS.API` serves its reference at `/scalar/v1` (document at `/openapi/v1.json`). It is built in
+`src/CRMS.API/OpenApi/`: the start-here guide, the two authentication schemes (staff Bearer token,
+partner `X-Api-Key`), tags grouped by audience, and transformers that take every summary,
+description and field note from the XML comments in the code.
+
+A new action therefore needs three things, and `tests/CRMS.API.Tests` fails without them:
+
+- a `/// <summary>` (first sentence becomes the headline; `<remarks>` becomes the description);
+- `[ProducesResponseType(typeof(X), ...)]` for what it returns, since actions return `IActionResult`;
+- `[RequestBodyDoc(typeof(X))]` if it reads its body by hand instead of binding `[FromBody]`.
+
+An action that authenticates with its own `X-Api-Key` check carries `[ApiKeyAuth("...")]`. Actions
+that answer with an anonymous object are documented by a mirror record in `OpenApi/DocShapes.cs`;
+change the two together. The test generates the document in memory, with no database or
+integrations, so it is the quick way to see what Scalar will show:
+
+```bash
+OPENAPI_DUMP=/tmp/openapi.json dotnet test tests/CRMS.API.Tests
+```
+
 ## Configuration
 
 `appsettings.json` points at the shared non-prod database and **does not** set the core-banking

@@ -9,6 +9,7 @@ using CRMS.Infrastructure.ExternalServices.Rhshf;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using CRMS.API.OpenApi;
 
 namespace CRMS.API.Controllers;
 
@@ -27,6 +28,7 @@ namespace CRMS.API.Controllers;
 /// </para>
 /// </summary>
 [ApiController]
+[ApiKeyAuth("The Farmers Portal's key. Each request must also carry the portal's request signature; see docs/Party_Exposure_Lookup.md.")]
 [Route("api/v1/party-exposure")]
 [DisableRateLimiting]
 public class PartyExposureController : ControllerBase
@@ -57,7 +59,14 @@ public class PartyExposureController : ControllerBase
     public static string BatchPath(Guid batchId) => $"/api/v1/party-exposure/lookup-batch/{batchId}";
 
     /// <summary>POST /api/v1/party-exposure/lookup — one person, full detail.</summary>
+    /// <remarks>Give at least one identifier. The answer lists every relationship found, by role and loan track, with live balances from core banking where they can be read.</remarks>
     [HttpPost("lookup")]
+    [RequestBodyDoc(typeof(PartyExposureLookupRequest))]
+    [ProducesResponseType(typeof(PartyExposureResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status429TooManyRequests)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> Lookup(CancellationToken ct)
     {
         var (raw, refusal) = await AuthenticateAsync(ct);
@@ -110,7 +119,12 @@ public class PartyExposureController : ControllerBase
 
     /// <summary>POST /api/v1/party-exposure/lookup-batch — up to 500 people, summaries only, worked in
     /// the background. Answers 202 with a batch id to poll.</summary>
+    /// <remarks>Up to 500 subjects. Answers <c>202</c> with a <c>batchId</c>; poll the batch, or give a <c>callbackUrl</c> on an allowed host to be told when it is ready.</remarks>
     [HttpPost("lookup-batch")]
+    [RequestBodyDoc(typeof(PartyExposureBatchRequest))]
+    [ProducesResponseType(typeof(PartyExposureBatchAccepted), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> LookupBatch(CancellationToken ct)
     {
         var (raw, refusal) = await AuthenticateAsync(ct);
@@ -171,6 +185,9 @@ public class PartyExposureController : ControllerBase
 
     /// <summary>GET /api/v1/party-exposure/lookup-batch/{batchId} — progress, then results.</summary>
     [HttpGet("lookup-batch/{batchId:guid}")]
+    [ProducesResponseType(typeof(PartyExposureBatchStatus), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetBatch(Guid batchId, CancellationToken ct)
     {
         var (_, refusal) = await AuthenticateAsync(ct);

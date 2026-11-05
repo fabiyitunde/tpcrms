@@ -21,6 +21,13 @@ public static class CustomerCheckErrors
     public const string AuditUnavailable = "audit_unavailable";
 }
 
+/// <summary>The answer to a submitted check: it has been stored and queued.</summary>
+/// <param name="JobId">The job's id. Use it to fetch the status and the result.</param>
+/// <param name="RequestId">The request id you sent.</param>
+/// <param name="Status"><c>QUEUED</c>, <c>PROCESSING</c>, <c>COMPLETED</c> or <c>FAILED</c>. A repeated request id returns the existing job with whatever status it has reached.</param>
+/// <param name="StatusUrl">The path to fetch this job from.</param>
+/// <param name="QueuedAt">When the job was accepted (UTC).</param>
+/// <param name="CallbackRegistered">True when a callback URL applies to this job.</param>
 public record CustomerCheckAccepted(
     string JobId,
     string RequestId,
@@ -29,8 +36,17 @@ public record CustomerCheckAccepted(
     DateTime QueuedAt,
     bool CallbackRegistered);
 
+/// <summary>Why a check failed.</summary>
+/// <param name="Code"><c>check_failed</c>, <c>timed_out</c>, <c>interrupted</c> or <c>consumer_inactive</c>.</param>
+/// <param name="Message">What happened, in a sentence.</param>
 public record CustomerCheckJobError(string Code, string Message);
 
+/// <summary>Where the job's callback stands.</summary>
+/// <param name="Status"><c>NOT_REQUESTED</c> (no callback URL), <c>PENDING</c>, <c>DELIVERED</c> or <c>FAILED</c> (every attempt was refused).</param>
+/// <param name="Attempts">How many attempts have been made.</param>
+/// <param name="DeliveredAt">When your endpoint acknowledged it (UTC).</param>
+/// <param name="LastStatusCode">The HTTP status your endpoint last answered with.</param>
+/// <param name="NextAttemptAt">When the next attempt is due (UTC).</param>
 public record CustomerCheckCallbackState(
     string Status,
     int Attempts,
@@ -38,6 +54,17 @@ public record CustomerCheckCallbackState(
     int? LastStatusCode,
     DateTime? NextAttemptAt);
 
+/// <summary>A check's status and, once completed, its result.</summary>
+/// <param name="JobId">The job's id.</param>
+/// <param name="RequestId">The request id you sent.</param>
+/// <param name="Status"><c>QUEUED</c>, <c>PROCESSING</c>, <c>COMPLETED</c> or <c>FAILED</c>.</param>
+/// <param name="QueuedAt">When the job was accepted (UTC).</param>
+/// <param name="StartedAt">When a worker started it (UTC).</param>
+/// <param name="CompletedAt">When it finished (UTC).</param>
+/// <param name="Sections">The sections asked for.</param>
+/// <param name="Error">Present only when the job failed. Send the check again with a new request id; nothing is billed for a failed check.</param>
+/// <param name="Callback">Where the callback stands.</param>
+/// <param name="Result">The result, present only when completed. It is the object described as CustomerCheckResponse, exactly as it is sent to your callback.</param>
 public record CustomerCheckJobView(
     string JobId,
     string RequestId,
@@ -50,6 +77,14 @@ public record CustomerCheckJobView(
     CustomerCheckCallbackState Callback,
     JsonElement? Result);
 
+/// <summary>A search of your past checks. Every field is optional.</summary>
+/// <param name="From">Checks queued on or after this date.</param>
+/// <param name="To">Checks queued on or before this date.</param>
+/// <param name="Status"><c>QUEUED</c>, <c>PROCESSING</c>, <c>COMPLETED</c> or <c>FAILED</c>.</param>
+/// <param name="RequestId">An exact request id.</param>
+/// <param name="Bvn">A BVN, 11 digits. Matched on its keyed hash; never stored or logged in plain form.</param>
+/// <param name="Page">Page number, from 1. Default 1.</param>
+/// <param name="PageSize">Items per page, at most 100. Default 50.</param>
 public record CustomerCheckHistoryRequest(
     DateOnly? From,
     DateOnly? To,
@@ -59,6 +94,9 @@ public record CustomerCheckHistoryRequest(
     int? Page,
     int? PageSize);
 
+/// <summary>One past check, without its result.</summary>
+/// <param name="JobId">The job's id; fetch the result with it.</param>
+/// <param name="BvnLast4">The last four digits of the BVN checked.</param>
 public record CustomerCheckHistoryItem(
     string JobId,
     string RequestId,
@@ -69,10 +107,21 @@ public record CustomerCheckHistoryItem(
     string BvnLast4,
     CustomerCheckCallbackState Callback);
 
+/// <summary>A page of past checks, newest first.</summary>
+/// <param name="Total">How many checks match in all.</param>
 public record CustomerCheckHistoryPage(int Page, int PageSize, int Total, IReadOnlyList<CustomerCheckHistoryItem> Items);
 
 /// <summary>What is posted to the consumer's callback URL. <see cref="Result"/> is the reply as
 /// stored, verbatim; it is not re-shaped on the way out.</summary>
+/// <param name="EventType"><c>CUSTOMER_CHECK_COMPLETED</c> or <c>CUSTOMER_CHECK_FAILED</c>.</param>
+/// <param name="EventId">Stable across every retry of the same event. If you have already processed it, answer 2xx and ignore the repeat.</param>
+/// <param name="JobId">The job's id.</param>
+/// <param name="RequestId">The request id you sent.</param>
+/// <param name="Status"><c>COMPLETED</c> or <c>FAILED</c>.</param>
+/// <param name="OccurredAt">When the check finished (UTC).</param>
+/// <param name="StatusUrl">The path to fetch this job from.</param>
+/// <param name="Error">Present only for a failed check.</param>
+/// <param name="Result">The result, present only for a completed check.</param>
 public record CustomerCheckCallbackEnvelope(
     string EventType,
     string EventId,

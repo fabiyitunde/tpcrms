@@ -5,6 +5,7 @@ using CRMS.Application.StatementAnalysis.Queries;
 using CRMS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using CRMS.API.OpenApi;
 using StatementTransactionType = CRMS.Domain.Enums.StatementTransactionType;
 
 namespace CRMS.API.Controllers;
@@ -37,7 +38,11 @@ public class StatementAnalysisController : ControllerBase
         _getByLoanAppHandler = getByLoanAppHandler;
     }
 
+    /// <summary>Register a bank statement for a loan application.</summary>
+    /// <remarks>Registers the statement and its period. Add its transactions next, then analyse it.</remarks>
     [HttpPost]
+    [ProducesResponseType(typeof(BankStatementDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadStatement([FromBody] UploadStatementRequest request, CancellationToken ct)
     {
         var command = new UploadStatementCommand(
@@ -61,7 +66,10 @@ public class StatementAnalysisController : ControllerBase
         return result.IsSuccess ? CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Add transactions to a registered bank statement.</summary>
     [HttpPost("{id}/transactions")]
+    [ProducesResponseType(typeof(TransactionsAdded), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddTransactions(Guid id, [FromBody] AddTransactionsRequest request, CancellationToken ct)
     {
         var transactions = request.Transactions.Select(t => new TransactionInput(
@@ -72,28 +80,41 @@ public class StatementAnalysisController : ControllerBase
         return result.IsSuccess ? Ok(new { AddedCount = result.Data }) : BadRequest(result.Error);
     }
 
+    /// <summary>Analyse a bank statement's cashflow.</summary>
+    /// <remarks>Set useLLM to true to categorise transactions with the language model rather than the rules.</remarks>
     [HttpPost("{id}/analyze")]
+    [ProducesResponseType(typeof(StatementAnalysisResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AnalyzeStatement(Guid id, [FromQuery] bool useLLM = false, CancellationToken ct = default)
     {
         var result = await _analyzeHandler.Handle(new AnalyzeStatementCommand(id, useLLM), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(result.Error);
     }
 
+    /// <summary>Get one bank statement and its analysis.</summary>
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(BankStatementDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _getByIdHandler.Handle(new GetStatementByIdQuery(id), ct);
         return result.IsSuccess ? Ok(result.Data) : NotFound(result.Error);
     }
 
+    /// <summary>List a bank statement's transactions.</summary>
     [HttpGet("{id}/transactions")]
+    [ProducesResponseType(typeof(List<StatementTransactionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetTransactions(Guid id, CancellationToken ct)
     {
         var result = await _getTransactionsHandler.Handle(new GetStatementTransactionsQuery(id), ct);
         return result.IsSuccess ? Ok(result.Data) : NotFound(result.Error);
     }
 
+    /// <summary>List the bank statements on a loan application.</summary>
     [HttpGet("by-loan-application/{loanApplicationId}")]
+    [ProducesResponseType(typeof(List<BankStatementSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetByLoanApplication(Guid loanApplicationId, CancellationToken ct)
     {
         var result = await _getByLoanAppHandler.Handle(new GetStatementsByLoanApplicationQuery(loanApplicationId), ct);

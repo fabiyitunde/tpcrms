@@ -7,6 +7,7 @@ using CRMS.Domain.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using CRMS.API.OpenApi;
 
 namespace CRMS.API.Controllers;
 
@@ -29,6 +30,7 @@ namespace CRMS.API.Controllers;
 /// </para>
 /// </summary>
 [ApiController]
+[ApiKeyAuth("Your consumer key, issued by a bank administrator under Administration > API Consumers.")]
 [Route("api/v1/customer-check")]
 [DisableRateLimiting]
 public class CustomerCheckController : ControllerBase
@@ -68,7 +70,14 @@ public class CustomerCheckController : ControllerBase
     }
 
     /// <summary>POST /api/v1/customer-check: accept one check and queue it. Answers 202.</summary>
+    /// <remarks>The check does not run while you wait. This call validates the request, stores a job and answers <c>202</c> with a <c>jobId</c> and a <c>statusUrl</c>; a background worker then runs the sections you asked for. <para>Only <c>requestId</c> and <c>bvn</c> are required. <c>sections</c> defaults to all seven; ask only for what you need, because bureau, fraud and advisory calls are billed. <c>callbackUrl</c> is optional and must be on a host the bank has allowed for you; without it, your registered callback URL is used, and without either you fetch the result from <c>statusUrl</c>.</para> <para>Sending the same <c>requestId</c> again within 24 hours returns the existing job rather than a second, billed check.</para> <para>A section you are not entitled to is not an error: it comes back with status <c>NOT_ALLOWED</c>.</para></remarks>
     [HttpPost]
+    [RequestBodyDoc(typeof(CustomerCheckRequest), Example = """{"requestId":"c7f1e2a0-9b1d-4e4e-8d0a-7b9f3c2d1a55","bvn":"22212344321","sections":["identity","creditBureau","fraudCheck","bankAccounts","bankLoans","crmsFacilities","aiAdvisory"],"options":{"activityWindowMonths":12,"includeScore":true,"runAmlCheck":false,"loanAmount":500000,"tenorMonths":12}}""")]
+    [ProducesResponseType(typeof(CustomerCheckAccepted), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status429TooManyRequests)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> Submit(CancellationToken ct)
     {
         var consumer = await AuthenticateAsync(ct);
@@ -131,7 +140,12 @@ public class CustomerCheckController : ControllerBase
     }
 
     /// <summary>GET /api/v1/customer-check/{jobId}: status and, once finished, the result.</summary>
+    /// <remarks>Poll this until <c>status</c> is <c>COMPLETED</c> or <c>FAILED</c>. <c>result</c> is present only when completed and is the same object your callback receives. <c>callback</c> tells you whether the callback was delivered, how many attempts were made, and when the next one is due. Fetching a stored result is free and can be repeated at any time. You can only read your own jobs.</remarks>
     [HttpGet("{jobId}")]
+    [ProducesResponseType(typeof(CustomerCheckJobView), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> Get(string jobId, CancellationToken ct)
     {
         var consumer = await AuthenticateAsync(ct);
@@ -158,7 +172,12 @@ public class CustomerCheckController : ControllerBase
 
     /// <summary>POST /api/v1/customer-check/history: the consumer's past checks, newest first. A
     /// POST because a BVN filter must not travel in a URL.</summary>
+    /// <remarks>Every field of the body is optional; an empty body lists your most recent checks. <c>bvn</c> is matched on its keyed hash and is never stored or logged in plain form. Items carry no results; fetch any one with its <c>jobId</c>.</remarks>
     [HttpPost("history")]
+    [RequestBodyDoc(typeof(CustomerCheckHistoryRequest), Example = """{"from":"2026-11-01","to":"2026-11-30","status":"COMPLETED","page":1,"pageSize":50}""")]
+    [ProducesResponseType(typeof(CustomerCheckHistoryPage), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> History(CancellationToken ct)
     {
         var consumer = await AuthenticateAsync(ct);

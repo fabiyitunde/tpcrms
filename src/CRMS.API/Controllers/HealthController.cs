@@ -4,6 +4,7 @@ using CRMS.Infrastructure.ExternalServices.Namp;
 using CRMS.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using CRMS.API.OpenApi;
 
 namespace CRMS.API.Controllers;
 
@@ -47,6 +48,9 @@ public class HealthController : ControllerBase
     /// Returns HTTP 200 with per-service pass/fail regardless of individual probe outcomes.
     /// </summary>
     [HttpGet("connectivity")]
+    [ApiKeyAuth("The same key as the NAMP webhook.")]
+    [ProducesResponseType(typeof(ConnectivityReport), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> CheckConnectivity(CancellationToken ct)
     {
         // Auth: same constant-time API key check as the webhook
