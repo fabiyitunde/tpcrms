@@ -167,6 +167,9 @@ public class OpenApiDocumentTests : IAsyncLifetime
         var request = Resolve(body.GetProperty("schema"));
         foreach (var field in new[] { "requestId", "bvn", "nubans", "sections", "options", "callbackUrl" })
             Assert.True(request.GetProperty("properties").TryGetProperty(field, out _), $"request is missing {field}");
+        // Only what the endpoint insists on carries the "required" badge.
+        Assert.Equal(["bvn", "requestId"], request.GetProperty("required").EnumerateArray().Select(r => r.GetString()).Order());
+        Assert.Contains("Optional", request.GetProperty("properties").GetProperty("nubans").GetProperty("description").GetString());
 
         var accepted = Resolve(submit.GetProperty("responses").GetProperty("202").GetProperty("content").GetProperty("application/json").GetProperty("schema"));
         foreach (var field in new[] { "jobId", "requestId", "status", "statusUrl", "callbackRegistered" })

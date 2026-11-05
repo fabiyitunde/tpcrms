@@ -33,6 +33,7 @@ public static class CrmsOpenApi
             options.AddDocumentTransformer<CrmsDocumentTransformer>();
             options.AddOperationTransformer<CrmsOperationTransformer>();
             options.AddSchemaTransformer<CrmsSchemaTransformer>();
+            options.AddSchemaTransformer<RequiredFieldsSchemaTransformer>();
         });
         return services;
     }
@@ -373,5 +374,42 @@ internal sealed class CrmsSchemaTransformer : IOpenApiSchemaTransformer
             schema.Description = summary;
         }
         return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// The generator marks every field of a record "required", which tells a caller that an optional
+/// field must be sent. Here a field keeps the badge only when it cannot be null, or when its own
+/// comment says it is required (a nullable field the endpoint validates by hand).
+/// </summary>
+internal sealed class RequiredFieldsSchemaTransformer : IOpenApiSchemaTransformer
+{
+    private static readonly NullabilityInfoContext Nullability = new();
+    private readonly XmlDocs _docs;
+
+    public RequiredFieldsSchemaTransformer(XmlDocs docs) => _docs = docs;
+
+    public Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
+    {
+        if (context.JsonTypeInfo.Kind != JsonTypeInfoKind.Object || schema.Required is not { Count: > 0 })
+            return Task.CompletedTask;
+
+        foreach (var property in context.JsonTypeInfo.Properties)
+        {
+            if (property.AttributeProvider is not PropertyInfo member || !schema.Required.Contains(property.Name)) continue;
+            if (!IsNullable(member)) continue;
+            var note = _docs.MemberSummary(member.DeclaringType ?? context.JsonTypeInfo.Type, member.Name);
+            if (note is null || !note.Contains("Required.", StringComparison.Ordinal))
+                schema.Required.Remove(property.Name);
+        }
+        return Task.CompletedTask;
+    }
+
+    private static bool IsNullable(PropertyInfo member)
+    {
+        if (Nullable.GetUnderlyingType(member.PropertyType) is not null) return true;
+        if (member.PropertyType.IsValueType) return false;
+        lock (Nullability)
+            return Nullability.Create(member).ReadState == NullabilityState.Nullable;
     }
 }
