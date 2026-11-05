@@ -160,8 +160,10 @@ public class MockFineractDirectService : IFineractDirectService
             },
             SavingsAccounts: new List<ClientSavingsAccountSummary>
             {
-                new(Id: 2001, AccountNo: "SA-000001", ProductName: "Corporate Current Account", Status: "Active", AccountBalance: 15_500_000m),
-                new(Id: 2002, AccountNo: "SA-000002", ProductName: "Fixed Deposit", Status: "Active", AccountBalance: 50_000_000m)
+                new(Id: 2001, AccountNo: "SA-000001", ProductName: "Corporate Current Account", Status: "Active", AccountBalance: 15_500_000m,
+                    ExternalId: "0000000029", AccountType: "Current", ActivatedOn: new DateTime(2019, 2, 11), LastActiveTransactionDate: DateTime.UtcNow.Date.AddDays(-3)),
+                new(Id: 2002, AccountNo: "SA-000002", ProductName: "Fixed Deposit", Status: "Active", AccountBalance: 50_000_000m,
+                    ExternalId: "0000000030", AccountType: "Savings", ActivatedOn: new DateTime(2021, 6, 1), LastActiveTransactionDate: DateTime.UtcNow.Date.AddDays(-40))
             }
         );
 
@@ -244,6 +246,36 @@ public class MockFineractDirectService : IFineractDirectService
 
         return Task.FromResult(Result.Failure<FineractClientInfo>(
             $"MockFineract: client {clientId} not found."));
+    }
+
+    public Task<Result<IReadOnlyList<FineractClientMatch>>> FindClientsAsync(
+        FineractClientSearch search, bool includeAccounts = true, CancellationToken ct = default)
+    {
+        _logger.LogInformation("MockFineract: FindClients (accounts={IncludeAccounts})", includeAccounts);
+
+        // Mock: an all-zero key is "no such customer"; anything else finds client 1001, whose
+        // accounts GetClientAccountsAsync also lists.
+        var key = search.ExternalId ?? search.MobileNo ?? search.EmailAddress ?? search.Nuban;
+        if (string.IsNullOrWhiteSpace(key) || key.Trim().All(c => c == '0'))
+            return Task.FromResult(Result.Success<IReadOnlyList<FineractClientMatch>>([]));
+
+        var accounts = includeAccounts
+            ? new List<ClientSavingsAccountSummary>
+            {
+                new(Id: 2001, AccountNo: "SA-000001", ProductName: "Corporate Current Account", Status: "", AccountBalance: 15_500_000m, ExternalId: "0000000029"),
+                new(Id: 2002, AccountNo: "SA-000002", ProductName: "Fixed Deposit", Status: "", AccountBalance: 50_000_000m, ExternalId: "0000000030"),
+            }
+            : [];
+
+        IReadOnlyList<FineractClientMatch> matches =
+        [
+            new(Id: 1001, AccountNo: "000001001", ExternalId: search.ExternalId ?? "22212345678", DisplayName: "Adewale Okafor",
+                Status: "Active", Active: true, ActivatedOn: new DateTime(2019, 2, 11),
+                MobileNo: "08012345678", EmailAddress: "adewale.okafor@example.com", DateOfBirth: new DateTime(1985, 6, 15),
+                Gender: "Male", ClientType: "Individual", OfficeId: 1, OfficeName: "Lagos Main Branch", KycLevel: 2,
+                SavingsAccounts: accounts),
+        ];
+        return Task.FromResult(Result.Success(matches));
     }
 
     public Task<Result<IReadOnlyList<FineractLoanProduct>>> GetLoanProductsAsync(

@@ -1,0 +1,419 @@
+@page "/admin/partner-api/checks"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using System.Text.Json
+@using CRMS.Application.CustomerCheck
+@using CRMS.Application.CustomerCheck.DTOs
+@using CRMS.Application.CustomerCheck.Reporting
+@using CRMS.Domain.Aggregates.CustomerCheck
+
+<PageTitle>Customer Checks - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Customer Checks</h1>
+        <p class="page-subtitle">Every check a partner has asked for, its outcome, and whether its callback was acknowledged</p>
+    </div>
+    <a class="btn btn-outline" href="/admin/partner-api">
+        <span class="material-symbols-outlined" style="font-size: 18px;">hub</span>
+        Dashboard
+    </a>
+</div>
+
+<div class="card cj-filters">
+    <select class="form-control" @bind="consumerKey" @bind:after="ResetAndLoad">
+        <option value="">All consumers</option>
+        @foreach (var c in consumers)
+        {
+            <option value="@c.Id">@c.Name</option>
+        }
+    </select>
+    <select class="form-control" @bind="status" @bind:after="ResetAndLoad">
+        <option value="">Any status</option>
+        <option value="QUEUED">Queued</option>
+        <option value="PROCESSING">Processing</option>
+        <option value="COMPLETED">Completed</option>
+        <option value="FAILED">Failed</option>
+    </select>
+    <input type="date" class="form-control" @bind="from" @bind:after="ResetAndLoad" />
+    <input type="date" class="form-control" @bind="to" @bind:after="ResetAndLoad" />
+    <input type="text" class="form-control" placeholder="Request id contains…" @bind="requestId" @bind:after="ResetAndLoad" />
+    <button class="btn btn-ghost" @onclick="LoadAsync" title="Refresh"><span class="material-symbols-outlined" style="font-size: 18px;">refresh</span></button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger mb-4">@error</div>
+}
+
+@if (isLoading && pageData == null)
+{
+    <div style="display: flex; justify-content: center; padding: var(--space-12);"><span class="material-symbols-outlined spinning" style="font-size: 32px; color: var(--primary-500);">progress_activity</span></div>
+}
+else if (pageData != null)
+{
+    <div class="card">
+        @if (pageData.Items.Count == 0)
+        {
+            <div class="empty-state">
+                <span class="material-symbols-outlined empty-state-icon">fact_check</span>
+                <h3>No checks match</h3>
+                <p>Widen the period or clear the filters.</p>
+            </div>
+        }
+        else
+        {
+            <table class="table table-clickable cj-table">
+                <thead>
+                    <tr>
+                        <th>Queued</th>
+                        <th>Consumer</th>
+                        <th>Request</th>
+                        <th>Status</th>
+                        <th>Sections</th>
+                        <th class="text-right">Time</th>
+                        <th class="text-right">Calls</th>
+                        <th>Advisory</th>
+                        <th>Callback</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var j in pageData.Items)
+                    {
+                        <tr @onclick="() => OpenAsync(j.Id)">
+                            <td style="white-space: nowrap;">@j.QueuedAt.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
+                            <td>@j.ConsumerName</td>
+                            <td>
+                                <div style="font-family: monospace; font-size: var(--text-xs);">@j.RequestId</div>
+                                <div class="cj-muted">BVN ****@j.BvnLast4</div>
+                            </td>
+                            <td><span class="badge @StatusClass(j.Status)">@j.Status</span>@(j.RunAttempts > 1 ? $" ×{j.RunAttempts}" : "")</td>
+                            <td><span class="cj-muted">@j.Sections.Count of @CustomerCheckSections.All.Count</span></td>
+                            <td class="text-right">@Seconds(j.DurationMs)</td>
+                            <td class="text-right">@j.BilledCalls</td>
+                            <td>
+                                @if (j.AdvisoryScore is { } s)
+                                {
+                                    <span class="cj-score @RatingClass(j.AdvisoryRating)">@s.ToString("0")</span> <span class="cj-muted">@Spaced(j.AdvisoryRecommendation ?? "")</span>
+                                }
+                                else
+                                {
+                                    <span class="cj-muted">–</span>
+                                }
+                            </td>
+                            <td>
+                                @if (!j.HasCallbackUrl)
+                                {
+                                    <span class="cj-muted">polling</span>
+                                }
+                                else
+                                {
+                                    <span class="badge @CallbackClass(j.CallbackStatus)">@j.CallbackStatus</span>
+                                    @if (j.CallbackAttempts > 1)
+                                    {
+                                        <span class="cj-muted"> ×@j.CallbackAttempts</span>
+                                    }
+                                }
+                            </td>
+                            <td class="text-right"><span class="material-symbols-outlined" style="font-size: 18px; color: var(--gray-400);">chevron_right</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="cj-pager">
+                <span class="cj-muted">@pageData.Total.ToString("N0") checks · page @pageData.Page of @Math.Max(1, (pageData.Total + pageData.PageSize - 1) / pageData.PageSize)</span>
+                <div style="display: flex; gap: var(--space-2);">
+                    <button class="btn btn-outline btn-sm" @onclick="() => GoTo(pageData.Page - 1)" disabled="@(pageData.Page <= 1)">Previous</button>
+                    <button class="btn btn-outline btn-sm" @onclick="() => GoTo(pageData.Page + 1)" disabled="@(pageData.Page * pageData.PageSize >= pageData.Total)">Next</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (detail != null)
+{
+    var s = detail.Summary;
+    <div class="modal-backdrop show" @onclick="Close">
+        <div class="modal cj-modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title">Check @s.RequestId</h3>
+                    <div class="cj-muted" style="font-family: monospace; font-size: var(--text-xs);">@s.JobId</div>
+                </div>
+                <button type="button" class="modal-close" @onclick="Close"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(actionMessage))
+                {
+                    <div class="alert @(actionOk ? "alert-success" : "alert-danger") mb-4">@actionMessage</div>
+                }
+                <div class="cj-facts">
+                    <div><span class="cj-fact-label">Consumer</span><span>@s.ConsumerName</span></div>
+                    <div><span class="cj-fact-label">Status</span><span class="badge @StatusClass(s.Status)">@s.Status</span></div>
+                    <div><span class="cj-fact-label">Queued</span><span>@s.QueuedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span></div>
+                    <div><span class="cj-fact-label">Finished</span><span>@(s.CompletedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss") ?? "–") (@Seconds(s.DurationMs))</span></div>
+                    <div><span class="cj-fact-label">Subject</span><span>BVN ****@s.BvnLast4</span></div>
+                    <div><span class="cj-fact-label">Bureau</span><span>@(s.BureauUsed is null ? "–" : $"{Bureaus.Label(s.BureauUsed)}{(s.BureauReused ? " (stored report)" : "")}")</span></div>
+                    <div><span class="cj-fact-label">Billable calls</span><span>@s.BilledCalls</span></div>
+                    <div><span class="cj-fact-label">Runs</span><span>@s.RunAttempts</span></div>
+                </div>
+
+                @if (s.Status == CustomerCheckJob.Failed)
+                {
+                    <div class="alert alert-danger mb-4"><b>@s.ErrorCode</b> · @s.ErrorMessage</div>
+                }
+
+                <div class="cj-section-title">Sections</div>
+                <div class="cj-chips">
+                    @foreach (var (section, outcome) in Outcomes(detail.SectionOutcomes, s.Sections))
+                    {
+                        <span class="cj-chip @OutcomeClass(outcome)">@SectionLabel(section) <b>@outcome</b></span>
+                    }
+                </div>
+
+                @if (s.AdvisoryScore is { } score)
+                {
+                    <div class="cj-section-title">Advisory</div>
+                    <div class="cj-advisory">
+                        <span class="cj-score cj-score-lg @RatingClass(s.AdvisoryRating)">@score.ToString("0.#")</span>
+                        <div>
+                            <div style="font-weight: 600;">@Spaced(s.AdvisoryRating ?? "") risk · @Spaced(s.AdvisoryRecommendation ?? "")</div>
+                            <div class="cj-muted" style="font-size: var(--text-xs);">Overall score out of 100, weighted over the assessed categories.</div>
+                        </div>
+                    </div>
+                }
+
+                <div class="cj-section-title">Callback</div>
+                @if (!s.HasCallbackUrl)
+                {
+                    <div class="cj-muted" style="font-size: var(--text-sm);">No callback URL; the consumer fetches the result.</div>
+                }
+                else
+                {
+                    <div class="cj-facts">
+                        <div><span class="cj-fact-label">To</span><span>@detail.CallbackHost</span></div>
+                        <div><span class="cj-fact-label">Status</span><span class="badge @CallbackClass(s.CallbackStatus)">@s.CallbackStatus</span></div>
+                        <div><span class="cj-fact-label">Attempts</span><span>@s.CallbackAttempts@(s.LastCallbackStatusCode is { } code ? $" · last HTTP {code}" : "")</span></div>
+                        <div><span class="cj-fact-label">Delivered</span><span>@(s.CallbackDeliveredAt?.ToLocalTime().ToString("dd MMM HH:mm:ss") ?? (s.NextCallbackAt is { } n ? $"next try {n.ToLocalTime():dd MMM HH:mm}" : "–"))</span></div>
+                        <div><span class="cj-fact-label">Event id</span><span style="font-family: monospace; font-size: var(--text-xs);">@detail.EventId</span></div>
+                        @if (!string.IsNullOrEmpty(detail.LastCallbackError))
+                        {
+                            <div><span class="cj-fact-label">Last error</span><span class="text-danger">@detail.LastCallbackError</span></div>
+                        }
+                    </div>
+                    @if (s.Status is CustomerCheckJob.Completed or CustomerCheckJob.Failed && s.CallbackStatus != CustomerCheckJob.CallbackPending)
+                    {
+                        <button class="btn btn-outline btn-sm" @onclick="Resend" disabled="@isActing">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">replay</span>
+                            Resend callback
+                        </button>
+                    }
+                }
+
+                @if (detail.ResultJson != null)
+                {
+                    <div class="cj-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Result as sent</span>
+                        <button class="btn btn-ghost btn-sm" @onclick="CopyResult"><span class="material-symbols-outlined" style="font-size: 16px;">content_copy</span> @(copied ? "Copied" : "Copy")</button>
+                    </div>
+                    <pre class="cj-json">@prettyResult</pre>
+                }
+                else if (!string.IsNullOrEmpty(detail.ResultProblem))
+                {
+                    <div class="alert alert-warning">@detail.ResultProblem</div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .spinning { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .cj-filters { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); }
+    .cj-filters .form-control { width: auto; min-width: 150px; }
+    .cj-table td { font-size: var(--text-sm); vertical-align: middle; }
+    .cj-muted { color: var(--gray-500); font-size: var(--text-xs); }
+    .cj-pager { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4); border-top: 1px solid var(--gray-200); }
+    .cj-score { display: inline-flex; min-width: 34px; height: 24px; padding: 0 6px; align-items: center; justify-content: center; border-radius: 8px; font-weight: 700; font-size: var(--text-xs); color: #fff; background: var(--gray-400); }
+    .cj-score-lg { min-width: 56px; height: 56px; font-size: var(--text-xl); border-radius: 14px; }
+    .cj-r-VeryLow { background: #1a5f2a; } .cj-r-Low { background: #2e7d32; } .cj-r-Medium { background: #f59e0b; } .cj-r-High { background: #f97316; } .cj-r-VeryHigh { background: #ef4444; }
+    .cj-modal { max-width: 900px; width: 95vw; max-height: 92vh; display: flex; flex-direction: column; }
+    .cj-modal .modal-body { overflow: auto; }
+    .cj-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-6); font-size: var(--text-sm); margin-bottom: var(--space-4); }
+    .cj-facts > div { display: flex; justify-content: space-between; gap: var(--space-3); border-bottom: 1px dashed var(--gray-200); padding: 4px 0; }
+    .cj-fact-label { color: var(--gray-500); }
+    .cj-section-title { font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--gray-500); margin: var(--space-4) 0 var(--space-2); }
+    .cj-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .cj-chip { display: inline-flex; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: var(--text-xs); background: var(--gray-100); color: var(--gray-700); }
+    .cj-o-OK { background: var(--success-50); color: var(--success-600); }
+    .cj-o-NO_RECORD { background: var(--gray-100); color: var(--gray-600); }
+    .cj-o-UNAVAILABLE, .cj-o-ERROR { background: var(--danger-50); color: var(--danger-600); }
+    .cj-o-NOT_ALLOWED { background: var(--warning-50); color: var(--warning-600); }
+    .cj-advisory { display: flex; align-items: center; gap: var(--space-4); }
+    .cj-json { background: var(--gray-900); color: #d1fae5; border-radius: 10px; padding: var(--space-4); font-size: 12px; line-height: 1.5; max-height: 420px; overflow: auto; white-space: pre; }
+</style>
+
+@code {
+    private List<ApiConsumerDto> consumers = [];
+    private CustomerCheckJobPageDto? pageData;
+    private CustomerCheckJobDetailDto? detail;
+    private string? prettyResult;
+    private string consumerKey = "";
+    private string status = "";
+    private DateTime? from;
+    private DateTime? to;
+    private string requestId = "";
+    private int pageNumber = 1;
+    private const int PageSize = 25;
+    private bool isLoading = true;
+    private bool isActing;
+    private bool copied;
+    private string? error;
+    private string? actionMessage;
+    private bool actionOk;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var c = await AppService.GetApiConsumersAsync();
+        if (c.Success && c.Data != null) consumers = c.Data;
+        from = DateTime.Today.AddDays(-29);
+        await LoadAsync();
+
+        // Arrived from the dashboard's failure list.
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(Navigation.ToAbsoluteUri(Navigation.Uri).Query);
+        if (query.TryGetValue("job", out var job) && CustomerCheckJobIds.TryParse(job.ToString(), out var id))
+            await OpenAsync(id);
+    }
+
+    private async Task ResetAndLoad()
+    {
+        pageNumber = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoTo(int n)
+    {
+        pageNumber = Math.Max(1, n);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        error = null;
+        var fromUtc = from is { } f ? DateTime.SpecifyKind(f.Date, DateTimeKind.Local).ToUniversalTime() : (DateTime?)null;
+        var toUtc = to is { } t ? DateTime.SpecifyKind(t.Date.AddDays(1), DateTimeKind.Local).ToUniversalTime() : (DateTime?)null;
+        var result = await AppService.SearchCustomerCheckJobsAsync(
+            Guid.TryParse(consumerKey, out var cid) ? cid : null, fromUtc, toUtc, status, requestId, pageNumber, PageSize);
+        if (result.Success && result.Data != null) pageData = result.Data;
+        else error = result.Error ?? "The checks could not be loaded.";
+        isLoading = false;
+    }
+
+    private async Task OpenAsync(Guid id)
+    {
+        actionMessage = null;
+        copied = false;
+        var result = await AppService.GetCustomerCheckJobDetailAsync(id);
+        if (!result.Success || result.Data == null)
+        {
+            error = result.Error ?? "The check could not be loaded.";
+            return;
+        }
+        detail = result.Data;
+        prettyResult = null;
+        if (detail.ResultJson != null)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(detail.ResultJson);
+                prettyResult = JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            }
+            catch (JsonException)
+            {
+                prettyResult = detail.ResultJson;
+            }
+        }
+    }
+
+    private void Close() => detail = null;
+
+    private async Task Resend()
+    {
+        if (detail == null) return;
+        isActing = true;
+        try
+        {
+            var result = await AppService.ResendCustomerCheckCallbackAsync(detail.Summary.Id, AuthService.CurrentUser?.Id ?? Guid.Empty);
+            actionOk = result.Success;
+            actionMessage = result.Success ? "Queued. The API host posts it on its next pass, within a few seconds." : result.Error ?? "The callback could not be queued.";
+            if (result.Success)
+            {
+                await OpenAsync(detail.Summary.Id);
+                actionMessage = "Queued. The API host posts it on its next pass, within a few seconds.";
+                actionOk = true;
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            isActing = false;
+        }
+    }
+
+    private async Task CopyResult()
+    {
+        if (prettyResult == null) return;
+        try { copied = await JS.InvokeAsync<bool>("partnerApi.copyText", prettyResult); }
+        catch (JSException) { copied = false; }
+    }
+
+    private static IEnumerable<(string Section, string Outcome)> Outcomes(string? outcomes, IReadOnlyList<string> requested)
+    {
+        var parsed = CustomerCheckBilling.ParseOutcomes(outcomes).ToDictionary(o => o.Section, o => o.Outcome);
+        foreach (var s in CustomerCheckSections.All)
+        {
+            if (parsed.TryGetValue(s, out var o)) { if (o != SectionStatuses.NotRequested) yield return (s, o); }
+            else if (requested.Contains(s)) yield return (s, "PENDING");
+        }
+    }
+
+    private static string Seconds(int ms) => ms <= 0 ? "–" : ms < 1000 ? $"{ms} ms" : $"{ms / 1000m:0.#} s";
+    private static string Spaced(string camel) => System.Text.RegularExpressions.Regex.Replace(camel, "([a-z])([A-Z])", "$1 $2");
+    private static string RatingClass(string? r) => r is null ? "" : "cj-r-" + r;
+    private static string OutcomeClass(string o) => "cj-o-" + o;
+
+    private static string StatusClass(string s) => s switch
+    {
+        CustomerCheckJob.Completed => "badge-success",
+        CustomerCheckJob.Failed => "badge-danger",
+        CustomerCheckJob.Processing => "badge-info",
+        _ => "badge-gray",
+    };
+
+    private static string CallbackClass(string s) => s switch
+    {
+        CustomerCheckJob.CallbackDelivered => "badge-success",
+        CustomerCheckJob.CallbackFailed => "badge-danger",
+        CustomerCheckJob.CallbackPending => "badge-warning",
+        _ => "badge-gray",
+    };
+
+    private static string SectionLabel(string section) => section switch
+    {
+        CustomerCheckSections.Identity => "Identity",
+        CustomerCheckSections.CreditBureau => "Bureau",
+        CustomerCheckSections.FraudCheck => "Fraud",
+        CustomerCheckSections.BankAccounts => "Accounts",
+        CustomerCheckSections.BankLoans => "Loans",
+        CustomerCheckSections.CrmsFacilities => "CRMS",
+        CustomerCheckSections.AiAdvisory => "Advisory",
+        _ => section,
+    };
+}

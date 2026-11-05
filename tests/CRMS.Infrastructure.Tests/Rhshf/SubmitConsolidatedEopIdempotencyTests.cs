@@ -94,6 +94,8 @@ public class SubmitConsolidatedEopIdempotencyTests
 
     internal class FakeFineractDirectService : IFineractDirectService
     {
+        public Task<Result<IReadOnlyList<FineractClientMatch>>> FindClientsAsync(FineractClientSearch search, bool includeAccounts = true, CancellationToken ct = default)
+            => throw new NotSupportedException();
         public Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
             => Task.FromResult(Result.Failure<NampBoaAccountInfo>("not resolvable in test"));
         public Task<Result<FineractClientInfo>> GetClientByIdAsync(long clientId, CancellationToken ct = default) => throw new NotSupportedException();

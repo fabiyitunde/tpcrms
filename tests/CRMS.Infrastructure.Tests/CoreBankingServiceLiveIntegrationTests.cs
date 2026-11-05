@@ -39,6 +39,7 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
     // Fineract Direct
     private readonly FineractDirectSettings _fineractSettings;
     private readonly long _fineractTestClientId;
+    private readonly string _fineractTestClientExternalId;
     private readonly int _fineractTestProductId;
     private readonly decimal _fineractTestPrincipal;
     private readonly int _fineractTestTenorMonths;
@@ -86,6 +87,7 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
         };
 
         long.TryParse(fineractSection["TestClientId"], out _fineractTestClientId);
+        _fineractTestClientExternalId = fineractSection["TestClientExternalId"] ?? "";
         int.TryParse(fineractSection["TestProductId"], out _fineractTestProductId);
         decimal.TryParse(fineractSection["TestPrincipal"], out _fineractTestPrincipal);
         int.TryParse(fineractSection["TestTenorMonths"], out _fineractTestTenorMonths);
@@ -630,6 +632,58 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
         _output.WriteLine($"   Debits: {stmtResult.Value?.TotalDebits:N2}");
 
         _output.WriteLine("\n=== Flow Complete ===");
+    }
+
+    #endregion
+
+    #region FindClientsAsync (POST /tp/clients/find)
+
+    [SkippableFact]
+    public async Task FindClientsAsync_ByExternalId_ReturnsClientWithAccounts()
+    {
+        SkipIfFineractNotConfigured();
+        Skip.If(string.IsNullOrEmpty(_fineractTestClientExternalId), "FineractDirect:TestClientExternalId not configured");
+
+        var result = await _fineractService!.FindClientsAsync(new FineractClientSearch(ExternalId: _fineractTestClientExternalId));
+
+        Assert.True(result.IsSuccess, $"Expected success but got: {result.Error}");
+        var client = Assert.Single(result.Value!);
+        _output.WriteLine($"Client {client.Id} {client.DisplayName} status={client.Status} active={client.Active} activated={client.ActivatedOn:yyyy-MM-dd} dob={client.DateOfBirth:yyyy-MM-dd} gender={client.Gender} type={client.ClientType} kyc={client.KycLevel} office={client.OfficeName} accounts={client.SavingsAccounts.Count}");
+        Assert.Equal(_fineractTestClientExternalId, client.ExternalId);
+        Assert.True(client.Id > 0);
+        Assert.False(string.IsNullOrWhiteSpace(client.DisplayName));
+        Assert.NotNull(client.ActivatedOn);
+        Assert.NotEmpty(client.SavingsAccounts);
+        foreach (var a in client.SavingsAccounts)
+        {
+            _output.WriteLine($"  account {a.Id} no={a.AccountNo} ext={a.ExternalId} product={a.ProductName} balance={a.AccountBalance:N2}");
+            Assert.True(a.Id > 0);
+            Assert.False(string.IsNullOrWhiteSpace(a.ExternalId));
+        }
+
+        // Without the accounts flag the same client comes back bare.
+        var bare = await _fineractService.FindClientsAsync(new FineractClientSearch(ExternalId: _fineractTestClientExternalId), includeAccounts: false);
+        Assert.True(bare.IsSuccess, bare.Error);
+        Assert.Equal(client.Id, Assert.Single(bare.Value!).Id);
+        Assert.Empty(bare.Value![0].SavingsAccounts);
+
+        // The accounts the search named are among the ones the full client read lists.
+        var full = await _fineractService.GetClientAccountsAsync(client.Id);
+        Assert.True(full.IsSuccess, full.Error);
+        _output.WriteLine($"Full read: {full.Value!.SavingsAccounts.Count} savings, {full.Value.LoanAccounts.Count} loans");
+        foreach (var a in client.SavingsAccounts)
+            Assert.Contains(full.Value.SavingsAccounts, s => s.Id == a.Id);
+    }
+
+    [SkippableFact]
+    public async Task FindClientsAsync_UnknownExternalId_ReturnsEmptyList()
+    {
+        SkipIfFineractNotConfigured();
+
+        var result = await _fineractService!.FindClientsAsync(new FineractClientSearch(ExternalId: "99999999999"));
+
+        Assert.True(result.IsSuccess, $"Expected an empty success but got: {result.Error}");
+        Assert.Empty(result.Value!);
     }
 
     #endregion

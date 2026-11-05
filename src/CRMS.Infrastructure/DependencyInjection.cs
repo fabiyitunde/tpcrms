@@ -368,6 +368,41 @@ public static class DependencyInjection
             configuration.GetSection(Application.PartyExposure.PartyExposureSettings.SectionName));
         services.AddScoped<Application.PartyExposure.IPartyExposureService, PartyExposureService>();
 
+        // Customer check for third-party consumers (docs/Customer_Check.md)
+        services.Configure<Application.CustomerCheck.CustomerCheckSettings>(
+            configuration.GetSection(Application.CustomerCheck.CustomerCheckSettings.SectionName));
+        services.AddScoped<IApiConsumerRepository, ApiConsumerRepository>();
+        services.AddScoped<ICustomerCheckRepository, CustomerCheckRepository>();
+        services.AddScoped<ICustomerCheckJobRepository, CustomerCheckJobRepository>();
+        services.AddScoped<ICustomerCheckPriceRepository, CustomerCheckPriceRepository>();
+        services.AddScoped<Application.CustomerCheck.Reporting.ICustomerCheckReporting, CustomerCheckReportingService>();
+        services.AddScoped<Application.CustomerCheck.Reporting.GetCustomerCheckOverviewHandler>();
+        services.AddScoped<Application.CustomerCheck.Reporting.ExportCustomerCheckStatementHandler>();
+        services.AddScoped<Application.CustomerCheck.Reporting.SearchCustomerCheckJobsHandler>();
+        services.AddScoped<Application.CustomerCheck.Reporting.GetCustomerCheckJobDetailHandler>();
+        services.AddScoped<Application.CustomerCheck.Reporting.ResendCustomerCheckCallbackHandler>();
+        services.AddScoped<Application.CustomerCheck.Reporting.GetCustomerCheckPricesHandler>();
+        services.AddScoped<Application.CustomerCheck.Reporting.SetCustomerCheckPriceHandler>();
+        services.AddScoped<Application.CustomerCheck.ICustomerCheckService, CustomerCheckService>();
+        services.AddSingleton<Application.CustomerCheck.ICustomerCheckCipher, CustomerCheckCipher>();
+        services.AddScoped<Application.CustomerCheck.Commands.CreateApiConsumerHandler>();
+        services.AddScoped<Application.CustomerCheck.Commands.UpdateApiConsumerHandler>();
+        services.AddScoped<Application.CustomerCheck.Commands.SetApiConsumerActiveHandler>();
+        services.AddScoped<Application.CustomerCheck.Commands.RotateApiConsumerKeyHandler>();
+        services.AddScoped<Application.CustomerCheck.Commands.RotateApiConsumerCallbackSecretHandler>();
+        services.AddScoped<Application.CustomerCheck.Queries.GetApiConsumersHandler>();
+        // Jobs run in the background on the API host (CustomerCheckJobWorker is registered there);
+        // the runner, dispatcher and signal are shared so the intranet can resend a callback.
+        services.AddSingleton<CustomerCheckJobSignal>();
+        services.AddSingleton<Application.CustomerCheck.ICustomerCheckJobSignal>(sp => sp.GetRequiredService<CustomerCheckJobSignal>());
+        services.AddScoped<CustomerCheckJobRunner>();
+        services.AddScoped<CustomerCheckCallbackDispatcher>();
+        services.AddHttpClient<Application.CustomerCheck.ICustomerCheckCallbackSender, ExternalServices.CustomerCheck.CustomerCheckCallbackSender>((sp, client) =>
+        {
+            var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Application.CustomerCheck.CustomerCheckSettings>>().Value;
+            client.Timeout = TimeSpan.FromMilliseconds(Math.Max(1000, settings.CallbackTimeoutMs));
+        });
+
         // Notification Event Handlers
         services.AddScoped<IDomainEventHandler<WorkflowSLABreachedEvent>, WorkflowSLABreachedNotificationHandler>();
         services.AddScoped<IDomainEventHandler<WorkflowEscalatedEvent>, WorkflowEscalatedNotificationHandler>();

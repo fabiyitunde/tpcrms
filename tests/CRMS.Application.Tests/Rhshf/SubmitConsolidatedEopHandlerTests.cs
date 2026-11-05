@@ -517,6 +517,8 @@ public class SubmitConsolidatedEopHandlerTests
     /// (best-effort) branch resolution — everything else on this interface is unused here.</summary>
     private class FakeFineractDirectService : IFineractDirectService
     {
+        public Task<Result<IReadOnlyList<FineractClientMatch>>> FindClientsAsync(FineractClientSearch search, bool includeAccounts = true, CancellationToken ct = default)
+            => throw new NotSupportedException();
         public Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
             => Task.FromResult(Result.Failure<NampBoaAccountInfo>("not resolved in this test"));
 

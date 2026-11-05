@@ -245,6 +245,9 @@ public class FineractLoanAccountDto
 
     [JsonPropertyName("inArrears")]
     public bool InArrears { get; set; }
+
+    [JsonPropertyName("timeline")]
+    public FineractLoanTimeline? Timeline { get; set; }
 }
 
 public class FineractSavingsAccountDto
@@ -255,6 +258,9 @@ public class FineractSavingsAccountDto
     [JsonPropertyName("accountNo")]
     public string? AccountNo { get; set; }
 
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; set; }
+
     [JsonPropertyName("productId")]
     public int ProductId { get; set; }
 
@@ -264,8 +270,31 @@ public class FineractSavingsAccountDto
     [JsonPropertyName("status")]
     public FineractStatusDto? Status { get; set; }
 
+    /// <summary>Ownership: Individual, Group. Not the kind of account.</summary>
+    [JsonPropertyName("accountType")]
+    public FineractEnumDto? AccountType { get; set; }
+
+    /// <summary>The kind of account: Savings, Fixed Deposit, Recurring Deposit.</summary>
+    [JsonPropertyName("depositType")]
+    public FineractEnumDto? DepositType { get; set; }
+
     [JsonPropertyName("accountBalance")]
     public decimal AccountBalance { get; set; }
+
+    [JsonPropertyName("lastActiveTransactionDate")]
+    public List<int>? LastActiveTransactionDate { get; set; }
+
+    [JsonPropertyName("timeline")]
+    public FineractSavingsTimeline? Timeline { get; set; }
+}
+
+public class FineractSavingsTimeline
+{
+    [JsonPropertyName("submittedOnDate")]
+    public List<int>? SubmittedOnDate { get; set; }
+
+    [JsonPropertyName("activatedOnDate")]
+    public List<int>? ActivatedOnDate { get; set; }
 }
 
 public class FineractStatusDto
@@ -312,6 +341,9 @@ public class FineractLoanDetailResponse
 
     [JsonPropertyName("productName")]
     public string? ProductName { get; set; }
+
+    [JsonPropertyName("loanProductName")]
+    public string? LoanProductName { get; set; }
 
     [JsonPropertyName("principal")]
     public decimal Principal { get; set; }
@@ -547,3 +579,52 @@ public class FineractCreateLoanResponse
     public long ResourceId { get; set; }
 }
 
+// POST /tp/clients/find?accounts=true response: a bare array of these.
+public class FineractClientFindDto
+{
+    [JsonPropertyName("id")] public long Id { get; set; }
+    [JsonPropertyName("accountNo")] public string? AccountNo { get; set; }
+    [JsonPropertyName("externalId")] public string? ExternalId { get; set; }
+    [JsonPropertyName("status")] public FineractClientStatus? Status { get; set; }
+    [JsonPropertyName("active")] public bool Active { get; set; }
+    [JsonPropertyName("activationDate")] public List<int>? ActivationDate { get; set; }
+    [JsonPropertyName("firstname")] public string? Firstname { get; set; }
+    [JsonPropertyName("middlename")] public string? Middlename { get; set; }
+    [JsonPropertyName("lastname")] public string? Lastname { get; set; }
+    [JsonPropertyName("displayName")] public string? DisplayName { get; set; }
+    [JsonPropertyName("mobileNo")] public string? MobileNo { get; set; }
+    [JsonPropertyName("emailAddress")] public string? EmailAddress { get; set; }
+    [JsonPropertyName("dateOfBirth")] public List<int>? DateOfBirth { get; set; }
+    [JsonPropertyName("gender")] public FineractNamedDto? Gender { get; set; }
+    [JsonPropertyName("clientType")] public FineractNamedDto? ClientType { get; set; }
+    [JsonPropertyName("officeId")] public int OfficeId { get; set; }
+    [JsonPropertyName("officeName")] public string? OfficeName { get; set; }
+    [JsonPropertyName("kycLevel"), JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] public int? KycLevel { get; set; }
+    [JsonPropertyName("timeline")] public FineractSavingsTimeline? Timeline { get; set; }
+    [JsonPropertyName("accounts")] public List<FineractClientFindAccountDto>? Accounts { get; set; }
+}
+
+/// <summary>A code-table value as the client search returns it: {id, name}, not {id, value}.</summary>
+public class FineractNamedDto
+{
+    [JsonPropertyName("id")] public int Id { get; set; }
+    [JsonPropertyName("name")] public string? Name { get; set; }
+}
+
+public class FineractClientFindAccountDto
+{
+    [JsonPropertyName("id")] public long Id { get; set; }
+    [JsonPropertyName("accountNo")] public string? AccountNo { get; set; }
+    [JsonPropertyName("externalId")] public string? ExternalId { get; set; }
+    [JsonPropertyName("clientId")] public long ClientId { get; set; }
+    [JsonPropertyName("savingsProductId")] public int SavingsProductId { get; set; }
+    [JsonPropertyName("savingsProductName")] public string? SavingsProductName { get; set; }
+    [JsonPropertyName("summary")] public FineractClientFindAccountSummaryDto? Summary { get; set; }
+    [JsonPropertyName("kycLevel"), JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] public int? KycLevel { get; set; }
+}
+
+public class FineractClientFindAccountSummaryDto
+{
+    [JsonPropertyName("accountBalance")] public decimal AccountBalance { get; set; }
+    [JsonPropertyName("availableBalance")] public decimal AvailableBalance { get; set; }
+}

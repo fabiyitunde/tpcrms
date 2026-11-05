@@ -283,6 +283,8 @@ public class BookRhshfDisbursementHandlerTests
         public string? ClientResolutionFailureMessage { get; set; }
         public FineractLoanBookingRequest? LastBookingRequest { get; private set; }
 
+        public Task<Result<IReadOnlyList<FineractClientMatch>>> FindClientsAsync(FineractClientSearch search, bool includeAccounts = true, CancellationToken ct = default)
+            => throw new NotSupportedException();
         public Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default)
             => Task.FromResult(ClientResolutionFailureMessage is not null
                 ? Result.Failure<NampBoaAccountInfo>(ClientResolutionFailureMessage)

@@ -62,7 +62,45 @@ public interface IFineractDirectService
     /// Used at NAMP webhook ingest and recall to resolve the Fineract client for the applicant.
     /// </summary>
     Task<Result<NampBoaAccountInfo>> GetNampBoaAccountAsync(string boaAccountNumber, CancellationToken ct = default);
+
+    /// <summary>
+    /// Finds the clients matching one or more criteria (POST /tp/clients/find). The BVN is the
+    /// client's externalId, so <see cref="FineractClientSearch.ExternalId"/> is how a customer is
+    /// found by BVN. With <paramref name="includeAccounts"/> (the ?accounts=true flag) each match
+    /// carries its savings accounts: number, product and balance only, no status or dates, and no
+    /// loans, which still need <see cref="GetClientAccountsAsync"/>.
+    /// An empty list means no such customer; a failure means core banking could not be asked.
+    /// </summary>
+    Task<Result<IReadOnlyList<FineractClientMatch>>> FindClientsAsync(
+        FineractClientSearch search, bool includeAccounts = true, CancellationToken ct = default);
 }
+
+/// <summary>Criteria for <see cref="IFineractDirectService.FindClientsAsync"/>; null ones are not sent.</summary>
+public record FineractClientSearch(
+    string? ExternalId = null,
+    string? MobileNo = null,
+    string? EmailAddress = null,
+    string? Nuban = null);
+
+/// <summary>One client from a search. <see cref="SavingsAccounts"/> is empty unless accounts were
+/// asked for, and then holds number, product and balance only (Status is blank, dates null).</summary>
+public record FineractClientMatch(
+    long Id,
+    string? AccountNo,
+    string? ExternalId,
+    string DisplayName,
+    string? Status,
+    bool Active,
+    DateTime? ActivatedOn,
+    string? MobileNo,
+    string? EmailAddress,
+    DateTime? DateOfBirth,
+    string? Gender,
+    string? ClientType,
+    int OfficeId,
+    string? OfficeName,
+    int? KycLevel,
+    IReadOnlyList<ClientSavingsAccountSummary> SavingsAccounts);
 
 public record NampBoaAccountInfo(long ClientId, string AccountStatus, long SavingsAccountId, string? SavingsAccountNo);
 
@@ -155,7 +193,11 @@ public record ClientLoanAccountSummary(
     int ProductId,
     string Status,
     int StatusCode,
-    string LoanType
+    string LoanType,
+    string? ExternalId = null,
+    bool InArrears = false,
+    DateTime? DisbursedOn = null,
+    DateTime? MaturityOn = null
 );
 
 public record ClientSavingsAccountSummary(
@@ -163,7 +205,11 @@ public record ClientSavingsAccountSummary(
     string AccountNo,
     string ProductName,
     string Status,
-    decimal AccountBalance
+    decimal AccountBalance,
+    string? ExternalId = null,
+    string? AccountType = null,
+    DateTime? ActivatedOn = null,
+    DateTime? LastActiveTransactionDate = null
 );
 
 // Loan Detail

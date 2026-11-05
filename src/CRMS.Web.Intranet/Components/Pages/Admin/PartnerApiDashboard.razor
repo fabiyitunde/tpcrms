@@ -1,0 +1,517 @@
+@page "/admin/partner-api"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+@using CRMS.Application.CustomerCheck
+@using CRMS.Application.CustomerCheck.DTOs
+@using CRMS.Application.CustomerCheck.Reporting
+
+<PageTitle>Partner API - CRMS</PageTitle>
+
+<div class="page-header pa-header">
+    <div>
+        <h1 class="page-title">Partner API</h1>
+        <p class="page-subtitle">Customer checks run for third-party consumers: usage, billing, outcomes and callback health</p>
+    </div>
+    <div class="pa-controls">
+        <select class="form-control" @bind="period" @bind:after="LoadAsync">
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="mtd">This month</option>
+            <option value="prev">Last month</option>
+        </select>
+        <select class="form-control" @bind="consumerKey" @bind:after="LoadAsync">
+            <option value="">All consumers</option>
+            @foreach (var c in consumers)
+            {
+                <option value="@c.Id">@c.Name</option>
+            }
+        </select>
+        <button class="btn btn-outline" @onclick="ExportStatement" disabled="@(string.IsNullOrEmpty(consumerKey) || isExporting)" title="@(string.IsNullOrEmpty(consumerKey) ? "Pick a consumer to export its statement" : "Download the statement for this period")">
+            <span class="material-symbols-outlined" style="font-size: 18px;">receipt_long</span>
+            Statement
+        </button>
+        <a class="btn btn-primary" href="/admin/partner-api/checks">
+            <span class="material-symbols-outlined" style="font-size: 18px;">fact_check</span>
+            Checks
+        </a>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger mb-4">@error</div>
+}
+
+@if (isLoading && overview == null)
+{
+    <div class="pa-loading"><span class="material-symbols-outlined spinning" style="font-size: 32px; color: var(--primary-500);">progress_activity</span></div>
+}
+else if (overview != null)
+{
+    var t = overview.Totals;
+    var p = overview.Previous;
+    <div class="pa-kpis">
+        <div class="pa-kpi">
+            <div class="pa-kpi-top">
+                <span class="pa-kpi-icon" style="background: var(--primary-50); color: var(--primary-600);"><span class="material-symbols-outlined">fact_check</span></span>
+                <span class="pa-kpi-label">Checks submitted</span>
+            </div>
+            <div class="pa-kpi-value">@t.Submitted.ToString("N0")</div>
+            <div class="pa-kpi-sub">@Delta(t.Submitted, p.Submitted) <span class="pa-muted">vs previous period</span></div>
+            <div id="spark-checks" class="pa-spark"></div>
+        </div>
+        <div class="pa-kpi">
+            <div class="pa-kpi-top">
+                <span class="pa-kpi-icon" style="background: var(--info-50); color: var(--info-600);"><span class="material-symbols-outlined">task_alt</span></span>
+                <span class="pa-kpi-label">Completed</span>
+            </div>
+            <div class="pa-kpi-value">@t.CompletionRate.ToString("0.#")%</div>
+            <div class="pa-kpi-sub">@t.Completed.ToString("N0") done, @t.Failed.ToString("N0") failed, @t.Open.ToString("N0") in progress</div>
+            <div id="spark-completion" class="pa-spark"></div>
+        </div>
+        <div class="pa-kpi">
+            <div class="pa-kpi-top">
+                <span class="pa-kpi-icon" style="background: #f5f3ff; color: #7c3aed;"><span class="material-symbols-outlined">cloud_sync</span></span>
+                <span class="pa-kpi-label">Billable calls</span>
+            </div>
+            <div class="pa-kpi-value">@t.BilledCalls.ToString("N0")</div>
+            <div class="pa-kpi-sub">@t.CallsByKind.Bureau bureau, @t.CallsByKind.Score score, @t.CallsByKind.Fraud fraud, @t.CallsByKind.Identity identity, @t.CallsByKind.Advisory advisory</div>
+            <div id="spark-calls" class="pa-spark"></div>
+        </div>
+        <div class="pa-kpi">
+            <div class="pa-kpi-top">
+                <span class="pa-kpi-icon" style="background: var(--warning-50); color: var(--warning-600);"><span class="material-symbols-outlined">payments</span></span>
+                <span class="pa-kpi-label">Amount billable</span>
+            </div>
+            <div class="pa-kpi-value">@Money(t.Amount)</div>
+            <div class="pa-kpi-sub">@Delta(t.Amount, p.Amount) <span class="pa-muted">vs previous period</span>@(prices.All(x => x.UnitPrice == 0) ? " · no prices set yet" : "")</div>
+            <div id="spark-amount" class="pa-spark"></div>
+        </div>
+        <div class="pa-kpi">
+            <div class="pa-kpi-top">
+                <span class="pa-kpi-icon" style="background: var(--success-50); color: var(--success-600);"><span class="material-symbols-outlined">timer</span></span>
+                <span class="pa-kpi-label">Time to result</span>
+            </div>
+            <div class="pa-kpi-value">@Seconds(t.MedianDurationMs)</div>
+            <div class="pa-kpi-sub">median · average @Seconds(t.AverageDurationMs) · previously @Seconds(p.MedianDurationMs)</div>
+            <div class="pa-spark pa-spark-empty"><span>@t.AdvisoriesScored.ToString("N0") advisories scored@(t.AverageAdvisoryScore is { } avg ? $", average {avg:0.#}/100" : "")</span></div>
+        </div>
+        <div class="pa-kpi">
+            <div class="pa-kpi-top">
+                <span class="pa-kpi-icon" style="background: var(--danger-50); color: var(--danger-600);"><span class="material-symbols-outlined">webhook</span></span>
+                <span class="pa-kpi-label">Callbacks delivered</span>
+            </div>
+            <div class="pa-kpi-value">@t.CallbackDeliveryRate.ToString("0.#")%</div>
+            <div class="pa-kpi-sub">@overview.Callbacks.Delivered of @overview.Callbacks.Requested · @overview.Callbacks.Failed gave up · @overview.Callbacks.Pending retrying</div>
+            <div id="spark-failed" class="pa-spark"></div>
+        </div>
+    </div>
+
+    <div class="pa-grid pa-grid-3-1">
+        <div class="pa-card">
+            <div class="pa-card-head">
+                <div>
+                    <div class="pa-card-title">Checks per day</div>
+                    <div class="pa-card-sub">Submitted, stacked by consumer</div>
+                </div>
+                <span class="pa-chip">@overview.From.ToLocalTime().ToString("dd MMM") – @overview.To.AddDays(-1).ToLocalTime().ToString("dd MMM yyyy")</span>
+            </div>
+            <div id="chart-daily"></div>
+        </div>
+        <div class="pa-card">
+            <div class="pa-card-head">
+                <div>
+                    <div class="pa-card-title">Section answers</div>
+                    <div class="pa-card-sub">Across completed checks</div>
+                </div>
+            </div>
+            <div id="chart-outcomes"></div>
+        </div>
+    </div>
+
+    <div class="pa-grid pa-grid-3">
+        <div class="pa-card">
+            <div class="pa-card-head"><div><div class="pa-card-title">Advisory ratings</div><div class="pa-card-sub">Risk rating of scored checks</div></div></div>
+            <div id="chart-ratings"></div>
+            @if (overview.Recommendations.Count > 0)
+            {
+                <div class="pa-chips">
+                    @foreach (var r in overview.Recommendations)
+                    {
+                        <span class="pa-chip @RecommendationClass(r.Name)">@Spaced(r.Name) <b>@r.Count</b></span>
+                    }
+                </div>
+            }
+        </div>
+        <div class="pa-card">
+            <div class="pa-card-head"><div><div class="pa-card-title">Bureau usage</div><div class="pa-card-sub">@t.BureauBilled billed, @t.BureauReused served from stored reports</div></div></div>
+            <div id="chart-bureau"></div>
+        </div>
+        <div class="pa-card">
+            <div class="pa-card-head"><div><div class="pa-card-title">Callback health</div><div class="pa-card-sub">Share of finished checks with a callback that was acknowledged</div></div></div>
+            <div id="chart-callbacks"></div>
+        </div>
+    </div>
+
+    <div class="pa-grid pa-grid-1-2">
+        <div class="pa-card">
+            <div class="pa-card-head"><div><div class="pa-card-title">When partners call</div><div class="pa-card-sub">Submissions by weekday and hour (@TimeZoneInfo.Local.StandardName)</div></div></div>
+            <div id="chart-heatmap"></div>
+        </div>
+        <div class="pa-card">
+            <div class="pa-card-head"><div><div class="pa-card-title">Consumers</div><div class="pa-card-sub">Ranked by checks in the period</div></div></div>
+            @if (overview.Consumers.Count == 0)
+            {
+                <div class="pa-empty">No consumer has run a check in this period.</div>
+            }
+            else
+            {
+                <div class="pa-table-wrap">
+                <table class="table pa-table">
+                    <thead>
+                        <tr><th>Consumer</th><th class="text-right">Checks</th><th class="text-right">Done</th><th class="text-right">Calls</th><th class="text-right">Amount</th><th class="text-right">Time</th><th class="text-right" title="Callbacks that gave up">CB failed</th><th class="text-right" title="Average advisory score">Advisory</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in overview.Consumers)
+                        {
+                            <tr>
+                                <td>
+                                    <div style="font-weight: 500;">@c.Name</div>
+                                    <div class="pa-muted" style="font-size: var(--text-xs);">last @(c.LastCheckAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "–")</div>
+                                </td>
+                                <td class="text-right">@c.Checks.ToString("N0")</td>
+                                <td class="text-right">@(c.Checks == 0 ? "–" : $"{100m * c.Completed / c.Checks:0}%")@(c.Failed > 0 ? $" ({c.Failed} failed)" : "")</td>
+                                <td class="text-right">@c.BilledCalls.ToString("N0")</td>
+                                <td class="text-right" style="font-weight: 600;">@Money(c.Amount)</td>
+                                <td class="text-right">@Seconds(c.AverageDurationMs)</td>
+                                <td class="text-right">@(c.CallbacksFailed == 0 ? "–" : c.CallbacksFailed.ToString())</td>
+                                <td class="text-right">@(c.AverageAdvisoryScore is { } a ? a.ToString("0.#") : "–")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="pa-grid pa-grid-3">
+        <div class="pa-card">
+            <div class="pa-card-head"><div><div class="pa-card-title">Sections</div><div class="pa-card-sub">How each section fared when asked for</div></div></div>
+            <div class="pa-table-wrap">
+            <table class="table pa-table">
+                <thead><tr><th>Section</th><th class="text-right">Asked</th><th class="text-right">OK</th><th class="text-right" title="No record">None</th><th class="text-right" title="Unavailable">Failed</th></tr></thead>
+                <tbody>
+                    @foreach (var s in overview.Sections)
+                    {
+                        <tr>
+                            <td>@SectionLabel(s.Section)</td>
+                            <td class="text-right">@s.Requested</td>
+                            <td class="text-right text-success">@s.Ok</td>
+                            <td class="text-right">@s.NoRecord</td>
+                            <td class="text-right @(s.Unavailable > 0 ? "text-danger" : "")">@s.Unavailable</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            </div>
+        </div>
+        <div class="pa-card">
+            <div class="pa-card-head">
+                <div><div class="pa-card-title">Price list</div><div class="pa-card-sub">What a consumer is charged per item (@overview.Currency)</div></div>
+            </div>
+            <div class="pa-table-wrap">
+            <table class="table pa-table">
+                <thead><tr><th>Item</th><th class="text-right">Price</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var pr in prices)
+                    {
+                        <tr>
+                            <td>@pr.DisplayName</td>
+                            <td class="text-right @(pr.UnitPrice == 0 ? "pa-muted" : "")">@pr.UnitPrice.ToString("N2")</td>
+                            <td class="text-right"><button class="btn btn-ghost btn-sm" @onclick="() => OpenPrice(pr)"><span class="material-symbols-outlined" style="font-size: 16px;">edit</span></button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            </div>
+        </div>
+        <div class="pa-card">
+            <div class="pa-card-head"><div><div class="pa-card-title">Recent failures</div><div class="pa-card-sub">Checks that could not be completed</div></div></div>
+            @if (overview.RecentFailures.Count == 0)
+            {
+                <div class="pa-empty pa-empty-good"><span class="material-symbols-outlined">check_circle</span> No failed checks in this period.</div>
+            }
+            else
+            {
+                <div class="pa-failures">
+                    @foreach (var f in overview.RecentFailures)
+                    {
+                        <a class="pa-failure" href="/admin/partner-api/checks?job=@f.JobId">
+                            <div class="pa-failure-top"><span class="badge badge-danger">@f.ErrorCode</span><span class="pa-muted">@f.At.ToLocalTime().ToString("dd MMM HH:mm")</span></div>
+                            <div style="font-weight: 500;">@f.Consumer · @f.RequestId</div>
+                            <div class="pa-muted" style="font-size: var(--text-xs);">@f.ErrorMessage</div>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (editingPrice != null)
+{
+    <div class="modal-backdrop show" @onclick="() => editingPrice = null">
+        <div class="modal" style="max-width: 420px;" @onclick:stopPropagation>
+            <div class="modal-header"><h3 class="modal-title">@editingPrice.DisplayName</h3></div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(priceError))
+                {
+                    <div class="alert alert-danger mb-4">@priceError</div>
+                }
+                <div class="form-group">
+                    <label class="form-label">Unit price (@editingPrice.Currency)</label>
+                    <input type="number" class="form-control" @bind="priceValue" min="0" step="0.01" />
+                    <div class="form-hint">Applies to every check from now on and to the amounts shown for past ones. Zero means not charged.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" @onclick="() => editingPrice = null" disabled="@isSavingPrice">Cancel</button>
+                <button class="btn btn-primary" @onclick="SavePrice" disabled="@isSavingPrice">Save price</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .pa-header { align-items: flex-start; }
+    .pa-controls { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+    .pa-controls .form-control { width: auto; min-width: 150px; }
+    .pa-loading { display: flex; justify-content: center; padding: var(--space-12); }
+    .spinning { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .pa-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); }
+    .pa-kpi { position: relative; overflow: hidden; background: #fff; border: 1px solid var(--gray-200); border-radius: 14px; padding: var(--space-4) var(--space-4) 0; box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 8px 24px -16px rgba(16, 24, 40, .18); transition: transform .15s ease, box-shadow .15s ease; }
+    .pa-kpi:hover { transform: translateY(-2px); box-shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 14px 28px -16px rgba(16, 24, 40, .25); }
+    .pa-kpi-top { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+    .pa-kpi-icon { display: inline-flex; width: 32px; height: 32px; border-radius: 10px; align-items: center; justify-content: center; }
+    .pa-kpi-icon .material-symbols-outlined { font-size: 18px; }
+    .pa-kpi-label { font-size: var(--text-xs); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--gray-500); }
+    .pa-kpi-value { font-size: var(--text-2xl); font-weight: 700; color: var(--gray-900); letter-spacing: -.02em; line-height: 1.1; }
+    .pa-kpi-sub { font-size: var(--text-xs); color: var(--gray-600); margin-top: var(--space-1); min-height: 2.4em; }
+    .pa-spark { height: 46px; margin: var(--space-2) calc(var(--space-4) * -1) 0; }
+    .pa-spark-empty { display: flex; align-items: center; padding: 0 var(--space-4); font-size: var(--text-xs); color: var(--gray-500); }
+    .pa-up { color: var(--success-600); font-weight: 600; }
+    .pa-down { color: var(--danger-600); font-weight: 600; }
+    .pa-muted { color: var(--gray-500); }
+
+    .pa-grid { display: grid; gap: var(--space-4); margin-bottom: var(--space-4); }
+    .pa-grid-3-1 { grid-template-columns: 3fr 1.3fr; }
+    .pa-grid-1-2 { grid-template-columns: 1.3fr 2fr; }
+    .pa-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .pa-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 14px; padding: var(--space-4) var(--space-5); box-shadow: 0 1px 2px rgba(16, 24, 40, .04); min-width: 0; }
+    .pa-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3); }
+    .pa-card-title { font-weight: 600; color: var(--gray-900); }
+    .pa-card-sub { font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px; }
+    .pa-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; background: var(--gray-100); color: var(--gray-700); font-size: var(--text-xs); white-space: nowrap; }
+    .pa-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+    .pa-chip-good { background: var(--success-50); color: var(--success-600); }
+    .pa-chip-warn { background: var(--warning-50); color: var(--warning-600); }
+    .pa-chip-bad { background: var(--danger-50); color: var(--danger-600); }
+    /* Tables sit inside a scrolling wrapper, so a narrow card never lets a table spill past
+       its edge; the card clips anything else. */
+    .pa-card { overflow: hidden; }
+    .pa-table-wrap { overflow-x: auto; margin: 0 calc(var(--space-5) * -1); padding: 0 var(--space-5); }
+    .pa-table { width: 100%; min-width: 0; }
+    .pa-table th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--gray-500); white-space: nowrap; padding: var(--space-2) var(--space-2); }
+    .pa-table td { font-size: var(--text-sm); vertical-align: middle; padding: var(--space-2) var(--space-2); }
+    .pa-table td.text-right, .pa-table th.text-right { white-space: nowrap; }
+    .pa-empty { padding: var(--space-6); text-align: center; color: var(--gray-500); font-size: var(--text-sm); }
+    .pa-empty-good { color: var(--success-600); display: flex; align-items: center; justify-content: center; gap: var(--space-2); }
+    .pa-failures { display: flex; flex-direction: column; gap: var(--space-2); max-height: 320px; overflow: auto; }
+    .pa-failure { display: block; padding: var(--space-3); border: 1px solid var(--gray-200); border-radius: 10px; text-decoration: none; color: inherit; font-size: var(--text-sm); }
+    .pa-failure:hover { border-color: var(--primary-300); background: var(--primary-50); }
+    .pa-failure-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: var(--text-xs); }
+    @@media (max-width: 1500px) { .pa-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pa-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pa-grid-3 > .pa-card:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+    @@media (max-width: 1250px) { .pa-grid-3-1, .pa-grid-1-2 { grid-template-columns: 1fr; } }
+    @@media (max-width: 1000px) { .pa-grid-3 { grid-template-columns: 1fr; } }
+    @@media (max-width: 700px) { .pa-kpis { grid-template-columns: 1fr; } }
+</style>
+
+@code {
+    private CustomerCheckOverviewDto? overview;
+    private List<ApiConsumerDto> consumers = [];
+    private List<CustomerCheckPriceDto> prices = [];
+    private string period = "30";
+    private string consumerKey = "";
+    private bool isLoading = true;
+    private bool isExporting;
+    private bool chartsPending;
+    private string? error;
+
+    private CustomerCheckPriceDto? editingPrice;
+    private decimal priceValue;
+    private string? priceError;
+    private bool isSavingPrice;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var c = await AppService.GetApiConsumersAsync();
+        if (c.Success && c.Data != null) consumers = c.Data;
+        await LoadAsync();
+    }
+
+    private (DateTime From, DateTime To) Range()
+    {
+        var today = DateTime.UtcNow.Date;
+        return period switch
+        {
+            "7" => (today.AddDays(-6), today.AddDays(1)),
+            "90" => (today.AddDays(-89), today.AddDays(1)),
+            "mtd" => (new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc), today.AddDays(1)),
+            "prev" => (new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-1), new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc)),
+            _ => (today.AddDays(-29), today.AddDays(1)),
+        };
+    }
+
+    private Guid? ConsumerId => Guid.TryParse(consumerKey, out var id) ? id : null;
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        error = null;
+        // Sequential on purpose: these share one scoped DbContext.
+        var pr = await AppService.GetCustomerCheckPricesAsync();
+        if (pr.Success && pr.Data != null) prices = pr.Data;
+        var (from, to) = Range();
+        var result = await AppService.GetCustomerCheckOverviewAsync(from, to, ConsumerId);
+        if (result.Success && result.Data != null)
+        {
+            overview = result.Data;
+            chartsPending = true;
+        }
+        else
+        {
+            error = result.Error ?? "The overview could not be loaded.";
+        }
+        isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!chartsPending || overview == null) return;
+        chartsPending = false;
+        try
+        {
+            await JS.InvokeVoidAsync("partnerApi.render", new
+            {
+                daily = overview.Daily.Select(d => new { date = d.Date.ToString("yyyy-MM-dd"), d.Submitted, d.Completed, d.Failed, d.BilledCalls, d.Amount, byConsumer = d.ByConsumer }),
+                consumerNames = overview.ConsumerNames,
+                sectionOutcomes = overview.SectionOutcomes,
+                advisoryRatings = overview.AdvisoryRatings,
+                bureauUsage = overview.BureauUsage,
+                callbacks = overview.Callbacks,
+                heatmap = overview.Heatmap,
+            });
+        }
+        catch (JSException)
+        {
+            // The chart library did not load (offline box); the figures above still stand.
+        }
+    }
+
+    private async Task ExportStatement()
+    {
+        if (ConsumerId is not { } id) return;
+        isExporting = true;
+        try
+        {
+            var (from, to) = Range();
+            var result = await AppService.ExportCustomerCheckStatementAsync(id, from, to);
+            if (result.Success && result.Data != null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes", result.Data.FileName, "text/csv", result.Data.Content);
+            else
+                error = result.Error ?? "The statement could not be built.";
+        }
+        finally
+        {
+            isExporting = false;
+        }
+    }
+
+    private void OpenPrice(CustomerCheckPriceDto p)
+    {
+        editingPrice = p;
+        priceValue = p.UnitPrice;
+        priceError = null;
+    }
+
+    private async Task SavePrice()
+    {
+        if (editingPrice == null) return;
+        isSavingPrice = true;
+        priceError = null;
+        try
+        {
+            var result = await AppService.SetCustomerCheckPriceAsync(editingPrice.Item, priceValue, AuthService.CurrentUser?.Id ?? Guid.Empty);
+            if (result.Success)
+            {
+                editingPrice = null;
+                await LoadAsync();
+            }
+            else
+            {
+                priceError = result.Error ?? "The price could not be saved.";
+            }
+        }
+        finally
+        {
+            isSavingPrice = false;
+        }
+    }
+
+    private string Money(decimal v) => $"{overview?.Currency ?? "NGN"} {v:N0}";
+
+    private static string Seconds(int ms) => ms <= 0 ? "–" : ms < 1000 ? $"{ms} ms" : $"{ms / 1000m:0.#} s";
+
+    private static MarkupString Delta(decimal now, decimal before)
+    {
+        if (before == 0) return (MarkupString)(now == 0 ? "<span class=\"pa-muted\">no change</span>" : "<span class=\"pa-up\">new</span>");
+        var pct = Math.Round(100m * (now - before) / before, 0);
+        var cls = pct >= 0 ? "pa-up" : "pa-down";
+        return (MarkupString)$"<span class=\"{cls}\">{(pct >= 0 ? "+" : "")}{pct}%</span>";
+    }
+
+    private static string Spaced(string camel) => System.Text.RegularExpressions.Regex.Replace(camel, "([a-z])([A-Z])", "$1 $2");
+
+    private static string RecommendationClass(string r) => r switch
+    {
+        "StrongApprove" or "Approve" => "pa-chip-good",
+        "ApproveWithConditions" or "Refer" => "pa-chip-warn",
+        "Decline" => "pa-chip-bad",
+        _ => "",
+    };
+
+    private static string SectionLabel(string section) => section switch
+    {
+        CustomerCheckSections.Identity => "Identity",
+        CustomerCheckSections.CreditBureau => "Credit bureau",
+        CustomerCheckSections.FraudCheck => "Fraud check",
+        CustomerCheckSections.BankAccounts => "Bank accounts",
+        CustomerCheckSections.BankLoans => "Bank loans",
+        CustomerCheckSections.CrmsFacilities => "CRMS facilities",
+        CustomerCheckSections.AiAdvisory => "AI advisory",
+        _ => section,
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("partnerApi.destroy"); }
+        catch (Exception) { }
+    }
+}

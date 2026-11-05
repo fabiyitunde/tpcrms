@@ -151,6 +151,18 @@
                 <span class="material-symbols-outlined nav-item-icon">category</span>
                 @if (!Collapsed) { <span class="nav-item-text">Collateral Types</span> }
             </NavLink>
+            <NavLink href="/admin/partner-api" class="nav-item" Match="NavLinkMatch.All">
+                <span class="material-symbols-outlined nav-item-icon">hub</span>
+                @if (!Collapsed) { <span class="nav-item-text">Partner API</span> }
+            </NavLink>
+            <NavLink href="/admin/partner-api/checks" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">fact_check</span>
+                @if (!Collapsed) { <span class="nav-item-text">Customer Checks</span> }
+            </NavLink>
+            <NavLink href="/admin/api-consumers" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">key</span>
+                @if (!Collapsed) { <span class="nav-item-text">API Consumers</span> }
+            </NavLink>
             <NavLink href="/admin/locations" class="nav-item">
                 <span class="material-symbols-outlined nav-item-icon">location_city</span>
                 @if (!Collapsed) { <span class="nav-item-text">Locations</span> }
@@ -250,25 +262,22 @@
         await LoadCounts();
     }
 
+    // Sequential on purpose. Every ApplicationService call on this circuit shares one scoped
+    // DbContext, so running these counts in parallel (as they once did, with Task.Run and
+    // Task.WhenAll) collided with whatever else the circuit was doing, including a login, and
+    // threw "a second operation was started on this context instance" whenever the database
+    // was slow enough for them to overlap.
     private async Task LoadCounts()
     {
         var userId = User?.Id ?? Guid.Empty;
         if (userId == Guid.Empty) return;
 
-        var tasks = new List<Task>();
-
-        tasks.Add(Task.Run(async () => MyQueueCount = await AppService.GetMyQueueCountAsync(userId)));
+        MyQueueCount = await AppService.GetMyQueueCountAsync(userId);
 
         if (CanViewOverdue)
-        {
-            tasks.Add(Task.Run(async () => OverdueCount = await AppService.GetOverdueCountAsync()));
-        }
+            OverdueCount = await AppService.GetOverdueCountAsync();
 
         if (IsCommitteeMember)
-        {
-            tasks.Add(Task.Run(async () => PendingVotesCount = await AppService.GetMyPendingVotesCountAsync(userId)));
-        }
-
-        await Task.WhenAll(tasks);
+            PendingVotesCount = await AppService.GetMyPendingVotesCountAsync(userId);
     }
 }

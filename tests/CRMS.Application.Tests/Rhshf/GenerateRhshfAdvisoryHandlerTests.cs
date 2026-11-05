@@ -330,6 +330,9 @@ public class GenerateRhshfAdvisoryHandlerTests
     {
         public AIAdvisoryRequest? Captured { get; private set; }
 
+        public Task<CustomerAdvisoryResponse> GenerateCustomerAdvisoryAsync(CustomerAdvisoryRequest request, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
         public Task<AIAdvisoryResponse> GenerateAdvisoryAsync(AIAdvisoryRequest request, CancellationToken ct = default)
         {
             Captured = request;

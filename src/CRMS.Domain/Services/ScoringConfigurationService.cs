@@ -149,6 +149,39 @@ public class ScoringConfigurationService
         config.StatementTrust.ManualUploadVerified = GetValue(parameters, "StatementTrust", "ManualUploadVerified", 0.85m);
         config.StatementTrust.ManualUploadPending = GetValue(parameters, "StatementTrust", "ManualUploadPending", 0.70m);
 
+        // Load the customer-check (individual) profile
+        var cc = config.CustomerCheck;
+        cc.CreditHistoryWeight = GetValue(parameters, "CustomerCheck", "CreditHistoryWeight", cc.CreditHistoryWeight);
+        cc.RepaymentCapacityWeight = GetValue(parameters, "CustomerCheck", "RepaymentCapacityWeight", cc.RepaymentCapacityWeight);
+        cc.CashflowStabilityWeight = GetValue(parameters, "CustomerCheck", "CashflowStabilityWeight", cc.CashflowStabilityWeight);
+        cc.IdentityAndFraudWeight = GetValue(parameters, "CustomerCheck", "IdentityAndFraudWeight", cc.IdentityAndFraudWeight);
+        cc.ComfortableObligationRatio = GetValue(parameters, "CustomerCheck", "ComfortableObligationRatio", cc.ComfortableObligationRatio);
+        cc.ManageableObligationRatio = GetValue(parameters, "CustomerCheck", "ManageableObligationRatio", cc.ManageableObligationRatio);
+        cc.StretchedObligationRatio = GetValue(parameters, "CustomerCheck", "StretchedObligationRatio", cc.StretchedObligationRatio);
+        cc.CriticalObligationRatio = GetValue(parameters, "CustomerCheck", "CriticalObligationRatio", cc.CriticalObligationRatio);
+        cc.ComfortableScore = GetValue(parameters, "CustomerCheck", "ComfortableScore", cc.ComfortableScore);
+        cc.ManageableScore = GetValue(parameters, "CustomerCheck", "ManageableScore", cc.ManageableScore);
+        cc.StretchedScore = GetValue(parameters, "CustomerCheck", "StretchedScore", cc.StretchedScore);
+        cc.CriticalScore = GetValue(parameters, "CustomerCheck", "CriticalScore", cc.CriticalScore);
+        cc.BeyondCriticalScore = GetValue(parameters, "CustomerCheck", "BeyondCriticalScore", cc.BeyondCriticalScore);
+        cc.AssumedProposalPenalty = GetValue(parameters, "CustomerCheck", "AssumedProposalPenalty", cc.AssumedProposalPenalty);
+        cc.BankOverdueLoanPenalty = GetValue(parameters, "CustomerCheck", "BankOverdueLoanPenalty", cc.BankOverdueLoanPenalty);
+        cc.BankWrittenOffPenalty = GetValue(parameters, "CustomerCheck", "BankWrittenOffPenalty", cc.BankWrittenOffPenalty);
+        cc.BankPaidLoansBonus = GetValue(parameters, "CustomerCheck", "BankPaidLoansBonus", cc.BankPaidLoansBonus);
+        cc.MinBankPaidLoansForBonus = (int)GetValue(parameters, "CustomerCheck", "MinBankPaidLoansForBonus", cc.MinBankPaidLoansForBonus);
+        cc.NoBureauRecordPenalty = GetValue(parameters, "CustomerCheck", "NoBureauRecordPenalty", cc.NoBureauRecordPenalty);
+        cc.MinActiveMonthsShare = GetValue(parameters, "CustomerCheck", "MinActiveMonthsShare", cc.MinActiveMonthsShare);
+        cc.InactiveMonthsPenalty = GetValue(parameters, "CustomerCheck", "InactiveMonthsPenalty", cc.InactiveMonthsPenalty);
+        cc.IdentityBaseScore = GetValue(parameters, "CustomerCheck", "IdentityBaseScore", cc.IdentityBaseScore);
+        cc.BvnVerifiedBonus = GetValue(parameters, "CustomerCheck", "BvnVerifiedBonus", cc.BvnVerifiedBonus);
+        cc.BvnUnverifiedPenalty = GetValue(parameters, "CustomerCheck", "BvnUnverifiedPenalty", cc.BvnUnverifiedPenalty);
+        cc.WatchListedPenalty = GetValue(parameters, "CustomerCheck", "WatchListedPenalty", cc.WatchListedPenalty);
+        cc.HighFraudRiskPenalty = GetValue(parameters, "CustomerCheck", "HighFraudRiskPenalty", cc.HighFraudRiskPenalty);
+        cc.ElevatedFraudRiskPenalty = GetValue(parameters, "CustomerCheck", "ElevatedFraudRiskPenalty", cc.ElevatedFraudRiskPenalty);
+        cc.KnownCustomerBonus = GetValue(parameters, "CustomerCheck", "KnownCustomerBonus", cc.KnownCustomerBonus);
+        cc.EstablishedCustomerMonths = (int)GetValue(parameters, "CustomerCheck", "EstablishedCustomerMonths", cc.EstablishedCustomerMonths);
+        cc.EstablishedCustomerBonus = GetValue(parameters, "CustomerCheck", "EstablishedCustomerBonus", cc.EstablishedCustomerBonus);
+
         return config;
     }
 

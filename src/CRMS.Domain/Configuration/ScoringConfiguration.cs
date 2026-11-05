@@ -34,6 +34,59 @@ public class ScoringConfiguration
 
     // Trust Weights for Statement Sources
     public StatementTrustWeights StatementTrust { get; set; } = new();
+
+    // Customer check: the profile for scoring one individual (docs/Customer_Check.md, aiAdvisory)
+    public CustomerCheckConfig CustomerCheck { get; set; } = new();
+}
+
+/// <summary>
+/// Scoring profile for an individual looked up by BVN. Four categories; a category without data
+/// is left out and the weights are renormalised over the rest. Thresholds not listed here come
+/// from the shared categories (credit score bands, volatility, negative-balance days,
+/// recommendation thresholds, loan adjustments), so one change applies everywhere.
+/// </summary>
+public class CustomerCheckConfig
+{
+    // Weights
+    public decimal CreditHistoryWeight { get; set; } = 0.40m;
+    public decimal RepaymentCapacityWeight { get; set; } = 0.25m;
+    public decimal CashflowStabilityWeight { get; set; } = 0.20m;
+    public decimal IdentityAndFraudWeight { get; set; } = 0.15m;
+
+    // Repayment capacity: monthly obligations (proposed instalment + existing) over monthly inflow
+    public decimal ComfortableObligationRatio { get; set; } = 0.30m;
+    public decimal ManageableObligationRatio { get; set; } = 0.45m;
+    public decimal StretchedObligationRatio { get; set; } = 0.60m;
+    public decimal CriticalObligationRatio { get; set; } = 0.80m;
+    public decimal ComfortableScore { get; set; } = 90m;
+    public decimal ManageableScore { get; set; } = 75m;
+    public decimal StretchedScore { get; set; } = 55m;
+    public decimal CriticalScore { get; set; } = 35m;
+    public decimal BeyondCriticalScore { get; set; } = 15m;
+    /// <summary>Taken off when the amount and tenor were stand-ins rather than the request's.</summary>
+    public decimal AssumedProposalPenalty { get; set; } = 5m;
+
+    // Credit history: the person's own loans with the bank, alongside the bureau
+    public decimal BankOverdueLoanPenalty { get; set; } = 15m;
+    public decimal BankWrittenOffPenalty { get; set; } = 30m;
+    public decimal BankPaidLoansBonus { get; set; } = 5m;
+    public int MinBankPaidLoansForBonus { get; set; } = 2;
+    public decimal NoBureauRecordPenalty { get; set; } = 5m;
+
+    // Cashflow stability
+    public decimal MinActiveMonthsShare { get; set; } = 0.5m;
+    public decimal InactiveMonthsPenalty { get; set; } = 10m;
+
+    // Identity and fraud
+    public decimal IdentityBaseScore { get; set; } = 70m;
+    public decimal BvnVerifiedBonus { get; set; } = 15m;
+    public decimal BvnUnverifiedPenalty { get; set; } = 20m;
+    public decimal WatchListedPenalty { get; set; } = 40m;
+    public decimal HighFraudRiskPenalty { get; set; } = 35m;
+    public decimal ElevatedFraudRiskPenalty { get; set; } = 15m;
+    public decimal KnownCustomerBonus { get; set; } = 5m;
+    public int EstablishedCustomerMonths { get; set; } = 24;
+    public decimal EstablishedCustomerBonus { get; set; } = 5m;
 }
 
 public class CategoryWeights

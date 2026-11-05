@@ -209,16 +209,17 @@ public class SeedDefaultParametersHandler : IRequestHandler<SeedDefaultParameter
 
     public async Task<ApplicationResult<int>> Handle(SeedDefaultParametersCommand request, CancellationToken ct = default)
     {
+        // Add-missing, never all-or-nothing: an environment seeded months ago still needs the
+        // parameters added since, and a value an administrator has changed is never overwritten.
         var existing = await _repository.GetAllActiveAsync(ct);
-        if (existing.Any())
-            return ApplicationResult<int>.Success(0); // Already seeded
+        var present = existing.Select(p => $"{p.Category}.{p.ParameterKey}").ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var parameters = GetDefaultParameters(request.CreatedByUserId);
         var count = 0;
 
         foreach (var param in parameters)
         {
-            if (param.IsSuccess)
+            if (param.IsSuccess && !present.Contains($"{param.Value.Category}.{param.Value.ParameterKey}"))
             {
                 await _repository.AddAsync(param.Value, ct);
                 
@@ -281,6 +282,25 @@ public class SeedDefaultParametersHandler : IRequestHandler<SeedDefaultParameter
         parameters.Add(ScoringParameter.Create("LoanAdjustments", "Score80PlusRateAdjustment", "Score 80+ Rate Adjustment", "Interest rate adjustment for scores 80+", ParameterDataType.Percentage, -2.0m, userId, -10, 10, sortOrder++));
         parameters.Add(ScoringParameter.Create("LoanAdjustments", "Score70PlusRateAdjustment", "Score 70+ Rate Adjustment", "Interest rate adjustment for scores 70-79", ParameterDataType.Percentage, -1.0m, userId, -10, 10, sortOrder++));
         parameters.Add(ScoringParameter.Create("LoanAdjustments", "MaxTenorForLowScores", "Max Tenor for Low Scores", "Maximum tenor (months) for low-scoring applications", ParameterDataType.Integer, 36m, userId, 6, 120, sortOrder++));
+
+        // Customer check: the profile for scoring one individual by BVN (docs/Customer_Check.md)
+        sortOrder = 0;
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "CreditHistoryWeight", "Credit History Weight", "Weight of the bureau and bank loan history in the individual's overall score", ParameterDataType.Decimal, 0.40m, userId, 0, 1, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "RepaymentCapacityWeight", "Repayment Capacity Weight", "Weight of monthly obligations against monthly inflow", ParameterDataType.Decimal, 0.25m, userId, 0, 1, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "CashflowStabilityWeight", "Cashflow Stability Weight", "Weight of statement activity and stability", ParameterDataType.Decimal, 0.20m, userId, 0, 1, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "IdentityAndFraudWeight", "Identity and Fraud Weight", "Weight of BVN verification, watch-list and fraud score", ParameterDataType.Decimal, 0.15m, userId, 0, 1, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "ComfortableObligationRatio", "Comfortable Obligation Ratio", "Obligations over inflow at or below this are comfortable", ParameterDataType.Decimal, 0.30m, userId, 0, 2, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "ManageableObligationRatio", "Manageable Obligation Ratio", "Obligations over inflow at or below this are manageable", ParameterDataType.Decimal, 0.45m, userId, 0, 2, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "StretchedObligationRatio", "Stretched Obligation Ratio", "Obligations over inflow at or below this are stretched", ParameterDataType.Decimal, 0.60m, userId, 0, 2, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "CriticalObligationRatio", "Critical Obligation Ratio", "Obligations over inflow above this are beyond critical", ParameterDataType.Decimal, 0.80m, userId, 0, 2, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "AssumedProposalPenalty", "Assumed Proposal Penalty", "Taken off repayment capacity when no loan amount and tenor were supplied", ParameterDataType.Score, 5m, userId, 0, 50, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "BankOverdueLoanPenalty", "Bank Overdue Loan Penalty", "Deduction when a loan with the bank is past due", ParameterDataType.Score, 15m, userId, 0, 50, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "BankWrittenOffPenalty", "Bank Written-Off Penalty", "Deduction when a loan with the bank was written off", ParameterDataType.Score, 30m, userId, 0, 50, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "BankPaidLoansBonus", "Bank Paid Loans Bonus", "Bonus for a track record of loans repaid to the bank", ParameterDataType.Score, 5m, userId, 0, 50, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "NoBureauRecordPenalty", "No Bureau Record Penalty", "Deduction when no bureau holds a record for the person", ParameterDataType.Score, 5m, userId, 0, 50, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "WatchListedPenalty", "Watch-Listed Penalty", "Deduction when the BVN is watch-listed", ParameterDataType.Score, 40m, userId, 0, 100, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "HighFraudRiskPenalty", "High Fraud Risk Penalty", "Deduction when the fraud check rates the person high risk", ParameterDataType.Score, 35m, userId, 0, 100, sortOrder++));
+        parameters.Add(ScoringParameter.Create("CustomerCheck", "ElevatedFraudRiskPenalty", "Elevated Fraud Risk Penalty", "Deduction when the fraud check rates the person medium risk", ParameterDataType.Score, 15m, userId, 0, 100, sortOrder++));
 
         return parameters;
     }

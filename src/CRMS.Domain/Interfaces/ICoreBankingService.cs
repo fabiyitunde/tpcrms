@@ -49,7 +49,11 @@ public record CustomerInfo(
     string? PhoneNumber,
     string? BVN,
     DateTime? DateOfBirth,
-    string? Address
+    string? Address,
+    // Customer-record facts the customer check reports; null when the source does not carry them.
+    string? Status = null,
+    string? KycLevel = null,
+    DateTime? CustomerSince = null
 );
 
 public enum CustomerType

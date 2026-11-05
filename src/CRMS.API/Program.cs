@@ -98,6 +98,12 @@ builder.Services.AddSingleton<CRMS.API.PartyExposure.PartyExposureRateLimiter>()
 builder.Services.AddSingleton<CRMS.API.PartyExposure.PartyExposureBatchQueue>();
 builder.Services.AddHostedService<CRMS.API.PartyExposure.PartyExposureBatchWorker>();
 
+// Customer check for third-party consumers (docs/Customer_Check.md): its own in-memory limiter,
+// per consumer and overall, and the worker that runs queued checks and delivers their callbacks.
+// Only this host runs the worker.
+builder.Services.AddSingleton<CRMS.API.CustomerCheck.CustomerCheckRateLimiter>();
+builder.Services.AddHostedService<CRMS.Infrastructure.BackgroundServices.CustomerCheckJobWorker>();
+
 var app = builder.Build();
 
 // Apply database migrations and seed data automatically on startup

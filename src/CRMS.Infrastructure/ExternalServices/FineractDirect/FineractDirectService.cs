@@ -13,6 +13,7 @@ namespace CRMS.Infrastructure.ExternalServices.FineractDirect;
 ///   1. POST /loans?command=calculateLoanSchedule — schedule preview
 ///   2. GET /clients/{clientId}/accounts — all accounts for a client
 ///   3. GET /loans/{loanId}?associations=repaymentSchedule — loan detail
+///   4. POST /tp/clients/find?accounts=true — clients by BVN (externalId), phone, email or NUBAN
 /// </summary>
 public class FineractDirectService : IFineractDirectService
 {
@@ -163,7 +164,11 @@ public class FineractDirectService : IFineractDirectService
                     ProductId: la.ProductId,
                     Status: la.Status?.Value ?? "",
                     StatusCode: la.Status?.Id ?? 0,
-                    LoanType: la.LoanType?.Value ?? ""
+                    LoanType: la.LoanType?.Value ?? "",
+                    ExternalId: la.ExternalId,
+                    InArrears: la.InArrears,
+                    DisbursedOn: ParseFineractDate(la.Timeline?.ActualDisbursementDate),
+                    MaturityOn: ParseFineractDate(la.Timeline?.ExpectedMaturityDate)
                 ))
                 .ToList();
 
@@ -173,7 +178,11 @@ public class FineractDirectService : IFineractDirectService
                     AccountNo: sa.AccountNo ?? "",
                     ProductName: sa.ProductName ?? "",
                     Status: sa.Status?.Value ?? "",
-                    AccountBalance: sa.AccountBalance
+                    AccountBalance: sa.AccountBalance,
+                    ExternalId: sa.ExternalId,
+                    AccountType: sa.DepositType?.Value ?? sa.AccountType?.Value,
+                    ActivatedOn: ParseFineractDate(sa.Timeline?.ActivatedOnDate),
+                    LastActiveTransactionDate: ParseFineractDate(sa.LastActiveTransactionDate)
                 ))
                 .ToList();
 
@@ -258,7 +267,7 @@ public class FineractDirectService : IFineractDirectService
             return Result.Success(new FineractLoanDetail(
                 Id: loanResponse.Id,
                 AccountNo: loanResponse.AccountNo ?? "",
-                ProductName: loanResponse.ProductName ?? "",
+                ProductName: loanResponse.ProductName ?? loanResponse.LoanProductName ?? "",
                 Status: loanResponse.Status?.Value ?? "",
                 StatusCode: loanResponse.Status?.Id ?? 0,
                 Principal: loanResponse.Principal,
@@ -372,6 +381,93 @@ public class FineractDirectService : IFineractDirectService
             _logger.LogError(ex, "Fineract client detail error for clientId={ClientId}", clientId);
             return Result.Failure<FineractClientInfo>($"Fineract error: {ex.Message}");
         }
+    }
+
+    public async Task<Result<IReadOnlyList<FineractClientMatch>>> FindClientsAsync(
+        FineractClientSearch search, bool includeAccounts = true, CancellationToken ct = default)
+    {
+        var body = new Dictionary<string, string>();
+        if (!string.IsNullOrWhiteSpace(search.ExternalId)) body["externalId"] = search.ExternalId.Trim();
+        if (!string.IsNullOrWhiteSpace(search.MobileNo)) body["mobileNo"] = search.MobileNo.Trim();
+        if (!string.IsNullOrWhiteSpace(search.EmailAddress)) body["emailAddress"] = search.EmailAddress.Trim();
+        if (!string.IsNullOrWhiteSpace(search.Nuban)) body["nuban"] = search.Nuban.Trim();
+        if (body.Count == 0)
+            return Result.Failure<IReadOnlyList<FineractClientMatch>>("A client search needs at least one criterion.");
+
+        var url = includeAccounts ? "tp/clients/find?accounts=true" : "tp/clients/find";
+        try
+        {
+            // The criteria are identifiers (BVN, phone); only their names are logged.
+            _logger.LogInformation("Fineract: POST {Url} by {Criteria}", url, string.Join(",", body.Keys));
+
+            var response = await _httpClient.PostAsJsonAsync(url, body, ct);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return Result.Success<IReadOnlyList<FineractClientMatch>>([]);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                _logger.LogWarning("Fineract client search failed ({Status}): {Body}", response.StatusCode, errorBody);
+                return Result.Failure<IReadOnlyList<FineractClientMatch>>($"Fineract returned {(int)response.StatusCode}: {errorBody}");
+            }
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            var clients = ParseClientList(json)
+                .Select(c => new FineractClientMatch(
+                    Id: c.Id,
+                    AccountNo: c.AccountNo,
+                    ExternalId: c.ExternalId,
+                    DisplayName: !string.IsNullOrWhiteSpace(c.DisplayName)
+                        ? c.DisplayName
+                        : string.Join(" ", new[] { c.Firstname, c.Middlename, c.Lastname }.Where(n => !string.IsNullOrWhiteSpace(n))),
+                    Status: c.Status?.Value,
+                    Active: c.Active,
+                    ActivatedOn: ParseFineractDate(c.ActivationDate) ?? ParseFineractDate(c.Timeline?.ActivatedOnDate),
+                    MobileNo: c.MobileNo,
+                    EmailAddress: c.EmailAddress,
+                    DateOfBirth: ParseFineractDate(c.DateOfBirth),
+                    Gender: c.Gender?.Name,
+                    ClientType: c.ClientType?.Name,
+                    OfficeId: c.OfficeId,
+                    OfficeName: c.OfficeName,
+                    KycLevel: c.KycLevel,
+                    SavingsAccounts: (c.Accounts ?? [])
+                        .Select(a => new ClientSavingsAccountSummary(
+                            Id: a.Id,
+                            AccountNo: a.AccountNo ?? "",
+                            ProductName: a.SavingsProductName ?? "",
+                            Status: "",
+                            AccountBalance: a.Summary?.AccountBalance ?? 0m,
+                            ExternalId: a.ExternalId))
+                        .ToList()))
+                .ToList();
+
+            return Result.Success<IReadOnlyList<FineractClientMatch>>(clients);
+        }
+        catch (TaskCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fineract client search error ({Criteria})", string.Join(",", body.Keys));
+            return Result.Failure<IReadOnlyList<FineractClientMatch>>($"Fineract error: {ex.Message}");
+        }
+    }
+
+    /// <summary>The documented answer is a bare array. Fineract's own search shape (an object with
+    /// pageItems) and a single client object are accepted as well.</summary>
+    private List<FineractClientFindDto> ParseClientList(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        if (root.ValueKind == JsonValueKind.Array)
+            return root.Deserialize<List<FineractClientFindDto>>(_jsonOptions) ?? [];
+        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("pageItems", out var items) && items.ValueKind == JsonValueKind.Array)
+            return items.Deserialize<List<FineractClientFindDto>>(_jsonOptions) ?? [];
+        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("id", out _))
+            return [root.Deserialize<FineractClientFindDto>(_jsonOptions)!];
+        return [];
     }
 
     public async Task<Result<IReadOnlyList<FineractLoanProduct>>> GetLoanProductsAsync(

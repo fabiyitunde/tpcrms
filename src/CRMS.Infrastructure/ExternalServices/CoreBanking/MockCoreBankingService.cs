@@ -152,7 +152,10 @@ public class MockCoreBankingService : ICoreBankingService
             PhoneNumber: data.MobileNo,
             BVN: data.Bvn,
             DateOfBirth: null,
-            Address: BuildAddress(data.AddressLine1, data.City, data.State)
+            Address: BuildAddress(data.AddressLine1, data.City, data.State),
+            Status: data.Status,
+            KycLevel: "2",
+            CustomerSince: DateTime.TryParse(data.ActivationDate, out var since) ? since : null
         )));
     }
 

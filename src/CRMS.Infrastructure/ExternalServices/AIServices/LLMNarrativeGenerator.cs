@@ -77,6 +77,136 @@ public class LLMNarrativeGenerator
         }
     }
 
+    // ── Customer check (one individual) ──────────────────────────────────────────────────────────
+
+    /// <summary>Narrative for the customer check's advisory. The request carries figures and flags
+    /// only, so the prompt cannot name the person, their BVN or an account number.</summary>
+    public async Task<NarrativeResult?> GenerateCustomerNarrativeAsync(
+        CustomerAdvisoryRequest request, CustomerCheckScoringEngine.Result result, CancellationToken ct = default)
+    {
+        try
+        {
+            var narrative = await _llmService.CompleteAsJsonAsync<NarrativeResult>(BuildCustomerSystemPrompt(), BuildCustomerUserPrompt(request, result), ct);
+            if (narrative == null)
+                _logger.LogWarning("LLM returned no narrative for customer check advisory {Reference}", request.ReferenceId);
+            return narrative;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate the customer check narrative for {Reference}", request.ReferenceId);
+            return null;
+        }
+    }
+
+    public static string BuildCustomerSystemPrompt() =>
+        @"You are a senior retail credit analyst at a Nigerian bank. A partner has asked the bank what it knows about one individual borrower, identified only by figures below. Write a short, professional advisory narrative from the data and the scores provided.
+
+IMPORTANT RULES:
+1. You are NOT making the decision - the scores and recommendation come from the bank's rules engine and are final
+2. Explain and contextualise them in plain banking language a loan officer can act on
+3. Reference actual figures from the data; never invent or assume anything not provided
+4. Where a category is marked not assessed, say so and what would be needed
+5. Keep each section to 2-4 sentences; the reader is a credit officer, not the customer
+6. Never refer to the person by name or any identifier; say 'the customer'
+
+OUTPUT FORMAT (JSON):
+{
+    ""executiveSummary"": ""2-3 sentence overview, key factors and the recommendation"",
+    ""strengthsAnalysis"": ""positive factors, with figures"",
+    ""weaknessesAnalysis"": ""risk factors and concerns, with figures"",
+    ""mitigatingFactors"": ""factors that offset the risks, or null"",
+    ""keyRisks"": ""what to watch if the customer is lent to, or null"",
+    ""suggestedConditions"": [""specific, enforceable condition""],
+    ""suggestedCovenants"": []
+}";
+
+    /// <summary>Public and static so a test can assert that nothing identifying is in it.</summary>
+    public static string BuildCustomerUserPrompt(CustomerAdvisoryRequest r, CustomerCheckScoringEngine.Result s)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("=== PROPOSED FACILITY ===");
+        sb.AppendLine($"Amount: NGN {r.ProposedAmount:N0} over {r.ProposedTenorMonths} months ({(r.ProposalSupplied ? "as requested by the partner" : "assumed; the partner gave no amount or tenor")})");
+        sb.AppendLine();
+
+        sb.AppendLine("=== RULE-BASED SCORING RESULTS (FINAL - DO NOT CHANGE) ===");
+        sb.AppendLine($"Overall Score: {s.OverallScore:N1}/100");
+        sb.AppendLine($"Risk Rating: {s.OverallRating}");
+        sb.AppendLine($"Recommendation: {s.Recommendation}");
+        if (s.RecommendedAmount.HasValue)
+            sb.AppendLine($"Amount the rules would lend: NGN {s.RecommendedAmount:N0} over {s.RecommendedTenorMonths} months");
+        sb.AppendLine();
+
+        sb.AppendLine("=== CATEGORY SCORES ===");
+        foreach (var score in s.Scores)
+        {
+            sb.AppendLine($"\n{score.Category}: {score.Score:N1}/100 ({score.Rating} risk, weight {score.Weight:P0})");
+            sb.AppendLine($"  Rationale: {score.Rationale}");
+            if (score.PositiveIndicators.Any()) sb.AppendLine($"  Positives: {string.Join("; ", score.PositiveIndicators)}");
+            if (score.RedFlags.Any()) sb.AppendLine($"  Concerns: {string.Join("; ", score.RedFlags)}");
+        }
+        foreach (var gap in s.NotAssessed)
+            sb.AppendLine($"\n{gap.Category}: NOT ASSESSED (would carry weight {gap.Weight:P0}). {gap.Reason}");
+        sb.AppendLine();
+
+        if (s.RedFlags.Any())
+        {
+            sb.AppendLine("=== RED FLAGS ===");
+            foreach (var f in s.RedFlags) sb.AppendLine($"- {f}");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("=== CREDIT BUREAU ===");
+        if (r.Bureau is { } b)
+        {
+            sb.AppendLine($"Source: {b.Bureau}{(b.Reused ? " (stored report)" : "")}; credit score: {(b.CreditScore?.ToString() ?? "not available")}");
+            sb.AppendLine($"Loans: {b.TotalLoans} total, {b.ActiveLoans} active, {b.ClosedLoans} closed, {b.PerformingLoans} performing, {b.DelinquentLoans} delinquent, {b.WrittenOffLoans} written off");
+            sb.AppendLine($"Outstanding: NGN {b.TotalOutstanding:N0}; overdue: NGN {b.TotalOverdue:N0}; worst arrears: {b.MaxDaysOverdue} days; recent enquiries: {b.RecentEnquiries}");
+        }
+        else sb.AppendLine("No bureau record available");
+        sb.AppendLine();
+
+        sb.AppendLine("=== BANK STATEMENTS (the bank's own records) ===");
+        if (r.Cashflow is { } c && c.AccountsRead > 0)
+        {
+            sb.AppendLine($"{c.AccountsRead} account(s), {c.TransactionsAnalyzed} transactions over {c.WindowMonths} months; active in {c.MonthsWithActivity} of them");
+            sb.AppendLine($"Average monthly inflow NGN {c.AverageMonthlyInflow:N0}, outflow NGN {c.AverageMonthlyOutflow:N0}, net NGN {c.NetMonthlyCashflow:N0}; inflow volatility {c.InflowVolatility:P0}");
+            sb.AppendLine($"Failed or reversed transactions: {c.BouncedTransactionCount}; days below zero: {c.DaysWithNegativeBalance}; balances today: NGN {c.TotalBalance:N0}");
+        }
+        else sb.AppendLine("No statements read");
+        sb.AppendLine();
+
+        sb.AppendLine("=== EXISTING EXPOSURE ===");
+        var e = r.Exposure;
+        if (e.BankDataAvailable)
+        {
+            sb.AppendLine($"Loans with the bank: {e.BankRunningLoans} running, {e.BankOverdueLoans} past due (worst {e.BankMaxDaysPastDue} days), {e.BankPaidLoans} repaid, {e.BankWrittenOffLoans} written off");
+            sb.AppendLine($"Outstanding with the bank: NGN {e.BankOutstanding:N0}; overdue: NGN {e.BankOverdue:N0}; instalments due monthly: NGN {e.BankMonthlyInstalments:N0}");
+        }
+        else sb.AppendLine("Core banking could not be read");
+        sb.AppendLine($"CRMS cases: {e.CrmsDirectFacilities} as borrower, {e.CrmsIndirectFacilities} in other roles{(e.CrmsActiveOutstanding is { } o ? $"; active outstanding NGN {o:N0}" : "")}");
+        sb.AppendLine();
+
+        sb.AppendLine("=== IDENTITY AND FRAUD ===");
+        var i = r.Identity;
+        sb.AppendLine($"BVN verified: {Tri(i.BvnVerified)}; watch-listed: {Tri(i.WatchListed)}; fraud risk: {(i.FraudRiskScore is { } fraudScore ? $"{fraudScore} ({i.FraudRiskBand})" : "not checked")}");
+        sb.AppendLine($"Bank customer: {Tri(i.BankCustomerFound)}{(i.MonthsAsCustomer is { } m ? $" for {m} months" : "")}{(string.IsNullOrWhiteSpace(i.KycLevel) ? "" : $"; KYC level {i.KycLevel}")}");
+        sb.AppendLine();
+
+        sb.AppendLine("=== CONDITIONS FROM THE RULES ENGINE ===");
+        if (s.Conditions.Any()) foreach (var cnd in s.Conditions) sb.AppendLine($"- {cnd}");
+        else sb.AppendLine("None");
+        sb.AppendLine();
+
+        sb.AppendLine("Based on the above data and the FINAL scores and recommendation from the rules engine, write the narrative in JSON format.");
+        return sb.ToString();
+
+        static string Tri(bool? v) => v is null ? "unknown" : v.Value ? "yes" : "no";
+    }
+
     private static string BuildSystemPrompt()
     {
         return @"You are a senior credit analyst at a Nigerian commercial bank. Your role is to write clear, professional credit advisory narratives based on the data and scores provided.

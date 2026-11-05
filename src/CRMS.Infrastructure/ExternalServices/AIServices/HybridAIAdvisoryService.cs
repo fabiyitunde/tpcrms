@@ -21,6 +21,7 @@ public class HybridAIAdvisoryService : IAIAdvisoryService
 
     private readonly ScoringConfigurationService _configService;
     private readonly RuleBasedScoringEngine _scoringEngine;
+    private readonly CustomerCheckScoringEngine _customerEngine;
     private readonly LLMNarrativeGenerator? _narrativeGenerator;
     private readonly AIAdvisorySettings _settings;
     private readonly ILogger<HybridAIAdvisoryService> _logger;
@@ -35,16 +36,95 @@ public class HybridAIAdvisoryService : IAIAdvisoryService
         RuleBasedScoringEngine scoringEngine,
         IOptions<AIAdvisorySettings> settings,
         ILogger<HybridAIAdvisoryService> logger,
-        LLMNarrativeGenerator? narrativeGenerator = null)
+        LLMNarrativeGenerator? narrativeGenerator = null,
+        CustomerCheckScoringEngine? customerEngine = null)
     {
         _configService = configService;
         _scoringEngine = scoringEngine;
         _settings = settings.Value;
         _logger = logger;
         _narrativeGenerator = narrativeGenerator;
+        _customerEngine = customerEngine ?? new CustomerCheckScoringEngine();
     }
 
     public string GetModelVersion() => _settings.UseLLMNarrative ? ModelVersion : "hybrid-v1.0-rules-only";
+
+    /// <summary>The customer check's advisory: the individual profile scores, then the narrative.
+    /// The narrative never changes a number, and when the LLM is off, slow or failing the template
+    /// narrative is used; a missing narrative is never a reason to withhold the scores.</summary>
+    public async Task<CustomerAdvisoryResponse> GenerateCustomerAdvisoryAsync(CustomerAdvisoryRequest request, CancellationToken ct = default)
+    {
+        var config = await GetConfigAsync(ct);
+        var result = _customerEngine.CalculateScores(request, config);
+        if (result.Scores.Count == 0)
+            return new CustomerAdvisoryResponse(
+                false, "Nothing to assess. " + string.Join(" ", result.NotAssessed.Select(g => g.Reason)),
+                [], result.NotAssessed, 0, result.OverallRating, result.Recommendation, null, null, [], [],
+                string.Empty, string.Empty, string.Empty, null, null, false, GetModelVersion());
+
+        LLMNarrativeGenerator.NarrativeResult? narrative = null;
+        if (_settings.UseLLMNarrative && _narrativeGenerator != null)
+        {
+            try
+            {
+                using var llmCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                llmCts.CancelAfter(TimeSpan.FromSeconds(_settings.LLMTimeoutSeconds));
+                narrative = await _narrativeGenerator.GenerateCustomerNarrativeAsync(request, result, llmCts.Token);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                _logger.LogWarning("Customer check advisory {Reference}: the LLM narrative timed out; using the template.", request.ReferenceId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Customer check advisory {Reference}: the LLM narrative failed; using the template.", request.ReferenceId);
+            }
+        }
+
+        var conditions = result.Conditions.ToList();
+        foreach (var c in narrative?.SuggestedConditions ?? [])
+            if (!string.IsNullOrWhiteSpace(c) && !conditions.Any(x => x.Contains(c, StringComparison.OrdinalIgnoreCase) || c.Contains(x, StringComparison.OrdinalIgnoreCase)))
+                conditions.Add(c);
+
+        var fromLlm = !string.IsNullOrWhiteSpace(narrative?.ExecutiveSummary);
+        return new CustomerAdvisoryResponse(
+            true, null, result.Scores, result.NotAssessed, result.OverallScore, result.OverallRating, result.Recommendation,
+            result.RecommendedAmount, result.RecommendedTenorMonths, conditions, result.RedFlags,
+            fromLlm ? narrative!.ExecutiveSummary! : CustomerTemplateSummary(request, result),
+            !string.IsNullOrWhiteSpace(narrative?.StrengthsAnalysis) ? narrative!.StrengthsAnalysis! : Sentences(result.Scores.SelectMany(s => s.PositiveIndicators), "No clear strengths in the data available."),
+            !string.IsNullOrWhiteSpace(narrative?.WeaknessesAnalysis) ? narrative!.WeaknessesAnalysis! : Sentences(result.Scores.SelectMany(s => s.RedFlags), "No significant weaknesses in the data available."),
+            !string.IsNullOrWhiteSpace(narrative?.MitigatingFactors) ? narrative!.MitigatingFactors : CustomerTemplateMitigating(request),
+            !string.IsNullOrWhiteSpace(narrative?.KeyRisks) ? narrative!.KeyRisks : result.RedFlags.Count == 0 ? null : Sentences(result.RedFlags, ""),
+            fromLlm, GetModelVersion());
+    }
+
+    private static string CustomerTemplateSummary(CustomerAdvisoryRequest r, CustomerCheckScoringEngine.Result s)
+    {
+        var basis = new List<string>();
+        if (r.Bureau is not null) basis.Add("a bureau report");
+        if (r.Cashflow is { AccountsRead: > 0 } c) basis.Add($"{c.WindowMonths} months of statements on {c.AccountsRead} account{(c.AccountsRead == 1 ? "" : "s")}");
+        if (r.Exposure.BankDataAvailable) basis.Add("the customer's loans with the bank");
+        if (r.Identity.BvnVerified is not null || r.Identity.FraudRiskScore is not null) basis.Add("the identity and fraud checks");
+        var gaps = s.NotAssessed.Count == 0 ? "" : $" Not assessed: {string.Join(", ", s.NotAssessed.Select(g => g.Category))}.";
+        return $"Assessment of the customer for NGN {r.ProposedAmount:N0} over {r.ProposedTenorMonths} months" +
+            $"{(r.ProposalSupplied ? "" : " (assumed)")}. Overall score {s.OverallScore:N1}/100 ({s.OverallRating} risk); recommendation {s.Recommendation}. " +
+            $"Based on {(basis.Count == 0 ? "limited data" : string.Join(", ", basis))}.{gaps}";
+    }
+
+    private static string? CustomerTemplateMitigating(CustomerAdvisoryRequest r)
+    {
+        var f = new List<string>();
+        if (r.Exposure.BankPaidLoans > 0) f.Add($"{r.Exposure.BankPaidLoans} loan{(r.Exposure.BankPaidLoans == 1 ? "" : "s")} with the bank repaid in full");
+        if (r.Identity.MonthsAsCustomer is >= 24) f.Add($"a customer of the bank for {r.Identity.MonthsAsCustomer} months");
+        if (r.Cashflow is { TotalBalance: > 0 } c && c.TotalBalance >= r.ProposedAmount * 0.25m) f.Add($"balances of NGN {c.TotalBalance:N0} held with the bank");
+        return f.Count == 0 ? null : char.ToUpperInvariant(f[0][0]) + string.Join("; ", f)[1..] + ".";
+    }
+
+    private static string Sentences(IEnumerable<string> items, string fallback)
+    {
+        var list = items.Take(5).Select(i => i.TrimEnd('.')).ToList();
+        return list.Count == 0 ? fallback : string.Join(". ", list) + ".";
+    }
 
     public async Task<AIAdvisoryResponse> GenerateAdvisoryAsync(AIAdvisoryRequest request, CancellationToken ct = default)
     {

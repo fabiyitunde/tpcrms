@@ -3320,6 +3320,230 @@ public partial class ApplicationService
         }
     }
 
+    // ── API consumers (customer check, docs/Customer_Check.md) ───────────────────────────────────
+
+    public async Task<ApiResponse<List<CRMS.Application.CustomerCheck.DTOs.ApiConsumerDto>>> GetApiConsumersAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Queries.GetApiConsumersHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Queries.GetApiConsumersQuery(), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<List<CRMS.Application.CustomerCheck.DTOs.ApiConsumerDto>>.Ok(result.Data)
+                : ApiResponse<List<CRMS.Application.CustomerCheck.DTOs.ApiConsumerDto>>.Fail(result.Error ?? "Failed to load API consumers");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading API consumers");
+            return ApiResponse<List<CRMS.Application.CustomerCheck.DTOs.ApiConsumerDto>>.Fail("Failed to load API consumers");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>> CreateApiConsumerAsync(
+        string name, string? notes, List<string> allowedSections, int perMinuteLimit, bool reuseBureauReports, int bureauReuseMaxAgeDays, Guid userId,
+        CRMS.Application.CustomerCheck.Commands.ApiConsumerCallbackSettings? callback = null)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.CreateApiConsumerHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.CreateApiConsumerCommand(
+                name, notes, allowedSections, perMinuteLimit, reuseBureauReports, bureauReuseMaxAgeDays, userId, callback), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Fail(result.Error ?? "Failed to create API consumer");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating API consumer");
+            return ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Fail("Failed to create API consumer");
+        }
+    }
+
+    public async Task<ApiResponse> UpdateApiConsumerAsync(
+        Guid id, string name, string? notes, List<string> allowedSections, int perMinuteLimit, bool reuseBureauReports, int bureauReuseMaxAgeDays, Guid userId,
+        CRMS.Application.CustomerCheck.Commands.ApiConsumerCallbackSettings? callback = null)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.UpdateApiConsumerHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.UpdateApiConsumerCommand(
+                id, name, notes, allowedSections, perMinuteLimit, reuseBureauReports, bureauReuseMaxAgeDays, userId, callback), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update API consumer");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating API consumer");
+            return ApiResponse.Fail("Failed to update API consumer");
+        }
+    }
+
+    public async Task<ApiResponse> SetApiConsumerActiveAsync(Guid id, bool isActive, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.SetApiConsumerActiveHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.SetApiConsumerActiveCommand(id, isActive, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update API consumer");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling API consumer");
+            return ApiResponse.Fail("Failed to update API consumer");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>> RotateApiConsumerKeyAsync(Guid id, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.RotateApiConsumerKeyHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.RotateApiConsumerKeyCommand(id, userId), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Fail(result.Error ?? "Failed to rotate key");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error rotating API consumer key");
+            return ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Fail("Failed to rotate key");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>> RotateApiConsumerCallbackSecretAsync(Guid id, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.RotateApiConsumerCallbackSecretHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.RotateApiConsumerCallbackSecretCommand(id, userId), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Fail(result.Error ?? "Failed to rotate callback secret");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error rotating API consumer callback secret");
+            return ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Fail("Failed to rotate callback secret");
+        }
+    }
+
+    // ── Partner API dashboard, checks and pricing (Admin > Partner API) ─────────────────────────
+
+    public async Task<ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckOverviewDto>> GetCustomerCheckOverviewAsync(DateTime fromUtc, DateTime toUtc, Guid? consumerId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Reporting.GetCustomerCheckOverviewHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Reporting.GetCustomerCheckOverviewQuery(fromUtc, toUtc, consumerId), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckOverviewDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckOverviewDto>.Fail(result.Error ?? "Failed to load the partner API overview");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading the partner API overview");
+            return ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckOverviewDto>.Fail("Failed to load the partner API overview");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckStatementFile>> ExportCustomerCheckStatementAsync(Guid consumerId, DateTime fromUtc, DateTime toUtc)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Reporting.ExportCustomerCheckStatementHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Reporting.ExportCustomerCheckStatementQuery(consumerId, fromUtc, toUtc), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckStatementFile>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckStatementFile>.Fail(result.Error ?? "Failed to build the statement");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error building a customer check statement");
+            return ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckStatementFile>.Fail("Failed to build the statement");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckJobPageDto>> SearchCustomerCheckJobsAsync(
+        Guid? consumerId, DateTime? fromUtc, DateTime? toUtc, string? status, string? requestId, int page, int pageSize)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Reporting.SearchCustomerCheckJobsHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Reporting.SearchCustomerCheckJobsQuery(consumerId, fromUtc, toUtc, status, requestId, page, pageSize), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckJobPageDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckJobPageDto>.Fail(result.Error ?? "Failed to load checks");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading customer checks");
+            return ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckJobPageDto>.Fail("Failed to load checks");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckJobDetailDto>> GetCustomerCheckJobDetailAsync(Guid jobId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Reporting.GetCustomerCheckJobDetailHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Reporting.GetCustomerCheckJobDetailQuery(jobId), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckJobDetailDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckJobDetailDto>.Fail(result.Error ?? "Check not found");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading a customer check");
+            return ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckJobDetailDto>.Fail("Failed to load the check");
+        }
+    }
+
+    public async Task<ApiResponse> ResendCustomerCheckCallbackAsync(Guid jobId, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Reporting.ResendCustomerCheckCallbackHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Reporting.ResendCustomerCheckCallbackCommand(jobId, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to queue the callback");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error re-sending a customer check callback");
+            return ApiResponse.Fail("Failed to queue the callback");
+        }
+    }
+
+    public async Task<ApiResponse<List<CRMS.Application.CustomerCheck.Reporting.CustomerCheckPriceDto>>> GetCustomerCheckPricesAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Reporting.GetCustomerCheckPricesHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Reporting.GetCustomerCheckPricesQuery(), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<List<CRMS.Application.CustomerCheck.Reporting.CustomerCheckPriceDto>>.Ok(result.Data)
+                : ApiResponse<List<CRMS.Application.CustomerCheck.Reporting.CustomerCheckPriceDto>>.Fail(result.Error ?? "Failed to load prices");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading customer check prices");
+            return ApiResponse<List<CRMS.Application.CustomerCheck.Reporting.CustomerCheckPriceDto>>.Fail("Failed to load prices");
+        }
+    }
+
+    public async Task<ApiResponse> SetCustomerCheckPriceAsync(string item, decimal unitPrice, Guid userId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Reporting.SetCustomerCheckPriceHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Reporting.SetCustomerCheckPriceCommand(item, unitPrice, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to save the price");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving a customer check price");
+            return ApiResponse.Fail("Failed to save the price");
+        }
+    }
+
     public async Task<ApiResponse> CreateCollateralTypeConfigAsync(CreateCollateralTypeConfigRequest request, Guid userId)
     {
         try

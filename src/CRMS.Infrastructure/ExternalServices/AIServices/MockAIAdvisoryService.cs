@@ -43,6 +43,19 @@ public class MockAIAdvisoryService : IAIAdvisoryService
 
     public string GetModelVersion() => ModelVersion;
 
+    /// <summary>Sample advisory for the customer check: fixed figures, no provider.</summary>
+    public Task<CustomerAdvisoryResponse> GenerateCustomerAdvisoryAsync(CustomerAdvisoryRequest request, CancellationToken ct = default)
+        => Task.FromResult(new CustomerAdvisoryResponse(
+            true, null,
+            [
+                new RiskScoreOutput("CreditHistory", 72m, 0.40m, "Low", "Sample bureau and bank history.", [], ["Sample performing facilities"]),
+                new RiskScoreOutput("RepaymentCapacity", 68m, 0.25m, "Low", "Sample obligations against inflow.", [], []),
+                new RiskScoreOutput("CashflowStability", 64m, 0.20m, "Medium", "Sample statement activity.", ["Sample volatility"], []),
+                new RiskScoreOutput("IdentityAndFraud", 80m, 0.15m, "VeryLow", "Sample identity checks.", [], ["BVN verified"]),
+            ],
+            [], 70.6m, "Low", "Approve", request.ProposalSupplied ? request.ProposedAmount : null, request.ProposalSupplied ? request.ProposedTenorMonths : null,
+            ["Sample condition"], [], "Sample summary.", "Sample strengths.", "Sample weaknesses.", null, null, false, ModelVersion));
+
     public async Task<AIAdvisoryResponse> GenerateAdvisoryAsync(AIAdvisoryRequest request, CancellationToken ct = default)
     {
         // Load scoring configuration from database

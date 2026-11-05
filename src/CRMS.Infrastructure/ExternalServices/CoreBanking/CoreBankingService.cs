@@ -104,7 +104,10 @@ public class CoreBankingService : ICoreBankingService
             PhoneNumber: client.MobileNo,
             BVN: client.Bvn,
             DateOfBirth: ParseCbsDate(client.DateOfBirth),
-            Address: BuildAddress(client)
+            Address: BuildAddress(client),
+            Status: client.Status,
+            KycLevel: client.KycLevel > 0 ? client.KycLevel.ToString() : null,
+            CustomerSince: ParseCbsDate(client.ActivationDate) ?? ParseCbsDate(client.ActivatedOnDate)
         ));
     }
 

@@ -16,7 +16,105 @@ public interface IAIAdvisoryService
     /// Gets the current model version being used.
     /// </summary>
     string GetModelVersion();
+
+    /// <summary>
+    /// Scores one individual for the customer check (docs/Customer_Check.md, aiAdvisory): a
+    /// profile built for a person rather than a company, from what the other sections found.
+    /// The rules decide the numbers; the narrative only explains them.
+    /// </summary>
+    Task<CustomerAdvisoryResponse> GenerateCustomerAdvisoryAsync(CustomerAdvisoryRequest request, CancellationToken ct = default);
 }
+
+// ── Customer check advisory ──────────────────────────────────────────────────────────────────────
+// Everything below is figures and flags only. No name, BVN, account number, phone or date of birth
+// is carried here, so nothing identifying can reach the prompt or the narrative.
+
+public record CustomerAdvisoryRequest(
+    Guid ReferenceId,
+    decimal ProposedAmount,
+    int ProposedTenorMonths,
+    /// <summary>False when the amount and tenor are the configured stand-ins, not the request's.</summary>
+    bool ProposalSupplied,
+    CustomerBureauInput? Bureau,
+    CustomerCashflowInput? Cashflow,
+    CustomerExposureInput Exposure,
+    CustomerIdentityInput Identity);
+
+public record CustomerBureauInput(
+    string Bureau,
+    bool Reused,
+    int? CreditScore,
+    int TotalLoans,
+    int ActiveLoans,
+    int ClosedLoans,
+    int PerformingLoans,
+    int DelinquentLoans,
+    int WrittenOffLoans,
+    decimal TotalOutstanding,
+    decimal TotalOverdue,
+    int MaxDaysOverdue,
+    int RecentEnquiries);
+
+public record CustomerCashflowInput(
+    int WindowMonths,
+    int AccountsRead,
+    int TransactionsAnalyzed,
+    int MonthsWithActivity,
+    decimal AverageMonthlyInflow,
+    decimal AverageMonthlyOutflow,
+    decimal NetMonthlyCashflow,
+    /// <summary>Standard deviation of monthly inflow over its mean; 0 when inflow is nil.</summary>
+    decimal InflowVolatility,
+    int BouncedTransactionCount,
+    int DaysWithNegativeBalance,
+    decimal TotalBalance);
+
+public record CustomerExposureInput(
+    bool BankDataAvailable,
+    int BankRunningLoans,
+    int BankOverdueLoans,
+    int BankPaidLoans,
+    int BankWrittenOffLoans,
+    decimal BankOutstanding,
+    decimal BankOverdue,
+    int BankMaxDaysPastDue,
+    /// <summary>Sum of the next instalment due on each running bank loan.</summary>
+    decimal BankMonthlyInstalments,
+    int CrmsDirectFacilities,
+    int CrmsIndirectFacilities,
+    decimal? CrmsActiveOutstanding);
+
+public record CustomerIdentityInput(
+    bool? BvnVerified,
+    bool? WatchListed,
+    int? FraudRiskScore,
+    string? FraudRiskBand,
+    bool? BankCustomerFound,
+    string? KycLevel,
+    int? MonthsAsCustomer);
+
+/// <summary>A category the profile could not score, with the weight it would have carried.</summary>
+public record CustomerAdvisoryGap(string Category, decimal Weight, string Reason);
+
+public record CustomerAdvisoryResponse(
+    bool Success,
+    string? ErrorMessage,
+    List<RiskScoreOutput> Scores,
+    List<CustomerAdvisoryGap> NotAssessed,
+    decimal OverallScore,
+    string OverallRating,
+    string Recommendation,
+    decimal? RecommendedAmount,
+    int? RecommendedTenorMonths,
+    List<string> Conditions,
+    List<string> RedFlags,
+    string ExecutiveSummary,
+    string StrengthsAnalysis,
+    string WeaknessesAnalysis,
+    string? MitigatingFactors,
+    string? KeyRisks,
+    bool NarrativeFromLlm,
+    string ModelVersion);
 
 public record AIAdvisoryRequest(
     Guid LoanApplicationId,
