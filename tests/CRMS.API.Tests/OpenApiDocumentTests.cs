@@ -158,6 +158,48 @@ public class OpenApiDocumentTests : IAsyncLifetime
             Assert.False(o.Op.TryGetProperty("security", out var s) && s.GetArrayLength() > 0, $"{Id(o)} must be callable without credentials");
     }
 
+    /// <summary>
+    /// The complete list of endpoints that answer without a sign-in or a key. A controller that
+    /// loses its [Authorize] shows up here; the loan products controller once shipped without one.
+    /// Add to the list only on purpose.
+    /// </summary>
+    [Fact]
+    public void Nothing_is_open_except_what_is_meant_to_be()
+    {
+        string[] meantToBeOpen =
+        [
+            "POST /api/v1/Auth/login",
+            "POST /api/v1/Auth/refresh",
+            // Seeding helpers. The POSTs refuse outside Development; status answers row counts anywhere.
+            "POST /api/Seed/comprehensive",
+            "POST /api/Seed/reset-passwords",
+            "POST /api/Seed/basic",
+            "POST /api/Seed/namp-cleanup-migration",
+            "POST /api/Seed/namp",
+            "POST /api/Seed/namp-repair-checklist",
+            "GET /api/Seed/status",
+        ];
+
+        var open = Operations()
+            .Where(o => !(o.Op.TryGetProperty("security", out var s) && s.GetArrayLength() > 0))
+            .Select(Id)
+            .Except(meantToBeOpen)
+            .ToList();
+        Assert.True(open.Count == 0, "These need no sign-in and no key:\n" + string.Join("\n", open));
+    }
+
+    [Fact]
+    public void Loan_products_are_read_by_staff_and_changed_by_those_who_manage_them()
+    {
+        foreach (var o in Operations().Where(o => o.Path.StartsWith("/api/v1/LoanProducts")))
+        {
+            var security = o.Op.GetProperty("security").EnumerateArray().SelectMany(r => r.EnumerateObject().Select(p => p.Name));
+            Assert.Equal(["Bearer"], security);
+            var needsRole = o.Op.TryGetProperty("description", out var d) && d.GetString()!.Contains("SystemAdmin, RiskManager");
+            Assert.True(needsRole == (o.Method != "get"), $"{Id(o)}: only changes are limited to the managing roles");
+        }
+    }
+
     [Fact]
     public void The_customer_check_is_documented_end_to_end()
     {

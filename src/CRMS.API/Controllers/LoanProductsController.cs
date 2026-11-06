@@ -3,14 +3,22 @@ using CRMS.Application.ProductCatalog.Commands;
 using CRMS.Application.ProductCatalog.DTOs;
 using CRMS.Application.ProductCatalog.Queries;
 using CRMS.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CRMS.API.Controllers;
 
+/// <summary>
+/// The product catalogue. Any signed-in member of staff may read it; changing it takes the roles
+/// that may open Admin > Products in the intranet (<see cref="ManageRoles"/>). Keep the two in step.
+/// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
+[Authorize]
 public class LoanProductsController : ControllerBase
 {
+    private const string ManageRoles = "SystemAdmin,RiskManager";
+
     private readonly IRequestHandler<CreateLoanProductCommand, ApplicationResult<LoanProductDto>> _createHandler;
     private readonly IRequestHandler<UpdateLoanProductCommand, ApplicationResult<LoanProductDto>> _updateHandler;
     private readonly IRequestHandler<ActivateLoanProductCommand, ApplicationResult> _activateHandler;
@@ -96,6 +104,7 @@ public class LoanProductsController : ControllerBase
     /// <summary>Create a loan product.</summary>
     /// <remarks>The product starts inactive. Activate it once its pricing and its core banking product are set.</remarks>
     [HttpPost]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(typeof(LoanProductDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] CreateLoanProductRequest request, CancellationToken ct)
@@ -120,6 +129,7 @@ public class LoanProductsController : ControllerBase
 
     /// <summary>Update a loan product.</summary>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(typeof(LoanProductDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateLoanProductRequest request, CancellationToken ct)
@@ -142,6 +152,7 @@ public class LoanProductsController : ControllerBase
 
     /// <summary>Activate a loan product so applications can use it.</summary>
     [HttpPost("{id:guid}/activate")]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Activate(Guid id, CancellationToken ct)
@@ -152,6 +163,7 @@ public class LoanProductsController : ControllerBase
 
     /// <summary>Add a pricing tier to a loan product.</summary>
     [HttpPost("{id:guid}/pricing-tiers")]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(typeof(PricingTierDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddPricingTier(Guid id, [FromBody] AddPricingTierRequest request, CancellationToken ct)
