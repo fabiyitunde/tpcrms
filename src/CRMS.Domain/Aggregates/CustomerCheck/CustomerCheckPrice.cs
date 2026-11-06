@@ -3,7 +3,7 @@ using CRMS.Domain.Common;
 namespace CRMS.Domain.Aggregates.CustomerCheck;
 
 /// <summary>
-/// What a consumer is charged for one billable item of a customer check: the check itself, a
+/// What a consumer is charged for one billable item of a customer credit check: the check itself, a
 /// section answered, or a third-party call made. Every item exists with a price of zero until
 /// finance sets it, so the dashboard shows money the moment a price is entered and nothing waits
 /// on a pricing decision.

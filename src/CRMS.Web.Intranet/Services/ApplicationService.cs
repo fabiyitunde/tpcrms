@@ -3320,7 +3320,7 @@ public partial class ApplicationService
         }
     }
 
-    // ── API consumers (customer check, docs/Customer_Check.md) ───────────────────────────────────
+    // ── API consumers (customer credit check, docs/Customer_Credit_Check.md) ───────────────────────────────────
 
     public async Task<ApiResponse<List<CRMS.Application.CustomerCheck.DTOs.ApiConsumerDto>>> GetApiConsumersAsync()
     {
@@ -3457,7 +3457,7 @@ public partial class ApplicationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error building a customer check statement");
+            _logger.LogError(ex, "Error building a customer credit check statement");
             return ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckStatementFile>.Fail("Failed to build the statement");
         }
     }
@@ -3475,7 +3475,7 @@ public partial class ApplicationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading customer checks");
+            _logger.LogError(ex, "Error loading customer credit checks");
             return ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckJobPageDto>.Fail("Failed to load checks");
         }
     }
@@ -3492,7 +3492,7 @@ public partial class ApplicationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading a customer check");
+            _logger.LogError(ex, "Error loading a customer credit check");
             return ApiResponse<CRMS.Application.CustomerCheck.Reporting.CustomerCheckJobDetailDto>.Fail("Failed to load the check");
         }
     }
@@ -3507,7 +3507,7 @@ public partial class ApplicationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error re-sending a customer check callback");
+            _logger.LogError(ex, "Error re-sending a customer credit check callback");
             return ApiResponse.Fail("Failed to queue the callback");
         }
     }
@@ -3524,7 +3524,7 @@ public partial class ApplicationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading customer check prices");
+            _logger.LogError(ex, "Error loading customer credit check prices");
             return ApiResponse<List<CRMS.Application.CustomerCheck.Reporting.CustomerCheckPriceDto>>.Fail("Failed to load prices");
         }
     }
@@ -3539,7 +3539,7 @@ public partial class ApplicationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error saving a customer check price");
+            _logger.LogError(ex, "Error saving a customer credit check price");
             return ApiResponse.Fail("Failed to save the price");
         }
     }

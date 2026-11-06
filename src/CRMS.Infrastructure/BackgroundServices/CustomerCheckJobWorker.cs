@@ -68,7 +68,7 @@ public class CustomerCheckJobRunner
         var now = DateTime.UtcNow;
         if (job.RunAttempts > _settings.MaxRunAttempts)
         {
-            _logger.LogWarning("Customer check job {JobId} was interrupted {Attempts} times; failing it.", job.Id, job.RunAttempts - 1);
+            _logger.LogWarning("Customer credit check job {JobId} was interrupted {Attempts} times; failing it.", job.Id, job.RunAttempts - 1);
             job.Fail(CustomerCheckErrors.Interrupted, "The check was interrupted by a restart more than once. Send it again.", 0, now);
             await SaveWithoutAuditAsync(job, stopping);
             return;
@@ -84,7 +84,7 @@ public class CustomerCheckJobRunner
 
         CustomerCheckQuery? query = null;
         try { query = JsonSerializer.Deserialize<CustomerCheckQuery>(_cipher.Unprotect(job.RequestCiphertext), Json); }
-        catch (Exception ex) { _logger.LogError(ex, "Customer check job {JobId}: the stored request could not be read.", job.Id); }
+        catch (Exception ex) { _logger.LogError(ex, "Customer credit check job {JobId}: the stored request could not be read.", job.Id); }
         if (query is null)
         {
             job.Fail(CustomerCheckErrors.CheckFailed, "The stored request could not be read. Send it again.", 0, now);
@@ -114,7 +114,7 @@ public class CustomerCheckJobRunner
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check job {JobId} failed for consumer {Consumer}.", job.Id, consumer.Name);
+            _logger.LogError(ex, "Customer credit check job {JobId} failed for consumer {Consumer}.", job.Id, consumer.Name);
             failure = "The check could not be completed.";
         }
         watch.Stop();
@@ -149,11 +149,11 @@ public class CustomerCheckJobRunner
             // RecordAsync adds the audit row and saves the scope, so the job, the row and the
             // consumer stamp land together or not at all.
             await _service.RecordAsync(log, stopping);
-            _logger.LogInformation("Customer check job {JobId} {Status} for {Consumer} in {Ms} ms.", job.Id, job.Status, consumer.Name, elapsed);
+            _logger.LogInformation("Customer credit check job {JobId} {Status} for {Consumer} in {Ms} ms.", job.Id, job.Status, consumer.Name, elapsed);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Customer check job {JobId}: the result could not be saved; it will be run again.", job.Id);
+            _logger.LogError(ex, "Customer credit check job {JobId}: the result could not be saved; it will be run again.", job.Id);
         }
     }
 
@@ -166,7 +166,7 @@ public class CustomerCheckJobRunner
                 BilledCallCounts.None, 0, job.ErrorCode, job.Id), ct); }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Customer check job {JobId}: failure could not be saved.", job.Id);
+            _logger.LogError(ex, "Customer credit check job {JobId}: failure could not be saved.", job.Id);
         }
     }
 
@@ -243,7 +243,7 @@ public class CustomerCheckCallbackDispatcher
         if (consumer?.CallbackSecretCiphertext is { } ciphertext)
         {
             try { secret = _cipher.Unprotect(ciphertext); }
-            catch (Exception ex) { _logger.LogError(ex, "Customer check: the callback secret for consumer {Consumer} could not be read.", job.ConsumerName); }
+            catch (Exception ex) { _logger.LogError(ex, "Customer credit check: the callback secret for consumer {Consumer} could not be read.", job.ConsumerName); }
         }
 
         CallbackSendResult sent;
@@ -266,11 +266,11 @@ public class CustomerCheckCallbackDispatcher
         await _unitOfWork.SaveChangesAsync(ct);
 
         if (sent.Succeeded)
-            _logger.LogInformation("Customer check callback {EventId} delivered on attempt {Attempt}.", job.EventId, job.CallbackAttempts);
+            _logger.LogInformation("Customer credit check callback {EventId} delivered on attempt {Attempt}.", job.EventId, job.CallbackAttempts);
         else if (next is not null)
-            _logger.LogWarning("Customer check callback {EventId} attempt {Attempt} failed ({Error}); next at {Next:u}.", job.EventId, job.CallbackAttempts, sent.Error, next);
+            _logger.LogWarning("Customer credit check callback {EventId} attempt {Attempt} failed ({Error}); next at {Next:u}.", job.EventId, job.CallbackAttempts, sent.Error, next);
         else
-            _logger.LogWarning("Customer check callback {EventId} gave up after {Attempt} attempts ({Error}). The result waits to be fetched.", job.EventId, job.CallbackAttempts, sent.Error);
+            _logger.LogWarning("Customer credit check callback {EventId} gave up after {Attempt} attempts ({Error}). The result waits to be fetched.", job.EventId, job.CallbackAttempts, sent.Error);
     }
 
     public CustomerCheckCallbackEnvelope BuildEnvelope(CustomerCheckJob job)
@@ -312,7 +312,7 @@ public class CustomerCheckJobWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Customer check worker started (concurrency {Concurrency}).", _settings.WorkerConcurrency);
+        _logger.LogInformation("Customer credit check worker started (concurrency {Concurrency}).", _settings.WorkerConcurrency);
         var running = new List<Task>();
 
         while (!stoppingToken.IsCancellationRequested)
@@ -336,7 +336,7 @@ public class CustomerCheckJobWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Customer check worker: error in a polling pass.");
+                _logger.LogError(ex, "Customer credit check worker: error in a polling pass.");
             }
 
             await _signal.WaitAsync(TimeSpan.FromSeconds(Math.Max(1, _settings.WorkerPollSeconds)), stoppingToken);
@@ -344,7 +344,7 @@ public class CustomerCheckJobWorker : BackgroundService
 
         try { await Task.WhenAll(running); }
         catch (Exception) { }
-        _logger.LogInformation("Customer check worker stopped.");
+        _logger.LogInformation("Customer credit check worker stopped.");
     }
 
     private async Task<Guid?> ClaimAsync(CancellationToken ct)
@@ -366,7 +366,7 @@ public class CustomerCheckJobWorker : BackgroundService
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check worker: job {JobId} threw.", jobId);
+            _logger.LogError(ex, "Customer credit check worker: job {JobId} threw.", jobId);
         }
     }
 }

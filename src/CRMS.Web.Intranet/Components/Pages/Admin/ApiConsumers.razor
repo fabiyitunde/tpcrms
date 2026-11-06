@@ -11,7 +11,7 @@
 <div class="page-header">
     <div>
         <h1 class="page-title">API Consumers</h1>
-        <p class="page-subtitle">Third-party systems allowed to run customer checks (credit, fraud, accounts, advisory) on the bank's behalf</p>
+        <p class="page-subtitle">Third-party systems allowed to run customer credit checks (credit, fraud, accounts, advisory) on the bank's behalf</p>
     </div>
     <button class="btn btn-primary" @onclick="OpenCreate">
         <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
@@ -30,7 +30,7 @@ else if (consumers.Count == 0)
     <div class="empty-state">
         <span class="material-symbols-outlined empty-state-icon">key</span>
         <h3>No API consumers yet</h3>
-        <p>Add a consumer to issue a key for the customer-check API.</p>
+        <p>Add a consumer to issue a key for the customer-credit-check API.</p>
     </div>
 }
 else
@@ -164,7 +164,7 @@ else
 
                 <div class="form-group">
                     <label class="form-label">Callback URL</label>
-                    <input type="url" class="form-control" @bind="form.CallbackUrl" placeholder="https://partner.example.com/crms/customer-check" />
+                    <input type="url" class="form-control" @bind="form.CallbackUrl" placeholder="https://partner.example.com/crms/customer-credit-check" />
                     <div class="form-hint">Where results are posted, signed with the consumer's secret. Leave blank for a consumer that only polls.</div>
                 </div>
 
@@ -221,7 +221,7 @@ else
                     <div class="form-group">
                         <label class="form-label">X-Api-Key</label>
                         <input type="text" class="form-control" value="@issued.Key" readonly style="font-family: monospace;" />
-                        <div class="form-hint">Sent as the <code>X-Api-Key</code> header on every call to <code>/api/v1/customer-check</code>.</div>
+                        <div class="form-hint">Sent as the <code>X-Api-Key</code> header on every call to <code>/api/v1/customer-credit-check</code>.</div>
                     </div>
                 }
                 @if (issued.CallbackSecret != null)
@@ -229,7 +229,7 @@ else
                     <div class="form-group">
                         <label class="form-label">Callback signing secret</label>
                         <input type="text" class="form-control" value="@issued.CallbackSecret" readonly style="font-family: monospace;" />
-                        <div class="form-hint">The consumer verifies <code>X-CRMS-Signature-V2</code> on each callback with it: HMAC-SHA256 over the timestamp, a dot, and the body. See docs/Customer_Check.md.</div>
+                        <div class="form-hint">The consumer verifies <code>X-CRMS-Signature-V2</code> on each callback with it: HMAC-SHA256 over the timestamp, a dot, and the body. See docs/Customer_Credit_Check.md.</div>
                     </div>
                 }
             </div>

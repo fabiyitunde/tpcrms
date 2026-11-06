@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace CRMS.Infrastructure.Services;
 
 /// <summary>
-/// AES-256-GCM for the customer-check data that must not sit readable in the database: queued
+/// AES-256-GCM for the customer-credit-check data that must not sit readable in the database: queued
 /// requests (they hold the BVN), stored results, and consumers' callback signing secrets.
 /// <para>
 /// The key is <c>CustomerCheck:DataKey</c> (base64 of 32 random bytes). When it is blank, the key is

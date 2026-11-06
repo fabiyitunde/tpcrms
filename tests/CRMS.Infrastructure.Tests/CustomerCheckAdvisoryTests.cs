@@ -9,7 +9,7 @@ using Xunit;
 
 namespace CRMS.Infrastructure.Tests;
 
-/// <summary>The customer check's advisory (docs/Customer_Check.md, aiAdvisory): the individual
+/// <summary>The customer credit check's advisory (docs/Customer_Credit_Check.md, aiAdvisory): the individual
 /// scoring profile, the not-assessed handling, and the prompt that leaves the system.</summary>
 public class CustomerCheckAdvisoryTests
 {

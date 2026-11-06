@@ -1,4 +1,4 @@
-# Customer check (BVN credit, fraud and account check)
+# Customer credit check (BVN credit, fraud and account check)
 
 One request that tells a partner system what is known about a person, by BVN: who they are, what
 the credit bureaus hold on them, whether they look fraudulent, which accounts and loans they hold at
@@ -14,9 +14,9 @@ to the consumer's callback URL, and keeps it for the consumer to fetch at any la
 
 | | |
 |---|---|
-| Submit a check | `POST /api/v1/customer-check`, answers `202 Accepted` |
-| One check's status and result | `GET /api/v1/customer-check/{jobId}` |
-| Past checks | `POST /api/v1/customer-check/history` |
+| Submit a check | `POST /api/v1/customer-credit-check`, answers `202 Accepted` |
+| One check's status and result | `GET /api/v1/customer-credit-check/{jobId}` |
+| Past checks | `POST /api/v1/customer-credit-check/history` |
 | Auth | `X-Api-Key: <consumer key>` on every call |
 | Body | JSON, `Content-Type: application/json` |
 
@@ -35,7 +35,7 @@ kept only as a keyed hash. A consumer sees only its own checks.
      "jobId": "7a2f1c9e4b8d4f0a9c3e5d1b2a6f8e7c",
      "requestId": "c7f1e2a0-9b1d-4e4e-8d0a-7b9f3c2d1a55",
      "status": "QUEUED",
-     "statusUrl": "/api/v1/customer-check/7a2f1c9e4b8d4f0a9c3e5d1b2a6f8e7c",
+     "statusUrl": "/api/v1/customer-credit-check/7a2f1c9e4b8d4f0a9c3e5d1b2a6f8e7c",
      "queuedAt": "2026-11-05T09:42:17Z",
      "callbackRegistered": true
    }
@@ -47,7 +47,7 @@ kept only as a keyed hash. A consumer sees only its own checks.
    any `2xx` to acknowledge. Anything else, or no answer within 15 seconds, is retried after 1, 3,
    7, 15 and 15 minutes. After that the job stays `COMPLETED` with `callback.status: FAILED` and the
    result is still there to fetch.
-4. At any time, `GET /api/v1/customer-check/{jobId}` returns the status and, once finished, the
+4. At any time, `GET /api/v1/customer-credit-check/{jobId}` returns the status and, once finished, the
    result. Fetching a stored result is free.
 
 Sending the same `requestId` again within 24 hours returns the existing job (another `202`, with
@@ -71,13 +71,24 @@ Sections the consumer is not entitled to are not an error: they come back with
 
 ## Request
 
+Only `requestId` and `bvn` are required. This is a complete request, and it runs the full check:
+
+```json
+{
+  "requestId": "c7f1e2a0-9b1d-4e4e-8d0a-7b9f3c2d1a55",
+  "bvn": "22212344321"
+}
+```
+
+Everything else is optional. With every optional field filled in:
+
 ```json
 {
   "requestId": "c7f1e2a0-9b1d-4e4e-8d0a-7b9f3c2d1a55",
   "bvn": "22212344321",
   "nubans": ["0123455678"],
   "sections": ["identity", "creditBureau", "fraudCheck", "bankAccounts", "bankLoans", "crmsFacilities", "aiAdvisory"],
-  "callbackUrl": "https://partner.example.com/crms/customer-check",
+  "callbackUrl": "https://partner.example.com/crms/customer-credit-check",
   "options": {
     "activityWindowMonths": 12,
     "includeScore": true,
@@ -113,7 +124,7 @@ Sections the consumer is not entitled to are not an error: they come back with
 
 ## Status and history
 
-`GET /api/v1/customer-check/{jobId}`:
+`GET /api/v1/customer-credit-check/{jobId}`:
 
 ```json
 {
@@ -142,7 +153,7 @@ Sections the consumer is not entitled to are not an error: they come back with
 - `callback.status` is `NOT_REQUESTED` (no URL), `PENDING`, `DELIVERED` or `FAILED` (every attempt
   refused).
 
-`POST /api/v1/customer-check/history` lists the consumer's past checks, newest first, without
+`POST /api/v1/customer-credit-check/history` lists the consumer's past checks, newest first, without
 their results. It is a `POST` because a BVN must never travel in a URL.
 
 ```json
@@ -159,19 +170,19 @@ When a check finishes, the CRMS posts one JSON envelope to the callback URL:
 
 ```json
 {
-  "eventType": "CUSTOMER_CHECK_COMPLETED",
+  "eventType": "CUSTOMER_CREDIT_CHECK_COMPLETED",
   "eventId": "evt_3f9c1a7e2b5d4c8e9a1f6b2d7c3e8a4f",
   "jobId": "7a2f1c9e4b8d4f0a9c3e5d1b2a6f8e7c",
   "requestId": "c7f1e2a0-9b1d-4e4e-8d0a-7b9f3c2d1a55",
   "status": "COMPLETED",
   "occurredAt": "2026-11-05T09:43:01Z",
-  "statusUrl": "/api/v1/customer-check/7a2f1c9e4b8d4f0a9c3e5d1b2a6f8e7c",
+  "statusUrl": "/api/v1/customer-credit-check/7a2f1c9e4b8d4f0a9c3e5d1b2a6f8e7c",
   "error": null,
   "result": { "...the result, as under Result below..." }
 }
 ```
 
-- `eventType` is `CUSTOMER_CHECK_COMPLETED` or `CUSTOMER_CHECK_FAILED`. A failed check carries
+- `eventType` is `CUSTOMER_CREDIT_CHECK_COMPLETED` or `CUSTOMER_CREDIT_CHECK_FAILED`. A failed check carries
   `error` and no `result`.
 - `eventId` is stable across every retry of the same event. A receiver that has already processed
   an `eventId` should answer `2xx` and ignore the repeat.
@@ -483,12 +494,12 @@ per item: per completed check, per section answered (`OK` or `NO_RECORD`), and p
 call by kind. Every item starts at zero. **Statement** downloads a CSV for the selected consumer
 and period: one line per check with its calls and amount, then totals by item.
 
-**Admin > Customer Checks** (SystemAdmin): every job, filtered by consumer, status, date and
+**Admin > Customer Credit Checks** (SystemAdmin): every job, filtered by consumer, status, date and
 request id. Opening one shows its sections and outcomes, the advisory headline, the callback's
 attempts and last error, and the result exactly as it was sent. **Resend callback** queues the
 same event again; the API host posts it within a few seconds.
 
-**Admin > Scoring Config**, category *Customer Check (individuals)*: the advisory's weights,
+**Admin > Scoring Config**, category *Customer Credit Check (individuals)*: the advisory's weights,
 obligation-ratio bands and penalties. **Seed defaults** adds any parameter that does not exist
 yet without touching the ones that do.
 
@@ -507,16 +518,43 @@ Deployment settings (`CustomerCheck` section):
 | `CallbackTimeoutMs` | 15000 | Per callback attempt. |
 | `RequireHttpsCallbacks` | true | Set `false` only on a local or test box. |
 | `AdvisoryTimeoutMs` | 60000 | Cap on the advisory, scoring and narrative together. |
-| `DataKey` | (derived from `HashKey`) | Base64 32-byte AES key for stored requests, results and callback secrets. Set it in production. |
+| `DataKey` | (derived from `HashKey`) | Base64 32-byte AES key for stored requests, results and callback secrets. Set it in production, the same value in the API and the intranet. |
 | `FraudDefaultLoanAmount` | 100000 | Sent when the request has none. |
 | `FraudDefaultTenorMonths` | 12 | Sent when the request has none. |
 | `MaxNubans` | 5 | Account numbers accepted per request. |
 | `MaxActivityAccounts` | 5 | Accounts whose statement is read per check. |
 | `OverallLookupsPerMinute` | 300 | Across all consumers. |
-| `HashKey` | (RH-SHF callback secret) | Key for the audit and reuse hashes. |
+| `HashKey` | (RH-SHF callback secret) | Key for the audit and reuse hashes. Set it in production, the same value in the API and the intranet. |
 
 The API host needs the `SmartComply` section configured with a real key for the bureau, fraud and
 identity sections; with `UseMock: true` those sections return sample data. For the advisory's
 narrative it needs `OpenAI:ApiKey` and `AIAdvisory:UseLLMNarrative: true`, like the intranet;
 without them the narrative is assembled from the rules' own reasons and `narrativeSource` says
 `TEMPLATE`.
+
+### Going live
+
+Do these once, in this order, on the environment partners will call.
+
+1. **Keys.** Set `CustomerCheck:HashKey` and `CustomerCheck:DataKey` in the settings of both hosts,
+   the API and the intranet, to the same pair. `DataKey` is the base64 of 32 random bytes
+   (`openssl rand -base64 32`); `HashKey` is any long random string. Keep a copy somewhere safe
+   outside the server. Do not change either after the first check: stored results and callback
+   secrets can no longer be read, and stored bureau reports are no longer found for reuse. Left
+   blank, both are derived from the RH-SHF callback secret, so changing that secret would have
+   the same effect.
+2. **Integrations on the API host.** `SmartComply` with a real key and `UseMock: false`,
+   `CoreBanking` and `FineractDirect` pointing at the live core banking. The checks run in the API
+   host, so the intranet's settings do not cover it.
+3. **Publish both hosts.** The API runs the worker and applies the migrations at startup. The
+   intranet carries the administration pages.
+4. **Price list.** Admin > Partner API. Every item starts at zero, and a check is priced with the
+   list as it stands when the statement is drawn.
+5. **Consumer.** Admin > API Consumers: add the partner, with an `https` callback URL, the hosts a
+   per-request `callbackUrl` may use, the sections it may ask for and its limits. The key and the
+   callback signing secret are shown once; hand them over by a private channel.
+6. **First check.** Have the partner send one request with a real BVN. In Admin > Customer Credit
+   Checks the job should read `COMPLETED` and its callback `DELIVERED`.
+
+The reference at `/scalar/v1` is served when `EnableApiDocs` is `true`. It describes the API and
+holds no data, but set it to `false` if the address should not be public.

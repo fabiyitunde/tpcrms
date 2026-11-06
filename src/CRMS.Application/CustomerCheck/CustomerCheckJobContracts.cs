@@ -2,14 +2,14 @@ using System.Text.Json;
 
 namespace CRMS.Application.CustomerCheck;
 
-// The asynchronous side of the customer check (docs/Customer_Check.md, "The flow"): what a consumer
+// The asynchronous side of the customer credit check (docs/Customer_Credit_Check.md, "The flow"): what a consumer
 // gets back when a check is accepted, when it asks after one, when it lists its history, and what
 // is posted to its callback.
 
 public static class CustomerCheckEvents
 {
-    public const string Completed = "CUSTOMER_CHECK_COMPLETED";
-    public const string Failed = "CUSTOMER_CHECK_FAILED";
+    public const string Completed = "CUSTOMER_CREDIT_CHECK_COMPLETED";
+    public const string Failed = "CUSTOMER_CREDIT_CHECK_FAILED";
 }
 
 public static class CustomerCheckErrors
@@ -113,7 +113,7 @@ public record CustomerCheckHistoryPage(int Page, int PageSize, int Total, IReadO
 
 /// <summary>What is posted to the consumer's callback URL. <see cref="Result"/> is the reply as
 /// stored, verbatim; it is not re-shaped on the way out.</summary>
-/// <param name="EventType"><c>CUSTOMER_CHECK_COMPLETED</c> or <c>CUSTOMER_CHECK_FAILED</c>.</param>
+/// <param name="EventType"><c>CUSTOMER_CREDIT_CHECK_COMPLETED</c> or <c>CUSTOMER_CREDIT_CHECK_FAILED</c>.</param>
 /// <param name="EventId">Stable across every retry of the same event. If you have already processed it, answer 2xx and ignore the repeat.</param>
 /// <param name="JobId">The job's id.</param>
 /// <param name="RequestId">The request id you sent.</param>
@@ -187,5 +187,5 @@ public static class CustomerCheckJobIds
     public static bool TryParse(string? text, out Guid id) =>
         Guid.TryParseExact(text?.Trim(), "N", out id) || Guid.TryParse(text?.Trim(), out id);
 
-    public static string StatusPath(Guid id) => $"/api/v1/customer-check/{Format(id)}";
+    public static string StatusPath(Guid id) => $"/api/v1/customer-credit-check/{Format(id)}";
 }

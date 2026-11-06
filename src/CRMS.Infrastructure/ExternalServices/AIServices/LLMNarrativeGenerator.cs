@@ -77,9 +77,9 @@ public class LLMNarrativeGenerator
         }
     }
 
-    // ── Customer check (one individual) ──────────────────────────────────────────────────────────
+    // ── Customer credit check (one individual) ──────────────────────────────────────────────────────────
 
-    /// <summary>Narrative for the customer check's advisory. The request carries figures and flags
+    /// <summary>Narrative for the customer credit check's advisory. The request carries figures and flags
     /// only, so the prompt cannot name the person, their BVN or an account number.</summary>
     public async Task<NarrativeResult?> GenerateCustomerNarrativeAsync(
         CustomerAdvisoryRequest request, CustomerCheckScoringEngine.Result result, CancellationToken ct = default)
@@ -88,7 +88,7 @@ public class LLMNarrativeGenerator
         {
             var narrative = await _llmService.CompleteAsJsonAsync<NarrativeResult>(BuildCustomerSystemPrompt(), BuildCustomerUserPrompt(request, result), ct);
             if (narrative == null)
-                _logger.LogWarning("LLM returned no narrative for customer check advisory {Reference}", request.ReferenceId);
+                _logger.LogWarning("LLM returned no narrative for customer credit check advisory {Reference}", request.ReferenceId);
             return narrative;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -97,7 +97,7 @@ public class LLMNarrativeGenerator
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate the customer check narrative for {Reference}", request.ReferenceId);
+            _logger.LogError(ex, "Failed to generate the customer credit check narrative for {Reference}", request.ReferenceId);
             return null;
         }
     }

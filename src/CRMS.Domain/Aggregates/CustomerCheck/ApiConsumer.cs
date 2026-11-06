@@ -3,7 +3,7 @@ using CRMS.Domain.Common;
 namespace CRMS.Domain.Aggregates.CustomerCheck;
 
 /// <summary>
-/// A third-party system allowed to call the customer-check API on the bank's behalf. Each consumer
+/// A third-party system allowed to call the customer-credit-check API on the bank's behalf. Each consumer
 /// has its own key (stored only as a SHA-256 hash of a high-entropy random value), its own
 /// entitlements and limits, and its own audit trail. Keys are shown once, at creation or rotation.
 /// </summary>

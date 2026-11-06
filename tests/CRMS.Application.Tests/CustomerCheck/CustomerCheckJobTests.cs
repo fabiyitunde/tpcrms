@@ -4,7 +4,7 @@ using Xunit;
 
 namespace CRMS.Application.Tests.CustomerCheck;
 
-/// <summary>The asynchronous side of the customer check (docs/Customer_Check.md, "The flow"): the
+/// <summary>The asynchronous side of the customer credit check (docs/Customer_Credit_Check.md, "The flow"): the
 /// job's life, callback scheduling, the consumer's callback registration, and the request-side
 /// rules for callback URLs and the history search.</summary>
 public class CustomerCheckJobTests
@@ -261,6 +261,6 @@ public class CustomerCheckJobTests
         Assert.Equal(id, parsed);
         Assert.True(CustomerCheckJobIds.TryParse(id.ToString(), out _));
         Assert.False(CustomerCheckJobIds.TryParse("nope", out _));
-        Assert.Equal($"/api/v1/customer-check/{text}", CustomerCheckJobIds.StatusPath(id));
+        Assert.Equal($"/api/v1/customer-credit-check/{text}", CustomerCheckJobIds.StatusPath(id));
     }
 }

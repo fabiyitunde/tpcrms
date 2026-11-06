@@ -43,7 +43,7 @@ public class MockAIAdvisoryService : IAIAdvisoryService
 
     public string GetModelVersion() => ModelVersion;
 
-    /// <summary>Sample advisory for the customer check: fixed figures, no provider.</summary>
+    /// <summary>Sample advisory for the customer credit check: fixed figures, no provider.</summary>
     public Task<CustomerAdvisoryResponse> GenerateCustomerAdvisoryAsync(CustomerAdvisoryRequest request, CancellationToken ct = default)
         => Task.FromResult(new CustomerAdvisoryResponse(
             true, null,

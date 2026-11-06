@@ -283,7 +283,7 @@ public class SeedDefaultParametersHandler : IRequestHandler<SeedDefaultParameter
         parameters.Add(ScoringParameter.Create("LoanAdjustments", "Score70PlusRateAdjustment", "Score 70+ Rate Adjustment", "Interest rate adjustment for scores 70-79", ParameterDataType.Percentage, -1.0m, userId, -10, 10, sortOrder++));
         parameters.Add(ScoringParameter.Create("LoanAdjustments", "MaxTenorForLowScores", "Max Tenor for Low Scores", "Maximum tenor (months) for low-scoring applications", ParameterDataType.Integer, 36m, userId, 6, 120, sortOrder++));
 
-        // Customer check: the profile for scoring one individual by BVN (docs/Customer_Check.md)
+        // Customer credit check: the profile for scoring one individual by BVN (docs/Customer_Credit_Check.md)
         sortOrder = 0;
         parameters.Add(ScoringParameter.Create("CustomerCheck", "CreditHistoryWeight", "Credit History Weight", "Weight of the bureau and bank loan history in the individual's overall score", ParameterDataType.Decimal, 0.40m, userId, 0, 1, sortOrder++));
         parameters.Add(ScoringParameter.Create("CustomerCheck", "RepaymentCapacityWeight", "Repayment Capacity Weight", "Weight of monthly obligations against monthly inflow", ParameterDataType.Decimal, 0.25m, userId, 0, 1, sortOrder++));

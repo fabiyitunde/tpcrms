@@ -12,8 +12,17 @@ public sealed class RequestBodyDocAttribute : Attribute
 
     public Type Type { get; }
 
-    /// <summary>A complete example body, as JSON, shown in the reference and used by "try it".</summary>
+    /// <summary>
+    /// An example body, as JSON, shown in the reference and used by "try it". Keep it to what a
+    /// caller must send; a first-time reader takes every field in it for a requirement.
+    /// </summary>
     public string? Example { get; set; }
+
+    /// <summary>
+    /// A second example, with the optional fields filled in. When set, the reference offers both:
+    /// "Required fields only" first, then "With optional fields".
+    /// </summary>
+    public string? FullExample { get; set; }
 }
 
 /// <summary>

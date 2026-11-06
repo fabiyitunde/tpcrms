@@ -3,7 +3,7 @@ using CRMS.Domain.Common;
 namespace CRMS.Domain.Aggregates.CustomerCheck;
 
 /// <summary>
-/// One customer check asked of the CRMS, kept for audit and for billing visibility per consumer.
+/// One customer credit check asked of the CRMS, kept for audit and for billing visibility per consumer.
 /// Identifiers are stored only as keyed hashes: the log shows when the same person was looked up
 /// again, but cannot be read back into a BVN or account number.
 /// </summary>

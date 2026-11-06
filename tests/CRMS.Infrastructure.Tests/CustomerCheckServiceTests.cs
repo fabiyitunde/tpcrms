@@ -13,7 +13,7 @@ using Xunit;
 
 namespace CRMS.Infrastructure.Tests;
 
-/// <summary>The customer check (docs/Customer_Check.md): bureau fallback, reuse, customer found by BVN,
+/// <summary>The customer credit check (docs/Customer_Credit_Check.md): bureau fallback, reuse, customer found by BVN,
 /// accounts and loans, section isolation, and the gates.</summary>
 public class CustomerCheckServiceTests
 {

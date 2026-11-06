@@ -49,7 +49,7 @@ public class HybridAIAdvisoryService : IAIAdvisoryService
 
     public string GetModelVersion() => _settings.UseLLMNarrative ? ModelVersion : "hybrid-v1.0-rules-only";
 
-    /// <summary>The customer check's advisory: the individual profile scores, then the narrative.
+    /// <summary>The customer credit check's advisory: the individual profile scores, then the narrative.
     /// The narrative never changes a number, and when the LLM is off, slow or failing the template
     /// narrative is used; a missing narrative is never a reason to withhold the scores.</summary>
     public async Task<CustomerAdvisoryResponse> GenerateCustomerAdvisoryAsync(CustomerAdvisoryRequest request, CancellationToken ct = default)
@@ -73,11 +73,11 @@ public class HybridAIAdvisoryService : IAIAdvisoryService
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                _logger.LogWarning("Customer check advisory {Reference}: the LLM narrative timed out; using the template.", request.ReferenceId);
+                _logger.LogWarning("Customer credit check advisory {Reference}: the LLM narrative timed out; using the template.", request.ReferenceId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Customer check advisory {Reference}: the LLM narrative failed; using the template.", request.ReferenceId);
+                _logger.LogError(ex, "Customer credit check advisory {Reference}: the LLM narrative failed; using the template.", request.ReferenceId);
             }
         }
 

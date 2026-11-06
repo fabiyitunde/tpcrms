@@ -183,7 +183,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<PE.PartyExposureLookupLog> PartyExposureLookupLogs => Set<PE.PartyExposureLookupLog>();
     public DbSet<PE.PartyExposureBatch> PartyExposureBatches => Set<PE.PartyExposureBatch>();
 
-    // Customer check (docs/Customer_Check.md): third-party consumers, their audit log, stored bureau reports.
+    // Customer credit check (docs/Customer_Credit_Check.md): third-party consumers, their audit log, stored bureau reports.
     public DbSet<Domain.Aggregates.CustomerCheck.ApiConsumer> ApiConsumers => Set<Domain.Aggregates.CustomerCheck.ApiConsumer>();
     public DbSet<Domain.Aggregates.CustomerCheck.CustomerCheckLog> CustomerCheckLogs => Set<Domain.Aggregates.CustomerCheck.CustomerCheckLog>();
     public DbSet<Domain.Aggregates.CustomerCheck.CustomerBureauReport> CustomerBureauReports => Set<Domain.Aggregates.CustomerCheck.CustomerBureauReport>();

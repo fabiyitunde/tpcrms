@@ -34,6 +34,10 @@ public static class CrmsOpenApi
             options.AddOperationTransformer<CrmsOperationTransformer>();
             options.AddSchemaTransformer<CrmsSchemaTransformer>();
             options.AddSchemaTransformer<RequiredFieldsSchemaTransformer>();
+            // Schema names come from class names, and a partner reads them. The feature is
+            // "customer credit check" in public; the classes keep their shorter internal name.
+            options.CreateSchemaReferenceId = type =>
+                OpenApiOptions.CreateDefaultSchemaReferenceId(type)?.Replace("CustomerCheck", "CustomerCreditCheck");
         });
         return services;
     }
@@ -42,7 +46,7 @@ public static class CrmsOpenApi
     public static readonly IReadOnlyDictionary<string, (string Tag, string Group, string Description)> Tags =
         new Dictionary<string, (string, string, string)>(StringComparer.OrdinalIgnoreCase)
         {
-            ["CustomerCheck"] = ("Customer check", Groups.Partners,
+            ["CustomerCheck"] = ("Customer credit check", Groups.Partners,
                 "For third-party systems doing credit checks on the bank's behalf. One BVN in; identity, credit bureau, fraud check, bank accounts and loans, CRMS facilities and an AI advisory out. **Asynchronous:** submit a check (202), then receive the result on your callback URL or fetch it by job id. Authenticate with your consumer key in `X-Api-Key`."),
             ["PartyExposure"] = ("Party exposure", Groups.Partners,
                 "For the Farmers Portal's Farmer 360: every CRMS facility a person or company is tied to, in any role, across the three loan tracks. Requests carry the portal's API key and an HMAC signature."),
@@ -98,9 +102,9 @@ public static class CrmsOpenApi
 
         1. **Get your key.** A bank administrator creates your consumer in the CRMS intranet under *Administration > API Consumers* and gives you an API key and a callback signing secret. Both are shown once.
         2. **Authenticate.** In the Authentication panel choose **ApiKey** and paste the key. It is sent as the `X-Api-Key` header.
-        3. **Run a customer check.** `POST /api/v1/customer-check` with a `requestId` of your own and the customer's `bvn`. The answer is `202 Accepted` with a `jobId`. The check then runs in the background and takes up to a minute or two.
-        4. **Get the result.** Either receive it on your callback URL, signed with your secret, or call `GET /api/v1/customer-check/{jobId}` until `status` is `COMPLETED`. Stored results can be fetched again at any time, free of charge.
-        5. **Look back.** `POST /api/v1/customer-check/history` lists your past checks.
+        3. **Run a customer credit check.** `POST /api/v1/customer-credit-check` with a `requestId` of your own and the customer's `bvn`. The answer is `202 Accepted` with a `jobId`. The check then runs in the background and takes up to a minute or two.
+        4. **Get the result.** Either receive it on your callback URL, signed with your secret, or call `GET /api/v1/customer-credit-check/{jobId}` until `status` is `COMPLETED`. Stored results can be fetched again at any time, free of charge.
+        5. **Look back.** `POST /api/v1/customer-credit-check/history` lists your past checks.
 
         Sending the same `requestId` again within 24 hours returns the same job instead of running, and billing, a second check.
 
@@ -181,7 +185,7 @@ internal sealed class CrmsDocumentTransformer : IOpenApiDocumentTransformer
             Type = SecuritySchemeType.ApiKey,
             In = ParameterLocation.Header,
             Name = "X-Api-Key",
-            Description = "A partner system's key. Customer-check consumers get theirs from a bank administrator (Administration > API Consumers); the Farmers Portal and the NAMP portal use the key agreed for their integration.",
+            Description = "A partner system's key. Customer-credit-check consumers get theirs from a bank administrator (Administration > API Consumers); the Farmers Portal and the NAMP portal use the key agreed for their integration.",
         };
 
         // Only the tags in use, in audience order, each with its description; grouped for the sidebar.
@@ -276,11 +280,23 @@ internal sealed class CrmsOperationTransformer : IOpenApiOperationTransformer
         }
 
         // The body's example, where the action supplies one.
-        if (method.GetCustomAttribute<RequestBodyDocAttribute>() is { Example: { } example } && operation.RequestBody is { } body)
+        if (method.GetCustomAttribute<RequestBodyDocAttribute>() is { Example: { } example } doc && operation.RequestBody is { } body)
         {
             body.Required = true;
             foreach (var content in body.Content.Values)
-                content.Example = ToAny(JsonDocument.Parse(example).RootElement);
+            {
+                if (doc.FullExample is not { } full)
+                {
+                    content.Example = ToAny(JsonDocument.Parse(example).RootElement);
+                    continue;
+                }
+                // Two named examples, the short one first: it is the one "try it" starts from.
+                content.Examples = new Dictionary<string, OpenApiExample>
+                {
+                    ["required"] = new() { Summary = "Required fields only", Value = ToAny(JsonDocument.Parse(example).RootElement) },
+                    ["optional"] = new() { Summary = "With optional fields", Value = ToAny(JsonDocument.Parse(full).RootElement) },
+                };
+            }
         }
 
         // What comes back.

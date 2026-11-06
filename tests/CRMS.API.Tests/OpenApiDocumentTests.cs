@@ -65,7 +65,7 @@ public class OpenApiDocumentTests : IAsyncLifetime
         Assert.Contains("Partner systems: start here", guide);
         Assert.Contains("Bank staff and internal tools: start here", guide);
         Assert.Contains("POST /api/v1/auth/login", guide);
-        Assert.Contains("POST /api/v1/customer-check", guide);
+        Assert.Contains("POST /api/v1/customer-credit-check", guide);
 
         var schemes = _doc.GetProperty("components").GetProperty("securitySchemes");
         Assert.Equal("bearer", schemes.GetProperty("Bearer").GetProperty("scheme").GetString());
@@ -100,7 +100,7 @@ public class OpenApiDocumentTests : IAsyncLifetime
         Assert.Contains("Five wrong passwords", login.GetProperty("description").GetString());
         Assert.Contains("**Authentication:** none.", login.GetProperty("description").GetString());
 
-        var submit = Operations().Single(o => o.Path == "/api/v1/customer-check" && o.Method == "post").Op;
+        var submit = Operations().Single(o => o.Path == "/api/v1/customer-credit-check" && o.Method == "post").Op;
         Assert.Equal("Accept one check and queue it", submit.GetProperty("summary").GetString());
         Assert.Contains("X-Api-Key", submit.GetProperty("description").GetString());
         Assert.Contains("does not run while you wait", submit.GetProperty("description").GetString());
@@ -161,9 +161,16 @@ public class OpenApiDocumentTests : IAsyncLifetime
     [Fact]
     public void The_customer_check_is_documented_end_to_end()
     {
-        var submit = Operations().Single(o => o.Path == "/api/v1/customer-check" && o.Method == "post").Op;
+        var submit = Operations().Single(o => o.Path == "/api/v1/customer-credit-check" && o.Method == "post").Op;
         var body = submit.GetProperty("requestBody").GetProperty("content").GetProperty("application/json");
-        Assert.Equal("22212344321", body.GetProperty("example").GetProperty("bvn").GetString());
+        // The example a reader meets first carries only what must be sent; the optional fields
+        // are a second example, so nobody takes them for requirements.
+        Assert.Equal("#/components/schemas/CustomerCreditCheckRequest", body.GetProperty("schema").GetProperty("$ref").GetString());
+        var examples = body.GetProperty("examples");
+        var first = examples.EnumerateObject().First();
+        Assert.Equal("Required fields only", first.Value.GetProperty("summary").GetString());
+        Assert.Equal(["bvn", "requestId"], first.Value.GetProperty("value").EnumerateObject().Select(p => p.Name).Order());
+        Assert.True(examples.GetProperty("optional").GetProperty("value").TryGetProperty("sections", out _));
         var request = Resolve(body.GetProperty("schema"));
         foreach (var field in new[] { "requestId", "bvn", "nubans", "sections", "options", "callbackUrl" })
             Assert.True(request.GetProperty("properties").TryGetProperty(field, out _), $"request is missing {field}");
@@ -177,12 +184,12 @@ public class OpenApiDocumentTests : IAsyncLifetime
         foreach (var code in new[] { "400", "401", "429", "503" })
             Assert.True(HasSchema(submit.GetProperty("responses").GetProperty(code)), $"{code} should show the error body");
 
-        var get = Operations().Single(o => o.Path == "/api/v1/customer-check/{jobId}").Op;
+        var get = Operations().Single(o => o.Path == "/api/v1/customer-credit-check/{jobId}").Op;
         var view = Resolve(get.GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetProperty("schema"));
         foreach (var field in new[] { "status", "callback", "result", "error" })
             Assert.True(view.GetProperty("properties").TryGetProperty(field, out _), $"job view is missing {field}");
 
-        var history = Operations().Single(o => o.Path == "/api/v1/customer-check/history").Op;
+        var history = Operations().Single(o => o.Path == "/api/v1/customer-credit-check/history").Op;
         Assert.True(HasSchema(history.GetProperty("requestBody")));
         Assert.True(HasSchema(history.GetProperty("responses").GetProperty("200")));
     }

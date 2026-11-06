@@ -149,7 +149,7 @@ public class ScoringConfigurationService
         config.StatementTrust.ManualUploadVerified = GetValue(parameters, "StatementTrust", "ManualUploadVerified", 0.85m);
         config.StatementTrust.ManualUploadPending = GetValue(parameters, "StatementTrust", "ManualUploadPending", 0.70m);
 
-        // Load the customer-check (individual) profile
+        // Load the customer-credit-check (individual) profile
         var cc = config.CustomerCheck;
         cc.CreditHistoryWeight = GetValue(parameters, "CustomerCheck", "CreditHistoryWeight", cc.CreditHistoryWeight);
         cc.RepaymentCapacityWeight = GetValue(parameters, "CustomerCheck", "RepaymentCapacityWeight", cc.RepaymentCapacityWeight);

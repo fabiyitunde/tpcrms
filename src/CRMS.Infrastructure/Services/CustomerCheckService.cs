@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 namespace CRMS.Infrastructure.Services;
 
 /// <summary>
-/// The customer check (docs/Customer_Check.md): one BVN in, six sections out. Each section runs in
+/// The customer credit check (docs/Customer_Credit_Check.md): one BVN in, six sections out. Each section runs in
 /// turn with its own time budget and its own try/catch, so a provider that fails or stalls costs
 /// its own section and nothing else. Sequential on purpose: the party-exposure lookup and the
 /// bureau store share this scope's DbContext.
@@ -160,7 +160,7 @@ public class CustomerCheckService : ICustomerCheckService
                 state.BvnData = advanced.Value;
                 return CustomerCheckRules.MapIdentity(advanced.Value);
             }
-            _logger.LogWarning("Customer check: BVN advanced verification failed: {Error}", Safe(advanced.Error));
+            _logger.LogWarning("Customer credit check: BVN advanced verification failed: {Error}", Safe(advanced.Error));
 
             var basic = await _smartComply.VerifyBvnAsync(query.Bvn, budget.Token);
             state.IdentityCalls++;
@@ -177,7 +177,7 @@ public class CustomerCheckService : ICustomerCheckService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check: identity section failed.");
+            _logger.LogError(ex, "Customer credit check: identity section failed.");
             return IdentitySection.Empty(SectionStatuses.Unavailable, "The identity provider could not be reached.");
         }
     }
@@ -228,7 +228,7 @@ public class CustomerCheckService : ICustomerCheckService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Customer check: {Bureau} call failed.", bureau);
+                    _logger.LogError(ex, "Customer credit check: {Bureau} call failed.", bureau);
                     result = Result.Failure<SmartComplyIndividualCreditReport>("Connection error");
                 }
             }
@@ -254,7 +254,7 @@ public class CustomerCheckService : ICustomerCheckService
                     Bureaus.Label(bureau!), skipped.Select(Bureaus.Label).ToList(), false, null, null, null, [], []);
             }
 
-            _logger.LogWarning("Customer check: {Bureau} skipped: {Error}", bureau, Safe(result.Error));
+            _logger.LogWarning("Customer credit check: {Bureau} skipped: {Error}", bureau, Safe(result.Error));
             skipped.Add(bureau!);
         }
 
@@ -286,13 +286,13 @@ public class CustomerCheckService : ICustomerCheckService
             };
             if (result is null) return null;
             if (result.IsSuccess) state.ScoreCalls++;
-            else _logger.LogWarning("Customer check: {Bureau} score failed: {Error}", bureau, Safe(result.Error));
+            else _logger.LogWarning("Customer credit check: {Bureau} score failed: {Error}", bureau, Safe(result.Error));
             return result.IsSuccess ? result.Value : null;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return null; }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check: {Bureau} score call failed.", bureau);
+            _logger.LogError(ex, "Customer credit check: {Bureau} score call failed.", bureau);
             return null;
         }
     }
@@ -302,7 +302,7 @@ public class CustomerCheckService : ICustomerCheckService
         try { return await _repository.FindBureauReportAsync(bvnHash, bureau, notBefore, ct); }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check: could not read the stored bureau reports.");
+            _logger.LogError(ex, "Customer credit check: could not read the stored bureau reports.");
             return null;
         }
     }
@@ -319,7 +319,7 @@ public class CustomerCheckService : ICustomerCheckService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check: could not store the {Bureau} report for reuse.", bureau);
+            _logger.LogError(ex, "Customer credit check: could not store the {Bureau} report for reuse.", bureau);
         }
     }
 
@@ -332,7 +332,7 @@ public class CustomerCheckService : ICustomerCheckService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check: could not attach the score to the stored report.");
+            _logger.LogError(ex, "Customer credit check: could not attach the score to the stored report.");
         }
     }
 
@@ -397,7 +397,7 @@ public class CustomerCheckService : ICustomerCheckService
             var result = await _smartComply.CheckIndividualLoanFraudAsync(request, budget.Token);
             if (result.IsFailure)
             {
-                _logger.LogWarning("Customer check: fraud check failed: {Error}", Safe(result.Error));
+                _logger.LogWarning("Customer credit check: fraud check failed: {Error}", Safe(result.Error));
                 return FraudCheckSection.Empty(SectionStatuses.Unavailable, Safe(result.Error));
             }
             state.FraudCalls++;
@@ -409,7 +409,7 @@ public class CustomerCheckService : ICustomerCheckService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check: fraud section failed.");
+            _logger.LogError(ex, "Customer credit check: fraud section failed.");
             return FraudCheckSection.Empty(SectionStatuses.Unavailable, "The fraud-check provider could not be reached.");
         }
     }
@@ -446,7 +446,7 @@ public class CustomerCheckService : ICustomerCheckService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check: core banking customer search failed.");
+            _logger.LogError(ex, "Customer credit check: core banking customer search failed.");
             return Both(SectionStatuses.Unavailable, "Core banking could not be reached.");
         }
 
@@ -476,7 +476,7 @@ public class CustomerCheckService : ICustomerCheckService
             catch (OperationCanceledException) when (!ct.IsCancellationRequested) { summary = Result.Failure<ClientAccountSummary>("Core banking did not answer in time."); }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Customer check: client accounts read failed.");
+                _logger.LogError(ex, "Customer credit check: client accounts read failed.");
                 summary = Result.Failure<ClientAccountSummary>("Core banking could not be reached.");
             }
 
@@ -561,7 +561,7 @@ public class CustomerCheckService : ICustomerCheckService
             var statement = await _coreBanking.GetStatementAsync(nuban, now.AddMonths(-windowMonths), now, call.Token);
             if (statement.IsFailure)
             {
-                _logger.LogWarning("Customer check: statement read failed: {Error}", Safe(statement.Error));
+                _logger.LogWarning("Customer credit check: statement read failed: {Error}", Safe(statement.Error));
                 notes.Add($"The statement for account {masked} could not be read, so its activity is not reported.");
                 return null;
             }
@@ -576,7 +576,7 @@ public class CustomerCheckService : ICustomerCheckService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check: statement read failed.");
+            _logger.LogError(ex, "Customer credit check: statement read failed.");
             notes.Add($"The statement for account {masked} could not be read, so its activity is not reported.");
             return null;
         }
@@ -591,7 +591,7 @@ public class CustomerCheckService : ICustomerCheckService
             detail = await _fineract.GetLoanDetailAsync(l.Id, call.Token);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
-        catch (Exception ex) { _logger.LogError(ex, "Customer check: loan detail read failed."); }
+        catch (Exception ex) { _logger.LogError(ex, "Customer credit check: loan detail read failed."); }
 
         if (detail is null || detail.IsFailure)
             return new BankLoan(
@@ -634,7 +634,7 @@ public class CustomerCheckService : ICustomerCheckService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check: CRMS facilities section failed.");
+            _logger.LogError(ex, "Customer credit check: CRMS facilities section failed.");
             return CrmsFacilitiesSection.Empty(SectionStatuses.Unavailable, "The CRMS lookup failed.");
         }
     }
@@ -665,7 +665,7 @@ public class CustomerCheckService : ICustomerCheckService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Customer check: advisory section failed.");
+            _logger.LogError(ex, "Customer credit check: advisory section failed.");
             return AiAdvisorySection.Empty(SectionStatuses.Unavailable, "The advisory could not be produced.");
         }
     }

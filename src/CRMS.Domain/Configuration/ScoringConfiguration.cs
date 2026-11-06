@@ -35,7 +35,7 @@ public class ScoringConfiguration
     // Trust Weights for Statement Sources
     public StatementTrustWeights StatementTrust { get; set; } = new();
 
-    // Customer check: the profile for scoring one individual (docs/Customer_Check.md, aiAdvisory)
+    // Customer credit check: the profile for scoring one individual (docs/Customer_Credit_Check.md, aiAdvisory)
     public CustomerCheckConfig CustomerCheck { get; set; } = new();
 }
 

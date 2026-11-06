@@ -44,7 +44,7 @@ public class ExportCustomerCheckStatementHandler : IRequestHandler<ExportCustome
             return ApplicationResult<CustomerCheckStatementFile>.Failure("The period's start must be before its end.");
         var statement = await _reporting.GetStatementAsync(request.ConsumerId, request.FromUtc, request.ToUtc, ct);
         var safeName = string.Concat(statement.ConsumerName.Where(c => char.IsLetterOrDigit(c) || c == ' ')).Trim().Replace(' ', '-');
-        var fileName = $"customer-check-statement-{safeName}-{request.FromUtc:yyyyMMdd}-{request.ToUtc.AddDays(-1):yyyyMMdd}.csv";
+        var fileName = $"customer-credit-check-statement-{safeName}-{request.FromUtc:yyyyMMdd}-{request.ToUtc.AddDays(-1):yyyyMMdd}.csv";
         return ApplicationResult<CustomerCheckStatementFile>.Success(new CustomerCheckStatementFile(fileName, Csv(statement), statement));
     }
 
@@ -54,7 +54,7 @@ public class ExportCustomerCheckStatementHandler : IRequestHandler<ExportCustome
     {
         var sb = new StringBuilder();
         var inv = CultureInfo.InvariantCulture;
-        sb.AppendLine($"Customer check statement,{Q(s.ConsumerName)}");
+        sb.AppendLine($"Customer credit check statement,{Q(s.ConsumerName)}");
         sb.AppendLine($"Period,{s.From:yyyy-MM-dd} to {s.To.AddDays(-1):yyyy-MM-dd}");
         sb.AppendLine($"Currency,{s.Currency}");
         sb.AppendLine();

@@ -3,7 +3,7 @@ using CRMS.Domain.Common;
 namespace CRMS.Domain.Aggregates.CustomerCheck;
 
 /// <summary>
-/// A bureau report fetched by a customer check, kept so a consumer with "reuse bureau reports"
+/// A bureau report fetched by a customer credit check, kept so a consumer with "reuse bureau reports"
 /// switched on is not billed again for the same person within its reuse window. Keyed by the
 /// keyed hash of the BVN; the report itself is stored as the provider's structured result.
 /// </summary>

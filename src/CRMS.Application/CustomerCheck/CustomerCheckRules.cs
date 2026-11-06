@@ -8,7 +8,7 @@ using CRMS.Domain.Interfaces;
 namespace CRMS.Application.CustomerCheck;
 
 /// <summary>
-/// The pure rules of the customer check: validation, the shared status words, masking, and the
+/// The pure rules of the customer credit check: validation, the shared status words, masking, and the
 /// mapping from each provider's result into the reply. No I/O, so every rule is unit-testable.
 /// </summary>
 public static class CustomerCheckRules

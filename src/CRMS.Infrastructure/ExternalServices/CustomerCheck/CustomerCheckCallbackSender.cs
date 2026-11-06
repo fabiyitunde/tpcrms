@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace CRMS.Infrastructure.ExternalServices.CustomerCheck;
 
 /// <summary>
-/// Posts one customer-check callback (docs/Customer_Check.md, "Callback"), signed with the
+/// Posts one customer-credit-check callback (docs/Customer_Credit_Check.md, "Callback"), signed with the
 /// consumer's own secret in the CRMS's V2 scheme: HMAC-SHA256 over "{timestamp}.{body}". Only the
 /// timestamp-bound signature is sent; there is no V1 to retire here. Retries and scheduling are the
 /// dispatcher's business.
@@ -40,17 +40,17 @@ public class CustomerCheckCallbackSender : ICustomerCheckCallbackSender
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             var status = (int)response.StatusCode;
             if (!response.IsSuccessStatusCode)
-                _logger.LogWarning("Customer check callback {EventId} to {Host} answered {Status}.", eventId, host, status);
+                _logger.LogWarning("Customer credit check callback {EventId} to {Host} answered {Status}.", eventId, host, status);
             return new CallbackSendResult(response.IsSuccessStatusCode, status, response.IsSuccessStatusCode ? null : $"HTTP {status}");
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            _logger.LogWarning("Customer check callback {EventId} to {Host} timed out.", eventId, host);
+            _logger.LogWarning("Customer credit check callback {EventId} to {Host} timed out.", eventId, host);
             return new CallbackSendResult(false, null, "No answer in time.");
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogWarning("Customer check callback {EventId} to {Host} failed: {Error}", eventId, host, ex.Message);
+            _logger.LogWarning("Customer credit check callback {EventId} to {Host} failed: {Error}", eventId, host, ex.Message);
             return new CallbackSendResult(false, null, ex.Message);
         }
     }

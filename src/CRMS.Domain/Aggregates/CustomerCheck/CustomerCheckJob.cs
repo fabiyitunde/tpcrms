@@ -3,8 +3,8 @@ using CRMS.Domain.Common;
 namespace CRMS.Domain.Aggregates.CustomerCheck;
 
 /// <summary>
-/// One customer check asked of the CRMS by a consumer, from acceptance to delivery
-/// (docs/Customer_Check.md). The table is the queue: a worker claims QUEUED rows, runs the check,
+/// One customer credit check asked of the CRMS by a consumer, from acceptance to delivery
+/// (docs/Customer_Credit_Check.md). The table is the queue: a worker claims QUEUED rows, runs the check,
 /// stores the result and posts it to the consumer's callback, retrying on a schedule. The row
 /// survives a restart, so a check is never lost; one caught mid-run is claimed again.
 /// <para>

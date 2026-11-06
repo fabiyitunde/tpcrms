@@ -1,7 +1,7 @@
 namespace CRMS.Application.CustomerCheck;
 
-// The customer check: what is known about a person by BVN, for third-party systems doing credit
-// checks on the bank's behalf. The contract is docs/Customer_Check.md. Every section is always
+// The customer credit check: what is known about a person by BVN, for third-party systems doing credit
+// checks on the bank's behalf. The contract is docs/Customer_Credit_Check.md. Every section is always
 // present and carries its own status; nothing the CRMS cannot supply is faked.
 
 public static class CustomerCheckSections
@@ -139,7 +139,7 @@ public class CustomerCheckSettings
 
 // ── Request ──────────────────────────────────────────────────────────────────────────────────────
 
-/// <summary>A request for one customer check.</summary>
+/// <summary>A request for one customer credit check.</summary>
 /// <param name="RequestId">Your own id for this check, up to 100 characters, unique per consumer. Required. It is the idempotency key: the same id sent again within 24 hours returns the existing job instead of running a second check.</param>
 /// <param name="Bvn">The customer's BVN, 11 digits. Required. Spaces, hyphens and dots are ignored.</param>
 /// <param name="Nubans">Optional. Up to 5 of the customer's account numbers, 10 digits each, to read transaction activity for first. Accounts are found by BVN, so none is needed.</param>

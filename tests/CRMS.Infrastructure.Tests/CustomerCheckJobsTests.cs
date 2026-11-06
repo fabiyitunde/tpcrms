@@ -14,7 +14,7 @@ using Xunit;
 
 namespace CRMS.Infrastructure.Tests;
 
-/// <summary>The background side of the customer check: the cipher, the signed callback, the job
+/// <summary>The background side of the customer credit check: the cipher, the signed callback, the job
 /// runner, and the callback dispatcher with its retry schedule.</summary>
 public class CustomerCheckJobsTests
 {

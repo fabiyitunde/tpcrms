@@ -184,7 +184,7 @@ public class CustomerCheckReportingTests
         Assert.Contains(s.ByItem, i => i.Item == CustomerCheckPriceItems.CallIdentity && i.UnitPrice == 0m);
 
         var csv = System.Text.Encoding.UTF8.GetString(ExportCustomerCheckStatementHandler.Csv(s));
-        Assert.Contains("Customer check statement,AgriPay", csv);
+        Assert.Contains("Customer credit check statement,AgriPay", csv);
         Assert.Contains("a-1", csv);
         Assert.Contains("Total,,,2350.00", csv);
         Assert.DoesNotContain("h-a-1", csv);

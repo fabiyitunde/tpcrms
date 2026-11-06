@@ -4,7 +4,7 @@ using CRMS.Domain.Configuration;
 namespace CRMS.Infrastructure.ExternalServices.AIServices;
 
 /// <summary>
-/// Deterministic scoring of one individual for the customer check (docs/Customer_Check.md,
+/// Deterministic scoring of one individual for the customer credit check (docs/Customer_Credit_Check.md,
 /// aiAdvisory). Its own engine, not a mode of <see cref="RuleBasedScoringEngine"/>: that one is
 /// built for a company with accounts and collateral, and its numbers for the three loan tracks
 /// must not move. Four categories; one with no data is reported as not assessed and carries no

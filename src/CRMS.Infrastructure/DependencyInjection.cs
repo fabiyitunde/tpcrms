@@ -368,7 +368,7 @@ public static class DependencyInjection
             configuration.GetSection(Application.PartyExposure.PartyExposureSettings.SectionName));
         services.AddScoped<Application.PartyExposure.IPartyExposureService, PartyExposureService>();
 
-        // Customer check for third-party consumers (docs/Customer_Check.md)
+        // Customer credit check for third-party consumers (docs/Customer_Credit_Check.md)
         services.Configure<Application.CustomerCheck.CustomerCheckSettings>(
             configuration.GetSection(Application.CustomerCheck.CustomerCheckSettings.SectionName));
         services.AddScoped<IApiConsumerRepository, ApiConsumerRepository>();

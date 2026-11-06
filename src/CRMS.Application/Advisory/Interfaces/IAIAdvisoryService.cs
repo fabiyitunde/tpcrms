@@ -18,14 +18,14 @@ public interface IAIAdvisoryService
     string GetModelVersion();
 
     /// <summary>
-    /// Scores one individual for the customer check (docs/Customer_Check.md, aiAdvisory): a
+    /// Scores one individual for the customer credit check (docs/Customer_Credit_Check.md, aiAdvisory): a
     /// profile built for a person rather than a company, from what the other sections found.
     /// The rules decide the numbers; the narrative only explains them.
     /// </summary>
     Task<CustomerAdvisoryResponse> GenerateCustomerAdvisoryAsync(CustomerAdvisoryRequest request, CancellationToken ct = default);
 }
 
-// ── Customer check advisory ──────────────────────────────────────────────────────────────────────
+// ── Customer credit check advisory ──────────────────────────────────────────────────────────────────────
 // Everything below is figures and flags only. No name, BVN, account number, phone or date of birth
 // is carried here, so nothing identifying can reach the prompt or the narrative.
 
