@@ -11,6 +11,9 @@ public class ApiConsumer : AggregateRoot
 {
     public string Name { get; private set; } = string.Empty;
     public string? Notes { get; private set; }
+    /// <summary>The partner's own mailbox for credentials: setup links go here and nowhere else.
+    /// Required for a consumer set up from now on; older ones have none until they are edited.</summary>
+    public string? ContactEmail { get; private set; }
     /// <summary>SHA-256 of the key, hex. The key itself is never stored.</summary>
     public string KeyHash { get; private set; } = string.Empty;
     /// <summary>First characters of the key, so an administrator can tell keys apart.</summary>
@@ -85,6 +88,32 @@ public class ApiConsumer : AggregateRoot
         BureauReuseMaxAgeDays = bureauReuseMaxAgeDays;
         SetAuditInfo(modifiedBy.ToString());
         return Result.Success();
+    }
+
+    /// <summary>Sets where setup links are sent. One address, not a list: a link is for one reader.</summary>
+    public Result SetContactEmail(string? email, Guid modifiedBy)
+    {
+        var value = (email ?? string.Empty).Trim();
+        if (value.Length == 0)
+            return Result.Failure("A contact email is required.");
+        if (value.Length > 256)
+            return Result.Failure("Contact email must be 256 characters or fewer.");
+        if (!LooksLikeEmail(value))
+            return Result.Failure("Contact email is not a valid email address.");
+
+        ContactEmail = value;
+        SetAuditInfo(modifiedBy.ToString());
+        return Result.Success();
+    }
+
+    private static bool LooksLikeEmail(string value)
+    {
+        if (value.Any(c => char.IsWhiteSpace(c) || c is ',' or ';' or '<' or '>')) return false;
+        var at = value.IndexOf('@');
+        if (at <= 0 || at != value.LastIndexOf('@')) return false;
+        var domain = value[(at + 1)..];
+        return domain.Contains('.') && !domain.StartsWith('.') && !domain.EndsWith('.')
+            && Uri.CheckHostName(domain) == UriHostNameType.Dns;
     }
 
     public void SetActive(bool active, Guid modifiedBy)

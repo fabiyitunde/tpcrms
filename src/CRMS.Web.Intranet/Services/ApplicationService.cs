@@ -3341,13 +3341,13 @@ public partial class ApplicationService
 
     public async Task<ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>> CreateApiConsumerAsync(
         string name, string? notes, List<string> allowedSections, int perMinuteLimit, bool reuseBureauReports, int bureauReuseMaxAgeDays, Guid userId,
-        CRMS.Application.CustomerCheck.Commands.ApiConsumerCallbackSettings? callback = null)
+        CRMS.Application.CustomerCheck.Commands.ApiConsumerCallbackSettings? callback = null, string? contactEmail = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.CreateApiConsumerHandler>();
             var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.CreateApiConsumerCommand(
-                name, notes, allowedSections, perMinuteLimit, reuseBureauReports, bureauReuseMaxAgeDays, userId, callback), CancellationToken.None);
+                name, notes, allowedSections, perMinuteLimit, reuseBureauReports, bureauReuseMaxAgeDays, userId, callback, contactEmail), CancellationToken.None);
             return result.IsSuccess && result.Data != null
                 ? ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Ok(result.Data)
                 : ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Fail(result.Error ?? "Failed to create API consumer");
@@ -3361,13 +3361,13 @@ public partial class ApplicationService
 
     public async Task<ApiResponse> UpdateApiConsumerAsync(
         Guid id, string name, string? notes, List<string> allowedSections, int perMinuteLimit, bool reuseBureauReports, int bureauReuseMaxAgeDays, Guid userId,
-        CRMS.Application.CustomerCheck.Commands.ApiConsumerCallbackSettings? callback = null)
+        CRMS.Application.CustomerCheck.Commands.ApiConsumerCallbackSettings? callback = null, string? contactEmail = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.UpdateApiConsumerHandler>();
             var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.UpdateApiConsumerCommand(
-                id, name, notes, allowedSections, perMinuteLimit, reuseBureauReports, bureauReuseMaxAgeDays, userId, callback), CancellationToken.None);
+                id, name, notes, allowedSections, perMinuteLimit, reuseBureauReports, bureauReuseMaxAgeDays, userId, callback, contactEmail), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update API consumer");
         }
         catch (Exception ex)
@@ -3423,6 +3423,64 @@ public partial class ApplicationService
         {
             _logger.LogError(ex, "Error rotating API consumer callback secret");
             return ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Fail("Failed to rotate callback secret");
+        }
+    }
+
+    /// <summary>Emails the consumer's contact a one-time link that issues the chosen credentials
+    /// when it is opened. <paramref name="siteBaseUrl"/> is this site's public address.</summary>
+    public async Task<ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerSetupLinkDto>> SendApiConsumerSetupLinkAsync(
+        Guid id, bool issueKey, bool issueSecret, string siteBaseUrl, Guid userId, string userName)
+    {
+        try
+        {
+            var hours = _sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CRMS.Application.CustomerCheck.CustomerCheckSettings>>().Value.SetupLinkHours;
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.SendApiConsumerSetupLinkHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.SendApiConsumerSetupLinkCommand(
+                id, issueKey, issueSecret, siteBaseUrl, hours, userId, userName), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerSetupLinkDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerSetupLinkDto>.Fail(result.Error ?? "Failed to send the setup link");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending API consumer setup link");
+            return ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerSetupLinkDto>.Fail("Failed to send the setup link");
+        }
+    }
+
+    public async Task<ApiResponse<List<CRMS.Application.CustomerCheck.DTOs.ApiConsumerSetupLinkDto>>> GetApiConsumerSetupLinksAsync(Guid id)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.GetApiConsumerSetupLinksHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.GetApiConsumerSetupLinksQuery(id), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<List<CRMS.Application.CustomerCheck.DTOs.ApiConsumerSetupLinkDto>>.Ok(result.Data)
+                : ApiResponse<List<CRMS.Application.CustomerCheck.DTOs.ApiConsumerSetupLinkDto>>.Fail(result.Error ?? "Failed to load setup links");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading API consumer setup links");
+            return ApiResponse<List<CRMS.Application.CustomerCheck.DTOs.ApiConsumerSetupLinkDto>>.Fail("Failed to load setup links");
+        }
+    }
+
+    /// <summary>The consumer's current callback signing secret, for an administrator settling a
+    /// dispute. Each call is written to the audit trail before anything is returned.</summary>
+    public async Task<ApiResponse<string>> RevealApiConsumerCallbackSecretAsync(Guid id, Guid userId, string userName)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.RevealApiConsumerCallbackSecretHandler>();
+            var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.RevealApiConsumerCallbackSecretCommand(id, userId, userName), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<string>.Ok(result.Data)
+                : ApiResponse<string>.Fail(result.Error ?? "Failed to read the signing secret");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error revealing API consumer callback secret");
+            return ApiResponse<string>.Fail("Failed to read the signing secret");
         }
     }
 

@@ -135,6 +135,8 @@ public class CustomerCheckSettings
     /// <summary>How long the worker sleeps between looks at the queue when nothing nudges it.</summary>
     public int WorkerPollSeconds { get; set; } = 5;
     public int HistoryMaxPageSize { get; set; } = 100;
+    /// <summary>How long an emailed setup link can be opened. Between 1 and 168.</summary>
+    public int SetupLinkHours { get; set; } = 24;
 }
 
 // ── Request ──────────────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>@ViewData["Title"] - Bank of Agriculture</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+        body { background: #f5f7f3; }
+        .partner-shell { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+        .partner-brand { font-weight: 700; color: #1e6b2c; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+    @* Plain server-rendered Razor Pages, like the RH-SHF pages: no Blazor script, no circuit, and
+       nothing loaded from another site, so the address of this page is never sent anywhere. *@
+    <div class="partner-shell">
+        <div class="partner-brand">Bank of Agriculture · Partner API</div>
+        @RenderBody()
+    </div>
+</body>
+</html>

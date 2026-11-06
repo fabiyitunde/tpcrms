@@ -391,6 +391,15 @@ public static class DependencyInjection
         services.AddScoped<Application.CustomerCheck.Commands.RotateApiConsumerKeyHandler>();
         services.AddScoped<Application.CustomerCheck.Commands.RotateApiConsumerCallbackSecretHandler>();
         services.AddScoped<Application.CustomerCheck.Queries.GetApiConsumersHandler>();
+        // Setup links: credentials handed to a consumer by a one-time emailed link.
+        services.AddScoped<IApiConsumerSetupLinkRepository, ApiConsumerSetupLinkRepository>();
+        services.AddScoped<Application.CustomerCheck.Commands.IApiConsumerSetupMailer, ApiConsumerSetupMailer>();
+        services.AddScoped<Application.CustomerCheck.Commands.IApiConsumerAudit, ApiConsumerAudit>();
+        services.AddScoped<Application.CustomerCheck.Commands.SendApiConsumerSetupLinkHandler>();
+        services.AddScoped<Application.CustomerCheck.Commands.PeekApiConsumerSetupLinkHandler>();
+        services.AddScoped<Application.CustomerCheck.Commands.RedeemApiConsumerSetupLinkHandler>();
+        services.AddScoped<Application.CustomerCheck.Commands.GetApiConsumerSetupLinksHandler>();
+        services.AddScoped<Application.CustomerCheck.Commands.RevealApiConsumerCallbackSecretHandler>();
         // Jobs run in the background on the API host (CustomerCheckJobWorker is registered there);
         // the runner, dispatcher and signal are shared so the intranet can resend a callback.
         services.AddSingleton<CustomerCheckJobSignal>();

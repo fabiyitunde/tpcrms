@@ -1,0 +1,110 @@
+@page "/partner/setup/{token}"
+@model CRMS.Web.Intranet.Pages.Partner.SetupModel
+@using CRMS.Domain.Aggregates.CustomerCheck
+@{
+    ViewData["Title"] = "API credentials";
+}
+
+@if (Model.Issued is { } issued)
+{
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <h4 class="mb-3">Credentials for @issued.ConsumerName</h4>
+            <div class="alert alert-warning">
+                Copy and store @(issued.Key != null && issued.CallbackSecret != null ? "these" : "this") now.
+                This page cannot be opened again, and the bank cannot show you the API key later.
+                If you lose @(issued.Key != null && issued.CallbackSecret != null ? "them" : "it"), ask the bank for a new link.
+            </div>
+
+            @if (issued.Key != null)
+            {
+                <label class="form-label fw-semibold" for="apiKey">API key</label>
+                <div class="input-group mb-1">
+                    <input id="apiKey" type="text" class="form-control font-monospace" value="@issued.Key" readonly />
+                    <button type="button" class="btn btn-outline-secondary" data-copy="apiKey">Copy</button>
+                </div>
+                <div class="form-text mb-3">Send it as the <code>X-Api-Key</code> header on every call. Any key you used before no longer works.</div>
+            }
+
+            @if (issued.CallbackSecret != null)
+            {
+                <label class="form-label fw-semibold" for="callbackSecret">Callback signing secret</label>
+                <div class="input-group mb-1">
+                    <input id="callbackSecret" type="text" class="form-control font-monospace" value="@issued.CallbackSecret" readonly />
+                    <button type="button" class="btn btn-outline-secondary" data-copy="callbackSecret">Copy</button>
+                </div>
+                <div class="form-text mb-3">
+                    Use it to verify the <code>X-CRMS-Signature-V2</code> header on each callback: HMAC-SHA256 over the timestamp, a dot, and the body.
+                    Callbacks are signed with this secret from now on.
+                </div>
+            }
+
+            <p class="text-muted mb-0">Keep both in a secrets store, not in source code or email. Close this page when you are done.</p>
+        </div>
+    </div>
+
+    <script>
+        document.querySelectorAll('[data-copy]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var field = document.getElementById(button.getAttribute('data-copy'));
+                field.select();
+                var done = function () { button.textContent = 'Copied'; };
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(field.value).then(done);
+                } else {
+                    document.execCommand('copy');
+                    done();
+                }
+            });
+        });
+    </script>
+}
+else if (Model.Link.State == ApiConsumerSetupLink.Pending)
+{
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <h4 class="mb-3">Credentials for @Model.Link.ConsumerName</h4>
+            @if (!string.IsNullOrEmpty(Model.Error))
+            {
+                <div class="alert alert-danger">@Model.Error</div>
+            }
+            <p>This link issues a new <strong>@Model.WhatItIssues</strong> for the Bank of Agriculture customer credit check API.</p>
+            <ul>
+                <li>It is shown once, on the next screen. Have somewhere safe ready to store it.</li>
+                <li>What you use today keeps working until you continue. After that it stops working, and only what this page gives you is accepted.</li>
+                <li>The link can be opened until @(Model.Link.ExpiresAt?.ToString("dd MMM yyyy HH:mm")) UTC.</li>
+            </ul>
+            <form method="post" class="mt-3">
+                <button type="submit" class="btn btn-success">Show my credentials</button>
+            </form>
+            <p class="text-muted mt-3 mb-0">If you were not expecting this, close the page and tell your contact at the bank.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            @switch (Model.Link.State)
+            {
+                case ApiConsumerSetupLink.Opened:
+                    <h4 class="mb-3">This link has already been used</h4>
+                    <p>It was opened on @(Model.Link.OpenedAt?.ToString("dd MMM yyyy HH:mm")) UTC, and the credentials were shown then.</p>
+                    <p class="mb-0"><strong>If that was not you, tell the bank at once</strong> so the credentials can be replaced. If you opened it but did not keep them, ask the bank for a new link.</p>
+                    break;
+                case ApiConsumerSetupLink.Expired:
+                    <h4 class="mb-3">This link has expired</h4>
+                    <p class="mb-0">Nothing was changed. Ask your contact at the bank to send a new link.</p>
+                    break;
+                case ApiConsumerSetupLink.Replaced:
+                    <h4 class="mb-3">This link was cancelled</h4>
+                    <p class="mb-0">Nothing was changed. A newer link may have been sent: use the most recent email, or ask your contact at the bank for a new one.</p>
+                    break;
+                default:
+                    <h4 class="mb-3">This link is not valid</h4>
+                    <p class="mb-0">Check that the whole address was copied from the email, or ask your contact at the bank for a new link.</p>
+                    break;
+            }
+        </div>
+    </div>
+}

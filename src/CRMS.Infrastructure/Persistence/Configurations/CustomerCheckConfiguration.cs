@@ -13,6 +13,7 @@ public class ApiConsumerConfiguration : IEntityTypeConfiguration<ApiConsumer>
 
         builder.Property(x => x.Name).IsRequired().HasMaxLength(200);
         builder.Property(x => x.Notes).HasMaxLength(1000);
+        builder.Property(x => x.ContactEmail).HasMaxLength(256);
         // SHA-256 hex — 64 characters.
         builder.Property(x => x.KeyHash).IsRequired().HasMaxLength(64);
         builder.Property(x => x.KeyPrefix).IsRequired().HasMaxLength(20);
@@ -31,6 +32,26 @@ public class ApiConsumerConfiguration : IEntityTypeConfiguration<ApiConsumer>
         builder.Ignore(x => x.DomainEvents);
         builder.Ignore(x => x.AllowedSectionList);
         builder.Ignore(x => x.AllowedCallbackHostList);
+    }
+}
+
+public class ApiConsumerSetupLinkConfiguration : IEntityTypeConfiguration<ApiConsumerSetupLink>
+{
+    public void Configure(EntityTypeBuilder<ApiConsumerSetupLink> builder)
+    {
+        builder.ToTable("ApiConsumerSetupLinks");
+        builder.HasKey(x => x.Id);
+
+        // SHA-256 hex — 64 characters.
+        builder.Property(x => x.TokenHash).IsRequired().HasMaxLength(64);
+        builder.Property(x => x.SentTo).IsRequired().HasMaxLength(256);
+        builder.Property(x => x.SentByName).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.OpenedFromIp).HasMaxLength(64);
+        builder.Property(x => x.CreatedBy).HasMaxLength(100);
+        builder.Property(x => x.ModifiedBy).HasMaxLength(100);
+
+        builder.HasIndex(x => x.TokenHash).IsUnique();
+        builder.HasIndex(x => new { x.ConsumerId, x.CreatedAt });
     }
 }
 

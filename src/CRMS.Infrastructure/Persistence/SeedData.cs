@@ -120,8 +120,35 @@ public static class SeedData
             "<a href=\"{{ResetLink}}\" style=\"color:#1f7a3d;word-break:break-all;\">{{ResetLink}}</a></p>" +
             "<p style=\"margin:16px 0 0;color:#6b7280;font-size:13px;\">If you did not request this, you can safely ignore this email — your password will not change.</p>";
 
+        // API consumer setup link (Admin > API Consumers). The email carries the link only; the
+        // key and signing secret are made when the link is opened and are shown on that page.
+        var setupInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 8px;\">The Bank of Agriculture has prepared a new <strong>{{Issues}}</strong> for your use of its customer credit check API. For security it is not in this email. Open the link below to collect it.</p>" +
+            Button("Collect credentials", "{{SetupLink}}") +
+            "<p style=\"margin:8px 0;color:#6b7280;font-size:12px;\">If the button does not work, copy and paste this link into your browser:<br/>" +
+            "<a href=\"{{SetupLink}}\" style=\"color:#1f7a3d;word-break:break-all;\">{{SetupLink}}</a></p>" +
+            "<ul style=\"margin:16px 0;padding-left:20px;color:#1f2937;font-size:14px;line-height:1.7;\">" +
+            "<li>The link works once and is valid for {{ExpiryHours}} hours, until {{ExpiresAt}} UTC.</li>" +
+            "<li>The credentials are shown once. Have somewhere safe ready to store them before you open it.</li>" +
+            "<li>What you use today keeps working until the link is opened. After that it stops working.</li>" +
+            "</ul>" +
+            "<p style=\"margin:16px 0 0;color:#6b7280;font-size:13px;\">If you were not expecting this email, do not open the link and tell your contact at the bank. If the page says the link has already been used and it was not you, tell the bank at once.</p>";
+
         var defs = new (string Code, string Name, NotificationType Type, string Subject, string Body, string Html)[]
         {
+            (Services.ApiConsumerSetupMailer.TemplateCode, "API Consumer Setup Link", NotificationType.Custom,
+                "Collect your Bank of Agriculture API credentials",
+                "Dear {{RecipientName}},\n\nThe Bank of Agriculture has prepared a new {{Issues}} for your use of its customer credit check API. " +
+                "For security it is not in this email. Open this link to collect it:\n{{SetupLink}}\n\n" +
+                "The link works once and is valid for {{ExpiryHours}} hours, until {{ExpiresAt}} UTC.\n" +
+                "The credentials are shown once. Have somewhere safe ready to store them before you open it.\n" +
+                "What you use today keeps working until the link is opened. After that it stops working.\n\n" +
+                "If you were not expecting this email, do not open the link and tell your contact at the bank. " +
+                "If the page says the link has already been used and it was not you, tell the bank at once.\n\n" +
+                "Regards,\nBank of Agriculture",
+                Shell(setupInner)),
+
             ("ACCOUNT_CREATED", "Account Created", NotificationType.AccountCreated,
                 "Your Bank of Agriculture CRMS account is ready",
                 "Dear {{RecipientName}},\n\nAn account has been created for you on the Bank of Agriculture CRMS.\n\n" +

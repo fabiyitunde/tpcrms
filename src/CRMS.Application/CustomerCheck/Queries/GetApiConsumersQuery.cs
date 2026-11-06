@@ -10,12 +10,22 @@ public record GetApiConsumersQuery : IRequest<ApplicationResult<List<ApiConsumer
 public class GetApiConsumersHandler : IRequestHandler<GetApiConsumersQuery, ApplicationResult<List<ApiConsumerDto>>>
 {
     private readonly IApiConsumerRepository _repository;
+    private readonly IApiConsumerSetupLinkRepository _links;
 
-    public GetApiConsumersHandler(IApiConsumerRepository repository) => _repository = repository;
+    public GetApiConsumersHandler(IApiConsumerRepository repository, IApiConsumerSetupLinkRepository links)
+    {
+        _repository = repository;
+        _links = links;
+    }
 
     public async Task<ApplicationResult<List<ApiConsumerDto>>> Handle(GetApiConsumersQuery request, CancellationToken ct = default)
     {
         var consumers = await _repository.GetAllAsync(ct);
-        return ApplicationResult<List<ApiConsumerDto>>.Success(consumers.Select(ApiConsumerMapping.ToDto).ToList());
+        var now = DateTime.UtcNow;
+        var latest = (await _links.GetLatestPerConsumerAsync(ct))
+            .GroupBy(l => l.ConsumerId)
+            .ToDictionary(g => g.Key, g => ApiConsumerSetupLinks.ToDto(g.OrderByDescending(l => l.CreatedAt).First(), now));
+        return ApplicationResult<List<ApiConsumerDto>>.Success(
+            consumers.Select(c => ApiConsumerMapping.ToDto(c, latest.GetValueOrDefault(c.Id))).ToList());
     }
 }

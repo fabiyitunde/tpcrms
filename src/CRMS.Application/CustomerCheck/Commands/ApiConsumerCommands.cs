@@ -7,10 +7,11 @@ namespace CRMS.Application.CustomerCheck.Commands;
 
 public static class ApiConsumerMapping
 {
-    public static ApiConsumerDto ToDto(ApiConsumer c) => new(
+    public static ApiConsumerDto ToDto(ApiConsumer c, ApiConsumerSetupLinkDto? latestSetupLink = null) => new(
         c.Id, c.Name, c.Notes, c.KeyPrefix, c.IsActive, c.AllowedSectionList, c.PerMinuteLimit,
         c.ReuseBureauReports, c.BureauReuseMaxAgeDays, c.LastUsedAt, c.KeyRotatedAt, c.CreatedAt,
-        c.CallbackUrl, c.AllowedCallbackHostList, c.MaxQueuedJobs, c.CallbackSecretPrefix, c.CallbackSecretRotatedAt);
+        c.CallbackUrl, c.AllowedCallbackHostList, c.MaxQueuedJobs, c.CallbackSecretPrefix, c.CallbackSecretRotatedAt,
+        c.ContactEmail, latestSetupLink);
 
     /// <summary>Section names as given, canonicalised; unknown names are an error.</summary>
     public static (List<string> Sections, string? Error) Sections(IEnumerable<string>? given)
@@ -41,7 +42,8 @@ public record CreateApiConsumerCommand(
     bool ReuseBureauReports,
     int BureauReuseMaxAgeDays,
     Guid CreatedByUserId,
-    ApiConsumerCallbackSettings? Callback = null) : IRequest<ApplicationResult<ApiConsumerKeyIssuedDto>>;
+    ApiConsumerCallbackSettings? Callback = null,
+    string? ContactEmail = null) : IRequest<ApplicationResult<ApiConsumerKeyIssuedDto>>;
 
 public class CreateApiConsumerHandler : IRequestHandler<CreateApiConsumerCommand, ApplicationResult<ApiConsumerKeyIssuedDto>>
 {
@@ -73,6 +75,11 @@ public class CreateApiConsumerHandler : IRequestHandler<CreateApiConsumerCommand
             return ApplicationResult<ApiConsumerKeyIssuedDto>.Failure(created.Error);
 
         var consumer = created.Value;
+        // Required from the start: it is where the credentials are delivered.
+        var contactSet = consumer.SetContactEmail(request.ContactEmail, request.CreatedByUserId);
+        if (contactSet.IsFailure)
+            return ApplicationResult<ApiConsumerKeyIssuedDto>.Failure(contactSet.Error);
+
         var callback = request.Callback ?? ApiConsumerCallbackSettings.None;
         var callbackSet = consumer.SetCallback(callback.CallbackUrl, callback.AllowedCallbackHosts, callback.MaxQueuedJobs, request.CreatedByUserId);
         if (callbackSet.IsFailure)
@@ -98,16 +105,19 @@ public record UpdateApiConsumerCommand(
     bool ReuseBureauReports,
     int BureauReuseMaxAgeDays,
     Guid ModifiedByUserId,
-    ApiConsumerCallbackSettings? Callback = null) : IRequest<ApplicationResult>;
+    ApiConsumerCallbackSettings? Callback = null,
+    string? ContactEmail = null) : IRequest<ApplicationResult>;
 
 public class UpdateApiConsumerHandler : IRequestHandler<UpdateApiConsumerCommand, ApplicationResult>
 {
     private readonly IApiConsumerRepository _repository;
+    private readonly IApiConsumerSetupLinkRepository _links;
     private readonly IUnitOfWork _unitOfWork;
 
-    public UpdateApiConsumerHandler(IApiConsumerRepository repository, IUnitOfWork unitOfWork)
+    public UpdateApiConsumerHandler(IApiConsumerRepository repository, IApiConsumerSetupLinkRepository links, IUnitOfWork unitOfWork)
     {
         _repository = repository;
+        _links = links;
         _unitOfWork = unitOfWork;
     }
 
@@ -131,6 +141,16 @@ public class UpdateApiConsumerHandler : IRequestHandler<UpdateApiConsumerCommand
         if (updated.IsFailure)
             return ApplicationResult.Failure(updated.Error);
 
+        // Null leaves the address as it is; anything else must be a usable address.
+        var contactChanged = false;
+        if (request.ContactEmail is not null)
+        {
+            contactChanged = !string.Equals(consumer.ContactEmail, request.ContactEmail.Trim(), StringComparison.OrdinalIgnoreCase);
+            var contactSet = consumer.SetContactEmail(request.ContactEmail, request.ModifiedByUserId);
+            if (contactSet.IsFailure)
+                return ApplicationResult.Failure(contactSet.Error);
+        }
+
         if (request.Callback is { } callback)
         {
             var callbackSet = consumer.SetCallback(callback.CallbackUrl, callback.AllowedCallbackHosts, callback.MaxQueuedJobs, request.ModifiedByUserId);
@@ -140,6 +160,9 @@ public class UpdateApiConsumerHandler : IRequestHandler<UpdateApiConsumerCommand
 
         _repository.Update(consumer);
         await _unitOfWork.SaveChangesAsync(ct);
+        // A link already sitting in the old mailbox must not outlive the change of address.
+        if (contactChanged)
+            await _links.RevokeOpenAsync(consumer.Id, DateTime.UtcNow, ct);
         return ApplicationResult.Success();
     }
 }
@@ -149,11 +172,13 @@ public record SetApiConsumerActiveCommand(Guid Id, bool IsActive, Guid ModifiedB
 public class SetApiConsumerActiveHandler : IRequestHandler<SetApiConsumerActiveCommand, ApplicationResult>
 {
     private readonly IApiConsumerRepository _repository;
+    private readonly IApiConsumerSetupLinkRepository _links;
     private readonly IUnitOfWork _unitOfWork;
 
-    public SetApiConsumerActiveHandler(IApiConsumerRepository repository, IUnitOfWork unitOfWork)
+    public SetApiConsumerActiveHandler(IApiConsumerRepository repository, IApiConsumerSetupLinkRepository links, IUnitOfWork unitOfWork)
     {
         _repository = repository;
+        _links = links;
         _unitOfWork = unitOfWork;
     }
 
@@ -166,6 +191,10 @@ public class SetApiConsumerActiveHandler : IRequestHandler<SetApiConsumerActiveC
         consumer.SetActive(request.IsActive, request.ModifiedByUserId);
         _repository.Update(consumer);
         await _unitOfWork.SaveChangesAsync(ct);
+        // Switching a consumer off also cancels a setup link that has not been opened yet, so
+        // switching it back on later does not bring an old email back to life.
+        if (!request.IsActive)
+            await _links.RevokeOpenAsync(consumer.Id, DateTime.UtcNow, ct);
         return ApplicationResult.Success();
     }
 }

@@ -483,7 +483,24 @@ The result is the same object whether it arrives in the callback or from `status
 once, set which sections it may ask for, its per-minute limit, how many checks it may have waiting
 at once, its callback URL and the hosts a per-request `callbackUrl` may point to, and whether recent
 bureau reports may be reused and for how many days. Rotate the key or the signing secret, or switch
-the consumer off, from the same page.
+the consumer off, from the same page. Every consumer has a **contact email**, the partner's own
+secure mailbox; it is required.
+
+**Send setup link** is how credentials reach the partner without passing through anyone's hands.
+It emails the contact a link that works once and expires after `SetupLinkHours`. The email holds
+no credential. The partner opens the link, presses one button, and is shown a new API key, a new
+callback signing secret, or both, as the administrator chose. They are made at that moment, so
+whatever the administrator saw when the consumer was created stops working then, and not before.
+Opening the address alone changes nothing, so a mail scanner that follows links cannot use it up.
+A link dies when it is opened, when a newer one is sent, when the contact email changes, when the
+consumer is switched off, or when it expires. The page lists each link with who sent it, to which
+address, and when and from which IP address it was opened. A partner who finds its link already
+used sees the time it was opened and is told to report it; rotate at once if it was not them.
+
+**View secret** shows the callback signing secret now in force, for settling a complaint about
+which secret is right. Each look is written to the audit trail (category Security) with the
+administrator's name before anything is shown. The API key cannot be shown, because only its
+hash is stored: compare its first characters with the prefix on the page, or send a new link.
 
 **Admin > Partner API** (SystemAdmin): the dashboard. For a period and, optionally, one consumer:
 checks submitted, completed and failed; billable third-party calls by kind; the amount billable
@@ -524,6 +541,7 @@ Deployment settings (`CustomerCheck` section):
 | `MaxNubans` | 5 | Account numbers accepted per request. |
 | `MaxActivityAccounts` | 5 | Accounts whose statement is read per check. |
 | `OverallLookupsPerMinute` | 300 | Across all consumers. |
+| `SetupLinkHours` | 24 | How long an emailed setup link can be opened. 1 to 168. |
 | `HashKey` | (RH-SHF callback secret) | Key for the audit and reuse hashes. Set it in production, the same value in the API and the intranet. |
 
 The API host needs the `SmartComply` section configured with a real key for the bureau, fraud and
@@ -550,9 +568,11 @@ Do these once, in this order, on the environment partners will call.
    intranet carries the administration pages.
 4. **Price list.** Admin > Partner API. Every item starts at zero, and a check is priced with the
    list as it stands when the statement is drawn.
-5. **Consumer.** Admin > API Consumers: add the partner, with an `https` callback URL, the hosts a
-   per-request `callbackUrl` may use, the sections it may ask for and its limits. The key and the
-   callback signing secret are shown once; hand them over by a private channel.
+5. **Consumer.** Admin > API Consumers: add the partner, with its contact email, an `https`
+   callback URL, the hosts a per-request `callbackUrl` may use, the sections it may ask for and
+   its limits. Then **Send setup link**: the partner collects its key and signing secret from the
+   link, and nobody at the bank has to pass them on. The intranet needs `WebsiteUrl` set to its
+   public `https` address, since that is where the link points, and working email.
 6. **First check.** Have the partner send one request with a real BVN. In Admin > Customer Credit
    Checks the job should read `COMPLETED` and its callback `DELIVERED`.
 

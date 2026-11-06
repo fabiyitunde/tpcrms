@@ -185,6 +185,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
 
     // Customer credit check (docs/Customer_Credit_Check.md): third-party consumers, their audit log, stored bureau reports.
     public DbSet<Domain.Aggregates.CustomerCheck.ApiConsumer> ApiConsumers => Set<Domain.Aggregates.CustomerCheck.ApiConsumer>();
+    public DbSet<Domain.Aggregates.CustomerCheck.ApiConsumerSetupLink> ApiConsumerSetupLinks => Set<Domain.Aggregates.CustomerCheck.ApiConsumerSetupLink>();
     public DbSet<Domain.Aggregates.CustomerCheck.CustomerCheckLog> CustomerCheckLogs => Set<Domain.Aggregates.CustomerCheck.CustomerCheckLog>();
     public DbSet<Domain.Aggregates.CustomerCheck.CustomerBureauReport> CustomerBureauReports => Set<Domain.Aggregates.CustomerCheck.CustomerBureauReport>();
     public DbSet<Domain.Aggregates.CustomerCheck.CustomerCheckJob> CustomerCheckJobs => Set<Domain.Aggregates.CustomerCheck.CustomerCheckJob>();

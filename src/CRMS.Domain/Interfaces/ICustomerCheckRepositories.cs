@@ -56,3 +56,21 @@ public interface ICustomerCheckRepository
     Task<CustomerBureauReport?> FindBureauReportAsync(string bvnHash, string bureau, DateTime notBefore, CancellationToken ct = default);
     Task AddBureauReportAsync(CustomerBureauReport report, CancellationToken ct = default);
 }
+
+public interface IApiConsumerSetupLinkRepository
+{
+    Task AddAsync(ApiConsumerSetupLink link, CancellationToken ct = default);
+    Task<ApiConsumerSetupLink?> GetByTokenHashAsync(string tokenHash, CancellationToken ct = default);
+    /// <summary>The consumer's links, newest first.</summary>
+    Task<List<ApiConsumerSetupLink>> GetByConsumerAsync(Guid consumerId, int take, CancellationToken ct = default);
+    /// <summary>The newest link of every consumer that has one.</summary>
+    Task<List<ApiConsumerSetupLink>> GetLatestPerConsumerAsync(CancellationToken ct = default);
+    /// <summary>Voids every link of the consumer that could still be opened. Takes effect at once,
+    /// without waiting for a save.</summary>
+    Task<int> RevokeOpenAsync(Guid consumerId, DateTime now, CancellationToken ct = default);
+    /// <summary>Marks the link opened if, and only if, it can still be opened. Atomic: of two
+    /// requests that arrive together, one gets true. Takes effect at once.</summary>
+    Task<bool> TryClaimAsync(Guid linkId, DateTime now, string? ipAddress, CancellationToken ct = default);
+    /// <summary>Undoes a claim whose credentials could not be issued, so the link can be tried again.</summary>
+    Task ReleaseAsync(Guid linkId, CancellationToken ct = default);
+}

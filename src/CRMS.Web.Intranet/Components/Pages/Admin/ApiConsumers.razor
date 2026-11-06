@@ -2,7 +2,10 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
 @inject ApplicationService AppService
 @inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
 @using CRMS.Application.CustomerCheck
+@using CRMS.Domain.Aggregates.CustomerCheck
 @using CRMS.Application.CustomerCheck.Commands
 @using CRMS.Application.CustomerCheck.DTOs
 
@@ -23,6 +26,13 @@
 {
     <div style="display: flex; justify-content: center; padding: var(--space-12);">
         <span class="material-symbols-outlined spinning" style="font-size: 32px; color: var(--primary-500);">progress_activity</span>
+    </div>
+}
+else if (loadError != null)
+{
+    <div class="alert alert-danger" style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);">
+        <span>@loadError</span>
+        <button class="btn btn-outline btn-sm" @onclick="LoadAsync">Try again</button>
     </div>
 }
 else if (consumers.Count == 0)
@@ -60,6 +70,13 @@ else
                             {
                                 <div style="font-size: var(--text-sm); color: var(--gray-500);">@c.Notes</div>
                             }
+                            <div style="font-size: var(--text-sm); color: @(string.IsNullOrEmpty(c.ContactEmail) ? "var(--warning-600, #b45309)" : "var(--gray-500)");">
+                                @(string.IsNullOrEmpty(c.ContactEmail) ? "No contact email" : c.ContactEmail)
+                            </div>
+                            @if (c.LatestSetupLink != null)
+                            {
+                                <div style="font-size: var(--text-sm); color: var(--gray-500);">@LinkSummary(c.LatestSetupLink)</div>
+                            }
                         </td>
                         <td><code style="font-size: var(--text-sm);">@c.KeyPrefix…</code></td>
                         <td style="font-size: var(--text-sm);">@(c.AllowedSections.Count == CustomerCheckSections.All.Count ? "All" : string.Join(", ", c.AllowedSections))</td>
@@ -96,6 +113,14 @@ else
                                     <span class="material-symbols-outlined" style="font-size: 16px;">enhanced_encryption</span>
                                     Rotate secret
                                 </button>
+                                <button class="btn btn-outline btn-sm" @onclick="() => OpenSendLink(c)" disabled="@isSaving">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">forward_to_inbox</span>
+                                    Send setup link
+                                </button>
+                                <button class="btn btn-outline btn-sm" @onclick="() => OpenReveal(c)" disabled="@(isSaving || string.IsNullOrEmpty(c.CallbackSecretPrefix))">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
+                                    View secret
+                                </button>
                                 <button class="btn btn-ghost btn-sm" @onclick="() => Toggle(c)" disabled="@isSaving">
                                     <span class="material-symbols-outlined" style="font-size: 16px;">@(c.IsActive ? "pause" : "play_arrow")</span>
                                     @(c.IsActive ? "Deactivate" : "Activate")
@@ -128,6 +153,12 @@ else
                 <div class="form-group">
                     <label class="form-label">Name *</label>
                     <input type="text" class="form-control" @bind="form.Name" placeholder="e.g., AgriPay Ltd" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Contact email *</label>
+                    <input type="email" class="form-control" @bind="form.ContactEmail" placeholder="integrations@partner.example.com" />
+                    <div class="form-hint">The partner's own secure mailbox. Setup links for the key and signing secret are sent here and nowhere else.</div>
                 </div>
 
                 <div class="form-group">
@@ -265,6 +296,135 @@ else
     </div>
 }
 
+@if (linkFor != null)
+{
+    <div class="modal-backdrop show" @onclick="CloseSendLink">
+        <div class="modal" style="max-width: 720px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Send setup link to @linkFor.Name</h3>
+                <button type="button" class="modal-close" @onclick="CloseSendLink">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(linkError))
+                {
+                    <div class="alert alert-danger mb-4">@linkError</div>
+                }
+                @if (!string.IsNullOrEmpty(linkNotice))
+                {
+                    <div class="alert alert-success mb-4">@linkNotice</div>
+                }
+
+                @if (string.IsNullOrEmpty(linkFor.ContactEmail))
+                {
+                    <div class="alert alert-warning mb-4">This consumer has no contact email. Add one with Edit, then send the link.</div>
+                }
+                else
+                {
+                    <p style="margin-bottom: var(--space-3);">
+                        An email goes to <strong>@linkFor.ContactEmail</strong> with a link that works once and expires after @SetupLinkHours hours.
+                        The credentials are not in the email. They are made when the link is opened and shown once, on that page.
+                    </p>
+                    <div class="form-group">
+                        <label class="form-label">Opening the link issues</label>
+                        <label style="display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm);">
+                            <input type="checkbox" @bind="linkIssuesKey" />
+                            A new API key
+                        </label>
+                        <label style="display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); margin-top: var(--space-2);">
+                            <input type="checkbox" @bind="linkIssuesSecret" />
+                            A new callback signing secret
+                        </label>
+                        <div class="form-hint">Nothing changes until the link is opened. From that moment only the new ones are accepted. Sending again cancels a link that has not been opened.</div>
+                    </div>
+                }
+
+                <div class="form-group" style="margin-top: var(--space-4);">
+                    <label class="form-label">Links sent so far</label>
+                    @if (linkHistory == null)
+                    {
+                        <div style="color: var(--gray-500); font-size: var(--text-sm);">Loading…</div>
+                    }
+                    else if (linkHistory.Count == 0)
+                    {
+                        <div style="color: var(--gray-500); font-size: var(--text-sm);">None yet.</div>
+                    }
+                    else
+                    {
+                        <table class="table" style="font-size: var(--text-sm);">
+                            <thead>
+                                <tr><th>Sent</th><th>To</th><th>Issues</th><th>By</th><th>Outcome</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var l in linkHistory)
+                                {
+                                    <tr>
+                                        <td>@l.SentAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                                        <td>@l.SentTo</td>
+                                        <td>@(l.IssuesKey && l.IssuesSecret ? "Key and secret" : l.IssuesKey ? "Key" : "Secret")</td>
+                                        <td>@l.SentByName</td>
+                                        <td>@LinkOutcome(l)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" @onclick="CloseSendLink" disabled="@isSaving">Close</button>
+                <button class="btn btn-primary" @onclick="SendLink" disabled="@(isSaving || string.IsNullOrEmpty(linkFor.ContactEmail) || (!linkIssuesKey && !linkIssuesSecret))">
+                    @if (isSaving)
+                    {
+                        <span class="material-symbols-outlined spinning" style="font-size: 18px;">sync</span>
+                    }
+                    <span>Send link</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (revealFor != null)
+{
+    <div class="modal-backdrop show" @onclick="CloseReveal">
+        <div class="modal" style="max-width: 600px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">Callback signing secret of @revealFor.Name</h3>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(revealError))
+                {
+                    <div class="alert alert-danger mb-4">@revealError</div>
+                }
+                @if (revealed == null)
+                {
+                    <p>This shows the signing secret now in force, so you can compare it with what the partner holds. Your name and the time are written to the audit trail.</p>
+                    <p style="color: var(--gray-500); font-size: var(--text-sm);">
+                        The API key cannot be shown. Only its fingerprint is stored. To check a key, compare its first characters with <code>@revealFor.KeyPrefix…</code>, or send a new setup link.
+                    </p>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label class="form-label">Callback signing secret</label>
+                        <input type="text" class="form-control" value="@revealed" readonly style="font-family: monospace;" />
+                        <div class="form-hint">In force since @((revealFor.CallbackSecretRotatedAt ?? revealFor.CreatedAt).ToLocalTime().ToString("dd MMM yyyy HH:mm")).</div>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" @onclick="CloseReveal" disabled="@isSaving">@(revealed == null ? "Cancel" : "Close")</button>
+                @if (revealed == null)
+                {
+                    <button class="btn btn-primary" @onclick="Reveal" disabled="@isSaving">Show secret</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 <style>
     .spinning { animation: spin 1s linear infinite; }
     @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -274,6 +434,7 @@ else
     private enum RotateKind { Key, Secret }
 
     private List<ApiConsumerDto> consumers = [];
+    private string? loadError;
     private bool isLoading = true;
     private bool isSaving;
     private bool showModal;
@@ -285,6 +446,7 @@ else
     private ConsumerForm form = new();
 
     private bool IsFormValid => !string.IsNullOrWhiteSpace(form.Name)
+        && !string.IsNullOrWhiteSpace(form.ContactEmail)
         && form.Sections.Count > 0
         && form.PerMinuteLimit is >= 1 and <= 10000
         && form.MaxQueuedJobs is >= 1 and <= 10000
@@ -297,7 +459,16 @@ else
         isLoading = true;
         var result = await AppService.GetApiConsumersAsync();
         if (result.Success && result.Data != null)
+        {
             consumers = result.Data;
+            loadError = null;
+        }
+        else if (consumers.Count == 0)
+        {
+            // Say so, rather than look like there are none: an empty list here reads as
+            // "nobody has access", which is not a thing to get wrong.
+            loadError = "The consumers could not be loaded. Give the page a moment and try again.";
+        }
         isLoading = false;
     }
 
@@ -335,6 +506,7 @@ else
         form = new ConsumerForm
         {
             Name = c.Name,
+            ContactEmail = c.ContactEmail,
             Notes = c.Notes,
             Sections = c.AllowedSections.ToList(),
             PerMinuteLimit = c.PerMinuteLimit,
@@ -365,7 +537,7 @@ else
             if (editing == null)
             {
                 var result = await AppService.CreateApiConsumerAsync(
-                    form.Name, form.Notes, form.Sections, form.PerMinuteLimit, form.ReuseBureauReports, form.BureauReuseMaxAgeDays, userId, CallbackSettings());
+                    form.Name, form.Notes, form.Sections, form.PerMinuteLimit, form.ReuseBureauReports, form.BureauReuseMaxAgeDays, userId, CallbackSettings(), form.ContactEmail ?? string.Empty);
                 if (result.Success && result.Data != null)
                 {
                     showModal = false;
@@ -380,7 +552,7 @@ else
             else
             {
                 var result = await AppService.UpdateApiConsumerAsync(
-                    editing.Id, form.Name, form.Notes, form.Sections, form.PerMinuteLimit, form.ReuseBureauReports, form.BureauReuseMaxAgeDays, userId, CallbackSettings());
+                    editing.Id, form.Name, form.Notes, form.Sections, form.PerMinuteLimit, form.ReuseBureauReports, form.BureauReuseMaxAgeDays, userId, CallbackSettings(), form.ContactEmail ?? string.Empty);
                 if (result.Success)
                 {
                     showModal = false;
@@ -446,9 +618,135 @@ else
         }
     }
 
+    // ── Setup link ───────────────────────────────────────────────────────────────────────────────
+
+    private ApiConsumerDto? linkFor;
+    private bool linkIssuesKey = true;
+    private bool linkIssuesSecret = true;
+    private string? linkError;
+    private string? linkNotice;
+    private List<ApiConsumerSetupLinkDto>? linkHistory;
+
+    private int SetupLinkHours => Math.Clamp(Configuration.GetValue<int?>("CustomerCheck:SetupLinkHours") ?? 24, 1, 168);
+
+    /// <summary>This site as the partner reaches it: the configured public address, or failing
+    /// that the address the administrator is using right now.</summary>
+    private string SiteBaseUrl()
+    {
+        var configured = Configuration["WebsiteUrl"]?.TrimEnd('/');
+        return string.IsNullOrWhiteSpace(configured) ? Navigation.BaseUri.TrimEnd('/') : configured;
+    }
+
+    private async Task OpenSendLink(ApiConsumerDto c)
+    {
+        linkFor = c;
+        linkIssuesKey = true;
+        linkIssuesSecret = true;
+        linkError = null;
+        linkNotice = null;
+        linkHistory = null;
+        await LoadLinkHistoryAsync();
+    }
+
+    private void CloseSendLink() => linkFor = null;
+
+    private async Task LoadLinkHistoryAsync()
+    {
+        if (linkFor == null) return;
+        var result = await AppService.GetApiConsumerSetupLinksAsync(linkFor.Id);
+        linkHistory = result.Success && result.Data != null ? result.Data : [];
+    }
+
+    private async Task SendLink()
+    {
+        if (linkFor == null) return;
+        isSaving = true;
+        linkError = null;
+        linkNotice = null;
+        try
+        {
+            var user = AuthService.CurrentUser;
+            var result = await AppService.SendApiConsumerSetupLinkAsync(
+                linkFor.Id, linkIssuesKey, linkIssuesSecret, SiteBaseUrl(), user?.Id ?? Guid.Empty, user?.FullName ?? string.Empty);
+            if (result.Success && result.Data != null)
+            {
+                linkNotice = $"Link sent to {result.Data.SentTo}. It can be opened until {result.Data.ExpiresAt.ToLocalTime():dd MMM yyyy HH:mm}.";
+                // One after the other: these share the circuit's DbContext.
+                await LoadLinkHistoryAsync();
+                await LoadAsync();
+            }
+            else
+            {
+                linkError = result.Error ?? "The link could not be sent.";
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string LinkOutcome(ApiConsumerSetupLinkDto l) => l.State switch
+    {
+        ApiConsumerSetupLink.Opened => $"Opened {l.OpenedAt?.ToLocalTime():dd MMM yyyy HH:mm}{(string.IsNullOrEmpty(l.OpenedFromIp) ? "" : $" from {l.OpenedFromIp}")}",
+        ApiConsumerSetupLink.Pending => $"Not opened yet, expires {l.ExpiresAt.ToLocalTime():dd MMM yyyy HH:mm}",
+        ApiConsumerSetupLink.Expired => "Expired, never opened",
+        ApiConsumerSetupLink.Replaced => "Cancelled, never opened",
+        _ => l.State,
+    };
+
+    private static string LinkSummary(ApiConsumerSetupLinkDto l) => l.State switch
+    {
+        ApiConsumerSetupLink.Opened => $"Setup link opened {l.OpenedAt?.ToLocalTime():dd MMM yyyy HH:mm}",
+        ApiConsumerSetupLink.Pending => "Setup link sent, not opened yet",
+        ApiConsumerSetupLink.Expired => "Setup link expired, never opened",
+        ApiConsumerSetupLink.Replaced => "Setup link cancelled, never opened",
+        _ => string.Empty,
+    };
+
+    // ── View signing secret ──────────────────────────────────────────────────────────────────────
+
+    private ApiConsumerDto? revealFor;
+    private string? revealed;
+    private string? revealError;
+
+    private void OpenReveal(ApiConsumerDto c)
+    {
+        revealFor = c;
+        revealed = null;
+        revealError = null;
+    }
+
+    private void CloseReveal()
+    {
+        revealFor = null;
+        revealed = null;
+    }
+
+    private async Task Reveal()
+    {
+        if (revealFor == null) return;
+        isSaving = true;
+        revealError = null;
+        try
+        {
+            var user = AuthService.CurrentUser;
+            var result = await AppService.RevealApiConsumerCallbackSecretAsync(revealFor.Id, user?.Id ?? Guid.Empty, user?.FullName ?? string.Empty);
+            if (result.Success && result.Data != null)
+                revealed = result.Data;
+            else
+                revealError = result.Error ?? "The secret could not be read.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
     private class ConsumerForm
     {
         public string Name { get; set; } = string.Empty;
+        public string? ContactEmail { get; set; }
         public string? Notes { get; set; }
         public List<string> Sections { get; set; } = CustomerCheckSections.All.ToList();
         public int PerMinuteLimit { get; set; } = 30;

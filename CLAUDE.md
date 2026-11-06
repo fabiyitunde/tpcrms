@@ -84,11 +84,15 @@ exception inside `ApplicationService`, not a startup error.
 
 ### The intranet host
 
-`CRMS.Web.Intranet` serves two different audiences from one app:
+`CRMS.Web.Intranet` serves three different audiences from one app:
 
 - **Staff**: Blazor Server, interactive, under `Components/Pages/`.
 - **FACs** (RH-SHF applicants): Razor Pages under `Pages/Rhshf/`, token-gated, no Blazor circuit.
   This is the credit-profiling form external users fill in.
+- **API partners**: one Razor Page, `Pages/Partner/Setup`, where a partner collects its API key
+  and callback signing secret from a one-time emailed link (Admin > API Consumers > Send setup
+  link). Anonymous; the token in the address is the credential. Opening it (GET) must stay free
+  of side effects, because mail scanners follow links; only the button (POST) issues anything.
 
 `Services/ApplicationService.cs` (~8,000 lines) is the facade every Blazor page calls. It resolves
 handlers from `IServiceProvider` and wraps each call in try/catch. Two consequences:
