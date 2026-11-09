@@ -96,6 +96,33 @@ public class NotificationOrchestrator : INotificationService
             templateCode, variables, recipientUserId, loanApplicationId, loanApplicationNumber, priority, null, ct);
     }
 
+    public async Task<Guid> SendEmailNowAsync(
+        string recipientEmail,
+        string recipientName,
+        string templateCode,
+        Dictionary<string, string> variables,
+        string? subjectPrefix = null,
+        Guid? recipientUserId = null,
+        CancellationToken ct = default)
+    {
+        var template = await _templateRepository.GetByCodeAsync(templateCode, NotificationChannel.Email, "en", ct);
+        if (template == null)
+            throw new InvalidOperationException($"Template not found: {templateCode}");
+
+        var (subject, body, bodyHtml) = template.Render(variables);
+        var created = Domain.Aggregates.Notification.Notification.Create(
+            NotificationType.Custom, NotificationChannel.Email, NotificationPriority.High,
+            recipientName, recipientEmail, templateCode, (subjectPrefix ?? string.Empty) + subject, body, bodyHtml,
+            recipientUserId, contextData: System.Text.Json.JsonSerializer.Serialize(variables));
+        if (!created.IsSuccess)
+            throw new InvalidOperationException(created.Error);
+
+        await _notificationRepository.AddAsync(created.Value, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        await SendNotificationAsync(created.Value, ct);
+        return created.Value.Id;
+    }
+
     public Task<Guid> SendSmsAsync(
         NotificationType type,
         string recipientPhone,

@@ -15,6 +15,7 @@ public record OutboundEmailAuditEntry(string Event, Guid NotificationId, string 
 {
     public const string Resent = "EMAIL_RESENT";
     public const string Released = "EMAIL_RELEASED";
+    public const string TestSent = "EMAIL_TEST_SENT";
 }
 
 /// <summary>

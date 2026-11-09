@@ -60,6 +60,20 @@ public interface INotificationService
         NotificationPriority priority = NotificationPriority.Normal,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Renders and sends one email on the calling thread, whatever its priority, and returns once
+    /// the provider has answered; the outcome is on the notification row. For Admin > Diagnostics,
+    /// where the administrator is waiting to hear whether email works.
+    /// </summary>
+    Task<Guid> SendEmailNowAsync(
+        string recipientEmail,
+        string recipientName,
+        string templateCode,
+        Dictionary<string, string> variables,
+        string? subjectPrefix = null,
+        Guid? recipientUserId = null,
+        CancellationToken ct = default);
+
     Task<Guid> SendSmsAsync(
         NotificationType type,
         string recipientPhone,

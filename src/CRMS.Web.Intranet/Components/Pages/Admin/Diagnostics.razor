@@ -19,7 +19,107 @@
         <button class="tab @(diagTab == "cac" ? "active" : "")" @onclick='() => diagTab = "cac"'>SmartComply CAC</button>
         <button class="tab @(diagTab == "biz" ? "active" : "")" @onclick='() => diagTab = "biz"'>Business Credit</button>
         <button class="tab @(diagTab == "cbs" ? "active" : "")" @onclick='() => diagTab = "cbs"'>Core Banking</button>
+        <button class="tab @(diagTab == "email" ? "active" : "")" @onclick="OpenEmailTab">Email</button>
     </div>
+
+    @if (diagTab == "email")
+    {
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title" style="margin: 0;">Email Sending</h3>
+                <div style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--space-1);">
+                    Sends one of the system's emails to an address of your choice through the real sender, with sample values in place of the real ones, and reports what the provider answered. The subject starts with "[Test]" and the email is listed under Outbound Email too.
+                </div>
+            </div>
+            <div class="card-body" style="display: flex; flex-direction: column; gap: var(--space-4);">
+                @if (emailInfo == null)
+                {
+                    <div style="color: var(--text-secondary); font-size: var(--text-sm);">@(emailError ?? "Loading…")</div>
+                }
+                else
+                {
+                    @if (emailInfo.Sender.IsMock)
+                    {
+                        <div class="alert alert-warning" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">
+                            <b>This server uses the mock sender.</b> Nothing leaves it; a test here only proves the template renders. Email:UseMock is on in this host's settings.
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="font-size: var(--text-sm); color: var(--text-secondary);">
+                            Sender: <b>@emailInfo.Sender.Provider</b> (@emailInfo.Sender.Region), from <b>@(string.IsNullOrEmpty(emailInfo.Sender.FromName) ? emailInfo.Sender.FromAddress : $"{emailInfo.Sender.FromName} <{emailInfo.Sender.FromAddress}>")</b>
+                        </div>
+                    }
+                    <div class="form-group">
+                        <label class="form-label">Send to</label>
+                        <input class="form-control" type="email" @bind="emailTo" placeholder="name@example.com" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email to send</label>
+                        <select class="form-control" @bind="emailTemplate">
+                            @foreach (var t in emailInfo.Templates)
+                            {
+                                <option value="@t.Code">@t.Name (@t.Code)</option>
+                            }
+                        </select>
+                        @if (SelectedTemplate is { } sel)
+                        {
+                            <div style="font-size: var(--text-xs); color: var(--text-secondary); margin-top: var(--space-1);">
+                                Subject: @sel.Subject
+                                @if (sel.Placeholders.Count > 0)
+                                {
+                                    <span> · sample values will fill @string.Join(", ", sel.Placeholders)</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                    @if (emailError != null)
+                    {
+                        <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">@emailError</div>
+                    }
+                    <div>
+                        <button class="btn btn-primary" @onclick="SendTestEmail" disabled="@(emailBusy || emailInfo.Templates.Count == 0)">
+                            @if (emailBusy)
+                            {
+                                <span class="spinner-sm" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+                                <span>Sending…</span>
+                            }
+                            else
+                            {
+                                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px;">send</span>
+                                <span>Send test email</span>
+                            }
+                        </button>
+                    </div>
+                    @foreach (var r in emailResults)
+                    {
+                        <div class="alert @(r.Accepted ? "alert-success" : "alert-danger")" style="padding: var(--space-3); font-size: var(--text-sm); margin: 0;">
+                            @if (r.Accepted)
+                            {
+                                <div><b>Accepted by @r.Provider</b> in @r.ElapsedMs ms · "@r.Subject" to @r.ToAddress</div>
+                                <div style="margin-top: 4px;">Check that inbox, and its spam folder. Message id <span style="font-family: monospace; font-size: var(--text-xs); word-break: break-all;">@r.MessageId</span></div>
+                                @if (emailInfo.Sender.IsMock)
+                                {
+                                    <div style="margin-top: 4px;">Accepted by the mock means logged on the server, not delivered.</div>
+                                }
+                            }
+                            else
+                            {
+                                <div><b>Not sent</b> · "@r.Subject" to @r.ToAddress</div>
+                                <div style="margin-top: 4px;">@r.FailureReason</div>
+                                <div style="margin-top: 4px;">
+                                    @(r.Status == "Retry" && r.NextRetryAt is { } next
+                                        ? $"The system will try again on its own at {next.ToLocalTime():HH:mm}."
+                                        : "The system will not try this one again.")
+                                    Watch it under <a href="/admin/outbound-email">Outbound Email</a>.
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    }
 
     @if (diagTab == "cac")
     {
@@ -195,6 +295,63 @@
     private string cbsAccountNumber = "";
     private bool cbsBusy;
     private string? cbsError;
+
+    private CRMS.Application.Notification.Commands.EmailDiagnosticsDto? emailInfo;
+    private string emailTo = "";
+    private string emailTemplate = "";
+    private bool emailBusy;
+    private string? emailError;
+    private readonly List<CRMS.Application.Notification.Commands.DiagnosticEmailResultDto> emailResults = [];
+
+    private CRMS.Application.Notification.Commands.EmailTemplateChoiceDto? SelectedTemplate =>
+        emailInfo?.Templates.FirstOrDefault(t => t.Code == emailTemplate);
+
+    private async Task OpenEmailTab()
+    {
+        diagTab = "email";
+        if (emailInfo != null) return;
+        emailError = null;
+        var result = await AppService.GetEmailDiagnosticsAsync();
+        if (!result.Success || result.Data == null)
+        {
+            emailError = result.Error ?? "The email settings could not be read.";
+            return;
+        }
+        emailInfo = result.Data;
+        if (string.IsNullOrEmpty(emailTo)) emailTo = User?.Email ?? "";
+        if (string.IsNullOrEmpty(emailTemplate))
+            emailTemplate = emailInfo.Templates.FirstOrDefault(t => t.Code == "PASSWORD_RESET")?.Code
+                ?? emailInfo.Templates.FirstOrDefault()?.Code ?? "";
+    }
+
+    private async Task SendTestEmail()
+    {
+        emailError = null;
+        if (string.IsNullOrWhiteSpace(emailTo))
+        {
+            emailError = "Enter the address to send to.";
+            return;
+        }
+        emailBusy = true;
+        try
+        {
+            var result = await AppService.SendDiagnosticEmailAsync(emailTo.Trim(), emailTemplate, User?.Id ?? Guid.Empty, User?.FullName ?? "");
+            if (!result.Success || result.Data == null)
+            {
+                emailError = result.Error ?? "The test email could not be sent.";
+                return;
+            }
+            emailResults.Insert(0, result.Data);
+        }
+        catch (Exception ex)
+        {
+            emailError = ex.Message;
+        }
+        finally
+        {
+            emailBusy = false;
+        }
+    }
 
     private async Task DownloadBizCredit(string bureau)
     {

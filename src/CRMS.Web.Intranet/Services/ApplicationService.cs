@@ -7618,6 +7618,42 @@ public partial class ApplicationService
     }
 
     /// <summary>Queues a copy of an email to the FAC, sent exactly as first written.</summary>
+    // ── Admin > Diagnostics > Email ─────────────────────────────────────────────────────────
+
+    public async Task<ApiResponse<CRMS.Application.Notification.Commands.EmailDiagnosticsDto>> GetEmailDiagnosticsAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Notification.Commands.GetEmailDiagnosticsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Notification.Commands.GetEmailDiagnosticsQuery(), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.Notification.Commands.EmailDiagnosticsDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.Notification.Commands.EmailDiagnosticsDto>.Fail(result.Error ?? "Failed to load the email diagnostics");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading email diagnostics");
+            return ApiResponse<CRMS.Application.Notification.Commands.EmailDiagnosticsDto>.Fail("Failed to load the email diagnostics");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Notification.Commands.DiagnosticEmailResultDto>> SendDiagnosticEmailAsync(string toAddress, string templateCode, Guid userId, string userName)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Notification.Commands.SendDiagnosticEmailHandler>();
+            var result = await handler.Handle(new CRMS.Application.Notification.Commands.SendDiagnosticEmailCommand(toAddress, templateCode, userId, userName), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.Notification.Commands.DiagnosticEmailResultDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.Notification.Commands.DiagnosticEmailResultDto>.Fail(result.Error ?? "The test email could not be sent");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending diagnostic email ({Template})", templateCode);
+            return ApiResponse<CRMS.Application.Notification.Commands.DiagnosticEmailResultDto>.Fail("The test email could not be sent: " + ex.Message);
+        }
+    }
+
     // ── Admin > Outbound Email ──────────────────────────────────────────────────────────────
 
     public async Task<ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailSummaryDto>> GetOutboundEmailSummaryAsync()

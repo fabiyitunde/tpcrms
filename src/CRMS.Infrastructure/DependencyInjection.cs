@@ -640,6 +640,11 @@ public static class DependencyInjection
         services.AddScoped<Application.Notification.Commands.ResendOutboundEmailHandler>();
         services.AddScoped<Application.Notification.Commands.ReleaseStuckOutboundEmailHandler>();
         services.AddScoped<Application.Notification.Commands.IOutboundEmailAudit, Services.OutboundEmailAudit>();
+
+        // Admin > Diagnostics > Email: send any template to an address and report the provider's answer.
+        services.AddScoped<Application.Notification.Commands.GetEmailDiagnosticsHandler>();
+        services.AddScoped<Application.Notification.Commands.SendDiagnosticEmailHandler>();
+        services.AddScoped<Application.Notification.Commands.IEmailSenderInfo, Services.EmailSenderInfo>();
         
         // Identity
         services.AddScoped<Application.Identity.Queries.GetAllUsersHandler>();
