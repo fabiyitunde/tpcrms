@@ -171,19 +171,25 @@ public static class DependencyInjection
             services.AddScoped<ICreditBureauProvider, MockCreditBureauProvider>();
         }
 
-        // SmartComply Provider (new comprehensive credit bureau integration)
+        // SmartComply Provider (new comprehensive credit bureau integration). Registered by concrete
+        // type and handed out behind the billing wrapper, so every call, real or mock, from either
+        // host, leaves a usage row for Billing.
         var smartComplySection = configuration.GetSection(SmartComplySettings.SectionName);
         if (smartComplySection.Exists() && !smartComplySection.GetValue<bool>("UseMock"))
         {
             services.Configure<SmartComplySettings>(smartComplySection);
-            services.AddHttpClient<ISmartComplyProvider, SmartComplyProvider>()
+            services.AddHttpClient<SmartComplyProvider>()
                 .AddHttpMessageHandler<ThirdPartyApiLoggingHandler>()
                 .AddPolicyHandler(GetSmartComplyRetryPolicy())
                 .AddPolicyHandler(GetSmartComplyCircuitBreakerPolicy());
+            services.AddScoped<ISmartComplyProvider>(sp => new Services.Billing.BilledSmartComplyProvider(
+                sp.GetRequiredService<SmartComplyProvider>(), sp.GetRequiredService<Application.Billing.IBillingLedger>()));
         }
         else
         {
-            services.AddScoped<ISmartComplyProvider, MockSmartComplyProvider>();
+            services.AddScoped<MockSmartComplyProvider>();
+            services.AddScoped<ISmartComplyProvider>(sp => new Services.Billing.BilledSmartComplyProvider(
+                sp.GetRequiredService<MockSmartComplyProvider>(), sp.GetRequiredService<Application.Billing.IBillingLedger>()));
         }
 
         // Collateral & Guarantor
@@ -645,6 +651,25 @@ public static class DependencyInjection
         services.AddScoped<Application.Notification.Commands.GetEmailDiagnosticsHandler>();
         services.AddScoped<Application.Notification.Commands.SendDiagnosticEmailHandler>();
         services.AddScoped<Application.Notification.Commands.IEmailSenderInfo, Services.EmailSenderInfo>();
+
+        // Billing: what the bank owes the vendor. The ledger is a singleton writing in its own scope,
+        // so a usage row survives whatever the calling unit of work does afterwards.
+        services.AddSingleton<Application.Billing.IBillingLedger, Services.Billing.BillingLedger>();
+        services.AddScoped<IBillingUsageRepository, BillingUsageRepository>();
+        services.AddScoped<IBillingRateRepository, BillingRateRepository>();
+        services.AddScoped<Application.Billing.IBillingLoanSource, Services.Billing.BillingLoanSource>();
+        services.AddScoped<Application.Billing.Commands.IBillingBackfillSource, Services.Billing.BillingBackfillSource>();
+        services.AddScoped<Application.Billing.Queries.GetBillingDashboardHandler>();
+        services.AddScoped<Application.Billing.Queries.SearchBillingUsageHandler>();
+        services.AddScoped<Application.Billing.Queries.GetBillingLoansHandler>();
+        services.AddScoped<Application.Billing.Queries.GetBillingRatesHandler>();
+        services.AddScoped<Application.Billing.Queries.GetBillingAccessHandler>();
+        services.AddScoped<Application.Billing.Commands.SetBillingRateHandler>();
+        services.AddScoped<Application.Billing.Commands.AddBillingManagerHandler>();
+        services.AddScoped<Application.Billing.Commands.RemoveBillingManagerHandler>();
+        services.AddScoped<Application.Billing.Commands.SyncBillingLoanEventsHandler>();
+        services.AddScoped<Application.Billing.Commands.RunBillingBackfillHandler>();
+        services.AddHostedService<BackgroundServices.BillingLoanSyncService>();
         
         // Identity
         services.AddScoped<Application.Identity.Queries.GetAllUsersHandler>();

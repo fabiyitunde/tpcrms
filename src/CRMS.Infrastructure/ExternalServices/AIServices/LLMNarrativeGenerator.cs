@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CRMS.Application.Advisory.Interfaces;
+using CRMS.Application.Billing;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -15,8 +17,9 @@ public class LLMNarrativeGenerator
 {
     private readonly ILLMService _llmService;
     private readonly ILogger<LLMNarrativeGenerator> _logger;
+    private readonly IBillingLedger? _billing;
 
-    public LLMNarrativeGenerator(ILLMService llmService, ILogger<LLMNarrativeGenerator> logger)
+    public LLMNarrativeGenerator(ILLMService llmService, ILogger<LLMNarrativeGenerator> logger, IBillingLedger? billing = null)
     {
         _llmService = llmService;
         _logger = logger;
@@ -68,11 +71,13 @@ public class LLMNarrativeGenerator
                 _logger.LogWarning("LLM returned null response for loan application {LoanApplicationId}", request.LoanApplicationId);
             }
 
+            await BillAsync(result != null, result == null ? "The model returned no narrative." : null);
             return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate LLM narrative for loan application {LoanApplicationId}", request.LoanApplicationId);
+            await BillAsync(false, ex.Message);
             return null;
         }
     }
@@ -89,6 +94,7 @@ public class LLMNarrativeGenerator
             var narrative = await _llmService.CompleteAsJsonAsync<NarrativeResult>(BuildCustomerSystemPrompt(), BuildCustomerUserPrompt(request, result), ct);
             if (narrative == null)
                 _logger.LogWarning("LLM returned no narrative for customer credit check advisory {Reference}", request.ReferenceId);
+            await BillAsync(narrative != null, narrative == null ? "The model returned no narrative." : null);
             return narrative;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -98,9 +104,14 @@ public class LLMNarrativeGenerator
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate the customer credit check narrative for {Reference}", request.ReferenceId);
+            await BillAsync(false, ex.Message);
             return null;
         }
     }
+
+    /// <summary>A model call is a paid third-party call like any other; the case it was for comes from the ambient billing scope.</summary>
+    private Task BillAsync(bool succeeded, string? detail) =>
+        _billing?.RecordAsync(new BillingUsageDraft(BillingItems.AdvisoryNarrative, succeeded, detail)) ?? Task.CompletedTask;
 
     public static string BuildCustomerSystemPrompt() =>
         @"You are a senior retail credit analyst at a Nigerian bank. A partner has asked the bank what it knows about one individual borrower, identified only by figures below. Write a short, professional advisory narrative from the data and the scores provided.

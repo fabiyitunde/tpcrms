@@ -1,4 +1,6 @@
 using CRMS.Application.Common;
+using CRMS.Application.Billing;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.CreditBureau.DTOs;
 using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Interfaces;
@@ -130,6 +132,7 @@ public class SearchBureauByBVNHandler : IRequestHandler<SearchBureauByBVNQuery, 
 
     public async Task<ApplicationResult<BureauSearchResultDto>> Handle(SearchBureauByBVNQuery request, CancellationToken ct = default)
     {
+        using var _billing = BillingContext.Begin(BillingFlow.Other, null, null, "Bureau search");
         var result = await _smartComplyProvider.VerifyBvnAsync(request.BVN, ct);
         if (result.IsFailure)
             return ApplicationResult<BureauSearchResultDto>.Failure(result.Error);

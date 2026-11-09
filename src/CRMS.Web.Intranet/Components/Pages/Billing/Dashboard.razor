@@ -1,0 +1,486 @@
+@page "/billing"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "BillingManager,SystemAdmin")]
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+@using CRMS.Application.Billing
+@using CRMS.Application.Billing.Queries
+@using CRMS.Domain.Aggregates.Billing
+@using CRMS.Domain.Interfaces
+
+<PageTitle>Billing - CRMS</PageTitle>
+
+<div class="page-header bl-header">
+    <div>
+        <h1 class="page-title">Billing</h1>
+        <p class="page-subtitle">What is due from the bank: every third-party call, every partner check and every loan milestone, priced by the current price list</p>
+    </div>
+    <div class="bl-controls">
+        <select class="form-control" @bind="monthKey" @bind:after="LoadAsync">
+            @foreach (var m in MonthChoices())
+            {
+                <option value="@m.ToString("yyyy-MM")">@m.ToString("MMMM yyyy")</option>
+            }
+        </select>
+        <select class="form-control" @bind="flowKey" @bind:after="LoadAsync">
+            <option value="">All flows</option>
+            @foreach (var f in Enum.GetValues<BillingFlow>())
+            {
+                <option value="@f">@BillingItems.FlowDisplayName(f)</option>
+            }
+        </select>
+        @if (IsManager)
+        {
+            <a class="btn btn-outline" href="/billing/rates"><span class="material-symbols-outlined" style="font-size: 18px;">sell</span> Price list</a>
+            <a class="btn btn-outline" href="/billing/platform-fees"><span class="material-symbols-outlined" style="font-size: 18px;">account_balance</span> Platform fees</a>
+        }
+        else
+        {
+            <a class="btn btn-outline" href="/billing/rates"><span class="material-symbols-outlined" style="font-size: 18px;">sell</span> Prices</a>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger mb-4">@error</div>
+}
+
+@if (isLoading && data == null)
+{
+    <div class="bl-loading"><span class="material-symbols-outlined spinning" style="font-size: 32px; color: var(--primary-500);">progress_activity</span></div>
+}
+else if (data != null)
+{
+    @if (!data.AnyRateSet)
+    {
+        <div class="alert alert-warning mb-4">
+            <b>No prices have been set yet.</b> Everything below is counted, but worth zero until a Billing Manager enters prices under <a href="/billing/rates">Price list</a> and <a href="/billing/platform-fees">Platform fees</a>.
+        </div>
+    }
+    @if (data.MonthIsReconstructed)
+    {
+        <div class="alert alert-info mb-4">
+            <b>This month is before billing went live.</b> Its third-party calls were rebuilt from the records they left behind, so they are a lower bound: BVN, NIN, TIN and fraud checks from that time are not included. Loan milestones are exact.
+        </div>
+    }
+
+    <div class="bl-kpis @(IsManager ? "bl-kpis-5" : "bl-kpis-4")">
+        <div class="bl-kpi">
+            <div class="bl-kpi-top"><span class="bl-kpi-icon" style="background: var(--primary-50); color: var(--primary-600);"><span class="material-symbols-outlined">payments</span></span><span class="bl-kpi-label">Due this month</span></div>
+            <div class="bl-kpi-value">@Money(data.DueThisMonth)</div>
+            <div class="bl-kpi-sub">@data.Month.ToString("MMMM yyyy")@(flowKey == "" ? "" : $" · {BillingItems.FlowDisplayName(Enum.Parse<BillingFlow>(flowKey))}")</div>
+        </div>
+        <div class="bl-kpi">
+            <div class="bl-kpi-top"><span class="bl-kpi-icon" style="background: #f5f3ff; color: #7c3aed;"><span class="material-symbols-outlined">cloud_sync</span></span><span class="bl-kpi-label">Third-party calls</span></div>
+            <div class="bl-kpi-value">@Money(data.ThirdPartyDue)</div>
+            <div class="bl-kpi-sub">@data.CallsThisMonth.ToString("N0") calls · @data.FailedCallsThisMonth.ToString("N0") failed, billed all the same</div>
+        </div>
+        <div class="bl-kpi">
+            <div class="bl-kpi-top"><span class="bl-kpi-icon" style="background: var(--info-50); color: var(--info-600);"><span class="material-symbols-outlined">account_balance</span></span><span class="bl-kpi-label">Platform fees</span></div>
+            <div class="bl-kpi-value">@Money(data.PlatformDue)</div>
+            <div class="bl-kpi-sub">@data.Loans.Sum(l => l.Received) received · @data.Loans.Sum(l => l.Booked) booked · @data.Loans.Sum(l => l.Declined) declined</div>
+        </div>
+        @if (IsManager && data.OwnCost is { } cost)
+        {
+            <div class="bl-kpi bl-kpi-internal">
+                <div class="bl-kpi-top"><span class="bl-kpi-icon" style="background: var(--warning-50); color: var(--warning-600);"><span class="material-symbols-outlined">lock</span></span><span class="bl-kpi-label">Our cost</span></div>
+                <div class="bl-kpi-value">@Money(cost)</div>
+                <div class="bl-kpi-sub">margin @Money(data.Margin ?? 0)@(data.DueThisMonth > 0 ? $" ({(data.Margin ?? 0) / data.DueThisMonth:P0})" : "") · Billing Managers only</div>
+            </div>
+        }
+        <div class="bl-kpi">
+            <div class="bl-kpi-top"><span class="bl-kpi-icon" style="background: @(data.UnattributedThisMonth > 0 ? "var(--danger-50)" : "var(--success-50)"); color: @(data.UnattributedThisMonth > 0 ? "var(--danger-600)" : "var(--success-600)");"><span class="material-symbols-outlined">@(data.UnattributedThisMonth > 0 ? "help" : "task_alt")</span></span><span class="bl-kpi-label">Unattributed</span></div>
+            <div class="bl-kpi-value">@data.UnattributedThisMonth.ToString("N0")</div>
+            <div class="bl-kpi-sub">@(data.UnattributedThisMonth > 0 ? "calls no case claimed, still billed; see Charges" : "every call this month is tied to a case")</div>
+        </div>
+    </div>
+
+    <div class="bl-grid bl-grid-2-1">
+        <div class="bl-card">
+            <div class="bl-card-head"><div><div class="bl-card-title">Due by month</div><div class="bl-card-sub">Last 12 months, stacked by category</div></div></div>
+            <div id="chart-months"></div>
+        </div>
+        <div class="bl-card">
+            <div class="bl-card-head"><div><div class="bl-card-title">Where the month's amount goes</div><div class="bl-card-sub">Share by category</div></div></div>
+            @if (data.ByCategory.All(c => c.Amount == 0))
+            {
+                <div class="bl-empty">Nothing priced this month yet.</div>
+            }
+            <div id="chart-share"></div>
+        </div>
+    </div>
+
+    <div class="bl-grid bl-grid-1-1">
+        <div class="bl-card">
+            <div class="bl-card-head"><div><div class="bl-card-title">Loans by flow</div><div class="bl-card-sub">Milestones reached this month</div></div></div>
+            <div id="chart-loans"></div>
+            <div class="bl-table-wrap">
+                <table class="table bl-table">
+                    <thead><tr><th>Flow</th><th class="text-right">Received</th><th class="text-right">Booked</th><th class="text-right">Declined</th><th class="text-right">Cancelled</th><th class="text-right">Processing now</th><th class="text-right">Fees</th></tr></thead>
+                    <tbody>
+                        @foreach (var l in data.Loans)
+                        {
+                            <tr>
+                                <td>@l.DisplayName</td>
+                                <td class="text-right">@l.Received</td>
+                                <td class="text-right">@l.Booked</td>
+                                <td class="text-right">@l.Declined</td>
+                                <td class="text-right">@l.Cancelled</td>
+                                <td class="text-right">@l.Processing</td>
+                                <td class="text-right">@Money(l.Fees)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="bl-card">
+            <div class="bl-card-head"><div><div class="bl-card-title">Calls by service</div><div class="bl-card-sub">This month, successful and failed</div></div></div>
+            @if (data.ByService.Count == 0)
+            {
+                <div class="bl-empty">No third-party calls this month.</div>
+            }
+            else
+            {
+                <div id="chart-services"></div>
+                <div class="bl-table-wrap">
+                    <table class="table bl-table">
+                        <thead><tr><th>Service</th><th>Category</th><th class="text-right">Calls</th><th class="text-right">Failed</th><th class="text-right">Unit price</th><th class="text-right">Amount</th>@if (IsManager) { <th class="text-right">Our cost</th> }</tr></thead>
+                        <tbody>
+                            @foreach (var s in data.ByService)
+                            {
+                                <tr>
+                                    <td>@s.DisplayName</td>
+                                    <td><span class="bl-chip">@BillingItems.CategoryDisplayName(s.Category)</span></td>
+                                    <td class="text-right">@s.Count.ToString("N0")</td>
+                                    <td class="text-right">@(s.Failed > 0 ? s.Failed.ToString("N0") : "–")</td>
+                                    <td class="text-right">@Money(s.UnitPrice)</td>
+                                    <td class="text-right"><b>@Money(s.Amount)</b></td>
+                                    @if (IsManager) { <td class="text-right bl-internal">@Money(s.Cost ?? 0)</td> }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="bl-card">
+        <div class="tabs" style="margin-bottom: var(--space-4);">
+            <button class="tab @(tab == "charges" ? "active" : "")" @onclick='() => SwitchTab("charges")'>Charges</button>
+            <button class="tab @(tab == "loans" ? "active" : "")" @onclick='() => SwitchTab("loans")'>Loans</button>
+        </div>
+
+        @if (tab == "charges")
+        {
+            <div class="bl-filters">
+                <select class="form-control" @bind="chargeCategory" @bind:after="() => LoadChargesAsync(1)">
+                    <option value="">All categories</option>
+                    @foreach (var c in Enum.GetValues<BillingCategory>())
+                    {
+                        <option value="@c">@BillingItems.CategoryDisplayName(c)</option>
+                    }
+                </select>
+                <select class="form-control" @bind="chargeOutcome" @bind:after="() => LoadChargesAsync(1)">
+                    <option value="">Any outcome</option>
+                    <option value="ok">Successful</option>
+                    <option value="failed">Failed</option>
+                </select>
+                <input class="form-control" placeholder="Case reference or request id" @bind="chargeReference" @bind:event="oninput" @bind:after="() => LoadChargesAsync(1)" />
+                <span class="bl-muted">@(charges is null ? "" : $"{charges.Total:N0} charges")</span>
+            </div>
+            @if (charges is null)
+            {
+                <div class="bl-empty">Loading…</div>
+            }
+            else if (charges.Items.Count == 0)
+            {
+                <div class="bl-empty">No charges match.</div>
+            }
+            else
+            {
+                <div class="bl-table-wrap">
+                    <table class="table bl-table">
+                        <thead><tr><th>When</th><th>Flow</th><th>Case</th><th>Subject</th><th>Item</th><th>Outcome</th><th>Host</th><th class="text-right">Price</th>@if (IsManager) { <th class="text-right">Cost</th> }</tr></thead>
+                        <tbody>
+                            @foreach (var r in charges.Items)
+                            {
+                                <tr>
+                                    <td class="bl-nowrap">@r.OccurredAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                                    <td><span class="bl-chip @(r.Flow == BillingFlow.Unattributed ? "bl-chip-bad" : "")">@r.FlowName</span></td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(r.CaseLink) && !string.IsNullOrEmpty(r.CaseReference))
+                                        {
+                                            <a href="@r.CaseLink">@r.CaseReference</a>
+                                        }
+                                        else
+                                        {
+                                            <span class="bl-muted">@(r.CaseReference ?? "–")</span>
+                                        }
+                                    </td>
+                                    <td>@r.SubjectType @(r.SubjectHint is null ? "" : $"({r.SubjectHint})")</td>
+                                    <td>@r.ItemName @if (r.Source == BillingUsageSource.Reconstructed) { <span class="bl-chip" title="Rebuilt from records kept before billing existed">rebuilt</span> }</td>
+                                    <td>
+                                        @if (r.Succeeded) { <span class="badge badge-success">OK</span> }
+                                        else { <span class="badge badge-danger" title="@r.Detail">Failed</span> }
+                                    </td>
+                                    <td class="bl-muted">@r.Host</td>
+                                    <td class="text-right">@Money(r.UnitPrice)</td>
+                                    @if (IsManager) { <td class="text-right bl-internal">@Money(r.UnitCost ?? 0)</td> }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="bl-pager">
+                    <span class="bl-muted">Page @charges.Page of @Math.Max(1, (int)Math.Ceiling(charges.Total / (double)charges.PageSize)) · this page @Money(charges.PageAmount)</span>
+                    <div>
+                        <button class="btn btn-outline btn-sm" @onclick="() => LoadChargesAsync(charges.Page - 1)" disabled="@(charges.Page <= 1)">Previous</button>
+                        <button class="btn btn-outline btn-sm" @onclick="() => LoadChargesAsync(charges.Page + 1)" disabled="@(charges.Page * charges.PageSize >= charges.Total)">Next</button>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="bl-filters">
+                <select class="form-control" @bind="loanOutcome" @bind:after="() => LoadLoansAsync(1)">
+                    <option value="">Any outcome</option>
+                    <option value="Processing">Processing</option>
+                    <option value="Booked">Booked</option>
+                    <option value="Declined">Declined</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+                <label class="bl-check"><input type="checkbox" @bind="loansThisMonthOnly" @bind:after="() => LoadLoansAsync(1)" /> Only loans with activity this month</label>
+                <input class="form-control" placeholder="Reference or applicant" @bind="loanSearch" @bind:event="oninput" @bind:after="() => LoadLoansAsync(1)" />
+                <span class="bl-muted">@(loans is null ? "" : $"{loans.Total:N0} loans")</span>
+            </div>
+            @if (loans is null)
+            {
+                <div class="bl-empty">Loading…</div>
+            }
+            else if (loans.Items.Count == 0)
+            {
+                <div class="bl-empty">No loans match.</div>
+            }
+            else
+            {
+                <div class="bl-table-wrap">
+                    <table class="table bl-table">
+                        <thead><tr><th>Flow</th><th>Reference</th><th>Applicant</th><th>Received</th><th>Outcome</th><th class="text-right">Amount</th><th class="text-right">Calls</th><th class="text-right">Calls due</th><th class="text-right">Fees due</th><th class="text-right">Total</th>@if (IsManager) { <th class="text-right">Cost</th> }</tr></thead>
+                        <tbody>
+                            @foreach (var l in loans.Items)
+                            {
+                                <tr>
+                                    <td><span class="bl-chip">@l.FlowName</span></td>
+                                    <td>@if (!string.IsNullOrEmpty(l.CaseLink)) { <a href="@l.CaseLink">@l.Reference</a> } else { @l.Reference }</td>
+                                    <td>@l.ApplicantName</td>
+                                    <td class="bl-nowrap">@l.ReceivedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                    <td><span class="badge @OutcomeBadge(l.Outcome)">@l.OutcomeName</span>@(l.OutcomeAt is { } at ? $" {at.ToLocalTime():dd MMM yyyy}" : "")</td>
+                                    <td class="text-right">@(l.Amount is { } amt ? Money(amt) : "–")</td>
+                                    <td class="text-right">@l.Calls</td>
+                                    <td class="text-right">@Money(l.CallsAmount)</td>
+                                    <td class="text-right">@Money(l.FeesAmount)</td>
+                                    <td class="text-right"><b>@Money(l.Total)</b></td>
+                                    @if (IsManager) { <td class="text-right bl-internal">@Money(l.Cost ?? 0)</td> }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="bl-pager">
+                    <span class="bl-muted">Page @loans.Page of @Math.Max(1, (int)Math.Ceiling(loans.Total / (double)loans.PageSize))</span>
+                    <div>
+                        <button class="btn btn-outline btn-sm" @onclick="() => LoadLoansAsync(loans.Page - 1)" disabled="@(loans.Page <= 1)">Previous</button>
+                        <button class="btn btn-outline btn-sm" @onclick="() => LoadLoansAsync(loans.Page + 1)" disabled="@(loans.Page * loans.PageSize >= loans.Total)">Next</button>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="bl-foot">
+        @if (data.LiveSince is { } since)
+        {
+            <span>Billing has recorded every call live since @since.ToLocalTime().ToString("dd MMM yyyy HH:mm").</span>
+        }
+        else
+        {
+            <span>No live calls recorded yet.</span>
+        }
+        @if (data.ReconstructedRows > 0)
+        {
+            <span> @data.ReconstructedRows.ToString("N0") earlier rows were rebuilt from history.</span>
+        }
+    </div>
+}
+
+<style>
+    .bl-header { align-items: flex-start; }
+    .bl-controls { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+    .bl-controls .form-control { width: auto; min-width: 160px; }
+    .bl-loading { display: flex; justify-content: center; padding: var(--space-12); }
+    .spinning { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .bl-kpis { display: grid; gap: var(--space-4); margin-bottom: var(--space-6); }
+    .bl-kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .bl-kpis-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .bl-kpi { background: #fff; border: 1px solid var(--gray-200); border-radius: 14px; padding: var(--space-4); box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 8px 24px -16px rgba(16, 24, 40, .18); }
+    .bl-kpi-internal { border-style: dashed; border-color: var(--warning-300, #fcd34d); }
+    .bl-kpi-top { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+    .bl-kpi-icon { display: inline-flex; width: 32px; height: 32px; border-radius: 10px; align-items: center; justify-content: center; }
+    .bl-kpi-icon .material-symbols-outlined { font-size: 18px; }
+    .bl-kpi-label { font-size: var(--text-xs); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--gray-500); }
+    .bl-kpi-value { font-size: var(--text-2xl); font-weight: 700; color: var(--gray-900); letter-spacing: -.02em; line-height: 1.1; }
+    .bl-kpi-sub { font-size: var(--text-xs); color: var(--gray-600); margin-top: var(--space-1); min-height: 2.4em; }
+
+    .bl-grid { display: grid; gap: var(--space-4); margin-bottom: var(--space-4); }
+    .bl-grid-2-1 { grid-template-columns: 2fr 1fr; }
+    .bl-grid-1-1 { grid-template-columns: 1fr 1fr; }
+    .bl-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 14px; padding: var(--space-4) var(--space-5); box-shadow: 0 1px 2px rgba(16, 24, 40, .04); min-width: 0; overflow: hidden; margin-bottom: var(--space-4); }
+    .bl-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3); }
+    .bl-card-title { font-weight: 600; color: var(--gray-900); }
+    .bl-card-sub { font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px; }
+    .bl-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; background: var(--gray-100); color: var(--gray-700); font-size: var(--text-xs); white-space: nowrap; }
+    .bl-chip-bad { background: var(--danger-50); color: var(--danger-600); }
+    .bl-table-wrap { overflow-x: auto; margin: 0 calc(var(--space-5) * -1); padding: 0 var(--space-5); }
+    .bl-table { width: 100%; }
+    .bl-table th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--gray-500); white-space: nowrap; padding: var(--space-2); }
+    .bl-table td { font-size: var(--text-sm); vertical-align: middle; padding: var(--space-2); }
+    .bl-nowrap { white-space: nowrap; }
+    .bl-internal { color: var(--warning-700, #b45309); }
+    .bl-muted { color: var(--gray-500); font-size: var(--text-sm); }
+    .bl-empty { padding: var(--space-6); text-align: center; color: var(--gray-500); font-size: var(--text-sm); }
+    .bl-filters { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; margin-bottom: var(--space-3); }
+    .bl-filters .form-control { width: auto; min-width: 180px; }
+    .bl-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--gray-700); }
+    .bl-pager { display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-3); gap: var(--space-2); }
+    .bl-pager .btn + .btn { margin-left: var(--space-2); }
+    .bl-foot { font-size: var(--text-xs); color: var(--gray-500); margin: var(--space-2) 0 var(--space-6); }
+    @@media (max-width: 1400px) { .bl-kpis-4, .bl-kpis-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @@media (max-width: 1100px) { .bl-grid-2-1, .bl-grid-1-1 { grid-template-columns: 1fr; } }
+    @@media (max-width: 700px) { .bl-kpis-4, .bl-kpis-5 { grid-template-columns: 1fr; } }
+</style>
+
+@code {
+    private BillingDashboardDto? data;
+    private BillingUsagePageDto? charges;
+    private BillingLoanPageDto? loans;
+    private string monthKey = DateTime.UtcNow.ToString("yyyy-MM");
+    private string flowKey = "";
+    private string tab = "charges";
+    private string chargeCategory = "";
+    private string chargeOutcome = "";
+    private string chargeReference = "";
+    private string loanOutcome = "";
+    private string loanSearch = "";
+    private bool loansThisMonthOnly = true;
+    private bool isLoading = true;
+    private bool chartsPending;
+    private string? error;
+
+    private bool IsManager => AuthService.CurrentUser?.HasRole("BillingManager") ?? false;
+    private DateTime Month => DateTime.SpecifyKind(DateTime.ParseExact(monthKey + "-01", "yyyy-MM-dd", null), DateTimeKind.Utc);
+    private BillingFlow? Flow => string.IsNullOrEmpty(flowKey) ? null : Enum.Parse<BillingFlow>(flowKey);
+    private string Money(decimal v) => $"{data?.Currency ?? "NGN"} {v:N2}";
+
+    private static IEnumerable<DateTime> MonthChoices()
+    {
+        var m = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        for (var i = 0; i < 36; i++) yield return m.AddMonths(-i);
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        error = null;
+        var result = await AppService.GetBillingDashboardAsync(Month, Flow, IsManager);
+        if (result.Success && result.Data != null)
+        {
+            data = result.Data;
+            chartsPending = true;
+        }
+        else
+        {
+            error = result.Error ?? "The billing dashboard could not be loaded.";
+        }
+        isLoading = false;
+        // Sequential: the facade shares one DbContext per circuit.
+        if (tab == "charges") await LoadChargesAsync(1); else await LoadLoansAsync(1);
+    }
+
+    private async Task SwitchTab(string t)
+    {
+        tab = t;
+        if (t == "charges" && charges is null) await LoadChargesAsync(1);
+        if (t == "loans" && loans is null) await LoadLoansAsync(1);
+    }
+
+    private async Task LoadChargesAsync(int page)
+    {
+        var search = new BillingUsageSearch(
+            Month, Flow,
+            string.IsNullOrEmpty(chargeCategory) ? null : Enum.Parse<BillingCategory>(chargeCategory),
+            null,
+            string.IsNullOrWhiteSpace(chargeReference) ? null : chargeReference.Trim(),
+            null,
+            chargeOutcome switch { "ok" => true, "failed" => false, _ => null },
+            Math.Max(1, page), 50);
+        var result = await AppService.SearchBillingUsageAsync(search, IsManager);
+        if (result.Success && result.Data != null) charges = result.Data;
+        else error = result.Error;
+    }
+
+    private async Task LoadLoansAsync(int page)
+    {
+        var result = await AppService.GetBillingLoansAsync(
+            loansThisMonthOnly ? Month : null, Flow,
+            string.IsNullOrEmpty(loanOutcome) ? null : Enum.Parse<BillingLoanOutcome>(loanOutcome),
+            loanSearch, Math.Max(1, page), 50, IsManager);
+        if (result.Success && result.Data != null) loans = result.Data;
+        else error = result.Error;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!chartsPending || data == null) return;
+        chartsPending = false;
+        try
+        {
+            await JS.InvokeVoidAsync("billing.render", new
+            {
+                currency = data.Currency,
+                categories = Enum.GetValues<BillingCategory>().Select(c => new { key = c.ToString(), name = BillingItems.CategoryDisplayName(c) }),
+                months = data.ByMonth.Select(m => new { label = m.Label, total = m.Total, byCategory = m.ByCategory.ToDictionary(k => k.Key.ToString(), k => k.Value) }),
+                byCategory = data.ByCategory.Select(c => new { key = c.Category.ToString(), name = c.DisplayName, amount = c.Amount, count = c.Count }),
+                byService = data.ByService.Select(s => new { name = s.DisplayName, count = s.Count, failed = s.Failed, amount = s.Amount }),
+                loans = data.Loans.Select(l => new { flow = l.DisplayName, received = l.Received, booked = l.Booked, declined = l.Declined, cancelled = l.Cancelled }),
+            });
+        }
+        catch (JSException)
+        {
+            // The chart library did not load (offline box); the figures still stand.
+        }
+    }
+
+    private static string OutcomeBadge(BillingLoanOutcome o) => o switch
+    {
+        BillingLoanOutcome.Booked => "badge-success",
+        BillingLoanOutcome.Declined => "badge-danger",
+        BillingLoanOutcome.Cancelled => "badge-gray",
+        _ => "badge-info",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("billing.destroy"); }
+        catch (Exception) { }
+    }
+}

@@ -136,12 +136,19 @@
                             </td>
                             <td>
                                 <div style="display: flex; gap: var(--space-2);">
+                                    @if (IsVendorAccount(user))
+                                    {
+                                        <span class="badge badge-gray" title="A vendor account. Managed by the vendor's Billing Manager under Billing > Access, not here.">Vendor</span>
+                                    }
+                                    else
+                                    {
                                     <button class="btn btn-ghost btn-sm" @onclick="() => EditUser(user)" title="Edit">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
                                     </button>
                                     <button class="btn btn-ghost btn-sm" @onclick="() => RequestToggleUserStatus(user)" title="@(user.IsActive ? "Deactivate" : "Activate")">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">@(user.IsActive ? "block" : "check_circle")</span>
                                     </button>
+                                    }
                                     <button class="btn btn-ghost btn-sm" @onclick="() => RequestResetPassword(user)" title="Reset Password">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">lock_reset</span>
                                     </button>
@@ -329,6 +336,10 @@
     private string? saveError;
     private UserModel editingUser = new();
     private List<LocationInfo> availableLocations = [];
+
+    // Vendor roles (Billing Manager) are deliberately absent: the bank's administrators cannot grant
+    // them, and the server refuses them if sent. See Billing > Access.
+    private static bool IsVendorAccount(UserModel user) => user.Roles.Any(CRMS.Domain.Constants.VendorRoles.Contains);
 
     private static readonly (string Value, string Label)[] AvailableRoles =
     [
@@ -586,6 +597,7 @@
     private static string FormatRoleName(string role) => role switch
     {
         "SystemAdmin"             => "Admin",
+        "BillingManager"          => "Billing Manager",
         "LoanOfficer"             => "Loan Officer",
         "CreditOfficer"           => "Credit Officer",
         "LegalOfficer"            => "Legal Officer",

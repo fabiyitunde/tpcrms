@@ -1,4 +1,6 @@
 using CRMS.Application.Common;
+using CRMS.Application.Billing;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
@@ -50,6 +52,7 @@ public class ProcessNampCreditChecksHandler
         var app = await _nampRepo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null)
             return ApplicationResult<NampCreditCheckBatchResultDto>.Failure("NAMP application not found.");
+        using var _billing = BillingContext.Begin(BillingFlow.Namp, app.Id, app.ApplicationNumber, "Applicant");
 
         if (app.Status != NampApplicationStatus.FinancialAppraisal && app.Status != NampApplicationStatus.Submitted)
             return ApplicationResult<NampCreditCheckBatchResultDto>.Failure(
@@ -102,6 +105,7 @@ public class ProcessNampCreditChecksHandler
         foreach (var (name, bvn, partyId, partyType) in subjects)
         {
             var roleLabel = RoleLabel(partyType);
+            using var _subject = BillingContext.Subject(partyType);
 
             // Skip if already completed and not forcing refresh
             if (existingReports.Any(r =>

@@ -1,4 +1,5 @@
 using CRMS.Application.Common;
+using CRMS.Domain.Constants;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Identity.Commands;
@@ -21,6 +22,9 @@ public class ToggleUserStatusHandler : IRequestHandler<ToggleUserStatusCommand, 
         var user = await _userRepository.GetByIdAsync(request.UserId, ct);
         if (user == null)
             return ApplicationResult.Failure("User not found");
+
+        if (user.UserRoles.Any(ur => ur.Role is not null && VendorRoles.Contains(ur.Role.Name)))
+            return ApplicationResult.Failure("This is a Billing Manager account. It is managed under Billing > Access.");
 
         var result = request.Deactivate ? user.Deactivate() : user.Activate();
         if (result.IsFailure)

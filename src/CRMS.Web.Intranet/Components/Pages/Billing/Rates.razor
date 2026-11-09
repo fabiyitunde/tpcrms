@@ -1,0 +1,329 @@
+@page "/billing/rates"
+@page "/billing/platform-fees"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "BillingManager,SystemAdmin")]
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@implements IDisposable
+@using CRMS.Application.Billing.Queries
+@using CRMS.Domain.Aggregates.Billing
+
+<PageTitle>@(PlatformMode ? "Platform fees" : "Price list") - CRMS</PageTitle>
+
+<div class="page-header bl-header">
+    <div>
+        <h1 class="page-title">@(PlatformMode ? "Platform fees" : "Price list")</h1>
+        <p class="page-subtitle">
+            @if (PlatformMode)
+            {
+                <text>What the bank pays per application milestone, set separately for each loan flow. A cell left at zero means that milestone is not charged for that flow.</text>
+            }
+            else
+            {
+                <text>What the bank pays per third-party call and per partner check. Every call is billed, successful or not. A price applies from the month it is set for; earlier months keep theirs.</text>
+            }
+        </p>
+    </div>
+    <div class="bl-controls">
+        <a class="btn btn-outline" href="/billing"><span class="material-symbols-outlined" style="font-size: 18px;">dashboard</span> Dashboard</a>
+        @if (PlatformMode)
+        {
+            <a class="btn btn-outline" href="/billing/rates"><span class="material-symbols-outlined" style="font-size: 18px;">sell</span> Price list</a>
+        }
+        else
+        {
+            <a class="btn btn-outline" href="/billing/platform-fees"><span class="material-symbols-outlined" style="font-size: 18px;">account_balance</span> Platform fees</a>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger mb-4">@error</div>
+}
+@if (!string.IsNullOrEmpty(notice))
+{
+    <div class="alert alert-success mb-4">@notice</div>
+}
+@if (!IsManager)
+{
+    <div class="alert alert-info mb-4">You can see the prices but not change them. Prices are set by the vendor's Billing Manager.</div>
+}
+
+@if (sheet == null)
+{
+    <div class="bl-empty">Loading…</div>
+}
+else if (PlatformMode)
+{
+    <div class="bl-card">
+        <div class="bl-table-wrap">
+            <table class="table bl-table">
+                <thead>
+                    <tr>
+                        <th>Milestone</th>
+                        @foreach (var f in sheet.LoanFlows)
+                        {
+                            <th class="text-right">@BillingItems.FlowDisplayName(f)</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in BillingItems.All.Where(i => i.PerFlow))
+                    {
+                        <tr>
+                            <td>
+                                <div><b>@item.DisplayName</b></div>
+                                <div class="bl-muted">@MilestoneHelp(item.Item)</div>
+                            </td>
+                            @foreach (var f in sheet.LoanFlows)
+                            {
+                                var line = sheet.PlatformFees.First(l => l.Item == item.Item && l.Flow == f);
+                                <td class="text-right">
+                                    <div class="bl-price @(line.IsSet ? "" : "bl-price-unset")">@Money(line.UnitPrice)</div>
+                                    @if (IsManager && line.UnitCost is { } c && c > 0) { <div class="bl-internal bl-muted">cost @Money(c)</div> }
+                                    <div class="bl-muted">@(line.IsSet ? $"from {line.EffectiveFrom:MMM yyyy}" : "not set")</div>
+                                    @if (IsManager)
+                                    {
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => OpenEditor(line)">Set</button>
+                                    }
+                                    @if (line.History.Count > 1)
+                                    {
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => ToggleHistory(line)">History</button>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                        @foreach (var f in sheet.LoanFlows)
+                        {
+                            var line = sheet.PlatformFees.First(l => l.Item == item.Item && l.Flow == f);
+                            @if (historyOpen == Key(line))
+                            {
+                                <tr class="bl-history-row"><td colspan="@(sheet.LoanFlows.Count + 1)">@HistoryTable(line)</td></tr>
+                            }
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else
+{
+    @foreach (var group in sheet.Services.GroupBy(s => s.Category))
+    {
+        <div class="bl-card">
+            <div class="bl-card-head"><div><div class="bl-card-title">@BillingItems.CategoryDisplayName(group.Key)</div></div></div>
+            <div class="bl-table-wrap">
+                <table class="table bl-table">
+                    <thead><tr><th>Item</th><th class="text-right">Price to the bank</th>@if (IsManager) { <th class="text-right">Our cost</th> }<th>In force</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var line in group)
+                        {
+                            <tr>
+                                <td>@line.DisplayName</td>
+                                <td class="text-right"><span class="bl-price @(line.IsSet ? "" : "bl-price-unset")">@Money(line.UnitPrice)</span></td>
+                                @if (IsManager) { <td class="text-right bl-internal">@Money(line.UnitCost ?? 0)</td> }
+                                <td class="bl-muted">@(line.IsSet ? $"since {line.EffectiveFrom:MMMM yyyy}" : "not set, worth zero")</td>
+                                <td class="text-right bl-nowrap">
+                                    @if (line.History.Count > 0)
+                                    {
+                                        <button class="btn btn-ghost btn-sm" @onclick="() => ToggleHistory(line)">History</button>
+                                    }
+                                    @if (IsManager)
+                                    {
+                                        <button class="btn btn-outline btn-sm" @onclick="() => OpenEditor(line)">Set price</button>
+                                    }
+                                </td>
+                            </tr>
+                            @if (historyOpen == Key(line))
+                            {
+                                <tr class="bl-history-row"><td colspan="@(IsManager ? 5 : 4)">@HistoryTable(line)</td></tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@if (editing != null)
+{
+    <div class="modal-backdrop show" @onclick="CloseEditor">
+        <div class="modal" style="max-width: 460px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 class="modal-title">@editing.DisplayName@(editing.Flow is { } ef ? $" · {BillingItems.FlowDisplayName(ef)}" : "")</h3>
+                <button class="modal-close" @onclick="CloseEditor"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Applies from</label>
+                    <select class="form-control" @bind="editMonthKey">
+                        @foreach (var m in MonthChoices())
+                        {
+                            <option value="@m.ToString("yyyy-MM")">@m.ToString("MMMM yyyy")@(m.ToString("yyyy-MM") == DateTime.UtcNow.ToString("yyyy-MM") ? " (this month)" : "")</option>
+                        }
+                    </select>
+                    <small class="bl-muted">Earlier months keep the price they had. Pick an earlier month to re-price history, for example when prices were agreed late.</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Price to the bank (@(sheet?.Currency ?? "NGN"), before VAT)</label>
+                    <input type="number" step="0.01" min="0" class="form-control" @bind="editPrice" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Our cost per unit (@(sheet?.Currency ?? "NGN")) <span class="bl-muted">· seen by Billing Managers only</span></label>
+                    <input type="number" step="0.01" min="0" class="form-control" @bind="editCost" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Note <span class="bl-muted">(optional)</span></label>
+                    <input class="form-control" @bind="editNote" placeholder="e.g. agreed with the bank on 3 Nov" />
+                </div>
+                @if (!string.IsNullOrEmpty(editError))
+                {
+                    <div class="alert alert-danger">@editError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" @onclick="CloseEditor">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@isSaving">@(isSaving ? "Saving…" : "Save")</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .bl-header { align-items: flex-start; }
+    .bl-controls { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+    .bl-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 14px; padding: var(--space-4) var(--space-5); box-shadow: 0 1px 2px rgba(16, 24, 40, .04); min-width: 0; overflow: hidden; margin-bottom: var(--space-4); }
+    .bl-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3); }
+    .bl-card-title { font-weight: 600; color: var(--gray-900); }
+    .bl-table-wrap { overflow-x: auto; margin: 0 calc(var(--space-5) * -1); padding: 0 var(--space-5); }
+    .bl-table { width: 100%; }
+    .bl-table th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--gray-500); white-space: nowrap; padding: var(--space-2); }
+    .bl-table td { font-size: var(--text-sm); vertical-align: top; padding: var(--space-2); }
+    .bl-nowrap { white-space: nowrap; }
+    .bl-muted { color: var(--gray-500); font-size: var(--text-xs); }
+    .bl-internal { color: var(--warning-700, #b45309); }
+    .bl-price { font-weight: 600; color: var(--gray-900); }
+    .bl-price-unset { color: var(--gray-400); font-weight: 400; }
+    .bl-empty { padding: var(--space-6); text-align: center; color: var(--gray-500); font-size: var(--text-sm); }
+    .bl-history-row td { background: var(--gray-50); }
+    .bl-history { width: auto; min-width: 420px; }
+    .bl-history th, .bl-history td { padding: 4px 10px; font-size: var(--text-xs); }
+</style>
+
+@code {
+    private BillingRateSheetDto? sheet;
+    private string? error;
+    private string? notice;
+    private string? historyOpen;
+    private BillingRateLineDto? editing;
+    private string editMonthKey = DateTime.UtcNow.ToString("yyyy-MM");
+    private decimal editPrice;
+    private decimal editCost;
+    private string editNote = "";
+    private string? editError;
+    private bool isSaving;
+
+    private bool PlatformMode => Navigation.Uri.Contains("/billing/platform-fees", StringComparison.OrdinalIgnoreCase);
+    private bool IsManager => AuthService.CurrentUser?.HasRole("BillingManager") ?? false;
+    private string Money(decimal v) => $"{sheet?.Currency ?? "NGN"} {v:N2}";
+    private static string Key(BillingRateLineDto l) => $"{l.Item}|{l.Flow}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The two routes share this component, so Blazor keeps the instance when the address
+        // changes between them and nothing would re-render without this.
+        Navigation.LocationChanged += OnLocationChanged;
+        await LoadAsync();
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        historyOpen = null;
+        notice = null;
+        editing = null;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    private async Task LoadAsync()
+    {
+        error = null;
+        var result = await AppService.GetBillingRatesAsync(IsManager);
+        if (result.Success && result.Data != null) sheet = result.Data;
+        else error = result.Error ?? "The price list could not be loaded.";
+    }
+
+    private static IEnumerable<DateTime> MonthChoices()
+    {
+        var now = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        for (var i = 3; i >= -24; i--) yield return now.AddMonths(i);
+    }
+
+    private static string MilestoneHelp(string item) => item switch
+    {
+        BillingItems.LoanReceived => "Charged once when an application arrives on the platform.",
+        BillingItems.LoanBooked => "Charged once when the loan is booked in core banking.",
+        BillingItems.LoanDeclined => "Charged once when an application is declined at any stage.",
+        BillingItems.LoanCancelled => "Charged once when an application is withdrawn, cancelled or its offer lapses.",
+        _ => "",
+    };
+
+    private void ToggleHistory(BillingRateLineDto line) => historyOpen = historyOpen == Key(line) ? null : Key(line);
+
+    private RenderFragment HistoryTable(BillingRateLineDto line) => @<table class="table bl-history">
+        <thead><tr><th>From</th><th class="text-right">Price</th>@if (IsManager) { <th class="text-right">Cost</th> }<th>Note</th><th>Set</th></tr></thead>
+        <tbody>
+            @foreach (var h in line.History)
+            {
+                <tr>
+                    <td>@h.EffectiveFrom.ToString("MMM yyyy")</td>
+                    <td class="text-right">@Money(h.UnitPrice)</td>
+                    @if (IsManager) { <td class="text-right bl-internal">@Money(h.UnitCost ?? 0)</td> }
+                    <td>@h.Note</td>
+                    <td class="bl-muted">@h.SetAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                </tr>
+            }
+        </tbody>
+    </table>;
+
+    private void OpenEditor(BillingRateLineDto line)
+    {
+        editing = line;
+        editMonthKey = DateTime.UtcNow.ToString("yyyy-MM");
+        editPrice = line.UnitPrice;
+        editCost = line.UnitCost ?? 0;
+        editNote = "";
+        editError = null;
+        notice = null;
+    }
+
+    private void CloseEditor() => editing = null;
+
+    private async Task SaveAsync()
+    {
+        if (editing is null) return;
+        editError = null;
+        isSaving = true;
+        try
+        {
+            var month = DateTime.SpecifyKind(DateTime.ParseExact(editMonthKey + "-01", "yyyy-MM-dd", null), DateTimeKind.Utc);
+            var result = await AppService.SetBillingRateAsync(editing.Item, editing.Flow, month, editPrice, editCost, editNote, AuthService.CurrentUser?.Id ?? Guid.Empty);
+            if (!result.Success)
+            {
+                editError = result.Error;
+                return;
+            }
+            notice = $"{editing.DisplayName}{(editing.Flow is { } f ? $" for {BillingItems.FlowDisplayName(f)}" : "")} is {Money(editPrice)} from {month:MMMM yyyy}.";
+            editing = null;
+            await LoadAsync();
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

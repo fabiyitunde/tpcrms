@@ -1,5 +1,6 @@
 using CRMS.Application.Common;
 using CRMS.Application.Identity.DTOs;
+using CRMS.Domain.Constants;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Identity.Commands;
@@ -37,6 +38,12 @@ public class UpdateUserHandler : IRequestHandler<UpdateUserCommand, ApplicationR
         var user = await _userRepository.GetByIdAsync(request.UserId, ct);
         if (user == null)
             return ApplicationResult<UserDto>.Failure("User not found");
+
+        // The vendor's accounts are not the bank's to change, and the vendor role is not the bank's to hand out.
+        if (user.UserRoles.Any(ur => ur.Role is not null && VendorRoles.Contains(ur.Role.Name)))
+            return ApplicationResult<UserDto>.Failure("This is a Billing Manager account. It is managed under Billing > Access.");
+        if (request.Roles is not null && VendorRoles.AnyIn(request.Roles))
+            return ApplicationResult<UserDto>.Failure("The Billing Manager role can only be granted by a Billing Manager, under Billing > Access.");
 
         var updateResult = user.UpdateProfile(request.FirstName, request.LastName, request.PhoneNumber);
         if (updateResult.IsFailure)

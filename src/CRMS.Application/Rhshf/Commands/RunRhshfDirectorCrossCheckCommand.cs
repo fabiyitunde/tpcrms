@@ -1,4 +1,6 @@
 using CRMS.Application.Common;
+using CRMS.Application.Billing;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.Rhshf.Queries;
 using CRMS.Domain.Aggregates.Rhshf;
 using CRMS.Domain.Interfaces;
@@ -43,6 +45,7 @@ public class RunRhshfDirectorCrossCheckHandler
         var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
         if (profile is null)
             return ApplicationResult<RhshfDirectorCrossCheckDto?>.Failure("Case not found.");
+        using var _billing = BillingContext.Begin(BillingFlow.Rhshf, profile.Id, profile.Reference, "Directors", request.ActorUserId);
 
         // Reference people as (name, bvn) tuples — BVN kept server-side for matching only.
         var cacPeople = new List<(string Name, string? Bvn, string? Detail)>();

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using CRMS.Application.Billing;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.Common;
 using CRMS.Application.Namp.DTOs;
 using CRMS.Application.Namp.Queries;
@@ -42,6 +44,7 @@ public class FetchNampCacDetailsHandler
     {
         var app = await _repo.GetByIdWithDetailsAsync(request.NampApplicationId, ct);
         if (app is null) return ApplicationResult<NampApplicationDto>.Failure("NAMP application not found.");
+        using var _billing = BillingContext.Begin(BillingFlow.Namp, app.Id, app.ApplicationNumber, "Company", request.UserId);
 
         if (app.ApplicantCategory != NampApplicantCategory.AgroServiceCompany)
             return ApplicationResult<NampApplicationDto>.Failure("CAC lookup applies only to Agro-Service company applicants.");

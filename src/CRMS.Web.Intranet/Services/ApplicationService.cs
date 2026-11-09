@@ -526,6 +526,13 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>The signed-in user, for billing rows written by calls made straight from this facade.</summary>
+    private Guid? AuthUserId()
+    {
+        try { return _sp.GetService<AuthService>()?.CurrentUser?.Id; }
+        catch { return null; }
+    }
+
     /// <summary>Whether SmartComply accepts this host's API key. Bills nothing.</summary>
     public async Task<ApiResponse<CRMS.Domain.Interfaces.SmartComplyAccessCheck>> CheckSmartComplyAccessAsync()
     {
@@ -561,6 +568,7 @@ public partial class ApplicationService
     {
         try
         {
+            using var _billing = CRMS.Application.Billing.BillingContext.Begin(CRMS.Domain.Aggregates.Billing.BillingFlow.Diagnostics, null, null, "Company", AuthUserId());
             var smartComply = _sp.GetRequiredService<CRMS.Domain.Interfaces.ISmartComplyProvider>();
             var result = await smartComply.GetCacAdvancedRawJsonAsync(rcNumber.Trim(), companyName, companyType);
             if (result.IsFailure)
@@ -577,6 +585,7 @@ public partial class ApplicationService
     {
         try
         {
+            using var _billing = CRMS.Application.Billing.BillingContext.Begin(CRMS.Domain.Aggregates.Billing.BillingFlow.Diagnostics, null, null, "Company", AuthUserId());
             var smartComply = _sp.GetRequiredService<CRMS.Domain.Interfaces.ISmartComplyProvider>();
             var result = await smartComply.GetBusinessCreditRawJsonAsync(bureau, rcNumber.Trim());
             if (result.IsFailure)
@@ -593,6 +602,8 @@ public partial class ApplicationService
     {
         try
         {
+            // From the new-application form, before the application exists; the flow is known, the case is not.
+            using var _billing = CRMS.Application.Billing.BillingContext.Begin(CRMS.Domain.Aggregates.Billing.BillingFlow.Corporate, null, null, "Company", AuthUserId());
             var smartComply = _sp.GetRequiredService<CRMS.Domain.Interfaces.ISmartComplyProvider>();
             var result = await smartComply.VerifyCacAdvancedAsync(rcNumber.Trim(), companyName, companyType);
             if (result.IsFailure)
@@ -8821,4 +8832,84 @@ public partial class ApplicationService
             return ApiResponse.Fail("Failed to save the appraisal");
         }
     }
+
+
+    // ========== Billing (what the bank owes the vendor) ==========
+
+    private async Task<ApiResponse<T>> Billing<T>(string what, Func<Task<CRMS.Application.Common.ApplicationResult<T>>> call)
+    {
+        // The first page after sign-in loads while the sidebar is still counting queues on the same
+        // circuit-scoped DbContext, and EF refuses the overlap. A short retry rides it out.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                var result = await call();
+                return result.IsSuccess && result.Data is not null
+                    ? ApiResponse<T>.Ok(result.Data)
+                    : ApiResponse<T>.Fail(result.Error ?? $"Failed to {what}");
+            }
+            catch (InvalidOperationException ex) when (attempt < 4 && ex.Message.Contains("second operation", StringComparison.Ordinal))
+            {
+                await Task.Delay(250 * attempt);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Billing: failed to {What}", what);
+                return ApiResponse<T>.Fail($"Failed to {what}");
+            }
+        }
+    }
+
+    public Task<ApiResponse<CRMS.Application.Billing.Queries.BillingDashboardDto>> GetBillingDashboardAsync(DateTime month, CRMS.Domain.Aggregates.Billing.BillingFlow? flow, bool includeCost)
+        => Billing("load the billing dashboard", () => _sp.GetRequiredService<CRMS.Application.Billing.Queries.GetBillingDashboardHandler>()
+            .Handle(new CRMS.Application.Billing.Queries.GetBillingDashboardQuery(month, flow, includeCost), CancellationToken.None));
+
+    public Task<ApiResponse<CRMS.Application.Billing.Queries.BillingUsagePageDto>> SearchBillingUsageAsync(CRMS.Domain.Interfaces.BillingUsageSearch search, bool includeCost)
+        => Billing("load the charges", () => _sp.GetRequiredService<CRMS.Application.Billing.Queries.SearchBillingUsageHandler>()
+            .Handle(new CRMS.Application.Billing.Queries.SearchBillingUsageQuery(search, includeCost), CancellationToken.None));
+
+    public Task<ApiResponse<CRMS.Application.Billing.Queries.BillingLoanPageDto>> GetBillingLoansAsync(
+        DateTime? month, CRMS.Domain.Aggregates.Billing.BillingFlow? flow, CRMS.Domain.Aggregates.Billing.BillingLoanOutcome? outcome, string? search, int page, int pageSize, bool includeCost)
+        => Billing("load the loans", () => _sp.GetRequiredService<CRMS.Application.Billing.Queries.GetBillingLoansHandler>()
+            .Handle(new CRMS.Application.Billing.Queries.GetBillingLoansQuery(month, flow, outcome, search, page, pageSize, includeCost), CancellationToken.None));
+
+    public Task<ApiResponse<CRMS.Application.Billing.Queries.BillingRateSheetDto>> GetBillingRatesAsync(bool includeCost)
+        => Billing("load the price list", () => _sp.GetRequiredService<CRMS.Application.Billing.Queries.GetBillingRatesHandler>()
+            .Handle(new CRMS.Application.Billing.Queries.GetBillingRatesQuery(includeCost), CancellationToken.None));
+
+    public async Task<ApiResponse> SetBillingRateAsync(string item, CRMS.Domain.Aggregates.Billing.BillingFlow? flow, DateTime effectiveFromMonth, decimal unitPrice, decimal unitCost, string? note, Guid actorUserId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Billing.Commands.SetBillingRateHandler>();
+            var result = await handler.Handle(new CRMS.Application.Billing.Commands.SetBillingRateCommand(item, flow, effectiveFromMonth, unitPrice, unitCost, note, actorUserId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "The price could not be saved.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Billing: failed to set the rate for {Item}", item);
+            return ApiResponse.Fail("The price could not be saved.");
+        }
+    }
+
+    public Task<ApiResponse<(IReadOnlyList<CRMS.Application.Billing.Queries.BillingManagerDto> Managers, CRMS.Application.Billing.Queries.BillingLedgerStatusDto Ledger)>> GetBillingAccessAsync()
+        => Billing("load billing access", () => _sp.GetRequiredService<CRMS.Application.Billing.Queries.GetBillingAccessHandler>()
+            .Handle(new CRMS.Application.Billing.Queries.GetBillingAccessQuery(), CancellationToken.None));
+
+    public Task<ApiResponse<string>> AddBillingManagerAsync(string email, string firstName, string lastName, string resetUrlBase, Guid actorUserId)
+        => Billing("add the Billing Manager", () => _sp.GetRequiredService<CRMS.Application.Billing.Commands.AddBillingManagerHandler>()
+            .Handle(new CRMS.Application.Billing.Commands.AddBillingManagerCommand(email, firstName, lastName, resetUrlBase, actorUserId), CancellationToken.None));
+
+    public Task<ApiResponse<string>> RemoveBillingManagerAsync(Guid userId, Guid actorUserId)
+        => Billing("remove the Billing Manager", () => _sp.GetRequiredService<CRMS.Application.Billing.Commands.RemoveBillingManagerHandler>()
+            .Handle(new CRMS.Application.Billing.Commands.RemoveBillingManagerCommand(userId, actorUserId), CancellationToken.None));
+
+    public Task<ApiResponse<CRMS.Application.Billing.Commands.BillingSyncResultDto>> SyncBillingLoanEventsAsync()
+        => Billing("refresh the loan events", () => _sp.GetRequiredService<CRMS.Application.Billing.Commands.SyncBillingLoanEventsHandler>()
+            .Handle(new CRMS.Application.Billing.Commands.SyncBillingLoanEventsCommand(), CancellationToken.None));
+
+    public Task<ApiResponse<CRMS.Application.Billing.Commands.BillingBackfillResultDto>> RunBillingBackfillAsync(bool dryRun, Guid actorUserId)
+        => Billing("rebuild history", () => _sp.GetRequiredService<CRMS.Application.Billing.Commands.RunBillingBackfillHandler>()
+            .Handle(new CRMS.Application.Billing.Commands.RunBillingBackfillCommand(dryRun, actorUserId), CancellationToken.None));
 }

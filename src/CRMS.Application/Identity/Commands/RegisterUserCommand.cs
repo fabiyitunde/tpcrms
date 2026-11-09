@@ -2,6 +2,7 @@ using CRMS.Application.Common;
 using CRMS.Application.Identity.DTOs;
 using CRMS.Application.Identity.Interfaces;
 using CRMS.Application.Notification.Interfaces;
+using CRMS.Domain.Constants;
 using CRMS.Domain.Entities.Identity;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
@@ -53,6 +54,10 @@ public class RegisterUserHandler : IRequestHandler<RegisterUserCommand, Applicat
     {
         if (await _userRepository.ExistsAsync(request.Email, ct))
             return ApplicationResult<UserDto>.Failure($"User with email '{request.Email}' already exists");
+
+        // Vendor roles are granted from Billing > Access by a current holder, never from here.
+        if (request.Roles is not null && VendorRoles.AnyIn(request.Roles))
+            return ApplicationResult<UserDto>.Failure("The Billing Manager role can only be granted by a Billing Manager, under Billing > Access.");
 
         var userResult = ApplicationUser.Create(
             request.Email,

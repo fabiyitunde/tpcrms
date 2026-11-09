@@ -1,4 +1,6 @@
 using CRMS.Application.Common;
+using CRMS.Application.Billing;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Constants;
 using CRMS.Domain.Enums;
@@ -134,6 +136,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
         var loanApp = await _loanAppRepository.GetByIdWithPartiesAsync(request.LoanApplicationId, ct);
         if (loanApp == null)
             return ApplicationResult<CreditCheckBatchResultDto>.Failure("Loan application not found");
+        using var _billing = BillingContext.Begin(BillingFlow.Corporate, loanApp.Id, loanApp.ApplicationNumber, "Applicant", request.SystemUserId);
 
         if (loanApp.Status != LoanApplicationStatus.BranchApproved
             && loanApp.Status != LoanApplicationStatus.CreditAnalysis
@@ -548,6 +551,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
         CancellationToken ct,
         Domain.Aggregates.Guarantor.Guarantor? guarantor = null)
     {
+        using var _subject = BillingContext.Subject(partyType);
         try
         {
             var bureauReportResult = BureauReport.Create(
@@ -808,6 +812,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
     {
         var rcNumber = loanApp.RegistrationNumber!;
         var businessName = loanApp.CustomerName;
+        using var _subject = BillingContext.Subject("Company");
 
         try
         {

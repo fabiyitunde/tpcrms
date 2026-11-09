@@ -1,4 +1,6 @@
 using System.Text.Json;
+using CRMS.Application.Billing;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.Common;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
@@ -34,6 +36,7 @@ public class EnsureRhshfBureauCheckHandler : IRequestHandler<EnsureRhshfBureauCh
         var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
         if (profile is null)
             return ApplicationResult.Failure("Case not found.");
+        using var _billing = BillingContext.Begin(BillingFlow.Rhshf, profile.Id, profile.Reference, "Company");
 
         if (profile.BureauCheckOutcome != RhshfBureauOutcome.NotRun)
             return ApplicationResult.Success(); // already run — idempotent no-op

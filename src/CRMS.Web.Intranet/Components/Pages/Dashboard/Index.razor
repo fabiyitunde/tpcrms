@@ -377,6 +377,13 @@
     protected override async Task OnInitializedAsync()
     {
         await AuthService.GetAuthenticationStateAsync();
+        // A vendor account with nothing but the billing role has no loan work here; its home is Billing.
+        var roles = AuthService.CurrentUser?.Roles ?? [];
+        if (roles.Count > 0 && roles.All(CRMS.Domain.Constants.VendorRoles.Contains))
+        {
+            Navigation.NavigateTo("/billing");
+            return;
+        }
         await LoadDashboardData();
     }
 

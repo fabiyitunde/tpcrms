@@ -98,6 +98,7 @@ using (var scope = app.Services.CreateScope())
 
         startupLogger.LogInformation("Seeding data (isDevelopment={IsDev})...", app.Environment.IsDevelopment());
         await SeedData.SeedAsync(db, seedLogger, passwordHasher, app.Environment.IsDevelopment());
+        await CRMS.Infrastructure.Persistence.BillingSeeder.SeedManagerAsync(db, app.Configuration, passwordHasher, seedLogger);
         startupLogger.LogInformation("Seeding complete.");
 
         if (app.Environment.IsDevelopment())

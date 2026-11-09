@@ -139,6 +139,7 @@ using (var scope = app.Services.CreateScope())
         logger.LogInformation("Seeding initial data...");
         var passwordHasher = scope.ServiceProvider.GetRequiredService<CRMS.Application.Identity.Interfaces.IPasswordHasher>();
         await SeedData.SeedAsync(dbContext, logger, passwordHasher, app.Environment.IsDevelopment());
+        await CRMS.Infrastructure.Persistence.BillingSeeder.SeedManagerAsync(dbContext, app.Configuration, passwordHasher, logger);
         logger.LogInformation("Initial data seeded successfully.");
 
         // Seed comprehensive test data in Development

@@ -1,0 +1,260 @@
+@page "/billing/access"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "BillingManager")]
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@using CRMS.Application.Billing.Commands
+@using CRMS.Application.Billing.Queries
+
+<PageTitle>Billing access - CRMS</PageTitle>
+
+<div class="page-header bl-header">
+    <div>
+        <h1 class="page-title">Billing access and data</h1>
+        <p class="page-subtitle">Who manages billing for the vendor, and the state of the ledger behind the dashboard</p>
+    </div>
+    <div class="bl-controls">
+        <a class="btn btn-outline" href="/billing"><span class="material-symbols-outlined" style="font-size: 18px;">dashboard</span> Dashboard</a>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger mb-4">@error</div>
+}
+@if (!string.IsNullOrEmpty(notice))
+{
+    <div class="alert alert-success mb-4">@notice</div>
+}
+
+<div class="bl-grid">
+    <div class="bl-card">
+        <div class="bl-card-head">
+            <div>
+                <div class="bl-card-title">Billing Managers</div>
+                <div class="bl-card-sub">The vendor's people. Only a Billing Manager can add or remove one; the bank's administrators cannot, and see this page's figures read-only without the cost column.</div>
+            </div>
+        </div>
+        @if (managers is null)
+        {
+            <div class="bl-empty">Loading…</div>
+        }
+        else
+        {
+            <table class="table bl-table">
+                <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var m in managers)
+                    {
+                        <tr>
+                            <td>@m.FullName @(m.Id == AuthService.CurrentUser?.Id ? "(you)" : "")@if (m.HasOtherRoles) { <span class="bl-chip" title="This account also holds bank-side roles">also bank staff</span> }</td>
+                            <td>@m.Email</td>
+                            <td><span class="badge @(m.Status == "Active" ? "badge-success" : "badge-gray")">@m.Status</span></td>
+                            <td class="bl-muted">@(m.LastLoginAt is { } l ? l.ToLocalTime().ToString("dd MMM yyyy HH:mm") : "never")</td>
+                            <td class="text-right">
+                                @if (confirmRemove == m.Id)
+                                {
+                                    <span class="bl-muted">Remove @m.FullName?</span>
+                                    <button class="btn btn-danger btn-sm" @onclick="() => RemoveAsync(m)" disabled="@busy">Yes, remove</button>
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => confirmRemove = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => confirmRemove = m.Id" disabled="@(managers.Count(x => x.Status == "Active") <= 1)">Remove</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="bl-add">
+                <div class="bl-add-title">Add a Billing Manager</div>
+                <div class="bl-add-row">
+                    <input class="form-control" placeholder="Email" @bind="newEmail" />
+                    <input class="form-control" placeholder="First name" @bind="newFirst" />
+                    <input class="form-control" placeholder="Last name" @bind="newLast" />
+                    <button class="btn btn-primary" @onclick="AddAsync" disabled="@(busy || string.IsNullOrWhiteSpace(newEmail))">Add</button>
+                </div>
+                <div class="bl-muted">An existing CRMS account gains the role and keeps its password. A new one is created and emailed a link to set a password.</div>
+            </div>
+        }
+    </div>
+
+    <div class="bl-card">
+        <div class="bl-card-head">
+            <div>
+                <div class="bl-card-title">Ledger</div>
+                <div class="bl-card-sub">Where the dashboard's rows come from</div>
+            </div>
+        </div>
+        @if (ledger is null)
+        {
+            <div class="bl-empty">Loading…</div>
+        }
+        else
+        {
+            <dl class="bl-facts">
+                <dt>Live rows</dt><dd>@ledger.LiveRows.ToString("N0") <span class="bl-muted">third-party calls and partner checks recorded as they happened@(ledger.LiveSince is { } s ? $", since {s.ToLocalTime():dd MMM yyyy HH:mm}" : "")</span></dd>
+                <dt>Loan milestones</dt><dd>@ledger.DerivedRows.ToString("N0") <span class="bl-muted">read off the loan books; refreshed hourly and on demand</span></dd>
+                <dt>Rebuilt rows</dt><dd>@ledger.ReconstructedRows.ToString("N0") <span class="bl-muted">from records kept before billing existed</span></dd>
+            </dl>
+
+            <div class="bl-action">
+                <div>
+                    <b>Refresh loan milestones</b>
+                    <div class="bl-muted">Reads every application and adds any received, booked, declined or cancelled row it has earned and not yet been given. Safe to run any time.</div>
+                </div>
+                <button class="btn btn-outline" @onclick="SyncAsync" disabled="@busy">Refresh now</button>
+            </div>
+            @if (sync is not null)
+            {
+                <div class="alert alert-info">@sync.LoansSeen.ToString("N0") loans read, @sync.RowsAdded.ToString("N0") rows added.</div>
+            }
+
+            <div class="bl-action">
+                <div>
+                    <b>Rebuild history from inception</b>
+                    <div class="bl-muted">Reconstructs third-party usage from bureau reports, CAC lookups and partner check logs made before billing went live. Rows are marked as rebuilt. Preview first: nothing is written until you confirm.</div>
+                </div>
+                <div class="bl-nowrap">
+                    <button class="btn btn-outline" @onclick="() => BackfillAsync(true)" disabled="@busy">Preview</button>
+                    <button class="btn btn-primary" @onclick="() => BackfillAsync(false)" disabled="@(busy || backfill is null || !backfill.DryRun || backfill.ByItem.Count == 0)">Write @(backfill is { DryRun: true } b ? b.ByItem.Sum(i => i.Count).ToString("N0") : "") rows</button>
+                </div>
+            </div>
+            @if (backfill is not null)
+            {
+                <div class="bl-backfill">
+                    <div><b>@(backfill.DryRun ? "Preview" : "Done")</b> · events before @backfill.Before.ToLocalTime().ToString("dd MMM yyyy HH:mm") · @backfill.Candidates.ToString("N0") found, @backfill.AlreadyPresent.ToString("N0") already in the ledger@(backfill.DryRun ? "" : $", {backfill.Added:N0} written")</div>
+                    @if (backfill.ByItem.Count > 0)
+                    {
+                        <table class="table bl-table bl-compact">
+                            <tbody>
+                                @foreach (var i in backfill.ByItem)
+                                {
+                                    <tr><td>@i.DisplayName</td><td class="text-right">@i.Count.ToString("N0")</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <div class="bl-muted">Nothing new to add.</div>
+                    }
+                    <ul class="bl-notes">
+                        @foreach (var n in backfill.Notes)
+                        {
+                            <li>@n</li>
+                        }
+                    </ul>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<style>
+    .bl-header { align-items: flex-start; }
+    .bl-controls { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+    .bl-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: var(--space-4); }
+    .bl-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 14px; padding: var(--space-4) var(--space-5); box-shadow: 0 1px 2px rgba(16, 24, 40, .04); min-width: 0; }
+    .bl-card-head { margin-bottom: var(--space-3); }
+    .bl-card-title { font-weight: 600; color: var(--gray-900); }
+    .bl-card-sub { font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px; }
+    .bl-table { width: 100%; }
+    .bl-table th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--gray-500); white-space: nowrap; padding: var(--space-2); }
+    .bl-table td { font-size: var(--text-sm); vertical-align: middle; padding: var(--space-2); }
+    .bl-compact td { padding: 2px var(--space-2); font-size: var(--text-xs); }
+    .bl-nowrap { white-space: nowrap; }
+    .bl-muted { color: var(--gray-500); font-size: var(--text-xs); }
+    .bl-chip { display: inline-flex; padding: 2px 10px; border-radius: 999px; background: var(--gray-100); color: var(--gray-700); font-size: var(--text-xs); margin-left: 6px; }
+    .bl-empty { padding: var(--space-6); text-align: center; color: var(--gray-500); font-size: var(--text-sm); }
+    .bl-add { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--gray-200); }
+    .bl-add-title { font-weight: 600; margin-bottom: var(--space-2); }
+    .bl-add-row { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: var(--space-2); margin-bottom: var(--space-2); }
+    .bl-facts { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2) var(--space-4); margin: 0 0 var(--space-4); font-size: var(--text-sm); }
+    .bl-facts dt { color: var(--gray-500); }
+    .bl-facts dd { margin: 0; }
+    .bl-action { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--gray-200); }
+    .bl-action .btn + .btn { margin-left: var(--space-2); }
+    .bl-backfill { background: var(--gray-50); border-radius: 10px; padding: var(--space-3); font-size: var(--text-sm); }
+    .bl-notes { margin: var(--space-2) 0 0; padding-left: 18px; color: var(--gray-600); font-size: var(--text-xs); }
+    @@media (max-width: 1100px) { .bl-grid { grid-template-columns: 1fr; } .bl-add-row { grid-template-columns: 1fr; } }
+</style>
+
+@code {
+    private IReadOnlyList<BillingManagerDto>? managers;
+    private BillingLedgerStatusDto? ledger;
+    private BillingSyncResultDto? sync;
+    private BillingBackfillResultDto? backfill;
+    private Guid? confirmRemove;
+    private string newEmail = "";
+    private string newFirst = "";
+    private string newLast = "";
+    private bool busy;
+    private string? error;
+    private string? notice;
+
+    private Guid Me => AuthService.CurrentUser?.Id ?? Guid.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        error = null;
+        var result = await AppService.GetBillingAccessAsync();
+        if (result.Success)
+        {
+            managers = result.Data.Managers;
+            ledger = result.Data.Ledger;
+        }
+        else error = result.Error ?? "Billing access could not be loaded.";
+    }
+
+    private async Task AddAsync()
+    {
+        busy = true; error = null; notice = null;
+        try
+        {
+            var result = await AppService.AddBillingManagerAsync(newEmail, newFirst, newLast, $"{Navigation.BaseUri}reset-password", Me);
+            if (result.Success) { notice = result.Data; newEmail = newFirst = newLast = ""; await LoadAsync(); }
+            else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task RemoveAsync(BillingManagerDto m)
+    {
+        busy = true; error = null; notice = null;
+        try
+        {
+            var result = await AppService.RemoveBillingManagerAsync(m.Id, Me);
+            if (result.Success) { notice = result.Data; confirmRemove = null; await LoadAsync(); }
+            else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task SyncAsync()
+    {
+        busy = true; error = null;
+        try
+        {
+            var result = await AppService.SyncBillingLoanEventsAsync();
+            if (result.Success) { sync = result.Data; await LoadAsync(); }
+            else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task BackfillAsync(bool dryRun)
+    {
+        busy = true; error = null;
+        try
+        {
+            var result = await AppService.RunBillingBackfillAsync(dryRun, Me);
+            if (result.Success) { backfill = result.Data; if (!dryRun) await LoadAsync(); }
+            else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+}

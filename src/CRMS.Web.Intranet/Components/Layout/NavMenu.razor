@@ -132,6 +132,35 @@
         </div>
     }
 
+    @if (CanViewBilling)
+    {
+        <div class="nav-section">
+            @if (!Collapsed)
+            {
+                <div class="nav-section-title">Billing</div>
+            }
+            <NavLink href="/billing" class="nav-item" Match="NavLinkMatch.All">
+                <span class="material-symbols-outlined nav-item-icon">payments</span>
+                @if (!Collapsed) { <span class="nav-item-text">Billing Dashboard</span> }
+            </NavLink>
+            <NavLink href="/billing/rates" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">sell</span>
+                @if (!Collapsed) { <span class="nav-item-text">Price List</span> }
+            </NavLink>
+            <NavLink href="/billing/platform-fees" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">account_balance</span>
+                @if (!Collapsed) { <span class="nav-item-text">Platform Fees</span> }
+            </NavLink>
+            @if (IsBillingManager)
+            {
+                <NavLink href="/billing/access" class="nav-item">
+                    <span class="material-symbols-outlined nav-item-icon">manage_accounts</span>
+                    @if (!Collapsed) { <span class="nav-item-text">Access & Data</span> }
+                </NavLink>
+            }
+        </div>
+    }
+
     @if (IsAdmin)
     {
         <div class="nav-section">
@@ -251,6 +280,8 @@
     private bool CanViewReports => User?.HasAnyRole("SystemAdmin", "RiskManager", "CreditOfficer", "HOReviewer", "Auditor") ?? false;
     private bool CanViewAudit => User?.HasAnyRole("SystemAdmin", "RiskManager", "Auditor") ?? false;
     private bool IsAdmin => User?.HasRole("SystemAdmin") ?? false;
+    private bool IsBillingManager => User?.HasRole("BillingManager") ?? false;
+    private bool CanViewBilling => User?.HasAnyRole("SystemAdmin", "BillingManager") ?? false;
     private bool CanViewNamp => User?.HasAnyRole("SystemAdmin", "LoanOfficer", "CreditOfficer",
         "CommitteeMember", "BranchCommitteeMember", "ZonalCommitteeMember", "RegionalCommitteeMember", "HOCommitteeMember",
         "BranchManager", "ZonalManager", "RegionalManager", "MdCeo",

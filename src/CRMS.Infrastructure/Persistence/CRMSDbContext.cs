@@ -191,6 +191,10 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<Domain.Aggregates.CustomerCheck.CustomerCheckJob> CustomerCheckJobs => Set<Domain.Aggregates.CustomerCheck.CustomerCheckJob>();
     public DbSet<Domain.Aggregates.CustomerCheck.CustomerCheckPrice> CustomerCheckPrices => Set<Domain.Aggregates.CustomerCheck.CustomerCheckPrice>();
 
+    // Vendor billing: every billable event (third-party call, partner check, loan milestone) and the dated rate card.
+    public DbSet<Domain.Aggregates.Billing.BillingUsage> BillingUsages => Set<Domain.Aggregates.Billing.BillingUsage>();
+    public DbSet<Domain.Aggregates.Billing.BillingRate> BillingRates => Set<Domain.Aggregates.Billing.BillingRate>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

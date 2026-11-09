@@ -1,7 +1,9 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CRMS.Application.Advisory.Interfaces;
+using CRMS.Application.Billing;
 using CRMS.Application.CustomerCheck;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.PartyExposure;
 using CRMS.Domain.Aggregates.CustomerCheck;
 using CRMS.Domain.Common;
@@ -33,6 +35,7 @@ public class CustomerCheckService : ICustomerCheckService
     private readonly CustomerCheckSettings _settings;
     private readonly string _hashKey;
     private readonly ILogger<CustomerCheckService> _logger;
+    private readonly IBillingLedger? _billing;
 
     public CustomerCheckService(
         ISmartComplyProvider smartComply,
@@ -44,8 +47,10 @@ public class CustomerCheckService : ICustomerCheckService
         IUnitOfWork unitOfWork,
         IOptions<CustomerCheckSettings> settings,
         IOptions<RhshfSettings> rhshf,
-        ILogger<CustomerCheckService> logger)
+        ILogger<CustomerCheckService> logger,
+        IBillingLedger? billing = null)
     {
+        _billing = billing;
         _smartComply = smartComply;
         _coreBanking = coreBanking;
         _fineract = fineract;
@@ -69,10 +74,19 @@ public class CustomerCheckService : ICustomerCheckService
     {
         await _repository.AddLogAsync(log, ct);
         await _unitOfWork.SaveChangesAsync(ct);
+
+        // The check itself is a billable item to the bank, on top of the third-party calls it made,
+        // which the SmartComply wrapper recorded one by one under the same reference.
+        if (_billing is not null)
+            await _billing.RecordAsync(new BillingUsageDraft(BillingItems.PartnerCheck, log.Error is null, log.Error, null, log.DurationMs,
+                new BillingScope(BillingFlow.PartnerApi, log.Id, PartnerReference(log.ConsumerName, log.RequestId), "Customer")), ct);
     }
+
+    public static string PartnerReference(string consumerName, string requestId) => $"{consumerName} · {requestId}";
 
     public async Task<CustomerCheckOutcome> CheckAsync(ApiConsumer consumer, CustomerCheckQuery query, CancellationToken ct = default)
     {
+        using var _ = BillingContext.Begin(BillingFlow.PartnerApi, null, PartnerReference(consumer.Name, query.RequestId), "Customer");
         var now = DateTime.UtcNow;
         var state = new RunState();
 

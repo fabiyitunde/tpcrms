@@ -1,4 +1,6 @@
 using CRMS.Application.Common;
+using CRMS.Application.Billing;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.CreditBureau.DTOs;
 using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Enums;
@@ -33,6 +35,8 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
 
     public async Task<ApplicationResult<BureauReportDto>> Handle(RequestBureauReportCommand request, CancellationToken ct = default)
     {
+        using var _billing = BillingContext.Begin(
+            request.LoanApplicationId is null ? BillingFlow.Other : BillingFlow.Corporate, request.LoanApplicationId, null, "Individual", request.RequestedByUserId);
         var reportResult = BureauReport.Create(
             CreditBureauProvider.SmartComply,
             SubjectType.Individual,

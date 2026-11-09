@@ -1,4 +1,6 @@
 using System.Text.Json;
+using CRMS.Application.Billing;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.Common;
 using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Enums;
@@ -54,6 +56,7 @@ public class ProcessRhshfCreditChecksHandler
         var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
         if (profile is null)
             return ApplicationResult<RhshfCreditCheckBatchDto>.Failure("Case not found.");
+        using var _billing = BillingContext.Begin(BillingFlow.Rhshf, profile.Id, profile.Reference, "Company", request.SystemUserId);
 
         var existing = await _bureauRepo.GetByRhshfCreditProfileIdAsync(profile.Id, ct);
 
@@ -95,6 +98,7 @@ public class ProcessRhshfCreditChecksHandler
         // ── Individuals (directors + individual guarantors), CRC by BVN ────
         foreach (var (name, bvn, partyId, partyType) in individualSubjects)
         {
+            using var _subject = BillingContext.Subject(partyType);
             switch (await RunIndividualCreditCheckAsync(name, bvn, partyId, partyType, profile.Id, existing, request.SystemUserId, ct))
             {
                 case CheckOutcome.Success: successful++; break;
@@ -106,6 +110,7 @@ public class ProcessRhshfCreditChecksHandler
         // ── Corporate guarantors, CRC by RC number (business) ─────────────
         foreach (var (name, rc) in corporateGuarantorSubjects)
         {
+            using var _subject = BillingContext.Subject("CorporateGuarantor");
             switch (await RunGuarantorBusinessCheckAsync(name, rc, profile.Id, existing, request.SystemUserId, ct))
             {
                 case CheckOutcome.Success: successful++; break;

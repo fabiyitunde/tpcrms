@@ -37,6 +37,11 @@ public static class Roles
     public const string RegionalRiskOfficer = "RegionalRiskOfficer";         // Reviews Regional-tier NAMP applications before committee
     public const string HORiskOfficer       = "HORiskOfficer";               // Reviews HO-tier NAMP applications before committee
 
+    // ── Vendor roles ─────────────────────────────────────────────────────
+    // Held by the platform vendor, not the bank. Never offered in Admin > Users and refused by the
+    // user handlers if sent anyway; only a current holder can grant it, from Billing > Access.
+    public const string BillingManager = "BillingManager";                   // Sets prices and reads what the bank owes the vendor
+
     public static readonly string[] AllRoles =
     [
         SystemAdmin,
@@ -67,6 +72,7 @@ public static class Roles
         ZonalRiskOfficer,
         RegionalRiskOfficer,
         HORiskOfficer,
+        BillingManager,
     ];
 
     public static readonly Dictionary<string, string> RoleDescriptions = new()
@@ -99,6 +105,7 @@ public static class Roles
         { ZonalRiskOfficer,    "Reviews Zonal-tier NAMP applications before committee circulation" },
         { RegionalRiskOfficer, "Reviews Regional-tier NAMP applications before committee circulation" },
         { HORiskOfficer,       "Reviews HO-tier NAMP applications before committee circulation" },
+        { BillingManager,      "Vendor: sets billing prices and reads what is due from the bank" },
     };
 
     /// <summary>
@@ -136,6 +143,7 @@ public static class Roles
         { ZonalRiskOfficer,     VisibilityScope.Global },
         { RegionalRiskOfficer,  VisibilityScope.Global },
         { HORiskOfficer,        VisibilityScope.Global },
+        { BillingManager,       VisibilityScope.Global },
     };
 
     /// <summary>
@@ -176,4 +184,13 @@ public static class Roles
     {
         return GetVisibilityScope(role) == VisibilityScope.Global;
     }
+}
+
+public static class VendorRoles
+{
+    /// <summary>Roles the bank's own administrators cannot grant, change or take away.</summary>
+    public static readonly string[] All = [Roles.BillingManager];
+
+    public static bool Contains(string role) => All.Contains(role, StringComparer.Ordinal);
+    public static bool AnyIn(IEnumerable<string> roles) => roles.Any(Contains);
 }

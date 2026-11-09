@@ -1,4 +1,6 @@
 using System.Text.Json;
+using CRMS.Application.Billing;
+using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.Common;
 using CRMS.Domain.Aggregates.Rhshf;
 using CRMS.Domain.Interfaces;
@@ -32,6 +34,7 @@ public class FetchRhshfCacDetailsHandler : IRequestHandler<FetchRhshfCacDetailsC
         var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
         if (profile is null)
             return ApplicationResult.Failure("Case not found.");
+        using var _billing = BillingContext.Begin(BillingFlow.Rhshf, profile.Id, profile.Reference, "Company", request.UserId);
 
         if (string.IsNullOrWhiteSpace(profile.RcNumber))
             return ApplicationResult.Failure("An RC number is required to fetch CAC details.");
