@@ -151,6 +151,10 @@
                 <span class="material-symbols-outlined nav-item-icon">account_balance</span>
                 @if (!Collapsed) { <span class="nav-item-text">Platform Fees</span> }
             </NavLink>
+            <NavLink href="/billing/statements" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">receipt_long</span>
+                @if (!Collapsed) { <span class="nav-item-text">Statements</span> }
+            </NavLink>
             @if (IsBillingManager)
             {
                 <NavLink href="/billing/access" class="nav-item">

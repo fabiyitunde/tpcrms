@@ -670,6 +670,18 @@ public static class DependencyInjection
         services.AddScoped<Application.Billing.Commands.SyncBillingLoanEventsHandler>();
         services.AddScoped<Application.Billing.Commands.RunBillingBackfillHandler>();
         services.AddHostedService<BackgroundServices.BillingLoanSyncService>();
+
+        // Billing statements: closing a month, the bank's PDF and Excel copies, paid and void.
+        services.AddSingleton(configuration.GetSection(Application.Billing.BillingSettings.SectionName).Get<Application.Billing.BillingSettings>() ?? new Application.Billing.BillingSettings());
+        services.AddScoped<IBillingStatementRepository, BillingStatementRepository>();
+        services.AddSingleton<Application.Billing.Statements.IBillingStatementExporter, Documents.BillingStatementExporter>();
+        services.AddScoped<Application.Billing.Statements.PreviewBillingStatementHandler>();
+        services.AddScoped<Application.Billing.Statements.IssueBillingStatementHandler>();
+        services.AddScoped<Application.Billing.Statements.GetBillingStatementsHandler>();
+        services.AddScoped<Application.Billing.Statements.GetBillingStatementHandler>();
+        services.AddScoped<Application.Billing.Statements.ExportBillingStatementHandler>();
+        services.AddScoped<Application.Billing.Statements.MarkBillingStatementPaidHandler>();
+        services.AddScoped<Application.Billing.Statements.VoidBillingStatementHandler>();
         
         // Identity
         services.AddScoped<Application.Identity.Queries.GetAllUsersHandler>();

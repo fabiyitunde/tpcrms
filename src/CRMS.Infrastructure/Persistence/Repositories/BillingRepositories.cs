@@ -75,6 +75,77 @@ public class BillingUsageRepository : IBillingUsageRepository
 
     public Task<int> CountBySourceAsync(BillingUsageSource source, CancellationToken ct = default) =>
         _context.BillingUsages.AsNoTracking().CountAsync(u => u.Source == source, ct);
+
+    // ── Statements ──
+
+    private static IQueryable<BillingUsageCount> Grouped(IQueryable<BillingUsage> q) =>
+        q.GroupBy(u => new { u.Item, u.Flow, u.Month, u.Succeeded })
+         .Select(g => new BillingUsageCount(g.Key.Item, g.Key.Flow, g.Key.Month, g.Key.Succeeded, g.Count()));
+
+    public async Task<IReadOnlyList<BillingUsageCount>> UnbilledCountsAsync(DateTime upToMonth, CancellationToken ct = default) =>
+        await Grouped(_context.BillingUsages.AsNoTracking().Where(u => u.StatementId == null && u.Month <= upToMonth)).ToListAsync(ct);
+
+    public async Task<int> AssignUnbilledAsync(DateTime upToMonth, Guid statementId, CancellationToken ct = default)
+    {
+        var rows = _context.BillingUsages.Where(u => u.StatementId == null && u.Month <= upToMonth);
+        // One UPDATE on a real database; the in-memory provider used by tests has no ExecuteUpdate.
+        if (_context.Database.IsRelational())
+            return await rows.ExecuteUpdateAsync(s => s.SetProperty(u => u.StatementId, statementId), ct);
+        var list = await rows.ToListAsync(ct);
+        foreach (var u in list) u.AssignToStatement(statementId);
+        await _context.SaveChangesAsync(ct);
+        return list.Count;
+    }
+
+    public async Task<IReadOnlyList<BillingUsageCount>> CountsForStatementAsync(Guid statementId, CancellationToken ct = default) =>
+        await Grouped(_context.BillingUsages.AsNoTracking().Where(u => u.StatementId == statementId)).ToListAsync(ct);
+
+    public async Task<int> ReleaseStatementAsync(Guid statementId, CancellationToken ct = default)
+    {
+        var rows = _context.BillingUsages.Where(u => u.StatementId == statementId);
+        if (_context.Database.IsRelational())
+            return await rows.ExecuteUpdateAsync(s => s.SetProperty(u => u.StatementId, (Guid?)null), ct);
+        var list = await rows.ToListAsync(ct);
+        foreach (var u in list) u.ReleaseFromStatement();
+        await _context.SaveChangesAsync(ct);
+        return list.Count;
+    }
+}
+
+public class BillingStatementRepository : IBillingStatementRepository
+{
+    private readonly CRMSDbContext _context;
+
+    public BillingStatementRepository(CRMSDbContext context) => _context = context;
+
+    public Task<BillingStatement?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
+        _context.BillingStatements.Include(s => s.Lines).FirstOrDefaultAsync(s => s.Id == id, ct);
+
+    public async Task<IReadOnlyList<BillingStatement>> GetAllAsync(CancellationToken ct = default) =>
+        await _context.BillingStatements.AsNoTracking().OrderByDescending(s => s.Month).ThenByDescending(s => s.IssuedAt).ToListAsync(ct);
+
+    public Task<int> CountForMonthAsync(DateTime month, CancellationToken ct = default) =>
+        _context.BillingStatements.CountAsync(s => s.Month == month, ct);
+
+    public Task<BillingStatement?> ActiveForMonthAsync(DateTime month, CancellationToken ct = default) =>
+        _context.BillingStatements.AsNoTracking().FirstOrDefaultAsync(s => s.Month == month && s.Status != BillingStatementStatus.Voided, ct);
+
+    public async Task AddAsync(BillingStatement statement, CancellationToken ct = default) => await _context.BillingStatements.AddAsync(statement, ct);
+
+    public Task UpdateAsync(BillingStatement statement, CancellationToken ct = default)
+    {
+        // Never DbSet.Update(): that would mark every existing line Modified, and the append-only
+        // compensation in SaveChangesAsync would then try to insert them again. A statement loaded
+        // here is tracked, so its own changes are detected; new lines are picked up as Modified and
+        // flipped to Added there.
+        var entry = _context.Entry(statement);
+        if (entry.State == EntityState.Detached)
+        {
+            _context.BillingStatements.Attach(statement);
+            entry.State = EntityState.Modified;
+        }
+        return Task.CompletedTask;
+    }
 }
 
 public class BillingRateRepository : IBillingRateRepository

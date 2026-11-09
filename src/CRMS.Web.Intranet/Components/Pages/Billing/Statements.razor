@@ -1,0 +1,374 @@
+@page "/billing/statements"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "BillingManager,SystemAdmin")]
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject IJSRuntime JS
+@using CRMS.Application.Billing.Statements
+@using CRMS.Domain.Aggregates.Billing
+
+<PageTitle>Statements - CRMS</PageTitle>
+
+<div class="page-header bl-header">
+    <div>
+        <h1 class="page-title">Statements</h1>
+        <p class="page-subtitle">Closing a month freezes what the bank owes for it. Calls that arrive after a month is closed roll into the next statement.</p>
+    </div>
+    <div class="bl-controls">
+        <a class="btn btn-outline" href="/billing"><span class="material-symbols-outlined" style="font-size: 18px;">dashboard</span> Dashboard</a>
+        @if (IsManager)
+        {
+            <select class="form-control" @bind="monthKey" @bind:after="PreviewAsync">
+                @foreach (var m in MonthChoices())
+                {
+                    <option value="@m.ToString("yyyy-MM")">@m.ToString("MMMM yyyy")</option>
+                }
+            </select>
+            <button class="btn btn-primary" @onclick="PreviewAsync" disabled="@busy"><span class="material-symbols-outlined" style="font-size: 18px;">receipt_long</span> Prepare statement</button>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger mb-4">@error</div>
+}
+@if (!string.IsNullOrEmpty(notice))
+{
+    <div class="alert alert-success mb-4">@notice</div>
+}
+
+@if (preview != null)
+{
+    <div class="bl-card bl-preview">
+        <div class="bl-card-head">
+            <div>
+                <div class="bl-card-title">Statement for @preview.Month.ToString("MMMM yyyy"), not yet issued</div>
+                <div class="bl-card-sub">@preview.UsageCount.ToString("N0") billable events · subtotal @Money(preview.Subtotal, preview.Currency) · VAT @preview.VatRatePercent.ToString("0.##")% @Money(preview.VatAmount, preview.Currency) · <b>total @Money(preview.Total, preview.Currency)</b>@(preview.CostTotal is { } c ? $" · our cost {Money(c, preview.Currency)}" : "")</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" @onclick="() => preview = null">Close</button>
+        </div>
+        @foreach (var w in preview.Warnings)
+        {
+            <div class="alert alert-warning bl-tight">@w</div>
+        }
+        @if (!preview.CanIssue)
+        {
+            <div class="alert alert-info bl-tight">@preview.BlockedReason</div>
+        }
+        @if (preview.Lines.Count > 0)
+        {
+            <div class="bl-table-wrap">
+                <table class="table bl-table">
+                    <thead><tr><th>Month</th><th>Flow</th><th>Category</th><th>Item</th><th class="text-right">Qty</th><th class="text-right">Unit price</th><th class="text-right">Amount</th></tr></thead>
+                    <tbody>
+                        @foreach (var l in preview.Lines)
+                        {
+                            <tr class="@(l.Month < preview.Month ? "bl-late" : "")">
+                                <td>@l.Month.ToString("MMM yyyy")</td>
+                                <td>@l.FlowName</td>
+                                <td>@l.CategoryName</td>
+                                <td>@l.ItemName</td>
+                                <td class="text-right">@l.Quantity.ToString("N0")</td>
+                                <td class="text-right">@l.UnitPrice.ToString("N2")</td>
+                                <td class="text-right"><b>@l.Amount.ToString("N2")</b></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (preview.CanIssue)
+        {
+            <div class="bl-issue">
+                <input class="form-control" placeholder="Note for the bank (optional)" @bind="issueNotes" />
+                <button class="btn btn-primary" @onclick="IssueAsync" disabled="@busy">@(busy ? "Issuing…" : $"Issue statement for {preview.Month:MMMM yyyy}")</button>
+            </div>
+        }
+    </div>
+}
+
+<div class="bl-card">
+    @if (statements is null)
+    {
+        <div class="bl-empty">Loading…</div>
+    }
+    else if (statements.Count == 0)
+    {
+        <div class="bl-empty">No statements yet.@(IsManager ? " Pick a month above and prepare the first one." : "")</div>
+    }
+    else
+    {
+        <div class="bl-table-wrap">
+            <table class="table bl-table">
+                <thead><tr><th>Number</th><th>Period</th><th>Status</th><th>Issued</th><th>Due</th><th class="text-right">Events</th><th class="text-right">Total</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var s in statements)
+                    {
+                        <tr class="@(selected?.Id == s.Id ? "bl-selected" : "")">
+                            <td><a href="javascript:void(0)" @onclick="() => OpenAsync(s.Id)" @onclick:preventDefault>@s.Number</a></td>
+                            <td>@s.Month.ToString("MMMM yyyy")</td>
+                            <td><span class="badge @StatusBadge(s.Status)">@s.Status</span>@if (s.Overdue) { <span class="badge badge-warning" style="margin-left: 4px;">Overdue</span> }</td>
+                            <td class="bl-nowrap">@s.IssuedAt.ToLocalTime().ToString("dd MMM yyyy")</td>
+                            <td class="bl-nowrap">@(s.Status == BillingStatementStatus.Paid ? $"paid {s.PaidAt?.ToLocalTime():dd MMM yyyy}" : s.DueDate.ToLocalTime().ToString("dd MMM yyyy"))</td>
+                            <td class="text-right">@s.UsageCount.ToString("N0")</td>
+                            <td class="text-right"><b>@Money(s.Total, s.Currency)</b></td>
+                            <td class="text-right bl-nowrap">
+                                <button class="btn btn-ghost btn-sm" @onclick='() => DownloadAsync(s.Id, "pdf")' disabled="@busy" title="Download PDF"><span class="material-symbols-outlined" style="font-size: 18px;">picture_as_pdf</span></button>
+                                <button class="btn btn-ghost btn-sm" @onclick='() => DownloadAsync(s.Id, "xlsx")' disabled="@busy" title="Download Excel"><span class="material-symbols-outlined" style="font-size: 18px;">table_view</span></button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@if (selected != null)
+{
+    <div class="bl-card">
+        <div class="bl-card-head">
+            <div>
+                <div class="bl-card-title">@selected.Number · @selected.Month.ToString("MMMM yyyy") <span class="badge @StatusBadge(selected.Status)">@selected.Status</span></div>
+                <div class="bl-card-sub">Issued @selected.IssuedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm") by @selected.IssuedByName · due @selected.DueDate.ToLocalTime().ToString("dd MMM yyyy") · @selected.UsageCount.ToString("N0") events</div>
+                @if (selected.Status == BillingStatementStatus.Paid)
+                {
+                    <div class="bl-card-sub">Paid @selected.PaidAt?.ToLocalTime().ToString("dd MMM yyyy")@(selected.PaymentReference is null ? "" : $" · ref {selected.PaymentReference}")@(selected.PaymentNote is null ? "" : $" · {selected.PaymentNote}")</div>
+                }
+                @if (selected.Status == BillingStatementStatus.Voided)
+                {
+                    <div class="bl-card-sub">Voided @selected.VoidedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm"): @selected.VoidReason</div>
+                }
+                @if (!string.IsNullOrEmpty(selected.Notes))
+                {
+                    <div class="bl-card-sub">Note: @selected.Notes</div>
+                }
+            </div>
+            <div class="bl-nowrap">
+                <button class="btn btn-outline btn-sm" @onclick='() => DownloadAsync(selected.Id, "pdf")' disabled="@busy">PDF</button>
+                <button class="btn btn-outline btn-sm" @onclick='() => DownloadAsync(selected.Id, "xlsx")' disabled="@busy">Excel</button>
+                @if (IsManager && selected.Status == BillingStatementStatus.Issued)
+                {
+                    <button class="btn btn-primary btn-sm" @onclick="() => showPaid = !showPaid">Mark paid</button>
+                    <button class="btn btn-danger btn-sm" @onclick="() => showVoid = !showVoid">Void</button>
+                }
+                <button class="btn btn-ghost btn-sm" @onclick="() => selected = null">Close</button>
+            </div>
+        </div>
+
+        @if (showPaid && IsManager)
+        {
+            <div class="bl-action-box">
+                <div class="bl-action-row">
+                    <label>Paid on <input type="date" class="form-control" @bind="paidOn" /></label>
+                    <input class="form-control" placeholder="Payment reference" @bind="paidReference" />
+                    <input class="form-control" placeholder="Note (optional)" @bind="paidNote" />
+                    <button class="btn btn-primary" @onclick="MarkPaidAsync" disabled="@busy">Confirm paid</button>
+                </div>
+            </div>
+        }
+        @if (showVoid && IsManager)
+        {
+            <div class="bl-action-box bl-action-danger">
+                <div class="bl-muted">Voiding returns every row on this statement to unbilled; they will appear on the next statement issued. The number @selected.Number is not reused.</div>
+                <div class="bl-action-row">
+                    <input class="form-control" placeholder="Why is it being voided?" @bind="voidReason" @bind:event="oninput" />
+                    <button class="btn btn-danger" @onclick="VoidAsync" disabled="@(busy || string.IsNullOrWhiteSpace(voidReason))">Void statement</button>
+                </div>
+            </div>
+        }
+
+        <div class="bl-table-wrap">
+            <table class="table bl-table">
+                <thead><tr><th>Month</th><th>Flow</th><th>Category</th><th>Item</th><th class="text-right">Qty</th><th class="text-right">Unit price</th><th class="text-right">Amount</th>@if (IsManager) { <th class="text-right">Unit cost</th> }</tr></thead>
+                <tbody>
+                    @foreach (var l in selected.Lines)
+                    {
+                        <tr class="@(l.Month < selected.Month ? "bl-late" : "")">
+                            <td>@l.Month.ToString("MMM yyyy")</td>
+                            <td>@l.FlowName</td>
+                            <td>@l.CategoryName</td>
+                            <td>@l.ItemName</td>
+                            <td class="text-right">@l.Quantity.ToString("N0")</td>
+                            <td class="text-right">@l.UnitPrice.ToString("N2")</td>
+                            <td class="text-right"><b>@l.Amount.ToString("N2")</b></td>
+                            @if (IsManager) { <td class="text-right bl-internal">@((l.UnitCost ?? 0).ToString("N2"))</td> }
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr><td colspan="6" class="text-right">Subtotal</td><td class="text-right">@selected.Subtotal.ToString("N2")</td>@if (IsManager) { <td></td> }</tr>
+                    <tr><td colspan="6" class="text-right">VAT @selected.VatRatePercent.ToString("0.##")%</td><td class="text-right">@selected.VatAmount.ToString("N2")</td>@if (IsManager) { <td></td> }</tr>
+                    <tr><td colspan="6" class="text-right"><b>Total due</b></td><td class="text-right"><b>@Money(selected.Total, selected.Currency)</b></td>@if (IsManager) { <td class="text-right bl-internal">@(selected.CostTotal is { } c ? $"cost {c:N2}" : "")</td> }</tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+}
+
+<style>
+    .bl-header { align-items: flex-start; }
+    .bl-controls { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+    .bl-controls .form-control { width: auto; min-width: 160px; }
+    .bl-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 14px; padding: var(--space-4) var(--space-5); box-shadow: 0 1px 2px rgba(16, 24, 40, .04); min-width: 0; overflow: hidden; margin-bottom: var(--space-4); }
+    .bl-preview { border-color: var(--primary-300, #86efac); }
+    .bl-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3); }
+    .bl-card-title { font-weight: 600; color: var(--gray-900); }
+    .bl-card-sub { font-size: var(--text-xs); color: var(--gray-500); margin-top: 2px; }
+    .bl-table-wrap { overflow-x: auto; margin: 0 calc(var(--space-5) * -1); padding: 0 var(--space-5); }
+    .bl-table { width: 100%; }
+    .bl-table th { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--gray-500); white-space: nowrap; padding: var(--space-2); }
+    .bl-table td { font-size: var(--text-sm); vertical-align: middle; padding: var(--space-2); }
+    .bl-table tfoot td { border-top: 1px solid var(--gray-200); }
+    .bl-late td { color: var(--gray-500); font-style: italic; }
+    .bl-selected td { background: var(--primary-50); }
+    .bl-nowrap { white-space: nowrap; }
+    .bl-nowrap .btn + .btn { margin-left: var(--space-1); }
+    .bl-internal { color: var(--warning-700, #b45309); }
+    .bl-muted { color: var(--gray-500); font-size: var(--text-xs); }
+    .bl-empty { padding: var(--space-6); text-align: center; color: var(--gray-500); font-size: var(--text-sm); }
+    .bl-tight { padding: var(--space-2) var(--space-3); font-size: var(--text-sm); margin-bottom: var(--space-2); }
+    .bl-issue { display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-3); }
+    .bl-issue .form-control { flex: 1; }
+    .bl-action-box { background: var(--gray-50); border-radius: 10px; padding: var(--space-3); margin-bottom: var(--space-3); }
+    .bl-action-danger { background: var(--danger-50); }
+    .bl-action-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; margin-top: var(--space-2); }
+    .bl-action-row label { display: flex; gap: 6px; align-items: center; font-size: var(--text-sm); }
+    .bl-action-row .form-control { width: auto; min-width: 180px; }
+</style>
+
+@code {
+    private IReadOnlyList<BillingStatementSummaryDto>? statements;
+    private BillingStatementPreviewDto? preview;
+    private BillingStatementDto? selected;
+    private string monthKey = DateTime.UtcNow.AddMonths(-1).ToString("yyyy-MM");
+    private string issueNotes = "";
+    private bool showPaid;
+    private bool showVoid;
+    private DateTime paidOn = DateTime.UtcNow.Date;
+    private string paidReference = "";
+    private string paidNote = "";
+    private string voidReason = "";
+    private bool busy;
+    private string? error;
+    private string? notice;
+
+    private bool IsManager => AuthService.CurrentUser?.HasRole("BillingManager") ?? false;
+    private Guid Me => AuthService.CurrentUser?.Id ?? Guid.Empty;
+    private string MyName => AuthService.CurrentUser?.FullName ?? "";
+    private DateTime Month => DateTime.SpecifyKind(DateTime.ParseExact(monthKey + "-01", "yyyy-MM-dd", null), DateTimeKind.Utc);
+    private static string Money(decimal v, string ccy) => $"{ccy} {v:N2}";
+
+    private static IEnumerable<DateTime> MonthChoices()
+    {
+        var m = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        for (var i = 0; i < 24; i++) yield return m.AddMonths(-i);
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var result = await AppService.GetBillingStatementsAsync();
+        if (result.Success && result.Data != null) statements = result.Data;
+        else error = result.Error;
+    }
+
+    private async Task PreviewAsync()
+    {
+        error = null; notice = null; busy = true;
+        try
+        {
+            var result = await AppService.PreviewBillingStatementAsync(Month, IsManager);
+            if (result.Success && result.Data != null) { preview = result.Data; selected = null; }
+            else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task IssueAsync()
+    {
+        if (preview is null) return;
+        error = null; busy = true;
+        try
+        {
+            var result = await AppService.IssueBillingStatementAsync(preview.Month, issueNotes, Me, MyName);
+            if (result.Success && result.Data != null)
+            {
+                notice = $"{result.Data.Number} issued for {result.Data.Month:MMMM yyyy}: {Money(result.Data.Total, result.Data.Currency)} including VAT.";
+                preview = null;
+                issueNotes = "";
+                await LoadAsync();
+                selected = result.Data;
+            }
+            else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task OpenAsync(Guid id)
+    {
+        error = null; showPaid = showVoid = false;
+        var result = await AppService.GetBillingStatementAsync(id, IsManager);
+        if (result.Success && result.Data != null) { selected = result.Data; preview = null; }
+        else error = result.Error;
+    }
+
+    private async Task DownloadAsync(Guid id, string format)
+    {
+        error = null; busy = true;
+        try
+        {
+            var result = await AppService.ExportBillingStatementAsync(id, format);
+            if (result.Success && result.Data != null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes", result.Data.FileName, result.Data.ContentType, result.Data.Content);
+            else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task MarkPaidAsync()
+    {
+        if (selected is null) return;
+        error = null; busy = true;
+        try
+        {
+            var result = await AppService.MarkBillingStatementPaidAsync(selected.Id, paidOn, paidReference, paidNote, Me, MyName);
+            if (result.Success)
+            {
+                notice = $"{selected.Number} marked paid.";
+                showPaid = false; paidReference = ""; paidNote = "";
+                await LoadAsync();
+                await OpenAsync(selected.Id);
+            }
+            else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task VoidAsync()
+    {
+        if (selected is null) return;
+        error = null; busy = true;
+        try
+        {
+            var result = await AppService.VoidBillingStatementAsync(selected.Id, voidReason, Me, MyName);
+            if (result.Success)
+            {
+                notice = result.Data;
+                showVoid = false; voidReason = "";
+                await LoadAsync();
+                await OpenAsync(selected.Id);
+            }
+            else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+
+    private static string StatusBadge(BillingStatementStatus s) => s switch
+    {
+        BillingStatementStatus.Paid => "badge-success",
+        BillingStatementStatus.Voided => "badge-gray",
+        _ => "badge-info",
+    };
+}

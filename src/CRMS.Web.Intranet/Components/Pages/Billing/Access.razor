@@ -70,7 +70,7 @@
             <div class="bl-add">
                 <div class="bl-add-title">Add a Billing Manager</div>
                 <div class="bl-add-row">
-                    <input class="form-control" placeholder="Email" @bind="newEmail" />
+                    <input class="form-control" placeholder="Email" @bind="newEmail" @bind:event="oninput" />
                     <input class="form-control" placeholder="First name" @bind="newFirst" />
                     <input class="form-control" placeholder="Last name" @bind="newLast" />
                     <button class="btn btn-primary" @onclick="AddAsync" disabled="@(busy || string.IsNullOrWhiteSpace(newEmail))">Add</button>

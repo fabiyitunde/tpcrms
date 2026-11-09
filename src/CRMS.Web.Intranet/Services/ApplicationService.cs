@@ -8912,4 +8912,46 @@ public partial class ApplicationService
     public Task<ApiResponse<CRMS.Application.Billing.Commands.BillingBackfillResultDto>> RunBillingBackfillAsync(bool dryRun, Guid actorUserId)
         => Billing("rebuild history", () => _sp.GetRequiredService<CRMS.Application.Billing.Commands.RunBillingBackfillHandler>()
             .Handle(new CRMS.Application.Billing.Commands.RunBillingBackfillCommand(dryRun, actorUserId), CancellationToken.None));
+
+
+    // ── Billing statements ──
+
+    public Task<ApiResponse<CRMS.Application.Billing.Statements.BillingStatementPreviewDto>> PreviewBillingStatementAsync(DateTime month, bool includeCost)
+        => Billing("preview the statement", () => _sp.GetRequiredService<CRMS.Application.Billing.Statements.PreviewBillingStatementHandler>()
+            .Handle(new CRMS.Application.Billing.Statements.PreviewBillingStatementQuery(month, includeCost), CancellationToken.None));
+
+    public Task<ApiResponse<CRMS.Application.Billing.Statements.BillingStatementDto>> IssueBillingStatementAsync(DateTime month, string? notes, Guid actorUserId, string actorName)
+        => Billing("issue the statement", () => _sp.GetRequiredService<CRMS.Application.Billing.Statements.IssueBillingStatementHandler>()
+            .Handle(new CRMS.Application.Billing.Statements.IssueBillingStatementCommand(month, notes, actorUserId, actorName), CancellationToken.None));
+
+    public Task<ApiResponse<IReadOnlyList<CRMS.Application.Billing.Statements.BillingStatementSummaryDto>>> GetBillingStatementsAsync()
+        => Billing("load the statements", () => _sp.GetRequiredService<CRMS.Application.Billing.Statements.GetBillingStatementsHandler>()
+            .Handle(new CRMS.Application.Billing.Statements.GetBillingStatementsQuery(), CancellationToken.None));
+
+    public Task<ApiResponse<CRMS.Application.Billing.Statements.BillingStatementDto>> GetBillingStatementAsync(Guid id, bool includeCost)
+        => Billing("load the statement", () => _sp.GetRequiredService<CRMS.Application.Billing.Statements.GetBillingStatementHandler>()
+            .Handle(new CRMS.Application.Billing.Statements.GetBillingStatementQuery(id, includeCost), CancellationToken.None));
+
+    public Task<ApiResponse<CRMS.Application.Billing.Statements.BillingStatementFile>> ExportBillingStatementAsync(Guid id, string format)
+        => Billing("export the statement", () => _sp.GetRequiredService<CRMS.Application.Billing.Statements.ExportBillingStatementHandler>()
+            .Handle(new CRMS.Application.Billing.Statements.ExportBillingStatementQuery(id, format), CancellationToken.None));
+
+    public async Task<ApiResponse> MarkBillingStatementPaidAsync(Guid id, DateTime paidOn, string? reference, string? note, Guid actorUserId, string actorName)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Billing.Statements.MarkBillingStatementPaidHandler>();
+            var result = await handler.Handle(new CRMS.Application.Billing.Statements.MarkBillingStatementPaidCommand(id, paidOn, reference, note, actorUserId, actorName), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "The statement could not be marked paid.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Billing: failed to mark statement {Id} paid", id);
+            return ApiResponse.Fail("The statement could not be marked paid.");
+        }
+    }
+
+    public Task<ApiResponse<string>> VoidBillingStatementAsync(Guid id, string reason, Guid actorUserId, string actorName)
+        => Billing("void the statement", () => _sp.GetRequiredService<CRMS.Application.Billing.Statements.VoidBillingStatementHandler>()
+            .Handle(new CRMS.Application.Billing.Statements.VoidBillingStatementCommand(id, reason, actorUserId, actorName), CancellationToken.None));
 }

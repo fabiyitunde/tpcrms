@@ -194,6 +194,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     // Vendor billing: every billable event (third-party call, partner check, loan milestone) and the dated rate card.
     public DbSet<Domain.Aggregates.Billing.BillingUsage> BillingUsages => Set<Domain.Aggregates.Billing.BillingUsage>();
     public DbSet<Domain.Aggregates.Billing.BillingRate> BillingRates => Set<Domain.Aggregates.Billing.BillingRate>();
+    public DbSet<Domain.Aggregates.Billing.BillingStatement> BillingStatements => Set<Domain.Aggregates.Billing.BillingStatement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -395,6 +396,13 @@ public class CRMSDbContext : DbContext, IUnitOfWork
             var existsInDb = await RhshfFinancialAppraisalReports.AnyAsync(r => r.Id == entry.Entity.Id, cancellationToken);
             if (!existsInDb)
                 entry.State = EntityState.Added;
+        }
+
+        // Statement lines are written once, after the statement row already exists, and never edited.
+        foreach (var entry in ChangeTracker.Entries<Domain.Aggregates.Billing.BillingStatementLine>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            entry.State = EntityState.Added;
         }
 
         return await base.SaveChangesAsync(cancellationToken);

@@ -34,8 +34,13 @@ public class BillingUsage : AggregateRoot
     /// <summary>Idempotency key for derived and reconstructed rows; null for live rows.</summary>
     public string? SourceKey { get; private set; }
     public int? DurationMs { get; private set; }
+    /// <summary>The statement this row was billed on, once a period that includes it has been closed.</summary>
+    public Guid? StatementId { get; private set; }
 
     private BillingUsage() { }
+
+    public void AssignToStatement(Guid statementId) => StatementId = statementId;
+    public void ReleaseFromStatement() => StatementId = null;
 
     public static DateTime MonthOf(DateTime utc) => new(utc.Year, utc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
