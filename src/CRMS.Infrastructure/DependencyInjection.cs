@@ -682,6 +682,14 @@ public static class DependencyInjection
         services.AddScoped<Application.Billing.Statements.ExportBillingStatementHandler>();
         services.AddScoped<Application.Billing.Statements.MarkBillingStatementPaidHandler>();
         services.AddScoped<Application.Billing.Statements.VoidBillingStatementHandler>();
+
+        // Billing alerts: the checks, their alerts, and the job that runs them.
+        services.AddScoped<IBillingAlertRepository, BillingAlertRepository>();
+        services.AddScoped<Application.Billing.Alerts.BillingAlertChecks>();
+        services.AddScoped<Application.Billing.Alerts.RunBillingAlertChecksHandler>();
+        services.AddScoped<Application.Billing.Alerts.GetBillingAlertsHandler>();
+        services.AddScoped<Application.Billing.Alerts.ActOnBillingAlertHandler>();
+        services.AddHostedService<BackgroundServices.BillingAlertService>();
         
         // Identity
         services.AddScoped<Application.Identity.Queries.GetAllUsersHandler>();

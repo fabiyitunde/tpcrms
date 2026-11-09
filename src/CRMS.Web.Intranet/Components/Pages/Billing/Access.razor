@@ -121,6 +121,39 @@
                     <button class="btn btn-primary" @onclick="() => BackfillAsync(false)" disabled="@(busy || backfill is null || !backfill.DryRun || backfill.ByItem.Count == 0)">Write @(backfill is { DryRun: true } b ? b.ByItem.Sum(i => i.Count).ToString("N0") : "") rows</button>
                 </div>
             </div>
+            <div class="bl-action">
+                <div>
+                    <b>Billing checks</b>
+                    <div class="bl-muted">Spend above norm, failing calls, unattributed calls, unpriced items, overdue statements and unclosed months. They run every @(settingsHours) hours on their own; new findings are emailed to Billing Managers and shown at the top of the dashboard.</div>
+                </div>
+                <button class="btn btn-outline" @onclick="RunChecksAsync" disabled="@busy">Run checks now</button>
+            </div>
+            @if (checkRun is not null)
+            {
+                <div class="alert alert-info">@checkRun.Findings condition(s) found: @checkRun.Added new, @checkRun.Updated still present, @checkRun.Resolved resolved@(checkRun.Emailed > 0 ? $", {checkRun.Emailed} manager(s) emailed" : "").</div>
+            }
+            @if (alertHistory is { Count: > 0 })
+            {
+                <table class="table bl-table bl-compact">
+                    <thead><tr><th>When</th><th>Alert</th><th>Status</th></tr></thead>
+                    <tbody>
+                        @foreach (var a in alertHistory.Take(20))
+                        {
+                            <tr>
+                                <td class="bl-nowrap">@a.LastSeenAt.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                                <td><span class="badge @SeverityBadge(a.Severity)">@a.Severity</span> @a.Title</td>
+                                <td>@a.Status@(a.Status == CRMS.Domain.Aggregates.Billing.BillingAlertStatus.Snoozed && a.SnoozedUntil is { } su ? $" until {su.ToLocalTime():dd MMM}" : "")
+                                    @if (a.Status is CRMS.Domain.Aggregates.Billing.BillingAlertStatus.Dismissed or CRMS.Domain.Aggregates.Billing.BillingAlertStatus.Snoozed)
+                                    {
+                                        <button class="btn btn-ghost btn-sm" @onclick='() => ReopenAsync(a.Id)' disabled="@busy">Reopen</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
             @if (backfill is not null)
             {
                 <div class="bl-backfill">
@@ -186,6 +219,9 @@
     private BillingLedgerStatusDto? ledger;
     private BillingSyncResultDto? sync;
     private BillingBackfillResultDto? backfill;
+    private CRMS.Application.Billing.Alerts.BillingAlertRunResultDto? checkRun;
+    private IReadOnlyList<CRMS.Application.Billing.Alerts.BillingAlertDto>? alertHistory;
+    private int settingsHours = 6;
     private Guid? confirmRemove;
     private string newEmail = "";
     private string newFirst = "";
@@ -208,7 +244,39 @@
             ledger = result.Data.Ledger;
         }
         else error = result.Error ?? "Billing access could not be loaded.";
+        var history = await AppService.GetBillingAlertsAsync(includeHistory: true);
+        if (history.Success && history.Data != null) alertHistory = history.Data;
     }
+
+    private async Task RunChecksAsync()
+    {
+        busy = true; error = null;
+        try
+        {
+            var result = await AppService.RunBillingAlertChecksAsync(Me);
+            if (result.Success) { checkRun = result.Data; await LoadAsync(); }
+            else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task ReopenAsync(Guid id)
+    {
+        busy = true; error = null;
+        try
+        {
+            var result = await AppService.ActOnBillingAlertAsync(id, "reopen", Me);
+            if (result.Success) await LoadAsync(); else error = result.Error;
+        }
+        finally { busy = false; }
+    }
+
+    private static string SeverityBadge(CRMS.Domain.Aggregates.Billing.BillingAlertSeverity s) => s switch
+    {
+        CRMS.Domain.Aggregates.Billing.BillingAlertSeverity.Critical => "badge-danger",
+        CRMS.Domain.Aggregates.Billing.BillingAlertSeverity.Warning => "badge-warning",
+        _ => "badge-info",
+    };
 
     private async Task AddAsync()
     {

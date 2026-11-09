@@ -55,6 +55,29 @@
 }
 else if (data != null)
 {
+    @if (alerts is { Count: > 0 })
+    {
+        <div class="bl-alerts">
+            @foreach (var a in alerts)
+            {
+                <div class="bl-alert bl-alert-@a.Severity.ToString().ToLowerInvariant()">
+                    <span class="material-symbols-outlined bl-alert-icon">@(a.Severity == BillingAlertSeverity.Critical ? "error" : a.Severity == BillingAlertSeverity.Warning ? "warning" : "info")</span>
+                    <div class="bl-alert-body">
+                        <div class="bl-alert-title">@a.Title <span class="bl-chip">@a.KindName</span></div>
+                        <div class="bl-alert-detail">@a.Detail</div>
+                        <div class="bl-alert-meta">First seen @a.FirstSeenAt.ToLocalTime().ToString("dd MMM HH:mm")@(a.TimesSeen > 1 ? $", still there on the last {a.TimesSeen} checks" : "")@if (!string.IsNullOrEmpty(a.Link) && a.Link != "/billing") { <text> · </text><a href="@a.Link">Open</a> }</div>
+                    </div>
+                    @if (IsManager)
+                    {
+                        <div class="bl-alert-actions">
+                            <button class="btn btn-ghost btn-sm" @onclick='() => ActOnAlertAsync(a.Id, "snooze")' disabled="@alertBusy" title="Hide for a week">Snooze</button>
+                            <button class="btn btn-ghost btn-sm" @onclick='() => ActOnAlertAsync(a.Id, "dismiss")' disabled="@alertBusy" title="Hide until it resolves">Dismiss</button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
     @if (!data.AnyRateSet)
     {
         <div class="alert alert-warning mb-4">
@@ -328,6 +351,21 @@ else if (data != null)
     .spinning { animation: spin 1s linear infinite; }
     @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
+    .bl-alerts { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-5); }
+    .bl-alert { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) var(--space-4); border-radius: 12px; border: 1px solid; background: #fff; }
+    .bl-alert-info { border-color: var(--info-200, #bfdbfe); background: var(--info-50, #eff6ff); }
+    .bl-alert-warning { border-color: var(--warning-200, #fde68a); background: var(--warning-50, #fffbeb); }
+    .bl-alert-critical { border-color: var(--danger-200, #fecaca); background: var(--danger-50, #fef2f2); }
+    .bl-alert-icon { font-size: 22px; margin-top: 2px; }
+    .bl-alert-info .bl-alert-icon { color: var(--info-600, #2563eb); }
+    .bl-alert-warning .bl-alert-icon { color: var(--warning-600, #d97706); }
+    .bl-alert-critical .bl-alert-icon { color: var(--danger-600, #dc2626); }
+    .bl-alert-body { flex: 1; min-width: 0; }
+    .bl-alert-title { font-weight: 600; color: var(--gray-900); }
+    .bl-alert-title .bl-chip { margin-left: 6px; }
+    .bl-alert-detail { font-size: var(--text-sm); color: var(--gray-700); margin-top: 2px; }
+    .bl-alert-meta { font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px; }
+    .bl-alert-actions { display: flex; gap: var(--space-1); white-space: nowrap; }
     .bl-kpis { display: grid; gap: var(--space-4); margin-bottom: var(--space-6); }
     .bl-kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .bl-kpis-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
@@ -370,6 +408,8 @@ else if (data != null)
 
 @code {
     private BillingDashboardDto? data;
+    private IReadOnlyList<CRMS.Application.Billing.Alerts.BillingAlertDto>? alerts;
+    private bool alertBusy;
     private BillingUsagePageDto? charges;
     private BillingLoanPageDto? loans;
     private string monthKey = DateTime.UtcNow.ToString("yyyy-MM");
@@ -414,7 +454,22 @@ else if (data != null)
         }
         isLoading = false;
         // Sequential: the facade shares one DbContext per circuit.
+        var alertResult = await AppService.GetBillingAlertsAsync(includeHistory: false);
+        if (alertResult.Success && alertResult.Data != null) alerts = alertResult.Data;
         if (tab == "charges") await LoadChargesAsync(1); else await LoadLoansAsync(1);
+    }
+
+    private async Task ActOnAlertAsync(Guid id, string action)
+    {
+        alertBusy = true;
+        try
+        {
+            var result = await AppService.ActOnBillingAlertAsync(id, action, AuthService.CurrentUser?.Id ?? Guid.Empty);
+            if (!result.Success) { error = result.Error; return; }
+            var refreshed = await AppService.GetBillingAlertsAsync(includeHistory: false);
+            if (refreshed.Success && refreshed.Data != null) alerts = refreshed.Data;
+        }
+        finally { alertBusy = false; }
     }
 
     private async Task SwitchTab(string t)

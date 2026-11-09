@@ -100,6 +100,13 @@ public class BillingUsageRepository : IBillingUsageRepository
     public async Task<IReadOnlyList<BillingUsageCount>> CountsForStatementAsync(Guid statementId, CancellationToken ct = default) =>
         await Grouped(_context.BillingUsages.AsNoTracking().Where(u => u.StatementId == statementId)).ToListAsync(ct);
 
+    public async Task<IReadOnlyList<BillingRecentCount>> RecentCountsAsync(DateTime sinceUtc, CancellationToken ct = default) =>
+        await _context.BillingUsages.AsNoTracking()
+            .Where(u => u.OccurredAt >= sinceUtc && u.Category != BillingCategory.Platform)
+            .GroupBy(u => new { u.Item, u.Succeeded })
+            .Select(g => new BillingRecentCount(g.Key.Item, g.Key.Succeeded, g.Count()))
+            .ToListAsync(ct);
+
     public async Task<int> ReleaseStatementAsync(Guid statementId, CancellationToken ct = default)
     {
         var rows = _context.BillingUsages.Where(u => u.StatementId == statementId);
@@ -167,4 +174,22 @@ public class BillingRateRepository : IBillingRateRepository
         _context.BillingRates.Update(rate);
         return Task.CompletedTask;
     }
+}
+
+public class BillingAlertRepository : IBillingAlertRepository
+{
+    private readonly CRMSDbContext _context;
+
+    public BillingAlertRepository(CRMSDbContext context) => _context = context;
+
+    public Task<BillingAlert?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
+        _context.BillingAlerts.FirstOrDefaultAsync(a => a.Id == id, ct);
+
+    public async Task<IReadOnlyList<BillingAlert>> GetActiveAsync(CancellationToken ct = default) =>
+        await _context.BillingAlerts.Where(a => a.Status != BillingAlertStatus.Resolved).OrderByDescending(a => a.LastSeenAt).ToListAsync(ct);
+
+    public async Task<IReadOnlyList<BillingAlert>> GetRecentAsync(int limit, CancellationToken ct = default) =>
+        await _context.BillingAlerts.AsNoTracking().OrderByDescending(a => a.LastSeenAt).Take(Math.Clamp(limit, 1, 500)).ToListAsync(ct);
+
+    public async Task AddAsync(BillingAlert alert, CancellationToken ct = default) => await _context.BillingAlerts.AddAsync(alert, ct);
 }

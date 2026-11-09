@@ -8954,4 +8954,30 @@ public partial class ApplicationService
     public Task<ApiResponse<string>> VoidBillingStatementAsync(Guid id, string reason, Guid actorUserId, string actorName)
         => Billing("void the statement", () => _sp.GetRequiredService<CRMS.Application.Billing.Statements.VoidBillingStatementHandler>()
             .Handle(new CRMS.Application.Billing.Statements.VoidBillingStatementCommand(id, reason, actorUserId, actorName), CancellationToken.None));
+
+
+    // ── Billing alerts ──
+
+    public Task<ApiResponse<IReadOnlyList<CRMS.Application.Billing.Alerts.BillingAlertDto>>> GetBillingAlertsAsync(bool includeHistory)
+        => Billing("load the alerts", () => _sp.GetRequiredService<CRMS.Application.Billing.Alerts.GetBillingAlertsHandler>()
+            .Handle(new CRMS.Application.Billing.Alerts.GetBillingAlertsQuery(includeHistory), CancellationToken.None));
+
+    public Task<ApiResponse<CRMS.Application.Billing.Alerts.BillingAlertRunResultDto>> RunBillingAlertChecksAsync(Guid actorUserId)
+        => Billing("run the billing checks", () => _sp.GetRequiredService<CRMS.Application.Billing.Alerts.RunBillingAlertChecksHandler>()
+            .Handle(new CRMS.Application.Billing.Alerts.RunBillingAlertChecksCommand(actorUserId), CancellationToken.None));
+
+    public async Task<ApiResponse> ActOnBillingAlertAsync(Guid id, string action, Guid actorUserId)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Billing.Alerts.ActOnBillingAlertHandler>();
+            var result = await handler.Handle(new CRMS.Application.Billing.Alerts.ActOnBillingAlertCommand(id, action, actorUserId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "The alert could not be updated.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Billing: failed to {Action} alert {Id}", action, id);
+            return ApiResponse.Fail("The alert could not be updated.");
+        }
+    }
 }

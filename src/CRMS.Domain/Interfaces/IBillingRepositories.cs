@@ -43,6 +43,9 @@ public interface IBillingUsageRepository
     Task<IReadOnlyList<BillingUsageCount>> CountsForStatementAsync(Guid statementId, CancellationToken ct = default);
     /// <summary>Makes a voided statement's rows billable again. Returns how many.</summary>
     Task<int> ReleaseStatementAsync(Guid statementId, CancellationToken ct = default);
+
+    /// <summary>Counts by item and outcome for rows that occurred since <paramref name="sinceUtc"/>, platform rows excluded.</summary>
+    Task<IReadOnlyList<BillingRecentCount>> RecentCountsAsync(DateTime sinceUtc, CancellationToken ct = default);
 }
 
 public interface IBillingStatementRepository
@@ -63,4 +66,17 @@ public interface IBillingRateRepository
     Task<BillingRate?> FindAsync(string item, BillingFlow? flow, DateTime effectiveFromMonth, CancellationToken ct = default);
     Task AddAsync(BillingRate rate, CancellationToken ct = default);
     Task UpdateAsync(BillingRate rate, CancellationToken ct = default);
+}
+
+/// <summary>Count of usage rows for one item and outcome since a point in time.</summary>
+public sealed record BillingRecentCount(string Item, bool Succeeded, int Count);
+
+public interface IBillingAlertRepository
+{
+    Task<BillingAlert?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    /// <summary>Every alert that has not resolved: open, snoozed or dismissed.</summary>
+    Task<IReadOnlyList<BillingAlert>> GetActiveAsync(CancellationToken ct = default);
+    /// <summary>Newest first, resolved included.</summary>
+    Task<IReadOnlyList<BillingAlert>> GetRecentAsync(int limit, CancellationToken ct = default);
+    Task AddAsync(BillingAlert alert, CancellationToken ct = default);
 }

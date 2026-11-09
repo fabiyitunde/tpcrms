@@ -195,6 +195,7 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<Domain.Aggregates.Billing.BillingUsage> BillingUsages => Set<Domain.Aggregates.Billing.BillingUsage>();
     public DbSet<Domain.Aggregates.Billing.BillingRate> BillingRates => Set<Domain.Aggregates.Billing.BillingRate>();
     public DbSet<Domain.Aggregates.Billing.BillingStatement> BillingStatements => Set<Domain.Aggregates.Billing.BillingStatement>();
+    public DbSet<Domain.Aggregates.Billing.BillingAlert> BillingAlerts => Set<Domain.Aggregates.Billing.BillingAlert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

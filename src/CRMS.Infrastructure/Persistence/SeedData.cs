@@ -164,6 +164,18 @@ public static class SeedData
                 "Regards,\nBank of Agriculture CRMS",
                 Shell(changedInner)),
 
+            // Billing > alerts: the vendor's Billing Managers hear about new findings from the billing checks.
+            (Application.Billing.Alerts.BillingAlertNames.TemplateCode, "Billing Alert", NotificationType.SystemAlert,
+                "CRMS billing: {{Count}} new alert{{Plural}}",
+                "Dear {{RecipientName}},\n\nThe billing checks found {{Count}} new condition{{Plural}} worth a look:\n\n{{AlertListText}}\n\n" +
+                "Open the billing dashboard: {{DashboardLink}}\n\nRegards,\nCRMS Billing",
+                Shell(
+                    "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+                    "<p style=\"margin:0 0 12px;\">The billing checks found <strong>{{Count}} new condition{{Plural}}</strong> worth a look.</p>" +
+                    "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border:1px solid #e5e7eb;border-radius:8px;border-collapse:separate;font-size:14px;\">{{AlertListHtml}}</table>" +
+                    Button("Open billing dashboard", "{{DashboardLink}}") +
+                    "<p style=\"margin:16px 0 0;color:#6b7280;font-size:13px;\">You receive this because you are a Billing Manager. Snooze or dismiss alerts on the dashboard.</p>")),
+
             ("PASSWORD_RESET", "Password Reset", NotificationType.PasswordReset,
                 "Reset your CRMS password",
                 "Dear {{RecipientName}},\n\nWe received a request to reset your Bank of Agriculture CRMS password.\n\n" +
