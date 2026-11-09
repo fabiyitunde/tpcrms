@@ -123,6 +123,41 @@
 
     @if (diagTab == "cac")
     {
+        <div class="card" style="margin-bottom: var(--space-4);">
+            <div class="card-header">
+                <h3 class="card-title" style="margin: 0;">SmartComply API Key</h3>
+                <div style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--space-1);">
+                    Asks SmartComply whether this server's key is accepted, with a request that names no subject, so nothing is looked up and nothing is billed. Every credit bureau and CAC call from this server uses this key. The API host has its own copy of the key; its standing shows in the API's connectivity probe.
+                </div>
+            </div>
+            <div class="card-body" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                <div>
+                    <button class="btn btn-outline" @onclick="CheckSmartComplyKey" disabled="@keyBusy">
+                        @if (keyBusy)
+                        {
+                            <span class="spinner-sm" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+                            <span>Checking…</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px;">key</span>
+                            <span>Check API key</span>
+                        }
+                    </button>
+                </div>
+                @if (keyError != null)
+                {
+                    <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm); margin: 0;">@keyError</div>
+                }
+                @if (keyCheck != null)
+                {
+                    <div class="alert @(keyCheck.Accepted ? "alert-success" : "alert-danger")" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm); margin: 0;">
+                        <b>@(keyCheck.Accepted ? "Accepted" : "Rejected")</b> · @keyCheck.Summary
+                        <div style="margin-top: 4px; color: var(--text-secondary);">Key @keyCheck.KeyHint · server @keyCheck.Host · @keyCheck.BaseUrl</div>
+                    </div>
+                }
+            </div>
+        </div>
         <div class="card">
             <div class="card-header">
                 <h3 class="card-title" style="margin: 0;">SmartComply CAC Raw Response</h3>
@@ -279,6 +314,27 @@
     private UserInfo? User => AuthService.CurrentUser;
 
     private string diagTab = "cac";
+
+    private bool keyBusy;
+    private string? keyError;
+    private CRMS.Domain.Interfaces.SmartComplyAccessCheck? keyCheck;
+
+    private async Task CheckSmartComplyKey()
+    {
+        keyBusy = true;
+        keyError = null;
+        keyCheck = null;
+        try
+        {
+            var result = await AppService.CheckSmartComplyAccessAsync();
+            if (!result.Success || result.Data == null) keyError = result.Error ?? "The key could not be checked.";
+            else keyCheck = result.Data;
+        }
+        finally
+        {
+            keyBusy = false;
+        }
+    }
 
     private string cacRcNumber = "";
     private string cacCompanyName = "";

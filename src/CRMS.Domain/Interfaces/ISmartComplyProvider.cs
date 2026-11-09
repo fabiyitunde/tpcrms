@@ -47,6 +47,21 @@ public interface ISmartComplyProvider
     Task<Result<string>> GetCacAdvancedRawJsonAsync(string rcNumber, string companyName, string companyType = "RC", CancellationToken ct = default);
     
     #endregion
+
+    /// <summary>
+    /// Whether SmartComply accepts this host's API key. Sends a bureau request with no subject in
+    /// it, so nothing is looked up and nothing is billed; the answer is either "BVN is required"
+    /// (key accepted) or "Authorization Failed" (key rejected). Found necessary on 2026-11-09, when
+    /// one production host carried a rejected key and every NAMP bureau job it picked up failed.
+    /// </summary>
+    Task<SmartComplyAccessCheck> CheckAccessAsync(CancellationToken ct = default);
+}
+
+/// <summary>Outcome of <see cref="ISmartComplyProvider.CheckAccessAsync"/>.</summary>
+public record SmartComplyAccessCheck(bool Accepted, string Summary, string Host, string BaseUrl, string KeyHint)
+{
+    public static string HintFor(string? apiKey) =>
+        string.IsNullOrEmpty(apiKey) ? "(no key)" : apiKey.Length <= 6 ? "(short key)" : $"{apiKey[..3]}…{apiKey[^3..]} ({apiKey.Length} chars)";
 }
 
 #region Domain Result Records

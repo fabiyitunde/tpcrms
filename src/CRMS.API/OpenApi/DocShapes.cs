@@ -32,7 +32,7 @@ public record NampWebhookValidationProblem(string Message, IReadOnlyList<string>
 public record ConnectivityReport(DateTime Timestamp, string Overall, IReadOnlyList<ConnectivityProbe> Probes);
 
 /// <summary>One dependency's probe.</summary>
-/// <param name="Service">Database, S3, CoreBanking or Fineract.</param>
+/// <param name="Service">Database, S3, CoreBanking, Fineract or SmartComply.</param>
 /// <param name="Status"><c>ok</c> or <c>error</c>.</param>
 /// <param name="Detail">What was seen.</param>
 public record ConnectivityProbe(string Service, string Status, string Detail);

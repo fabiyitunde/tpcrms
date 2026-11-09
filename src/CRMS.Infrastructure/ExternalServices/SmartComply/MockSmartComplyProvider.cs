@@ -235,6 +235,9 @@ public class MockSmartComplyProvider : ISmartComplyProvider
         return GetMockIndividualReportAsync(bvn, "CRCFull");
     }
 
+    public Task<SmartComplyAccessCheck> CheckAccessAsync(CancellationToken ct = default) =>
+        Task.FromResult(new SmartComplyAccessCheck(true, "Mock SmartComply: every call is answered locally, nothing reaches SmartComply.", Environment.MachineName, "(mock)", "(mock)"));
+
     public Task<Result<SmartComplyIndividualCreditReport>> GetCreditPremiumAsync(string bvn, CancellationToken ct = default)
     {
         return GetMockIndividualReportAsync(bvn, "CreditPremium");

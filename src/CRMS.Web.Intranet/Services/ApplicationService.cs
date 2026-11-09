@@ -526,6 +526,21 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>Whether SmartComply accepts this host's API key. Bills nothing.</summary>
+    public async Task<ApiResponse<CRMS.Domain.Interfaces.SmartComplyAccessCheck>> CheckSmartComplyAccessAsync()
+    {
+        try
+        {
+            var provider = _sp.GetRequiredService<CRMS.Domain.Interfaces.ISmartComplyProvider>();
+            return ApiResponse<CRMS.Domain.Interfaces.SmartComplyAccessCheck>.Ok(await provider.CheckAccessAsync());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking SmartComply access");
+            return ApiResponse<CRMS.Domain.Interfaces.SmartComplyAccessCheck>.Fail(ex.Message);
+        }
+    }
+
     public async Task<ApiResponse<byte[]>> DownloadCoreBankingAccountAsync(string accountNumber)
     {
         try

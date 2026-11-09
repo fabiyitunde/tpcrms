@@ -1044,12 +1044,60 @@ public class SmartComplyProvider : ISmartComplyProvider
         return $"****{bvn[^4..]}";
     }
 
+    /// <summary>SmartComply answers a bad key with HTTP 400 and this text, not with 401.</summary>
+    private const string AuthorizationFailedText = "Authorization Failed";
+
+    private static bool IsKeyRejected(System.Net.HttpStatusCode statusCode, string? errorContent) =>
+        statusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden
+        || (errorContent?.Contains(AuthorizationFailedText, StringComparison.OrdinalIgnoreCase) ?? false);
+
     private static string FormatApiError(System.Net.HttpStatusCode statusCode, string? errorContent)
     {
+        // A rejected key is a configuration fault on one host, not a problem with the subject. Name
+        // it, and the host, so that two hosts with different keys cannot hide behind a generic message.
+        if (IsKeyRejected(statusCode, errorContent))
+            return $"API request failed: SmartComply rejected this server's API key ({AuthorizationFailedText} on host {Environment.MachineName}). Check SmartComply:ApiKey in that host's settings.";
+
         return string.IsNullOrWhiteSpace(errorContent) 
             ? $"API request failed: {statusCode}"
             : $"API request failed: {statusCode} - {errorContent}";
     }
+
+    public async Task<SmartComplyAccessCheck> CheckAccessAsync(CancellationToken ct = default)
+    {
+        var host = Environment.MachineName;
+        var hint = SmartComplyAccessCheck.HintFor(_settings.ApiKey);
+        try
+        {
+            // No BVN: SmartComply validates the key first and the body second, so an accepted key
+            // answers "BVN is required." and nothing is billed.
+            var response = await _httpClient.PostAsJsonAsync(SmartComplyEndpoints.Individual.CRCFull, new { }, ct);
+            var content = await response.Content.ReadAsStringAsync(ct);
+            var message = TryReadMessage(content) ?? content.Trim();
+
+            if (IsKeyRejected(response.StatusCode, content))
+                return new SmartComplyAccessCheck(false, $"SmartComply rejected this host's API key: {message}", host, _settings.BaseUrl, hint);
+            if (message.Contains("required", StringComparison.OrdinalIgnoreCase))
+                return new SmartComplyAccessCheck(true, "SmartComply accepts this host's API key.", host, _settings.BaseUrl, hint);
+            return new SmartComplyAccessCheck(false, $"Unexpected answer from SmartComply (HTTP {(int)response.StatusCode}): {Truncate(message, 300)}", host, _settings.BaseUrl, hint);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested) // an HttpClient timeout is a TaskCanceledException too
+        {
+            return new SmartComplyAccessCheck(false, $"SmartComply could not be reached: {ex.Message}", host, _settings.BaseUrl, hint);
+        }
+    }
+
+    private static string? TryReadMessage(string content)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            return doc.RootElement.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";
 
     #endregion
 }

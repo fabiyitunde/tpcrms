@@ -20,6 +20,7 @@ public class HealthController : ControllerBase
     private readonly IFileStorageService _storage;
     private readonly ICoreBankingService _coreBanking;
     private readonly IFineractDirectService _fineract;
+    private readonly ISmartComplyProvider _smartComply;
     private readonly CRMSDbContext _db;
     private readonly NampSettings _nampSettings;
     private readonly ILogger<HealthController> _logger;
@@ -28,6 +29,7 @@ public class HealthController : ControllerBase
         IFileStorageService storage,
         ICoreBankingService coreBanking,
         IFineractDirectService fineract,
+        ISmartComplyProvider smartComply,
         CRMSDbContext db,
         IOptions<NampSettings> nampSettings,
         ILogger<HealthController> logger)
@@ -35,16 +37,19 @@ public class HealthController : ControllerBase
         _storage = storage;
         _coreBanking = coreBanking;
         _fineract = fineract;
+        _smartComply = smartComply;
         _db = db;
         _nampSettings = nampSettings.Value;
         _logger = logger;
     }
 
     /// <summary>
-    /// Probes S3, CoreBanking, and Fineract without writing any permanent data.
+    /// Probes S3, CoreBanking, Fineract and SmartComply without writing any permanent data.
     /// S3: upload a 1-byte sentinel file → verify exists → delete.
     /// CoreBanking: attempt an account lookup (any response = reachable).
     /// Fineract: fetch loan product list (read-only).
+    /// SmartComply: a bureau request with no subject, which only tells whether this host's API key
+    /// is accepted; nothing is billed.
     /// Returns HTTP 200 with per-service pass/fail regardless of individual probe outcomes.
     /// </summary>
     [HttpGet("connectivity")]
@@ -71,6 +76,7 @@ public class HealthController : ControllerBase
         probes.Add(await ProbeS3Async(ct));
         probes.Add(await ProbeCoreBankingAsync(ct));
         probes.Add(await ProbeFineractAsync(ct));
+        probes.Add(await ProbeSmartComplyAsync(ct));
 
         var allOk = probes.All(p => p.Status == "ok");
 
@@ -235,6 +241,24 @@ public class HealthController : ControllerBase
         for (int i = 0; i < expected.Length; i++)
             result |= expected[i] ^ provided[i];
         return result == 0;
+    }
+
+    private async Task<ProbeResult> ProbeSmartComplyAsync(CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            var check = await _smartComply.CheckAccessAsync(ct);
+            sw.Stop();
+            return new ProbeResult("SmartComply", check.Accepted ? "ok" : "error",
+                $"{check.Summary} Key {check.KeyHint} on {check.Host}, {sw.ElapsedMilliseconds}ms");
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _logger.LogWarning(ex, "Health/connectivity: SmartComply probe failed");
+            return new ProbeResult("SmartComply", "error", Summarise(ex));
+        }
     }
 
     private record ProbeResult(string Service, string Status, string Detail);
