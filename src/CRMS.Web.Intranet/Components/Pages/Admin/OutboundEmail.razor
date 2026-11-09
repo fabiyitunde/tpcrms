@@ -1,0 +1,409 @@
+@page "/admin/outbound-email"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@using CRMS.Application.Notification.Queries
+
+<PageTitle>Outbound Email - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Outbound Email</h1>
+        <p class="page-subtitle">Every email the system has tried to send, what the provider answered, and the ones that never left</p>
+    </div>
+    <button class="btn btn-outline" @onclick="RefreshAsync" disabled="@isLoading">
+        <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span>
+        Refresh
+    </button>
+</div>
+
+@if (summary != null)
+{
+    <div class="oe-tiles">
+        <button class="oe-tile" @onclick='() => Quick("Sent", 1)'>
+            <span class="oe-tile-value text-success">@summary.SentLast24Hours</span>
+            <span class="oe-tile-label">Sent, last 24 hours</span>
+        </button>
+        <button class="oe-tile @(summary.FailedLast24Hours > 0 ? "oe-tile-bad" : "")" @onclick='() => Quick("Failed", 1)'>
+            <span class="oe-tile-value @(summary.FailedLast24Hours > 0 ? "text-danger" : "")">@summary.FailedLast24Hours</span>
+            <span class="oe-tile-label">Failed, last 24 hours</span>
+        </button>
+        <button class="oe-tile @(summary.FailedLast7Days > 0 ? "oe-tile-bad" : "")" @onclick='() => Quick("Failed", 7)'>
+            <span class="oe-tile-value @(summary.FailedLast7Days > 0 ? "text-danger" : "")">@summary.FailedLast7Days</span>
+            <span class="oe-tile-label">Failed, last 7 days</span>
+        </button>
+        <button class="oe-tile" @onclick='() => Quick("Pending", null)'>
+            <span class="oe-tile-value">@summary.Waiting</span>
+            <span class="oe-tile-label">Waiting to send</span>
+        </button>
+        <button class="oe-tile @(summary.Stuck > 0 ? "oe-tile-warn" : "")" @onclick='() => Quick("Sending", null)'>
+            <span class="oe-tile-value @(summary.Stuck > 0 ? "text-warning" : "")">@summary.Stuck</span>
+            <span class="oe-tile-label">Stuck in Sending</span>
+        </button>
+    </div>
+}
+
+<div class="card oe-filters">
+    <select class="form-control" @bind="status" @bind:after="ResetAndLoad">
+        <option value="">Any status</option>
+        <option value="Pending">Pending</option>
+        <option value="Retry">Retry</option>
+        <option value="Scheduled">Scheduled</option>
+        <option value="Sending">Sending</option>
+        <option value="Sent">Sent</option>
+        <option value="Failed">Failed</option>
+        <option value="Cancelled">Cancelled</option>
+    </select>
+    <input type="text" class="form-control" placeholder="Template, e.g. PASSWORD_RESET" @bind="template" @bind:after="ResetAndLoad" />
+    <input type="text" class="form-control" placeholder="Recipient name or address" @bind="recipient" @bind:after="ResetAndLoad" />
+    <input type="date" class="form-control" @bind="from" @bind:after="ResetAndLoad" />
+    <input type="date" class="form-control" @bind="to" @bind:after="ResetAndLoad" />
+    <button class="btn btn-ghost btn-sm" @onclick="ClearFilters">Clear</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger mb-4">@error</div>
+}
+
+@if (isLoading && pageData == null)
+{
+    <div style="display: flex; justify-content: center; padding: var(--space-12);"><span class="material-symbols-outlined spinning" style="font-size: 32px; color: var(--primary-500);">progress_activity</span></div>
+}
+else if (pageData != null)
+{
+    <div class="card">
+        @if (pageData.Items.Count == 0)
+        {
+            <div class="empty-state">
+                <span class="material-symbols-outlined empty-state-icon">outgoing_mail</span>
+                <h3>No emails match</h3>
+                <p>Widen the period or clear the filters.</p>
+            </div>
+        }
+        else
+        {
+            <table class="table table-clickable oe-table">
+                <thead>
+                    <tr>
+                        <th>Created</th>
+                        <th>Status</th>
+                        <th>Template</th>
+                        <th>To</th>
+                        <th>Subject</th>
+                        <th>Outcome</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in pageData.Items)
+                    {
+                        <tr @onclick="() => OpenAsync(e.Id)">
+                            <td style="white-space: nowrap;">@e.CreatedAt.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
+                            <td>
+                                <span class="badge @StatusClass(e)">@StatusLabel(e)</span>
+                                @if (e.RetryCount > 0)
+                                {
+                                    <span class="oe-muted"> ×@(e.RetryCount + 1)</span>
+                                }
+                            </td>
+                            <td><span class="oe-code">@e.TemplateCode</span></td>
+                            <td>
+                                <div>@e.RecipientName</div>
+                                <div class="oe-muted">@e.RecipientAddress</div>
+                            </td>
+                            <td class="oe-subject">@e.Subject</td>
+                            <td class="oe-outcome">@Outcome(e)</td>
+                            <td class="text-right"><span class="material-symbols-outlined" style="font-size: 18px; color: var(--gray-400);">chevron_right</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="oe-pager">
+                <span class="oe-muted">@pageData.Total.ToString("N0") emails · page @pageData.Page of @Math.Max(1, (pageData.Total + pageData.PageSize - 1) / pageData.PageSize)</span>
+                <div style="display: flex; gap: var(--space-2);">
+                    <button class="btn btn-outline btn-sm" @onclick="() => GoTo(pageData.Page - 1)" disabled="@(pageData.Page <= 1)">Previous</button>
+                    <button class="btn btn-outline btn-sm" @onclick="() => GoTo(pageData.Page + 1)" disabled="@(pageData.Page * pageData.PageSize >= pageData.Total)">Next</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (detail != null)
+{
+    var s = detail.Summary;
+    <div class="modal-backdrop show" @onclick="Close">
+        <div class="modal oe-modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title">@s.Subject</h3>
+                    <div class="oe-muted">@s.TemplateCode · <span style="font-family: monospace;">@s.Id</span></div>
+                </div>
+                <button type="button" class="modal-close" @onclick="Close"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(actionMessage))
+                {
+                    <div class="alert @(actionOk ? "alert-success" : "alert-danger") mb-4">@actionMessage</div>
+                }
+                <div class="oe-facts">
+                    <div><span class="oe-fact-label">To</span><span>@s.RecipientName &lt;@s.RecipientAddress&gt;</span></div>
+                    <div><span class="oe-fact-label">Status</span><span class="badge @StatusClass(s)">@StatusLabel(s)</span></div>
+                    <div><span class="oe-fact-label">Created</span><span>@s.CreatedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span></div>
+                    <div><span class="oe-fact-label">Priority</span><span>@s.Priority</span></div>
+                    <div><span class="oe-fact-label">Sent</span><span>@(s.SentAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss") ?? "–")</span></div>
+                    <div><span class="oe-fact-label">Attempts</span><span>@(s.RetryCount + 1) of @(s.MaxRetries + 1)@(s.NextRetryAt is { } n ? $" · next {n.ToLocalTime():dd MMM HH:mm}" : "")</span></div>
+                    <div><span class="oe-fact-label">Provider</span><span>@(s.ProviderName ?? "–")</span></div>
+                    <div><span class="oe-fact-label">Message id</span><span style="font-family: monospace; font-size: var(--text-xs); word-break: break-all;">@(s.ExternalMessageId ?? "–")</span></div>
+                    @if (!string.IsNullOrEmpty(s.CaseReference))
+                    {
+                        <div><span class="oe-fact-label">Case</span><span>@s.CaseReference</span></div>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(s.FailureReason))
+                {
+                    <div class="alert @(s.Status == "Failed" ? "alert-danger" : "alert-warning") mb-4">
+                        <b>@(s.Status == "Failed" ? "Failed" : "Last attempt failed")@(s.FailedAt is { } f ? $" at {f.ToLocalTime():dd MMM HH:mm:ss}" : "")</b><br />
+                        @s.FailureReason
+                    </div>
+                }
+                @if (s.IsStuck)
+                {
+                    <div class="alert alert-warning mb-4">
+                        This email has been in Sending for more than @OutboundEmailDto.StuckAfter.TotalMinutes.ToString("0") minutes. The process that was sending it stopped before it could record the result. The provider may or may not have accepted it.
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(detail.ProviderResponse) && detail.ProviderResponse != s.FailureReason)
+                {
+                    <div class="oe-section-title">Provider response</div>
+                    <pre class="oe-pre">@detail.ProviderResponse</pre>
+                }
+
+                <div class="oe-actions">
+                    @if (CanResend(s))
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="ResendAsync" disabled="@isActing">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">send</span>
+                            Send again
+                        </button>
+                        <span class="oe-muted">Queues a fresh copy of this exact email. The original stays here.</span>
+                    }
+                    else if (s.IsStuck)
+                    {
+                        <button class="btn btn-outline btn-sm" @onclick="ReleaseAsync" disabled="@isActing">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">restart_alt</span>
+                            Release and send
+                        </button>
+                        <span class="oe-muted">Returns it to the queue; it goes out on the next pass. A duplicate is possible.</span>
+                    }
+                </div>
+
+                <div class="oe-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Message</span>
+                    @if (!detail.BodyWithheld && !string.IsNullOrEmpty(detail.BodyHtml))
+                    {
+                        <button class="btn btn-ghost btn-sm" @onclick="() => showHtml = !showHtml">@(showHtml ? "Show plain text" : "Show as the recipient sees it")</button>
+                    }
+                </div>
+                @if (detail.BodyWithheld)
+                {
+                    <div class="alert alert-info">
+                        The message is not shown. Emails from this template carry a credential or a one-time link meant for the recipient alone. Sending it again delivers the same message to the recipient only.
+                    </div>
+                }
+                else if (showHtml && !string.IsNullOrEmpty(detail.BodyHtml))
+                {
+                    <iframe class="oe-preview" sandbox="" srcdoc="@detail.BodyHtml" title="Email preview"></iframe>
+                }
+                else
+                {
+                    <pre class="oe-pre oe-body">@detail.Body</pre>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .spinning { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .oe-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
+    .oe-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: var(--space-3) var(--space-4); background: #fff; border: 1px solid var(--gray-200); border-radius: 12px; cursor: pointer; text-align: left; }
+    .oe-tile:hover { border-color: var(--primary-500); }
+    .oe-tile-bad { border-color: var(--danger-200, #fecaca); background: var(--danger-50, #fef2f2); }
+    .oe-tile-warn { border-color: var(--warning-200, #fde68a); background: var(--warning-50, #fffbeb); }
+    .oe-tile-value { font-size: var(--text-2xl); font-weight: 700; line-height: 1.1; }
+    .oe-tile-label { font-size: var(--text-xs); color: var(--gray-500); }
+    .oe-filters { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); }
+    .oe-filters .form-control { width: auto; min-width: 150px; }
+    .oe-table td { font-size: var(--text-sm); vertical-align: middle; }
+    .oe-muted { color: var(--gray-500); font-size: var(--text-xs); }
+    .oe-code { font-family: monospace; font-size: var(--text-xs); }
+    .oe-subject { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .oe-outcome { max-width: 320px; font-size: var(--text-xs); color: var(--gray-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .oe-pager { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4); border-top: 1px solid var(--gray-200); }
+    .oe-modal { max-width: 860px; width: 95vw; max-height: 92vh; display: flex; flex-direction: column; }
+    .oe-modal .modal-body { overflow: auto; }
+    .oe-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-6); font-size: var(--text-sm); margin-bottom: var(--space-4); }
+    .oe-facts > div { display: flex; justify-content: space-between; gap: var(--space-3); border-bottom: 1px dashed var(--gray-200); padding: 4px 0; }
+    .oe-fact-label { color: var(--gray-500); white-space: nowrap; }
+    .oe-section-title { font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--gray-500); margin: var(--space-4) 0 var(--space-2); }
+    .oe-actions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin: var(--space-2) 0; }
+    .oe-pre { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 10px; padding: var(--space-3); font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; }
+    .oe-body { font-family: inherit; font-size: var(--text-sm); }
+    .oe-preview { width: 100%; height: 520px; border: 1px solid var(--gray-200); border-radius: 10px; background: #fff; }
+    .badge-stuck { background: var(--warning-50, #fffbeb); color: var(--warning-600, #b45309); }
+</style>
+
+@code {
+    private OutboundEmailSummaryDto? summary;
+    private OutboundEmailPageDto? pageData;
+    private OutboundEmailDetailDto? detail;
+    private string status = "";
+    private string template = "";
+    private string recipient = "";
+    private DateTime? from;
+    private DateTime? to;
+    private int pageNumber = 1;
+    private const int PageSize = 25;
+    private bool isLoading = true;
+    private bool isActing;
+    private bool showHtml;
+    private string? error;
+    private string? actionMessage;
+    private bool actionOk;
+
+    protected override async Task OnInitializedAsync()
+    {
+        from = DateTime.Today.AddDays(-6);
+        await RefreshAsync();
+    }
+
+    // One DbContext per circuit: load the tiles, then the list, never both at once.
+    private async Task RefreshAsync()
+    {
+        isLoading = true;
+        error = null;
+        var s = await AppService.GetOutboundEmailSummaryAsync();
+        if (s.Success && s.Data != null) summary = s.Data;
+        else error = s.Error ?? "The email summary could not be loaded.";
+        await LoadAsync();
+    }
+
+    private async Task Quick(string withStatus, int? days)
+    {
+        status = withStatus;
+        template = "";
+        recipient = "";
+        from = days is { } d ? DateTime.Today.AddDays(-(d - 1)) : null;
+        to = null;
+        await ResetAndLoad();
+    }
+
+    private async Task ClearFilters()
+    {
+        status = "";
+        template = "";
+        recipient = "";
+        from = DateTime.Today.AddDays(-6);
+        to = null;
+        await ResetAndLoad();
+    }
+
+    private async Task ResetAndLoad()
+    {
+        pageNumber = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoTo(int n)
+    {
+        pageNumber = Math.Max(1, n);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        var fromUtc = from is { } f ? DateTime.SpecifyKind(f.Date, DateTimeKind.Local).ToUniversalTime() : (DateTime?)null;
+        var toUtc = to is { } t ? DateTime.SpecifyKind(t.Date.AddDays(1), DateTimeKind.Local).ToUniversalTime() : (DateTime?)null;
+        var result = await AppService.SearchOutboundEmailsAsync(status, template, recipient, fromUtc, toUtc, pageNumber, PageSize);
+        if (result.Success && result.Data != null) pageData = result.Data;
+        else error = result.Error ?? "The emails could not be loaded.";
+        isLoading = false;
+    }
+
+    private async Task OpenAsync(Guid id)
+    {
+        actionMessage = null;
+        showHtml = false;
+        var result = await AppService.GetOutboundEmailAsync(id);
+        if (!result.Success || result.Data == null)
+        {
+            error = result.Error ?? "The email could not be loaded.";
+            return;
+        }
+        detail = result.Data;
+    }
+
+    private void Close() => detail = null;
+
+    private static bool CanResend(OutboundEmailDto e) => e.Status is "Sent" or "Delivered" or "Read" or "Failed" or "Cancelled";
+
+    private async Task ResendAsync()
+    {
+        if (detail == null) return;
+        isActing = true;
+        var user = AuthService.CurrentUser;
+        var result = await AppService.ResendOutboundEmailAsync(detail.Summary.Id, user?.Id ?? Guid.Empty, user?.FullName ?? string.Empty);
+        actionOk = result.Success;
+        actionMessage = result.Success
+            ? "A fresh copy is in the queue and goes out within a few seconds. It appears as a new row in the list."
+            : result.Error;
+        isActing = false;
+        if (result.Success) await RefreshAsync();
+    }
+
+    private async Task ReleaseAsync()
+    {
+        if (detail == null) return;
+        isActing = true;
+        var user = AuthService.CurrentUser;
+        var result = await AppService.ReleaseStuckOutboundEmailAsync(detail.Summary.Id, user?.Id ?? Guid.Empty, user?.FullName ?? string.Empty);
+        actionOk = result.Success;
+        actionMessage = result.Success ? "Back in the queue. It goes out on the next pass." : result.Error;
+        isActing = false;
+        if (result.Success)
+        {
+            await RefreshAsync();
+            await OpenAsync(detail.Summary.Id);
+            actionMessage = "Back in the queue. It goes out on the next pass.";
+            actionOk = true;
+        }
+    }
+
+    private static string StatusLabel(OutboundEmailDto e) => e.IsStuck ? "Stuck" : e.Status;
+
+    private static string StatusClass(OutboundEmailDto e) => e.IsStuck ? "badge-stuck" : e.Status switch
+    {
+        "Sent" or "Delivered" or "Read" => "badge-success",
+        "Failed" => "badge-danger",
+        "Retry" => "badge-warning",
+        "Cancelled" => "badge-secondary",
+        _ => "badge-info"
+    };
+
+    private static string Outcome(OutboundEmailDto e) => e.Status switch
+    {
+        "Sent" or "Delivered" or "Read" => $"Accepted by {e.ProviderName ?? "the provider"}{(e.SentAt is { } at ? $" at {at.ToLocalTime():HH:mm:ss}" : "")}",
+        "Failed" => e.FailureReason ?? "Failed",
+        "Retry" => $"Will try again{(e.NextRetryAt is { } n ? $" at {n.ToLocalTime():HH:mm}" : "")}: {e.FailureReason}",
+        "Sending" when e.IsStuck => "Left in Sending by a stopped process",
+        "Sending" => "Being sent now",
+        "Pending" => "Waiting for the next pass",
+        "Scheduled" => "Scheduled",
+        _ => e.FailureReason ?? ""
+    };
+}

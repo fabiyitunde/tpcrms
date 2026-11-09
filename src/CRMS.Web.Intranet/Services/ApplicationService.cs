@@ -7618,6 +7618,92 @@ public partial class ApplicationService
     }
 
     /// <summary>Queues a copy of an email to the FAC, sent exactly as first written.</summary>
+    // ── Admin > Outbound Email ──────────────────────────────────────────────────────────────
+
+    public async Task<ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailSummaryDto>> GetOutboundEmailSummaryAsync()
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Notification.Queries.GetOutboundEmailSummaryHandler>();
+            var result = await handler.Handle(new CRMS.Application.Notification.Queries.GetOutboundEmailSummaryQuery(), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailSummaryDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailSummaryDto>.Fail(result.Error ?? "Failed to load the email summary");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading the outbound email summary");
+            return ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailSummaryDto>.Fail("Failed to load the email summary");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailPageDto>> SearchOutboundEmailsAsync(
+        string? status, string? templateCode, string? recipient, DateTime? fromUtc, DateTime? toUtc, int page, int pageSize)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Notification.Queries.SearchOutboundEmailsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Notification.Queries.SearchOutboundEmailsQuery(status, templateCode, recipient, fromUtc, toUtc, page, pageSize), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailPageDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailPageDto>.Fail(result.Error ?? "Failed to load the emails");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching outbound emails");
+            return ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailPageDto>.Fail("Failed to load the emails");
+        }
+    }
+
+    public async Task<ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailDetailDto>> GetOutboundEmailAsync(Guid id)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Notification.Queries.GetOutboundEmailHandler>();
+            var result = await handler.Handle(new CRMS.Application.Notification.Queries.GetOutboundEmailQuery(id), CancellationToken.None);
+            return result.IsSuccess && result.Data != null
+                ? ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailDetailDto>.Ok(result.Data)
+                : ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailDetailDto>.Fail(result.Error ?? "Failed to load the email");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading outbound email {NotificationId}", id);
+            return ApiResponse<CRMS.Application.Notification.Queries.OutboundEmailDetailDto>.Fail("Failed to load the email");
+        }
+    }
+
+    public async Task<ApiResponse<Guid>> ResendOutboundEmailAsync(Guid id, Guid userId, string userName)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Notification.Commands.ResendOutboundEmailHandler>();
+            var result = await handler.Handle(new CRMS.Application.Notification.Commands.ResendOutboundEmailCommand(id, userId, userName), CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<Guid>.Ok(result.Data)
+                : ApiResponse<Guid>.Fail(result.Error ?? "Could not send the email again");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error re-sending outbound email {NotificationId}", id);
+            return ApiResponse<Guid>.Fail("Could not send the email again");
+        }
+    }
+
+    public async Task<ApiResponse> ReleaseStuckOutboundEmailAsync(Guid id, Guid userId, string userName)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Notification.Commands.ReleaseStuckOutboundEmailHandler>();
+            var result = await handler.Handle(new CRMS.Application.Notification.Commands.ReleaseStuckOutboundEmailCommand(id, userId, userName), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Could not release the email");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error releasing stuck outbound email {NotificationId}", id);
+            return ApiResponse.Fail("Could not release the email");
+        }
+    }
+
     public async Task<ApiResponse> ResendRhshfFacEmailAsync(string reference, Guid notificationId)
     {
         try

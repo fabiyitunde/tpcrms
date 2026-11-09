@@ -78,6 +78,50 @@ public class NotificationRepository : INotificationRepository
             .CountAsync(ct);
     }
 
+    public async Task<(IReadOnlyList<Notification> Items, int Total)> SearchAsync(NotificationSearch search, CancellationToken ct = default)
+    {
+        var q = _context.Notifications.AsNoTracking().AsQueryable();
+        if (search.Channel is { } channel) q = q.Where(x => x.Channel == channel);
+        if (search.Status is { } status) q = q.Where(x => x.Status == status);
+        if (!string.IsNullOrWhiteSpace(search.TemplateCode))
+        {
+            var code = search.TemplateCode.Trim();
+            q = q.Where(x => x.TemplateCode.Contains(code));
+        }
+        if (!string.IsNullOrWhiteSpace(search.Recipient))
+        {
+            var who = search.Recipient.Trim();
+            q = q.Where(x => x.RecipientAddress.Contains(who) || x.RecipientName.Contains(who));
+        }
+        if (search.CreatedFromUtc is { } from) q = q.Where(x => x.CreatedAt >= from);
+        if (search.CreatedToUtc is { } to) q = q.Where(x => x.CreatedAt < to);
+
+        var page = Math.Max(1, search.Page);
+        var size = Math.Clamp(search.PageSize, 1, 200);
+        var total = await q.CountAsync(ct);
+        var items = await q.OrderByDescending(x => x.CreatedAt)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .ToListAsync(ct);
+        return (items, total);
+    }
+
+    public async Task<IReadOnlyDictionary<NotificationStatus, int>> CountByStatusAsync(NotificationChannel channel, DateTime? createdSinceUtc, CancellationToken ct = default)
+    {
+        var q = _context.Notifications.AsNoTracking().Where(x => x.Channel == channel);
+        if (createdSinceUtc is { } since) q = q.Where(x => x.CreatedAt >= since);
+        var rows = await q.GroupBy(x => x.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        return rows.ToDictionary(r => r.Status, r => r.Count);
+    }
+
+    public Task<bool> IsQueuedAsync(NotificationChannel channel, string recipientAddress, string subject, CancellationToken ct = default)
+        => _context.Notifications.AsNoTracking().AnyAsync(x =>
+            x.Channel == channel && x.RecipientAddress == recipientAddress && x.Subject == subject
+            && (x.Status == NotificationStatus.Pending || x.Status == NotificationStatus.Sending
+                || x.Status == NotificationStatus.Retry || x.Status == NotificationStatus.Scheduled), ct);
+
     public async Task AddAsync(Notification notification, CancellationToken ct = default)
     {
         await _context.Notifications.AddAsync(notification, ct);

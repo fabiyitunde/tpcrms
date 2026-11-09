@@ -173,6 +173,22 @@ public class Notification : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>
+    /// Puts a notification that is stuck in Sending back in the queue. A send has two writes around
+    /// it (Sending, then Sent or Failed); a process that dies between them leaves the row in Sending,
+    /// which nothing ever picks up again. The provider may or may not have accepted the message, so
+    /// this is an administrator's call, taken knowing a duplicate is possible.
+    /// </summary>
+    public Result ReturnToQueue()
+    {
+        if (Status != NotificationStatus.Sending)
+            return Result.Failure("Only a notification stuck in Sending can be returned to the queue");
+
+        Status = NotificationStatus.Pending;
+        NextRetryAt = null;
+        return Result.Success();
+    }
+
     public Result Cancel(string reason)
     {
         if (Status == NotificationStatus.Sent || Status == NotificationStatus.Delivered || Status == NotificationStatus.Read)

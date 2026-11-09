@@ -632,6 +632,14 @@ public static class DependencyInjection
         services.AddScoped<Application.Notification.Commands.CreateNotificationTemplateHandler>();
         services.AddScoped<Application.Notification.Commands.UpdateNotificationTemplateHandler>();
         services.AddScoped<Application.Notification.Commands.ToggleNotificationTemplateHandler>();
+
+        // Admin > Outbound Email: the queue, one email, the tiles, send again, release a stuck one.
+        services.AddScoped<Application.Notification.Queries.SearchOutboundEmailsHandler>();
+        services.AddScoped<Application.Notification.Queries.GetOutboundEmailHandler>();
+        services.AddScoped<Application.Notification.Queries.GetOutboundEmailSummaryHandler>();
+        services.AddScoped<Application.Notification.Commands.ResendOutboundEmailHandler>();
+        services.AddScoped<Application.Notification.Commands.ReleaseStuckOutboundEmailHandler>();
+        services.AddScoped<Application.Notification.Commands.IOutboundEmailAudit, Services.OutboundEmailAudit>();
         
         // Identity
         services.AddScoped<Application.Identity.Queries.GetAllUsersHandler>();

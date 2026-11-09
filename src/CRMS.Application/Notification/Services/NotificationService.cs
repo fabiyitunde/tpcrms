@@ -185,7 +185,10 @@ public class NotificationOrchestrator : INotificationService
         }
         catch (Exception ex)
         {
-            notification.MarkAsFailed(ex.Message, canRetry: true);
+            // Same cap as above: a reason longer than the column makes the save itself fail, which
+            // would leave the row in Sending for good.
+            var reason = string.IsNullOrWhiteSpace(ex.Message) ? ex.GetType().Name : ex.Message;
+            notification.MarkAsFailed(reason.Length > 1000 ? reason[..1000] : reason, canRetry: true);
         }
 
         _notificationRepository.Update(notification);
