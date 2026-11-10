@@ -1,0 +1,142 @@
+@* Help sections for the RH-SHF (dry-season input financing) track. Rendered inside Help/Index.razor. *@
+
+@switch (Section)
+{
+    case "rhshf-overview":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">grass</span></span>
+            <div>
+                <h1>RH-SHF Credit Profiling</h1>
+                <p>Renewed Hope dry-season input financing for Farmer Aggregator Companies</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What RH-SHF is</h2>
+            <p class="intro-text">RH-SHF finances seeds, fertiliser and other inputs for a dry season. The borrower is a <strong>Farmer Aggregator Company (FAC)</strong> that serves many smallholder farmers. The FAC does not come to the bank with a form: the portal sends the case to the CRMS, the CRMS emails the FAC a link to its own <strong>credit profiling form</strong>, and the FAC fills that in. Staff then appraise, clear and approve the case, the FAC accepts the offer online, and the loan is disbursed in kind to the input supplier.</p>
+            <h3>What the FAC submits</h3>
+            <p>On its form the FAC confirms its company details, declares its directors with BVN and shareholding, its guarantors, and its collateral with supporting documents, builds its <strong>Estimate of Production (EOP)</strong> crop by crop (hectares, yield, price), uploads the required documents, and clicks <strong>Submit for credit review</strong>. Mandatory documents block submission while missing. The declared directors and collateral are the FAC's own statements: staff verify them but cannot delete them.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>The RH-SHF Queue</h2>
+            <p>Open <strong>RH-SHF &gt; RH-SHF Queue</strong>. The tabs are the stages: <strong>Appraisal</strong>, <strong>Legal Clearance</strong>, <strong>Risk Review</strong>, <strong>Committee</strong>, <strong>Ratification</strong>, <strong>Awaiting Offer</strong>, <strong>Pre-Deployment</strong>, <strong>Disbursement</strong>, <strong>Active</strong> and <strong>All</strong>, each with a count. Every role can open every tab, and you land on the tab for your own stage: Credit Officers on Appraisal, Legal Officers on Legal Clearance, Risk Managers on Risk Review, Committee Members on Committee, Final Approvers on Ratification, Disbursement Officers on Pre-Deployment.</p>
+            <p>Each row shows the reference, company, total EOP value, cycle, status, stage and last update. Click a row to open the case. Head office sees every case; branch staff see their own branch.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>Committee tier by EOP value</h2>
+            <p>Default bands, editable under Admin &gt; RH-SHF Routing: Branch up to ₦2M, Zonal up to ₦10M, Regional up to ₦30M, Head Office above that.</p>
+        </div>
+        break;
+
+    case "rhshf-stages":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">route</span></span>
+            <div>
+                <h1>RH-SHF Stages</h1>
+                <p>From the FAC's submission to an active loan, who acts and what the buttons do</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <table class="info-table">
+                <thead><tr><th>#</th><th>Stage</th><th>Who acts</th><th>What happens</th></tr></thead>
+                <tbody>
+                    <tr><td>1</td><td><strong>Profiling</strong></td><td>The FAC</td><td>Fills in the credit profiling form and submits for credit review. The case appears under Appraisal.</td></tr>
+                    <tr><td>2</td><td><strong>Appraisal</strong></td><td>Credit Officer</td><td>Verify directors (cross-check against CAC and core banking), review documents, complete the <em>Financial Appraisal</em> (crop economics) and the financial analysis, run the bureau checks and the AI advisory. Then <strong>Proceed</strong> (needs a saved appraisal), <strong>Return to FAC</strong> or <strong>Decline</strong>.</td></tr>
+                    <tr><td>3</td><td><strong>Legal Clearance</strong></td><td>Legal Officer</td><td>Perfect each declared instrument on the Collateral tab, then <strong>Grant</strong> (enabled once every instrument is perfected), <strong>Grant with Caveat</strong>, <strong>Return to FAC</strong> or <strong>Decline</strong>. Security is settled before the vote, not after.</td></tr>
+                    <tr><td>4</td><td><strong>Risk Review</strong></td><td>Risk Manager</td><td><strong>Clear</strong> previews the committee it routes to and how many votes are needed, then opens voting. Or <strong>Return to FAC</strong> or <strong>Decline</strong>. The risk reviewer must be a different person from the appraiser and the legal officer.</td></tr>
+                    <tr><td>5</td><td><strong>Committee Voting</strong></td><td>Committee members on the roster</td><td><strong>Approve</strong>, <strong>Reject</strong> or <strong>Abstain</strong>, once each. Anyone who appraised or risk-reviewed the cycle cannot vote. When the required number of votes is in, the case is approved or declined. If the security was granted with a caveat, an approving member chooses whether perfection must be completed before disbursement or is waived; the stricter choice wins.</td></tr>
+                    <tr><td>6</td><td><strong>Ratification</strong></td><td>Final Approver</td><td><strong>Ratify</strong> for the full EOP value (no partial approval) generates the offer letter and the Key Facts Statement and sends them to the portal. The approver must differ from the appraiser, the risk reviewer and the approving members. If the offer would be incomplete, the page says so and ratifying needs an override reason. Or <strong>Return to FAC</strong> or <strong>Decline</strong>.</td></tr>
+                    <tr><td>7</td><td><strong>Awaiting Offer Acceptance</strong></td><td>The FAC</td><td>Uploads the signed offer letter and KFS and clicks Accept or Decline on its page. Declining cancels the case. Accepting seeds the pre-deployment checklist.</td></tr>
+                    <tr><td>8</td><td><strong>Pre-Deployment Verification</strong></td><td>Disbursement Officer</td><td><strong>Pre-Deployment Gate</strong>: confirm each item (see below) with notes, then <strong>Complete Verification</strong> once every mandatory item is confirmed.</td></tr>
+                    <tr><td>9</td><td><strong>Disbursement</strong></td><td>Disbursement Officer</td><td><strong>Book Disbursement</strong>: enter the input supplier's ten-digit account number, let the name enquiry confirm the account, and book. The amount equals the approved amount. Funds go to the supplier, not to the borrower.</td></tr>
+                    <tr><td>10</td><td><strong>Active → Closed</strong></td><td>Disbursement Officer</td><td>The Loan Account tab shows the core banking loan and repayment schedule. <strong>Mark as Closed</strong> when it is repaid.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Returning a case to the FAC</h2>
+            <p>Every stage up to ratification can <strong>Return to FAC</strong>. You pick a <strong>reason</strong> from the list and write a note; the portal receives the reason as a code with your note beside it, and the FAC sees the note as the reason for the return. You also choose which step of the FAC's form to reopen. The farm plan and collateral carry forward, and the FAC's resubmission starts a new cycle. <strong>Decline</strong> works the same way with its own list of reasons. Both lists are maintained under Admin &gt; RH-SHF Reason Codes.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>Pre-deployment gate items</h2>
+            <p>Each item has a kind. <strong>Auto</strong> items (the signed offer documents) are verified by the system once the FAC's signed copies are in and cannot be ticked by hand. <strong>Account</strong> items show the BOA account pulled from core banking. <strong>Collateral</strong> and <strong>Manual</strong> items are confirmed by the officer. The seeded items are BOA Disbursement Account Verified, Collateral Reviewed &amp; Documents on File (optional), Signed Offer Letter &amp; KFS Received, and Compliance / AML Sign-Off. A committee decision to defer perfection adds a mandatory perfection item. Administrators maintain the list under Admin &gt; RH-SHF Pre-Deploy Checklist.</p>
+        </div>
+        break;
+
+    case "rhshf-case":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">tab</span></span>
+            <div>
+                <h1>The RH-SHF Case Page</h1>
+                <p>What each tab holds and who can act on it</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <p class="intro-text">The header shows the reference, status, tier, stage, company and cycle, with a strip of product, requested amount, committee tier, number of farmers and date received. The buttons for your stage sit on the right. <strong>Loan Pack</strong> produces a single PDF of the whole case from Risk Review onward. <strong>Re-run Credit Checks</strong> is for the Credit Officer at Appraisal or Risk Review.</p>
+        </div>
+
+        <div class="content-card">
+            <table class="info-table">
+                <thead><tr><th>Tab</th><th>What it holds</th><th>Who acts</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Overview</strong></td><td>FAC information, facility details, application summary and the decision so far.</td><td>Read only</td></tr>
+                    <tr><td><strong>EOP Breakdown</strong></td><td>The commodity lines the FAC submitted for this cycle.</td><td>Read only</td></tr>
+                    <tr><td><strong>Directors &amp; Signatories</strong></td><td>Directors and shareholders declared by the FAC with BVN status. <strong>Cross-check CAC &amp; Core Banking</strong> shows the registry and the bank's records side by side without importing anything (the CAC lookup is a paid call). FAC-declared directors are locked and cannot be deleted.</td><td>Credit Officer adds manually or completes BVN and shareholding</td></tr>
+                    <tr><td><strong>Documents</strong></td><td>What the FAC uploaded, with view and download. Staff cannot upload here.</td><td>Read only</td></tr>
+                    <tr><td><strong>Financial Appraisal</strong></td><td>Crop economics: farm plan, viability verdict, season cashflow, break-even sensitivities and officer notes. <strong>Add Crop</strong>, then <strong>Appraise</strong> or <strong>Revise</strong>.</td><td>Credit Officer at Appraisal</td></tr>
+                    <tr><td><strong>Financial Analysis</strong></td><td>The FAC's yearly financial statements and ratios. <strong>Upload Excel</strong>, <strong>Import from FAC Upload</strong>, <strong>Add Year</strong>, then submit, verify or reject each year.</td><td>Credit Officer</td></tr>
+                    <tr><td><strong>Bank Statements</strong></td><td>The BOA operational account pulled from core banking, with Refresh, and statements uploaded from other banks.</td><td>Credit Officer</td></tr>
+                    <tr><td><strong>Credit Bureau</strong></td><td>Business credit for the company and the individual checks.</td><td>Credit Officer</td></tr>
+                    <tr><td><strong>Collateral</strong></td><td>Instruments declared by the FAC (bank guarantee, NIRSAL CRG, legal mortgage). At Legal Clearance each instrument opens for a note, the title and registration details for a mortgage, a document, and <strong>Mark as perfected</strong>. A document must be attached first.</td><td>Legal Officer</td></tr>
+                    <tr><td><strong>Guarantors</strong></td><td>Guarantor, type, bureau id, relationship and contact.</td><td>Credit Officer adds, edits, removes</td></tr>
+                    <tr><td><strong>AI Advisory</strong></td><td><strong>Generate Advisory</strong> once a bureau check has run, and the inputs it used.</td><td>Credit Officer</td></tr>
+                    <tr><td><strong>Committee</strong></td><td>Tier, decision, perfection deferred or waived, and the roster with votes and comments.</td><td>Committee members vote from the header</td></tr>
+                    <tr><td><strong>Offer</strong></td><td>After ratification: the offer letter and KFS, the signed copies, version history. <strong>Regenerate</strong> before the FAC responds, <strong>Issue corrected offer</strong>, <strong>Re-send to portal</strong>. A warning appears if the core banking product would charge the borrower for something the EOP already finances.</td><td>Final Approver</td></tr>
+                    <tr><td><strong>Pre-Deployment</strong></td><td>The verification checklist, read only; the gate itself is the header button.</td><td>Disbursement Officer</td></tr>
+                    <tr><td><strong>Disbursement</strong></td><td>Booking history.</td><td>Disbursement Officer</td></tr>
+                    <tr><td><strong>Loan Account</strong></td><td>At Active or Closed: the core banking loan and repayment schedule, with Refresh.</td><td>Read only</td></tr>
+                    <tr><td><strong>Comments</strong></td><td>Internal notes on the case.</td><td>Everyone</td></tr>
+                    <tr><td><strong>Workflow</strong></td><td>Workflow history, updates sent to the portal, and emails sent to the FAC, each with <strong>Send again</strong>.</td><td>Credit Officer, Final Approver resend</td></tr>
+                </tbody>
+            </table>
+        </div>
+        break;
+
+    case "rhshf-admin":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">settings</span></span>
+            <div>
+                <h1>RH-SHF Configuration</h1>
+                <p>The administration pages that shape the RH-SHF track</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <table class="info-table">
+                <thead><tr><th>Page</th><th>What it controls</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>RH-SHF Routing</strong></td><td>The EOP value bands that send a case to the Branch, Zonal, Regional or Head Office committee. Each band has a minimum and maximum value, a tier and a priority, and can be switched off.</td></tr>
+                    <tr><td><strong>RH-SHF Pre-Deploy Checklist</strong></td><td>The gate items the Disbursement Officer confirms before funds are released: title, verification kind (auto offer documents, account, collateral or manual), whether mandatory, and order.</td></tr>
+                    <tr><td><strong>RH-SHF Document Rules</strong></td><td>The documents the FAC must attach before it can submit: name, category, accepted file types, whether mandatory, and order. The seeded mandatory set is the CAC certificate, audited financial statements (on the bank's spreadsheet template), the credit appraisal memorandum, the off-take agreement, the farmers register and the BOA account statement.</td></tr>
+                    <tr><td><strong>RH-SHF Reason Codes</strong></td><td>The reasons staff pick when returning a case to the FAC or declining it. Each has a code, which the portal receives, and the wording the FAC reads. Reasons can be switched off without being deleted.</td></tr>
+                    <tr><td><strong>Products</strong></td><td>Disbursement needs an active loan product of segment RH-SHF linked to a core banking product. Create it under Admin &gt; Products, link the core banking product, then activate it.</td></tr>
+                </tbody>
+            </table>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Administrators only
+            </div>
+        </div>
+        break;
+}
+
+@code {
+    [Parameter] public string Section { get; set; } = "";
+    [Parameter] public UserInfo? User { get; set; }
+}

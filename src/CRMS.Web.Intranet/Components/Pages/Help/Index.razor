@@ -2,6 +2,7 @@
 @page "/help/{Section}"
 @inject AuthService AuthService
 @inject NavigationManager Navigation
+@using CRMS.Web.Intranet.Components.Pages.Help.Sections
 
 <PageTitle>Help &amp; User Guide - CRMS</PageTitle>
 
@@ -69,6 +70,9 @@
                     </a>
                 </div>
 
+                @* The corporate loan guide is for bank staff; a vendor-only account has none of these menus. *@
+                @if (!IsVendorOnly)
+                {
                 @* Menu Items — filtered by role *@
                 <div class="nav-category">
                     <div class="nav-category-header">
@@ -127,6 +131,7 @@
                         </a>
                     }
                 </div>
+                }
 
                 @* Administration — System Admin only *@
                 @if (IsAdmin)
@@ -157,9 +162,98 @@
                     <a class="nav-item @IsActive("admin-templates")" href="/help/admin-templates">
                         <span class="nav-dot"></span>Templates
                     </a>
+                    <a class="nav-item @IsActive("admin-partner-api")" href="/help/admin-partner-api">
+                        <span class="nav-dot"></span>Partner API &amp; Consumers
+                    </a>
+                    <a class="nav-item @IsActive("admin-outbound-email")" href="/help/admin-outbound-email">
+                        <span class="nav-dot"></span>Outbound Email
+                    </a>
+                    <a class="nav-item @IsActive("admin-diagnostics")" href="/help/admin-diagnostics">
+                        <span class="nav-dot"></span>Diagnostics
+                    </a>
+                    <a class="nav-item @IsActive("namp-admin")" href="/help/namp-admin">
+                        <span class="nav-dot"></span>NAMP Configuration
+                    </a>
+                    <a class="nav-item @IsActive("rhshf-admin")" href="/help/rhshf-admin">
+                        <span class="nav-dot"></span>RH-SHF Configuration
+                    </a>
                 </div>
                 }
 
+                @* NAMP — equipment financing track *@
+                @if (CanViewNamp)
+                {
+                <div class="nav-category">
+                    <div class="nav-category-header">
+                        <span class="material-symbols-outlined">agriculture</span>
+                        NAMP
+                    </div>
+                    <a class="nav-item @IsActive("namp-overview")" href="/help/namp-overview">
+                        <span class="nav-dot"></span>NAMP Queue &amp; Overview
+                    </a>
+                    <a class="nav-item @IsActive("namp-stages")" href="/help/namp-stages">
+                        <span class="nav-dot"></span>NAMP Stages
+                    </a>
+                    <a class="nav-item @IsActive("namp-application")" href="/help/namp-application">
+                        <span class="nav-dot"></span>NAMP Application Page
+                    </a>
+                </div>
+                }
+
+                @* RH-SHF — dry-season input financing track *@
+                @if (CanViewRhshf)
+                {
+                <div class="nav-category">
+                    <div class="nav-category-header">
+                        <span class="material-symbols-outlined">grass</span>
+                        RH-SHF
+                    </div>
+                    <a class="nav-item @IsActive("rhshf-overview")" href="/help/rhshf-overview">
+                        <span class="nav-dot"></span>RH-SHF Queue &amp; Overview
+                    </a>
+                    <a class="nav-item @IsActive("rhshf-stages")" href="/help/rhshf-stages">
+                        <span class="nav-dot"></span>RH-SHF Stages
+                    </a>
+                    <a class="nav-item @IsActive("rhshf-case")" href="/help/rhshf-case">
+                        <span class="nav-dot"></span>RH-SHF Case Page
+                    </a>
+                </div>
+                }
+
+                @* Billing — vendor's Billing Managers, read-only for admins *@
+                @if (CanViewBilling)
+                {
+                <div class="nav-category">
+                    <div class="nav-category-header">
+                        <span class="material-symbols-outlined">payments</span>
+                        Billing
+                    </div>
+                    <a class="nav-item @IsActive("billing-overview")" href="/help/billing-overview">
+                        <span class="nav-dot"></span>Billing Overview
+                    </a>
+                    <a class="nav-item @IsActive("billing-dashboard")" href="/help/billing-dashboard">
+                        <span class="nav-dot"></span>Billing Dashboard
+                    </a>
+                    <a class="nav-item @IsActive("billing-prices")" href="/help/billing-prices">
+                        <span class="nav-dot"></span>Price List &amp; Platform Fees
+                    </a>
+                    <a class="nav-item @IsActive("billing-statements")" href="/help/billing-statements">
+                        <span class="nav-dot"></span>Statements
+                    </a>
+                    <a class="nav-item @IsActive("billing-alerts")" href="/help/billing-alerts">
+                        <span class="nav-dot"></span>Billing Alerts
+                    </a>
+                    @if (IsBillingManager)
+                    {
+                        <a class="nav-item @IsActive("billing-access")" href="/help/billing-access">
+                            <span class="nav-dot"></span>Access &amp; Data
+                        </a>
+                    }
+                </div>
+                }
+
+                @if (!IsVendorOnly)
+                {
                 @* Loan Process — filtered by role *@
                 <div class="nav-category">
                     <div class="nav-category-header">
@@ -299,6 +393,7 @@
                         </a>
                     }
                 </div>
+                }
                 }
 
                 @* Reference — all roles *@
@@ -460,6 +555,31 @@
                 case "shortcuts":
                     @RenderShortcuts()
                     break;
+                case "namp-overview":
+                case "namp-stages":
+                case "namp-application":
+                case "namp-admin":
+                    <HelpNamp Section="@CurrentSection" User="User" />
+                    break;
+                case "rhshf-overview":
+                case "rhshf-stages":
+                case "rhshf-case":
+                case "rhshf-admin":
+                    <HelpRhshf Section="@CurrentSection" User="User" />
+                    break;
+                case "billing-overview":
+                case "billing-dashboard":
+                case "billing-prices":
+                case "billing-statements":
+                case "billing-alerts":
+                case "billing-access":
+                    <HelpBilling Section="@CurrentSection" User="User" />
+                    break;
+                case "admin-partner-api":
+                case "admin-outbound-email":
+                case "admin-diagnostics":
+                    <HelpIntegrations Section="@CurrentSection" User="User" />
+                    break;
                 default:
                     @RenderOverview()
                     break;
@@ -491,6 +611,21 @@
         "RiskManager" => "Risk Manager",
         "Auditor" => "Auditor",
         "SystemAdmin" => "System Administrator",
+        "DisbursementOfficer" => "Disbursement Officer",
+        "DeploymentOfficer" => "Deployment Officer",
+        "BranchManager" => "Branch Manager",
+        "ZonalManager" => "Zonal Manager",
+        "RegionalManager" => "Regional Manager",
+        "MdCeo" => "MD / CEO",
+        "BranchCommitteeMember" => "Branch Committee Member",
+        "ZonalCommitteeMember" => "Zonal Committee Member",
+        "RegionalCommitteeMember" => "Regional Committee Member",
+        "HOCommitteeMember" => "HO Committee Member",
+        "BranchRiskOfficer" => "Branch Risk Officer",
+        "ZonalRiskOfficer" => "Zonal Risk Officer",
+        "RegionalRiskOfficer" => "Regional Risk Officer",
+        "HORiskOfficer" => "HO Risk Officer",
+        "BillingManager" => "Billing Manager",
         _ => "Staff Member"
     };
 
@@ -509,12 +644,36 @@
         "RiskManager" => "RM",
         "Auditor" => "AU",
         "SystemAdmin" => "SA",
+        "DisbursementOfficer" => "DO",
+        "DeploymentOfficer" => "DP",
+        "BranchManager" => "BM",
+        "ZonalManager" => "ZM",
+        "RegionalManager" => "RGM",
+        "MdCeo" => "MD",
+        "BranchCommitteeMember" or "ZonalCommitteeMember" or "RegionalCommitteeMember" or "HOCommitteeMember" => "CM",
+        "BranchRiskOfficer" or "ZonalRiskOfficer" or "RegionalRiskOfficer" or "HORiskOfficer" => "RO",
+        "BillingManager" => "BL",
         _ => "?"
     };
 
     private string IsActive(string section) => CurrentSection == section ? "active" : "";
 
     private bool IsAdmin => User?.HasRole("SystemAdmin") == true;
+    private bool IsBillingManager => User?.HasRole("BillingManager") == true;
+    // Holds nothing but the vendor role: the corporate, NAMP and RH-SHF guides do not apply.
+    private bool IsVendorOnly => User?.Roles is { Count: > 0 } roles && roles.All(CRMS.Domain.Constants.VendorRoles.Contains);
+    private bool CanViewBilling => IsAdmin || IsBillingManager;
+
+    // The same role lists the main menu uses to show the NAMP and RH-SHF sections.
+    private static readonly string[] NampRoles =
+    [
+        "LoanOfficer", "CreditOfficer", "CommitteeMember", "BranchCommitteeMember", "ZonalCommitteeMember", "RegionalCommitteeMember", "HOCommitteeMember",
+        "BranchManager", "ZonalManager", "RegionalManager", "MdCeo", "FinalApprover", "DeploymentOfficer", "LegalOfficer",
+        "BranchRiskOfficer", "ZonalRiskOfficer", "RegionalRiskOfficer", "HORiskOfficer", "RiskManager",
+    ];
+    private static readonly string[] RhshfRoles = ["CreditOfficer", "RiskManager", "CommitteeMember", "FinalApprover", "LegalOfficer", "DisbursementOfficer"];
+    private bool CanViewNamp => Can(NampRoles);
+    private bool CanViewRhshf => Can(RhshfRoles);
 
     // Returns true if the user is SystemAdmin OR has any of the listed roles
     private bool Can(params string[] roles)
@@ -535,8 +694,12 @@
         </div>
     };
 
-    private bool CanViewSection(string section) => section switch
+    private bool CanViewSection(string section)
     {
+        if (IsVendorOnly && !section.StartsWith("billing-", StringComparison.Ordinal) && section is not ("overview" or "your-role" or "glossary" or "faq" or "shortcuts"))
+            return false;
+        return section switch
+        {
         // SystemAdmin only — full workflow and administration
         "workflow"               => IsAdmin,
         "admin-users"            => IsAdmin,
@@ -580,9 +743,24 @@
         "credit-bureau"          => Can("BranchApprover", "CreditOfficer", "HOReviewer"),
         "risk-categories"        => Can("CreditOfficer", "HOReviewer", "RiskManager", "Auditor"),
 
+        // NAMP and RH-SHF — the roles that see those menus
+        "namp-overview" or "namp-stages" or "namp-application" => CanViewNamp,
+        "namp-admin"             => IsAdmin,
+        "rhshf-overview" or "rhshf-stages" or "rhshf-case" => CanViewRhshf,
+        "rhshf-admin"            => IsAdmin,
+
+        // Billing — the vendor's Billing Managers, read-only for administrators. Access & Data is
+        // not shown to administrators at all, so neither is its help.
+        "billing-overview" or "billing-dashboard" or "billing-prices" or "billing-statements" or "billing-alerts" => CanViewBilling,
+        "billing-access"         => IsBillingManager,
+
+        // Newer administration pages
+        "admin-partner-api" or "admin-outbound-email" or "admin-diagnostics" => IsAdmin,
+
         // Everything else is available to all authenticated users
         _ => true
-    };
+        };
+    }
 
     private static readonly List<(string Key, string Label)> HelpNavItems =
     [
@@ -629,18 +807,36 @@
         ("glossary", "Glossary"),
         ("faq", "FAQ"),
         ("shortcuts", "Keyboard Shortcuts"),
+        ("namp-overview", "NAMP Queue & Overview"),
+        ("namp-stages", "NAMP Stages"),
+        ("namp-application", "NAMP Application Page"),
+        ("namp-admin", "NAMP Configuration"),
+        ("rhshf-overview", "RH-SHF Queue & Overview"),
+        ("rhshf-stages", "RH-SHF Stages"),
+        ("rhshf-case", "RH-SHF Case Page"),
+        ("rhshf-admin", "RH-SHF Configuration"),
+        ("billing-overview", "Billing Overview"),
+        ("billing-dashboard", "Billing Dashboard"),
+        ("billing-prices", "Price List & Platform Fees"),
+        ("billing-statements", "Billing Statements"),
+        ("billing-alerts", "Billing Alerts"),
+        ("billing-access", "Billing Access & Data"),
+        ("admin-partner-api", "Partner API & API Consumers"),
+        ("admin-outbound-email", "Outbound Email"),
+        ("admin-diagnostics", "Diagnostics"),
     ];
 
+    // Search shows only the sections the user may open.
     private IEnumerable<(string Key, string Label)> SearchResults =>
         string.IsNullOrWhiteSpace(searchQuery) ? [] :
-        HelpNavItems.Where(item => item.Label.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+        HelpNavItems.Where(item => item.Label.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) && CanViewSection(item.Key));
 
     // ==================== OVERVIEW ====================
     private RenderFragment RenderOverview() => __builder =>
     {
         <div class="content-card">
             <h2>What is CRMS?</h2>
-            <p class="intro-text">CRMS (Credit Risk Management System) is a comprehensive corporate loan origination platform that handles the complete lifecycle of loan applications - from customer inquiry through final disbursement.</p>
+            <p class="intro-text">CRMS (Credit Risk Management System) is the Bank of Agriculture's loan origination platform. It handles the complete lifecycle of a loan application, from the first entry through credit assessment, committee, approval, offer and security to disbursement, across three loan tracks.</p>
             
             <div class="feature-grid">
                 <div class="feature-card">
@@ -675,8 +871,33 @@
         </div>
 
         <div class="content-card">
-            <h2>How Loan Processing Works</h2>
-            <p>Every corporate loan application flows through these stages (see <a href="/help/workflow">Complete Workflow</a> for full detail):</p>
+            <h2>Three loan tracks</h2>
+            <p>The CRMS runs three products that look alike on the surface but each have their own queue, pages, stages and acting roles. Your menu shows the ones your role works on.</p>
+            <table class="info-table">
+                <thead><tr><th>Track</th><th>Who applies</th><th>How it starts</th><th>Menu</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Corporate</strong></td><td>Companies, through a branch</td><td>A Loan Officer creates the application in the CRMS</td><td>Applications, New Application, My Queue</td></tr>
+                    <tr><td><strong>NAMP</strong> (equipment)</td><td>Youth, women and agro-service companies</td><td>Arrives from the PAYS portal into the Staging Queue; a Loan Officer recalls it</td><td>NAMP &gt; NAMP Queue@(CanViewNamp ? "" : " (not in your menu)")</td></tr>
+                    <tr><td><strong>RH-SHF</strong> (dry-season inputs)</td><td>Farmer Aggregator Companies</td><td>Arrives from the portal; the FAC fills in a credit profiling form online</td><td>RH-SHF &gt; RH-SHF Queue@(CanViewRhshf ? "" : " (not in your menu)")</td></tr>
+                </tbody>
+            </table>
+            @if (CanViewNamp || CanViewRhshf)
+            {
+                <p>
+                    @if (CanViewNamp) { <a href="/help/namp-overview">NAMP guide</a> }
+                    @if (CanViewNamp && CanViewRhshf) { <text> · </text> }
+                    @if (CanViewRhshf) { <a href="/help/rhshf-overview">RH-SHF guide</a> }
+                </p>
+            }
+            @if (CanViewBilling)
+            {
+                <p>Billing, what the bank is charged for using the CRMS, has its own section: <a href="/help/billing-overview">Billing Overview</a>.</p>
+            }
+        </div>
+
+        <div class="content-card">
+            <h2>How Corporate Loan Processing Works</h2>
+            <p>Every corporate loan application flows through these stages (see <a href="/help/workflow">Complete Workflow</a> for full detail, including the shorter path that applications submitted since July 2026 follow):</p>
 
             <div class="visual-workflow">
                 <div class="workflow-step">
@@ -871,12 +1092,110 @@
         {
             @RenderAuditorRole()
         }
+        else if (User?.HasRole("DeploymentOfficer") == true)
+        {
+            @RenderRoleCard("operations", "local_shipping",
+                "Verify every pre-deployment condition on a NAMP case, then confirm the equipment deployment, which books the loan in core banking",
+                ["Pre-Deployment Checklist", "Confirm Deployment", "Loan Account"],
+                [("NAMP Queue", "Cases at Pre-Deployment Verification and Deployment wait for you in My Queue"), ("Pre-Deployment tab", "Tick each item, add notes, attach the signed documents"), ("Loan Account tab", "Resume a booking that failed; Mark as Closed when core banking says the loan is closed"), ("Offer Letter tab", "Upload the signed lease and GPS consent when the Loan Officer has not")],
+                [("Open the case from My Queue", "Read the Overview and the Offer Letter tab to see what was agreed."), ("Work through the Pre-Deployment tab", "Every mandatory item needs its document on file before Complete Verification is enabled."), ("Confirm Deployment", "Record that the GPS tracker is active. The system books and disburses the loan in core banking; if that fails, the case stays at Deployment and you can resume from the Loan Account tab.")],
+                "namp-stages", "NAMP Stages")
+        }
+        else if (User?.HasAnyRole("BranchManager", "ZonalManager", "RegionalManager", "MdCeo") == true)
+        {
+            @RenderRoleCard("final-approver", "verified",
+                "Ratify or decline the committee's decision for cases of your tier, and send a case back for rework when the committee's work is not sound",
+                ["Ratify Decision", "Decline", "Return for Rework"],
+                [("NAMP Queue", "Cases at Ratification for your tier wait in My Queue; head office managers see every tier"), ("Corporate applications", "Ratify or decline corporate cases at Ratification in the same way"), ("Committee tab", "Read the votes and comments before you decide"), ("Loan Pack", "The whole case as one PDF")],
+                [("Read the committee's decision and the appraisal", "The Committee, Financial Appraisal and AI Advisory tabs carry the reasoning."), ("Ratify Decision", "Generates the offer letter and, for NAMP, the lease and GPS consent form, and moves the case to Offer Sent."), ("Or Decline, or Return for Rework", "Decline is final. Return for Rework voids the votes and sends the case back to an earlier officer with your reason.")],
+                "namp-stages", "NAMP Stages")
+        }
+        else if (User?.HasAnyRole("BranchCommitteeMember", "ZonalCommitteeMember", "RegionalCommitteeMember", "HOCommitteeMember") == true)
+        {
+            @RenderRoleCard("committee-member", "how_to_vote",
+                "Vote on the NAMP cases circulated to your tier's credit committee",
+                ["Approve", "Reject", "Abstain"],
+                [("NAMP Queue", "Cases where you sit on the committee wait in My Queue"), ("Committee tab", "Cast Your Vote, see the tally and the quorum"), ("Financial Appraisal, Credit Bureau, AI Advisory tabs", "Everything the Credit Officer and Risk Officer found"), ("Loan Pack", "The whole case as one PDF")],
+                [("Open the case and read the appraisal", "The Officer Recommendation and risk commentary are written for you."), ("Cast your vote once", "Approve, Reject or Abstain with a comment. Voting closes when quorum is reached."), ("Wait for ratification", "The tier's manager ratifies or declines the committee's decision.")],
+                "namp-stages", "NAMP Stages")
+        }
+        else if (User?.HasAnyRole("BranchRiskOfficer", "ZonalRiskOfficer", "RegionalRiskOfficer", "HORiskOfficer") == true)
+        {
+            @RenderRoleCard("risk-manager", "shield",
+                "Review NAMP cases of your tier after financial appraisal, then circulate them to the committee",
+                ["Approve to Committee", "Return to Appraisal", "Decline", "Circulate to Committee"],
+                [("NAMP Queue", "Cases at Risk Review for your tier, and your tier's committee circulation, wait in My Queue"), ("Financial Appraisal tab", "The viability report and the Credit Officer's recommendation"), ("Credit Bureau and AI Advisory tabs", "Checks on the applicant, company, directors and guarantors"), ("Committee tab", "The vote in progress once circulated")],
+                [("Read the appraisal and the bureau results", "Return to Appraisal if something is missing, Decline if the case fails."), ("Approve to Committee", "Marks the case ready for the committee."), ("Circulate to Committee", "Opens voting for the standing committee of the tier.")],
+                "namp-stages", "NAMP Stages")
+        }
+        else if (User?.HasRole("BillingManager") == true)
+        {
+            @RenderRoleCard("system-admin", "payments",
+                "Keep the price list current, close each month into a statement, and act on the billing alerts",
+                ["Price List", "Platform Fees", "Statements", "Alerts", "Access & Data"],
+                [("Billing Dashboard", "What is due this month and why, with the cost and margin only you can see"), ("Price List and Platform Fees", "Set what the bank pays per call and per loan milestone"), ("Statements", "Issue, download, mark paid, void"), ("Access & Data", "Add or remove Billing Managers, refresh and rebuild the ledger, run the checks")],
+                [("Deal with alerts", "Unpriced items and unattributed calls first."), ("Close the month", "Prepare the statement, read the warnings, issue, send the PDF to the bank."), ("Record payment", "Mark paid with the bank's reference when it arrives.")],
+                "billing-overview", "Billing Overview")
+        }
         else
         {
             <div class="content-card">
                 <p>Your role-specific guide will appear here once your role is properly assigned.</p>
             </div>
         }
+    };
+
+    /// <summary>A compact role guide: mission, what the role can open, and a daily routine, with a link to the fuller section.</summary>
+    private RenderFragment RenderRoleCard(string colour, string icon, string mission, string[] tags, (string Title, string Detail)[] access, (string Title, string Detail)[] steps, string moreKey, string moreLabel) => __builder =>
+    {
+        <div class="role-header-card @colour">
+            <div class="role-icon-large">
+                <span class="material-symbols-outlined">@icon</span>
+            </div>
+            <div class="role-header-info">
+                <h3>Primary Mission</h3>
+                <p>@mission</p>
+                <div class="role-tags">
+                    @foreach (var t in tags)
+                    {
+                        <span class="tag">@t</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What You Can Access</h2>
+            <div class="access-grid">
+                @foreach (var a in access)
+                {
+                    <div class="access-item can">
+                        <span class="material-symbols-outlined">check_circle</span>
+                        <div>
+                            <strong>@a.Title</strong>
+                            <span>@a.Detail</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Your Daily Workflow</h2>
+            <div class="numbered-steps">
+                @for (var i = 0; i < steps.Length; i++)
+                {
+                    <div class="numbered-step">
+                        <div class="step-num">@(i + 1)</div>
+                        <div class="step-content">
+                            <h4>@steps[i].Title</h4>
+                            <p>@steps[i].Detail</p>
+                        </div>
+                    </div>
+                }
+            </div>
+            <p style="margin-top: var(--space-4);">Read more under <a href="/help/@moreKey">@moreLabel</a>.</p>
+        </div>
     };
 
     private RenderFragment RenderLoanOfficerRole() => __builder =>
@@ -2779,7 +3098,27 @@
         </div>
 
         <div class="content-card">
-            <h2>Full Stage Reference</h2>
+            <h2>Current flow: applications submitted since July 2026</h2>
+            <p>Submitting a Draft now sends the application straight to <strong>Credit Review</strong>, where the Credit Officer and the Legal Officer work on it together, and the committee's approval is <strong>ratified</strong> by a tier manager rather than confirmed by a separate Final Approval stage. Applications that were already past Draft before the change keep following the longer path in the table below; both are live.</p>
+            <table class="info-table">
+                <thead>
+                    <tr><th>#</th><th>Status</th><th>Owner</th><th>Key Actions</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>1</td><td><strong>Draft</strong></td><td>Loan Officer</td><td>Create, add directors, documents, collateral, guarantors and financials, Submit</td></tr>
+                    <tr><td>2</td><td><strong>Credit Review</strong></td><td>Credit Officer and Legal Officer</td><td>Bureau checks, bank statement analysis, Credit Appraisal memo, AI advisory. Legal Officer records clearance on each collateral item and clicks Complete Legal Review. Credit Officer then Approves to Committee Circulation, Returns to Draft, or Rejects</td></tr>
+                    <tr><td>3</td><td><strong>Committee Circulation</strong></td><td>Credit Officer + Committee</td><td>Set up the committee, generate the Loan Pack, members vote, Credit Officer confirms the decision → Committee Approved → Ratification automatically</td></tr>
+                    <tr><td>4</td><td><strong>Ratification</strong></td><td>Final Approver, or the Branch, Zonal, Regional Manager or MD/CEO</td><td>Ratify → offer letter generated. Decline → Ratification Declined (terminal)</td></tr>
+                    <tr><td>5</td><td><strong>Offer Generated</strong></td><td>Loan Officer, Disbursement Officer</td><td>Send the offer, upload the signed copies, Record Acceptance → Offer Accepted → Security Perfection automatically</td></tr>
+                    <tr><td>6</td><td><strong>Security Perfection</strong></td><td>Legal Officer</td><td>Upload security documents on the Security Perfection tab, Approve → Disbursement. Return → Offer Accepted</td></tr>
+                    <tr><td>7</td><td><strong>Disbursement</strong></td><td>Disbursement Officer or Deployment Officer</td><td>Clear the Disbursement Checklist, upload the signed disbursement memo, book the loan in core banking → Disbursed</td></tr>
+                    <tr><td>—</td><td><strong>Disbursed</strong></td><td>—</td><td>Terminal. The Loan Account tab shows the core banking loan and repayment schedule.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Full Stage Reference (longer path)</h2>
             <table class="info-table">
                 <thead>
                     <tr><th>#</th><th>Status</th><th>Owner</th><th>Key Actions</th></tr>

@@ -1,0 +1,295 @@
+@* Help sections for the Billing menu. Rendered inside Help/Index.razor, whose scoped stylesheet reaches here through ::deep. *@
+
+@switch (Section)
+{
+    case "billing-overview":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">payments</span></span>
+            <div>
+                <h1>Billing</h1>
+                <p>What the bank is charged for using the CRMS, and where every figure comes from</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What billing records</h2>
+            <p class="intro-text">The CRMS keeps a ledger of three kinds of billable event. Ledger rows hold no money: an amount is always the count of events multiplied by the price in force for that month, so changing a price changes what the dashboard shows for every month that price applies to. Issued statements are the exception, because their figures are frozen.</p>
+            <table class="info-table">
+                <thead><tr><th>Kind</th><th>What is recorded</th><th>How it is priced</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Third-party calls</strong></td><td>Every identity check, bureau report, fraud check and AI advisory narrative the CRMS requests on the bank's behalf. Failed calls are recorded and billed like successful ones.</td><td>Per call, from the Price List</td></tr>
+                    <tr><td><strong>Partner checks</strong></td><td>Every customer credit check a partner submits through the bank's API. The third-party calls made to answer it are billed as well.</td><td>Per check, from the Price List</td></tr>
+                    <tr><td><strong>Loan milestones</strong></td><td>Each application reaching a milestone: received, booked, declined or cancelled. Recorded separately for the Corporate, NAMP and RH-SHF flows.</td><td>Per milestone per flow, from Platform Fees</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Who sees what</h2>
+            <table class="info-table">
+                <thead><tr><th></th><th>Billing Manager (vendor)</th><th>System Administrator (bank)</th></tr></thead>
+                <tbody>
+                    <tr><td>Billing Dashboard, Price List, Platform Fees, Statements</td><td>Full access</td><td>Read only</td></tr>
+                    <tr><td>"Our cost" and margin figures</td><td>Shown</td><td>Never shown</td></tr>
+                    <tr><td>Set prices and platform fees</td><td>Yes</td><td>No</td></tr>
+                    <tr><td>Issue, mark paid, void statements</td><td>Yes</td><td>No</td></tr>
+                    <tr><td>Snooze or dismiss alerts</td><td>Yes</td><td>No</td></tr>
+                    <tr><td>Access &amp; Data page</td><td>Yes</td><td>Not shown</td></tr>
+                    <tr><td>Add or remove Billing Managers</td><td>Yes</td><td>No</td></tr>
+                </tbody>
+            </table>
+            <div class="info-box">
+                <span class="material-symbols-outlined">info</span>
+                <p>The bank's administrators cannot grant the Billing Manager role, and cannot edit or deactivate a Billing Manager's account from Admin &gt; Users. Only a Billing Manager can add another one, under Billing &gt; Access &amp; Data.</p>
+            </div>
+        </div>
+
+        @if (IsManager)
+        {
+            <div class="content-card">
+                <h2>Month-end routine</h2>
+                <div class="numbered-steps">
+                    <div class="numbered-step"><div class="step-num">1</div><div class="step-content"><h4>Open the dashboard for the month just ended</h4><p>Deal with any alerts, in particular unpriced items and unattributed calls.</p></div></div>
+                    <div class="numbered-step"><div class="step-num">2</div><div class="step-content"><h4>Check Calls by service against your provider invoices</h4><p>The "Our cost" tile and the margin tell you whether the cost figures on the Price List are still right.</p></div></div>
+                    <div class="numbered-step"><div class="step-num">3</div><div class="step-content"><h4>Prepare the statement</h4><p>Open Statements, pick the month, read the preview and its warnings. Fix prices if needed and prepare again.</p></div></div>
+                    <div class="numbered-step"><div class="step-num">4</div><div class="step-content"><h4>Issue, download the PDF, send it to the bank</h4><p>When the bank pays, open the statement and Mark paid with the reference.</p></div></div>
+                    <div class="numbered-step"><div class="step-num">5</div><div class="step-content"><h4>If a statement was wrong</h4><p>Void it with a reason, correct the prices, and issue again. The new statement picks up the released events.</p></div></div>
+                </div>
+            </div>
+        }
+        break;
+
+    case "billing-dashboard":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">dashboard</span></span>
+            <div>
+                <h1>Billing Dashboard</h1>
+                <p>What is due from the bank for a month, and where it comes from</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Choosing what to look at</h2>
+            <ul>
+                <li><strong>Month</strong> opens on the current month. Pick an earlier month to see what was due then, at the prices that applied then.</li>
+                <li><strong>Flow</strong> is "All flows" by default. Pick Corporate, NAMP, RH-SHF, Partner API, Diagnostics, Other lookups or Unattributed to narrow every figure to that flow.</li>
+            </ul>
+            <p>Three notices may appear above the figures: open <strong>alerts</strong> (see Alerts), <strong>"No prices have been set yet"</strong> until at least one price exists, and <strong>"This month is before billing went live"</strong> for months older than the ledger. Calls for those months were rebuilt from the records they left behind, so they are a lower bound: BVN, NIN, TIN and fraud checks from that time are not included. Loan milestones are exact.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>The tiles</h2>
+            <table class="info-table">
+                <thead><tr><th>Tile</th><th>What it shows</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Due this month</strong></td><td>The total for the chosen month and flow, before VAT.</td></tr>
+                    <tr><td><strong>Third-party calls</strong></td><td>The part that comes from calls and partner checks, with the number of calls and how many failed. Failed calls are billed all the same.</td></tr>
+                    <tr><td><strong>Platform fees</strong></td><td>The part that comes from loan milestones, with how many applications were received, booked and declined.</td></tr>
+                    @if (IsManager)
+                    {
+                        <tr><td><strong>Our cost</strong></td><td>Billing Managers only. What the calls cost the vendor at the cost figures on the Price List, and the margin against the amount due. The bank never sees this tile.</td></tr>
+                    }
+                    <tr><td><strong>Unattributed</strong></td><td>Calls this month that no application claimed. They are still billed. Green when it is zero.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Charts and tables</h2>
+            <ul>
+                <li><strong>Due by month</strong>: the last twelve months, stacked by category.</li>
+                <li><strong>Where the month's amount goes</strong>: the month's amount as a share by category.</li>
+                <li><strong>Loans by flow</strong>: milestones reached in the month per flow, with Received, Booked, Declined, Cancelled, Processing now and the fees they add up to. "Processing now" is the number received that have not yet reached a final milestone.</li>
+                <li><strong>Calls by service</strong>: every service used in the month with calls, failures, unit price and amount.</li>
+            </ul>
+        </div>
+
+        <div class="content-card">
+            <h2>The Charges and Loans tabs</h2>
+            <p><strong>Charges</strong> lists every billable call and partner check in the month, newest first. Filter by category or outcome, or type part of a case reference or request id. Each row shows when the call was made, the flow and case, the subject (for example the last four digits of a BVN), the item, whether it succeeded, which server made it, and its price. Click a case reference to open the application. A row marked <em>rebuilt</em> was reconstructed from history. Hover over a <em>Failed</em> badge to read the provider's reason.</p>
+            <p><strong>Loans</strong> shows one row per application with what it has cost so far: calls made, the amount those calls are due, the platform fees earned, and the total. Filter by outcome, tick "Only loans with activity this month", or search by reference or applicant.</p>
+        </div>
+        break;
+
+    case "billing-prices":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">sell</span></span>
+            <div>
+                <h1>Price List and Platform Fees</h1>
+                <p>What the bank pays per call, per partner check and per loan milestone</p>
+            </div>
+        </div>
+
+        @if (!IsManager)
+        {
+            <div class="content-card">
+                <div class="visibility-badge restricted">
+                    <span class="material-symbols-outlined">visibility</span>
+                    Administrators can see the prices but not change them. Prices are set by the vendor's Billing Manager.
+                </div>
+            </div>
+        }
+
+        <div class="content-card">
+            <h2>Price List</h2>
+            <p>Items are grouped by category: Identity, Credit bureau, Business bureau, Fraud check, AI advisory and Partner API. For each item you see the <strong>price to the bank</strong> before VAT ("not set, worth zero" until a price exists), <strong>our cost</strong> (Billing Managers only), the month the price has been <strong>in force</strong> since, and a <strong>History</strong> button once it has changed.</p>
+            @if (IsManager)
+            {
+                <h3>Setting or changing a price</h3>
+                <div class="numbered-steps">
+                    <div class="numbered-step"><div class="step-num">1</div><div class="step-content"><h4>Click Set price on the item</h4></div></div>
+                    <div class="numbered-step"><div class="step-num">2</div><div class="step-content"><h4>Choose the month the price applies from</h4><p>The current month is selected by default.</p></div></div>
+                    <div class="numbered-step"><div class="step-num">3</div><div class="step-content"><h4>Enter the price to the bank and, for margin figures, our cost per unit</h4><p>Add a note if it helps, for example "agreed with the bank on 3 Nov", then Save.</p></div></div>
+                </div>
+            }
+            <div class="info-box">
+                <span class="material-symbols-outlined">info</span>
+                <p><strong>Prices are dated, not overwritten.</strong> A price applies from the month chosen onwards, and earlier months keep theirs. To raise a price next month, set it with next month as the start. To price history, for example when prices were agreed late, choose the first month the agreement covers. Months with an issued statement keep the statement's frozen figures.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Platform Fees</h2>
+            <p>A grid of the four milestones against the three loan flows (Corporate, NAMP, RH-SHF). A cell left at zero means that milestone is not charged for that flow, which is a normal state, not a gap. An application is counted once per milestone: one that is received then declined earns both fees; one that is booked never also earns declined or cancelled.</p>
+            <table class="info-table">
+                <thead><tr><th>Milestone</th><th>Charged once when</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Application received</strong></td><td>An application arrives on the platform.</td></tr>
+                    <tr><td><strong>Loan booked</strong></td><td>The loan is booked in core banking.</td></tr>
+                    <tr><td><strong>Application declined</strong></td><td>The application is declined at any stage.</td></tr>
+                    <tr><td><strong>Application cancelled or withdrawn</strong></td><td>The application is withdrawn, cancelled, or its offer lapses.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        break;
+
+    case "billing-statements":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">receipt_long</span></span>
+            <div>
+                <h1>Statements</h1>
+                <p>Closing a month freezes what the bank owes for it</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What a statement does</h2>
+            <p>A statement gathers every billable event up to and including a month that has not been billed before, prices it, adds VAT (7.5% by default), gives it a number and freezes the figures. From then on the bank is invoiced from the statement, not from the dashboard. Calls that arrive after a month is closed roll into the next statement.</p>
+            <p>Statements are numbered <strong>BILL-yyyyMM-NN</strong>, for example BILL-202611-01 for the first statement issued for November 2026. A second one for the same month, after a void, becomes BILL-202611-02. Numbers are never reused. A statement is due thirty days after it is issued by default; the due date is printed on it and shown in the list.</p>
+        </div>
+
+        @if (IsManager)
+        {
+            <div class="content-card">
+                <h2>Preparing and issuing</h2>
+                <div class="numbered-steps">
+                    <div class="numbered-step"><div class="step-num">1</div><div class="step-content"><h4>Pick a month from the selector at the top</h4><p>The page prepares a preview headed "Statement for [month], not yet issued" with events, subtotal, VAT, total and our cost.</p></div></div>
+                    <div class="numbered-step"><div class="step-num">2</div><div class="step-content"><h4>Read the warnings</h4><p><strong>The month has not ended</strong>: calls made after you issue roll into the next statement. <strong>N rows from earlier months were never billed</strong>: older unbilled events are swept in as their own lines. <strong>No price set, so billed at zero</strong>: set the prices first, then prepare again.</p></div></div>
+                    <div class="numbered-step"><div class="step-num">3</div><div class="step-content"><h4>Check the lines, add a note for the bank if wanted, click Issue</h4><p>The preview says when it cannot issue: the month has not started, nothing is unbilled, or a statement already covers the month.</p></div></div>
+                </div>
+            </div>
+        }
+
+        <div class="content-card">
+            <h2>Opening a statement</h2>
+            <p>Click a row in the list. The detail shows who issued it and when, the due date, any note, and the lines with a totals footer.</p>
+            <ul>
+                <li><strong>PDF</strong> downloads the statement the bank can be sent: the vendor's and the bank's details, the lines, subtotal, VAT, total and payment instructions.</li>
+                <li><strong>Excel</strong> downloads the same figures as a workbook.</li>
+                @if (IsManager)
+                {
+                    <li><strong>Mark paid</strong> records the date the bank paid, the payment reference and an optional note. The date cannot be in the future.</li>
+                    <li><strong>Void</strong> cancels an issued statement. A reason is required. Every event on it returns to unbilled and appears on the next statement issued. A paid statement cannot be voided.</li>
+                }
+            </ul>
+            <div class="info-box">
+                <span class="material-symbols-outlined">lock</span>
+                <p>Neither export ever contains cost or margin figures.</p>
+            </div>
+        </div>
+        break;
+
+    case "billing-alerts":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">notifications_active</span></span>
+            <div>
+                <h1>Billing Alerts</h1>
+                <p>Six checks that say when something looks wrong</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <p class="intro-text">The checks run on their own every six hours on both CRMS servers. Anything new they find becomes an alert at the top of the Billing Dashboard and is emailed to every active Billing Manager. An alert stays until the condition goes away, then resolves itself.</p>
+            <table class="info-table">
+                <thead><tr><th>Alert</th><th>What it means</th><th>Severity</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Spend above norm</strong></td><td>A service's calls this month are on course for at least twice its average over the last three months (with at least ten calls so far). Look for a retry loop or a flow calling it more than it should.</td><td>Warning; Critical at four times</td></tr>
+                    <tr><td><strong>Failing calls</strong></td><td>At least half of a service's calls over the last two days failed (with at least five calls). Every failed call is billed, so the bank is paying for nothing. Admin &gt; Diagnostics shows the provider's answer.</td><td>Critical</td></tr>
+                    <tr><td><strong>Unattributed calls</strong></td><td>Calls this month that no application claimed. They are billed, but nobody can say which case they were for. The Charges tab shows them under the Unattributed flow.</td><td>Warning</td></tr>
+                    <tr><td><strong>Unpriced item</strong></td><td>An item has events this month and no price, so it is billed at zero. Set the price.</td><td>Warning</td></tr>
+                    <tr><td><strong>Overdue statement</strong></td><td>An issued statement is past its due date and not marked paid.</td><td>Warning; Critical after 30 days</td></tr>
+                    <tr><td><strong>Month not closed</strong></td><td>The previous month has ended with unbilled events and no statement.</td><td>Info for the first nine days of the month, then Warning</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        @if (IsManager)
+        {
+            <div class="content-card">
+                <h2>Acting on an alert</h2>
+                <ul>
+                    <li><strong>Snooze</strong> hides it for a week. If the condition is still there after that, it comes back.</li>
+                    <li><strong>Dismiss</strong> hides it until the condition resolves. Use this for something you have looked into and accepted.</li>
+                    <li><strong>Reopen</strong>, in the alert history on Access &amp; Data, brings back a snoozed or dismissed alert.</li>
+                </ul>
+                <p>The dashboard also shows on how many checks in a row the same condition has been found, so a long-running problem is obvious.</p>
+            </div>
+        }
+        break;
+
+    case "billing-access":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">admin_panel_settings</span></span>
+            <div>
+                <h1>Access &amp; Data</h1>
+                <p>Who manages billing for the vendor, and the state of the ledger behind the dashboard</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Billing Managers</h2>
+            <p>A table of the managers with name, email, status and last sign-in. To add one, enter the email address and, for someone new to the CRMS, their first and last name, then click <strong>Add</strong>.</p>
+            <ul>
+                <li>A person who already has a CRMS account gains the role and keeps their password. Their account is activated if it was inactive. This includes an account that also holds other roles, such as System Administrator.</li>
+                <li>A new person gets an account and an email with a link to set a password.</li>
+                <li><strong>Remove</strong> takes the role away. The account is deactivated if it had no other role. The last active manager cannot be removed, so the vendor can never lock itself out.</li>
+            </ul>
+            <div class="info-box">
+                <span class="material-symbols-outlined">info</span>
+                <p><strong>First sign-in.</strong> The very first Billing Manager account is created by the system at start-up from the configured email address, with no usable password. That person signs in by using <strong>Forgot password?</strong> on the login page, setting a password from the emailed link, and then logging in normally.</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Ledger</h2>
+            <ul>
+                <li><strong>Live rows</strong>: calls and partner checks recorded at the moment they happened, and since when.</li>
+                <li><strong>Loan milestones</strong>: rows read off the loan books, refreshed every hour and on demand.</li>
+                <li><strong>Rebuilt rows</strong>: rows reconstructed from records that existed before billing went live.</li>
+            </ul>
+            <h3>Actions</h3>
+            <ul>
+                <li><strong>Refresh loan milestones</strong> reads every application and adds any received, booked, declined or cancelled row it has earned and not yet been given. Safe to run at any time.</li>
+                <li><strong>Rebuild history from inception</strong> reconstructs third-party usage from bureau reports, CAC lookups and partner check logs made before billing went live. Click <strong>Preview</strong> first: it reports what it found and what is already in the ledger without writing anything. <strong>Write</strong> adds the rows, marked as rebuilt. Rows are never added twice, so it is safe to repeat.</li>
+                <li><strong>Run checks now</strong> runs the six alert checks immediately and reports what was found, what resolved and how many managers were emailed. The alert history underneath has a <strong>Reopen</strong> button for snoozed and dismissed alerts.</li>
+            </ul>
+        </div>
+        break;
+}
+
+@code {
+    [Parameter] public string Section { get; set; } = "";
+    [Parameter] public UserInfo? User { get; set; }
+
+    private bool IsManager => User?.HasRole("BillingManager") == true;
+}

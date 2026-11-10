@@ -1,0 +1,94 @@
+@* Help sections for the newer administration pages: partner API, outbound email, diagnostics. Rendered inside Help/Index.razor. *@
+
+@switch (Section)
+{
+    case "admin-partner-api":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">hub</span></span>
+            <div>
+                <h1>Partner API, Customer Credit Checks and API Consumers</h1>
+                <p>Third-party systems that run customer credit checks on the bank's behalf</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>How it fits together</h2>
+            <p class="intro-text">A partner system (for example a farmers' portal or a fintech) can ask the CRMS to run a <strong>customer credit check</strong> on a person or a business: credit bureau, fraud screening, account verification and an advisory rating, in whatever combination the partner is allowed. The partner calls the API with its key, the CRMS runs the sections in the background, and when the check is done the CRMS calls the partner back with a signed result. Three admin pages cover this: <strong>API Consumers</strong> sets up who may call, <strong>Customer Credit Checks</strong> lists every check that was asked for, and <strong>Partner API</strong> shows usage, billing and callback health.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>API Consumers</h2>
+            <p>One row per partner with its name, status, the sections it may ask for, its rate limit, bureau reuse, callback and last use.</p>
+            <div class="numbered-steps">
+                <div class="numbered-step"><div class="step-num">1</div><div class="step-content"><h4>Add API Consumer</h4><p>Name, contact email, notes, the <strong>sections this consumer may ask for</strong>, <strong>requests per minute</strong>, <strong>checks waiting at once</strong>, whether to <strong>reuse bureau reports</strong> and for how many days (so a repeat check on the same subject does not buy a fresh report), the <strong>callback URL</strong> and any other allowed callback hosts.</p></div></div>
+                <div class="numbered-step"><div class="step-num">2</div><div class="step-content"><h4>Send setup link</h4><p>The partner collects its API key and callback signing secret from a one-time emailed link, so nobody at the bank handles the secret. The page shows how many links were sent and what each one issued. Opening the link does nothing by itself; only the button on the partner's page issues the credentials.</p></div></div>
+                <div class="numbered-step"><div class="step-num">3</div><div class="step-content"><h4>Later housekeeping</h4><p><strong>Rotate key</strong> or <strong>Rotate secret</strong> when a credential may have leaked, <strong>Show secret</strong> if the partner needs it re-confirmed, edit the limits and sections, or deactivate the consumer to stop it calling at once.</p></div></div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Customer Credit Checks</h2>
+            <p>Every check a partner has asked for: when, which consumer, the request id, the sections asked for, the status, how many third-party calls it made, whether the advisory ran, and whether the partner acknowledged the callback. Filter by consumer, status or request id. Open a row to see the full detail of each section and the callback attempts. This is the page to open when a partner says "we never got the result".</p>
+        </div>
+
+        <div class="content-card">
+            <h2>Partner API dashboard</h2>
+            <p>Usage over the last 7, 30 or 90 days, or this month or last month, for all consumers or one: checks per day, section answers, bureau usage, advisory ratings, when partners call, callback health and recent failures. The <strong>Price list</strong> card holds the unit price charged per section; click the pencil to change a price. Usage from partner checks also feeds the Billing dashboard, where it appears under the Partner API flow.</p>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Administrators only
+            </div>
+        </div>
+        break;
+
+    case "admin-outbound-email":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">outgoing_mail</span></span>
+            <div>
+                <h1>Outbound Email</h1>
+                <p>Every email the system has tried to send, what the provider answered, and the ones that never left</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <p class="intro-text">The CRMS sends emails for password resets, stage notifications, offer letters to FACs, partner setup links, billing alerts and more. This page is the record of all of them. The tiles at the top are shortcuts: <strong>failed today</strong>, <strong>failed this week</strong>, <strong>still sending</strong>, <strong>pending</strong> and <strong>sent today</strong>. Below is the list with created time, recipient, subject, template, status and the provider's outcome. Filter by recipient, template code (for example PASSWORD_RESET) or status.</p>
+            <p>Open a row to read the message as the recipient saw it, or as plain text, and the provider's reply. Emails that carry a credential, such as password reset links and partner setup links, show their status but withhold the body.</p>
+            <div class="info-box">
+                <span class="material-symbols-outlined">info</span>
+                <p>When someone says "I never received the email", look here first. A <strong>Sent</strong> row means the provider accepted it, so check the recipient's spam folder. A <strong>Failed</strong> row shows the provider's reason, usually an unverified sender or an address the provider rejects.</p>
+            </div>
+        </div>
+        break;
+
+    case "admin-diagnostics":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">troubleshoot</span></span>
+            <div>
+                <h1>Diagnostics</h1>
+                <p>Ask the integrations a direct question and see the raw answer</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <p class="intro-text">When a lookup fails inside a case, this page lets an administrator repeat it on its own and read exactly what the provider returned. Each call made here is a real call and is billed like any other, under the Diagnostics flow on the Billing dashboard.</p>
+            <table class="info-table">
+                <thead><tr><th>Tab</th><th>What you can do</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>SmartComply CAC</strong></td><td>Look up a company by RC number or name and see the raw registry response with its directors and shareholders. The <strong>SmartComply API Key</strong> card checks whether this server's key is accepted by the provider, free of charge.</td></tr>
+                    <tr><td><strong>Business Credit</strong></td><td>Download a CRC, First Central or Premium business credit report for a company and read the raw response.</td></tr>
+                    <tr><td><strong>Core Banking</strong></td><td>Fetch a BOA account by number and see the raw core banking record, including directors and signatories.</td></tr>
+                    <tr><td><strong>Email Sending</strong></td><td>Send any email template to an address of your choice and read the provider's answer, to prove the email channel works before blaming a mailbox.</td></tr>
+                </tbody>
+            </table>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Administrators only
+            </div>
+        </div>
+        break;
+}
+
+@code {
+    [Parameter] public string Section { get; set; } = "";
+    [Parameter] public UserInfo? User { get; set; }
+}

@@ -9,6 +9,12 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// The scoped CSS bundle (CRMS.Web.Intranet.styles.css) is served from the build output through the
+// static web assets manifest, which the host only loads for the Development environment. A local run
+// under the "Local" environment needs it too, or every page with a .razor.css file loses its styling.
+if (builder.Environment.IsEnvironment("Local"))
+    builder.WebHost.UseStaticWebAssets();
+
 // Database connection string
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");

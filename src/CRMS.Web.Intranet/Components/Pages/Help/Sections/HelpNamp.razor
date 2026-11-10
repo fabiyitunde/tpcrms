@@ -1,0 +1,167 @@
+@* Help sections for the NAMP (equipment financing) track. Rendered inside Help/Index.razor. *@
+
+@switch (Section)
+{
+    case "namp-overview":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">agriculture</span></span>
+            <div>
+                <h1>NAMP Applications</h1>
+                <p>Equipment financing under the National Agricultural Mechanisation Programme</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>What NAMP is</h2>
+            <p class="intro-text">NAMP applications do not start in the CRMS. Applicants apply on the PAYS portal, and each application lands in the CRMS <strong>Staging Queue</strong>, where a Loan Officer recalls it into the branch's work. From there it follows its own track with its own stages, tiered committees, ratifying managers, legal clearance, pre-deployment checks and finally equipment deployment, which books the loan in core banking.</p>
+            <p>Applicants fall into three categories, shown on every list: <strong>Youth</strong>, <strong>Women</strong> and <strong>Agro-Service</strong> (a registered company). Agro-Service cases carry directors, company details from CAC and yearly financial statements; Youth and Women cases carry a personal credit profile instead.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>The NAMP Queue</h2>
+            <p>Open <strong>NAMP &gt; NAMP Queue</strong>. The tabs you see depend on your role:</p>
+            <table class="info-table">
+                <thead><tr><th>Tab</th><th>Who sees it</th><th>What it holds</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Staging Queue</strong></td><td>Loan Officers and administrators</td><td>New portal applications waiting to be recalled. Branch Loan Officers see their own branch; head office sees all. Search by PAYS reference, applicant or BOA account. The <strong>Recall</strong> button creates the Draft application and opens it.</td></tr>
+                    <tr><td><strong>My Queue</strong></td><td>Everyone</td><td>Cases waiting on you at the stage your role owns (see the stage table). Committee members see cases where they sit on the committee; ratifying managers and risk officers see their own tier.</td></tr>
+                    <tr><td><strong>My Applications</strong></td><td>Everyone</td><td>Cases you have acted on.</td></tr>
+                    <tr><td><strong>Branch Applications</strong></td><td>Branch, zonal and regional staff</td><td>Every case in your scope, with a Status filter that defaults to "All Active".</td></tr>
+                    <tr><td><strong>All Applications</strong></td><td>Head office and administrators</td><td>Every case, including declined and closed ones.</td></tr>
+                </tbody>
+            </table>
+            <p>Every list shows the application number, applicant, category, equipment value, committee tier, status and date. Click a row to open the case. Your scope follows your office: a branch sees its own cases, a zone or region sees the branches under it, and head office sees everything.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>Routing by equipment value</h2>
+            <p>The committee tier is set from the applicant category and the equipment value when the case is recalled. Default bands (administrators can change them under Admin &gt; NAMP Routing):</p>
+            <table class="info-table">
+                <thead><tr><th>Category</th><th>Branch</th><th>Zonal</th><th>Regional</th><th>Head Office</th></tr></thead>
+                <tbody>
+                    <tr><td>Youth / Women</td><td>up to ₦5M</td><td>up to ₦20M</td><td>up to ₦50M</td><td>above ₦50M</td></tr>
+                    <tr><td>Agro-Service</td><td>–</td><td>up to ₦20M</td><td>up to ₦100M</td><td>above ₦100M</td></tr>
+                </tbody>
+            </table>
+        </div>
+        break;
+
+    case "namp-stages":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">route</span></span>
+            <div>
+                <h1>NAMP Stages</h1>
+                <p>From recall to deployment, who acts at each step and the buttons they use</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <table class="info-table">
+                <thead><tr><th>#</th><th>Stage</th><th>Who acts</th><th>What happens</th></tr></thead>
+                <tbody>
+                    <tr><td>1</td><td><strong>Recall Pending</strong></td><td>Loan Officer</td><td>The application sits in the Staging Queue. <strong>Recall</strong> turns it into a Draft.</td></tr>
+                    <tr><td>2</td><td><strong>Draft</strong></td><td>Loan Officer</td><td>Complete the case: for Agro-Service, fetch company details and directors from CAC and make sure every director has a BVN. Upload documents. <strong>Submit for Appraisal</strong> queues the credit bureau checks automatically.</td></tr>
+                    <tr><td>3</td><td><strong>Submitted → Financial Appraisal</strong></td><td>Credit Officer</td><td>Run the viability calculator on the Financial Appraisal tab, save the report, generate the AI advisory, then <strong>Financial Appraisal Decision</strong>: pass to Risk Review, decline, or <strong>Return to LO</strong> (back to Draft).</td></tr>
+                    <tr><td>4</td><td><strong>Risk Review</strong></td><td>Risk Officer of the case's tier (Branch, Zonal, Regional or HO Risk Officer), or Risk Manager</td><td><strong>Approve to Committee</strong>, <strong>Return to Appraisal</strong>, or <strong>Decline</strong>.</td></tr>
+                    <tr><td>5</td><td><strong>Committee Review</strong> (Branch, Zonal, Regional or HO)</td><td>Risk Officer circulates; committee members vote</td><td><strong>Circulate to Committee</strong> opens voting for the standing committee of that tier. Members vote Approve, Reject or Abstain on the Committee tab until quorum. The tier's manager can <strong>Return for Rework</strong>, which voids the votes and sends the case back to an earlier officer.</td></tr>
+                    <tr><td>6</td><td><strong>Ratification</strong></td><td>Branch Manager, Zonal Manager, Regional Manager or MD/CEO, by tier</td><td><strong>Ratify Decision</strong> generates the offer letter, the lease or hire-purchase agreement and the GPS consent form. <strong>Decline</strong> ends the case as Ratification Declined.</td></tr>
+                    <tr><td>7</td><td><strong>Offer Sent</strong></td><td>Loan Officer</td><td>Send the documents to the applicant. <strong>Record Acceptance</strong> when the signed copies come back, or <strong>Lapse Offer</strong> if they do not.</td></tr>
+                    <tr><td>8</td><td><strong>Legal Clearance</strong></td><td>Legal Officer</td><td><strong>Grant Clearance</strong>, <strong>Return to LO</strong> (the Loan Officer fixes and clicks <strong>Resubmit to Legal</strong>) or <strong>Decline</strong>.</td></tr>
+                    <tr><td>9</td><td><strong>Pre-Deployment Verification</strong></td><td>Deployment Officer</td><td>Tick each checklist item and attach its document (see below). <strong>Complete Verification</strong> is enabled once every mandatory item is confirmed.</td></tr>
+                    <tr><td>10</td><td><strong>Deployment</strong></td><td>Deployment Officer</td><td><strong>Confirm Deployment</strong> records the GPS tracker activation and books and disburses the loan in core banking. If booking fails, the case stays here and <strong>Resume Core Banking Booking</strong> appears on the Loan Account tab.</td></tr>
+                    <tr><td>11</td><td><strong>Active → Closed</strong></td><td>Deployment Officer</td><td>The Loan Account tab shows the core banking loan and repayment schedule. <strong>Mark as Closed</strong> appears once core banking reports the loan closed.</td></tr>
+                </tbody>
+            </table>
+            <p>Declines at appraisal, risk review, committee, ratification or legal clearance are terminal, as is a lapsed offer. The portal is told of every outcome.</p>
+        </div>
+
+        <div class="content-card">
+            <h2>Pre-deployment checklist</h2>
+            <p>The seeded items, all mandatory. Every item except the first needs a document of its category uploaded on the Pre-Deployment tab before verification can be completed. Administrators can change the list under Admin &gt; NAMP Pre-Deploy Checklist.</p>
+            <ul>
+                <li>Equity Deposit Confirmed</li>
+                <li>Lease / Hire-Purchase Agreement Signed</li>
+                <li>GPS Tracking Consent Obtained</li>
+                <li>NAIC Insurance In Place</li>
+                <li>Signed NAMP Offer Letter Returned</li>
+            </ul>
+        </div>
+        break;
+
+    case "namp-application":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">tab</span></span>
+            <div>
+                <h1>The NAMP Application Page</h1>
+                <p>What each tab holds and who can act on it</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <p class="intro-text">The header shows the application number, status, PAYS reference and applicant, with a strip of applicant, category, loan amount, equipment value, tenor and committee tier. The action buttons for the current stage sit on the right. <strong>Loan Pack</strong> produces a single PDF of the whole case at any stage after Draft. A yellow banner marks a case the committee has sent back for rework.</p>
+        </div>
+
+        <div class="content-card">
+            <table class="info-table">
+                <thead><tr><th>Tab</th><th>What it holds</th><th>Who acts</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Overview</strong></td><td>Applicant information. For Agro-Service: the <em>Core Banking Record</em> card (the BOA account, with directors and signatories as core banking holds them and mismatch flags), <em>Company Details</em> with <strong>Fetch from CAC</strong>, and <em>Directors &amp; Shareholders</em> with <strong>Add Manually</strong>. For Youth and Women: the credit profile. Then appraisal notes, loan and equity, and stage progression.</td><td>Loan Officer edits directors at Draft</td></tr>
+                    <tr><td><strong>Equipment</strong></td><td>The equipment summary and cart items from the portal.</td><td>Read only</td></tr>
+                    <tr><td><strong>Guarantors</strong></td><td>Shown only when guarantors exist.</td><td>Read only</td></tr>
+                    <tr><td><strong>Collateral</strong></td><td>The equipment as primary collateral with its coverage ratio, plus any supplementary collateral.</td><td>Read only</td></tr>
+                    <tr><td><strong>Documents</strong></td><td>Everything uploaded, by stage and category. <strong>Retry Portal Docs</strong> re-imports origination documents that failed to download at recall.</td><td>Loan Officer uploads</td></tr>
+                    <tr><td><strong>Financials</strong></td><td>Agro-Service only: statements by financial year.</td><td>Loan Officer, Credit Officer</td></tr>
+                    <tr><td><strong>Credit Bureau</strong></td><td>Results for the applicant, the company, every director and every guarantor. Checks run automatically at submission.</td><td>Credit Officer</td></tr>
+                    <tr><td><strong>Financial Appraisal</strong></td><td>The <em>Tractor Loan Viability Calculator</em> (hectares per month with evidence, rate per hectare, fuel, maintenance, operator wages) with its DSR verdict and NPV, BCR, IRR and payback checks; <strong>Download Appraisal Report</strong>; the <em>Officer Recommendation</em> with pass or fail and risk commentary for the committee; supporting documents.</td><td>Credit Officer at Submitted and Financial Appraisal</td></tr>
+                    <tr><td><strong>AI Advisory</strong></td><td>The generated narrative. Needs a saved appraisal report and completed bureau checks.</td><td>Credit Officer</td></tr>
+                    <tr><td><strong>Committee</strong></td><td>Members, tally and quorum; <strong>Cast Your Vote</strong> for assigned members; the decision; earlier rounds after a rework.</td><td>Committee members of the tier</td></tr>
+                    <tr><td><strong>Offer Letter</strong></td><td>After ratification: the offer letter, the hire-purchase or lease agreement and the GPS consent form, each with <strong>Download</strong> and <strong>Upload Signed Copy</strong>.</td><td>Loan Officer, Deployment Officer</td></tr>
+                    <tr><td><strong>Legal Clearance</strong></td><td>The legal outcome, document upload, and <strong>Resubmit to Legal</strong> after a return.</td><td>Legal Officer, Loan Officer</td></tr>
+                    <tr><td><strong>Pre-Deployment</strong></td><td>One card per checklist item with "I confirm this condition has been satisfied", notes and document upload.</td><td>Deployment Officer confirms; Loan Officer may upload</td></tr>
+                    <tr><td><strong>Loan Account</strong></td><td>From Deployment onward: the core banking loan, its status, summary and repayment schedule, with <strong>Refresh</strong>. If the booking did not complete, <strong>Resume Core Banking Booking</strong>.</td><td>Deployment Officer</td></tr>
+                    <tr><td><strong>Workflow</strong></td><td>The status history, and earlier review passes after a rework.</td><td>Read only</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Directors, BVNs and bureau checks</h2>
+            <div class="info-box">
+                <span class="material-symbols-outlined">info</span>
+                <p>For an Agro-Service applicant, <strong>Fetch from CAC</strong> fills in the directors and shareholders from the corporate registry. Each CAC lookup is a paid call, so fetch once and refresh only when needed. Bureau checks run automatically on submission and cover every director, so complete any missing BVNs before you submit; the page warns you when one is missing.</p>
+            </div>
+        </div>
+        break;
+
+    case "namp-admin":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">settings</span></span>
+            <div>
+                <h1>NAMP Configuration</h1>
+                <p>The administration pages that shape the NAMP track</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <table class="info-table">
+                <thead><tr><th>Page</th><th>What it controls</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>NAMP Routing</strong></td><td>The value bands that send a case to the Branch, Zonal, Regional or Head Office committee, per applicant category. Each band has a minimum and maximum equipment value, a tier and a priority, and can be switched off.</td></tr>
+                    <tr><td><strong>NAMP Workflow</strong></td><td>The responsible role and the SLA in hours for each stage. The stage order and the routing are fixed by the system; only the role and the SLA are editable.</td></tr>
+                    <tr><td><strong>NAMP Pre-Deploy Checklist</strong></td><td>The items the Deployment Officer must verify before deployment: title, description, whether a document upload is required and in which category, and whether the item is mandatory.</td></tr>
+                    <tr><td><strong>NAMP Doc Templates</strong></td><td>The wording of the system-generated documents: the offer letter's introductory text and general conditions, the lease agreement body and the GPS consent form body. Each editor lists the tokens that are replaced with case data at generation time.</td></tr>
+                    <tr><td><strong>Committees</strong></td><td>The standing committee of each tier whose members vote on NAMP cases. The same page serves the Corporate committees.</td></tr>
+                </tbody>
+            </table>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Administrators only
+            </div>
+        </div>
+        break;
+}
+
+@code {
+    [Parameter] public string Section { get; set; } = "";
+    [Parameter] public UserInfo? User { get; set; }
+}
