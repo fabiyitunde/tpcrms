@@ -18,6 +18,59 @@ public static class NampWorkflowSeeder
         await SeedRoutingConfigAsync(context, logger);
         await SeedPreDeploymentChecklistAsync(context, logger);
         await SeedDocumentTemplatesAsync(context, logger);
+        await RecordUnrecordedCommitteeOutcomesAsync(context, logger);
+    }
+
+    /// <summary>
+    /// Moves on any NAMP case whose committee finished voting but which was never taken out of
+    /// Committee Circulation. Until November 2026 a final vote cast from Committee &gt; My Votes closed
+    /// the review without recording the outcome on the case, so the case sat at circulation with
+    /// "All votes cast" and nothing to click. Runs every startup, touches only cases in that state,
+    /// and records the same outcome the votes already decided, attributed to the last member who
+    /// voted. Any new occurrence after the fix would mean another path has the same gap.
+    /// </summary>
+    private static async Task RecordUnrecordedCommitteeOutcomesAsync(CRMSDbContext context, ILogger logger)
+    {
+        var circulating = new[]
+        {
+            NampApplicationStatus.BranchCommitteeCirculation, NampApplicationStatus.ZonalCommitteeCirculation,
+            NampApplicationStatus.RegionalCommitteeCirculation, NampApplicationStatus.HOCommitteeCirculation,
+        };
+
+        var candidates = await context.NampApplications
+            .Where(a => a.CurrentCommitteeReviewId != null && circulating.Contains(a.Status))
+            .ToListAsync();
+
+        var moved = 0;
+        foreach (var app in candidates)
+        {
+            var review = await context.CommitteeReviews
+                .Include(r => r.Members)
+                .FirstOrDefaultAsync(r => r.Id == app.CurrentCommitteeReviewId && r.Status == CommitteeReviewStatus.VotingComplete);
+            if (review is null)
+                continue;
+
+            var lastVoter = review.Members.Where(m => m.VotedAt != null).OrderByDescending(m => m.VotedAt).FirstOrDefault();
+            if (lastVoter is null)
+                continue;
+
+            var before = app.Status;
+            var result = app.RecordCommitteeOutcome(lastVoter.UserId, review.HasMajorityApproval,
+                "Recorded at startup: every member had voted but the case had not been moved on.");
+            if (result.IsFailure)
+            {
+                logger.LogWarning("NAMP {Number}: committee outcome could not be recorded at startup: {Error}", app.ApplicationNumber, result.Error);
+                continue;
+            }
+
+            app.SetAuditInfo(lastVoter.UserId.ToString());
+            moved++;
+            logger.LogWarning("NAMP {Number}: committee had finished voting but the case was still at {Status}; moved to {NewStatus}.",
+                app.ApplicationNumber, before, app.Status);
+        }
+
+        if (moved > 0)
+            await context.SaveChangesAsync();
     }
 
     // ── Stage config ──────────────────────────────────────────────────────

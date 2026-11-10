@@ -7,6 +7,7 @@ using CRMS.Application.Namp.Queries;
 using CRMS.Application.OfferLetter.Interfaces;
 using CRMS.Domain.Aggregates.Committee;
 using CRMS.Domain.Aggregates.Namp;
+using CRMS.Domain.Common;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -397,16 +398,8 @@ public class CastNampCommitteeVoteHandler
         var result = review.CastVote(request.UserId, vote, request.Comment);
         if (result.IsFailure) return ApplicationResult<NampCommitteeReviewDto>.Failure(result.Error);
 
-        // Auto-resolve outcome once every member has voted
-        if (review.Status == CommitteeReviewStatus.VotingComplete)
-        {
-            var app = await _nampRepo.GetByCommitteeReviewIdAsync(review.Id, ct);
-            if (app is not null)
-            {
-                app.RecordCommitteeOutcome(request.UserId, review.HasMajorityApproval, note: null);
-                app.SetAuditInfo(request.UserId.ToString());
-            }
-        }
+        var outcome = await NampCommitteeOutcome.RecordIfVotingCompleteAsync(review, _nampRepo, request.UserId, ct);
+        if (outcome.IsFailure) return ApplicationResult<NampCommitteeReviewDto>.Failure(outcome.Error);
 
         _committeeRepo.Update(review);
         await _uow.SaveChangesAsync(ct);
@@ -422,6 +415,38 @@ public class CastNampCommitteeVoteHandler
             )).ToList()
         );
         return ApplicationResult<NampCommitteeReviewDto>.Success(dto);
+    }
+}
+
+/// <summary>
+/// Moves a NAMP case on once its committee has finished voting: to Ratification on a majority, or to
+/// the tier's declined status otherwise. Called from every path that can cast the final vote.
+/// <para>
+/// There are two of those paths. The NAMP case page uses <see cref="CastNampCommitteeVoteHandler"/>;
+/// Committee &gt; My Votes lists NAMP reviews alongside corporate ones and votes through the shared
+/// <see cref="Committee.Commands.CastVoteHandler"/>. Until that second path called this too, a final vote
+/// cast from My Votes closed the review but left the case at Committee Circulation with nothing to
+/// move it, which is what stranded a case in production in November 2026.
+/// </para>
+/// </summary>
+public static class NampCommitteeOutcome
+{
+    public static async Task<Result> RecordIfVotingCompleteAsync(
+        CommitteeReview review, INampApplicationRepository nampRepo, Guid userId, CancellationToken ct)
+    {
+        if (review.Status != CommitteeReviewStatus.VotingComplete)
+            return Result.Success();
+
+        var app = await nampRepo.GetByCommitteeReviewIdAsync(review.Id, ct);
+        if (app is null)
+            return Result.Failure("The vote was recorded, but the NAMP case this committee review belongs to could not be found.");
+
+        var recorded = app.RecordCommitteeOutcome(userId, review.HasMajorityApproval, note: null);
+        if (recorded.IsFailure)
+            return Result.Failure($"The vote was recorded, but the case could not be moved on: {recorded.Error}");
+
+        app.SetAuditInfo(userId.ToString());
+        return Result.Success();
     }
 }
 

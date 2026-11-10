@@ -1116,7 +1116,7 @@
                 "Vote on the NAMP cases circulated to your tier's credit committee",
                 ["Approve", "Reject", "Abstain"],
                 [("NAMP Queue", "Cases where you sit on the committee wait in My Queue"), ("Committee tab", "Cast Your Vote, see the tally and the quorum"), ("Financial Appraisal, Credit Bureau, AI Advisory tabs", "Everything the Credit Officer and Risk Officer found"), ("Loan Pack", "The whole case as one PDF")],
-                [("Open the case and read the appraisal", "The Officer Recommendation and risk commentary are written for you."), ("Cast your vote once", "Approve, Reject or Abstain with a comment. Voting closes when quorum is reached."), ("Wait for ratification", "The tier's manager ratifies or declines the committee's decision.")],
+                [("Open the case and read the appraisal", "The Officer Recommendation and risk commentary are written for you."), ("Cast your vote once", "Approve, Reject or Abstain with a comment, here or from Committee > My Votes. The case moves on once every member has voted."), ("Wait for ratification", "The tier's manager ratifies or declines the committee's decision.")],
                 "namp-stages", "NAMP Stages")
         }
         else if (User?.HasAnyRole("BranchRiskOfficer", "ZonalRiskOfficer", "RegionalRiskOfficer", "HORiskOfficer") == true)

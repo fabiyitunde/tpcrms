@@ -213,14 +213,23 @@ public record CastVoteCommand(
     string? Comment
 ) : IRequest<ApplicationResult<CommitteeReviewDto>>;
 
+/// <summary>
+/// Casts a vote on any committee review, corporate or NAMP. Committee &gt; My Votes lists both kinds, so
+/// this handler has to finish a NAMP round the same way the NAMP case page does: a NAMP review carries
+/// no LoanApplicationId, and when its final vote lands here the case is moved on through
+/// <see cref="Namp.Commands.NampCommitteeOutcome"/>. A corporate review is moved on later, when the
+/// Credit Officer confirms the decision, so nothing more happens for it here.
+/// </summary>
 public class CastVoteHandler : IRequestHandler<CastVoteCommand, ApplicationResult<CommitteeReviewDto>>
 {
     private readonly ICommitteeReviewRepository _repository;
+    private readonly INampApplicationRepository _nampRepository;
     private readonly IUnitOfWork _unitOfWork;
 
-    public CastVoteHandler(ICommitteeReviewRepository repository, IUnitOfWork unitOfWork)
+    public CastVoteHandler(ICommitteeReviewRepository repository, INampApplicationRepository nampRepository, IUnitOfWork unitOfWork)
     {
         _repository = repository;
+        _nampRepository = nampRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -233,6 +242,13 @@ public class CastVoteHandler : IRequestHandler<CastVoteCommand, ApplicationResul
         var result = review.CastVote(request.UserId, request.Vote, request.Comment);
         if (result.IsFailure)
             return ApplicationResult<CommitteeReviewDto>.Failure(result.Error);
+
+        if (review.LoanApplicationId == Guid.Empty)
+        {
+            var outcome = await Namp.Commands.NampCommitteeOutcome.RecordIfVotingCompleteAsync(review, _nampRepository, request.UserId, ct);
+            if (outcome.IsFailure)
+                return ApplicationResult<CommitteeReviewDto>.Failure(outcome.Error);
+        }
 
         _repository.Update(review);
         await _unitOfWork.SaveChangesAsync(ct);
