@@ -532,6 +532,7 @@ public class RhshfCreditProfile : AggregateRoot
             // (design doc §6 #2/#8) applies again from Appraisal.
             CurrentCycleNumber++;
             InternalStage = RhshfInternalStage.Appraisal;
+            NotifyStage(actorUserId: null, note: null);
             AddDomainEvent(new RhshfPortalUpdateEvent(Id, CurrentCycleNumber == 1
                 ? RhshfCallbackEventType.SubmittedForReview
                 : RhshfCallbackEventType.CorrectionSubmitted));
@@ -633,6 +634,7 @@ public class RhshfCreditProfile : AggregateRoot
             case RhshfAppraisalOutcome.Proceed:
                 InternalStage = RhshfInternalStage.LegalClearance;
                 RecordTransition("Appraisal completed — sent for legal clearance", creditOfficerId, note: notes);
+                NotifyStage(creditOfficerId, notes);
                 break;
             case RhshfAppraisalOutcome.ReturnToFac:
                 ReturnToFac(returnToStage, "Returned to the FAC at appraisal", creditOfficerId, notes, reasonCode);
@@ -677,6 +679,7 @@ public class RhshfCreditProfile : AggregateRoot
             case RhshfRiskReviewOutcome.Cleared:
                 InternalStage = RhshfInternalStage.CommitteeVoting;
                 RecordTransition("Risk review cleared — circulated to committee", riskOfficerId, note: notes);
+                NotifyStage(riskOfficerId, notes);
                 break;
             case RhshfRiskReviewOutcome.ReturnToFac:
                 ReturnToFac(returnToStage, "Returned to the FAC at risk review", riskOfficerId, notes, reasonCode);
@@ -797,6 +800,7 @@ public class RhshfCreditProfile : AggregateRoot
 
         InternalStage = RhshfInternalStage.Ratification;
         RecordTransition("Committee approved — sent for ratification", decidingVoterId, "Committee", note);
+        NotifyStage(decidingVoterId, note);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
@@ -887,6 +891,7 @@ public class RhshfCreditProfile : AggregateRoot
 
         InternalStage = RhshfInternalStage.PreDeploymentVerification;
         RecordTransition("Offer accepted — pre-deployment verification opened", actorUserId: null, actorLabel: "FAC");
+        NotifyStage(actorUserId: null, note: null);
         AddDomainEvent(new RhshfPortalUpdateEvent(Id, RhshfCallbackEventType.OfferAccepted));
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
@@ -1006,6 +1011,7 @@ public class RhshfCreditProfile : AggregateRoot
 
         InternalStage = RhshfInternalStage.RiskReview;
         RecordTransition("Legal clearance completed — proceeding to risk review", legalOfficerId, note: note);
+        NotifyStage(legalOfficerId, note);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
@@ -1087,6 +1093,7 @@ public class RhshfCreditProfile : AggregateRoot
 
         InternalStage = RhshfInternalStage.Disbursement;
         RecordTransition("Pre-deployment verification completed — cleared for disbursement", userId, note: note);
+        NotifyStage(userId, note);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
@@ -1930,6 +1937,17 @@ public class RhshfCreditProfile : AggregateRoot
     /// asserts the trail matches the states actually visited, which is what keeps a future
     /// transition from being added without one.
     /// </summary>
+    /// <summary>
+    /// Tells the staff who act at the stage the case has just reached. Raised only where the case
+    /// hands over to a different role; a stage re-entered after an EOP amendment is announced by
+    /// <see cref="RhshfEopsAmendedEvent"/> instead, and the decided outcomes by <see cref="RhshfCaseDecidedEvent"/>.
+    /// </summary>
+    private void NotifyStage(Guid? actorUserId, string? note)
+    {
+        if (InternalStage is { } stage)
+            AddDomainEvent(new RhshfInternalStageChangedEvent(Id, stage, actorUserId, note));
+    }
+
     private void RecordTransition(string action, Guid? actorUserId, string? actorLabel = null, string? note = null,
         string? reasonCode = null)
     {
@@ -1980,3 +1998,8 @@ public record RhshfPortalUpdateEvent(Guid RhshfCreditProfileId, RhshfCallbackEve
 
 /// <summary>Raised when the portal amends a case's EOPs (CRMSQA#3), so staff are told.</summary>
 public record RhshfEopsAmendedEvent(Guid RhshfCreditProfileId, Guid AmendmentId) : DomainEvent;
+
+/// <summary>Raised when a case reaches an internal stage where a different role has to act, so that
+/// role can be told by email and on the intranet's bell. Carries the stage, not the whole case; the
+/// handler reloads what it needs.</summary>
+public record RhshfInternalStageChangedEvent(Guid RhshfCreditProfileId, RhshfInternalStage Stage, Guid? ActorUserId, string? Note) : DomainEvent;

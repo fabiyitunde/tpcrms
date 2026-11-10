@@ -96,7 +96,9 @@ public class WorkflowAssignedNotificationHandler : IDomainEventHandler<WorkflowA
                 { "UserName", user.FullName },
                 { "ApplicationNumber", loanApp.ApplicationNumber },
                 { "CustomerName", loanApp.CustomerName },
-                { "Amount", loanApp.RequestedAmount.ToString() }
+                { "Amount", loanApp.RequestedAmount.ToString() },
+                { "ActionUrl", $"/applications/{loanApp.Id}" },
+                { "Summary", $"{loanApp.CustomerName} has been assigned to you." },
             };
 
             await _notificationService.SendEmailAsync(
@@ -171,6 +173,8 @@ public class CommitteeVotingStartedNotificationHandler : IDomainEventHandler<Com
                     { "ApplicationNumber", loanApp.ApplicationNumber },
                     { "CustomerName", loanApp.CustomerName },
                     { "Amount", loanApp.RequestedAmount.ToString() },
+                    { "ActionUrl", $"/applications/{loanApp.Id}" },
+                    { "Summary", $"Your vote is required on {loanApp.CustomerName}." },
                     { "CommitteeType", review.CommitteeType.ToString() },
                     { "Deadline", domainEvent.Deadline?.ToString("dd-MMM-yyyy HH:mm") ?? "No deadline" }
                 };

@@ -9,7 +9,7 @@ namespace CRMS.Infrastructure.Events.Handlers;
 /// Resolves notification recipients for a NAMP stage by role, scoped to the application's
 /// own location. See <see cref="INampNotificationRecipientResolver"/> for the contract.
 /// </summary>
-public class NampNotificationRecipientResolver : INampNotificationRecipientResolver
+public class NampNotificationRecipientResolver : INampNotificationRecipientResolver, Application.Notification.Interfaces.IStaffRecipientResolver
 {
     private readonly IUserRepository _userRepo;
 

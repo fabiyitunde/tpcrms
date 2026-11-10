@@ -2603,6 +2603,58 @@ public partial class ApplicationService
         }
     }
 
+    // ── The bell ────────────────────────────────────────────────────────────────
+    // Each call takes its own scope. The layout's timer fires while a page may be loading on the
+    // circuit's shared DbContext, and two queries on one context at once return silently empty.
+
+    public async Task<CRMS.Application.Notification.InApp.InAppNotificationPageDto> GetMyNotificationsAsync(Guid userId, bool unreadOnly = false, int page = 1, int pageSize = 10)
+    {
+        try
+        {
+            using var scope = _sp.CreateScope();
+            var handler = scope.ServiceProvider.GetRequiredService<CRMS.Application.Notification.InApp.GetMyInAppNotificationsHandler>();
+            var result = await handler.Handle(new CRMS.Application.Notification.InApp.GetMyInAppNotificationsQuery(userId, unreadOnly, page, pageSize), CancellationToken.None);
+            return result.IsSuccess && result.Data is not null ? result.Data : new([], 0, 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading notifications for user {UserId}", userId);
+            return new([], 0, 0);
+        }
+    }
+
+    public async Task<ApiResponse> MarkNotificationReadAsync(Guid notificationId, Guid userId)
+    {
+        try
+        {
+            using var scope = _sp.CreateScope();
+            var handler = scope.ServiceProvider.GetRequiredService<CRMS.Application.Notification.InApp.MarkInAppNotificationReadHandler>();
+            var result = await handler.Handle(new CRMS.Application.Notification.InApp.MarkInAppNotificationReadCommand(notificationId, userId), CancellationToken.None);
+            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Could not mark the notification read");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error marking notification {Id} read", notificationId);
+            return ApiResponse.Fail("Could not mark the notification read");
+        }
+    }
+
+    public async Task<int> MarkAllNotificationsReadAsync(Guid userId)
+    {
+        try
+        {
+            using var scope = _sp.CreateScope();
+            var handler = scope.ServiceProvider.GetRequiredService<CRMS.Application.Notification.InApp.MarkAllInAppNotificationsReadHandler>();
+            var result = await handler.Handle(new CRMS.Application.Notification.InApp.MarkAllInAppNotificationsReadCommand(userId), CancellationToken.None);
+            return result.IsSuccess ? result.Data : 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error marking all notifications read for user {UserId}", userId);
+            return 0;
+        }
+    }
+
     public async Task<int> GetMyPendingVotesCountAsync(Guid userId)
     {
         try

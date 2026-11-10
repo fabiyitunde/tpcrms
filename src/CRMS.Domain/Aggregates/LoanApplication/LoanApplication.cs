@@ -161,7 +161,7 @@ public class LoanApplication : AggregateRoot
             IndustrySector = industrySector
         };
 
-        application.AddStatusHistory(LoanApplicationStatus.Draft, initiatedByUserId, "Application created");
+        application.AddStatusHistory(LoanApplicationStatus.Draft, initiatedByUserId, "Application created", notify: false);
         application.AddDomainEvent(new LoanApplicationCreatedEvent(application.Id, application.ApplicationNumber, application.Type));
 
         return Result.Success(application);
@@ -1120,9 +1120,16 @@ public class LoanApplication : AggregateRoot
         _comments.Add(new LoanApplicationComment(Id, userId, content, category));
     }
 
-    private void AddStatusHistory(LoanApplicationStatus status, Guid userId, string? comment)
+    /// <summary>
+    /// Records the status change and, unless told otherwise, announces it so the staff who act at
+    /// the new status are told by email and on the intranet's bell. Creation is the one silent
+    /// change: a Draft nobody has submitted is not anyone else's work yet.
+    /// </summary>
+    private void AddStatusHistory(LoanApplicationStatus status, Guid userId, string? comment, bool notify = true)
     {
         _statusHistory.Add(new LoanApplicationStatusHistory(Id, status, userId, comment));
+        if (notify)
+            AddDomainEvent(new LoanApplicationStatusChangedEvent(Id, ApplicationNumber, status, userId, comment));
     }
 
     public Result UpdatePartyFields(Guid partyId, string? bvn, decimal? shareholdingPercent)
@@ -1153,6 +1160,8 @@ public class LoanApplication : AggregateRoot
 // Domain Events
 public record LoanApplicationCreatedEvent(Guid ApplicationId, string ApplicationNumber, LoanApplicationType Type) : DomainEvent;
 public record LoanApplicationSubmittedEvent(Guid ApplicationId, string ApplicationNumber) : DomainEvent;
+/// <summary>Every status change after creation. The notification handler decides who, if anyone, needs to hear.</summary>
+public record LoanApplicationStatusChangedEvent(Guid ApplicationId, string ApplicationNumber, LoanApplicationStatus NewStatus, Guid ChangedByUserId, string? Comment) : DomainEvent;
 public record LoanApplicationBranchApprovedEvent(Guid ApplicationId, string ApplicationNumber, Guid ApprovedByUserId) : DomainEvent;
 public record CreditAnalysisStartedEvent(Guid ApplicationId, string ApplicationNumber, int TotalChecks) : DomainEvent;
 public record AllCreditChecksCompletedEvent(Guid ApplicationId, string ApplicationNumber) : DomainEvent;

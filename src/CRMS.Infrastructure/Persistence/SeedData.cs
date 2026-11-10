@@ -33,6 +33,7 @@ public static class SeedData
         await SeedRolesAsync(context, logger);
         await SeedSecurityEmailTemplatesAsync(context, logger);
         await SeedNampWorkflowEmailTemplatesAsync(context, logger);
+        await SeedStaffHandoffEmailTemplatesAsync(context, logger);
         await SeedRhshfFacEmailTemplatesAsync(context, logger);
 
         // NAMP workflow stage config, routing bands, and pre-deployment checklist templates.
@@ -320,6 +321,112 @@ public static class SeedData
         {
             await context.SaveChangesAsync();
             logger.LogInformation("Seeded/updated {Count} NAMP workflow email template(s)", changes);
+        }
+    }
+
+    /// <summary>
+    /// Staff emails for corporate and RH-SHF handoffs, the counterparts of the NAMP set above:
+    ///   CORPORATE_ACTION_REQUIRED / RHSHF_ACTION_REQUIRED — "your stage is ready" to the next role;
+    ///   CORPORATE_CASE_UPDATE / RHSHF_CASE_UPDATE — returned, declined or disbursed, to the officers who followed it.
+    /// Every one of them is mirrored on the intranet's bell for the same person.
+    /// </summary>
+    private static async Task SeedStaffHandoffEmailTemplatesAsync(CRMSDbContext context, ILogger logger)
+    {
+        var actorId = (await context.Users.FirstOrDefaultAsync(u => u.Email == "admin@crms.ng"))?.Id
+            ?? Guid.Empty;
+
+        var corpActionInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 16px;\">A corporate loan application has reached the <strong>{{StageName}}</strong> stage and is awaiting your action.</p>" +
+            CredBox("Application", "{{ApplicationNumber}}", "Customer", "{{CustomerName}}") +
+            "<p style=\"margin:16px 0 0;\">Requested amount: <strong>{{Amount}}</strong>. Please action it within <strong>{{Sla}}</strong>.</p>" +
+            Button("Open application", "{{ActionUrl}}") +
+            "<p style=\"margin:8px 0 0;color:#6b7280;font-size:12px;\">If the button doesn't work, sign in to the CRMS and open the application from your queue.</p>";
+
+        var corpUpdateInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 16px;\">The corporate loan application below has been <strong>{{Outcome}}</strong> at the {{StageName}} stage.</p>" +
+            CredBox("Application", "{{ApplicationNumber}}", "Customer", "{{CustomerName}}") +
+            "<p style=\"margin:16px 0 8px;\"><strong>Note</strong></p>" +
+            "<p style=\"margin:0 0 16px;padding:12px 16px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;color:#374151;\">{{Reason}}</p>" +
+            Button("Open application", "{{ActionUrl}}");
+
+        var rhshfActionInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 16px;\">An RH-SHF case has reached the <strong>{{StageName}}</strong> stage and is awaiting your action.</p>" +
+            CredBox("Reference", "{{Reference}}", "FAC", "{{CompanyName}}") +
+            "<p style=\"margin:16px 0 0;\">Total EOP value: <strong>{{Amount}}</strong>.</p>" +
+            Button("Open case", "{{ActionUrl}}") +
+            "<p style=\"margin:8px 0 0;color:#6b7280;font-size:12px;\">If the button doesn't work, sign in to the CRMS and open the case from the RH-SHF queue.</p>";
+
+        var rhshfUpdateInner =
+            "<p style=\"margin:0 0 16px;\">Dear {{RecipientName}},</p>" +
+            "<p style=\"margin:0 0 16px;\">The RH-SHF case below has been <strong>{{Outcome}}</strong>.</p>" +
+            CredBox("Reference", "{{Reference}}", "FAC", "{{CompanyName}}") +
+            "<p style=\"margin:16px 0 8px;\"><strong>Note</strong></p>" +
+            "<p style=\"margin:0 0 16px;padding:12px 16px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;color:#374151;\">{{Reason}}</p>" +
+            Button("Open case", "{{ActionUrl}}");
+
+        var defs = new (string Code, string Name, NotificationType Type, string Subject, string Body, string Html)[]
+        {
+            ("CORPORATE_ACTION_REQUIRED", "Corporate Loan Action Required", NotificationType.WorkflowAssigned,
+                "{{ApplicationNumber}} — {{StageName}} awaiting your action",
+                "Dear {{RecipientName}},\n\nA corporate loan application has reached the {{StageName}} stage and is awaiting your action.\n\n" +
+                "Application: {{ApplicationNumber}}\nCustomer: {{CustomerName}}\nRequested amount: {{Amount}}\n\n" +
+                "Please action it within {{Sla}}.\n\nOpen it here: {{ActionUrl}}\n\nRegards,\nBank of Agriculture CRMS",
+                Shell(corpActionInner)),
+
+            ("CORPORATE_CASE_UPDATE", "Corporate Loan Case Update", NotificationType.ApplicationReturned,
+                "{{ApplicationNumber}} — {{Outcome}}",
+                "Dear {{RecipientName}},\n\nThe corporate loan application below has been {{Outcome}} at the {{StageName}} stage.\n\n" +
+                "Application: {{ApplicationNumber}}\nCustomer: {{CustomerName}}\n\nNote: {{Reason}}\n\n" +
+                "Open it here: {{ActionUrl}}\n\nRegards,\nBank of Agriculture CRMS",
+                Shell(corpUpdateInner)),
+
+            ("RHSHF_ACTION_REQUIRED", "RH-SHF Action Required", NotificationType.WorkflowAssigned,
+                "RH-SHF {{Reference}} — {{StageName}} awaiting your action",
+                "Dear {{RecipientName}},\n\nAn RH-SHF case has reached the {{StageName}} stage and is awaiting your action.\n\n" +
+                "Reference: {{Reference}}\nFAC: {{CompanyName}}\nTotal EOP value: {{Amount}}\n\n" +
+                "Open it here: {{ActionUrl}}\n\nRegards,\nBank of Agriculture CRMS",
+                Shell(rhshfActionInner)),
+
+            ("RHSHF_CASE_UPDATE", "RH-SHF Case Update", NotificationType.ApplicationReturned,
+                "RH-SHF {{Reference}} — {{Outcome}}",
+                "Dear {{RecipientName}},\n\nThe RH-SHF case below has been {{Outcome}}.\n\n" +
+                "Reference: {{Reference}}\nFAC: {{CompanyName}}\n\nNote: {{Reason}}\n\n" +
+                "Open it here: {{ActionUrl}}\n\nRegards,\nBank of Agriculture CRMS",
+                Shell(rhshfUpdateInner)),
+        };
+
+        var changes = 0;
+        foreach (var d in defs)
+        {
+            var existing = await context.NotificationTemplates
+                .FirstOrDefaultAsync(t => t.Code == d.Code && t.Channel == NotificationChannel.Email);
+
+            if (existing is null)
+            {
+                var result = Domain.Aggregates.Notification.NotificationTemplate.Create(
+                    d.Code, d.Name, $"Template for {d.Name}", d.Type, NotificationChannel.Email,
+                    d.Body, actorId, subject: d.Subject, bodyHtmlTemplate: d.Html);
+                if (result.IsSuccess)
+                {
+                    await context.NotificationTemplates.AddAsync(result.Value);
+                    changes++;
+                }
+            }
+            else if (existing.Subject != d.Subject || existing.BodyTemplate != d.Body || existing.BodyHtmlTemplate != d.Html)
+            {
+                existing.Update(d.Name, $"Template for {d.Name}", d.Body, actorId, subject: d.Subject, bodyHtmlTemplate: d.Html);
+                context.NotificationTemplates.Update(existing);
+                changes++;
+            }
+        }
+
+        if (changes > 0)
+        {
+            await context.SaveChangesAsync();
+            logger.LogInformation("Seeded/updated {Count} staff handoff email template(s)", changes);
         }
     }
 

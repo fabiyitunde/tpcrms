@@ -13,6 +13,8 @@ public class NotificationProcessingService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<NotificationProcessingService> _logger;
     private readonly TimeSpan _processingInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan PurgeInterval = TimeSpan.FromHours(24);
+    private DateTime _lastPurgeUtc = DateTime.MinValue;
 
     public NotificationProcessingService(
         IServiceProvider serviceProvider,
@@ -56,5 +58,15 @@ public class NotificationProcessingService : BackgroundService
 
         // Process retries
         await notificationService.ProcessRetriesAsync(ct);
+
+        // Once a day, drop in-app notifications that were read more than 90 days ago. Unread ones stay.
+        if (DateTime.UtcNow - _lastPurgeUtc >= PurgeInterval)
+        {
+            _lastPurgeUtc = DateTime.UtcNow;
+            var purge = scope.ServiceProvider.GetRequiredService<Application.Notification.InApp.PurgeReadInAppNotificationsHandler>();
+            var purged = await purge.Handle(new Application.Notification.InApp.PurgeReadInAppNotificationsCommand(90), ct);
+            if (purged.IsSuccess && purged.Data > 0)
+                _logger.LogInformation("Purged {Count} read in-app notification(s) older than 90 days", purged.Data);
+        }
     }
 }

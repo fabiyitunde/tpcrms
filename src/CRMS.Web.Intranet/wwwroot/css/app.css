@@ -1285,3 +1285,83 @@ a:hover {
         width: 100%;
     }
 }
+
+/* ── Notification bell panel ─────────────────────────────────────────── */
+.notification-panel {
+    position: fixed;
+    top: 64px;
+    right: 80px;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 90px);
+}
+
+.notification-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.notification-panel-list {
+    overflow-y: auto;
+    flex: 1;
+}
+
+.notification-item {
+    display: flex;
+    gap: var(--space-3);
+    width: 100%;
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    border: none;
+    border-bottom: 1px solid var(--gray-100);
+    background: white;
+    cursor: pointer;
+}
+
+.notification-item:hover { background: var(--gray-50); }
+.notification-item.unread { background: var(--primary-50, #f0fdf4); }
+.notification-item.unread:hover { background: var(--primary-100, #dcfce7); }
+
+.notification-dot {
+    flex: 0 0 8px;
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;
+    border-radius: var(--radius-full);
+    background: transparent;
+}
+.notification-item.unread .notification-dot { background: var(--primary-600, #16a34a); }
+
+.notification-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.notification-title { font-weight: 600; font-size: var(--text-sm); color: var(--gray-900); }
+.notification-message { font-size: var(--text-sm); color: var(--gray-600); }
+.notification-time { font-size: var(--text-xs); color: var(--gray-400); }
+
+.notification-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-8) var(--space-4);
+    color: var(--gray-500);
+    font-size: var(--text-sm);
+    text-align: center;
+}
+.notification-empty .material-symbols-outlined { font-size: 32px; opacity: 0.5; }
+
+.notification-panel-footer {
+    display: block;
+    text-align: center;
+    padding: var(--space-3);
+    border-top: 1px solid var(--gray-200);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--primary-700, #15803d);
+    text-decoration: none;
+}
+.notification-panel-footer:hover { background: var(--gray-50); }

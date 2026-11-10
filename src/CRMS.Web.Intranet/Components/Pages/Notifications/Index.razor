@@ -1,0 +1,143 @@
+@page "/notifications"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@using CRMS.Application.Notification.InApp
+
+<PageTitle>Notifications - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Notifications</h1>
+        <p class="page-subtitle">Every notice sent to you: cases waiting for you, and how the ones you worked on ended</p>
+    </div>
+    <div style="display: flex; gap: var(--space-2); align-items: center;">
+        <div class="btn-group">
+            <button class="btn btn-sm @(unreadOnly ? "btn-secondary" : "btn-primary")" @onclick="() => SetFilter(false)">All</button>
+            <button class="btn btn-sm @(unreadOnly ? "btn-primary" : "btn-secondary")" @onclick="() => SetFilter(true)">Unread @(result.Unread > 0 ? $"({result.Unread})" : "")</button>
+        </div>
+        @if (result.Unread > 0)
+        {
+            <button class="btn btn-secondary btn-sm" @onclick="MarkAllRead">
+                <span class="material-symbols-outlined">done_all</span> Mark all as read
+            </button>
+        }
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="card p-6 text-center">
+        <div class="spinner" style="margin: 0 auto;"></div>
+        <p class="text-muted mt-4">Loading notifications...</p>
+    </div>
+}
+else if (result.Items.Count == 0)
+{
+    <div class="card">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <span class="material-symbols-outlined">notifications_off</span>
+            </div>
+            <div class="empty-state-title">@(unreadOnly ? "Nothing unread" : "No notifications yet")</div>
+            <div class="empty-state-text">
+                @(unreadOnly
+                    ? "You have read everything sent to you."
+                    : "A notice appears here whenever a case reaches a stage you act at, or a case you worked on is returned, declined or disbursed.")
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="notification-page-list">
+            @foreach (var n in result.Items)
+            {
+                <button class="notification-item @(n.IsUnread ? "unread" : "")" @onclick="() => Open(n)">
+                    <span class="notification-dot"></span>
+                    <span class="notification-text">
+                        <span class="notification-title">@n.Title</span>
+                        <span class="notification-message">@n.Message</span>
+                        <span class="notification-time">
+                            @n.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
+                            @if (!string.IsNullOrEmpty(n.ApplicationNumber)) { <text> · @n.ApplicationNumber</text> }
+                            @if (n.ReadAt is not null) { <text> · read</text> }
+                        </span>
+                    </span>
+                    @if (!string.IsNullOrWhiteSpace(n.ActionUrl))
+                    {
+                        <span class="material-symbols-outlined" style="color: var(--gray-400); align-self: center;">chevron_right</span>
+                    }
+                </button>
+            }
+        </div>
+        @if (TotalPages > 1)
+        {
+            <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) var(--space-4);">
+                <span class="text-muted" style="font-size: var(--text-sm);">Page @pageNumber of @TotalPages · @result.Total in all</span>
+                <div style="display: flex; gap: var(--space-2);">
+                    <button class="btn btn-secondary btn-sm" disabled="@(pageNumber <= 1)" @onclick="() => GoTo(pageNumber - 1)">Previous</button>
+                    <button class="btn btn-secondary btn-sm" disabled="@(pageNumber >= TotalPages)" @onclick="() => GoTo(pageNumber + 1)">Next</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .notification-page-list .notification-item { padding: var(--space-4); }
+</style>
+
+@code {
+    private const int PageSize = 25;
+    private bool isLoading = true;
+    private bool unreadOnly;
+    private int pageNumber = 1;
+    private InAppNotificationPageDto result = new([], 0, 0);
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(result.Total / (double)PageSize));
+    private Guid? UserId => AuthService.CurrentUser?.Id;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        if (UserId is Guid userId)
+            result = await AppService.GetMyNotificationsAsync(userId, unreadOnly, pageNumber, PageSize);
+        isLoading = false;
+    }
+
+    private async Task SetFilter(bool unread)
+    {
+        unreadOnly = unread;
+        pageNumber = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoTo(int p)
+    {
+        pageNumber = Math.Clamp(p, 1, TotalPages);
+        await LoadAsync();
+    }
+
+    private async Task Open(InAppNotificationDto n)
+    {
+        if (UserId is Guid userId && n.IsUnread)
+            await AppService.MarkNotificationReadAsync(n.Id, userId);
+
+        if (!string.IsNullOrWhiteSpace(n.ActionUrl))
+            Navigation.NavigateTo(n.ActionUrl);
+        else
+            await LoadAsync();
+    }
+
+    private async Task MarkAllRead()
+    {
+        if (UserId is Guid userId)
+            await AppService.MarkAllNotificationsReadAsync(userId);
+        await LoadAsync();
+    }
+}

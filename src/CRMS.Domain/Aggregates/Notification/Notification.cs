@@ -29,6 +29,12 @@ public class Notification : AggregateRoot
     public Guid? LoanApplicationId { get; private set; }
     public string? LoanApplicationNumber { get; private set; }
     public string? ContextData { get; private set; } // JSON for template variables
+
+    /// <summary>
+    /// Where an in-app notification takes the reader when clicked: a path inside the intranet such as
+    /// <c>/namp/{id}</c>. Null for channels that carry their link in the body.
+    /// </summary>
+    public string? ActionUrl { get; private set; }
     
     // Delivery tracking
     public DateTime? ScheduledAt { get; private set; }
@@ -94,6 +100,54 @@ public class Notification : AggregateRoot
 
         notification.AddDomainEvent(new NotificationCreatedEvent(
             notification.Id, type, channel, recipientAddress, loanApplicationId));
+
+        return Result.Success(notification);
+    }
+
+    /// <summary>
+    /// A notification shown on the intranet's bell. There is nothing to send, so it is born
+    /// <see cref="NotificationStatus.Delivered"/> and the only state left is read or unread. The
+    /// email worker only picks up Pending rows, so it never sees these.
+    /// </summary>
+    public static Result<Notification> CreateInApp(
+        NotificationType type,
+        NotificationPriority priority,
+        Guid recipientUserId,
+        string recipientName,
+        string title,
+        string message,
+        string? actionUrl,
+        Guid? loanApplicationId = null,
+        string? loanApplicationNumber = null)
+    {
+        if (recipientUserId == Guid.Empty)
+            return Result.Failure<Notification>("An in-app notification needs a recipient user");
+
+        if (string.IsNullOrWhiteSpace(title))
+            return Result.Failure<Notification>("Title is required");
+
+        if (string.IsNullOrWhiteSpace(message))
+            return Result.Failure<Notification>("Message is required");
+
+        var now = DateTime.UtcNow;
+        var notification = new Notification
+        {
+            Type = type,
+            Channel = NotificationChannel.InApp,
+            Priority = priority,
+            Status = NotificationStatus.Delivered,
+            RecipientUserId = recipientUserId,
+            RecipientName = recipientName,
+            RecipientAddress = recipientUserId.ToString(),
+            TemplateCode = "IN_APP",
+            Subject = title,
+            Body = message,
+            ActionUrl = actionUrl,
+            LoanApplicationId = loanApplicationId,
+            LoanApplicationNumber = loanApplicationNumber,
+            SentAt = now,
+            DeliveredAt = now,
+        };
 
         return Result.Success(notification);
     }

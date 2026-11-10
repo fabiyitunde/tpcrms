@@ -67,6 +67,12 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Domain.Aggrega
         builder.Property(x => x.ContextData)
             .HasColumnType("json");
 
+        builder.Property(x => x.ActionUrl)
+            .HasMaxLength(500);
+
+        // The bell's two queries: unread count, and the newest page for one user.
+        builder.HasIndex(x => new { x.RecipientUserId, x.Channel, x.ReadAt });
+
         builder.Property(x => x.FailureReason)
             .HasMaxLength(1000);
 

@@ -1,6 +1,9 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject AuthService AuthService
 @inject NavigationManager Navigation
+@inject ApplicationService AppService
+@using CRMS.Application.Notification.InApp
 
 <div class="app-layout">
     <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "")">
@@ -37,7 +40,7 @@
                     <span class="material-symbols-outlined topbar-search-icon">search</span>
                     <input type="text" placeholder="Search applications..." @bind="SearchTerm" @bind:event="oninput" @onkeyup="HandleSearch" />
                 </div>
-                <button class="notification-btn">
+                <button class="notification-btn" title="Notifications" @onclick="ToggleNotifications">
                     <span class="material-symbols-outlined">notifications</span>
                     @if (NotificationCount > 0)
                     {
@@ -60,6 +63,49 @@
         </main>
     </div>
 </div>
+
+@if (ShowNotifications)
+{
+    <div class="modal-backdrop show" style="background: transparent;" @onclick="CloseNotifications">
+        <div class="modal notification-panel" @onclick:stopPropagation>
+            <div class="notification-panel-header">
+                <strong>Notifications</strong>
+                @if (NotificationCount > 0)
+                {
+                    <button class="btn btn-link btn-sm" @onclick="MarkAllRead">Mark all as read</button>
+                }
+            </div>
+            <div class="notification-panel-list">
+                @if (RecentNotifications is null)
+                {
+                    <div class="notification-empty">Loading...</div>
+                }
+                else if (RecentNotifications.Count == 0)
+                {
+                    <div class="notification-empty">
+                        <span class="material-symbols-outlined">notifications_off</span>
+                        <span>Nothing for you yet. You will see a notice here when a case needs you.</span>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var n in RecentNotifications)
+                    {
+                        <button class="notification-item @(n.IsUnread ? "unread" : "")" @onclick="() => OpenNotification(n)">
+                            <span class="notification-dot"></span>
+                            <span class="notification-text">
+                                <span class="notification-title">@n.Title</span>
+                                <span class="notification-message">@n.Message</span>
+                                <span class="notification-time">@Ago(n.CreatedAt)</span>
+                            </span>
+                        </button>
+                    }
+                }
+            </div>
+            <a href="/notifications" class="notification-panel-footer" @onclick="CloseNotifications">View all notifications</a>
+        </div>
+    </div>
+}
 
 @if (ShowUserMenu)
 {
@@ -88,7 +134,11 @@
     private bool SidebarCollapsed { get; set; }
     private bool ShowUserMenu { get; set; }
     private string SearchTerm { get; set; } = string.Empty;
-    private int NotificationCount { get; set; } = 3;
+    private int NotificationCount { get; set; }
+    private bool ShowNotifications { get; set; }
+    private IReadOnlyList<InAppNotificationDto>? RecentNotifications { get; set; }
+    private Timer? _bellTimer;
+    private static readonly TimeSpan BellRefresh = TimeSpan.FromSeconds(60);
     
     private string UserName => AuthService.CurrentUser?.FullName ?? "User";
     private string UserInitials => AuthService.CurrentUser?.Initials ?? "U";
@@ -130,7 +180,82 @@
         if (!(state.User.Identity?.IsAuthenticated ?? false))
         {
             Navigation.NavigateTo("/login", replace: true);
+            return;
         }
+
+        await RefreshBellAsync();
+        // One cheap count a minute keeps the badge honest while the circuit is open; a navigation
+        // refreshes it too, since most notices are acted on by moving around the app.
+        _bellTimer = new Timer(_ => _ = InvokeAsync(async () => { await RefreshBellAsync(); StateHasChanged(); }), null, BellRefresh, BellRefresh);
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+        => _ = InvokeAsync(async () => { await RefreshBellAsync(); StateHasChanged(); });
+
+    private async Task RefreshBellAsync()
+    {
+        var userId = AuthService.CurrentUser?.Id;
+        if (userId is null) return;
+        var page = await AppService.GetMyNotificationsAsync(userId.Value, unreadOnly: false, page: 1, pageSize: 10);
+        NotificationCount = page.Unread;
+        if (ShowNotifications) RecentNotifications = page.Items;
+    }
+
+    private async Task ToggleNotifications()
+    {
+        ShowNotifications = !ShowNotifications;
+        ShowUserMenu = false;
+        if (ShowNotifications)
+        {
+            RecentNotifications = null;
+            var userId = AuthService.CurrentUser?.Id;
+            if (userId is null) return;
+            var page = await AppService.GetMyNotificationsAsync(userId.Value, unreadOnly: false, page: 1, pageSize: 10);
+            NotificationCount = page.Unread;
+            RecentNotifications = page.Items;
+        }
+    }
+
+    private void CloseNotifications() => ShowNotifications = false;
+
+    private async Task OpenNotification(InAppNotificationDto n)
+    {
+        var userId = AuthService.CurrentUser?.Id;
+        if (userId is not null && n.IsUnread)
+        {
+            await AppService.MarkNotificationReadAsync(n.Id, userId.Value);
+            NotificationCount = Math.Max(0, NotificationCount - 1);
+        }
+        ShowNotifications = false;
+        if (!string.IsNullOrWhiteSpace(n.ActionUrl))
+            Navigation.NavigateTo(n.ActionUrl);
+    }
+
+    private async Task MarkAllRead()
+    {
+        var userId = AuthService.CurrentUser?.Id;
+        if (userId is null) return;
+        await AppService.MarkAllNotificationsReadAsync(userId.Value);
+        NotificationCount = 0;
+        RecentNotifications = RecentNotifications?.Select(n => n with { ReadAt = DateTime.UtcNow }).ToList();
+    }
+
+    /// <summary>"just now", "5 min ago", "3 h ago", "2 d ago", else the date.</summary>
+    private static string Ago(DateTime utc)
+    {
+        var span = DateTime.UtcNow - utc;
+        if (span < TimeSpan.FromMinutes(1)) return "just now";
+        if (span < TimeSpan.FromHours(1)) return $"{(int)span.TotalMinutes} min ago";
+        if (span < TimeSpan.FromDays(1)) return $"{(int)span.TotalHours} h ago";
+        if (span < TimeSpan.FromDays(7)) return $"{(int)span.TotalDays} d ago";
+        return utc.ToLocalTime().ToString("dd MMM yyyy");
+    }
+
+    public void Dispose()
+    {
+        _bellTimer?.Dispose();
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 
     private void ToggleSidebar() => SidebarCollapsed = !SidebarCollapsed;

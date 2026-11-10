@@ -647,6 +647,12 @@ public static class DependencyInjection
         services.AddScoped<Application.Notification.Commands.ReleaseStuckOutboundEmailHandler>();
         services.AddScoped<Application.Notification.Commands.IOutboundEmailAudit, Services.OutboundEmailAudit>();
 
+        // The bell: a user's in-app notifications, mark read, mark all read, and the retention purge.
+        services.AddScoped<Application.Notification.InApp.GetMyInAppNotificationsHandler>();
+        services.AddScoped<Application.Notification.InApp.MarkInAppNotificationReadHandler>();
+        services.AddScoped<Application.Notification.InApp.MarkAllInAppNotificationsReadHandler>();
+        services.AddScoped<Application.Notification.InApp.PurgeReadInAppNotificationsHandler>();
+
         // Admin > Diagnostics > Email: send any template to an address and report the provider's answer.
         services.AddScoped<Application.Notification.Commands.GetEmailDiagnosticsHandler>();
         services.AddScoped<Application.Notification.Commands.SendDiagnosticEmailHandler>();
@@ -746,6 +752,10 @@ public static class DependencyInjection
 
         // NAMP — Domain Event Handler (actor email notifications) + recipient resolver
         services.AddScoped<INampNotificationRecipientResolver, NampNotificationRecipientResolver>();
+        services.AddScoped<Application.Notification.Interfaces.IStaffRecipientResolver, NampNotificationRecipientResolver>();
+        services.AddScoped<IDomainEventHandler<Domain.Aggregates.LoanApplication.LoanApplicationStatusChangedEvent>, LoanApplicationStatusChangedNotificationHandler>();
+        services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfInternalStageChangedEvent>, RhshfStageChangedNotificationHandler>();
+        services.AddScoped<IDomainEventHandler<Domain.Aggregates.Rhshf.RhshfCaseDecidedEvent>, RhshfCaseDecidedStaffNotificationHandler>();
         services.AddScoped<IDomainEventHandler<NampStatusChangedEvent>, NampStatusChangedNotificationHandler>();
 
         // NAMP — Domain Event Handler (new-in-queue email when a record is staged from the webhook)

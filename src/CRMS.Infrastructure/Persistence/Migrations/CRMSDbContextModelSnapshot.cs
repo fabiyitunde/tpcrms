@@ -6259,6 +6259,10 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("ActionUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
                     b.Property<string>("Body")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -6385,6 +6389,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status");
 
                     b.HasIndex("Status", "ScheduledAt");
+
+                    b.HasIndex("RecipientUserId", "Channel", "ReadAt");
 
                     b.ToTable("Notifications", (string)null);
                 });

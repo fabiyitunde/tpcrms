@@ -73,9 +73,40 @@ public class NotificationRepository : INotificationRepository
     public async Task<int> GetUnreadCountAsync(Guid userId, CancellationToken ct = default)
     {
         return await _context.Notifications
-            .Where(x => x.RecipientUserId == userId)
-            .Where(x => x.Status == NotificationStatus.Delivered || x.Status == NotificationStatus.Sent)
+            .Where(x => x.RecipientUserId == userId && x.Channel == NotificationChannel.InApp && x.ReadAt == null)
             .CountAsync(ct);
+    }
+
+    public async Task<(IReadOnlyList<Notification> Items, int Total)> GetInAppForUserAsync(
+        Guid userId, bool unreadOnly, int page, int pageSize, CancellationToken ct = default)
+    {
+        var q = _context.Notifications
+            .Where(x => x.RecipientUserId == userId && x.Channel == NotificationChannel.InApp);
+        if (unreadOnly) q = q.Where(x => x.ReadAt == null);
+
+        var total = await q.CountAsync(ct);
+        var items = await q.OrderByDescending(x => x.CreatedAt)
+            .Skip(Math.Max(0, page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+        return (items, total);
+    }
+
+    public async Task<int> MarkAllInAppReadAsync(Guid userId, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        return await _context.Notifications
+            .Where(x => x.RecipientUserId == userId && x.Channel == NotificationChannel.InApp && x.ReadAt == null)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.ReadAt, now)
+                .SetProperty(x => x.Status, NotificationStatus.Read), ct);
+    }
+
+    public async Task<int> DeleteReadInAppOlderThanAsync(DateTime cutoffUtc, CancellationToken ct = default)
+    {
+        return await _context.Notifications
+            .Where(x => x.Channel == NotificationChannel.InApp && x.ReadAt != null && x.ReadAt < cutoffUtc)
+            .ExecuteDeleteAsync(ct);
     }
 
     public async Task<(IReadOnlyList<Notification> Items, int Total)> SearchAsync(NotificationSearch search, CancellationToken ct = default)

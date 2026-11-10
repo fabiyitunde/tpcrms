@@ -69,6 +69,14 @@ public class NotificationOrchestrator : INotificationService
         var notification = notificationResult.Value;
 
         await _notificationRepository.AddAsync(notification, ct);
+
+        // A staff email is also shown on the intranet's bell, so the bell and the inbox always agree
+        // and a mail that bounces still reaches the person. The in-app copy carries the subject, the
+        // one-line summary the caller supplied (or the first line of the body), and the link to act on.
+        var inApp = BuildInAppCopy(notification, variables);
+        if (inApp is not null)
+            await _notificationRepository.AddAsync(inApp, ct);
+
         await _unitOfWork.SaveChangesAsync(ct);
 
         // If not scheduled, send immediately for high priority
@@ -137,6 +145,54 @@ public class NotificationOrchestrator : INotificationService
     {
         return SendAsync(type, NotificationChannel.SMS, recipientPhone, recipientName,
             templateCode, variables, recipientUserId, loanApplicationId, loanApplicationNumber, priority, null, ct);
+    }
+
+    /// <summary>The variable a caller sets to control the one-line text shown on the bell.</summary>
+    public const string SummaryVariable = "Summary";
+    /// <summary>The variable that carries the link; absolute or relative, it is stored as a path.</summary>
+    public const string ActionUrlVariable = "ActionUrl";
+
+    private static Domain.Aggregates.Notification.Notification? BuildInAppCopy(
+        Domain.Aggregates.Notification.Notification email, Dictionary<string, string> variables)
+    {
+        if (email.Channel != NotificationChannel.Email || email.RecipientUserId is not Guid userId)
+            return null;
+
+        // A reset link or a temporary password belongs in the mailbox only.
+        if (Queries.OutboundEmailDetailDto.CredentialTemplates.Contains(email.TemplateCode))
+            return null;
+
+        var message = variables.TryGetValue(SummaryVariable, out var summary) && !string.IsNullOrWhiteSpace(summary)
+            ? summary.Trim()
+            : FirstLineOf(email.Body);
+
+        variables.TryGetValue(ActionUrlVariable, out var actionUrl);
+
+        var created = Domain.Aggregates.Notification.Notification.CreateInApp(
+            email.Type, email.Priority, userId, email.RecipientName, email.Subject, message,
+            ToPath(actionUrl), email.LoanApplicationId, email.LoanApplicationNumber);
+        return created.IsSuccess ? created.Value : null;
+    }
+
+    /// <summary>The first line of the plain-text body that is not a greeting, cut to one sentence's worth.</summary>
+    private static string FirstLineOf(string body)
+    {
+        foreach (var raw in body.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith("Dear ", StringComparison.OrdinalIgnoreCase) || line.StartsWith("Hello", StringComparison.OrdinalIgnoreCase))
+                continue;
+            return line.Length <= 300 ? line : line[..297] + "...";
+        }
+        return body.Length <= 300 ? body : body[..297] + "...";
+    }
+
+    /// <summary>Keeps only the path of a link so the intranet can navigate to it without a full reload.</summary>
+    private static string? ToPath(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        if (Uri.TryCreate(url, UriKind.Absolute, out var absolute)) return absolute.PathAndQuery;
+        return url.StartsWith('/') ? url : "/" + url;
     }
 
     public async Task ProcessPendingAsync(CancellationToken ct = default)
