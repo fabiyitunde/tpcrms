@@ -726,21 +726,28 @@ else
                 <div class="card">
                     <div class="card-header"><h3 class="card-title">Stage Progression</h3></div>
                     <div class="card-body" style="padding: 0;">
+                        @{
+                            var currentStage = StageIndexFor(app.Status);
+                            var stoppedHere = IsStoppedStatus(app.Status);
+                        }
                         @foreach (var stage in StageProgression)
                         {
-                            var completed = stage.IsCompleted(app);
-                            var current = stage.IsCurrent(app);
-                            <div style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.65rem 1rem; border-bottom: 1px solid var(--border-color); @(current ? "background: var(--primary-50);" : "")">
+                            var completed = stage.Order < currentStage;
+                            var current = stage.Order == currentStage && !stoppedHere;
+                            var stopped = stage.Order == currentStage && stoppedHere;
+                            <div style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.65rem 1rem; border-bottom: 1px solid var(--border-color); @(current ? "background: var(--primary-50);" : stopped ? "background: var(--danger-50);" : "")">
                                 <div style="width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 700;
-                                    background: @(completed ? "var(--success-500)" : current ? "var(--primary-500)" : "var(--gray-200)");
-                                    color: @(completed || current ? "white" : "var(--gray-500)");">
+                                    background: @(completed ? "var(--success-500)" : current ? "var(--primary-500)" : stopped ? "var(--danger-500)" : "var(--gray-200)");
+                                    color: @(completed || current || stopped ? "white" : "var(--gray-500)");">
                                     @if (completed)
                                     { <span class="material-symbols-outlined" style="font-size: 14px;">check</span> }
+                                    else if (stopped)
+                                    { <span class="material-symbols-outlined" style="font-size: 14px;">close</span> }
                                     else
                                     { <span>@stage.Order</span> }
                                 </div>
                                 <div>
-                                    <div style="font-weight: 600; font-size: 0.8rem; @(current ? "color: var(--primary-700);" : "")">@stage.Name</div>
+                                    <div style="font-weight: 600; font-size: 0.8rem; @(current ? "color: var(--primary-700);" : stopped ? "color: var(--danger-600);" : "")">@stage.Name</div>
                                     <div style="font-size: 0.75rem; color: var(--text-secondary);">@stage.Role</div>
                                 </div>
                             </div>
@@ -6230,16 +6237,38 @@ else
 
     private static List<StageInfo> StageProgression =>
     [
-        new(1, "Draft / Recall", "Loan Officer", a => IsAfter(a, "Draft"), a => a.Status == "Draft"),
-        new(2, "Financial Appraisal", "Credit Officer", a => IsAfter(a, "RiskReview"), a => a.Status is "Submitted" or "FinancialAppraisal"),
-        new(3, "Risk Review", "Risk Officer", a => IsAfter(a, "BranchCommitteeCirculation") || IsAfter(a, "ZonalCommitteeCirculation") || IsAfter(a, "RegionalCommitteeCirculation") || IsAfter(a, "HOCommitteeCirculation"), a => a.Status == "RiskReview"),
-        new(4, "Committee Review", "Committee Members", a => IsAfter(a, "Ratification"), a => a.Status is "BranchCommitteeCirculation" or "ZonalCommitteeCirculation" or "RegionalCommitteeCirculation" or "HOCommitteeCirculation"),
-        new(4, "Ratification", "Final Approver", a => IsAfter(a, "OfferGenerated"), a => a.Status == "Ratification"),
-        new(5, "Offer Letter", "Loan Officer", a => IsAfter(a, "OfferAccepted"), a => a.Status is "OfferGenerated" or "OfferAccepted"),
-        new(6, "Legal Clearance", "Legal Officer", a => IsAfter(a, "LegalClearance"), a => a.Status is "LegalClearance" or "LegalReturned"),
-        new(7, "Pre-Deployment", "Deployment Officer", a => IsAfter(a, "Deployment"), a => a.Status == "PreDeploymentVerification"),
-        new(8, "Deployment", "Deployment Officer", a => a.Status == "Active", a => a.Status == "Deployment"),
+        new(1, "Draft / Recall", "Loan Officer"),
+        new(2, "Financial Appraisal", "Credit Officer"),
+        new(3, "Risk Review", "Risk Officer"),
+        new(4, "Committee Review", "Committee Members"),
+        new(5, "Ratification", "Final Approver"),
+        new(6, "Offer Letter", "Loan Officer"),
+        new(7, "Legal Clearance", "Legal Officer"),
+        new(8, "Pre-Deployment", "Deployment Officer"),
+        new(9, "Deployment", "Deployment Officer"),
     ];
+
+    // The stage a status belongs to, matching StageInfo.Order. Every stage before it is complete.
+    // Active/Closed sit past the last stage so all nine are ticked; 0 = unknown, nothing marked.
+    private static int StageIndexFor(string status) => status switch
+    {
+        "Received" or "RecallPending" or "Draft" => 1,
+        "Submitted" or "FinancialAppraisal" or "FinancialDeclined" => 2,
+        "RiskReview" or "RiskDeclined" => 3,
+        "BranchCommitteeCirculation" or "ZonalCommitteeCirculation" or "RegionalCommitteeCirculation" or "HOCommitteeCirculation"
+            or "BranchCommitteeDeclined" or "ZonalCommitteeDeclined" or "RegionalCommitteeDeclined" or "HOCommitteeDeclined" => 4,
+        "Ratification" or "RatificationDeclined" => 5,
+        "OfferGenerated" or "OfferAccepted" or "OfferLapsed" => 6,
+        "LegalClearance" or "LegalReturned" or "LegalDeclined" => 7,
+        "PreDeploymentVerification" => 8,
+        "Deployment" => 9,
+        "Active" or "Closed" => 10,
+        _ => 0,
+    };
+
+    // Terminal outcomes: the case stopped at its stage rather than being in progress there.
+    private static bool IsStoppedStatus(string status) =>
+        status.EndsWith("Declined") || status == "OfferLapsed";
 
     private static readonly string[] StatusOrder = [
         "Draft", "Submitted", "FinancialAppraisal", "RiskReview",
@@ -6448,7 +6477,7 @@ else
         return $"{bytes} B";
     }
 
-    private record StageInfo(int Order, string Name, string Role, Func<NampApplicationDto, bool> IsCompleted, Func<NampApplicationDto, bool> IsCurrent);
+    private record StageInfo(int Order, string Name, string Role);
 
     private static string GetBureauScoreClass(int? score) => score switch
     {
