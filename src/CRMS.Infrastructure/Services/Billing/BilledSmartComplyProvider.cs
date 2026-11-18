@@ -65,6 +65,19 @@ public sealed class BilledSmartComplyProvider : ISmartComplyProvider
         Bill(BillingItems.CrcFull, BillingHints.Last4(bvn), () => _inner.GetCRCFullAsync(bvn, ct));
     public Task<Result<SmartComplyIndividualCreditReport>> GetCreditPremiumAsync(string bvn, CancellationToken ct = default) =>
         Bill(BillingItems.Premium, BillingHints.Last4(bvn), () => _inner.GetCreditPremiumAsync(bvn, ct));
+    public Task<Result<SmartComplyIndividualCreditProbe>> ProbeIndividualCreditAsync(string bureau, string kind, string bvn, CancellationToken ct = default) =>
+        Bill(IndividualItem(bureau, kind), BillingHints.Last4(bvn), () => _inner.ProbeIndividualCreditAsync(bureau, kind, bvn, ct));
+
+    public static string IndividualItem(string bureau, string kind) =>
+        (bureau?.Trim().ToLowerInvariant(), kind?.Trim().ToLowerInvariant()) switch
+        {
+            ("first_central" or "firstcentral", "score") => BillingItems.FirstCentralScore,
+            ("first_central" or "firstcentral", _) => BillingItems.FirstCentralFull,
+            ("credit_registry" or "creditregistry", _) => BillingItems.CreditRegistryFull,
+            ("premium", _) => BillingItems.Premium,
+            (_, "score") => BillingItems.CrcScore,
+            _ => BillingItems.CrcFull,
+        };
 
     // Business credit reports
     public Task<Result<SmartComplyBusinessCreditReport>> GetCRCBusinessHistoryAsync(string rcNumber, CancellationToken ct = default) =>

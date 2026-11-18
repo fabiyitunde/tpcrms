@@ -18,6 +18,7 @@
     <div class="tabs" style="margin-bottom: var(--space-6);">
         <button class="tab @(diagTab == "cac" ? "active" : "")" @onclick='() => diagTab = "cac"'>SmartComply CAC</button>
         <button class="tab @(diagTab == "biz" ? "active" : "")" @onclick='() => diagTab = "biz"'>Business Credit</button>
+        <button class="tab @(diagTab == "ind" ? "active" : "")" @onclick='() => diagTab = "ind"'>Individual Credit</button>
         <button class="tab @(diagTab == "cbs" ? "active" : "")" @onclick='() => diagTab = "cbs"'>Core Banking</button>
         <button class="tab @(diagTab == "email" ? "active" : "")" @onclick="OpenEmailTab">Email</button>
     </div>
@@ -273,6 +274,179 @@
         </div>
     }
 
+    @if (diagTab == "ind")
+    {
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title" style="margin: 0;">Individual Credit Check (SmartComply)</h3>
+                <div style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--space-1);">
+                    Runs one individual credit pull by BVN and shows what the loan checks would read from it, next to the raw response. Loan checks use CRC first and fall back to First Central.
+                </div>
+            </div>
+            <div class="card-body" style="display: flex; flex-direction: column; gap: var(--space-4);">
+                <div class="alert alert-warning" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">
+                    Each pull is a real, billed SmartComply call and is recorded on the Billing dashboard under Diagnostics.
+                </div>
+                <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: flex-end;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">BVN</label>
+                        <input class="form-control" @bind="indBvn" maxlength="11" placeholder="11 digits" style="width: 180px;" />
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Bureau</label>
+                        <select class="form-control" @bind="indBureau" @bind:after="OnIndBureauChanged" style="width: 180px;">
+                            <option value="crc">CRC</option>
+                            <option value="first_central">First Central</option>
+                            <option value="credit_registry">Credit Registry</option>
+                            <option value="premium">Premium</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Pull</label>
+                        <select class="form-control" @bind="indKind" style="width: 150px;">
+                            <option value="report">Full report</option>
+                            @if (IndBureauHasScore)
+                            {
+                                <option value="score">Credit score</option>
+                            }
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" @onclick="RunIndividualProbe" disabled="@indBusy">
+                        @if (indBusy)
+                        {
+                            <span class="spinner-sm" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>
+                            <span>Fetching…</span>
+                        }
+                        else
+                        {
+                            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px;">play_arrow</span>
+                            <span>Run check</span>
+                        }
+                    </button>
+                </div>
+                @if (indError != null)
+                {
+                    <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm); word-break: break-word;">@indError</div>
+                }
+            </div>
+        </div>
+
+        @if (indProbe is { } probe)
+        {
+            <div class="card" style="margin-top: var(--space-4);">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+                    <h3 class="card-title" style="margin: 0;">What the CRMS read: @IndBureauLabel(probe.Bureau) @(probe.Kind == "score" ? "score" : "report")</h3>
+                    <button class="btn btn-secondary btn-sm" @onclick="DownloadIndividualRaw">
+                        <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px;">download</span>
+                        <span>Raw JSON</span>
+                    </button>
+                </div>
+                <div class="card-body" style="display: flex; flex-direction: column; gap: var(--space-4);">
+                    @if (probe.ParseError != null)
+                    {
+                        <div class="alert alert-danger" style="padding: var(--space-2) var(--space-3); font-size: var(--text-sm);">
+                            The response came back but the CRMS could not read it: @probe.ParseError
+                        </div>
+                    }
+
+                    @if (probe.Report is { } r)
+                    {
+                        <table class="table" style="font-size: var(--text-sm);">
+                            <tbody>
+                                @IndRow("Report ID", r.Id)
+                                @IndRow("Name", r.Name)
+                                @IndRow("BVN", r.Bvn)
+                                @IndRow("Date of birth", r.DateOfBirth)
+                                @IndRow("Gender", r.Gender)
+                                @IndRow("Phone", r.Phone)
+                                @IndRow("Email", r.Email)
+                                @IndRow("Address", r.Address)
+                                @IndRow("Searched", r.SearchedDate?.ToString("dd MMM yyyy HH:mm"))
+                                @IndRow("Bureau reference", r.Summary.ReportOrderNumber)
+                                @IndRow("Total loans", r.Summary.TotalNoOfLoans.ToString())
+                                @IndRow("Institutions", r.Summary.TotalNoOfInstitutions.ToString())
+                                @IndRow("Active loans", r.Summary.TotalNoOfActiveLoans.ToString())
+                                @IndRow("Closed loans", r.Summary.TotalNoOfClosedLoans.ToString())
+                                @IndRow("Performing loans", r.Summary.TotalNoOfPerformingLoans.ToString())
+                                @IndRow("Delinquent facilities", r.Summary.TotalNoOfDelinquentFacilities.ToString())
+                                @IndRow("Highest loan amount", $"₦{r.Summary.HighestLoanAmount:N2}")
+                                @IndRow("Total borrowed", $"₦{r.Summary.TotalBorrowed:N2}")
+                                @IndRow("Total outstanding", $"₦{r.Summary.TotalOutstanding:N2}")
+                                @IndRow("Total overdue", $"₦{r.Summary.TotalOverdue:N2}")
+                                @IndRow("Monthly instalments", $"₦{r.Summary.TotalMonthlyInstallment:N2}")
+                                @IndRow("Max days overdue", r.Summary.MaxNoOfDays.ToString())
+                                @IndRow("Loan performance rows", r.LoanPerformance.Count.ToString())
+                                @IndRow("Loan history rows", r.LoanHistory.Count.ToString())
+                                @IndRow("Creditors", r.Creditors.Count.ToString())
+                                @IndRow("Credit enquiries", r.CreditEnquiries.Count.ToString())
+                            </tbody>
+                        </table>
+                        @if (r.LoanPerformance.Count > 0)
+                        {
+                            <div style="font-weight: 600; font-size: var(--text-sm);">Loan performance (as read)</div>
+                            <div class="table-wrapper">
+                                <table class="table" style="font-size: var(--text-xs);">
+                                    <thead><tr><th>Lender</th><th>Type</th><th>Amount</th><th>Outstanding</th><th>Overdue</th><th>Status</th><th>Performance</th><th>Opened</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var lp in r.LoanPerformance)
+                                        {
+                                            <tr>
+                                                <td>@(lp.LoanProvider ?? "—")</td>
+                                                <td>@(lp.Type ?? "—")</td>
+                                                <td>@lp.LoanAmount.ToString("N2")</td>
+                                                <td>@lp.OutstandingBalance.ToString("N2")</td>
+                                                <td>@lp.OverdueAmount.ToString("N2")</td>
+                                                <td>@(lp.Status ?? "—")</td>
+                                                <td>@(lp.PerformanceStatus ?? "—")</td>
+                                                <td>@(lp.DateAccountOpened?.ToString("dd MMM yyyy") ?? "—")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    }
+
+                    @if (probe.Score is { } s)
+                    {
+                        <table class="table" style="font-size: var(--text-sm);">
+                            <tbody>
+                                @IndRow("Score", s.Score > 0 ? s.Score.ToString() : "0 (no score on file)")
+                                @IndRow("Grade / rating", s.Grade)
+                                @IndRow("Generated", s.GeneratedDate?.ToString("dd MMM yyyy HH:mm"))
+                            </tbody>
+                        </table>
+                    }
+
+                    <div>
+                        <div style="font-weight: 600; font-size: var(--text-sm); margin-bottom: var(--space-1);">Fields in the response the CRMS does not read (@probe.UnreadFields.Count)</div>
+                        @if (probe.UnreadFields.Count == 0)
+                        {
+                            <div style="font-size: var(--text-sm); color: var(--text-secondary);">None. Every field in the response maps to something.</div>
+                        }
+                        else
+                        {
+                            <div style="font-size: var(--text-xs); color: var(--text-secondary); margin-bottom: var(--space-2);">
+                                If a figure above is 0 or blank while the raw response carries it under one of these names, the mapping needs fixing.
+                            </div>
+                            <div style="font-family: var(--font-mono, monospace); font-size: var(--text-xs); max-height: 220px; overflow: auto; background: var(--gray-50); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: var(--space-2);">
+                                @foreach (var f in probe.UnreadFields)
+                                {
+                                    <div>@f</div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <details>
+                        <summary style="cursor: pointer; font-weight: 600; font-size: var(--text-sm);">Raw response</summary>
+                        <pre style="font-size: var(--text-xs); max-height: 420px; overflow: auto; background: var(--gray-50); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: var(--space-2); margin-top: var(--space-2); white-space: pre-wrap; word-break: break-word;">@PrettyJson(probe.RawJson)</pre>
+                    </details>
+                </div>
+            </div>
+        }
+    }
+
     @if (diagTab == "cbs")
     {
         <div class="card">
@@ -351,6 +525,96 @@
     private string cbsAccountNumber = "";
     private bool cbsBusy;
     private string? cbsError;
+
+    private string indBvn = "";
+    private string indBureau = "crc";
+    private string indKind = "report";
+    private bool indBusy;
+    private string? indError;
+    private CRMS.Domain.Interfaces.SmartComplyIndividualCreditProbe? indProbe;
+
+    // SmartComply only has score endpoints for CRC and First Central.
+    private bool IndBureauHasScore => indBureau is "crc" or "first_central";
+
+    private void OnIndBureauChanged()
+    {
+        if (!IndBureauHasScore) indKind = "report";
+    }
+
+    private static string IndBureauLabel(string bureau) => bureau switch
+    {
+        "FirstCentral" => "First Central",
+        "CreditRegistry" => "Credit Registry",
+        "CreditPremium" => "Premium",
+        _ => bureau
+    };
+
+    private async Task RunIndividualProbe()
+    {
+        var bvn = indBvn.Trim();
+        if (bvn.Length != 11 || !bvn.All(char.IsDigit))
+        {
+            indError = "Enter an 11-digit BVN.";
+            return;
+        }
+
+        indError = null;
+        indProbe = null;
+        indBusy = true;
+        try
+        {
+            var result = await AppService.ProbeIndividualCreditAsync(indBureau, indKind, bvn);
+            if (!result.Success || result.Data == null)
+            {
+                indError = result.Error ?? "The credit check could not be run.";
+                return;
+            }
+            indProbe = result.Data;
+        }
+        catch (Exception ex)
+        {
+            indError = ex.Message;
+        }
+        finally
+        {
+            indBusy = false;
+        }
+    }
+
+    private async Task DownloadIndividualRaw()
+    {
+        if (indProbe == null) return;
+        var fileName = $"individual_credit_{indProbe.Bureau}_{indProbe.Kind}_{DateTime.Now:yyyyMMddHHmmss}.json";
+        await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, "application/json",
+            System.Text.Encoding.UTF8.GetBytes(PrettyJson(indProbe.RawJson)));
+    }
+
+    private static string PrettyJson(string raw)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(raw);
+            return System.Text.Json.JsonSerializer.Serialize(doc.RootElement,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return raw;
+        }
+    }
+
+    private static RenderFragment IndRow(string label, string? value) => __builder =>
+    {
+        __builder.OpenElement(0, "tr");
+        __builder.OpenElement(1, "td");
+        __builder.AddAttribute(2, "style", "color: var(--text-secondary); width: 45%;");
+        __builder.AddContent(3, label);
+        __builder.CloseElement();
+        __builder.OpenElement(4, "td");
+        __builder.AddContent(5, string.IsNullOrWhiteSpace(value) ? "—" : value);
+        __builder.CloseElement();
+        __builder.CloseElement();
+    };
 
     private CRMS.Application.Notification.Commands.EmailDiagnosticsDto? emailInfo;
     private string emailTo = "";

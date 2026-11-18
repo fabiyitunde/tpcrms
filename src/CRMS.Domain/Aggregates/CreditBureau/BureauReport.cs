@@ -117,6 +117,13 @@ public class BureauReport : AggregateRoot
         Status = BureauReportStatus.Processing;
     }
 
+    /// <summary>The bureau that actually answered, once known — a pull that starts at CRC may be
+    /// answered by First Central instead.</summary>
+    public void RecordProvider(CreditBureauProvider provider)
+    {
+        Provider = provider;
+    }
+
     public void CompleteWithData(
         string registryId,
         int? creditScore,

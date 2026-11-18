@@ -598,6 +598,23 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse<CRMS.Domain.Interfaces.SmartComplyIndividualCreditProbe>> ProbeIndividualCreditAsync(string bureau, string kind, string bvn)
+    {
+        try
+        {
+            using var _billing = CRMS.Application.Billing.BillingContext.Begin(CRMS.Domain.Aggregates.Billing.BillingFlow.Diagnostics, null, null, "Individual", AuthUserId());
+            var smartComply = _sp.GetRequiredService<CRMS.Domain.Interfaces.ISmartComplyProvider>();
+            var result = await smartComply.ProbeIndividualCreditAsync(bureau, kind, bvn.Trim());
+            if (result.IsFailure)
+                return ApiResponse<CRMS.Domain.Interfaces.SmartComplyIndividualCreditProbe>.Fail(result.Error ?? "Individual credit fetch failed");
+            return ApiResponse<CRMS.Domain.Interfaces.SmartComplyIndividualCreditProbe>.Ok(result.Value);
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse<CRMS.Domain.Interfaces.SmartComplyIndividualCreditProbe>.Fail(ex.Message);
+        }
+    }
+
     public async Task<ApiResponse<CRMS.Web.Intranet.Models.CacLookupResult>> FetchCacDirectorsAsync(string rcNumber, string companyName, string companyType = "RC")
     {
         try

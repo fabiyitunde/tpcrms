@@ -2,6 +2,7 @@ using System.Text.Json;
 using CRMS.Application.Billing;
 using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.Common;
+using CRMS.Application.CreditBureau;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
@@ -41,10 +42,14 @@ public class EnsureRhshfBureauCheckHandler : IRequestHandler<EnsureRhshfBureauCh
         if (profile.BureauCheckOutcome != RhshfBureauOutcome.NotRun)
             return ApplicationResult.Success(); // already run — idempotent no-op
 
-        var reportResult = await _smartComply.GetCRCBusinessHistoryAsync(profile.RcNumber, ct);
+        var reportResult = (await BureauFallback.GetBusinessReportAsync(_smartComply, profile.RcNumber, ct)).Result;
         if (reportResult.IsFailure)
         {
-            profile.RecordBureauCheckFailure();
+            // "Not found" means both bureaus answered and hold nothing — not a failed pull.
+            if (reportResult.Error?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
+                profile.RecordBureauCheckNoRecord();
+            else
+                profile.RecordBureauCheckFailure();
             await _uow.SaveChangesAsync(ct);
             return ApplicationResult.Success(); // failure is recorded, not surfaced as a blocking error
         }

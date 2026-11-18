@@ -58,7 +58,8 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
         await _repository.AddAsync(report, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        var creditResult = await _smartComplyProvider.GetCRCFullAsync(request.BVN, ct);
+        var pull = await BureauFallback.GetIndividualReportAsync(_smartComplyProvider, request.BVN, ct);
+        var creditResult = pull.Result;
         if (creditResult.IsFailure)
         {
             report.MarkFailed(creditResult.Error);
@@ -69,6 +70,7 @@ public class RequestBureauReportHandler : IRequestHandler<RequestBureauReportCom
 
         var creditData = creditResult.Value;
         var summary = creditData.Summary;
+        report.RecordProvider(pull.Bureau);
 
         report.CompleteWithData(
             registryId: creditData.Id ?? request.BVN,

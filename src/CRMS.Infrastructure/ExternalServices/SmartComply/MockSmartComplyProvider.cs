@@ -563,6 +563,21 @@ public class MockSmartComplyProvider : ISmartComplyProvider
         return Task.FromResult(Result.Success("{\"mock\":true,\"message\":\"Mock CAC response — enable real SmartComply to get live data\"}"));
     }
 
+    public async Task<Result<SmartComplyIndividualCreditProbe>> ProbeIndividualCreditAsync(string bureau, string kind, string bvn, CancellationToken ct = default)
+    {
+        const string raw = "{\"mock\":true,\"message\":\"Mock individual credit response — enable real SmartComply to get live data\"}";
+        var isFirstCentral = bureau.Equals("first_central", StringComparison.OrdinalIgnoreCase);
+        if (kind.Equals("score", StringComparison.OrdinalIgnoreCase))
+        {
+            var score = isFirstCentral ? await GetFirstCentralScoreAsync(bvn, ct) : await GetCRCScoreAsync(bvn, ct);
+            return Result.Success(new SmartComplyIndividualCreditProbe(bureau, "score", raw, null,
+                score.IsSuccess ? score.Value : null, score.IsSuccess ? null : score.Error, []));
+        }
+        var report = isFirstCentral ? await GetFirstCentralFullAsync(bvn, ct) : await GetCRCFullAsync(bvn, ct);
+        return Result.Success(new SmartComplyIndividualCreditProbe(bureau, "report", raw,
+            report.IsSuccess ? report.Value : null, null, report.IsSuccess ? null : report.Error, []));
+    }
+
     public Task<Result<string>> GetBusinessCreditRawJsonAsync(string bureau, string rcNumber, CancellationToken ct = default)
     {
         return Task.FromResult(Result.Success($"{{\"mock\":true,\"bureau\":\"{bureau}\",\"rc\":\"{rcNumber}\",\"message\":\"Mock business credit response — enable real SmartComply to get live data\"}}"));

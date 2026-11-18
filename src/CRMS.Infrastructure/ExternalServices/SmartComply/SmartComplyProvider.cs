@@ -125,21 +125,8 @@ public class SmartComplyProvider : ISmartComplyProvider
                 return Result.Failure<SmartComplyIndividualCreditReport>(FormatApiError(response.StatusCode, errorContent));
             }
 
-            var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<IndividualCreditReportData>>(_jsonOptions, ct);
-
-            if (result == null || result.Data == null)
-            {
-                return Result.Failure<SmartComplyIndividualCreditReport>(result?.Message ?? "No data returned");
-            }
-
-            // SmartComply sometimes omits the success boolean and uses status string instead
-            if (!result.IsSuccessful)
-            {
-                _logger.LogWarning("{ReportType} response has non-success status but data is present; status: {Status}, message: {Message}",
-                    reportType, result.Status, result.Message);
-            }
-
-            return Result.Success(MapToIndividualCreditReport(result.Data));
+            var rawBody = await response.Content.ReadAsStringAsync(ct);
+            return ParseIndividualReport(rawBody, reportType);
         }
         catch (HttpRequestException ex)
         {
@@ -181,58 +168,7 @@ public class SmartComplyProvider : ISmartComplyProvider
 
             // Read raw body first so we can log it on failure and avoid losing the stream
             var rawBody = await response.Content.ReadAsStringAsync(ct);
-            _logger.LogDebug("{Provider} credit_scores_crc raw response: {Body}",
-                provider, rawBody.Length > 3000 ? rawBody[..3000] : rawBody);
-
-            SmartComplyResponse<CreditScoreOnlyData>? result;
-            try
-            {
-                result = System.Text.Json.JsonSerializer.Deserialize<SmartComplyResponse<CreditScoreOnlyData>>(rawBody, _jsonOptions);
-            }
-            catch (JsonException jex)
-            {
-                _logger.LogError(jex, "{Provider} credit_scores_crc deserialization failed. Raw body: {Body}",
-                    provider, rawBody.Length > 3000 ? rawBody[..3000] : rawBody);
-                return Result.Failure<SmartComplyCreditScore>($"Score response parse error: {jex.Message}");
-            }
-
-            if (result == null || result.Data?.Score == null)
-            {
-                _logger.LogWarning("{Provider} credit_scores_crc returned null data or null score. success={Success}, status={Status}, message={Message}",
-                    provider, result?.Success, result?.Status, result?.Message);
-                return Result.Failure<SmartComplyCreditScore>(result?.Message ?? "No score data returned");
-            }
-
-            var scoreDetail = result.Data.Score;
-
-            // credit_scores_crc returns score under data.score.ficoScore.score (int) and ficoScore.rating (string)
-            if (scoreDetail.FicoScore is { Score: > 0 } fico)
-            {
-                _logger.LogInformation("{Provider} FICO score found: {Score} ({Rating})", provider, fico.Score, fico.Rating);
-                return Result.Success(new SmartComplyCreditScore(
-                    fico.Score,
-                    fico.Rating ?? "UNKNOWN",
-                    provider,
-                    result.Data.SearchedDate ?? DateTime.UtcNow
-                ));
-            }
-
-            // Fall back to totalConsumerScore string (used by some other score endpoints)
-            var parsedScore = scoreDetail.ParsedScore;
-            _logger.LogInformation("{Provider} score — ficoScore={FicoPresent}, ficoScore.score={FicoScore}, totalConsumerScore={TotalConsumerScore}",
-                provider,
-                scoreDetail.FicoScore != null,
-                scoreDetail.FicoScore?.Score,
-                scoreDetail.TotalConsumerScore);
-
-            return Result.Success(new SmartComplyCreditScore(
-                parsedScore ?? 0,
-                string.IsNullOrWhiteSpace(scoreDetail.Description) && parsedScore == null
-                    ? "NO SCORE"
-                    : scoreDetail.Description ?? "NO SCORE",
-                provider,
-                result.Data.SearchedDate ?? DateTime.UtcNow
-            ));
+            return ParseCreditScore(rawBody, provider);
         }
         catch (OperationCanceledException)
         {
@@ -242,6 +178,147 @@ public class SmartComplyProvider : ISmartComplyProvider
         {
             _logger.LogError(ex, "Error during {Provider} credit score request", provider);
             return Result.Failure<SmartComplyCreditScore>($"Error: {ex.Message}");
+        }
+    }
+
+    /// <summary>Reads an individual credit report body. Shared by the loan checks and the
+    /// Diagnostics probe, so the probe shows exactly what a loan check would store.</summary>
+    internal Result<SmartComplyIndividualCreditReport> ParseIndividualReport(string rawBody, string reportType)
+    {
+        SmartComplyResponse<IndividualCreditReportData>? result;
+        try
+        {
+            result = JsonSerializer.Deserialize<SmartComplyResponse<IndividualCreditReportData>>(rawBody, _jsonOptions);
+        }
+        catch (JsonException jex)
+        {
+            _logger.LogError(jex, "{ReportType} deserialization failed", reportType);
+            return Result.Failure<SmartComplyIndividualCreditReport>($"Report response parse error: {jex.Message}");
+        }
+
+        if (result == null || result.Data == null)
+        {
+            return Result.Failure<SmartComplyIndividualCreditReport>(result?.Message ?? "No data returned");
+        }
+
+        // A 200 "success" can still mean "no file on this person" — see ParseBusinessReport.
+        if (result.Data.HasCreditHistory == false)
+        {
+            _logger.LogInformation("{ReportType}: bureau holds no credit history ({Message})", reportType, result.Data.Message);
+            return Result.Failure<SmartComplyIndividualCreditReport>(
+                $"Subject not found in credit bureau{(string.IsNullOrWhiteSpace(result.Data.Message) ? "" : $": {result.Data.Message}")}");
+        }
+
+        // SmartComply sometimes omits the success boolean and uses status string instead
+        if (!result.IsSuccessful)
+        {
+            _logger.LogWarning("{ReportType} response has non-success status but data is present; status: {Status}, message: {Message}",
+                reportType, result.Status, result.Message);
+        }
+
+        return Result.Success(MapToIndividualCreditReport(result.Data));
+    }
+
+    internal Result<SmartComplyCreditScore> ParseCreditScore(string rawBody, string provider)
+    {
+        _logger.LogDebug("{Provider} credit score raw response: {Body}",
+            provider, rawBody.Length > 3000 ? rawBody[..3000] : rawBody);
+
+        SmartComplyResponse<CreditScoreOnlyData>? result;
+        try
+        {
+            result = JsonSerializer.Deserialize<SmartComplyResponse<CreditScoreOnlyData>>(rawBody, _jsonOptions);
+        }
+        catch (JsonException jex)
+        {
+            _logger.LogError(jex, "{Provider} credit score deserialization failed. Raw body: {Body}",
+                provider, rawBody.Length > 3000 ? rawBody[..3000] : rawBody);
+            return Result.Failure<SmartComplyCreditScore>($"Score response parse error: {jex.Message}");
+        }
+
+        if (result == null || result.Data?.Score == null)
+        {
+            _logger.LogWarning("{Provider} credit score returned null data or null score. success={Success}, status={Status}, message={Message}",
+                provider, result?.Success, result?.Status, result?.Message);
+            return Result.Failure<SmartComplyCreditScore>(result?.Message ?? "No score data returned");
+        }
+
+        var scoreDetail = result.Data.Score;
+
+        // credit_scores_crc returns score under data.score.ficoScore.score (int) and ficoScore.rating (string)
+        if (scoreDetail.FicoScore is { Score: > 0 } fico)
+        {
+            _logger.LogInformation("{Provider} FICO score found: {Score} ({Rating})", provider, fico.Score, fico.Rating);
+            return Result.Success(new SmartComplyCreditScore(
+                fico.Score,
+                fico.Rating ?? "UNKNOWN",
+                provider,
+                result.Data.SearchedDate ?? DateTime.UtcNow
+            ));
+        }
+
+        // Fall back to totalConsumerScore string (used by some other score endpoints)
+        var parsedScore = scoreDetail.ParsedScore;
+        _logger.LogInformation("{Provider} score — ficoScore={FicoPresent}, ficoScore.score={FicoScore}, totalConsumerScore={TotalConsumerScore}",
+            provider,
+            scoreDetail.FicoScore != null,
+            scoreDetail.FicoScore?.Score,
+            scoreDetail.TotalConsumerScore);
+
+        return Result.Success(new SmartComplyCreditScore(
+            parsedScore ?? 0,
+            string.IsNullOrWhiteSpace(scoreDetail.Description) && parsedScore == null
+                ? "NO SCORE"
+                : scoreDetail.Description ?? "NO SCORE",
+            provider,
+            result.Data.SearchedDate ?? DateTime.UtcNow
+        ));
+    }
+
+    public async Task<Result<SmartComplyIndividualCreditProbe>> ProbeIndividualCreditAsync(
+        string bureau, string kind, string bvn, CancellationToken ct = default)
+    {
+        var key = (bureau.Trim().ToLowerInvariant(), kind.Trim().ToLowerInvariant());
+        var (endpoint, label) = key switch
+        {
+            ("crc", "report") => (SmartComplyEndpoints.Individual.CRCFull, "CRC"),
+            ("crc", "score") => (SmartComplyEndpoints.Individual.CRCScore, "CRC"),
+            ("first_central", "report") => (SmartComplyEndpoints.Individual.FirstCentralFull, "FirstCentral"),
+            ("first_central", "score") => (SmartComplyEndpoints.Individual.FirstCentralScore, "FirstCentral"),
+            ("credit_registry", "report") => (SmartComplyEndpoints.Individual.CreditRegistryFull, "CreditRegistry"),
+            ("premium", "report") => (SmartComplyEndpoints.Individual.CreditPremium, "CreditPremium"),
+            _ => ((string?)null, "")
+        };
+        if (endpoint is null)
+            return Result.Failure<SmartComplyIndividualCreditProbe>(
+                $"Unsupported bureau/kind '{bureau}'/'{kind}'. Reports: crc, first_central, credit_registry, premium. Scores: crc, first_central.");
+
+        try
+        {
+            _logger.LogInformation("Diagnostics: individual {Kind} from {Bureau} for BVN {BvnMasked}", key.Item2, label, MaskBvn(bvn));
+            var response = await _httpClient.PostAsJsonAsync(endpoint, new { bvn }, ct);
+            var raw = await response.Content.ReadAsStringAsync(ct);
+            if (!response.IsSuccessStatusCode)
+                return Result.Failure<SmartComplyIndividualCreditProbe>($"SmartComply returned {(int)response.StatusCode}: {raw}");
+
+            if (key.Item2 == "score")
+            {
+                var score = ParseCreditScore(raw, label);
+                return Result.Success(new SmartComplyIndividualCreditProbe(
+                    label, "score", raw, null, score.IsSuccess ? score.Value : null, score.IsSuccess ? null : score.Error,
+                    JsonFieldAudit.Unread(raw, typeof(SmartComplyResponse<CreditScoreOnlyData>))));
+            }
+
+            var report = ParseIndividualReport(raw, label);
+            return Result.Success(new SmartComplyIndividualCreditProbe(
+                label, "report", raw, report.IsSuccess ? report.Value : null, null, report.IsSuccess ? null : report.Error,
+                JsonFieldAudit.Unread(raw, typeof(SmartComplyResponse<IndividualCreditReportData>))));
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Diagnostics: error fetching individual {Kind} from {Bureau}", kind, bureau);
+            return Result.Failure<SmartComplyIndividualCreditProbe>($"Error: {ex.Message}");
         }
     }
 
@@ -327,14 +404,8 @@ public class SmartComplyProvider : ISmartComplyProvider
                 return Result.Failure<SmartComplyBusinessCreditReport>(FormatApiError(response.StatusCode, errorContent));
             }
 
-            var result = await response.Content.ReadFromJsonAsync<SmartComplyResponse<BusinessCreditReportData>>(_jsonOptions, ct);
-            
-            if (result == null || result.Data == null)
-            {
-                return Result.Failure<SmartComplyBusinessCreditReport>(result?.Message ?? "No data returned");
-            }
-
-            return Result.Success(MapToBusinessCreditReport(result.Data));
+            var rawBody = await response.Content.ReadAsStringAsync(ct);
+            return ParseBusinessReport(rawBody, reportType);
         }
         catch (OperationCanceledException)
         {
@@ -345,6 +416,36 @@ public class SmartComplyProvider : ISmartComplyProvider
             _logger.LogError(ex, "Error during {ReportType} request", reportType);
             return Result.Failure<SmartComplyBusinessCreditReport>($"Error: {ex.Message}");
         }
+    }
+
+    internal Result<SmartComplyBusinessCreditReport> ParseBusinessReport(string rawBody, string reportType)
+    {
+        SmartComplyResponse<BusinessCreditReportData>? result;
+        try
+        {
+            result = JsonSerializer.Deserialize<SmartComplyResponse<BusinessCreditReportData>>(rawBody, _jsonOptions);
+        }
+        catch (JsonException jex)
+        {
+            _logger.LogError(jex, "{ReportType} deserialization failed", reportType);
+            return Result.Failure<SmartComplyBusinessCreditReport>($"Report response parse error: {jex.Message}");
+        }
+
+        if (result == null || result.Data == null)
+        {
+            return Result.Failure<SmartComplyBusinessCreditReport>(result?.Message ?? "No data returned");
+        }
+
+        // CRC and First Central both answer HTTP 200 "success" for a company they hold no file on;
+        // only has_credit_history says so. Without this the empty answer reads as a clean report.
+        if (result.Data.HasCreditHistory == false)
+        {
+            _logger.LogInformation("{ReportType}: bureau holds no credit history ({Message})", reportType, result.Data.Message);
+            return Result.Failure<SmartComplyBusinessCreditReport>(
+                $"Business not found in credit bureau{(string.IsNullOrWhiteSpace(result.Data.Message) ? "" : $": {result.Data.Message}")}");
+        }
+
+        return Result.Success(MapToBusinessCreditReport(result.Data));
     }
 
     #endregion
@@ -912,39 +1013,51 @@ public class SmartComplyProvider : ISmartComplyProvider
             data.DateOfBirth,
             data.Address,
             data.Email,
+            // CRC names first; First Central's names fill in only where CRC's are absent (a CRC
+            // payload never carries them). An account in arrears or in bad condition is delinquent.
             new SmartComplyCreditSummary(
-                score?.TotalNoOfLoans ?? 0,
+                Or(score?.TotalNoOfLoans, score?.FcTotalAccounts),
                 score?.TotalNoOfInstitutions ?? 0,
                 score?.TotalNoOfActiveLoans ?? 0,
                 score?.TotalNoOfClosedLoans ?? 0,
-                score?.TotalNoOfPerformingLoans ?? 0,
-                score?.TotalNoOfDelinquentFacilities ?? 0,
+                Or(score?.TotalNoOfPerformingLoans, score?.FcAccountsGoodCondition),
+                Or(score?.TotalNoOfDelinquentFacilities,
+                    Math.Max(score?.FcAccountsBadCondition ?? 0, score?.FcAccountsInArrears ?? 0)),
                 score?.HighestLoanAmount ?? 0,
-                score?.TotalMonthlyInstallment ?? 0,
+                Or(score?.TotalMonthlyInstallment, score?.FcMonthlyInstalment),
                 score?.TotalBorrowed ?? 0,
-                score?.TotalOutstanding ?? 0,
-                score?.TotalOverdue ?? 0,
+                Or(score?.TotalOutstanding, score?.FcOutstandingDebt),
+                Or(score?.TotalOverdue, score?.FcAmountInArrears),
                 score?.MaxNoOfDays ?? 0,
                 score?.CrcReportOrderNumber
             ),
             score?.Creditors?.Select(c => new SmartComplyCreditor(c.SubscriberId, c.Name, c.Phone, c.Address)).ToList() ?? [],
             score?.CreditEnquiries?.Select(e => new SmartComplyCreditEnquiry(e.LoanProvider, e.Reason, e.Date, e.ContactPhone)).ToList() ?? [],
-            score?.LoanPerformance?.Select(p => new SmartComplyLoanPerformance(
-                p.LoanProvider, p.AccountNumber, p.LoanAmount, p.OutstandingBalance,
-                p.Status, p.PerformanceStatus, p.OverdueAmount, p.Type,
-                p.LoanDuration, p.RepaymentFrequency, p.RepaymentBehavior,
-                p.PaymentProfile, p.DateAccountOpened, p.LastUpdatedAt
-            )).ToList() ?? [],
-            score?.LoanHistory?.Select(h => new SmartComplyLoanHistory(
-                h.LoanProvider, h.LoanProviderAddress, h.AccountNumber, h.Type,
-                h.LoanAmount, h.InstallmentAmount, h.OverdueAmount, h.LastPaymentDate,
-                h.LoanDuration, h.DisbursedDate, h.MaturityDate, h.PerformanceStatus,
-                h.Status, h.OutstandingBalance, h.Collateral, h.CollateralValue,
-                h.PaymentHistory, h.LastUpdatedAt
-            )).ToList() ?? [],
+            MapLoanPerformance(score?.LoanPerformance),
+            MapLoanHistory(score?.LoanHistory),
             data.SearchedDate
         );
     }
+
+    private static List<SmartComplyLoanPerformance> MapLoanPerformance(List<LoanPerformanceData>? rows) =>
+        rows?.Select(p => new SmartComplyLoanPerformance(
+            p.LoanProvider, p.AccountNumber, p.LoanAmount, p.OutstandingBalance,
+            p.Status, p.PerformanceStatus, p.OverdueAmount, p.Type,
+            p.LoanDuration, p.RepaymentFrequency, p.RepaymentBehavior,
+            p.PaymentProfile, p.DateAccountOpened, p.LastUpdatedAt
+        )).ToList() ?? [];
+
+    private static List<SmartComplyLoanHistory> MapLoanHistory(List<LoanHistoryData>? rows) =>
+        rows?.Select(h => new SmartComplyLoanHistory(
+            h.LoanProvider, h.LoanProviderAddress, h.AccountNumber, h.Type,
+            h.LoanAmount, h.InstallmentAmount, h.OverdueAmount, h.LastPaymentDate,
+            h.LoanDuration, h.DisbursedDate, h.MaturityDate, h.PerformanceStatus,
+            h.Status ?? h.LoanStatus, h.OutstandingBalance, h.Collateral, h.CollateralValue,
+            h.PaymentHistory, h.LastUpdatedAt
+        )).ToList() ?? [];
+
+    private static int Or(int? crc, int? firstCentral) => crc is > 0 ? crc.Value : firstCentral ?? 0;
+    private static decimal Or(decimal? crc, decimal? firstCentral) => crc is > 0 ? crc.Value : firstCentral ?? 0;
 
     private static SmartComplyBusinessCreditReport MapToBusinessCreditReport(BusinessCreditReportData data)
     {
@@ -977,9 +1090,12 @@ public class SmartComplyProvider : ISmartComplyProvider
                 score?.TotalNoOfPerformingLoans ?? 0,
                 score?.TotalNoOfDelinquentFacilities ?? 0,
                 score?.LastReportedDate,
-                score?.CrcReportOrderNumber ?? score?.FirstCentralEnquiryResultID
+                score?.CrcReportOrderNumber ?? score?.FirstCentralEnquiryResultID,
+                score?.MaxNoOfDays ?? 0
             ),
-            data.SearchedDate
+            data.SearchedDate,
+            MapLoanPerformance(score?.LoanPerformance),
+            MapLoanHistory(score?.LoanHistory)
         );
     }
 
@@ -1070,8 +1186,9 @@ public class SmartComplyProvider : ISmartComplyProvider
         try
         {
             // No BVN: SmartComply validates the key first and the body second, so an accepted key
-            // answers "BVN is required." and nothing is billed.
-            var response = await _httpClient.PostAsJsonAsync(SmartComplyEndpoints.Individual.CRCFull, new { }, ct);
+            // answers "BVN is required." and nothing is billed. Pinned to crc_summary, where that
+            // behaviour was confirmed.
+            var response = await _httpClient.PostAsJsonAsync(SmartComplyEndpoints.Individual.CRCHistory, new { }, ct);
             var content = await response.Content.ReadAsStringAsync(ct);
             var message = TryReadMessage(content) ?? content.Trim();
 

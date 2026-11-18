@@ -70,9 +70,16 @@ public class IndividualCreditReportData
     
     [JsonPropertyName("score")]
     public CreditScoreData? Score { get; set; }
-    
+
     [JsonPropertyName("searchedDate")]
     public DateTime? SearchedDate { get; set; }
+
+    /// <summary>false = the bureau holds no file for this person; see BusinessCreditReportData.</summary>
+    [JsonPropertyName("has_credit_history")]
+    public bool? HasCreditHistory { get; set; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
 }
 
 public class CreditScoreData
@@ -130,6 +137,47 @@ public class CreditScoreData
     
     [JsonPropertyName("loanHistory")]
     public List<LoanHistoryData>? LoanHistory { get; set; }
+
+    // ── First Central (first_central_full) ─────────────────────────────────
+    // Same "score" block, different names, summary only: no per-loan rows, and no active/closed
+    // split, institutions, highest amount or days-overdue. Values arrive as numeric strings.
+    // Read only where the CRC name is absent (see MapToIndividualCreditReport).
+
+    [JsonPropertyName("total_accounts")]
+    public int? FcTotalAccounts { get; set; }
+
+    [JsonPropertyName("total_accounts_good_condition")]
+    public int? FcAccountsGoodCondition { get; set; }
+
+    [JsonPropertyName("total_accounts_bad_condition")]
+    public int? FcAccountsBadCondition { get; set; }
+
+    [JsonPropertyName("total_account_arrear")]
+    public int? FcAccountsInArrears { get; set; }
+
+    [JsonPropertyName("total_outstanding_debt")]
+    public decimal? FcOutstandingDebt { get; set; }
+
+    [JsonPropertyName("amount_arrear")]
+    public decimal? FcAmountInArrears { get; set; }
+
+    [JsonPropertyName("total_monthly_instalment")]
+    public decimal? FcMonthlyInstalment { get; set; }
+
+    [JsonPropertyName("total_judgements")]
+    public int? FcJudgements { get; set; }
+
+    [JsonPropertyName("total_judgement_amount")]
+    public decimal? FcJudgementAmount { get; set; }
+
+    [JsonPropertyName("total_dishonoured")]
+    public int? FcDishonoured { get; set; }
+
+    [JsonPropertyName("rating")]
+    public string? FcRating { get; set; }
+
+    [JsonPropertyName("hasLoans")]
+    public string? FcHasLoans { get; set; }
 }
 
 public class CreditorData
@@ -274,9 +322,13 @@ public class LoanHistoryData
     
     [JsonPropertyName("collateral")]
     public string? Collateral { get; set; }
-    
+
     [JsonPropertyName("collateralValue")]
     public decimal CollateralValue { get; set; }
+
+    // Company reports send the account status as a code here instead of "status".
+    [JsonPropertyName("loanStatus")]
+    public string? LoanStatus { get; set; }
     
     [JsonPropertyName("guarantor")]
     public string? Guarantor { get; set; }
@@ -285,6 +337,7 @@ public class LoanHistoryData
     public string? Purpose { get; set; }
     
     [JsonPropertyName("paymentHistory")]
+    [JsonConverter(typeof(PaymentHistoryConverter))]
     public string? PaymentHistory { get; set; }
     
     [JsonPropertyName("lastUpdatedAt")]
@@ -338,9 +391,17 @@ public class BusinessCreditReportData
     
     [JsonPropertyName("score")]
     public BusinessCreditScoreData? Score { get; set; }
-    
+
     [JsonPropertyName("searchedDate")]
     public DateTime? SearchedDate { get; set; }
+
+    /// <summary>false = the bureau holds no file for this company. SmartComply still answers HTTP 200
+    /// "success" with an all-zero score block, so this is the only reliable no-record signal.</summary>
+    [JsonPropertyName("has_credit_history")]
+    public bool? HasCreditHistory { get; set; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
 }
 
 public class BusinessCreditScoreData
@@ -396,14 +457,19 @@ public class BusinessCreditScoreData
     [JsonPropertyName("directors")]
     public object? Directors { get; set; }
     
+    // Same per-account shapes as the individual report (confirmed on a live CRC business response,
+    // 2026-11-18), so the individual DTOs are reused.
     [JsonPropertyName("loanPerformance")]
-    public object? LoanPerformance { get; set; }
-    
+    public List<LoanPerformanceData>? LoanPerformance { get; set; }
+
     [JsonPropertyName("creditEnquiries")]
     public object? CreditEnquiries { get; set; }
-    
+
     [JsonPropertyName("loanHistory")]
-    public object? LoanHistory { get; set; }
+    public List<LoanHistoryData>? LoanHistory { get; set; }
+
+    [JsonPropertyName("maxNoOfDays")]
+    public int MaxNoOfDays { get; set; }
 }
 
 #endregion

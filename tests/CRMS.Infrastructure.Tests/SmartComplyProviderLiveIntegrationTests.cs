@@ -228,6 +228,129 @@ public class SmartComplyProviderLiveIntegrationTests : IAsyncLifetime
         Assert.False(result.IsSuccess);
     }
 
+    /// <summary>The mapping check: pulls each bureau/kind named in SmartComply__Probes (default
+    /// "first_central:report,first_central:score") through the Diagnostics probe — the same parser
+    /// the loan checks use — prints what was read and every response field the mapping drops, and
+    /// saves each raw body to SmartComply__DumpDir when that is set. Every probe is a billed call.</summary>
+    [SkippableFact]
+    public async Task Individual_probe_reports_mapping()
+    {
+        SkipIfNoBvn();
+        var dumpDir = Environment.GetEnvironmentVariable("SmartComply__DumpDir");
+        var probes = (Environment.GetEnvironmentVariable("SmartComply__Probes") ?? "first_central:report,first_central:score")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(p => p.Split(':'))
+            .ToList();
+
+        foreach (var (bureau, kind) in probes.Select(p => (p[0], p[1])))
+        {
+            var result = await _provider!.ProbeIndividualCreditAsync(bureau, kind, _testBvn);
+            _output.WriteLine($"── {bureau} {kind}: IsSuccess={result.IsSuccess}, Error={result.Error}");
+            if (result.IsFailure) continue;
+
+            var probe = result.Value;
+            if (!string.IsNullOrEmpty(dumpDir))
+                await File.WriteAllTextAsync(Path.Combine(dumpDir, $"{bureau}-{kind}.json"), probe.RawJson);
+
+            _output.WriteLine($"ParseError: {probe.ParseError ?? "none"}");
+            if (probe.Report is { } r)
+                _output.WriteLine($"Read: name={r.Name}, loans={r.Summary.TotalNoOfLoans}, active={r.Summary.TotalNoOfActiveLoans}, " +
+                                  $"outstanding={r.Summary.TotalOutstanding}, overdue={r.Summary.TotalOverdue}, maxDays={r.Summary.MaxNoOfDays}, " +
+                                  $"perfRows={r.LoanPerformance.Count}, historyRows={r.LoanHistory.Count}, ref={r.Summary.ReportOrderNumber}");
+            if (probe.Score is { } s)
+                _output.WriteLine($"Read: score={s.Score}, grade={s.Grade}");
+            _output.WriteLine($"Unread fields ({probe.UnreadFields.Count}):");
+            foreach (var f in probe.UnreadFields) _output.WriteLine($"  {f}");
+        }
+    }
+
+    /// <summary>Evidence capture for SmartComply support: POSTs {"bvn"} to each path in
+    /// SmartComply__RawPaths (comma-separated) exactly once and writes, per call, the UTC time,
+    /// duration, HTTP status, response headers and full body to SmartComply__DumpDir/raw-capture.json.
+    /// Bypasses the provider's parsing on purpose, so nothing is reinterpreted. Every call is billed
+    /// if it succeeds.</summary>
+    [SkippableFact]
+    public async Task Raw_endpoint_capture()
+    {
+        SkipIfNoBvn();
+        var paths = (Environment.GetEnvironmentVariable("SmartComply__RawPaths") ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Skip.If(paths.Length == 0, "SmartComply__RawPaths not set");
+        var dumpDir = Environment.GetEnvironmentVariable("SmartComply__DumpDir");
+
+        using var http = new HttpClient { BaseAddress = new Uri(_settings.BaseUrl), Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds) };
+        http.DefaultRequestHeaders.Add("x-access-token", _settings.ApiKey);
+
+        var log = new List<object>();
+        foreach (var path in paths)
+        {
+            var startedUtc = DateTime.UtcNow;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            object entry;
+            try
+            {
+                // Business endpoints take an RC number (normalised as the provider does); individual ones a BVN.
+                var isBusiness = path.Contains("/business/", StringComparison.OrdinalIgnoreCase);
+                if (isBusiness) Skip.If(string.IsNullOrEmpty(_testRcNumber), "SmartComply:TestRcNumber not configured");
+                var rc = _testRcNumber.StartsWith("RC", StringComparison.OrdinalIgnoreCase) ? _testRcNumber : "RC" + _testRcNumber;
+                var requestBody = isBusiness
+                    ? System.Text.Json.JsonSerializer.Serialize(new { registration_number = rc })
+                    : System.Text.Json.JsonSerializer.Serialize(new { bvn = _testBvn });
+                using var response = await http.PostAsync(path, new StringContent(requestBody, System.Text.Encoding.UTF8, "application/json"));
+                var body = await response.Content.ReadAsStringAsync();
+                sw.Stop();
+                var headers = response.Headers.Concat(response.Content.Headers)
+                    .ToDictionary(h => h.Key, h => string.Join(", ", h.Value));
+                entry = new { path, startedUtc, durationMs = sw.ElapsedMilliseconds, status = (int)response.StatusCode, reason = response.ReasonPhrase, headers, body };
+                _output.WriteLine($"── {path} → {(int)response.StatusCode} in {sw.ElapsedMilliseconds} ms at {startedUtc:O}");
+                _output.WriteLine(body.Length > 400 ? body[..400] + "…" : body);
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                entry = new { path, startedUtc, durationMs = sw.ElapsedMilliseconds, status = 0, reason = ex.GetType().Name, headers = new Dictionary<string, string>(), body = ex.Message };
+                _output.WriteLine($"── {path} → exception {ex.GetType().Name}: {ex.Message}");
+            }
+            log.Add(entry);
+        }
+
+        if (!string.IsNullOrEmpty(dumpDir))
+            await File.WriteAllTextAsync(Path.Combine(dumpDir, "raw-capture.json"),
+                System.Text.Json.JsonSerializer.Serialize(log, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    /// <summary>Offline mapping check, no API call: reads a saved business response body from the file
+    /// in SmartComply__SavedBusinessBody, runs it through the same parser the loan checks use, and
+    /// prints what was read and every field the mapping drops.</summary>
+    [SkippableFact]
+    public void Saved_business_body_mapping()
+    {
+        var file = Environment.GetEnvironmentVariable("SmartComply__SavedBusinessBody");
+        Skip.If(string.IsNullOrEmpty(file) || !File.Exists(file), "SmartComply__SavedBusinessBody not set");
+        var raw = File.ReadAllText(file);
+        var provider = new SmartComplyProvider(new HttpClient(), Options.Create(_settings), new Mock<ILogger<SmartComplyProvider>>().Object);
+
+        var result = provider.ParseBusinessReport(raw, "saved");
+        _output.WriteLine($"IsSuccess={result.IsSuccess}, Error={result.Error}");
+        if (result.IsSuccess)
+        {
+            var s = result.Value.Summary;
+            _output.WriteLine($"Read: loans={s.TotalNoOfLoans}, active={s.TotalNoOfActiveLoans}, closed={s.TotalNoOfClosedLoans}, " +
+                              $"institutions={s.TotalNoOfInstitutions}, performing={s.TotalNoOfPerformingLoans}, delinquent={s.TotalNoOfDelinquentFacilities}, " +
+                              $"overdueAccounts={s.TotalNoOfOverdueAccounts}, borrowed={s.TotalBorrowed}, outstanding={s.TotalOutstanding}, " +
+                              $"overdue={s.TotalOverdue}, highest={s.HighestLoanAmount}, monthly={s.TotalMonthlyInstallment}, " +
+                              $"lastReported={s.LastReportedDate}, ref={s.ReportOrderNumber}, maxDays={s.MaxNoOfDays}, searched={result.Value.SearchedDate:O}");
+            foreach (var p in result.Value.LoanPerformance ?? [])
+                _output.WriteLine($"  perf: {p.LoanProvider} | {p.Type} | amount={p.LoanAmount} | outstanding={p.OutstandingBalance} | overdue={p.OverdueAmount} | {p.Status}/{p.PerformanceStatus}");
+            foreach (var h in result.Value.LoanHistory ?? [])
+                _output.WriteLine($"  hist: {h.LoanProvider} | {h.Type} | amount={h.LoanAmount} | outstanding={h.OutstandingBalance} | status={h.Status} | {h.PerformanceStatus} | " +
+                                  $"disbursed={h.DisbursedDate:yyyy-MM-dd} | matures={h.MaturityDate:yyyy-MM-dd} | collateral={h.Collateral} | history={(h.PaymentHistory?.Length > 60 ? h.PaymentHistory[..60] + "…" : h.PaymentHistory)}");
+        }
+        var unread = JsonFieldAudit.Unread(raw, typeof(SmartComplyResponse<BusinessCreditReportData>));
+        _output.WriteLine($"Unread fields ({unread.Count}):");
+        foreach (var f in unread) _output.WriteLine($"  {f}");
+    }
+
     [SkippableFact]
     public async Task GetFirstCentralBusinessAsync_WithValidRc_ReturnsReport()
     {

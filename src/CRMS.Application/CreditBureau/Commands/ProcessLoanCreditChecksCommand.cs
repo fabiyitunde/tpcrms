@@ -17,6 +17,7 @@ namespace CRMS.Application.CreditBureau.Commands;
 /// Uses SmartComply API for:
 /// - Individual credit checks (directors, signatories, guarantors) via CRC Full report
 /// - Business credit check (corporate entity) via CRC Business History
+/// - Either falls back to First Central when CRC has no record or fails (see BureauFallback)
 /// - Fraud checks for both individuals and business
 /// </summary>
 public record ProcessLoanCreditChecksCommand(
@@ -578,8 +579,9 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
             var bureauReport = bureauReportResult.Value;
             bureauReport.MarkProcessing();
 
-            // Get CRC Full credit report via SmartComply
-            var reportResult = await _smartComplyProvider.GetCRCFullAsync(bvn, ct);
+            // CRC Full credit report via SmartComply, falling back to First Central
+            var pull = await BureauFallback.GetIndividualReportAsync(_smartComplyProvider, bvn, ct);
+            var reportResult = pull.Result;
             if (reportResult.IsFailure)
             {
                 // Mark the report as failed/not found and persist for audit trail
@@ -604,11 +606,13 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
 
             var report = reportResult.Value;
             var summary = report.Summary;
+            bureauReport.RecordProvider(pull.Bureau);
+            var bureauLabel = BureauFallback.Label(pull.Bureau);
 
             // Fetch actual bureau credit score (preferred over derived score for regulatory defensibility)
             int creditScore;
             string scoreGrade;
-            var scoreResult = await _smartComplyProvider.GetCRCScoreAsync(bvn, ct);
+            var scoreResult = await BureauFallback.GetScoreAsync(_smartComplyProvider, pull.Bureau, bvn, ct);
             if (scoreResult.IsSuccess && scoreResult.Value.Score > 0)
             {
                 creditScore = scoreResult.Value.Score;
@@ -618,11 +622,11 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
             {
                 // Fall back to derived score if bureau score fetch fails OR returns 0 (BVN has no FICO score)
                 if (scoreResult.IsFailure)
-                    _logger.LogWarning("Failed to fetch CRC score for BVN {BvnSuffix}, using derived score: {Error}",
-                        bvn.Length >= 4 ? $"****{bvn[^4..]}" : "****", scoreResult.Error);
+                    _logger.LogWarning("Failed to fetch {Bureau} score for BVN {BvnSuffix}, using derived score: {Error}",
+                        bureauLabel, bvn.Length >= 4 ? $"****{bvn[^4..]}" : "****", scoreResult.Error);
                 else
-                    _logger.LogInformation("CRC score endpoint returned 0 for BVN {BvnSuffix} — no FICO score on file, using derived score",
-                        bvn.Length >= 4 ? $"****{bvn[^4..]}" : "****");
+                    _logger.LogInformation("{Bureau} score endpoint returned 0 for BVN {BvnSuffix} — no score on file, using derived score",
+                        bureauLabel, bvn.Length >= 4 ? $"****{bvn[^4..]}" : "****");
                 creditScore = CalculateCreditScoreFromReport(summary);
                 scoreGrade = "DERIVED"; // Sentinel value — UI shows a warning badge when this is set
             }
@@ -651,34 +655,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 false // SmartComply doesn't return legal actions in this endpoint
             );
 
-            // Add loan performance as accounts
-            foreach (var loan in report.LoanPerformance)
-            {
-                // Derive delinquency level from per-account data, not global max
-                var accountDelinquencyLevel = DeriveDelinquencyLevelFromLoan(loan);
-                
-                var account = BureauAccount.Create(
-                    bureauReport.Id,
-                    loan.AccountNumber ?? "N/A",
-                    loan.LoanProvider ?? "Unknown",
-                    loan.Type ?? "Term Loan",
-                    ParsePerformanceStatus(loan.PerformanceStatus),
-                    accountDelinquencyLevel,
-                    loan.LoanAmount,
-                    loan.OutstandingBalance,
-                    0, // MinimumPayment not provided
-                    loan.DateAccountOpened,
-                    null,
-                    null,
-                    0,
-                    loan.PaymentProfile,
-                    LegalStatus.None,
-                    null,
-                    "NGN",
-                    loan.LastUpdatedAt ?? DateTime.UtcNow
-                );
-                bureauReport.AddAccount(account);
-            }
+            AddLoanAccounts(bureauReport, report.LoanPerformance);
 
             // Run fraud check before persisting
             int? fraudRiskScore = null;
@@ -840,8 +817,9 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
             var bureauReport = bureauReportResult.Value;
             bureauReport.MarkProcessing();
 
-            // Get CRC Business History via SmartComply (only after consent verified)
-            var reportResult = await _smartComplyProvider.GetCRCBusinessHistoryAsync(rcNumber, ct);
+            // CRC Business History via SmartComply, falling back to First Central (only after consent verified)
+            var pull = await BureauFallback.GetBusinessReportAsync(_smartComplyProvider, rcNumber, ct);
+            var reportResult = pull.Result;
             if (reportResult.IsFailure)
             {
                 // Mark the report as failed/not found and persist for audit trail
@@ -866,6 +844,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
 
             var report = reportResult.Value;
             var summary = report.Summary;
+            bureauReport.RecordProvider(pull.Bureau);
 
             var hasCreditIssues = summary.TotalNoOfDelinquentFacilities > 0 ||
                                  summary.TotalOverdue > 0 ||
@@ -886,9 +865,12 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 summary.TotalOutstanding,
                 summary.TotalOverdue,
                 summary.HighestLoanAmount,
-                0, // Max delinquency days not directly available
+                summary.MaxNoOfDays,
                 false
             );
+
+            // Per-account rows, as for individuals (CRC sends them on company reports too)
+            AddLoanAccounts(bureauReport, report.LoanPerformance ?? []);
 
             // Run business fraud check before persisting
             int? fraudRiskScore = null;
@@ -987,6 +969,37 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 rcNumber, businessName, false, auditReportId, 0, 0, 0, 0, 0, false, null, null,
                 errorMsg, CreditCheckFailureReason.InternalError
             );
+        }
+    }
+
+    /// <summary>Stores each bureau account as a BureauAccount row — what the report modal lists.
+    /// Call before the report is first added, so the rows go in with it.</summary>
+    private static void AddLoanAccounts(BureauReport bureauReport, IEnumerable<SmartComplyLoanPerformance> loans)
+    {
+        foreach (var loan in loans)
+        {
+            var account = BureauAccount.Create(
+                bureauReport.Id,
+                loan.AccountNumber ?? "N/A",
+                loan.LoanProvider ?? "Unknown",
+                loan.Type ?? "Term Loan",
+                ParsePerformanceStatus(loan.PerformanceStatus),
+                // Derive delinquency level from per-account data, not global max
+                DeriveDelinquencyLevelFromLoan(loan),
+                loan.LoanAmount,
+                loan.OutstandingBalance,
+                0, // MinimumPayment not provided
+                loan.DateAccountOpened,
+                null,
+                null,
+                0,
+                loan.PaymentProfile,
+                LegalStatus.None,
+                null,
+                "NGN",
+                loan.LastUpdatedAt ?? DateTime.UtcNow
+            );
+            bureauReport.AddAccount(account);
         }
     }
 

@@ -149,17 +149,19 @@ public class ProcessNampCreditChecksHandler
                 await _bureauRepo.AddAsync(bureauReport, ct);
                 await _uow.SaveChangesAsync(ct);
 
-                // Run the credit check via SmartComply (CRC Full)
-                var checkResult = await _smartComply.GetCRCFullAsync(bvn, ct);
+                // Run the credit check via SmartComply (CRC Full, falling back to First Central)
+                var pull = await BureauFallback.GetIndividualReportAsync(_smartComply, bvn, ct);
+                var checkResult = pull.Result;
                 if (checkResult.IsSuccess)
                 {
                     var report = checkResult.Value;
                     var summary = report.Summary;
+                    bureauReport.RecordProvider(pull.Bureau);
 
-                    // Fetch bureau score
+                    // Fetch bureau score from the bureau that answered
                     int creditScore;
                     string scoreGrade;
-                    var scoreResult = await _smartComply.GetCRCScoreAsync(bvn, ct);
+                    var scoreResult = await BureauFallback.GetScoreAsync(_smartComply, pull.Bureau, bvn, ct);
                     if (scoreResult.IsSuccess && scoreResult.Value.Score > 0)
                     {
                         creditScore = scoreResult.Value.Score;
@@ -268,11 +270,13 @@ public class ProcessNampCreditChecksHandler
                         await _bureauRepo.AddAsync(bureauReport, ct);
                         await _uow.SaveChangesAsync(ct);
 
-                        var checkResult = await _smartComply.GetCRCBusinessHistoryAsync(rcNumber, ct);
+                        var pull = await BureauFallback.GetBusinessReportAsync(_smartComply, rcNumber, ct);
+                        var checkResult = pull.Result;
                         if (checkResult.IsSuccess)
                         {
                             var report = checkResult.Value;
                             var summary = report.Summary;
+                            bureauReport.RecordProvider(pull.Bureau);
                             bureauReport.CompleteWithData(
                                 report.Id ?? rcNumber,
                                 null, // No credit score for business
@@ -288,7 +292,7 @@ public class ProcessNampCreditChecksHandler
                                 summary.TotalOutstanding,
                                 summary.TotalOverdue,
                                 summary.HighestLoanAmount,
-                                0, // Max delinquency days not directly available
+                                summary.MaxNoOfDays,
                                 false);
                             successful++;
                             results.Add(new IndividualCreditCheckResultDto(

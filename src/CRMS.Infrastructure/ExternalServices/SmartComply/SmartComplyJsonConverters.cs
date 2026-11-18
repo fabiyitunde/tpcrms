@@ -27,7 +27,7 @@ public class FlexibleDecimalConverter : JsonConverter<decimal>
         {
             var s = reader.GetString();
             if (string.IsNullOrWhiteSpace(s)) return 0m;
-            if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var result))
+            if (MoneyText.TryParse(s, out var result))
                 return result;
             return 0m;
         }
@@ -56,7 +56,7 @@ public class FlexibleNullableDecimalConverter : JsonConverter<decimal?>
         {
             var s = reader.GetString();
             if (string.IsNullOrWhiteSpace(s)) return null;
-            if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var result))
+            if (MoneyText.TryParse(s, out var result))
                 return result;
             return null;
         }
@@ -483,4 +483,56 @@ public sealed class TolerantPrimitiveConverter<T> : JsonConverter<T>
 
     public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
         => JsonSerializer.Serialize(writer, value); // default options (no factory) — no recursion
+}
+
+/// <summary>Amounts arrive as numbers, plain strings ("2514891"), grouped strings ("3,541,267") or with a
+/// currency prefix ("NGN   2,500,000", "₦1,000"). Strips a leading currency code or sign, then parses.</summary>
+internal static class MoneyText
+{
+    public static bool TryParse(string s, out decimal value)
+    {
+        if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+            return true;
+        var trimmed = s.Trim().TrimStart('₦', '$', '£', '€').Trim();
+        if (trimmed.Length > 3 && char.IsLetter(trimmed[0]) && char.IsLetter(trimmed[1]) && char.IsLetter(trimmed[2]))
+            trimmed = trimmed[3..].Trim();
+        return decimal.TryParse(trimmed, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
+    }
+}
+
+/// <summary>CRC's per-account payment history: individual reports send a string ("NNNN0N0"), company
+/// reports an object of months ({"MONTH1":{"month":"Dec-25","daysOverdue":"OK"},...}). The object is
+/// flattened to "Dec-25: OK; Nov-25: OK; ..." so both fit the same string field.</summary>
+public class PaymentHistoryConverter : JsonConverter<string?>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String) return reader.GetString();
+        if (reader.TokenType != JsonTokenType.StartObject && reader.TokenType != JsonTokenType.StartArray)
+        {
+            reader.TrySkip();
+            return null;
+        }
+
+        using var doc = JsonDocument.ParseValue(ref reader);
+        var entries = doc.RootElement.ValueKind == JsonValueKind.Object
+            ? doc.RootElement.EnumerateObject().Select(p => p.Value)
+            : doc.RootElement.EnumerateArray();
+        var parts = entries
+            .Where(e => e.ValueKind == JsonValueKind.Object)
+            .Select(e => (Month: Text(e, "month"), Days: Text(e, "daysOverdue")))
+            .Where(m => m.Month is not null || m.Days is not null)
+            .Select(m => $"{m.Month}: {m.Days}")
+            .ToList();
+        return parts.Count == 0 ? null : string.Join("; ", parts);
+    }
+
+    private static string? Text(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var v) && v.ValueKind is JsonValueKind.String or JsonValueKind.Number ? v.ToString() : null;
+
+    public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
+    {
+        if (value is null) writer.WriteNullValue();
+        else writer.WriteStringValue(value);
+    }
 }

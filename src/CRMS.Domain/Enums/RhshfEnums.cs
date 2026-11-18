@@ -48,6 +48,9 @@ public enum RhshfBureauOutcome
     Cleared,
     Flagged,
     Failed,
+    /// <summary>Neither bureau holds a file on the company: an answer, not a failure, and not a
+    /// clean pass either — there is no history to judge.</summary>
+    NoRecord,
 }
 
 /// <summary>Internal-only granularity behind the external UnderReview status (design doc §4/§5) —

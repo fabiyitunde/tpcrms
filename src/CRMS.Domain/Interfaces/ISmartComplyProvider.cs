@@ -16,7 +16,10 @@ public interface ISmartComplyProvider
     Task<Result<SmartComplyIndividualCreditReport>> GetCRCHistoryAsync(string bvn, CancellationToken ct = default);
     Task<Result<SmartComplyIndividualCreditReport>> GetCRCFullAsync(string bvn, CancellationToken ct = default);
     Task<Result<SmartComplyIndividualCreditReport>> GetCreditPremiumAsync(string bvn, CancellationToken ct = default);
-    
+    // Diagnostics: one individual pull, returned raw alongside exactly what the loan checks would read.
+    // "bureau" must be one of: "crc", "first_central", "credit_registry", "premium"; "kind" is "report" or "score".
+    Task<Result<SmartComplyIndividualCreditProbe>> ProbeIndividualCreditAsync(string bureau, string kind, string bvn, CancellationToken ct = default);
+
     #endregion
     
     #region Business Credit Reports
@@ -158,6 +161,19 @@ public record SmartComplyCreditScore(
     DateTime? GeneratedDate
 );
 
+/// <summary>A diagnostics pull: the raw response, what the CRMS made of it, and which response
+/// fields the CRMS does not read (UnreadFields) — the quick way to spot a bureau whose payload uses
+/// different names from the ones the mapping expects.</summary>
+public record SmartComplyIndividualCreditProbe(
+    string Bureau,
+    string Kind,
+    string RawJson,
+    SmartComplyIndividualCreditReport? Report,
+    SmartComplyCreditScore? Score,
+    string? ParseError,
+    IReadOnlyList<string> UnreadFields
+);
+
 public record SmartComplyBusinessCreditReport(
     string? Id,
     string? BusinessRegNo,
@@ -172,7 +188,10 @@ public record SmartComplyBusinessCreditReport(
     string? BusinessType,
     string? Email,
     SmartComplyBusinessCreditSummary Summary,
-    DateTime? SearchedDate
+    DateTime? SearchedDate,
+    // Per-account rows, same shapes as the individual report; null where the bureau sends none.
+    List<SmartComplyLoanPerformance>? LoanPerformance = null,
+    List<SmartComplyLoanHistory>? LoanHistory = null
 );
 
 public record SmartComplyBusinessCreditSummary(
@@ -189,7 +208,8 @@ public record SmartComplyBusinessCreditSummary(
     int TotalNoOfPerformingLoans,
     int TotalNoOfDelinquentFacilities,
     string? LastReportedDate,
-    string? ReportOrderNumber
+    string? ReportOrderNumber,
+    int MaxNoOfDays = 0
 );
 
 public record SmartComplyIndividualLoanRequest(

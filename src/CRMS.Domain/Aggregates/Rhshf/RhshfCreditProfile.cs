@@ -379,6 +379,19 @@ public class RhshfCreditProfile : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>Records that the bureaus answered but hold no file on the company — distinct from
+    /// a failed pull (nothing to retry) and from Cleared (no history is not a clean history).</summary>
+    public Result RecordBureauCheckNoRecord()
+    {
+        if (CurrentStage != RhshfProfilingStage.CreditBureauCheck)
+            return Result.Failure("Case is not on the credit bureau check stage.");
+
+        BureauCheckOutcome = RhshfBureauOutcome.NoRecord;
+        BureauCheckedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
     /// <summary>No fixed required-document checklist in v1 (see design doc) — any number of files,
     /// added only while on the SupportingDocuments stage.</summary>
     public Result<RhshfSupportingDocument> AddSupportingDocument(

@@ -157,17 +157,24 @@ else
                         case RhshfBureauOutcome.Failed:
                             <div class="alert alert-secondary">We couldn't complete an automated check right now. This won't block your application — our credit team will review manually.</div>
                             break;
+                        case RhshfBureauOutcome.NoRecord:
+                            <div class="alert alert-secondary">No credit record was found for your company at the credit bureaus. This won't block your application — our credit team will review it.</div>
+                            break;
                         default:
                             <div class="alert alert-secondary">Running credit bureau check…</div>
                             break;
                     }
                     @if (Model.Session.BureauCheckOutcome != RhshfBureauOutcome.NotRun)
                     {
+                        @* With no record there are no facilities to count; zeros would read as a clean history. *@
+                        @if (Model.Session.BureauCheckOutcome != RhshfBureauOutcome.NoRecord)
+                        {
                         <dl class="row">
                             <dt class="col-sm-6">Total facilities on record</dt><dd class="col-sm-6">@(Model.Session.BureauTotalLoans ?? 0)</dd>
                             <dt class="col-sm-6">Active facilities</dt><dd class="col-sm-6">@(Model.Session.BureauActiveLoans ?? 0)</dd>
                             <dt class="col-sm-6">Delinquent facilities</dt><dd class="col-sm-6">@(Model.Session.BureauDelinquentFacilities ?? 0)</dd>
                         </dl>
+                        }
 
                         <hr class="my-4" />
                         <h5 class="mb-1">Company directors</h5>

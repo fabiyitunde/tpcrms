@@ -98,7 +98,7 @@
                 </div>
                 <div class="info-item">
                     <span class="info-label">Bureau Outcome</span>
-                    <span class="info-value">@Workspace.BureauCheckOutcome</span>
+                    <span class="info-value">@(Workspace.BureauCheckOutcome == RhshfBureauOutcome.NoRecord ? "No record at either bureau" : Workspace.BureauCheckOutcome.ToString())</span>
                 </div>
                 @if (!string.IsNullOrWhiteSpace(Workspace.BranchResolutionNote))
                 {

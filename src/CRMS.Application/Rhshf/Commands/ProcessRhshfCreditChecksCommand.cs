@@ -2,6 +2,7 @@ using System.Text.Json;
 using CRMS.Application.Billing;
 using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.Common;
+using CRMS.Application.CreditBureau;
 using CRMS.Domain.Aggregates.CreditBureau;
 using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
@@ -149,20 +150,22 @@ public class ProcessRhshfCreditChecksHandler
                         await _bureauRepo.AddAsync(bureauReport, ct);
                         await _uow.SaveChangesAsync(ct);
 
-                        var checkResult = await _smartComply.GetCRCBusinessHistoryAsync(rcNumber, ct);
+                        var pull = await BureauFallback.GetBusinessReportAsync(_smartComply, rcNumber, ct);
+                        var checkResult = pull.Result;
                         if (checkResult.IsSuccess)
                         {
                             var report = checkResult.Value;
                             var summary = report.Summary;
+                            bureauReport.RecordProvider(pull.Bureau);
                             bureauReport.CompleteWithData(
                                 report.Id ?? rcNumber,
-                                null, null, // business CRC returns no individual score/grade
+                                null, null, // business reports carry no individual score/grade
                                 report.SearchedDate ?? DateTime.UtcNow,
                                 JsonSerializer.Serialize(report), null,
                                 summary.TotalNoOfLoans, summary.TotalNoOfActiveLoans, summary.TotalNoOfPerformingLoans,
                                 summary.TotalNoOfDelinquentFacilities, summary.TotalNoOfClosedLoans,
                                 summary.TotalOutstanding, summary.TotalOverdue, summary.HighestLoanAmount,
-                                0, false);
+                                summary.MaxNoOfDays, false);
 
                             // Keep the profile's flat summary fields in step — the queue and the
                             // advisory still read them, so they must not drift from the report rows.
@@ -180,7 +183,10 @@ public class ProcessRhshfCreditChecksHandler
                         else
                         {
                             MarkOutcome(bureauReport, checkResult.Error);
-                            profile.RecordBureauCheckFailure();
+                            if (bureauReport.Status == BureauReportStatus.NotFound)
+                                profile.RecordBureauCheckNoRecord();
+                            else
+                                profile.RecordBureauCheckFailure();
                             failed++;
                         }
 
@@ -225,16 +231,18 @@ public class ProcessRhshfCreditChecksHandler
             await _bureauRepo.AddAsync(bureauReport, ct);
             await _uow.SaveChangesAsync(ct);
 
-            var checkResult = await _smartComply.GetCRCFullAsync(bvn, ct);
+            var pull = await BureauFallback.GetIndividualReportAsync(_smartComply, bvn, ct);
+            var checkResult = pull.Result;
             if (checkResult.IsSuccess)
             {
                 var report = checkResult.Value;
                 var summary = report.Summary;
+                bureauReport.RecordProvider(pull.Bureau);
 
-                // Score is best-effort; an unavailable score stays null rather than invented.
+                // Score is best-effort, from the bureau that answered; an unavailable score stays null rather than invented.
                 int? creditScore = null;
                 string? scoreGrade = null;
-                var scoreResult = await _smartComply.GetCRCScoreAsync(bvn, ct);
+                var scoreResult = await BureauFallback.GetScoreAsync(_smartComply, pull.Bureau, bvn, ct);
                 if (scoreResult.IsSuccess && scoreResult.Value.Score > 0)
                 {
                     creditScore = scoreResult.Value.Score;
@@ -288,18 +296,20 @@ public class ProcessRhshfCreditChecksHandler
             await _bureauRepo.AddAsync(bureauReport, ct);
             await _uow.SaveChangesAsync(ct);
 
-            var checkResult = await _smartComply.GetCRCBusinessHistoryAsync(rc, ct);
+            var pull = await BureauFallback.GetBusinessReportAsync(_smartComply, rc, ct);
+            var checkResult = pull.Result;
             if (checkResult.IsSuccess)
             {
                 var report = checkResult.Value;
                 var summary = report.Summary;
+                bureauReport.RecordProvider(pull.Bureau);
                 bureauReport.CompleteWithData(
-                    report.Id ?? rc, null, null, // business CRC returns no individual score/grade
+                    report.Id ?? rc, null, null, // business reports carry no individual score/grade
                     report.SearchedDate ?? DateTime.UtcNow,
                     JsonSerializer.Serialize(report), null,
                     summary.TotalNoOfLoans, summary.TotalNoOfActiveLoans, summary.TotalNoOfPerformingLoans,
                     summary.TotalNoOfDelinquentFacilities, summary.TotalNoOfClosedLoans,
-                    summary.TotalOutstanding, summary.TotalOverdue, summary.HighestLoanAmount, 0, false);
+                    summary.TotalOutstanding, summary.TotalOverdue, summary.HighestLoanAmount, summary.MaxNoOfDays, false);
                 await _uow.SaveChangesAsync(ct);
                 return CheckOutcome.Success;
             }

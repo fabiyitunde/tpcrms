@@ -12,11 +12,13 @@ public static class SmartComplyEndpoints
         public const string CreditRegistryFull = "/api/onboarding/individual/credit_registry_full/";
         public const string CreditRegistryAdvanced = "/api/onboarding/individual/credit_registry_history_advanced/";
         public const string CRCScore = "/api/onboarding/individual/credit_scores_crc/";
-        // CRCHistory and CRCFull both call crc_summary — the API has one endpoint for CRC loan data.
-        // CRCScore (credit_scores_crc) is the separate call needed to get the FICO score.
+        // CRCFull still points at crc_summary (totals only). The v3 docs list crc_full, which adds the
+        // per-loan rows, enquiries, performing count and highest amount, but it answered "temporarily
+        // unavailable" on 2026-11-17 and was moved off in May for reasons not recorded. Switch only
+        // after one live crc_full pull succeeds. CRCScore (credit_scores_crc) is the separate FICO call.
         public const string CRCHistory = "/api/onboarding/individual/crc_summary/";
         public const string CRCFull = "/api/onboarding/individual/crc_summary/";
-        public const string CreditPremium = "/api/onboarding/individual/credit_premium/";
+        public const string CreditPremium = "/api/onboarding/individual/premium/";
     }
     
     // Business Credit Report Endpoints
