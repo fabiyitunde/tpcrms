@@ -353,9 +353,7 @@ public class SmartComplyProvider : ISmartComplyProvider
         if (endpoint is null)
             return Result.Failure<string>($"Unknown bureau '{bureau}'. Valid values: crc, first_central, premium.");
 
-        var normalizedRc = rcNumber.StartsWith("RC", StringComparison.OrdinalIgnoreCase)
-            ? rcNumber
-            : "RC" + rcNumber;
+        var normalizedRc = BureauRegistrationNumber(rcNumber);
 
         try
         {
@@ -379,11 +377,7 @@ public class SmartComplyProvider : ISmartComplyProvider
     {
         try
         {
-            // SmartComply requires the "RC" prefix (e.g. "RC1275857"). Normalise silently so
-            // bare numeric strings stored in the DB still work.
-            var normalizedRc = rcNumber.StartsWith("RC", StringComparison.OrdinalIgnoreCase)
-                ? rcNumber
-                : "RC" + rcNumber;
+            var normalizedRc = BureauRegistrationNumber(rcNumber);
 
             _logger.LogInformation("Requesting {ReportType} for RC {RcNumber}", reportType, normalizedRc);
 
@@ -885,6 +879,23 @@ public class SmartComplyProvider : ISmartComplyProvider
             _logger.LogError(ex, "Error fetching raw CAC response for RC {RcNumber}", rcNumber);
             return Result.Failure<string>($"Error: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// The business credit endpoints take the number with its entity prefix — they reject a bare
+    /// number with "Expected format: RC12345, BN12345, or IT12345 (1-8 digits)" (verified live
+    /// 2026-11-18). Keep a BN/IT/RC prefix as given (upper-cased, separators dropped) and only
+    /// assume RC for a bare number, as stored RC numbers often are.
+    /// </summary>
+    internal static string BureauRegistrationNumber(string rcNumber)
+    {
+        var trimmed = rcNumber.Trim();
+        foreach (var prefix in new[] { "RC", "BN", "IT" })
+        {
+            if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return prefix + trimmed[prefix.Length..].TrimStart(' ', '-', '/', '.', ':');
+        }
+        return "RC" + trimmed;
     }
 
     /// <summary>

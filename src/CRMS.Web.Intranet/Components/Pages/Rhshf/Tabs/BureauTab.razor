@@ -98,7 +98,7 @@
                 <div>
                     <div style="font-weight: 600;">@r.SubjectName</div>
                     <div style="font-size: 0.75rem; color: var(--gray-500);">
-                        @(isBusiness ? "Business credit history (CRC)" : (string.IsNullOrEmpty(r.Bvn) ? "No BVN on file" : $"BVN: {r.Bvn}"))
+                        @(isBusiness ? "Business credit history" : (string.IsNullOrEmpty(r.Bvn) ? "No BVN on file" : $"BVN: {r.Bvn}"))
                     </div>
                 </div>
                 @* Business CRC returns no individual score, so no circle for company cards. *@
@@ -124,7 +124,7 @@
                         <span class="material-symbols-outlined" style="font-size: 36px; color: var(--gray-300); display: block; margin-bottom: 0.5rem;">manage_search</span>
                         <div style="font-weight: 600; font-size: 0.8rem; color: var(--gray-600); margin-bottom: 0.25rem;">No Credit File Registered</div>
                         <div style="font-size: 0.75rem; color: var(--gray-500); line-height: 1.5;">
-                            No formal @(isBusiness ? "business " : "")credit history found in CRC. Assessment must rely on the appraisal and collateral.
+                            No formal @(isBusiness ? "business " : "")credit history found at the credit bureaus checked. Assessment must rely on the appraisal and collateral.
                         </div>
                     </div>
                 }
@@ -211,6 +211,7 @@
                         <span class="badge badge-success">
                             <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">check_circle</span> Completed
                         </span>
+                        <BureauSourceTag Provider="@r.Provider" Status="@r.Status" />
                         break;
                     case "Failed":
                         <span class="badge badge-danger" title="@r.ErrorMessage">

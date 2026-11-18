@@ -292,7 +292,11 @@ public class SmartComplyProviderLiveIntegrationTests : IAsyncLifetime
                 // Business endpoints take an RC number (normalised as the provider does); individual ones a BVN.
                 var isBusiness = path.Contains("/business/", StringComparison.OrdinalIgnoreCase);
                 if (isBusiness) Skip.If(string.IsNullOrEmpty(_testRcNumber), "SmartComply:TestRcNumber not configured");
-                var rc = _testRcNumber.StartsWith("RC", StringComparison.OrdinalIgnoreCase) ? _testRcNumber : "RC" + _testRcNumber;
+                // SmartComply__BareRc=true sends the number without its "RC" prefix, to compare formats.
+                var bareRc = string.Equals(Environment.GetEnvironmentVariable("SmartComply__BareRc"), "true", StringComparison.OrdinalIgnoreCase);
+                var rc = bareRc
+                    ? (_testRcNumber.StartsWith("RC", StringComparison.OrdinalIgnoreCase) ? _testRcNumber[2..] : _testRcNumber)
+                    : (_testRcNumber.StartsWith("RC", StringComparison.OrdinalIgnoreCase) ? _testRcNumber : "RC" + _testRcNumber);
                 var requestBody = isBusiness
                     ? System.Text.Json.JsonSerializer.Serialize(new { registration_number = rc })
                     : System.Text.Json.JsonSerializer.Serialize(new { bvn = _testBvn });

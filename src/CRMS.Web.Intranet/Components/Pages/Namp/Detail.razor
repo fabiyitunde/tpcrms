@@ -1476,7 +1476,7 @@ else
                                         <div style="grid-column:1/-1;text-align:center;padding:0.75rem 0.25rem;">
                                             <span class="material-symbols-outlined" style="font-size:36px;color:var(--gray-300);display:block;margin-bottom:0.5rem;">manage_search</span>
                                             <div style="font-weight:600;font-size:0.8rem;color:var(--gray-600);margin-bottom:0.25rem;">No Credit File Registered</div>
-                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal credit history found in CRC. Assessment must rely on financial statements, collateral, and guarantors.</div>
+                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal credit history found at the credit bureaus checked. Assessment must rely on financial statements, collateral, and guarantors.</div>
                                         </div>
                                     }
                                     else
@@ -1520,7 +1520,7 @@ else
                                 </div>
                                 <div class="namp-bureau-card-footer">
                                     @if (r.Status == "Completed")
-                                    { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> }
+                                    { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> <BureauSourceTag Provider="@r.Provider" Status="@r.Status" /> }
                                     else if (r.Status == "Failed")
                                     { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
@@ -1557,7 +1557,7 @@ else
                                 <div class="namp-bureau-card-header">
                                     <div>
                                         <div style="font-weight: 600;">@r.SubjectName</div>
-                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">Business credit history (CRC)</div>
+                                        <div style="font-size: var(--text-xs); color: var(--gray-500);">Business credit history</div>
                                     </div>
                                 </div>
                                 <div class="namp-bureau-card-body">
@@ -1566,7 +1566,7 @@ else
                                         <div style="grid-column:1/-1;text-align:center;padding:0.75rem 0.25rem;">
                                             <span class="material-symbols-outlined" style="font-size:36px;color:var(--gray-300);display:block;margin-bottom:0.5rem;">manage_search</span>
                                             <div style="font-weight:600;font-size:0.8rem;color:var(--gray-600);margin-bottom:0.25rem;">No Credit File Registered</div>
-                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal business credit history found in CRC. Assessment must rely on financial statements and collateral.</div>
+                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal business credit history found at CRC or First Central. Assessment must rely on financial statements and collateral.</div>
                                         </div>
                                     }
                                     else
@@ -1595,7 +1595,7 @@ else
                                 </div>
                                 <div class="namp-bureau-card-footer">
                                     @if (r.Status == "Completed")
-                                    { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> }
+                                    { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> <BureauSourceTag Provider="@r.Provider" Status="@r.Status" /> }
                                     else if (r.Status == "Failed")
                                     { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
@@ -1653,7 +1653,7 @@ else
                                         <div style="grid-column:1/-1;text-align:center;padding:0.75rem 0.25rem;">
                                             <span class="material-symbols-outlined" style="font-size:36px;color:var(--gray-300);display:block;margin-bottom:0.5rem;">manage_search</span>
                                             <div style="font-weight:600;font-size:0.8rem;color:var(--gray-600);margin-bottom:0.25rem;">No Credit File Registered</div>
-                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal credit history found in CRC. Assessment must rely on financial statements, collateral, and guarantors.</div>
+                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal credit history found at the credit bureaus checked. Assessment must rely on financial statements, collateral, and guarantors.</div>
                                         </div>
                                     }
                                     else
@@ -1697,7 +1697,7 @@ else
                                 </div>
                                 <div class="namp-bureau-card-footer">
                                     @if (r.Status == "Completed")
-                                    { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> }
+                                    { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> <BureauSourceTag Provider="@r.Provider" Status="@r.Status" /> }
                                     else if (r.Status == "Failed")
                                     { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
@@ -1755,7 +1755,7 @@ else
                                         <div style="grid-column:1/-1;text-align:center;padding:0.75rem 0.25rem;">
                                             <span class="material-symbols-outlined" style="font-size:36px;color:var(--gray-300);display:block;margin-bottom:0.5rem;">manage_search</span>
                                             <div style="font-weight:600;font-size:0.8rem;color:var(--gray-600);margin-bottom:0.25rem;">No Credit File Registered</div>
-                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal credit history found in CRC. Assessment must rely on financial statements, collateral, and guarantors.</div>
+                                            <div style="font-size:0.75rem;color:var(--gray-500);line-height:1.5;">No formal credit history found at the credit bureaus checked. Assessment must rely on financial statements, collateral, and guarantors.</div>
                                         </div>
                                     }
                                     else
@@ -1799,7 +1799,7 @@ else
                                 </div>
                                 <div class="namp-bureau-card-footer">
                                     @if (r.Status == "Completed")
-                                    { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> }
+                                    { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> <BureauSourceTag Provider="@r.Provider" Status="@r.Status" /> }
                                     else if (r.Status == "Failed")
                                     { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")

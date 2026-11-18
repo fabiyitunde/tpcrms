@@ -188,7 +188,8 @@ public class GetNampApplicationByIdHandler
             r.TotalOverdue,
             r.FraudRecommendation,
             r.ErrorMessage,
-            r.CreatedAt
+            r.CreatedAt,
+            r.Provider.ToString()
         )).ToList(),
         app.PreDeploymentChecklist.Select(i => new NampPreDeploymentChecklistItemDto(
             i.Id,

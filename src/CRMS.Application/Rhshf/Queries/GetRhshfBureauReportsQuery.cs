@@ -27,7 +27,8 @@ public record RhshfBureauReportDto(
     string? FraudRecommendation,
     string? ErrorMessage,
     string? RawResponseJson,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? Provider = null);
 
 public class GetRhshfBureauReportsHandler
     : IRequestHandler<GetRhshfBureauReportsQuery, ApplicationResult<List<RhshfBureauReportDto>>>
@@ -72,7 +73,8 @@ public class GetRhshfBureauReportsHandler
                 r.FraudRecommendation,
                 r.ErrorMessage,
                 r.RawResponseJson,
-                r.CreatedAt))
+                r.CreatedAt,
+                r.Provider.ToString()))
             .ToList();
 
         return ApplicationResult<List<RhshfBureauReportDto>>.Success(dtos);

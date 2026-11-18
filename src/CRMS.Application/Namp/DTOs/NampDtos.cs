@@ -229,7 +229,8 @@ public record NampBureauReportDto(
     decimal? TotalOverdue,
     string? FraudRecommendation,
     string? ErrorMessage,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    string? Provider = null
 );
 
 public record NampDocumentDto(

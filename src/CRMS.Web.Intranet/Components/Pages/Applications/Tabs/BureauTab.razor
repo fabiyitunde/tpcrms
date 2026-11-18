@@ -140,8 +140,11 @@
                                             Not Found
                                         </span>
                                     }
-                                    <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: auto;">
-                                        @(report.IsScoreDerived ? "Internally Calculated" : report.Provider) | @report.ReportDate.ToString("MMM dd, yyyy")
+                                    <span style="margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-2);">
+                                        <BureauSourceTag Provider="@report.Provider" Status="@report.Status" />
+                                        <span style="font-size: var(--text-xs); color: var(--gray-500);" title="@(report.IsScoreDerived ? "The bureau returned no score, so the CRMS calculated one from the report" : null)">
+                                            @(report.IsScoreDerived ? "Score calculated internally | " : "")@report.ReportDate.ToString("MMM dd, yyyy")
+                                        </span>
                                     </span>
                                     <button class="btn btn-ghost btn-sm" style="margin-left: var(--space-2);" @onclick="() => OnViewReport.InvokeAsync(report.Id)" title="View Details">
                                         <span class="material-symbols-outlined" style="font-size: 16px;">open_in_new</span>
@@ -247,8 +250,11 @@
                                             Not Found
                                         </span>
                                     }
-                                    <span style="font-size: var(--text-xs); color: var(--gray-500); margin-left: auto;">
-                                        @(report.IsScoreDerived ? "Internally Calculated" : report.Provider) | @report.ReportDate.ToString("MMM dd, yyyy")
+                                    <span style="margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-2);">
+                                        <BureauSourceTag Provider="@report.Provider" Status="@report.Status" />
+                                        <span style="font-size: var(--text-xs); color: var(--gray-500);" title="@(report.IsScoreDerived ? "The bureau returned no score, so the CRMS calculated one from the report" : null)">
+                                            @(report.IsScoreDerived ? "Score calculated internally | " : "")@report.ReportDate.ToString("MMM dd, yyyy")
+                                        </span>
                                     </span>
                                     <button class="btn btn-ghost btn-sm" style="margin-left: var(--space-2);" @onclick="() => OnViewReport.InvokeAsync(report.Id)" title="View Details">
                                         <span class="material-symbols-outlined" style="font-size: 16px;">open_in_new</span>

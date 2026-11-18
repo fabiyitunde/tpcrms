@@ -29,8 +29,9 @@
                         </div>
                         <div style="margin-top: var(--space-2);">
                             <span class="badge @GetStatusBadgeClass(Report.Status)">@Report.Status</span>
+                            <BureauSourceTag Provider="@Report.Provider" Status="@Report.Status" />
                             <span style="margin-left: var(--space-2); font-size: var(--text-xs); color: var(--gray-500);">
-                                @Report.Provider • @Report.ReportDate.ToString("MMM dd, yyyy HH:mm")
+                                @Report.ReportDate.ToString("MMM dd, yyyy HH:mm")
                             </span>
                         </div>
                     </div>

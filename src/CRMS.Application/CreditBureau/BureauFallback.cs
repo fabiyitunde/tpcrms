@@ -9,68 +9,78 @@ namespace CRMS.Application.CreditBureau;
 public sealed record BureauPull<T>(Result<T> Result, CreditBureauProvider Bureau);
 
 /// <summary>
-/// Every loan track's bureau pull goes CRC first, then First Central — whenever CRC has no record
-/// or the CRC call fails. A pull only reads "not found" when <i>both</i> bureaus said so, so the
-/// handlers' existing "not found" test keeps meaning "no bureau holds a file for this subject".
+/// Every loan track's bureau pull works down a chain of bureaus, moving on whenever one has no
+/// record or its call fails: individuals go CRC, First Central, then Credit Registry; companies go
+/// CRC, then First Central (SmartComply has no Credit Registry company report). A pull only reads
+/// "not found" when <i>every</i> bureau tried said so, so the handlers' existing "not found" test
+/// keeps meaning "no bureau holds a file for this subject".
 /// </summary>
 public static class BureauFallback
 {
     private const string NotFound = "Subject not found in credit bureau";
 
-    public static async Task<BureauPull<SmartComplyIndividualCreditReport>> GetIndividualReportAsync(
-        ISmartComplyProvider smartComply, string bvn, CancellationToken ct)
-    {
-        var crc = await smartComply.GetCRCFullAsync(bvn, ct);
-        if (crc.IsSuccess) return new(crc, CreditBureauProvider.CRC);
-
-        var firstCentral = await smartComply.GetFirstCentralFullAsync(bvn, ct);
-        return firstCentral.IsSuccess
-            ? new(firstCentral, CreditBureauProvider.FirstCentral)
-            : new(Combine<SmartComplyIndividualCreditReport>(crc.Error, firstCentral.Error), CreditBureauProvider.FirstCentral);
-    }
+    public static Task<BureauPull<SmartComplyIndividualCreditReport>> GetIndividualReportAsync(
+        ISmartComplyProvider smartComply, string bvn, CancellationToken ct) =>
+        PullAsync(
+        [
+            (CreditBureauProvider.CRC, () => smartComply.GetCRCFullAsync(bvn, ct)),
+            (CreditBureauProvider.FirstCentral, () => smartComply.GetFirstCentralFullAsync(bvn, ct)),
+            (CreditBureauProvider.CreditRegistry, () => smartComply.GetCreditRegistryFullAsync(bvn, ct)),
+        ]);
 
     /// <summary>The score comes from the same bureau as the report, so the two never describe
-    /// different files.</summary>
+    /// different files. Credit Registry has no score report on SmartComply, so its pulls get none
+    /// and the handlers fall back to their derived score.</summary>
     public static Task<Result<SmartComplyCreditScore>> GetScoreAsync(
         ISmartComplyProvider smartComply, CreditBureauProvider bureau, string bvn, CancellationToken ct) =>
-        bureau == CreditBureauProvider.FirstCentral
-            ? smartComply.GetFirstCentralScoreAsync(bvn, ct)
-            : smartComply.GetCRCScoreAsync(bvn, ct);
+        bureau switch
+        {
+            CreditBureauProvider.FirstCentral => smartComply.GetFirstCentralScoreAsync(bvn, ct),
+            CreditBureauProvider.CreditRegistry => Task.FromResult(
+                Result.Failure<SmartComplyCreditScore>("Credit Registry has no score report")),
+            _ => smartComply.GetCRCScoreAsync(bvn, ct)
+        };
 
-    public static async Task<BureauPull<SmartComplyBusinessCreditReport>> GetBusinessReportAsync(
-        ISmartComplyProvider smartComply, string rcNumber, CancellationToken ct)
-    {
-        var crc = await smartComply.GetCRCBusinessHistoryAsync(rcNumber, ct);
-        if (crc.IsSuccess) return new(crc, CreditBureauProvider.CRC);
-
-        var firstCentral = await smartComply.GetFirstCentralBusinessAsync(rcNumber, ct);
-        return firstCentral.IsSuccess
-            ? new(firstCentral, CreditBureauProvider.FirstCentral)
-            : new(Combine<SmartComplyBusinessCreditReport>(crc.Error, firstCentral.Error), CreditBureauProvider.FirstCentral);
-    }
+    public static Task<BureauPull<SmartComplyBusinessCreditReport>> GetBusinessReportAsync(
+        ISmartComplyProvider smartComply, string rcNumber, CancellationToken ct) =>
+        PullAsync(
+        [
+            (CreditBureauProvider.CRC, () => smartComply.GetCRCBusinessHistoryAsync(rcNumber, ct)),
+            (CreditBureauProvider.FirstCentral, () => smartComply.GetFirstCentralBusinessAsync(rcNumber, ct)),
+        ]);
 
     public static string Label(CreditBureauProvider bureau) => bureau switch
     {
         CreditBureauProvider.FirstCentral => "First Central",
+        CreditBureauProvider.CreditRegistry => "Credit Registry",
         _ => bureau.ToString()
     };
 
-    private static Result<T> Combine<T>(string? crcError, string? firstCentralError)
+    private static async Task<BureauPull<T>> PullAsync<T>(
+        IReadOnlyList<(CreditBureauProvider Bureau, Func<Task<Result<T>>> Pull)> chain)
     {
-        var crcNone = IsNotFound(crcError);
-        var fcNone = IsNotFound(firstCentralError);
-        if (crcNone && fcNone)
-            return Result.Failure<T>($"{NotFound} (CRC and First Central)");
+        var errors = new List<(CreditBureauProvider Bureau, string? Error)>();
+        foreach (var (bureau, pull) in chain)
+        {
+            var result = await pull();
+            if (result.IsSuccess) return new(result, bureau);
+            errors.Add((bureau, result.Error));
+        }
+        return new(Combine<T>(errors), chain[^1].Bureau);
+    }
+
+    private static Result<T> Combine<T>(IReadOnlyList<(CreditBureauProvider Bureau, string? Error)> errors)
+    {
+        var names = string.Join(", ", errors.Select(e => Label(e.Bureau)));
+        if (errors.All(e => IsNotFound(e.Error)))
+            return Result.Failure<T>($"{NotFound} ({names})");
 
         // At least one bureau failed outright, so "no record" is not proven. Keep the phrase
         // "not found" out of the message, or callers would file it as a clean no-record outcome.
-        return Result.Failure<T>(
-            $"CRC: {Describe(crcError, crcNone)}; First Central: {Describe(firstCentralError, fcNone)}");
+        return Result.Failure<T>(string.Join("; ",
+            errors.Select(e => $"{Label(e.Bureau)}: {(IsNotFound(e.Error) ? "no record" : e.Error ?? "unknown error")}")));
     }
 
     private static bool IsNotFound(string? error) =>
         error?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true;
-
-    private static string Describe(string? error, bool none) =>
-        none ? "no record" : error ?? "unknown error";
 }

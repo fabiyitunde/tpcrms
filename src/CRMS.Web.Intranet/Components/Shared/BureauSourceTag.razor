@@ -1,0 +1,46 @@
+@* The bureau that produced a credit report, for the corner of a report card. Loan checks try
+   CRC, then First Central, then (individuals only) Credit Registry, so the answer differs per
+   report. Reports saved before the bureau was recorded say "SmartComply"; every loan check then
+   pulled CRC, so they read as CRC. Shown only for a completed report: a failed or not-found
+   pull has no single bureau behind it. *@
+
+@if (Label is not null)
+{
+    <span class="bureau-source-tag" title="Credit bureau that produced this report">
+        <span class="material-symbols-outlined" style="font-size: 14px;">account_balance</span>
+        @Label
+    </span>
+}
+
+<style>
+    .bureau-source-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--gray-100);
+        color: var(--gray-700);
+        font-size: var(--text-xs);
+        font-weight: 600;
+        white-space: nowrap;
+        margin-left: auto; /* right-hand corner of a flex footer */
+    }
+</style>
+
+@code {
+    /// <summary>The stored provider name, e.g. "CRC", "FirstCentral", "CreditRegistry".</summary>
+    [Parameter] public string? Provider { get; set; }
+
+    /// <summary>The report's status; the tag shows only for "Completed".</summary>
+    [Parameter] public string? Status { get; set; }
+
+    private string? Label => Status != "Completed" ? null : Provider switch
+    {
+        "CRC" or "SmartComply" => "CRC",
+        "FirstCentral" => "First Central",
+        "CreditRegistry" => "Credit Registry",
+        null or "" => null,
+        var other => other
+    };
+}
