@@ -146,13 +146,15 @@ public class CoreBankingService : ICoreBankingService
 
     public Task<Result<IReadOnlyList<DirectorInfo>>> GetDirectorsAsync(string corporateId, CancellationToken ct = default)
     {
-        // corporateId in the current flow is the CBS client ID; but fulldetailsbynuban needs the NUBAN.
-        // When called from InitiateCorporateLoanCommand, it passes customer.CustomerId (CBS client ID).
-        // This is the legacy fallback path. In the real API we only have NUBAN-based lookup.
-        // The details should already be cached from the preceding GetCustomerByAccountNumberAsync call.
-        var cached = _detailsCache.Values.FirstOrDefault();
+        // corporateId is the CBS client ID (CustomerId / CorporateId), but fulldetailsbynuban is looked up
+        // by NUBAN, so the directors come from the details an earlier account lookup on this instance
+        // cached. They must be that customer's: picking whichever account was read first could return
+        // another company's directors. Not read yet is a failure, not an empty list — "no directors" and
+        // "never looked up" must not look the same.
+        var cached = _detailsCache.Values.FirstOrDefault(d => d.ClientDetails?.Id.ToString() == corporateId);
         if (cached == null)
-            return Task.FromResult(Result.Success<IReadOnlyList<DirectorInfo>>(new List<DirectorInfo>()));
+            return Task.FromResult(Result.Failure<IReadOnlyList<DirectorInfo>>(
+                $"Directors for core banking customer {corporateId} are not available: that customer's account details have not been read."));
 
         var directors = (cached.Directors ?? [])
             .Select((d, i) => new DirectorInfo(
