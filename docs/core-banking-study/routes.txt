@@ -1,0 +1,442 @@
+== ./accounting/chequeclearing/api/ChequeClearingApiResource.java [/tp/chequeclearing]
+  69 @GET /tp/chequeclearing/  getChequeClearingAggregateData
+  78 @POST /tp/chequeclearing/  createNewChequeClearing
+  92 @GET /tp/chequeclearing//list  retrieveAllChequeClearings
+  102 @GET /tp/chequeclearing//{chequeClearingID}  retrieveChequeClearingDetails
+  112 @POST /tp/chequeclearing//cancel/validate  validateCancelChequeClearing
+  124 @POST /tp/chequeclearing//cancel  cancelChequeClearing
+== ./accounting/journalentry/api/TPJournalEntriesApiResource.java [/tp/journalentries]
+  71 @POST /tp/journalentries/acc_mapping  createGLJournalEntryByAccountMapping
+== ./batch/api/TPBatchApiResource.java [/tp/batches]
+  90 @POST /tp/batches/  handleBatchRequests
+== ./commands/api/TPMakerCheckerNotificationsApiResource.java [/tp/makerchecker/notifications]
+  69 @GET /tp/makerchecker/notifications/  getPendingNotifications
+  84 @GET /tp/makerchecker/notifications//all  getAllNotifications
+  99 @GET /tp/makerchecker/notifications//count  getPendingNotificationCount
+  113 @POST /tp/makerchecker/notifications//{notificationId}/read  markNotificationAsRead
+  128 @POST /tp/makerchecker/notifications//{notificationId}/dismiss  dismissNotification
+  143 @POST /tp/makerchecker/notifications//read-all  markAllNotificationsAsRead
+== ./commands/api/TPMakercheckersApiResource.java [/tp/makercheckers]
+  140 @GET /tp/makercheckers/  retrieveCommandsWithTellerContext
+  181 @GET /tp/makercheckers/{auditId}  retrieveSingleEntryWithTellerContext
+  202 @GET /tp/makercheckers/{auditId}/validate  validateEntryBeforeApproval
+  247 @POST /tp/makercheckers/basic/{auditId}  approveMakerCheckerEntry
+  310 @POST /tp/makercheckers/{auditId}  approvOrRejectMakerCheckerEntry
+  455 @DELETE /tp/makercheckers/{auditId}  deleteMakerCheckerEntry
+== ./commands/api/TPMakerCheckersRestrictionApiResource.java [/tp/makercheckers/restrictions]
+  61 @GET /tp/makercheckers/restrictions/  getMakerCheckersRestrictions
+  71 @POST /tp/makercheckers/restrictions/  createMakerCheckersRestriction
+  85 @GET /tp/makercheckers/restrictions/{restrictionId}  getMakerCheckersRestriction
+  96 @PUT /tp/makercheckers/restrictions/  updateMakerCheckersRestriction
+  110 @DELETE /tp/makercheckers/restrictions/{restrictionId}  deleteMakerCheckersRestriction
+== ./commands/approvallimit/api/RoleApprovalLimitsApiResource.java [/tp/roleapprovallimits]
+  66 @GET /tp/roleapprovallimits/  retrieveAll
+  80 @GET /tp/roleapprovallimits/template  retrieveTemplate
+  95 @GET /tp/roleapprovallimits/role/{roleId}  retrieveByRoleId
+  111 @GET /tp/roleapprovallimits/{limitId}  retrieveOne
+  127 @GET /tp/roleapprovallimits/{limitId}/template  retrieveTemplateWithData
+  143 @POST /tp/roleapprovallimits/  create
+  161 @PUT /tp/roleapprovallimits/{limitId}  update
+  182 @DELETE /tp/roleapprovallimits/{limitId}  delete
+== ./infrastructure/bulkimport/api/TPBulkImportApiResource.java [/tp/bulkimport]
+  63 @GET /tp/bulkimport/template  getOutputTemplate
+  70 @POST /tp/bulkimport/  createBulkImport
+  82 @GET /tp/bulkimport/  getBulkImportList
+  93 @GET /tp/bulkimport/details/{bulkImportId}  getBulkImportDetails
+  108 @GET /tp/bulkimport/detailsdownload/{bulkImportId}  downloadBulkImportDetails
+  123 @GET /tp/bulkimport/item/{bulkImportItemId}  getBulkImportLogs
+  134 @POST /tp/bulkimport/approve  approveBulkImport
+  147 @DELETE /tp/bulkimport/delete/{bulkImportId}  deleteBulkImport
+== ./infrastructure/cbnreports/api/CBNReportApiResource.java [/tp/cbn-report]
+  57 @GET /tp/cbn-report/  getAllCBNReportGroupsAndDetails
+  65 @POST /tp/cbn-report//mapping  createReportMapping
+  74 @PUT /tp/cbn-report//mapping  updateReportMapping
+  81 @DELETE /tp/cbn-report//mapping/{id}  deleteReportMapping
+  90 @POST /tp/cbn-report//generate  getReport
+  99 @POST /tp/cbn-report//excel  exportExcel
+== ./infrastructure/documentmanagement/api/TPDocumentManagementApiResource.java [tp/{entityType}/{entityId}/documents]
+  103 @GET tp/{entityType}/{entityId}/documents/  retrieveAllDocuments
+  122 @POST tp/{entityType}/{entityId}/documents/  createDocument
+  151 @POST tp/{entityType}/{entityId}/documents/setverified  setVerifiedStatus
+  165 @PUT tp/{entityType}/{entityId}/documents/{documentId}  updateDocument
+  212 @GET tp/{entityType}/{entityId}/documents/{documentId}  getDocument
+  232 @DELETE tp/{entityType}/{entityId}/documents/{documentId}  deleteDocument
+== ./infrastructure/security/api/TPAuthenticationApiResource.java [/tp/authentication]
+  109 @POST /tp/authentication/  authenticate
+  200 @GET /tp/authentication/authtoken/{token}  verifyToken
+== ./organisation/broadcast/api/BroadcastApiResource.java [/tp/broadcast]
+  61 @POST /tp/broadcast/  createBroadcast
+  79 @GET /tp/broadcast/  getBroadcasts
+== ./portfolio/account/api/TPAccountTransfersApiResource.java [/tp/accounttransfers]
+  82 @GET /tp/accounttransfers/template  template
+  110 @POST /tp/accounttransfers/  create
+  124 @GET /tp/accounttransfers/  retrieveAll
+  149 @GET /tp/accounttransfers/{transferId}  retrieveOne
+== ./portfolio/chargemaster/api/TPChargeMasterApiResource.java [/tp/chargemaster]
+  70 @GET /tp/chargemaster/products  getProductCharges
+  77 @GET /tp/chargemaster/products/{code}  getProductCharge
+  84 @GET /tp/chargemaster/accounts  getAccountCharges
+  91 @GET /tp/chargemaster/accounts/{code}  getAccountCharge
+  98 @POST /tp/chargemaster/accounts  createAccountCharge
+  110 @POST /tp/chargemaster/accounts/activate/{code}  activateAccountCharge
+  117 @DELETE /tp/chargemaster/accounts/{code}  deleteAccountCharge
+  124 @GET /tp/chargemaster/splits/{masterCode}  getSplits
+  131 @POST /tp/chargemaster/splits/customer-account  createCustomerAccountSplit
+  139 @POST /tp/chargemaster/splits/gl  createGLSplit
+  147 @DELETE /tp/chargemaster/splits/{id}  deleteSplit
+  160 @GET /tp/chargemaster/history  getChargesHistory
+  174 @GET /tp/chargemaster/settlements/accrued  getAccruedSettlements
+  185 @POST /tp/chargemaster/settlements  requestSettlement
+== ./portfolio/charges/api/TPChargesApiResource.java [/tp/charges]
+  68 @GET /tp/charges/types  retrieveChargeTypes
+  76 @GET /tp/charges/types/{chargeTypeId}  retrieveChargeType
+  84 @PUT /tp/charges/types/{chargeTypeId}  updateChargeType
+  95 @GET /tp/charges/configuration  retrieveConfiguration
+  103 @PUT /tp/charges/configuration  updateConfiguration
+  113 @GET /tp/charges/batches  retrieveBatches
+  124 @GET /tp/charges/batches/{headerId}  retrieveBatch
+  132 @GET /tp/charges/batches/{headerId}/items  retrieveBatchItems
+  141 @GET /tp/charges/batches/{headerId}/action-preview  previewBatchAction
+  149 @POST /tp/charges/batches/{headerId}  batchAction
+  166 @GET /tp/charges/details  retrieveChargeDetails
+== ./portfolio/client/api/DirectorsApiResource.java [/tp/directors]
+  59 @POST /tp/directors/{clientId}  createDirectors
+  76 @GET /tp/directors/{clientId}  getDirectors
+  87 @PUT /tp/directors/{clientId}  updateDirectors
+  104 @DELETE /tp/directors/{clientId}/{directorId}  deleteDirectors
+  121 @POST /tp/directors/{clientId}/{directorId}  setDirectorStatus
+== ./portfolio/client/api/MerchantsApiResource.java [/tp/merchants]
+  60 @GET /tp/merchants/  getMerchants
+  66 @GET /tp/merchants/{clientId}/transfers  getTransfers
+  84 @GET /tp/merchants/{clientId}/transfers/{nuban}  getInwardTransfersByNuban
+  93 @GET /tp/merchants/  subledgers
+  101 @GET /tp/merchants/  collectionAccounts
+  108 @POST /tp/merchants/{clientId}/collection-accounts  setCollectionAccount
+  118 @GET /tp/merchants/  getGroupCodeCollectionAccount
+  126 @GET /tp/merchants/callback-url/{clientId}  getCallbackUrls
+  133 @POST /tp/merchants/callback-url/{clientId}  setCallbackUrl
+  143 @GET /tp/merchants/getaccount/{nuban}  getAccount
+  149 @GET /tp/merchants/groupcodes/{clientId}  getGroupCodes
+  156 @POST /tp/merchants/groupcodes  createGroupCode
+== ./portfolio/client/api/ShareholdersApiResource.java [/tp/shareholders]
+  56 @GET /tp/shareholders/{clientId}  retrieveShareholders
+  65 @POST /tp/shareholders/{clientId}  createShareholder
+  74 @PUT /tp/shareholders/{clientId}/{shareholderId}  updateShareholder
+  84 @DELETE /tp/shareholders/{clientId}/{shareholderId}  deleteShareholder
+== ./portfolio/client/api/SignatoriesApiResource.java [/tp/signatories]
+  57 @POST /tp/signatories/{clientId}  createSignatories
+  74 @GET /tp/signatories/{clientId}  getSignatories
+  85 @PUT /tp/signatories/{clientId}  updateSignatories
+  102 @DELETE /tp/signatories/{clientId}/{signatoryId}  deleteSignatories
+  119 @POST /tp/signatories/{clientId}/{signatoryId}  setSignatoryStatus
+== ./portfolio/client/api/TPClientsApiResource.java [/tp/clients]
+  90 @POST /tp/clients/  create
+  111 @GET /tp/clients/{clientId}  retrieveOne
+  140 @GET /tp/clients/bysavingsId/{savingsAccountId}  retrieveOneBySavingsAccountId
+  169 @POST /tp/clients/activatesubledger/{clientId}  activateSubLedgerSystem
+  184 @POST /tp/clients/kyc/{clientId}  setKYCAsVerified
+  196 @PUT /tp/clients/{clientId}  update
+  214 @GET /tp/clients/{clientId}/indemnity  retrieveIndemnity
+  227 @PUT /tp/clients/{clientId}/indemnity  updateIndemnity
+  247 @PUT /tp/clients/{clientId}/notifications  updateNotifications
+  270 @GET /tp/clients/lookup  lookup
+  280 @POST /tp/clients/find  findClient
+  293 @POST /tp/clients/findsimple  findClientSimple
+  306 @GET /tp/clients/summary/{clientId}  getClientSummary
+  315 @GET /tp/clients/accounts/{clientId}  getClientAccounts
+  323 @GET /tp/clients/fulldetails/{clientId}  retrieveFullDetails
+== ./portfolio/clientmerge/api/ClientMergeApiResource.java [/tp/clients/merge]
+  78 @GET /tp/clients/merge/  listMerges
+  109 @POST /tp/clients/merge/  mergeClients
+  139 @GET /tp/clients/merge//validate  validateMerge
+== ./portfolio/frauddetection/api/FraudDetectionApiResource.java [/tp/frauddetection]
+  104 @GET /tp/frauddetection//settings  settings
+  117 @GET /tp/frauddetection//cases  listCases
+  129 @GET /tp/frauddetection//cases/{idOrReference}  retrieveCase
+  140 @GET /tp/frauddetection//cases/{id}/nibss-report/template  nibssDraft
+  154 @POST /tp/frauddetection//cases/{id}  action
+  192 @POST /tp/frauddetection//cases/{id}/nibss-report  reportToNibss
+  206 @POST /tp/frauddetection//gateway-decision  gatewayDecision
+  219 @POST /tp/frauddetection//client-report  clientReport
+  231 @GET /tp/frauddetection//team  getTeam
+  239 @POST /tp/frauddetection//team  addTeamMember
+  251 @PUT /tp/frauddetection//team/{memberId}  updateTeamMember
+  264 @DELETE /tp/frauddetection//team/{memberId}  removeTeamMember
+  273 @PUT /tp/frauddetection//team  updateTeamSettings
+  284 @GET /tp/frauddetection//rules  listRules
+  292 @PUT /tp/frauddetection//rules/{ruleId}  updateRule
+  301 @POST /tp/frauddetection//rules/{ruleId}/run  runRule
+  309 @POST /tp/frauddetection//rules/{ruleId}/preview  previewRule
+== ./portfolio/interbranch/api/CashierBalanceApiResource.java [/tp/cashiers]
+  74 @GET /tp/cashiers//{cashierId}/balance  getCashierBalance
+  97 @POST /tp/cashiers//{cashierId}/reconcile  reconcileCashierBalance
+== ./portfolio/interbranch/api/InterBranchApiResource.java [/tp/interbranch]
+  88 @GET /tp/interbranch//positions  getPositionsForCurrentOffice
+  104 @GET /tp/interbranch//positions/{officeId}  getPositionsForOffice
+  121 @GET /tp/interbranch//transactions/pending  getPendingTransactions
+  137 @GET /tp/interbranch//transactions/pending/{officeId}  getPendingTransactionsForOffice
+  154 @GET /tp/interbranch//transactions/{transactionId}  getTransaction
+  171 @POST /tp/interbranch//settle  settleInterBranchPosition
+== ./portfolio/kyb/api/KybApiResource.java [/tp/kyb]
+  110 @GET /tp/kyb/settings/public  publicSettings
+  119 @GET /tp/kyb/settings  retrieveSettings
+  127 @PUT /tp/kyb/settings  updateSettings
+  141 @POST /tp/kyb/settings/subledger-setup  setupSubledger
+  167 @GET /tp/kyb/document-requirements  documentConfig
+  176 @GET /tp/kyb/document-requirements/types  documentTypes
+  184 @POST /tp/kyb/document-requirements  createDocumentRequirement
+  192 @PUT /tp/kyb/document-requirements/{id}  updateDocumentRequirement
+  202 @POST /tp/kyb/applications  createApplication
+  221 @POST /tp/kyb/applications/external  submitExternal
+  245 @GET /tp/kyb/applications  listApplications
+  256 @GET /tp/kyb/applications/{id}  retrieveApplication
+  267 @PUT /tp/kyb/applications/{id}  updateApplication
+  281 @POST /tp/kyb/applications/{id}  applicationCommand
+  297 @POST /tp/kyb/applications/{id}/invoice/refresh  refreshInvoice
+  306 @POST /tp/kyb/applications/{id}/invoice  regenerateInvoice
+  320 @GET /tp/kyb/applications/{id}/cac  retrieveCac
+  328 @POST /tp/kyb/applications/{id}/cac  lookupCac
+  342 @POST /tp/kyb/applications/{id}/cac/accept  acceptCac
+  353 @POST /tp/kyb/applications/{id}/parties  addParty
+  368 @PUT /tp/kyb/applications/{id}/parties/{partyId}  updateParty
+  378 @DELETE /tp/kyb/applications/{id}/parties/{partyId}  removeParty
+  387 @POST /tp/kyb/applications/{id}/parties/{partyId}/passport  uploadPartyPassport
+  402 @GET /tp/kyb/parties/search  searchParties
+  414 @POST /tp/kyb/applications/{id}/documents  uploadDocument
+  430 @GET /tp/kyb/applications/{id}/documents  documents
+  440 @POST /tp/kyb/applications/{id}/kyc/lookup  lookupParties
+  450 @GET /tp/kyb/applications/{id}/review  review
+  461 @POST /tp/kyb/applications/{id}/validate  validate
+  474 @GET /tp/kyb/applications/{id}/results  results
+  484 @GET /tp/kyb/applications/{id}/results/{resultId}  resultDetail
+  494 @GET /tp/kyb/clients/{clientId}/verification  clientVerification
+  505 @GET /tp/kyb/fees/config  feeConfig
+  513 @PUT /tp/kyb/fees/config  updateFeeConfig
+  521 @GET /tp/kyb/fees/runs  feeRuns
+  530 @GET /tp/kyb/fees/runs/{runId}/items  feeRunItems
+  538 @POST /tp/kyb/fees/run  runFeeDistribution
+  547 @POST /tp/kyb/fees/items/{itemId}/retry  retryFeeItem
+  556 @GET /tp/kyb/fees/sources/{code}/classifications  feeSourceClassifications
+  568 @POST /tp/kyb/fees/sources/{code}/classification  setUpFeeSourceClassification
+== ./portfolio/kyc/api/KYCApiResource.java [/tp/kyc]
+  71 @POST /tp/kyc/  getKYCInfo
+  82 @POST /tp/kyc/byclient  getKYCInfoByClient
+  94 @POST /tp/kyc/verify  verifyKYCInfo
+  106 @GET /tp/kyc/logs/{clientId}  getClientKYCLogs
+  119 @GET /tp/kyc/log/{kycLogId}  getClientKYCLogsDetails
+  131 @POST /tp/kyc/log  setKYCInfoStatus
+  141 @GET /tp/kyc/{clientId}/kyclevel  getKYCLevel
+  153 @POST /tp/kyc/{clientId}/kyclevel  setKYCLevel
+  172 @GET /tp/kyc/{clientId}/requestlimit  getKYCRequestLimit
+  183 @POST /tp/kyc/{clientId}/requestlimit  increaseKYCRequestLimit
+  203 @GET /tp/kyc/providers  getKYCProviders
+  216 @GET /tp/kyc/requesttypes  getKYCRequestTypes
+  226 @POST /tp/kyc/limit  setCustomKYCLimit
+  244 @GET /tp/kyc/limit  getCustomKYCLimit
+  257 @GET /tp/kyc/notification/{notificationId}  getCustomKYCLimitNotification
+  270 @GET /tp/kyc/balances  getKYCBalances
+  282 @POST /tp/kyc/autoverify  autoVerifyKYCInfo
+  294 @GET /tp/kyc/settings  getAutomatedKYCSettings
+  306 @POST /tp/kyc/settings  updateAutomatedKYCSettings
+  324 @GET /tp/kyc/logs  getKYCLogs
+  337 @POST /tp/kyc/liveness/session  createFaceLivenessSession
+  351 @POST /tp/kyc/facecomparison  compareFaceWithBVN
+  365 @GET /tp/kyc/logdetails/{kycLogId}  getKYCLogDetails
+== ./portfolio/loanarrearsrecovery/api/LoanArrearsRecoveryApiResource.java [/tp/loanarrearsrecoveries]
+  78 @GET /tp/loanarrearsrecoveries/  retrieveRecoveries
+  100 @POST /tp/loanarrearsrecoveries/{recoveryId}  reverseRecovery
+== ./portfolio/office/api/TPClientOfficeApiResource.java [/tp/clients/offices]
+  61 @GET /tp/clients/offices/  retrieveClientOffices
+== ./portfolio/office/api/TPOfficeApiResource.java [/tp/offices]
+  64 @GET /tp/offices/  retrieveOffices
+  75 @PUT /tp/offices/{officeId}/visibility  updateVisibility
+== ./portfolio/officemigration/api/TPOfficeMigrationApiResource.java [/tp/officemigrations]
+  65 @GET /tp/officemigrations/  retrieveAll
+  72 @GET /tp/officemigrations/{id}  retrieveOne
+  80 @GET /tp/officemigrations/{id}/items  retrieveItems
+  89 @GET /tp/officemigrations/{id}/events  retrieveEvents
+  98 @POST /tp/officemigrations/validate  validate
+  113 @POST /tp/officemigrations/  create
+  120 @POST /tp/officemigrations/{id}/approve  approve
+  128 @POST /tp/officemigrations/{id}/cancel  cancel
+  136 @POST /tp/officemigrations/{id}/retry  retry
+  144 @POST /tp/officemigrations/{id}/events/{eventId}/republish  republish
+== ./portfolio/paymenttype/api/TPPaymentTypeApiResource.java [/tp/paymenttypes]
+  82 @GET /tp/paymenttypes/  getAllPaymentTypes
+  94 @GET /tp/paymenttypes/{paymentTypeId}  retrieveOnePaymentType
+  109 @POST /tp/paymenttypes/  createPaymentType
+  126 @PUT /tp/paymenttypes/{paymentTypeId}  updatePaymentType
+== ./portfolio/savings/api/SavingChequeBookApiResource.java [/tp/savingschequebook]
+  95 @GET /tp/savingschequebook//{accountId}  retrieveChequeBookData
+  118 @GET /tp/savingschequebook//{accountId}/validate  validateChequeBookRange
+  135 @GET /tp/savingschequebook//template  retrieveChequeBookInfo
+  146 @POST /tp/savingschequebook/  submitNewChequeBookRequest
+  160 @POST /tp/savingschequebook//{accountId}/blockcheque  blockCheque
+  176 @GET /tp/savingschequebook//{accountId}/blockcheque  blockCheque
+  195 @DELETE /tp/savingschequebook//{accountId}/blockcheque  removeBlockedCheque
+== ./portfolio/savings/api/TPFixedDepositAccountsApiResource.java [/tp/fixeddepositaccounts]
+  96 @GET /tp/fixeddepositaccounts/  retrieveAll
+== ./portfolio/savings/api/TPSavingsAccountCustomTransactionsApiResource.java [/tp/savingsaccounts/{nuban}/customtransactions]
+  80 @POST /tp/savingsaccounts/{nuban}/customtransactions/  transaction
+== ./portfolio/savings/api/TPSavingsAccountsApiResource.java [/tp/savingsaccounts]
+  120 @GET /tp/savingsaccounts/{accountId}  retrieveOne
+  155 @GET /tp/savingsaccounts/byexternalId/{externalId}  retrieveOne
+  205 @GET /tp/savingsaccounts/byclientexternalId/{externalId}  retrieveOneByClientExternalId
+  246 @GET /tp/savingsaccounts/  generateNUBAN
+  297 @GET /tp/savingsaccounts/transactions/{externalId}  retrieveTransactionHistory
+  315 @POST /tp/savingsaccounts//account  createAndActivatedAccount
+  331 @POST /tp/savingsaccounts//transactionlimit  setTransactionLimit
+  353 @POST /tp/savingsaccounts//{savingsId}/arrearsrecoveryexemption  updateArrearsRecoveryExemption
+  367 @POST /tp/savingsaccounts//existingaccount  setExistingAccountNo
+  383 @POST /tp/savingsaccounts//calculatecharges  calculateCharges
+  392 @GET /tp/savingsaccounts/fullclientdetails/{externalId}  retrieveFullClientDetails
+== ./portfolio/savings/api/TPSavingsAccountTransactionsApiResource.java [/tp/savingsaccounts/{savingsId}/transactions]
+  234 @POST /tp/savingsaccounts/{savingsId}/transactions/  transaction
+  286 @GET /tp/savingsaccounts/{savingsId}/transactions/{transactionId}  retrieveOne
+  306 @GET /tp/savingsaccounts/{savingsId}/transactions/{transactionId}/receipt  printTransactionReceipt
+  364 @GET /tp/savingsaccounts/{savingsId}/transactions/statement  printTransactionStatement
+== ./portfolio/savings/api/TPSavingsProductsApiResource.java [/tp/savingsproducts]
+  104 @GET /tp/savingsproducts/  retrieveAll
+  121 @POST /tp/savingsproducts/  create
+  133 @PUT /tp/savingsproducts/{productId}  update
+  149 @GET /tp/savingsproducts/{productId}  retrieveOne
+== ./portfolio/savings/api/TPTransactionsApiResource.java [/tp/transactions]
+  60 @GET /tp/transactions/since  retrieveTransactionsSince
+== ./portfolio/search/api/TPSearchApiResource.java [/tp/search]
+  85 @GET /tp/search//template  retrieveAdHocSearchQueryTemplate
+  100 @GET /tp/search//columns  retrieveSearchColumnsTemplate
+  113 @GET /tp/search/  searchData
+  148 @POST /tp/search//advance  advancedSearch
+== ./portfolio/subledger/api/SubLedgerApiResource.java [/tp/subledger]
+  69 @GET /tp/subledger/groupcodes/{clientId}  getSubLedgerGroupCode
+  83 @POST /tp/subledger/groupcodes  createSubLedgerGroupCode
+  99 @POST /tp/subledger/collectionaccount  setCollectionAccount
+  115 @POST /tp/subledger/  createSubLedger
+  130 @GET /tp/subledger//{subLedgerId}  getSubLedgerDetails
+  141 @GET /tp/subledger//list/{externalId}  getSubLedgers
+  154 @GET /tp/subledger//classifications/{externalId}  getClassificationCodes
+  164 @POST /tp/subledger//classification  createClassificationCode
+  174 @POST /tp/subledger//credit  creditSubLedger
+  184 @POST /tp/subledger//debit  debitSubLedger
+  194 @POST /tp/subledger//credit/transactional  creditSubLedgerTransactional
+  204 @POST /tp/subledger//debit/transactional  debitSubLedgerTransactional
+  214 @POST /tp/subledger//rename  renameSubLedger
+  224 @POST /tp/subledger//block  blockSubLedgerAmount
+  235 @POST /tp/subledger//unblock  unBlockSubLedgerAmount
+  246 @POST /tp/subledger//invoice  createSubLedgerInvoice
+  256 @GET /tp/subledger//invoice/{invoiceReference}  getSubLedgerInvoiceDetail
+  266 @GET /tp/subledger//invoicelist/{nuban}  getInvoiceList
+  276 @GET /tp/subledger//invoicelist/byexternalid/{externalId}  getInvoiceListByExternalId
+  289 @GET /tp/subledger/transactions/{subLedgerId}  getTransactionHistory
+  300 @POST /tp/subledger//bulk/create  bulkCreateSubLedger
+  316 @POST /tp/subledger//merchanttransfer  merchantTransfer
+  326 @GET /tp/subledger/transactiondata/{transactionReference}  getTransactionData
+== ./portfolio/subledgeroverdraft/api/SubLedgerOverdraftApiResource.java [/tp/subledgeroverdraft]
+  71 @GET /tp/subledgeroverdraft//settings  getSettings
+  80 @POST /tp/subledgeroverdraft//settings  updateSettings
+  100 @GET /tp/subledgeroverdraft//accounts  getAccounts
+  110 @POST /tp/subledgeroverdraft//accounts  createAccount
+  121 @GET /tp/subledgeroverdraft//accounts/{code}  getAccount
+  130 @POST /tp/subledgeroverdraft//accounts/{code}/limit  updateLimit
+  141 @GET /tp/subledgeroverdraft//accounts/{code}/transactions  getTransactions
+  157 @POST /tp/subledgeroverdraft//accounts/{code}/draw  draw
+  166 @POST /tp/subledgeroverdraft//accounts/{code}/settle  settle
+  177 @POST /tp/subledgeroverdraft//settle  settleBySettlementSubledger
+== ./portfolio/transfer/api/BulkInterbankTransferApiResource.java [/tp/transfer/bulk]
+  50 @POST /tp/transfer/bulk//authrequest  makeTransferRequestWithAuthorization
+== ./portfolio/transfer/api/BulkTransferApiResource.java [/tp/bulktransfer]
+  64 @GET /tp/bulktransfer/  getBulkTransfers
+  73 @GET /tp/bulktransfer//{bulkTransferId}  getBulkTransferDetails
+  83 @POST /tp/bulktransfer//intrabank/{clientId}  submitClientBulkIntraBankTransferRequest
+  98 @POST /tp/bulktransfer//intrabank  submitPaymentIdBulkIntraBankTransferRequest
+== ./portfolio/transfer/api/InterbankDashboardApiResource.java [/tp/interbank-dashboard]
+  45 @GET /tp/interbank-dashboard/  getDashboardData
+  56 @GET /tp/interbank-dashboard/export  exportToExcel
+== ./portfolio/transfer/api/InterbankTransferApiResource.java [/tp/transfer]
+  90 @GET /tp/transfer/  getTransferList
+  96 @GET /tp/transfer//inward  getInwardTransferList
+  103 @GET /tp/transfer//log/{logType}  getTransferLog
+  111 @POST /tp/transfer/  makeTransferRequest
+  121 @POST /tp/transfer//mc  submitInterbankTransferMC
+  150 @POST /tp/transfer//authrequest  makeTransferRequestWithAuthorization
+  159 @POST /tp/transfer//subledger  makeSubLedgerTransferRequest
+  170 @POST /tp/transfer//subledger/auth  makeSubLedgerTransferRequestWithAuth
+  181 @POST /tp/transfer//subledger/sync  syncSubLedgerTransferRequestWithAuth
+  193 @GET /tp/transfer/  getTransferDetails
+  201 @GET /tp/transfer/  getTransactionDetails
+  210 @POST /tp/transfer/  submitTransfer
+  232 @POST /tp/transfer/  transferEnquiry
+  242 @POST /tp/transfer/  intraBankTransfer
+  252 @POST /tp/transfer/  coreToVirtualAccountTransfer
+  262 @GET /tp/transfer/  getIntraBankTransferStatus
+  270 @GET /tp/transfer/  printTransferReceipt
+  284 @GET /tp/transfer/  printTransferReceipt
+  298 @POST /tp/transfer/  reverseInterbankTransfer
+  308 @POST /tp/transfer/  finalizeInterbankTransfer
+  318 @GET /tp/transfer/  getOutwardTransferDetails
+  325 @GET /tp/transfer/  getOutwardTransferDetailsByTpGatewayPaymentRef
+  333 @GET /tp/transfer/  getOutwardTransferDetailsByTpGatewayTransactionRef
+  341 @GET /tp/transfer/  getAllInwardTransfers
+== ./portfolio/transfer/api/InterbankTransferRouteApiResource.java [/tp/transferconfig]
+  70 @GET /tp/transferconfig/  getTransferSettings
+  80 @POST /tp/transferconfig/  updateTransferSettings
+== ./portfolio/transfer/api/NameInquiryApiResource.java [/tp/nameinquiry]
+  55 @GET /tp/nameinquiry/  getInstitutions
+  63 @POST /tp/nameinquiry/  getExternalAccountDetails
+== ./portfolio/vas/api/VASApiResource.java [/tp/vas]
+  76 @POST /tp/vas//airtime  submitVASAirtimeRequest
+  91 @GET /tp/vas//electricity/discos  getElectricityDiscos
+  99 @GET /tp/vas//electricity/meter  getElectricityMeterInfo
+  110 @POST /tp/vas//electricity  submitVASElectricityRequest
+  125 @GET /tp/vas//data/bundles  getDataBundles
+  133 @GET /tp/vas//data/device  getDataDeviceInfo
+  141 @POST /tp/vas//data  submitVASDataRequest
+  157 @GET /tp/vas//tv/bundles  getTVBundles
+  165 @GET /tp/vas//tv/smartcard  getTVSmartCardInfo
+  177 @POST /tp/vas//tv  submitVASTVRequest
+  192 @GET /tp/vas//status/{transactionId}  getVASStatus
+  200 @POST /tp/vas//refund  refundVasTransaction
+  216 @GET /tp/vas//charges/{vasType}  getVASCharges
+  224 @GET /tp/vas//transactions  getVASTransactions
+  238 @GET /tp/vas//settings  getVASSettings
+  248 @POST /tp/vas//settings  updateVASSettings
+  263 @GET /tp/vas//settlement/logs  getVASSettlementLogs
+  274 @POST /tp/vas//settlement/run  runVASSettlement
+== ./regulatory/bureau/api/CreditBureauBulkUploadApiResource.java [/tp/bureau/bulk]
+  61 @GET /tp/bureau/bulk/{type}/template  template
+  70 @POST /tp/bureau/bulk/{type}  upload
+== ./regulatory/bureau/api/CreditBureauConfigApiResource.java [/tp/bureau]
+  62 @GET /tp/bureau/mappings  retrieveMappings
+  72 @PUT /tp/bureau/mappings  saveMapping
+  82 @DELETE /tp/bureau/mappings/{id}  deleteMapping
+  91 @GET /tp/bureau/classificationbands  retrieveClassificationBands
+  99 @POST /tp/bureau/classificationbands  createClassificationBand
+  109 @DELETE /tp/bureau/classificationbands/{id}  deleteClassificationBand
+  118 @GET /tp/bureau/classificationoverrides  retrieveClassificationOverrides
+  126 @PUT /tp/bureau/classificationoverrides  saveClassificationOverride
+  136 @DELETE /tp/bureau/classificationoverrides/{id}  deleteClassificationOverride
+  145 @GET /tp/bureau/previousreferences  retrievePreviousReferences
+  153 @PUT /tp/bureau/previousreferences  savePreviousReference
+  163 @DELETE /tp/bureau/previousreferences/{id}  deletePreviousReference
+== ./regulatory/overdraft/api/OverdraftFacilityApiResource.java [/tp/overdraftfacilities]
+  75 @GET /tp/overdraftfacilities/settings  retrieveSettings
+  83 @PUT /tp/overdraftfacilities/settings  saveSettings
+  114 @GET /tp/overdraftfacilities/{savingsAccountId}  retrieve
+  122 @POST /tp/overdraftfacilities/{savingsAccountId}  save
+== ./reporting/api/MerchantReportsApiResource.java [/tp/reports/merchants]
+  60 @POST /tp/reports/merchants/  createReport
+  74 @GET /tp/reports/merchants/  getReports
+  83 @GET /tp/reports/merchants/types  getReportTypes
+  93 @GET /tp/reports/merchants/parameters/{reportTypeId}  getReportParameters
+  103 @GET /tp/reports/merchants/details/{reportId}  getReportDetails
+== ./reporting/api/TPReportsApiResource.java [/tp/reports]
+  61 @POST /tp/reports/  createReport
+  75 @GET /tp/reports/  getReports
+  84 @GET /tp/reports/types  getReportTypes
+  94 @GET /tp/reports/parameters/{reportTypeId}  getReportParameters
+  104 @GET /tp/reports/details/{reportId}  getReportDetails
+== ./template/api/TPTemplatesApiResource.java [/tp/templates]
+  92 @GET /tp/templates/byname/{templateName}  retrieveOne
+== ./useradministration/api/TPUsersApiResource.java [/tp/users]
+  67 @POST /tp/users/  create
+  105 @DELETE /tp/users/{userId}  disableUser
