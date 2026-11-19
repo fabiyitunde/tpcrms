@@ -40,6 +40,26 @@ public interface IFineractDirectService
         bool activeOnly = true, CancellationToken ct = default);
 
     /// <summary>
+    /// The schedule of the loan booking would create (POST /loans?command=calculateLoanSchedule with the
+    /// booking's own terms). Falls back to the CRMS's estimate, flagged FromCoreBanking=false, when core
+    /// banking cannot calculate it. The default is the estimate, for stand-ins without core banking.
+    /// </summary>
+    Task<Result<ProposedRepaymentSchedule>> PreviewBookingScheduleAsync(
+        LoanSchedulePreviewRequest request, CancellationToken ct = default) =>
+        CalculateRepaymentScheduleAsync(new ScheduleCalculationRequest(
+            ProductId: 0,
+            Principal: request.Principal,
+            NumberOfRepayments: request.TenorMonths,
+            RepaymentEvery: 1,
+            RepaymentFrequencyType: 2,
+            InterestRatePerPeriod: request.InterestRatePerAnnum,
+            InterestRateFrequencyType: 3,
+            AmortizationType: 1,
+            InterestType: 0,
+            InterestCalculationPeriodType: 1,
+            ExpectedDisbursementDate: request.ExpectedDisbursementDate), ct);
+
+    /// <summary>
     /// One loan product with its charges (GET /loanproducts/{id}). Core banking leaves charges out of
     /// the product list, so anything that states or checks fees reads the product here. The default
     /// picks the product out of the list, which is all a stand-in without that split needs.
@@ -198,7 +218,31 @@ public record ProposedRepaymentSchedule(
     decimal TotalInterest,
     decimal TotalFees,
     decimal TotalRepayment,
-    IReadOnlyList<ProposedInstallment> Installments
+    IReadOnlyList<ProposedInstallment> Installments,
+    // True when core banking calculated it; false when the CRMS's own calculation stood in (no product,
+    // no core banking customer yet, or core banking refused or did not answer). Only a core banking
+    // schedule is the one the loan will be booked on; the other is an estimate.
+    bool FromCoreBanking = false
+)
+{
+    /// <summary>The value stored and printed as an offer letter's schedule source.</summary>
+    public string SourceLabel => FromCoreBanking ? "Fineract" : "InHouse";
+}
+
+/// <summary>
+/// The schedule of the loan core banking would book: the same product, customer, principal, tenor and
+/// rate that <see cref="IFineractDirectService.BookApprovedLoanAsync"/> sends, with every other term
+/// taken from the product as booking takes it.
+/// </summary>
+public record LoanSchedulePreviewRequest(
+    // Core banking works out due dates from the customer's branch calendar, so it needs a real
+    // customer. Zero means none is known yet, and the CRMS's own estimate is used.
+    long ClientId,
+    int ProductId,
+    decimal Principal,
+    int TenorMonths,
+    decimal InterestRatePerAnnum,
+    DateTime ExpectedDisbursementDate
 );
 
 public record ProposedInstallment(

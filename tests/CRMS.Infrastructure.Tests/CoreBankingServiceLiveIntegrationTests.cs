@@ -480,6 +480,26 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
     /// Verifies that the product catalogue is reachable and the configured test product exists.
     /// A safe read-only check to run before attempting the destructive booking test.
     /// </summary>
+    /// <summary>Read-only (calculateLoanSchedule computes and stores nothing). The preview of the
+    /// configured test loan comes from core banking, not the CRMS's estimate.</summary>
+    [SkippableFact]
+    public async Task PreviewBookingScheduleAsync_IsCalculatedByCoreBanking()
+    {
+        Skip.If(string.IsNullOrEmpty(_fineractSettings.BaseUrl), "FineractDirect:BaseUrl not configured");
+        Skip.If(_fineractTestClientId <= 0 || _fineractTestProductId <= 0, "FineractDirect:TestClientId/TestProductId not configured");
+
+        var result = await _fineractService!.PreviewBookingScheduleAsync(new LoanSchedulePreviewRequest(
+            _fineractTestClientId, _fineractTestProductId, _fineractTestPrincipal, _fineractTestTenorMonths,
+            _fineractTestInterestRatePerAnnum, DateTime.Today.AddDays(14)));
+
+        Assert.True(result.IsSuccess, result.Error);
+        _output.WriteLine($"FromCoreBanking={result.Value.FromCoreBanking}, interest={result.Value.TotalInterest:N2}, " +
+            $"fees={result.Value.TotalFees:N2}, repayable={result.Value.TotalRepayment:N2}, instalments={result.Value.Installments.Count}");
+        foreach (var i in result.Value.Installments.Take(3))
+            _output.WriteLine($"  #{i.PeriodNumber} {i.DueDate:dd MMM yyyy} principal={i.PrincipalDue:N2} interest={i.InterestDue:N2} total={i.TotalDue:N2}");
+        Assert.True(result.Value.FromCoreBanking, "the preview fell back to the CRMS estimate — see the log for core banking's reason");
+    }
+
     /// <summary>Read-only. Lists every product's charges as the catalogue and the single-product read
     /// each give them: core banking only fills charges on the single read.</summary>
     [SkippableFact]

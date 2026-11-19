@@ -311,21 +311,14 @@ public class NampWebhookController : ControllerBase
         {
             try
             {
-                var scheduleRequest = new ScheduleCalculationRequest(
+                // The schedule of the loan deployment will book: same product, customer, amount, tenor and rate.
+                var result = await _fineract.PreviewBookingScheduleAsync(new LoanSchedulePreviewRequest(
+                    ClientId: app.FineractClientId ?? 0,
                     ProductId: app.FineractProductId.Value,
                     Principal: app.LoanAmount.Value,
-                    NumberOfRepayments: app.RequestedTenorMonths.Value,
-                    RepaymentEvery: 1,
-                    RepaymentFrequencyType: 2,           // Months
-                    InterestRatePerPeriod: interestRate / 12m,
-                    InterestRateFrequencyType: 2,        // Per month
-                    AmortizationType: 1,                 // Equal installments (EMI)
-                    InterestType: 0,                     // Declining balance
-                    InterestCalculationPeriodType: 1,    // Same as repayment period
-                    ExpectedDisbursementDate: DateTime.UtcNow.Date
-                );
-
-                var result = await _fineract.CalculateRepaymentScheduleAsync(scheduleRequest, ct);
+                    TenorMonths: app.RequestedTenorMonths.Value,
+                    InterestRatePerAnnum: interestRate,
+                    ExpectedDisbursementDate: DateTime.UtcNow.Date), ct);
                 if (result.IsSuccess)
                 {
                     var schedule = result.Value;
@@ -333,6 +326,8 @@ public class NampWebhookController : ControllerBase
                     monthlyInstallment = firstInstallment?.TotalDue;
                     totalInterest = schedule.TotalInterest;
                     totalRepayable = schedule.TotalRepayment;
+                    // Still true for the CRMS's estimate, as the portal has always read it; whether to tell
+                    // the portal which kind it got (schedule.FromCoreBanking) is the portal team's call.
                     fineractDataAvailable = true;
                 }
                 else

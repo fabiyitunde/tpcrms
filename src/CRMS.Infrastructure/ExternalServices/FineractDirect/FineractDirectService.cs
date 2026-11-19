@@ -87,8 +87,87 @@ public class FineractDirectService : IFineractDirectService
             if (request.GraceOnInterestPayment.HasValue)
                 body["graceOnInterestPayment"] = request.GraceOnInterestPayment.Value;
 
+            return await PostScheduleAsync(body, ct);
+        }
+        catch (TaskCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fineract calculateLoanSchedule error");
+            return Result.Failure<ProposedRepaymentSchedule>($"Fineract error: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<ProposedRepaymentSchedule>> PreviewBookingScheduleAsync(
+        LoanSchedulePreviewRequest request, CancellationToken ct = default)
+    {
+        FineractLoanProduct? product = null;
+        if (request.ProductId > 0)
+        {
+            var catalogue = await GetLoanProductsAsync(activeOnly: false, ct);
+            product = catalogue.IsSuccess ? catalogue.Value.FirstOrDefault(p => p.Id == request.ProductId) : null;
+        }
+
+        var terms = product is null
+            ? Result.Failure<Dictionary<string, object>>($"Loan product {request.ProductId} could not be read from core banking.")
+            : LoanTermsFor(product, request.TenorMonths, request.InterestRatePerAnnum);
+
+        if (terms.IsSuccess && request.ClientId > 0)
+        {
+            var expected = request.ExpectedDisbursementDate.Date;
+            var submitted = expected < DateTime.Today ? expected : DateTime.Today;
+            var body = new Dictionary<string, object>
+            {
+                ["dateFormat"] = "dd MMMM yyyy",
+                ["locale"] = "en",
+                ["clientId"] = request.ClientId,
+                ["productId"] = request.ProductId,
+                ["principal"] = request.Principal,
+                ["expectedDisbursementDate"] = expected.ToString("dd MMMM yyyy"),
+                ["submittedOnDate"] = submitted.ToString("dd MMMM yyyy"),
+                ["loanType"] = "individual"
+            };
+            foreach (var (name, value) in terms.Value)
+                body[name] = value;
+
+            var fromCoreBanking = await PostScheduleAsync(body, ct);
+            if (fromCoreBanking.IsSuccess)
+                return fromCoreBanking;
+            _logger.LogWarning("Fineract: schedule preview for product {ProductId}, client {ClientId} failed — using the CRMS estimate: {Error}",
+                request.ProductId, request.ClientId, fromCoreBanking.Error);
+        }
+        else
+        {
+            _logger.LogInformation("Fineract: schedule preview for product {ProductId} uses the CRMS estimate: {Reason}",
+                request.ProductId, terms.IsFailure ? terms.Error : "no core banking customer yet");
+        }
+
+        // The estimate follows the product's repayment pattern where it is known, so it is as close to the
+        // booked loan as the CRMS can get on its own.
+        var every = product is { RepaymentEvery: > 0 } ? product.RepaymentEvery : 1;
+        var estimate = new ScheduleCalculationRequest(
+            ProductId: 0,
+            Principal: request.Principal,
+            NumberOfRepayments: Math.Max(1, request.TenorMonths / every),
+            RepaymentEvery: every,
+            RepaymentFrequencyType: 2,
+            InterestRatePerPeriod: request.InterestRatePerAnnum,
+            InterestRateFrequencyType: 3,
+            AmortizationType: product is null || IsEqualInstallments(product) ? 1 : 0,
+            InterestType: product is not null && IsFlat(product) ? 1 : 0,
+            InterestCalculationPeriodType: 1,
+            ExpectedDisbursementDate: request.ExpectedDisbursementDate);
+        return await _fallbackCalculator.CalculateRepaymentScheduleAsync(estimate, ct);
+    }
+
+    private async Task<Result<ProposedRepaymentSchedule>> PostScheduleAsync(Dictionary<string, object> body, CancellationToken ct)
+    {
+        try
+        {
             _logger.LogInformation("Fineract: POST /loans?command=calculateLoanSchedule (principal={Principal}, repayments={Repayments})",
-                request.Principal, request.NumberOfRepayments);
+                body.GetValueOrDefault("principal"), body.GetValueOrDefault("numberOfRepayments"));
 
             var response = await _httpClient.PostAsJsonAsync("loans?command=calculateLoanSchedule", body, ct);
 
@@ -122,7 +201,8 @@ public class FineractDirectService : IFineractDirectService
                 TotalInterest: scheduleResponse.TotalInterestCharged,
                 TotalFees: scheduleResponse.TotalFeeChargesCharged + scheduleResponse.TotalPenaltyChargesCharged,
                 TotalRepayment: scheduleResponse.TotalRepaymentExpected,
-                Installments: installments
+                Installments: installments,
+                FromCoreBanking: true
             ));
         }
         catch (TaskCanceledException) when (ct.IsCancellationRequested)
@@ -671,22 +751,11 @@ public class FineractDirectService : IFineractDirectService
                     "Confirm the applicant's BOA savings account exists in Fineract and belongs to this client before booking.");
             }
 
-            // Step 3: Map product settings to Fineract loan application payload
-            var isMonthlyInterest = fineractProduct.InterestRateFrequencyType.Contains("month", StringComparison.OrdinalIgnoreCase);
-            var interestRateFrequencyType = isMonthlyInterest ? 2 : 3; // 2 = Per Month, 3 = Per Year
-            var interestRatePerPeriod = isMonthlyInterest ? request.InterestRatePerAnnum / 12m : request.InterestRatePerAnnum;
-
-            var isEmi = fineractProduct.AmortizationType.Contains("installment", StringComparison.OrdinalIgnoreCase);
-            var amortizationType = isEmi ? 1 : 0; // 1 = Equal Installments, 0 = Equal Principal
-
-            var isFlat = fineractProduct.InterestType.Contains("flat", StringComparison.OrdinalIgnoreCase);
-            var interestType = isFlat ? 1 : 0; // 1 = Flat, 0 = Declining Balance
-
-            var repaymentFrequencyType = 2; // Default to Months
-            if (fineractProduct.RepaymentFrequencyType.Contains("week", StringComparison.OrdinalIgnoreCase))
-                repaymentFrequencyType = 1;
-            else if (fineractProduct.RepaymentFrequencyType.Contains("day", StringComparison.OrdinalIgnoreCase))
-                repaymentFrequencyType = 0;
+            // Step 3: Map product settings to Fineract loan application payload — the same terms the
+            // schedule preview sends, so the letter states the loan this books.
+            var terms = LoanTermsFor(fineractProduct, request.TenorMonths, request.InterestRatePerAnnum);
+            if (terms.IsFailure)
+                return Result.Failure<FineractBookingResult>(terms.Error);
 
             var formattedDate = request.ValueDate.ToString("dd MMMM yyyy");
 
@@ -697,21 +766,12 @@ public class FineractDirectService : IFineractDirectService
                 ["clientId"] = request.ClientId,
                 ["productId"] = request.ProductId,
                 ["principal"] = request.Principal,
-                ["loanTermFrequency"] = request.TenorMonths * fineractProduct.RepaymentEvery,
-                ["loanTermFrequencyType"] = repaymentFrequencyType,
-                ["numberOfRepayments"] = request.TenorMonths,
-                ["repaymentEvery"] = fineractProduct.RepaymentEvery,
-                ["repaymentFrequencyType"] = repaymentFrequencyType,
-                ["interestRatePerPeriod"] = interestRatePerPeriod,
-                ["interestRateFrequencyType"] = interestRateFrequencyType,
-                ["amortizationType"] = amortizationType,
-                ["interestType"] = interestType,
-                ["interestCalculationPeriodType"] = 1, // Same as repayment period
                 ["expectedDisbursementDate"] = formattedDate,
                 ["submittedOnDate"] = formattedDate,
-                ["loanType"] = "individual",
-                ["transactionProcessingStrategyId"] = fineractProduct.TransactionProcessingStrategyId
+                ["loanType"] = "individual"
             };
+            foreach (var (name, value) in terms.Value)
+                loanBody[name] = value;
 
             // The CRMS reference core banking needs to tie this loan back to its origination record
             // (and the key the resume path above looks the loan up by).
@@ -1172,6 +1232,51 @@ public class FineractDirectService : IFineractDirectService
         long ClientId = 0, int ProductId = 0);
 
     private const string AwaitingCheckerStatus = "Awaiting approval in Core Banking";
+
+    private static bool IsEqualInstallments(FineractLoanProduct product) =>
+        product.AmortizationType.Contains("installment", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsFlat(FineractLoanProduct product) =>
+        product.InterestType.Contains("flat", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The repayment terms of a loan on <paramref name="product"/>, as both booking and the schedule
+    /// preview send them: the repayment pattern, amortisation, interest type and processing strategy come
+    /// from the product; the tenor and rate come from the CRMS. The tenor is in months and is split into
+    /// repayments by the product's repayment interval, so a 12-month loan repaid every 3 months has 4.
+    /// </summary>
+    private static Result<Dictionary<string, object>> LoanTermsFor(
+        FineractLoanProduct product, int tenorMonths, decimal interestRatePerAnnum)
+    {
+        var frequency = product.RepaymentFrequencyType;
+        if (frequency.Contains("week", StringComparison.OrdinalIgnoreCase) || frequency.Contains("day", StringComparison.OrdinalIgnoreCase))
+            return Result.Failure<Dictionary<string, object>>(
+                $"Core banking product \"{product.Name}\" is repaid every {product.RepaymentEvery} {frequency}; " +
+                "the CRMS sets tenors in months, so it cannot book this product.");
+
+        var every = product.RepaymentEvery > 0 ? product.RepaymentEvery : 1;
+        if (tenorMonths <= 0 || tenorMonths % every != 0)
+            return Result.Failure<Dictionary<string, object>>(
+                $"A {tenorMonths}-month tenor does not divide into repayments every {every} months, " +
+                $"as core banking product \"{product.Name}\" repays.");
+
+        var isMonthlyInterest = product.InterestRateFrequencyType.Contains("month", StringComparison.OrdinalIgnoreCase);
+
+        return Result.Success(new Dictionary<string, object>
+        {
+            ["loanTermFrequency"] = tenorMonths,
+            ["loanTermFrequencyType"] = 2,                          // Months
+            ["numberOfRepayments"] = tenorMonths / every,
+            ["repaymentEvery"] = every,
+            ["repaymentFrequencyType"] = 2,                         // Months
+            ["interestRatePerPeriod"] = isMonthlyInterest ? interestRatePerAnnum / 12m : interestRatePerAnnum,
+            ["interestRateFrequencyType"] = isMonthlyInterest ? 2 : 3, // Per Month / Per Year
+            ["amortizationType"] = IsEqualInstallments(product) ? 1 : 0, // Equal Installments / Equal Principal
+            ["interestType"] = IsFlat(product) ? 1 : 0,             // Flat / Declining Balance
+            ["interestCalculationPeriodType"] = 1,                  // Same as repayment period
+            ["transactionProcessingStrategyId"] = product.TransactionProcessingStrategyId
+        });
+    }
 
     /// <summary>
     /// The commandId of a command core banking has parked for a second user (maker-checker), or null if

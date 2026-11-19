@@ -79,22 +79,25 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         var approvedRate = loanApp.ApprovedInterestRate ?? loanApp.InterestRatePerAnnum;
         var currency = loanApp.RequestedAmount.Currency;
 
-        // Calculate repayment schedule via Fineract (hybrid: API first, in-house fallback)
-        var scheduleRequest = new ScheduleCalculationRequest(
-            ProductId: product?.FineractProductId ?? 0,
-            Principal: approvedAmount,
-            NumberOfRepayments: approvedTenor,
-            RepaymentEvery: 1,
-            RepaymentFrequencyType: 2, // Months
-            InterestRatePerPeriod: approvedRate,
-            InterestRateFrequencyType: 3, // Per Year
-            AmortizationType: 1, // Equal Installments (EMI)
-            InterestType: 0, // Declining Balance
-            InterestCalculationPeriodType: 1, // Same as Repayment Period
-            ExpectedDisbursementDate: DateTime.Today.AddDays(14) // Assume 2 weeks from now
-        );
+        // The schedule of the loan disbursement will book: core banking calculates it for this customer,
+        // product, amount, tenor and rate; the CRMS's own estimate stands in only when it cannot.
+        var expectedDisbursementDate = DateTime.Today.AddDays(14); // Assume 2 weeks from now
+        long clientId = 0;
+        var fineractProductId = product?.FineractProductId ?? 0;
+        if (fineractProductId > 0 && !string.IsNullOrWhiteSpace(loanApp.AccountNumber))
+        {
+            var account = await _fineractService.GetNampBoaAccountAsync(loanApp.AccountNumber, ct);
+            if (account.IsSuccess)
+                clientId = account.Value.ClientId;
+        }
 
-        var scheduleResult = await _fineractService.CalculateRepaymentScheduleAsync(scheduleRequest, ct);
+        var scheduleResult = await _fineractService.PreviewBookingScheduleAsync(new LoanSchedulePreviewRequest(
+            ClientId: clientId,
+            ProductId: fineractProductId,
+            Principal: approvedAmount,
+            TenorMonths: approvedTenor,
+            InterestRatePerAnnum: approvedRate,
+            ExpectedDisbursementDate: expectedDisbursementDate), ct);
         if (scheduleResult.IsFailure)
             return ApplicationResult<OfferLetterResultDto>.Failure($"Failed to calculate repayment schedule: {scheduleResult.Error}");
 
@@ -137,7 +140,7 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
         try
         {
             // Build PDF data
-            var scheduleSource = (product?.FineractProductId ?? 0) > 0 ? "Fineract" : "InHouse";
+            var scheduleSource = schedule.SourceLabel;
             var monthlyInstallment = schedule.Installments.Any()
                 ? schedule.Installments.Average(i => i.TotalDue)
                 : 0;
@@ -242,7 +245,7 @@ public class GenerateOfferLetterHandler : IRequestHandler<GenerateOfferLetterCom
                 Math.Round(monthlyInstallment, 2),
                 schedule.Installments.Count,
                 scheduleSource,
-                scheduleRequest.ExpectedDisbursementDate);
+                expectedDisbursementDate);
 
             await _offerLetterRepository.AddAsync(offerLetter, ct);
             await _unitOfWork.SaveChangesAsync(ct);

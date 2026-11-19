@@ -74,7 +74,8 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
             ClientId: accountResult.Value.ClientId,
             ProductId: product.FineractProductId.Value,
             Principal: profile.ApprovedAmount.Value,
-            TenorMonths: fineractProduct.DefaultNumberOfRepayments,
+            // In months; booking splits it by the product's repayment interval (9 months, one payment).
+            TenorMonths: terms.Value.TenorMonths,
             InterestRatePerAnnum: fineractProduct.AnnualInterestRate,
             ValueDate: DateTime.UtcNow,
             RepaymentAccountNumber: profile.BoaAccountNumber,

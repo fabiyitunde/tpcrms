@@ -610,34 +610,28 @@ public class RatifyNampDecisionHandler
                 $"Fineract product {fineractProductId} not found in catalogue.");
 
         var interestRate = fineractProduct.AnnualInterestRate;
-        var tenorMonths  = fineractProduct.DefaultNumberOfRepayments;
+        // In months: the product's number of repayments times its repayment interval.
+        var tenorMonths  = fineractProduct.DefaultNumberOfRepayments * Math.Max(1, fineractProduct.RepaymentEvery);
 
         // Lock both onto the application so downstream steps (offer letter, deployment) read from the app
         app.SetApprovedInterestRate(interestRate);
         app.SetResolvedTenor(tenorMonths);
 
         // ── Calculate repayment schedule ───────────────────────────────────────
-        var scheduleRequest = new ScheduleCalculationRequest(
+        // The schedule of the loan deployment will book: same product, customer, amount, tenor and rate.
+        var scheduleResult = await _fineractService.PreviewBookingScheduleAsync(new LoanSchedulePreviewRequest(
+            ClientId: app.FineractClientId ?? 0,
             ProductId: fineractProductId,
             Principal: app.LoanAmount.Value,
-            NumberOfRepayments: tenorMonths,
-            RepaymentEvery: 1,
-            RepaymentFrequencyType: 2,           // Months
-            InterestRatePerPeriod: interestRate,
-            InterestRateFrequencyType: 3,        // Per Year
-            AmortizationType: 1,                 // Equal Installments (EMI)
-            InterestType: 0,                     // Declining Balance
-            InterestCalculationPeriodType: 1,    // Same as Repayment Period
-            ExpectedDisbursementDate: DateTime.Today.AddDays(14)
-        );
-
-        var scheduleResult = await _fineractService.CalculateRepaymentScheduleAsync(scheduleRequest, ct);
+            TenorMonths: tenorMonths,
+            InterestRatePerAnnum: interestRate,
+            ExpectedDisbursementDate: DateTime.Today.AddDays(14)), ct);
         if (scheduleResult.IsFailure)
             return ApplicationResult<NampApplicationDto>.Failure(
                 $"Failed to calculate repayment schedule: {scheduleResult.Error}");
 
         var schedule = scheduleResult.Value;
-        var scheduleSource = fineractProductId > 0 ? "Fineract" : "InHouse";
+        var scheduleSource = schedule.SourceLabel;
         var monthlyInstallment = schedule.Installments.Any()
             ? Math.Round(schedule.Installments.Average(i => i.TotalDue), 2)
             : 0;

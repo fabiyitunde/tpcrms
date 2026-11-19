@@ -97,7 +97,8 @@ public class BookRhshfDisbursementHandlerTests
         Assert.Equal(RhshfCaseStatus.Approved, profile.Status);
         Assert.NotNull(fineract.LastBookingRequest);
         Assert.Equal(9.5m, fineract.LastBookingRequest!.InterestRatePerAnnum);
-        Assert.Equal(1, fineract.LastBookingRequest.TenorMonths);
+        // The tenor in months (one repayment every 9 months); booking splits it into repayments.
+        Assert.Equal(9, fineract.LastBookingRequest.TenorMonths);
         Assert.False(fineract.LastBookingRequest.DisburseToSavings);
         Assert.Equal("0123456789", fineract.LastBookingRequest.RepaymentAccountNumber);
         Assert.Equal(TotalEopValue, fineract.LastBookingRequest.Principal);
