@@ -480,6 +480,34 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
     /// Verifies that the product catalogue is reachable and the configured test product exists.
     /// A safe read-only check to run before attempting the destructive booking test.
     /// </summary>
+    /// <summary>Read-only. Every transaction type the gateway sends, and whether reading only "Deposit" as
+    /// money in agrees with the running balance it sends beside each row.</summary>
+    [SkippableFact]
+    public async Task GetStatementAsync_CreditDebitAgreesWithRunningBalance()
+    {
+        Skip.If(_service is null, "CoreBanking not configured");
+        Skip.If(string.IsNullOrEmpty(_testNuban), "CoreBanking test NUBAN not configured");
+
+        var result = await _service!.GetStatementAsync(_testNuban, DateTime.UtcNow.AddMonths(-24), DateTime.UtcNow);
+        Assert.True(result.IsSuccess, result.Error);
+
+        var rows = result.Value.Transactions;
+        _output.WriteLine($"{rows.Count} transactions on {_testNuban}");
+        var disagreements = 0;
+        for (var i = 1; i < rows.Count; i++)
+        {
+            var movement = rows[i].RunningBalance - rows[i - 1].RunningBalance;
+            var expected = rows[i].Type == CRMS.Domain.Interfaces.TransactionType.Credit ? rows[i].Amount : -rows[i].Amount;
+            if (movement != expected)
+            {
+                disagreements++;
+                if (disagreements <= 10)
+                    _output.WriteLine($"  row {i}: read as {rows[i].Type} {rows[i].Amount:N2}, balance moved {movement:N2} — \"{rows[i].Description}\"");
+            }
+        }
+        _output.WriteLine($"Rows where credit/debit disagrees with the balance movement: {disagreements}");
+    }
+
     /// <summary>Read-only. The test loan's arrears flag, overdue amount and per-instalment paid amounts
     /// come through under the names the CRMS reads.</summary>
     [SkippableFact]
