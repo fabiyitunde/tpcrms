@@ -1271,8 +1271,7 @@ public class ConfirmNampDeploymentHandler
 
             return ApplicationResult<NampApplicationDto>.Failure(
                 $"Core Banking System created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
-                "No funds have moved and deployment has not been confirmed. Check the Core Banking System, then retry " +
-                "from the Loan Account tab — the existing loan will be resumed, not duplicated.");
+                "Deployment has not been confirmed. " + booking.NotDisbursedAdvice + " Retry from the Loan Account tab.");
         }
 
         app.SetFineractLoanResult(booking.LoanId, booking.LoanAccountNumber);
@@ -1406,7 +1405,7 @@ public class RetryNampFineractBookingHandler
 
             return ApplicationResult<NampApplicationDto>.Failure(
                 $"Core Banking System created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
-                "No funds have moved. Check the Core Banking System, then retry — the existing loan will be resumed, not duplicated.");
+                booking.NotDisbursedAdvice);
         }
 
         app.SetFineractLoanResult(booking.LoanId, booking.LoanAccountNumber);

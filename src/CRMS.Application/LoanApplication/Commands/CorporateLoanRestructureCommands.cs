@@ -442,8 +442,7 @@ public class CompleteCorporateDisbursementHandler : IRequestHandler<CompleteCorp
 
             return ApplicationResult.Failure(
                 $"Core Banking created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
-                "No funds have moved and the disbursement has not been completed. Check Core Banking, then retry — " +
-                "the existing loan will be resumed, not duplicated.");
+                "The disbursement has not been completed. " + booking.NotDisbursedAdvice);
         }
 
         _logger.LogInformation("Corporate disbursement: Fineract loan booked — LoanId={LoanId}, Account={Account}, Resumed={Resumed}",

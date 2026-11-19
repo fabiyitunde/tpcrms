@@ -99,7 +99,7 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
             return await RecordAndSaveAsync(
                 profile, request, booking.LoanId, null,
                 $"Core Banking created the loan (id {booking.LoanId}) but did not disburse it (status: {booking.Status}). " +
-                "No funds have moved. Check Core Banking, then retry — the existing loan will be resumed, not duplicated.",
+                booking.NotDisbursedAdvice,
                 ct);
 
         return await RecordAndSaveAsync(

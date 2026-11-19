@@ -138,8 +138,25 @@ public record FineractBookingResult(
     string Status,
     // True when this call did not create the loan but picked up one an earlier attempt had already
     // created (matched on ExternalId) — for logging and officer-facing wording, nothing else.
-    bool Resumed = false
-);
+    bool Resumed = false,
+    // True when core banking parked the last step for a second user to approve there (maker-checker).
+    // It answered 200, but nothing was applied: the money moves only once that user approves it.
+    bool AwaitingCoreBankingApproval = false,
+    // True when core banking did not answer a step and the loan could not be read back afterwards,
+    // so whether that step took effect is not known.
+    bool OutcomeUnconfirmed = false
+)
+{
+    /// <summary>What an officer should do next about a loan that was not disbursed.</summary>
+    public string NotDisbursedAdvice =>
+        AwaitingCoreBankingApproval
+            ? "Core Banking is holding this step for approval by a second user there, so no funds have moved yet. " +
+              "Once it is approved in Core Banking, retry here to record it — the existing loan will be picked up, not duplicated."
+        : OutcomeUnconfirmed
+            ? "Core Banking did not confirm the outcome in time. Check the loan in Core Banking before retrying — " +
+              "a retry picks up the same loan and only disburses it if Core Banking still shows it undisbursed."
+        : "No funds have moved. Check Core Banking, then retry — the existing loan will be resumed, not duplicated.";
+}
 
 // Schedule Calculation
 public record ScheduleCalculationRequest(

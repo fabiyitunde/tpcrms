@@ -54,8 +54,12 @@ public class FineractBookingResumeTests
     private const string SavingsJson =
         """{"id":2001,"accountNo":"SAV-001","externalId":"0123456789","clientId":555,"status":{"id":300,"value":"Active"}}""";
 
-    private static string LoanLookupJson(long id, int statusCode, string status, string accountNo = "LN-000900") =>
-        $$"""{"totalFilteredRecords":1,"pageItems":[{"id":{{id}},"accountNo":"{{accountNo}}","externalId":"{{ExternalId}}","status":{"id":{{statusCode}},"value":"{{status}}"},"principal":5000000.00}]}""";
+    private static string LoanLookupJson(long id, int statusCode, string status, string accountNo = "LN-000900",
+        long clientId = 555, int productId = 7) =>
+        $$"""{"totalFilteredRecords":1,"pageItems":[{"id":{{id}},"accountNo":"{{accountNo}}","externalId":"{{ExternalId}}","clientId":{{clientId}},"loanProductId":{{productId}},"status":{"id":{{statusCode}},"value":"{{status}}"},"principal":5000000.00}]}""";
+
+    private static string LoanDetailJson(int statusCode, string status) =>
+        $$$"""{"id":901,"accountNo":"LN-000901","status":{"id":{{{statusCode}}},"value":"{{{status}}}"}}""";
 
     private const string EmptyLookupJson = """{"totalFilteredRecords":0,"pageItems":[]}""";
 
@@ -275,6 +279,275 @@ public class FineractBookingResumeTests
         Assert.True(result.Value.Disbursed);
         Assert.False(handler.Called("GET", "loans?externalId"));
         Assert.DoesNotContain("externalId", handler.BodyOf("POST", "loans")!);
+    }
+
+    // ── Maker-checker: core banking answers 200 with only a commandId and applies nothing ─────────
+
+    [Fact]
+    public async Task CreateHeldForAChecker_FailsWithoutRecordingALoan()
+    {
+        var (service, handler) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(EmptyLookupJson),
+            ("POST", var p) when p.EndsWith("loans") => Json("""{"commandId":55,"resourceId":901}"""),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("second user", result.Error);
+        Assert.False(handler.Called("POST", "command=approve"));
+    }
+
+    [Fact]
+    public async Task ApproveHeldForAChecker_IsNotDisbursed_AndDisburseIsNotSent()
+    {
+        var (service, handler) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(EmptyLookupJson),
+            ("POST", var p) when p.EndsWith("loans") => Json("""{"loanId":901,"resourceId":901}"""),
+            ("POST", var p) when p.Contains("command=approve") => Json("""{"commandId":56,"resourceId":901}"""),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.AwaitingCoreBankingApproval);
+        Assert.False(result.Value.Approved);
+        Assert.False(result.Value.Disbursed);
+        Assert.Equal(901, result.Value.LoanId);
+        Assert.Contains("second user", result.Value.NotDisbursedAdvice);
+        Assert.False(handler.Called("POST", "command=disburse"));
+    }
+
+    [Fact]
+    public async Task DisburseHeldForAChecker_IsNotRecordedAsDisbursed()
+    {
+        var (service, _) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(LoanLookupJson(901, 200, "Approved")),
+            ("POST", var p) when p.Contains("command=disburse") => Json("""{"commandId":57,"resourceId":901}"""),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.AwaitingCoreBankingApproval);
+        Assert.False(result.Value.Disbursed);
+        Assert.Equal("", result.Value.LoanAccountNumber);
+    }
+
+    [Fact]
+    public async Task DisburseAnswered200_ButLoanReadsBackUndisbursed_IsNotRecordedAsDisbursed()
+    {
+        var (service, _) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(LoanLookupJson(901, 200, "Approved")),
+            ("POST", var p) when p.Contains("command=disburse") => Json("""{"loanId":901}"""),
+            ("GET", var p) when p.Contains("loans/901") => Json(LoanDetailJson(200, "Approved")),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value.Disbursed);
+        Assert.Equal("Approved", result.Value.Status);
+    }
+
+    // ── No answer: the loan is read back, nothing is sent again blind ─────────────────────────────
+
+    [Fact]
+    public async Task DisburseGotNoAnswer_LoanReadsBackActive_IsRecordedAsDisbursed()
+    {
+        var (service, handler) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(LoanLookupJson(901, 200, "Approved")),
+            ("POST", var p) when p.Contains("command=disburse") => throw new TaskCanceledException("timed out"),
+            ("GET", var p) when p.Contains("loans/901") => Json(LoanDetailJson(300, "Active")),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Disbursed);
+        Assert.Equal(901, result.Value.LoanId);
+        Assert.Equal("LN-000901", result.Value.LoanAccountNumber);
+        Assert.Equal(1, handler.Calls.Count(c => c.Method == "POST" && c.Path.Contains("command=disburse")));
+    }
+
+    [Fact]
+    public async Task DisburseGotNoAnswer_AndLoanCannotBeRead_KeepsTheLoanId_AndSaysItIsUnconfirmed()
+    {
+        var (service, handler) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(LoanLookupJson(901, 200, "Approved")),
+            ("POST", var p) when p.Contains("command=disburse") => throw new HttpRequestException("connection reset"),
+            ("GET", var p) when p.Contains("loans/901") => Json("{}", HttpStatusCode.BadGateway),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value.Disbursed);
+        Assert.True(result.Value.OutcomeUnconfirmed);
+        Assert.Equal(901, result.Value.LoanId);
+        Assert.Contains("did not confirm", result.Value.NotDisbursedAdvice);
+        Assert.Equal(1, handler.Calls.Count(c => c.Method == "POST" && c.Path.Contains("command=disburse")));
+    }
+
+    [Fact]
+    public async Task ApproveGotNoAnswer_LoanReadsBackApproved_GoesOnToDisburse()
+    {
+        var disbursed = false;
+        var (service, handler) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(LoanLookupJson(901, 100, "Submitted and pending approval")),
+            ("POST", var p) when p.Contains("command=approve") => throw new TaskCanceledException("timed out"),
+            ("POST", var p) when p.Contains("command=disburse") => Sent(() => disbursed = true, Json("""{"loanId":901}""")),
+            ("GET", var p) when p.Contains("loans/901") =>
+                disbursed ? Json(LoanDetailJson(300, "Active")) : Json(LoanDetailJson(200, "Approved")),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Disbursed);
+        Assert.Equal(1, handler.Calls.Count(c => c.Method == "POST" && c.Path.Contains("command=approve")));
+        Assert.Equal(1, handler.Calls.Count(c => c.Method == "POST" && c.Path.Contains("command=disburse")));
+    }
+
+    private static HttpResponseMessage Sent(Action onSent, HttpResponseMessage response)
+    {
+        onSent();
+        return response;
+    }
+
+    [Fact]
+    public async Task CreateGotNoAnswer_LoanFoundByReference_IsResumed_NotCreatedAgain()
+    {
+        var created = false;
+        var (service, handler) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") =>
+                created ? Json(LoanLookupJson(901, 100, "Submitted and pending approval")) : Json(EmptyLookupJson),
+            ("POST", var p) when p.EndsWith("loans") => Throw(() => created = true),
+            ("POST", var p) when p.Contains("command=approve") => Json("""{"loanId":901}"""),
+            ("POST", var p) when p.Contains("command=disburse") => Json("""{"loanId":901}"""),
+            ("GET", var p) when p.Contains("loans/901") => Json(LoanDetailJson(300, "Active")),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Disbursed);
+        Assert.True(result.Value.Resumed);
+        Assert.Equal(1, handler.Calls.Count(c => c.Method == "POST" && c.Path.EndsWith("loans")));
+    }
+
+    [Fact]
+    public async Task CreateGotNoAnswer_AndNoLoanHoldsTheReference_FailsWithoutRetrying()
+    {
+        var (service, handler) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(EmptyLookupJson),
+            ("POST", var p) when p.EndsWith("loans") => throw new TaskCanceledException("timed out"),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("did not answer", result.Error);
+        Assert.Equal(1, handler.Calls.Count(c => c.Method == "POST" && c.Path.EndsWith("loans")));
+    }
+
+    /// <summary>Records that the request reached core banking, then loses the answer.</summary>
+    private static HttpResponseMessage Throw(Action onSent)
+    {
+        onSent();
+        throw new TaskCanceledException("timed out");
+    }
+
+    // ── A taken reference is recognised whatever core banking's wording, and must be ours ─────────
+
+    [Fact]
+    public async Task CreateRejectedWithUnrecognisedWording_StillResumesTheLoanHoldingTheReference()
+    {
+        var lookupCalls = 0;
+        var (service, _) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") =>
+                ++lookupCalls == 1
+                    ? Json("{}", HttpStatusCode.InternalServerError)
+                    : Json(LoanLookupJson(901, 200, "Approved")),
+            ("POST", var p) when p.EndsWith("loans") =>
+                Json("""{"errors":[{"developerMessage":"Unknown data integrity issue with resource."}]}""", HttpStatusCode.Forbidden),
+            ("POST", var p) when p.Contains("command=disburse") => Json("""{"loanId":901}"""),
+            ("GET", var p) when p.Contains("loans/901") => Json(LoanDetailJson(300, "Active")),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Disbursed);
+        Assert.True(result.Value.Resumed);
+    }
+
+    [Fact]
+    public async Task ReferenceHeldByAnotherCustomersLoan_IsRefused()
+    {
+        var (service, handler) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(LoanLookupJson(901, 300, "Active", clientId: 999)),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("different customer", result.Error);
+        Assert.DoesNotContain(handler.Calls, c => c.Method == "POST");
+    }
+
+    [Fact]
+    public async Task UndisbursedLoanOnAnotherProduct_IsRefused()
+    {
+        var (service, handler) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(LoanLookupJson(901, 200, "Approved", productId: 3)),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("different loan product", result.Error);
+        Assert.DoesNotContain(handler.Calls, c => c.Method == "POST");
+    }
+
+    [Fact]
+    public async Task DisbursedLoanOnAnotherProduct_IsRecordedAsItStands()
+    {
+        var (service, _) = Build((req, path) => CommonReads(path) ?? (req.Method.Method, path) switch
+        {
+            ("GET", var p) when p.Contains("loans?externalId") => Json(LoanLookupJson(901, 300, "Active", "LN-000901", productId: 3)),
+            _ => null
+        });
+
+        var result = await service.BookApprovedLoanAsync(Request());
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Disbursed);
+        Assert.Equal("LN-000901", result.Value.LoanAccountNumber);
     }
 
     [Fact]
