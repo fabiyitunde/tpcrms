@@ -480,6 +480,25 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
     /// Verifies that the product catalogue is reachable and the configured test product exists.
     /// A safe read-only check to run before attempting the destructive booking test.
     /// </summary>
+    /// <summary>Read-only. The test loan's arrears flag, overdue amount and per-instalment paid amounts
+    /// come through under the names the CRMS reads.</summary>
+    [SkippableFact]
+    public async Task GetLoanDetailAsync_ReadsArrearsAndPaidAmounts()
+    {
+        Skip.If(string.IsNullOrEmpty(_fineractSettings.BaseUrl), "FineractDirect:BaseUrl not configured");
+        Skip.If(_fineractTestLoanId <= 0, "FineractDirect:TestLoanId not configured");
+
+        var result = await _fineractService!.GetLoanDetailAsync(_fineractTestLoanId);
+
+        Assert.True(result.IsSuccess, result.Error);
+        var loan = result.Value;
+        _output.WriteLine($"Loan {loan.Id} {loan.Status}: inArrears={loan.InArrears}, totalOverdue={loan.Summary.TotalOverdue:N2}, " +
+            $"overdueSince={loan.Summary.OverdueSince:dd MMM yyyy}, totalRepaid={loan.Summary.TotalRepayment:N2}");
+        foreach (var p in loan.RepaymentSchedule.Take(4))
+            _output.WriteLine($"  #{p.Period} {p.DueDate:dd MMM yyyy} due={p.TotalDue:N2} paid={p.TotalPaid:N2} " +
+                $"(principal {p.PrincipalPaid:N2}, interest {p.InterestPaid:N2}) complete={p.Complete}");
+    }
+
     /// <summary>Read-only (calculateLoanSchedule computes and stores nothing). The preview of the
     /// configured test loan comes from core banking, not the CRMS's estimate.</summary>
     [SkippableFact]

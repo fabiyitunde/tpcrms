@@ -319,7 +319,9 @@ public class FineractDirectService : IFineractDirectService
                     FeeChargesOutstanding: loanResponse.Summary.FeeChargesOutstanding,
                     PenaltyChargesCharged: loanResponse.Summary.PenaltyChargesCharged,
                     PenaltyChargesPaid: loanResponse.Summary.PenaltyChargesPaid,
-                    PenaltyChargesOutstanding: loanResponse.Summary.PenaltyChargesOutstanding
+                    PenaltyChargesOutstanding: loanResponse.Summary.PenaltyChargesOutstanding,
+                    TotalOverdue: loanResponse.Summary.TotalOverdue,
+                    OverdueSince: ParseFineractDate(loanResponse.Summary.OverdueSinceDate)
                 )
                 : new FineractLoanSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
@@ -330,15 +332,15 @@ public class FineractDirectService : IFineractDirectService
                     FromDate: ParseFineractDate(p.FromDate) ?? DateTime.MinValue,
                     DueDate: ParseFineractDate(p.DueDate) ?? DateTime.MinValue,
                     PrincipalDue: p.PrincipalDue,
-                    PrincipalPaid: 0, // Not in schedule period DTO — derived from transactions
+                    PrincipalPaid: p.PrincipalPaid,
                     PrincipalOutstanding: p.PrincipalLoanBalanceOutstanding,
                     InterestDue: p.InterestDue,
-                    InterestPaid: 0,
-                    InterestOutstanding: 0,
+                    InterestPaid: p.InterestPaid,
+                    InterestOutstanding: p.InterestOutstanding,
                     FeeChargesDue: p.FeeChargesDue,
                     PenaltyChargesDue: p.PenaltyChargesDue,
                     TotalDue: p.TotalDueForPeriod,
-                    TotalPaid: 0,
+                    TotalPaid: p.TotalPaidForPeriod,
                     TotalOutstanding: p.TotalOutstandingForPeriod,
                     Complete: p.Complete
                 ))
@@ -357,7 +359,8 @@ public class FineractDirectService : IFineractDirectService
                 DisbursementDate: ParseFineractDate(loanResponse.Timeline?.ActualDisbursementDate),
                 MaturityDate: ParseFineractDate(loanResponse.Timeline?.ExpectedMaturityDate),
                 Summary: summary,
-                RepaymentSchedule: schedulePeriods
+                RepaymentSchedule: schedulePeriods,
+                InArrears: loanResponse.InArrears
             ));
         }
         catch (TaskCanceledException) when (ct.IsCancellationRequested)
@@ -399,7 +402,9 @@ public class FineractDirectService : IFineractDirectService
             totalOutstanding += loan.Summary.TotalOutstanding;
             totalApprovedLimit += loan.ApprovedPrincipal;
 
-            var status = loan.Summary.TotalOutstanding > 0 && loan.Summary.PenaltyChargesOutstanding > 0
+            // Core banking's arrears flag and overdue amount, not penalties: a product with no penalty
+            // charge would otherwise never show as overdue.
+            var status = loan.InArrears || loan.Summary.TotalOverdue > 0
                 ? "Overdue"
                 : "Active";
 

@@ -303,7 +303,10 @@ public record FineractLoanDetail(
     DateTime? DisbursementDate,
     DateTime? MaturityDate,
     FineractLoanSummary Summary,
-    IReadOnlyList<FineractSchedulePeriod> RepaymentSchedule
+    IReadOnlyList<FineractSchedulePeriod> RepaymentSchedule,
+    // Core banking's own arrears flag (an instalment overdue past the product's tolerance). This, not
+    // whether penalties were charged, says whether the loan is in arrears: many products charge none.
+    bool InArrears = false
 );
 
 public record FineractLoanSummary(
@@ -321,8 +324,16 @@ public record FineractLoanSummary(
     decimal FeeChargesOutstanding,
     decimal PenaltyChargesCharged,
     decimal PenaltyChargesPaid,
-    decimal PenaltyChargesOutstanding
-);
+    decimal PenaltyChargesOutstanding,
+    // What is due and unpaid now, and since when — core banking's figures.
+    decimal TotalOverdue = 0,
+    DateTime? OverdueSince = null
+)
+{
+    /// <summary>Days the oldest unpaid instalment has been overdue, as of <paramref name="today"/>.</summary>
+    public int DaysOverdue(DateTime today) =>
+        OverdueSince is { } since && since.Date < today.Date ? (today.Date - since.Date).Days : 0;
+}
 
 public record FineractSchedulePeriod(
     int Period,

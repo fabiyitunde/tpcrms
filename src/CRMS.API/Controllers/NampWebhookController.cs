@@ -378,10 +378,10 @@ public class NampWebhookController : ControllerBase
                     OutstandingBalance = detail.Summary.TotalOutstanding,
                     NextInstallmentDueDate = nextPeriod?.DueDate,
                     NextInstallmentAmount = nextPeriod?.TotalDue,
-                    ArrearsAmount = detail.Summary.PenaltyChargesOutstanding + detail.Summary.InterestOutstanding + detail.Summary.PrincipalOutstanding > detail.Summary.TotalOutstanding
-                        ? 0m
-                        : null,
-                    IsInArrears = detail.Summary.PenaltyChargesCharged > 0,
+                    // Core banking's overdue amount and arrears flag. The amount was a comparison that only
+                    // ever gave 0 or nothing, and the flag read penalties, which many products never charge.
+                    ArrearsAmount = detail.Summary.TotalOverdue,
+                    IsInArrears = detail.InArrears || detail.Summary.TotalOverdue > 0,
                     FineractDataAvailable = true
                 };
             }

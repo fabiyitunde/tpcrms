@@ -197,6 +197,20 @@ public class FineractSchedulePeriodDto
     [JsonPropertyName("totalOutstandingForPeriod")]
     public decimal TotalOutstandingForPeriod { get; set; }
 
+    // Paid so far on the period. Core banking sends them on a booked loan's schedule; a calculated
+    // (not yet booked) schedule leaves them out.
+    [JsonPropertyName("principalPaid")]
+    public decimal PrincipalPaid { get; set; }
+
+    [JsonPropertyName("interestPaid")]
+    public decimal InterestPaid { get; set; }
+
+    [JsonPropertyName("interestOutstanding")]
+    public decimal InterestOutstanding { get; set; }
+
+    [JsonPropertyName("totalPaidForPeriod")]
+    public decimal TotalPaidForPeriod { get; set; }
+
     [JsonPropertyName("complete")]
     public bool Complete { get; set; }
 }
@@ -363,6 +377,10 @@ public class FineractLoanDetailResponse
     [JsonPropertyName("summary")]
     public FineractLoanSummaryDto? Summary { get; set; }
 
+    // Core banking's own arrears flag: an instalment is overdue beyond the product's arrears tolerance.
+    [JsonPropertyName("inArrears")]
+    public bool InArrears { get; set; }
+
     [JsonPropertyName("repaymentSchedule")]
     public FineractRepaymentScheduleDto? RepaymentSchedule { get; set; }
 }
@@ -431,6 +449,12 @@ public class FineractLoanSummaryDto
 
     [JsonPropertyName("penaltyChargesOutstanding")]
     public decimal PenaltyChargesOutstanding { get; set; }
+
+    [JsonPropertyName("totalOverdue")]
+    public decimal TotalOverdue { get; set; }
+
+    [JsonPropertyName("overdueSinceDate")]
+    public List<int>? OverdueSinceDate { get; set; }
 }
 
 public class FineractRepaymentScheduleDto
