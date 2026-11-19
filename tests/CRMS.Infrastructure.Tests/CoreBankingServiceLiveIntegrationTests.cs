@@ -480,6 +480,30 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
     /// Verifies that the product catalogue is reachable and the configured test product exists.
     /// A safe read-only check to run before attempting the destructive booking test.
     /// </summary>
+    /// <summary>Read-only. For each BOA account in CRMS_ACCOUNTS_TO_CHECK (comma-separated), whether core
+    /// banking knows it and which office it belongs to — what branch resolution on submission needs.</summary>
+    [SkippableFact]
+    public async Task GetNampBoaAccountAsync_AccountsToCheck()
+    {
+        var accounts = (Environment.GetEnvironmentVariable("CRMS_ACCOUNTS_TO_CHECK") ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Skip.If(string.IsNullOrEmpty(_fineractSettings.BaseUrl), "FineractDirect:BaseUrl not configured");
+        Skip.If(accounts.Length == 0, "CRMS_ACCOUNTS_TO_CHECK not set");
+
+        foreach (var account in accounts)
+        {
+            var found = await _fineractService!.GetNampBoaAccountAsync(account);
+            if (found.IsFailure)
+            {
+                _output.WriteLine($"  {account}: NOT FOUND — {found.Error}");
+                continue;
+            }
+            var client = await _fineractService.GetClientByIdAsync(found.Value.ClientId);
+            _output.WriteLine($"  {account}: client {found.Value.ClientId}, office " +
+                (client.IsSuccess ? $"'{client.Value.OfficeName}'" : $"unknown ({client.Error})"));
+        }
+    }
+
     /// <summary>Read-only. Every transaction type the gateway sends, and whether reading only "Deposit" as
     /// money in agrees with the running balance it sends beside each row.</summary>
     [SkippableFact]
