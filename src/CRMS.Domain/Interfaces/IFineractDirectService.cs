@@ -40,6 +40,22 @@ public interface IFineractDirectService
         bool activeOnly = true, CancellationToken ct = default);
 
     /// <summary>
+    /// One loan product with its charges (GET /loanproducts/{id}). Core banking leaves charges out of
+    /// the product list, so anything that states or checks fees reads the product here. The default
+    /// picks the product out of the list, which is all a stand-in without that split needs.
+    /// </summary>
+    async Task<Result<FineractLoanProduct>> GetLoanProductAsync(int productId, CancellationToken ct = default)
+    {
+        var catalogue = await GetLoanProductsAsync(activeOnly: false, ct);
+        if (catalogue.IsFailure)
+            return Result.Failure<FineractLoanProduct>(catalogue.Error);
+        var match = catalogue.Value.FirstOrDefault(p => p.Id == productId);
+        return match is null
+            ? Result.Failure<FineractLoanProduct>($"Loan product {productId} was not found in core banking.")
+            : Result.Success(match);
+    }
+
+    /// <summary>
     /// Get client details by clientId (GET /clients/{clientId}).
     /// Returns officeId and officeName, which map to a CRMS branch/location.
     /// Used at NAMP webhook ingest to resolve which branch the applicant belongs to.

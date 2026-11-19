@@ -50,16 +50,14 @@ public class RhshfProductTermsResolver
             return Result.Failure<RhshfProductTerms>(
                 "No active RH-SHF loan product is linked to core banking. Set it up in Admin > Products first.");
 
-        var catalogue = await _fineract.GetLoanProductsAsync(activeOnly: false, ct);
-        if (catalogue.IsFailure)
+        // The single-product read, not the catalogue: core banking leaves charges out of the list,
+        // and the terms carry the fees the letter states.
+        var match = await _fineract.GetLoanProductAsync(productId, ct);
+        if (match.IsFailure)
             return Result.Failure<RhshfProductTerms>(
-                $"Could not read the RH-SHF product from core banking: {catalogue.Error}");
+                $"Could not read the RH-SHF product from core banking: {match.Error}");
 
-        var match = catalogue.Value.FirstOrDefault(p => p.Id == productId);
-        if (match is null)
-            return Result.Failure<RhshfProductTerms>("The linked RH-SHF product was not found in core banking.");
-
-        return Build(match);
+        return Build(match.Value);
     }
 
     /// <summary>Public so a caller holding the catalogue already can reuse it without a second call.</summary>

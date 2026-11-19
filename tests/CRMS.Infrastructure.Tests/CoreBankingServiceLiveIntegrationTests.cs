@@ -480,6 +480,25 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
     /// Verifies that the product catalogue is reachable and the configured test product exists.
     /// A safe read-only check to run before attempting the destructive booking test.
     /// </summary>
+    /// <summary>Read-only. Lists every product's charges as the catalogue and the single-product read
+    /// each give them: core banking only fills charges on the single read.</summary>
+    [SkippableFact]
+    public async Task GetLoanProductAsync_ReadsChargesTheCatalogueLeavesOut()
+    {
+        Skip.If(string.IsNullOrEmpty(_fineractSettings.BaseUrl), "FineractDirect:BaseUrl not configured");
+
+        var catalogue = await _fineractService!.GetLoanProductsAsync(activeOnly: false);
+        Assert.True(catalogue.IsSuccess, $"GetLoanProductsAsync failed: {catalogue.Error}");
+
+        foreach (var listed in catalogue.Value)
+        {
+            var single = await _fineractService.GetLoanProductAsync(listed.Id);
+            Assert.True(single.IsSuccess, $"GetLoanProductAsync({listed.Id}) failed: {single.Error}");
+            _output.WriteLine($"  [{listed.Id}] {listed.Name}: list={listed.ProductCharges.Count} charges, single={single.Value.ProductCharges.Count} — " +
+                string.Join("; ", single.Value.ProductCharges.Select(c => $"{c.Name} {c.Amount} {c.CalculationType} at {c.TimeType}")));
+        }
+    }
+
     [SkippableFact]
     public async Task GetLoanProductsAsync_ConfiguredProductExists()
     {

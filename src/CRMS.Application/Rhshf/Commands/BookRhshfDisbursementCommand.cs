@@ -57,13 +57,11 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
         if (accountResult.IsFailure)
             return await RecordAndSaveAsync(profile, request, null, null, $"Could not resolve BOA account: {accountResult.Error}", ct);
 
-        var productsResult = await _fineract.GetLoanProductsAsync(activeOnly: false, ct);
-        if (productsResult.IsFailure)
-            return await RecordAndSaveAsync(profile, request, null, null, $"Could not fetch the Core Banking product catalogue: {productsResult.Error}", ct);
+        var productResult = await _fineract.GetLoanProductAsync(product.FineractProductId.Value, ct);
+        if (productResult.IsFailure)
+            return await RecordAndSaveAsync(profile, request, null, null, $"Could not read the Core Banking product: {productResult.Error}", ct);
 
-        var fineractProduct = productsResult.Value.FirstOrDefault(p => p.Id == product.FineractProductId);
-        if (fineractProduct is null)
-            return await RecordAndSaveAsync(profile, request, null, null, $"The configured Core Banking product was not found in the catalogue.", ct);
+        var fineractProduct = productResult.Value;
 
         // The same check the appraisal and the letter go through, so a product changed after the
         // offer was accepted cannot book a loan on terms the FAC never saw. A setup problem, not a

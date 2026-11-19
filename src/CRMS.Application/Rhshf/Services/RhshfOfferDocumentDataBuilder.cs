@@ -382,13 +382,13 @@ public class RhshfOfferDocumentDataBuilder
         if (product?.FineractProductId is null or <= 0)
             return ([], [], null);
 
-        var catalogue = await _fineract.GetLoanProductsAsync(activeOnly: true, ct);
-        if (catalogue.IsFailure)
+        // The single-product read: core banking leaves charges out of the catalogue list, so reading
+        // the fees from there always found none.
+        var read = await _fineract.GetLoanProductAsync(product.FineractProductId.Value, ct);
+        if (read.IsFailure || !read.Value.IsActive)
             return ([], [], null);
 
-        var match = catalogue.Value.FirstOrDefault(p => p.Id == product.FineractProductId);
-        if (match is null)
-            return ([], [], null);
+        var match = read.Value;
 
         var terms = RhshfProductTermsResolver.Build(match);
         if (terms.IsFailure)
