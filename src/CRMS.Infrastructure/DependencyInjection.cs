@@ -1017,13 +1017,18 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Retry policy for Core Banking API: 2 retries with exponential backoff (1s, 2s).
+    /// Retry policy for Core Banking API: 2 retries with exponential backoff (1s, 2s), for reads only.
+    /// Core banking honours no idempotency key, so a POST that timed out may already have been applied
+    /// (a loan created, approved or disbursed); sending it again is the caller's decision, made after
+    /// reading the loan back — never an automatic retry.
     /// </summary>
-    private static IAsyncPolicy<HttpResponseMessage> GetCoreBankingRetryPolicy()
+    private static Func<HttpRequestMessage, IAsyncPolicy<HttpResponseMessage>> GetCoreBankingRetryPolicy()
     {
-        return HttpPolicyExtensions
+        var retry = HttpPolicyExtensions
             .HandleTransientHttpError()
             .WaitAndRetryAsync(2, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt - 1)));
+        var noRetry = Policy.NoOpAsync<HttpResponseMessage>();
+        return request => request.Method == HttpMethod.Get ? retry : noRetry;
     }
 
     /// <summary>
