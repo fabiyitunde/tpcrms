@@ -392,13 +392,19 @@ public class RhshfCreditProfile : AggregateRoot
         return Result.Success();
     }
 
-    /// <summary>No fixed required-document checklist in v1 (see design doc) — any number of files,
-    /// added only while on the SupportingDocuments stage.</summary>
+    /// <summary>Added only while on the SupportingDocuments stage. Each requirement slot holds one
+    /// file, so a new upload replaces whatever is already in that category: FACs re-upload a
+    /// corrected file expecting it to take the old one's place, and leaving both had the officer
+    /// reading the stale one. <see cref="RhshfDocumentCategory.Other"/> is the catch-all and keeps
+    /// any number of files.</summary>
     public Result<RhshfSupportingDocument> AddSupportingDocument(
         RhshfDocumentCategory category, string fileName, string contentType, string storagePath, long sizeBytes)
     {
         if (CurrentStage != RhshfProfilingStage.SupportingDocuments)
             return Result.Failure<RhshfSupportingDocument>("Case is not on the supporting documents stage.");
+
+        if (category != RhshfDocumentCategory.Other)
+            _supportingDocuments.RemoveAll(d => d.Category == category);
 
         var document = new RhshfSupportingDocument(Id, category, fileName, contentType, storagePath, sizeBytes);
         _supportingDocuments.Add(document);

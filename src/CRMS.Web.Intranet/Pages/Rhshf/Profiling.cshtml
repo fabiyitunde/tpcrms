@@ -842,6 +842,10 @@ else
                                                    accept="@RhshfDisplayNames.AcceptAttribute(req.AllowedFormats)" />
                                             <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Upload</button>
                                         </form>
+                                        @if (req.IsSatisfied && req.Category != RhshfDocumentCategory.Other)
+                                        {
+                                            <div class="small text-muted mt-1 text-end">Uploading a new file replaces the current one.</div>
+                                        }
                                         @if (req.AllowedFormats is { Count: > 0 })
                                         {
                                             <div class="small text-muted mt-1 text-end">

@@ -125,6 +125,24 @@ public class RhshfCreditProfileStageProgressionTests
         Assert.Equal(RhshfProfilingStage.SupportingDocuments, profile.CurrentStage); // adding a doc doesn't advance
     }
 
+    [Fact]
+    public void AddSupportingDocument_ToAFilledSlot_ReplacesTheOldFileAndLeavesOtherSlotsAlone()
+    {
+        var profile = CreateValidProfile();
+        profile.AdvanceStage(RhshfProfilingStage.CompanyVerification);
+        profile.AdvanceStage(RhshfProfilingStage.CreditBureauCheck);
+        profile.AdvanceStage(RhshfProfilingStage.EopReview);
+
+        profile.AddSupportingDocument(RhshfDocumentCategory.CacCertificate, "cac.pdf", "application/pdf", "p/cac.pdf", 1024);
+        profile.AddSupportingDocument(RhshfDocumentCategory.AuditedFinancials, "blank.xlsx", "application/vnd.ms-excel", "p/blank.xlsx", 1024);
+        var replacement = profile.AddSupportingDocument(RhshfDocumentCategory.AuditedFinancials, "filled.xlsx", "application/vnd.ms-excel", "p/filled.xlsx", 2048);
+
+        Assert.True(replacement.IsSuccess);
+        Assert.Equal(2, profile.SupportingDocuments.Count);
+        Assert.Equal("filled.xlsx", Assert.Single(profile.SupportingDocuments, d => d.Category == RhshfDocumentCategory.AuditedFinancials).FileName);
+        Assert.Single(profile.SupportingDocuments, d => d.Category == RhshfDocumentCategory.CacCertificate);
+    }
+
     // ── Phase D gates: profiling is now attested and gated, not just traversed ────────────
 
     [Fact]
