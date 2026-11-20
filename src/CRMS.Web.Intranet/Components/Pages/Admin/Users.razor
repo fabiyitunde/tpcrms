@@ -38,24 +38,10 @@
                 <label class="form-label">Role</label>
                 <select class="form-control" @bind="selectedRole">
                     <option value="">All Roles</option>
-                    <option value="SystemAdmin">System Admin</option>
-                    <option value="LoanOfficer">Loan Officer</option>
-                    <option value="CreditOfficer">Credit Officer</option>
-                    <option value="LegalOfficer">Legal Officer</option>
-                    <option value="RiskManager">Risk Manager</option>
-                    <option value="GMFinance">GM Finance</option>
-                    <option value="DisbursementOfficer">Disbursement Officer</option>
-                    <option value="DeploymentOfficer">Deployment Officer</option>
-                    <option value="CommitteeMember">Committee Member</option>
-                    <option value="BranchCommitteeMember">Branch Committee Member</option>
-                    <option value="ZonalCommitteeMember">Zonal Committee Member</option>
-                    <option value="RegionalCommitteeMember">Regional Committee Member</option>
-                    <option value="HOCommitteeMember">HO Committee Member</option>
-                    <option value="BranchManager">Branch Manager</option>
-                    <option value="ZonalManager">Zonal Manager</option>
-                    <option value="RegionalManager">Regional Manager</option>
-                    <option value="MdCeo">MD / CEO</option>
-                    <option value="Auditor">Auditor</option>
+                    @foreach (var (value, label) in AvailableRoles)
+                    {
+                        <option value="@value">@label</option>
+                    }
                 </select>
             </div>
             <div style="width: 140px;">
@@ -347,7 +333,13 @@
         ("LoanOfficer",             "Loan Officer"),
         ("CreditOfficer",           "Credit Officer"),
         ("LegalOfficer",            "Legal Officer"),
+        ("HeadOfLegal",             "Head of Legal"),
         ("RiskManager",             "Risk Manager"),
+        ("BranchRiskOfficer",       "Branch Risk Officer"),
+        ("ZonalRiskOfficer",        "Zonal Risk Officer"),
+        ("RegionalRiskOfficer",     "Regional Risk Officer"),
+        ("HORiskOfficer",           "HO Risk Officer"),
+        ("FinalApprover",           "Final Approver"),
         ("GMFinance",               "GM Finance"),
         ("DisbursementOfficer",     "Disbursement Officer"),
         ("DeploymentOfficer",       "Deployment Officer"),
@@ -601,7 +593,12 @@
         "LoanOfficer"             => "Loan Officer",
         "CreditOfficer"           => "Credit Officer",
         "LegalOfficer"            => "Legal Officer",
+        "HeadOfLegal"             => "Head of Legal",
         "RiskManager"             => "Risk Manager",
+        "BranchRiskOfficer"       => "Branch Risk",
+        "ZonalRiskOfficer"        => "Zonal Risk",
+        "RegionalRiskOfficer"     => "Regional Risk",
+        "HORiskOfficer"           => "HO Risk",
         "GMFinance"               => "GM Finance",
         "DisbursementOfficer"     => "Disbursement",
         "DeploymentOfficer"       => "Deployment",
