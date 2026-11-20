@@ -1734,7 +1734,11 @@ public partial class ApplicationService
     {
         try
         {
-            var handler = _sp.GetRequiredService<Application.Committee.Queries.GetAllStandingCommitteesHandler>();
+            // Own scope, like the member add/remove calls that change this list: those save through
+            // a fresh DbContext, and the circuit's context keeps its tracked committees, so a member
+            // removed there stayed in the reloaded list.
+            using var scope = _sp.CreateScope();
+            var handler = scope.ServiceProvider.GetRequiredService<Application.Committee.Queries.GetAllStandingCommitteesHandler>();
             var result = await handler.Handle(new Application.Committee.Queries.GetAllStandingCommitteesQuery(includeInactive), CancellationToken.None);
             if (!result.IsSuccess || result.Data == null) return [];
 

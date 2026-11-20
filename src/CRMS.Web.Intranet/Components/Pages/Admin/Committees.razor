@@ -13,6 +13,11 @@
     </button>
 </div>
 
+@if (!string.IsNullOrEmpty(removeMemberError))
+{
+    <div class="alert alert-danger" style="margin-bottom: var(--space-4);">@removeMemberError</div>
+}
+
 @if (isLoading)
 {
     <div style="text-align: center; padding: var(--space-8);"><div class="spinner"></div></div>
@@ -244,7 +249,7 @@ else
                     <label class="form-label">User</label>
                     <select class="form-control" @bind="memberUserId">
                         <option value="">Select user...</option>
-                        @foreach (var user in availableUsers)
+                        @foreach (var user in availableUsers.Where(u => !addMemberExistingUserIds.Contains(u.Id)))
                         {
                             <option value="@user.Id">@user.FullName (@user.Email)</option>
                         }
@@ -317,10 +322,12 @@ else
     private bool showAddMemberModal;
     private Guid addMemberCommitteeId;
     private string addMemberCommitteeName = "";
+    private HashSet<Guid> addMemberExistingUserIds = [];
     private Guid memberUserId;
     private string memberRole = "";
     private bool memberIsChair;
     private string? addMemberError;
+    private string? removeMemberError;
     private bool isAddingMember;
 
     protected override async Task OnInitializedAsync()
@@ -407,6 +414,7 @@ else
     {
         addMemberCommitteeId = c.Id;
         addMemberCommitteeName = c.Name;
+        addMemberExistingUserIds = c.Members.Select(m => m.UserId).ToHashSet();
         memberUserId = Guid.Empty;
         memberRole = "Member";
         memberIsChair = false;
@@ -445,8 +453,10 @@ else
 
     private async Task RemoveMember(Guid committeeId, Guid userId)
     {
+        removeMemberError = null;
         var result = await AppService.RemoveStandingCommitteeMemberAsync(committeeId, userId);
         if (result.Success) await LoadCommittees();
+        else removeMemberError = result.Error ?? "Failed to remove member";
     }
 
     private static string FormatAmount(decimal amount) =>
