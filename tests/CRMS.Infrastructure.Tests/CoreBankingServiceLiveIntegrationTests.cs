@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using CRMS.Domain.Interfaces;
 using CRMS.Infrastructure.ExternalServices.CoreBanking;
 using CRMS.Infrastructure.ExternalServices.FineractDirect;
@@ -47,6 +48,7 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
     private readonly string _fineractTestRepaymentAccount;
     private readonly long _fineractTestLoanId;
     private IFineractDirectService? _fineractService;
+    private HttpClient? _fineractHttpClient;
 
     public CoreBankingServiceLiveIntegrationTests(ITestOutputHelper output)
     {
@@ -148,6 +150,7 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
                 Timeout     = TimeSpan.FromSeconds(_fineractSettings.TimeoutSeconds)
             };
 
+            _fineractHttpClient = fineractHttpClient;
             _fineractService = new FineractDirectService(
                 fineractHttpClient,
                 new Mock<ILogger<FineractDirectService>>().Object);
@@ -480,6 +483,168 @@ public class CoreBankingServiceLiveIntegrationTests : IAsyncLifetime
     /// Verifies that the product catalogue is reachable and the configured test product exists.
     /// A safe read-only check to run before attempting the destructive booking test.
     /// </summary>
+    /// <summary>
+    /// Read-only (calculateLoanSchedule computes and stores nothing). BOA's amortisation workbook example
+    /// for CRMSQA#5, at one ten-thousandth of its ₦9bn: ₦900,000 at 9% a year, 9 months with 6 months' grace, grace interest paid with the first
+    /// repayment, then equal monthly instalments, disbursed 1 June 2026. Runs it through core banking's
+    /// calculator on each monthly product without charges, until one accepts it, and prints the schedule
+    /// beside the product's day-count settings.
+    /// </summary>
+    [SkippableFact]
+    public async Task WorkbookExample_ThroughCoreBankingCalculator()
+    {
+        Skip.If(_fineractHttpClient is null || _fineractTestClientId <= 0, "FineractDirect or TestClientId not configured");
+
+        var catalogue = await _fineractService!.GetLoanProductsAsync(activeOnly: false);
+        Assert.True(catalogue.IsSuccess, catalogue.Error);
+
+        foreach (var listed in catalogue.Value.Where(p => p.RepaymentFrequencyType.StartsWith("Month", StringComparison.OrdinalIgnoreCase)))
+        {
+            var product = await _fineractService.GetLoanProductAsync(listed.Id);
+            if (product.IsFailure || product.Value.ProductCharges.Count > 0)
+                continue;
+            var monthlyRate = product.Value.InterestRateFrequencyType.Contains("month", StringComparison.OrdinalIgnoreCase);
+
+            var body = new Dictionary<string, object>
+            {
+                ["dateFormat"] = "dd MMMM yyyy", ["locale"] = "en",
+                ["clientId"] = _fineractTestClientId, ["productId"] = listed.Id, ["loanType"] = "individual",
+                ["principal"] = 900_000m, // ₦9bn is above every sandbox product's range; schedules scale with the amount
+                ["loanTermFrequency"] = 9, ["loanTermFrequencyType"] = 2,
+                ["numberOfRepayments"] = 9, ["repaymentEvery"] = 1, ["repaymentFrequencyType"] = 2,
+                // 9% a year, in the frequency the product takes its rate in (as booking sends it).
+                ["interestRatePerPeriod"] = monthlyRate ? 0.75m : 9m, ["interestRateFrequencyType"] = monthlyRate ? 2 : 3,
+                ["amortizationType"] = 1, ["interestType"] = 0, ["interestCalculationPeriodType"] = 1,
+                ["graceOnPrincipalPayment"] = 6, ["graceOnInterestPayment"] = 6,
+                ["transactionProcessingStrategyId"] = listed.TransactionProcessingStrategyId,
+                ["expectedDisbursementDate"] = "01 June 2026", ["submittedOnDate"] = "01 June 2026"
+            };
+
+            var response = await _fineractHttpClient!.PostAsJsonAsync("loans?command=calculateLoanSchedule", body);
+            var text = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                var reasons = text;
+                try
+                {
+                    using var error = System.Text.Json.JsonDocument.Parse(text);
+                    if (error.RootElement.TryGetProperty("errors", out var errors))
+                        reasons = string.Join(" | ", errors.EnumerateArray().Select(e => e.GetProperty("developerMessage").GetString()));
+                }
+                catch (System.Text.Json.JsonException) { }
+                _output.WriteLine($"[{listed.Id}] {listed.Name}: refused ({(int)response.StatusCode}) {reasons}");
+                continue;
+            }
+
+            var raw = await (await _fineractHttpClient.GetAsync($"loanproducts/{listed.Id}")).Content.ReadAsStringAsync();
+            using var productJson = System.Text.Json.JsonDocument.Parse(raw);
+            string Setting(string name) => productJson.RootElement.TryGetProperty(name, out var e)
+                ? (e.ValueKind == System.Text.Json.JsonValueKind.Object && e.TryGetProperty("value", out var v) ? v.ToString() : e.ToString()) : "-";
+            _output.WriteLine($"[{listed.Id}] {listed.Name}: daysInYear={Setting("daysInYearType")}, daysInMonth={Setting("daysInMonthType")}, " +
+                $"strategy={Setting("transactionProcessingStrategyName")}, digits={(productJson.RootElement.TryGetProperty("currency", out var c) && c.TryGetProperty("decimalPlaces", out var d) ? d.ToString() : "-")}");
+
+            using var schedule = System.Text.Json.JsonDocument.Parse(text);
+            _output.WriteLine($"  totalInterest={schedule.RootElement.GetProperty("totalInterestCharged")} totalRepayment={schedule.RootElement.GetProperty("totalRepaymentExpected")}");
+            foreach (var p in schedule.RootElement.GetProperty("periods").EnumerateArray())
+            {
+                if (!p.TryGetProperty("period", out var n) || n.ValueKind != System.Text.Json.JsonValueKind.Number) continue;
+                var due = p.GetProperty("dueDate");
+                _output.WriteLine($"  #{n} {due[0]}-{due[1]:D2}-{due[2]:D2} principal={p.GetProperty("principalDue")} " +
+                    $"interest={p.GetProperty("interestDue")} total={p.GetProperty("totalDueForPeriod")} balance={p.GetProperty("principalLoanBalanceOutstanding")}");
+            }
+            return;
+        }
+
+        _output.WriteLine("No monthly product without charges accepted the workbook example.");
+    }
+
+    /// <summary>
+    /// Read-only (calculateLoanSchedule computes and stores nothing). BOA's workbook example for CRMSQA#5,
+    /// ₦9bn at 9% a year disbursed 1 June 2026, on the RH-SHF product (CRMS_RHSHF_PRODUCT_ID): first as the
+    /// product is set up (one repayment after 9 months), then on the workbook's terms (9 monthly periods,
+    /// 6 of them grace, grace interest paid with the first repayment).
+    /// </summary>
+    [SkippableFact]
+    public async Task WorkbookExample_OnTheRhshfProduct()
+    {
+        var productId = int.TryParse(Environment.GetEnvironmentVariable("CRMS_RHSHF_PRODUCT_ID"), out var id) ? id : 0;
+        Skip.If(_fineractHttpClient is null || _fineractTestClientId <= 0 || productId <= 0,
+            "FineractDirect, TestClientId or CRMS_RHSHF_PRODUCT_ID not configured");
+
+        var product = await _fineractService!.GetLoanProductAsync(productId);
+        Assert.True(product.IsSuccess, product.Error);
+        var monthlyRate = product.Value.InterestRateFrequencyType.Contains("month", StringComparison.OrdinalIgnoreCase);
+
+        var raw = await (await _fineractHttpClient!.GetAsync($"loanproducts/{productId}")).Content.ReadAsStringAsync();
+        using (var p = System.Text.Json.JsonDocument.Parse(raw))
+        {
+            string S(string name) => p.RootElement.TryGetProperty(name, out var e)
+                ? (e.ValueKind == System.Text.Json.JsonValueKind.Object && e.TryGetProperty("value", out var v) ? v.ToString() : e.ToString()) : "-";
+            _output.WriteLine($"[{productId}] {product.Value.Name}: daysInYear={S("daysInYearType")}, daysInMonth={S("daysInMonthType")}, " +
+                $"interestCalculationPeriod={S("interestCalculationPeriodType")}, strategy={S("transactionProcessingStrategyName")}, " +
+                $"recalculation={S("isInterestRecalculationEnabled")}, graceOnArrears={S("graceOnArrearsAgeing")}, " +
+                $"repayments {S("minNumberOfRepayments")} to {S("maxNumberOfRepayments")}, overrides={S("allowAttributeOverrides")}");
+        }
+
+        async Task Run(string title, int repayments, int every, int? grace)
+        {
+            var body = new Dictionary<string, object>
+            {
+                ["dateFormat"] = "dd MMMM yyyy", ["locale"] = "en",
+                ["clientId"] = _fineractTestClientId, ["productId"] = productId, ["loanType"] = "individual",
+                ["principal"] = 9_000_000_000m,
+                ["loanTermFrequency"] = 9, ["loanTermFrequencyType"] = 2,
+                ["numberOfRepayments"] = repayments, ["repaymentEvery"] = every, ["repaymentFrequencyType"] = 2,
+                ["interestRatePerPeriod"] = monthlyRate ? 0.75m : 9m, ["interestRateFrequencyType"] = monthlyRate ? 2 : 3,
+                ["amortizationType"] = 1, ["interestType"] = 0, ["interestCalculationPeriodType"] = 1,
+                ["transactionProcessingStrategyId"] = product.Value.TransactionProcessingStrategyId,
+                ["expectedDisbursementDate"] = "01 June 2026", ["submittedOnDate"] = "01 June 2026"
+            };
+            if (grace is { } g)
+            {
+                body["graceOnPrincipalPayment"] = g;
+                body["graceOnInterestPayment"] = g;
+            }
+
+            var response = await _fineractHttpClient!.PostAsJsonAsync("loans?command=calculateLoanSchedule", body);
+            var text = await response.Content.ReadAsStringAsync();
+            _output.WriteLine($"== {title}");
+            using var doc = System.Text.Json.JsonDocument.Parse(text);
+            if (!response.IsSuccessStatusCode)
+            {
+                var reasons = doc.RootElement.TryGetProperty("errors", out var errors)
+                    ? string.Join(" | ", errors.EnumerateArray().Select(e => e.GetProperty("developerMessage").GetString()))
+                    : text;
+                _output.WriteLine($"  refused ({(int)response.StatusCode}): {reasons}");
+                return;
+            }
+            _output.WriteLine($"  totalInterest={doc.RootElement.GetProperty("totalInterestCharged")} totalRepayment={doc.RootElement.GetProperty("totalRepaymentExpected")}");
+            foreach (var period in doc.RootElement.GetProperty("periods").EnumerateArray())
+            {
+                if (!period.TryGetProperty("period", out var n) || n.ValueKind != System.Text.Json.JsonValueKind.Number) continue;
+                var due = period.GetProperty("dueDate");
+                _output.WriteLine($"  #{n} {due[0]}-{due[1].GetInt32():D2}-{due[2].GetInt32():D2} days={period.GetProperty("daysInPeriod")} " +
+                    $"principal={period.GetProperty("principalDue")} interest={period.GetProperty("interestDue")} " +
+                    $"total={period.GetProperty("totalDueForPeriod")} balance={period.GetProperty("principalLoanBalanceOutstanding")}");
+            }
+        }
+
+        await Run("As the product is set up: one repayment after 9 months", repayments: 1, every: 9, grace: null);
+        await Run("Workbook terms: 9 monthly periods, 6 of them grace", repayments: 9, every: 1, grace: 6);
+    }
+
+    /// <summary>Read-only. Products shaped like RH-SHF's: one repayment, monthly interval of several months.</summary>
+    [SkippableFact]
+    public async Task ListSinglePaymentProducts()
+    {
+        Skip.If(_fineractService is null, "FineractDirect not configured");
+        var catalogue = await _fineractService!.GetLoanProductsAsync(activeOnly: false);
+        Assert.True(catalogue.IsSuccess, catalogue.Error);
+        foreach (var p in catalogue.Value.Where(p => p.DefaultNumberOfRepayments == 1))
+            _output.WriteLine($"  [{p.Id}] {p.Name}: 1 repayment every {p.RepaymentEvery} {p.RepaymentFrequencyType}, " +
+                $"{p.AnnualInterestRate}% a year ({p.InterestType}, {p.AmortizationType}), principal {p.MinPrincipal:N0} to {p.MaxPrincipal:N0}, active={p.IsActive}");
+    }
+
     /// <summary>Read-only. For each BOA account in CRMS_ACCOUNTS_TO_CHECK (comma-separated), whether core
     /// banking knows it and which office it belongs to — what branch resolution on submission needs.</summary>
     [SkippableFact]
