@@ -274,7 +274,7 @@ public static class RhshfWorkflowSeeder
             Requirement(RhshfDocumentCategory.AuditedFinancials, "Audited Financial Statements",
                 "Most recent audited accounts and statutory compliance filings.", isMandatory: true, sortOrder: 20),
             Requirement(RhshfDocumentCategory.CreditAppraisalMemorandum, "Credit Appraisal Memorandum (CAM)",
-                "The CAM prepared for this facility. Optional at Expression of Interest, but required before the consolidated EOP goes for credit appraisal.", isMandatory: true, sortOrder: 25),
+                "The CAM prepared for this facility, if one is available.", isMandatory: false, sortOrder: 25),
             Requirement(RhshfDocumentCategory.OffTakeAgreement, "Off-Take / Market Linkage Agreement",
                 "Formalised, legally binding agreement covering the produce being financed.", isMandatory: true, sortOrder: 30),
             Requirement(RhshfDocumentCategory.FarmerRegister, "Farmers Register",
