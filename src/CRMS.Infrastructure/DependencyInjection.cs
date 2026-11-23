@@ -980,6 +980,7 @@ public static class DependencyInjection
         services.AddScoped<IRhshfFinancialStatementRepository, RhshfFinancialStatementRepository>();
         services.AddScoped<Application.Rhshf.Queries.GetRhshfFinancialAnalysisHandler>();
         services.AddScoped<Application.Rhshf.Commands.SaveRhshfFinancialStatementHandler>();
+        services.AddScoped<Application.Rhshf.Commands.ReplaceRhshfFinancialStatementsHandler>();
         services.AddScoped<Application.Rhshf.Commands.RhshfFinancialStatementLifecycleHandler>();
         services.AddScoped<Application.Rhshf.Commands.RecordRhshfCollateralHandler>();
         services.AddScoped<Application.Rhshf.Commands.AssertRhshfCollateralPerfectionHandler>();

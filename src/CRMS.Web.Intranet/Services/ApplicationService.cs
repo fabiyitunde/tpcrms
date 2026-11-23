@@ -8006,6 +8006,24 @@ public partial class ApplicationService
         }
     }
 
+    public async Task<ApiResponse<CRMS.Application.Rhshf.Commands.RhshfFinancialStatementsReplaced>> ReplaceRhshfFinancialStatementsAsync(
+        CRMS.Application.Rhshf.Commands.ReplaceRhshfFinancialStatementsCommand command)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ReplaceRhshfFinancialStatementsHandler>();
+            var result = await handler.Handle(command, CancellationToken.None);
+            return result.IsSuccess
+                ? ApiResponse<CRMS.Application.Rhshf.Commands.RhshfFinancialStatementsReplaced>.Ok(result.Data!)
+                : ApiResponse<CRMS.Application.Rhshf.Commands.RhshfFinancialStatementsReplaced>.Fail(result.Error ?? "Failed to import the financial statements");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error importing RH-SHF financial statements for {Reference}", command.Reference);
+            return ApiResponse<CRMS.Application.Rhshf.Commands.RhshfFinancialStatementsReplaced>.Fail(ex.Message);
+        }
+    }
+
     public async Task<ApiResponse> SubmitRhshfFinancialStatementAsync(Guid statementId)
         => await RunRhshfStatementLifecycle(h => h.Handle(new CRMS.Application.Rhshf.Commands.SubmitRhshfFinancialStatementCommand(statementId), CancellationToken.None), statementId);
 

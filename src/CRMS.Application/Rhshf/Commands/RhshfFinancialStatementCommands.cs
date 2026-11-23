@@ -75,6 +75,96 @@ public class SaveRhshfFinancialStatementHandler : IRequestHandler<SaveRhshfFinan
 }
 
 // ── Lifecycle transitions ─────────────────────────────────────────────────────
+/// <summary>
+/// Imports a financial statements file in place of everything already on the case.
+/// <para>
+/// A new file is the FAC's latest statement of its financials, so it supersedes every earlier
+/// statement — imported, typed in, verified or not. Importing year by year instead left the old
+/// years behind: a corrected file skipped any year already present, so the zeros from a blank
+/// template outlived the figures that should have replaced them.
+/// </para>
+/// </summary>
+public record ReplaceRhshfFinancialStatementsCommand(
+    string Reference, Guid ActorUserId, string Currency,
+    IReadOnlyList<RhshfFinancialStatementImportYear> Years, string? OriginalFileName = null)
+    : IRequest<ApplicationResult<RhshfFinancialStatementsReplaced>>;
+
+public record RhshfFinancialStatementImportYear(
+    int FinancialYear, RhshfFinancialYearType YearType, RhshfFinancialStatementFigures Figures);
+
+/// <param name="VerifiedYearsReplaced">Years an officer had verified that the new file replaced, so
+/// the officer knows those figures need verifying again.</param>
+public record RhshfFinancialStatementsReplaced(int Imported, int Replaced, IReadOnlyList<int> VerifiedYearsReplaced);
+
+public class ReplaceRhshfFinancialStatementsHandler
+    : IRequestHandler<ReplaceRhshfFinancialStatementsCommand, ApplicationResult<RhshfFinancialStatementsReplaced>>
+{
+    private readonly IRhshfCreditProfileRepository _repo;
+    private readonly IRhshfFinancialStatementRepository _statements;
+    private readonly IUnitOfWork _uow;
+
+    public ReplaceRhshfFinancialStatementsHandler(
+        IRhshfCreditProfileRepository repo, IRhshfFinancialStatementRepository statements, IUnitOfWork uow)
+    {
+        _repo = repo;
+        _statements = statements;
+        _uow = uow;
+    }
+
+    public async Task<ApplicationResult<RhshfFinancialStatementsReplaced>> Handle(
+        ReplaceRhshfFinancialStatementsCommand request, CancellationToken ct = default)
+    {
+        if (request.Years.Count == 0)
+            return ApplicationResult<RhshfFinancialStatementsReplaced>.Failure("The file has no financial years to import.");
+
+        var duplicate = request.Years.GroupBy(y => y.FinancialYear).FirstOrDefault(g => g.Count() > 1);
+        if (duplicate is not null)
+            return ApplicationResult<RhshfFinancialStatementsReplaced>.Failure($"The file has {duplicate.Key} more than once.");
+
+        var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
+        if (profile is null)
+            return ApplicationResult<RhshfFinancialStatementsReplaced>.Failure("Case not found.");
+
+        // Build every new statement before touching the old ones, so a year that fails validation
+        // leaves the case exactly as it was.
+        var incoming = new List<RhshfFinancialStatement>();
+        foreach (var year in request.Years.OrderBy(y => y.FinancialYear))
+        {
+            var created = RhshfFinancialStatement.Create(
+                profile.Id, year.FinancialYear, null, year.YearType, RhshfFinancialInputMethod.ExcelUpload,
+                request.ActorUserId, request.Currency, request.OriginalFileName);
+            if (created.IsFailure)
+                return ApplicationResult<RhshfFinancialStatementsReplaced>.Failure($"{year.FinancialYear}: {created.Error}");
+
+            var set = created.Value.SetFigures(year.Figures);
+            if (set.IsFailure)
+                return ApplicationResult<RhshfFinancialStatementsReplaced>.Failure($"{year.FinancialYear}: {set.Error}");
+
+            created.Value.SetAuditInfo(request.ActorUserId.ToString(), isNew: true);
+            incoming.Add(created.Value);
+        }
+
+        var existing = await _statements.GetByProfileIdAsync(profile.Id, ct);
+        var verifiedYears = existing
+            .Where(s => s.Status == RhshfFinancialStatementStatus.Verified)
+            .Select(s => s.FinancialYear)
+            .OrderBy(y => y)
+            .ToList();
+
+        foreach (var old in existing)
+            _statements.Remove(old);
+        foreach (var statement in incoming)
+            await _statements.AddAsync(statement, ct);
+
+        // One save: the old years go and the new ones arrive together, or not at all. EF orders the
+        // deletes ahead of inserts that reuse a year, which the per-case unique index requires.
+        await _uow.SaveChangesAsync(ct);
+
+        return ApplicationResult<RhshfFinancialStatementsReplaced>.Success(
+            new RhshfFinancialStatementsReplaced(incoming.Count, existing.Count, verifiedYears));
+    }
+}
+
 public record SubmitRhshfFinancialStatementCommand(Guid StatementId) : IRequest<ApplicationResult>;
 public record VerifyRhshfFinancialStatementCommand(Guid StatementId, Guid ActorUserId, string? Notes) : IRequest<ApplicationResult>;
 public record RejectRhshfFinancialStatementCommand(Guid StatementId, string Reason) : IRequest<ApplicationResult>;

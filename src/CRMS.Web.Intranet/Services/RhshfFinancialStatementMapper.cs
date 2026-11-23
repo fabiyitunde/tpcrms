@@ -9,6 +9,19 @@ namespace CRMS.Web.Intranet.Services;
 /// so they stay null here and are entered manually if needed.</summary>
 public static class RhshfFinancialStatementMapper
 {
+    /// <summary>What an import did, in the officer's words. Verified years are named because the
+    /// officer has to verify the new figures again.</summary>
+    public static string DescribeImport(CRMS.Application.Rhshf.Commands.RhshfFinancialStatementsReplaced r, string? fileName)
+    {
+        var source = string.IsNullOrWhiteSpace(fileName) ? "the file" : $"\"{fileName}\"";
+        var text = r.Replaced > 0
+            ? $"Imported {r.Imported} year(s) from {source}, replacing the {r.Replaced} statement(s) already on the case."
+            : $"Imported {r.Imported} year(s) from {source}.";
+        if (r.VerifiedYearsReplaced.Count > 0)
+            text += $" {string.Join(", ", r.VerifiedYearsReplaced)} had been verified; verify the new figures.";
+        return text;
+    }
+
     public static RhshfFinancialStatementFigures ToFigures(FinancialStatementUploadData d)
     {
         var bs = d.BalanceSheet;

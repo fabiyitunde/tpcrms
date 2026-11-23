@@ -43,7 +43,8 @@
 
             @if (parsedData is not null)
             {
-                <div class="alert alert-success"><strong>@parsedData.Count year(s) parsed.</strong> Review, then import.</div>
+                <div class="alert alert-success"><strong>@parsedData.Count year(s) parsed.</strong> Review, then import.
+                    Importing replaces every financial statement already on this case.</div>
                 <div class="table-wrapper">
                     <table class="table">
                         <thead><tr><th>Year</th><th>Type</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Total Assets</th></tr></thead>
@@ -79,7 +80,7 @@
     [Parameter, EditorRequired] public string Reference { get; set; } = string.Empty;
     [Parameter] public string Currency { get; set; } = "NGN";
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnImported { get; set; }
+    [Parameter] public EventCallback<string> OnImported { get; set; }
 
     private readonly FinancialStatementExcelService _excel = new();
     private List<FinancialStatementUploadData>? parsedData;
@@ -114,25 +115,19 @@
         parseError = null;
         var actor = AuthService.CurrentUser?.Id ?? Guid.Empty;
 
-        foreach (var s in parsedData)
-        {
-            var command = new CRMS.Application.Rhshf.Commands.SaveRhshfFinancialStatementCommand(
-                Reference, StatementId: null, ActorUserId: actor,
-                FinancialYear: s.Year, YearEndDate: null, YearType: RhshfFinancialStatementMapper.ParseYearType(s.YearType),
-                Currency: Currency, InputMethod: RhshfFinancialInputMethod.ExcelUpload,
-                Figures: RhshfFinancialStatementMapper.ToFigures(s));
-
-            var result = await AppService.SaveRhshfFinancialStatementAsync(command);
-            if (!result.Success)
-            {
-                parseError = $"Error importing {s.Year}: {result.Error}";
-                isImporting = false;
-                return;
-            }
-        }
+        var result = await AppService.ReplaceRhshfFinancialStatementsAsync(new CRMS.Application.Rhshf.Commands.ReplaceRhshfFinancialStatementsCommand(
+            Reference, actor, Currency,
+            parsedData.Select(s => new CRMS.Application.Rhshf.Commands.RhshfFinancialStatementImportYear(
+                s.Year, RhshfFinancialStatementMapper.ParseYearType(s.YearType), RhshfFinancialStatementMapper.ToFigures(s))).ToList()));
 
         isImporting = false;
-        await OnImported.InvokeAsync();
+        if (!result.Success)
+        {
+            parseError = result.Error;
+            return;
+        }
+
+        await OnImported.InvokeAsync(RhshfFinancialStatementMapper.DescribeImport(result.Data!, null));
         await OnClose.InvokeAsync();
     }
 }

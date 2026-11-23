@@ -771,22 +771,18 @@ else
                 return;
             }
 
-            int imported = 0, skipped = 0;
-            string? firstError = null;
-            foreach (var s in parsed.Data)
-            {
-                var result = await AppService.SaveRhshfFinancialStatementAsync(new SaveRhshfFinancialStatementCommand(
-                    Reference, null, CurrentUserId, s.Year, null, RhshfFinancialStatementMapper.ParseYearType(s.YearType),
-                    workspace.Currency, RhshfFinancialInputMethod.ExcelUpload, RhshfFinancialStatementMapper.ToFigures(s), doc.FileName));
-                if (result.Success) imported++;
-                else if ((result.Error ?? "").Contains("already", StringComparison.OrdinalIgnoreCase)) skipped++;
-                else firstError ??= result.Error;
-            }
+            // The file replaces every statement already on the case, so a corrected upload can never
+            // leave years from an earlier one behind.
+            var result = await AppService.ReplaceRhshfFinancialStatementsAsync(new ReplaceRhshfFinancialStatementsCommand(
+                Reference, CurrentUserId, workspace.Currency,
+                parsed.Data.Select(s => new RhshfFinancialStatementImportYear(
+                    s.Year, RhshfFinancialStatementMapper.ParseYearType(s.YearType), RhshfFinancialStatementMapper.ToFigures(s))).ToList(),
+                doc.FileName));
 
             await RefreshFinancialAnalysis();
-            financialImportMessage = firstError is not null
-                ? $"Imported {imported} year(s); stopped on an error: {firstError}"
-                : $"Imported {imported} year(s) from \"{doc.FileName}\"" + (skipped > 0 ? $"; {skipped} already present (skipped — delete first to replace)." : ".");
+            financialImportMessage = result.Success
+                ? RhshfFinancialStatementMapper.DescribeImport(result.Data!, doc.FileName)
+                : $"Could not import \"{doc.FileName}\": {result.Error}";
         }
         finally
         {
@@ -835,10 +831,11 @@ else
         await RefreshFinancialAnalysis();
     }
 
-    private async Task OnFinancialStatementsImported()
+    private async Task OnFinancialStatementsImported(string message)
     {
         CloseModal();
         await RefreshFinancialAnalysis();
+        financialImportMessage = message;
     }
 
     private async Task SubmitFinancialStatementForReview(Guid id)
