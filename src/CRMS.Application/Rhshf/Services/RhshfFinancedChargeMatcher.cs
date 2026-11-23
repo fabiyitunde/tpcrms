@@ -12,6 +12,29 @@ namespace CRMS.Application.Rhshf.Services;
 public static class RhshfFinancedChargeMatcher
 {
     /// <summary>
+    /// The charges this case's EOP finances inside the loan. The offer letter and the booking both
+    /// read it, so a product charge left off the letter is also left off the loan.
+    /// </summary>
+    public static IReadOnlyList<(string Code, string Label)> FinancedBy(CRMS.Domain.Aggregates.Rhshf.RhshfCreditProfile profile) =>
+        profile.FinancingCharges
+            .Where(c => c.InLoan)
+            .Select(c => (c.Code, c.Label))
+            .ToList();
+
+    /// <summary>The ids of the product charges that name something already financed — the ones
+    /// booking must leave off the loan.</summary>
+    public static IReadOnlyCollection<int> FinancedChargeIds(
+        IEnumerable<CRMS.Domain.Interfaces.FineractLoanProductCharge> productCharges,
+        IEnumerable<(string Code, string Label)> financedCharges)
+    {
+        var financed = financedCharges.ToList();
+        return productCharges
+            .Where(c => IsAlreadyFinanced(c.Name, financed))
+            .Select(c => c.Id)
+            .ToList();
+    }
+
+    /// <summary>
     /// Whether a product charge names something already financed.
     /// <para>
     /// The product charge must contain the financed name, never the other way round. A fee called

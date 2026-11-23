@@ -81,7 +81,12 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
             RepaymentAccountNumber: profile.BoaAccountNumber,
             DisburseToSavings: false,
             // One loan per cycle, so the case reference alone would collide on a second cycle.
-            ExternalId: BuildExternalId(profile));
+            ExternalId: BuildExternalId(profile),
+            // A product charge for something the EOP already finances (insurance, working capital,
+            // tech services fee) is borrowed inside the loan; deducting it again would charge the FAC
+            // twice. The offer letter leaves the same charges off, so the loan matches what was accepted.
+            ExcludedChargeIds: Services.RhshfFinancedChargeMatcher.FinancedChargeIds(
+                fineractProduct.ProductCharges, Services.RhshfFinancedChargeMatcher.FinancedBy(profile)));
 
         var bookingResult = await _fineract.BookApprovedLoanAsync(bookingRequest, ct);
         if (bookingResult.IsFailure)

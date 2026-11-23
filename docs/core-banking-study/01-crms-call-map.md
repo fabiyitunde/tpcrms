@@ -152,6 +152,10 @@ caller cancellation is rethrown. JSON is case-insensitive; Fineract dates are re
   Charges are only loaded for a single product (`:81-85`, `GET loanproducts/{id}`). Also filtered to the CRMS user's office when branch-specific products are on (`:113-117`).
 - **MISMATCH (high): `FineractLoanProduct.Charges` is always empty against real core banking.** The RH-SHF offer letter's "fees core banking applies at booking"
   and the double-financing guard (`RhshfOfferDocumentDataBuilder.cs:406-420`) therefore never see a fee. Fix: `GET loanproducts/{id}` for the linked product.
+  *Resolved:* the letter (46ce0fa) and booking (2026-11-23) now read `GET loanproducts/{id}`.
+- **Found 2026-11-23: core banking never copies product charges onto a loan.** `LoanChargeAssembler.fromParsedJson` builds them only from the
+  `charges` array on `POST /loans`; its web app sends them from `GET /loans/template`. CRMS sent none, so CRMS-booked loans carried no fees.
+  Booking now sends the product's non-overdue charges (`FineractDirectService.LoanChargesFor`); RH-SHF excludes charges the EOP already finances.
 
 ### F8. BOA account → client — `GetNampBoaAccountAsync` (used by all three tracks)
 - CRMS: `GET tp/savingsaccounts/byexternalId/{nuban}` (`:990-1021`); reads id, accountNo, clientId, status.value.
@@ -245,7 +249,7 @@ per `ICoreBankingService.cs:215-218`). All real loan work goes through `IFinerac
 | # | Sev | Where | Finding |
 |---|---|---|---|
 | M1 | High | F1 | `calculateLoanSchedule` omits `clientId` + `submittedOnDate`; tpbackend validates as a create (`LoanScheduleCalculationPlatformServiceImpl.java:112-115`, `LoanApplicationCommandFromApiJsonHelper.java:136,368-371`) → 400 → CRMS silently uses its own schedule for offer letters, NAMP appraisal and the portal preview. |
-| M2 | High | F7 | `GET /loanproducts` list never carries `charges` (`LoanProductReadPlatformServiceImpl.java:107`); CRMS reads fees from it → RH-SHF letter fees and double-financing guard always empty. |
+| M2 | High | F7 | `GET /loanproducts` list never carries `charges` (`LoanProductReadPlatformServiceImpl.java:107`); CRMS reads fees from it → RH-SHF letter fees and double-financing guard always empty. *Resolved; see F7, including the 2026-11-23 finding that booking sent no charges.* |
 | M3 | High (conditional) | F9 | Under Fineract maker-checker for CREATE/APPROVE/DISBURSE_LOAN, tpbackend answers **200** `{commandId}` while nothing happened (`SynchronousCommandProcessingService.java:133-145,153-161`). CRMS treats any 2xx on approve/disburse as done and returns `Disbursed=true` regardless of the read-back status (`FineractDirectService.cs:812-850`). On create it fails ("invalid booking response", `:729-732`) but each retry queues another pending command. Safe only if the CRMS service user has `markerCheckerOverride` / BATCHPOSTING_TPDIRECT (`:120-129`) or maker-checker is off for those tasks — verify on BOA. |
 | M4 | Med | F9 | Duplicate-externalId detection relies on the text "external ... already exists" (`:979-985`), which tpbackend produces only if the DB index is literally named `loan_externalid_UNIQUE`. A Liquibase-created schema (`0001_initial_schema.xml:2002-2004`, unnamed inline unique) yields "Unknown data integrity issue" (403) → CRMS reports a plain booking failure instead of resuming. No double loan (DB still enforces), but no auto-resume; the next attempt's probe recovers it. |
 | M5 | Med | F9 | Probe `GET /loans?externalId=` is scoped to the CRMS user's office hierarchy (`LoanReadPlatformServiceImpl.java:299-318`). If that user is not at head office, the probe misses loans in other branches → relies on M4 path. Resume also does not check that the found loan's client/product match the request (`:858-899`). |

@@ -395,10 +395,7 @@ public class RhshfOfferDocumentDataBuilder
             _logger.LogWarning("RH-SHF {Reference}: product terms could not be read for the letter: {Error}",
                 profile.Reference, terms.Error);
 
-        var financed = profile.FinancingCharges
-            .Where(c => c.InLoan)
-            .Select(c => (c.Code, c.Label))
-            .ToList();
+        var financed = RhshfFinancedChargeMatcher.FinancedBy(profile);
 
         var fees = new List<RhshfOfferFee>();
         var suppressed = new List<string>();
@@ -407,13 +404,13 @@ public class RhshfOfferDocumentDataBuilder
         {
             if (RhshfFinancedChargeMatcher.IsAlreadyFinanced(charge.Name, financed))
             {
-                // Suppressing the line keeps the letter honest, but it does not stop core banking
-                // deducting the fee — only fixing the product does. Logged with the reference, and
-                // returned so the case itself can show it to whoever can act.
+                // Booking leaves this charge off the loan too (BookRhshfDisbursementHandler), so the
+                // FAC is not charged twice. The product is still misconfigured, so it is logged with
+                // the reference and returned for the case to show to whoever can fix it.
                 _logger.LogWarning(
                     "RH-SHF {Reference}: core banking product {ProductId} charges \"{Charge}\", which this " +
-                    "EOP already finances. Left off the offer letter; the product configuration needs fixing " +
-                    "or the borrower will be charged twice.",
+                    "EOP already finances. Left off the offer letter and the booking; the product " +
+                    "configuration needs fixing.",
                     profile.Reference, match.Id, charge.Name);
 
                 suppressed.Add(charge.Name);
@@ -486,9 +483,9 @@ public class RhshfOfferDocumentDataBuilder
 /// <summary>
 /// The offer document payload, plus anything the caller needs to act on afterwards.
 /// <para>
-/// The suppressed fees travel with the data rather than being left to a log line: the letter is
-/// correct without them, but core banking will still deduct them until the product is fixed, and
-/// that is a thing a person has to do.
+/// The suppressed fees travel with the data rather than being left to a log line: the letter and
+/// the booking both leave them out, but the product is still misconfigured, and fixing it is a
+/// thing a person has to do.
 /// </para>
 /// </summary>
 public record RhshfOfferDocumentBuild(

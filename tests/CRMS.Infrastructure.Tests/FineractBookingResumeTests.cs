@@ -48,8 +48,9 @@ public class FineractBookingResumeTests
     private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
-    private const string ProductsJson =
-        """[{"id":7,"name":"RH-SHF Inputs","shortName":"RHSH","repaymentEvery":1,"numberOfRepayments":6,"annualInterestRate":9.5,"transactionProcessingStrategyId":1}]""";
+    /// <summary>GET loanproducts/{id}: booking reads the single product, the only read that carries charges.</summary>
+    private const string ProductJson =
+        """{"id":7,"name":"RH-SHF Inputs","shortName":"RHSH","repaymentEvery":1,"numberOfRepayments":6,"annualInterestRate":9.5,"transactionProcessingStrategyId":1}""";
 
     private const string SavingsJson =
         """{"id":2001,"accountNo":"SAV-001","externalId":"0123456789","clientId":555,"status":{"id":300,"value":"Active"}}""";
@@ -83,10 +84,10 @@ public class FineractBookingResumeTests
         CreateRepaymentStandingInstruction: true,
         ExternalId: ExternalId);
 
-    /// <summary>The common pre-booking reads (product catalogue + repayment savings account).</summary>
+    /// <summary>The common pre-booking reads (the product + repayment savings account).</summary>
     private static HttpResponseMessage? CommonReads(string path) => path switch
     {
-        var p when p.Contains("loanproducts") => Json(ProductsJson),
+        var p when p.Contains("loanproducts/7") => Json(ProductJson),
         var p when p.Contains("savingsaccounts/byexternalId") => Json(SavingsJson),
         _ => null
     };

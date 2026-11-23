@@ -659,10 +659,9 @@ public class FineractDirectService : IFineractDirectService
             StartDate: ParseFineractDate(dto.StartDate),
             CloseDate: closeDate,
             IsActive: isActive,
-            // Previously dropped on the floor. These are the fees core banking actually
-            // applies at booking, so an offer letter that states fees must read them from
-            // here rather than keep its own copy — otherwise the letter and the deduction
-            // drift apart with nothing to catch it.
+            // Previously dropped on the floor. Booking sends these as the loan's charges, so an
+            // offer letter that states fees must read them from here rather than keep its own
+            // copy — otherwise the letter and the deduction drift apart with nothing to catch it.
             Charges: (dto.Charges ?? [])
                 .Select(c => new FineractLoanProductCharge(
                     Id: c.Id,
@@ -670,7 +669,8 @@ public class FineractDirectService : IFineractDirectService
                     Amount: c.Amount,
                     CalculationType: c.ChargeCalculationType?.Value ?? "",
                     TimeType: c.ChargeTimeType?.Value ?? "",
-                    CurrencyCode: c.Currency?.Code))
+                    CurrencyCode: c.Currency?.Code,
+                    TimeTypeId: c.ChargeTimeType?.Id ?? 0))
                 .ToList()
         );
     }
@@ -699,18 +699,15 @@ public class FineractDirectService : IFineractDirectService
                 }
             }
 
-            // Step 1: Fetch Fineract Loan Product config to map settings
-            var productsResult = await GetLoanProductsAsync(activeOnly: false, ct);
-            if (productsResult.IsFailure)
+            // Step 1: Fetch the product to map settings. The single-product read, not the catalogue:
+            // only it carries the product's charges, which this loan must be booked with.
+            var productResult = await GetLoanProductAsync(request.ProductId, ct);
+            if (productResult.IsFailure)
             {
-                return Result.Failure<FineractBookingResult>($"Failed to retrieve Fineract loan products: {productsResult.Error}");
+                return Result.Failure<FineractBookingResult>($"Failed to retrieve Fineract loan product {request.ProductId}: {productResult.Error}");
             }
 
-            var fineractProduct = productsResult.Value.FirstOrDefault(p => p.Id == request.ProductId);
-            if (fineractProduct == null)
-            {
-                return Result.Failure<FineractBookingResult>($"Fineract loan product with ID {request.ProductId} was not found.");
-            }
+            var fineractProduct = productResult.Value;
 
             // Step 2: Resolve the linked repayment savings account.
             // RepaymentAccountNumber is the BOA account (a Fineract external id), so resolve it via the
@@ -782,6 +779,17 @@ public class FineractDirectService : IFineractDirectService
             // (and the key the resume path above looks the loan up by).
             if (!string.IsNullOrWhiteSpace(request.ExternalId))
                 loanBody["externalId"] = request.ExternalId!;
+
+            // Core banking puts on a loan only the charges this request lists; it never copies the
+            // product's own. Its web app sends them from the loan template, which is why loans booked
+            // there carried the product fees and loans booked from here, before this, carried none.
+            var charges = LoanChargesFor(fineractProduct, request, formattedDate);
+            if (charges.Count > 0)
+            {
+                loanBody["charges"] = charges;
+                _logger.LogInformation("Fineract: booking externalId {ExternalId} with product charges {ChargeIds}",
+                    request.ExternalId, string.Join(", ", charges.Select(c => c["chargeId"])));
+            }
 
             if (linkAccountId.HasValue)
             {
@@ -1243,6 +1251,32 @@ public class FineractDirectService : IFineractDirectService
 
     private static bool IsFlat(FineractLoanProduct product) =>
         product.InterestType.Contains("flat", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The product's charges in the shape core banking's create-loan request takes, as its own loan
+    /// template offers them: overdue-instalment penalties are left out (core banking raises those
+    /// itself when an instalment falls overdue), and so is anything the caller excludes. A charge
+    /// with no amount is skipped rather than sent, because core banking refuses the whole loan over
+    /// it. Only a specified-due-date charge needs a date, and it falls due on the booking date.
+    /// </summary>
+    internal static List<Dictionary<string, object>> LoanChargesFor(
+        FineractLoanProduct product, FineractLoanBookingRequest request, string formattedDate)
+    {
+        var excluded = request.ExcludedChargeIds ?? [];
+
+        return product.ProductCharges
+            .Where(c => c.TimeTypeId != FineractLoanProductCharge.OverdueInstallmentTimeType)
+            .Where(c => !excluded.Contains(c.Id))
+            .Where(c => c.Amount > 0)
+            .Select(c =>
+            {
+                var charge = new Dictionary<string, object> { ["chargeId"] = c.Id, ["amount"] = c.Amount };
+                if (c.TimeTypeId == FineractLoanProductCharge.SpecifiedDueDateTimeType)
+                    charge["dueDate"] = formattedDate;
+                return charge;
+            })
+            .ToList();
+    }
 
     /// <summary>
     /// The repayment terms of a loan on <paramref name="product"/>, as both booking and the schedule

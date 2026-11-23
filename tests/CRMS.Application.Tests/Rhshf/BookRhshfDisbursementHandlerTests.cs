@@ -123,6 +123,28 @@ public class BookRhshfDisbursementHandlerTests
     }
 
     [Fact]
+    public async Task Book_CaseFinancingNoCharges_LeavesEveryProductFeeOnTheLoan()
+    {
+        var profile = MakeProfileAtDisbursement();
+        var product = MakeFineractProduct(77, 9.5m, 1) with
+        {
+            Charges = [new FineractLoanProductCharge(101, "Appraisal Fee", 1m, "% Approved Amount", "Disbursement", "NGN", TimeTypeId: 1)],
+        };
+        var fineract = new FakeFineractDirectService
+        {
+            ClientId = 555,
+            Products = [product],
+            BookingResult = new FineractBookingResult(9001, "LN-009001", true, true, true, "Active"),
+        };
+        var handler = new BookRhshfDisbursementHandler(
+            new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
+
+        await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+
+        Assert.Empty(fineract.LastBookingRequest!.ExcludedChargeIds!);
+    }
+
+    [Fact]
     public async Task Book_LoanCreatedButNotDisbursed_RecordsFailedAttempt_StaysAtDisbursement_KeepsLoanId()
     {
         var profile = MakeProfileAtDisbursement();

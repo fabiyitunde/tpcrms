@@ -43,6 +43,11 @@ public class FineractSchedulePreviewTests
     private const string WeeklyProductJson =
         """[{"id":7,"name":"Weekly","repaymentEvery":1,"numberOfRepayments":12,"repaymentFrequencyType":{"value":"Weeks"}}]""";
 
+    /// <summary>The product as either read returns it: the catalogue (a list) or, for booking,
+    /// GET loanproducts/{id} (the single product, the only read that carries charges).</summary>
+    private static HttpResponseMessage Product(string path, string listJson) =>
+        Json(path.Contains("loanproducts/") ? listJson.Trim()[1..^1] : listJson);
+
     private const string ScheduleJson =
         """{"totalPrincipalExpected":1200000,"totalInterestCharged":144000,"totalRepaymentExpected":1344000,"periods":[{"period":null},{"period":1,"dueDate":[2027,3,1],"principalDue":300000,"interestDue":36000,"totalDueForPeriod":336000}]}""";
 
@@ -121,7 +126,7 @@ public class FineractSchedulePreviewTests
     {
         var (service, handler) = Build((req, path) => (req.Method.Method, path) switch
         {
-            ("GET", var p) when p.Contains("loanproducts") => Json(QuarterlyProductJson),
+            ("GET", var p) when p.Contains("loanproducts") => Product(p, QuarterlyProductJson),
             ("POST", var p) when p.EndsWith("loans") => Json("""{"loanId":901,"resourceId":901}"""),
             ("POST", var p) when p.Contains("command=") => Json("""{"loanId":901}"""),
             ("GET", var p) when p.Contains("loans/901") => Json("""{"id":901,"accountNo":"LN-000901","status":{"id":300,"value":"Active"}}"""),
@@ -140,7 +145,7 @@ public class FineractSchedulePreviewTests
     [Fact]
     public async Task Booking_ATenorThatDoesNotDivideIntoTheInterval_IsRefusedBeforeAnythingIsSent()
     {
-        var (service, handler) = Build((_, path) => path.Contains("loanproducts") ? Json(QuarterlyProductJson) : null);
+        var (service, handler) = Build((_, path) => path.Contains("loanproducts") ? Product(path, QuarterlyProductJson) : null);
 
         var result = await service.BookApprovedLoanAsync(BookingRequest(tenorMonths: 10));
 
@@ -152,7 +157,7 @@ public class FineractSchedulePreviewTests
     [Fact]
     public async Task Booking_AProductNotRepaidInMonths_IsRefused()
     {
-        var (service, handler) = Build((_, path) => path.Contains("loanproducts") ? Json(WeeklyProductJson) : null);
+        var (service, handler) = Build((_, path) => path.Contains("loanproducts") ? Product(path, WeeklyProductJson) : null);
 
         var result = await service.BookApprovedLoanAsync(BookingRequest(tenorMonths: 3));
 

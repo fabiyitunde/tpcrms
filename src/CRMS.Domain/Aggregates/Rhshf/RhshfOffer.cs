@@ -25,8 +25,8 @@ public class RhshfOffer : AggregateRoot
     /// Core banking charges that were left off this letter because the EOP already finances them,
     /// null when there were none.
     /// <para>
-    /// Recorded on the offer rather than only logged: the letter is correct, but core banking will
-    /// still deduct the fee at booking unless somebody changes the product, and a log line is not
+    /// Recorded on the offer rather than only logged: the letter and the booking both leave the fee
+    /// out, but the product stays misconfigured until somebody changes it, and a log line is not
     /// something an officer working this case will ever see. Kept as what was true when the letter
     /// was issued, so a later product fix does not erase the fact that an offer went out against a
     /// misconfigured product.

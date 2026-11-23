@@ -162,7 +162,12 @@ public record FineractLoanBookingRequest(
     // This is what makes booking resumable: if a previous attempt created the loan but failed to
     // approve or disburse it, the next attempt finds that loan by externalId and continues from the
     // step that failed instead of creating a second loan for the same application.
-    string? ExternalId = null
+    string? ExternalId = null,
+    // Product charges to leave off this loan, by core banking charge id. Booking otherwise sends
+    // every charge on the product, because core banking applies only the charges the create
+    // request lists — it never copies the product's own. RH-SHF uses this to drop a product charge
+    // that duplicates something the EOP already finances.
+    IReadOnlyCollection<int>? ExcludedChargeIds = null
 );
 
 public record FineractBookingResult(
@@ -381,10 +386,10 @@ public record FineractLoanProduct(
     DateTime? CloseDate,
     bool IsActive,
     /// <summary>
-    /// Fees configured on the product, which core banking applies at booking. CRMS sends no charges
-    /// when it books — it sends principal, tenor and rate — so these are the authoritative statement
-    /// of what the borrower will actually be charged, and the only safe source for the fee lines on
-    /// an offer letter.
+    /// Fees configured on the product. Core banking applies a charge only when the create request
+    /// lists it, so booking sends these (less any the caller excludes) — which makes them the
+    /// authoritative statement of what the borrower will be charged, and the only safe source for
+    /// the fee lines on an offer letter.
     /// <para>
     /// Null and empty both mean "none defined"; read it through <see cref="ProductCharges"/> rather
     /// than directly. Optional so the many callers that only want principal and rate bounds are
@@ -410,8 +415,15 @@ public record FineractLoanProductCharge(
     decimal Amount,
     string CalculationType,
     string TimeType,
-    string? CurrencyCode)
+    string? CurrencyCode,
+    // Core banking's chargeTimeType id (1 Disbursement, 2 Specified due date, 8 Instalment fee,
+    // 9 Overdue instalment, 12 Tranche disbursement). Booking keys on this, not on TimeType's
+    // display text. 0 when unknown.
+    int TimeTypeId = 0)
 {
+    public const int SpecifiedDueDateTimeType = 2;
+    public const int OverdueInstallmentTimeType = 9;
+
     /// <summary>True when Amount is a percentage rather than a naira figure.</summary>
     public bool IsPercentage =>
         CalculationType.Contains('%', StringComparison.Ordinal)

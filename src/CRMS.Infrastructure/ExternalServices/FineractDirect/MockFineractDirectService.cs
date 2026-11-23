@@ -377,10 +377,10 @@ public class MockFineractDirectService : IFineractDirectService
                 [
                     new FineractLoanProductCharge(
                         Id: 101, Name: "Appraisal Fee", Amount: 1m,
-                        CalculationType: "% Approved Amount", TimeType: "Disbursement", CurrencyCode: "NGN"),
+                        CalculationType: "% Approved Amount", TimeType: "Disbursement", CurrencyCode: "NGN", TimeTypeId: 1),
                     new FineractLoanProductCharge(
                         Id: 102, Name: "Monitoring Fee", Amount: 0.5m,
-                        CalculationType: "% Approved Amount", TimeType: "Disbursement", CurrencyCode: "NGN"),
+                        CalculationType: "% Approved Amount", TimeType: "Disbursement", CurrencyCode: "NGN", TimeTypeId: 1),
                 ]),
         };
 
@@ -449,6 +449,9 @@ public class MockFineractDirectService : IFineractDirectService
     {
         _logger.LogInformation("MockFineract: Initiating automated booking for client {ClientId}, product {ProductId}, principal {Principal}, externalId {ExternalId}",
             request.ClientId, request.ProductId, request.Principal, request.ExternalId);
+        if (request.ExcludedChargeIds is { Count: > 0 })
+            _logger.LogInformation("MockFineract: leaving product charges {ChargeIds} off externalId {ExternalId}",
+                string.Join(", ", request.ExcludedChargeIds), request.ExternalId);
 
         // Mirror the real service's externalId uniqueness: booking the same CRMS reference twice returns
         // the loan already created for it rather than minting a second one, so the resume path can be

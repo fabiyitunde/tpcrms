@@ -80,4 +80,26 @@ public class RhshfFinancedChargeMatcherTests
         Assert.True(RhshfFinancedChargeMatcher.IsAlreadyFinanced("Logistics Levy Fee", financed));
         Assert.False(RhshfFinancedChargeMatcher.IsAlreadyFinanced("Appraisal Fee", financed));
     }
+
+    /// <summary>Booking sends every product charge except these, so only the financed duplicate goes.</summary>
+    [Fact]
+    public void OnlyTheFinancedDuplicateIsExcludedFromBooking()
+    {
+        CRMS.Domain.Interfaces.FineractLoanProductCharge Charge(int id, string name) =>
+            new(id, name, 1m, "% Approved Amount", "Disbursement", "NGN", TimeTypeId: 1);
+
+        var excluded = RhshfFinancedChargeMatcher.FinancedChargeIds(
+            [Charge(101, "Appraisal Fee"), Charge(102, "Monitoring Fee"), Charge(103, "Insurance")], Financed);
+
+        Assert.Equal([103], excluded);
+    }
+
+    [Fact]
+    public void NothingIsExcludedWhenTheEopFinancesNoCharges()
+    {
+        var excluded = RhshfFinancedChargeMatcher.FinancedChargeIds(
+            [new(103, "Insurance", 4m, "% Approved Amount", "Disbursement", "NGN")], []);
+
+        Assert.Empty(excluded);
+    }
 }
