@@ -16,11 +16,14 @@ public sealed class BilledSmartComplyProvider : ISmartComplyProvider
 {
     private readonly ISmartComplyProvider _inner;
     private readonly IBillingLedger _ledger;
+    private readonly ExternalServices.SmartComply.SmartComplyWalletAlert? _walletAlert;
 
-    public BilledSmartComplyProvider(ISmartComplyProvider inner, IBillingLedger ledger)
+    public BilledSmartComplyProvider(ISmartComplyProvider inner, IBillingLedger ledger,
+        ExternalServices.SmartComply.SmartComplyWalletAlert? walletAlert = null)
     {
         _inner = inner;
         _ledger = ledger;
+        _walletAlert = walletAlert;
     }
 
     public ISmartComplyProvider Inner => _inner;
@@ -41,6 +44,10 @@ public sealed class BilledSmartComplyProvider : ISmartComplyProvider
         }
         sw.Stop();
         await _ledger.RecordAsync(new BillingUsageDraft(item, result.IsSuccess, result.IsSuccess ? null : result.Error, hint, (int)sw.ElapsedMilliseconds));
+        // Every call passes here, so this is where a refusal for lack of funds is noticed and the
+        // administrators told, whichever track or page made the call.
+        if (result.IsFailure && _walletAlert is not null)
+            await _walletAlert.RaiseIfShortfallAsync(result.Error, item);
         return result;
     }
 

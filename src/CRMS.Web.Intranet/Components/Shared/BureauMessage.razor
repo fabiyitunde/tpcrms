@@ -1,0 +1,70 @@
+@using CRMS.Application.CreditBureau
+@inject IJSRuntime JS
+
+@* What a bureau check answered, on any bureau card: a plain heading and what to do, then the
+   bureau's message in full, exactly as it was received. The message is never shortened or
+   reworded, because its exact wording is what says what went wrong (and what SmartComply needs
+   to see). Shows nothing when there is no message. *@
+
+@if (!string.IsNullOrWhiteSpace(Message) && BureauErrors.Explain(Message) is { } explained)
+{
+    var tone = Tone;
+    <div class="bm-box bm-@tone">
+        <div class="bm-head">
+            <span class="material-symbols-outlined bm-icon">@(tone == "info" ? "info" : tone == "warn" ? "warning" : "error")</span>
+            <div style="min-width: 0;">
+                <div class="bm-title">@explained.Title</div>
+                <div class="bm-hint">@explained.Hint</div>
+            </div>
+            <button type="button" class="bm-copy" @onclick="CopyAsync" title="Copy the full message">
+                <span class="material-symbols-outlined" style="font-size: 15px;">@(copied ? "check" : "content_copy")</span>
+                @(copied ? "Copied" : "Copy")
+            </button>
+        </div>
+        <div class="bm-label">Message from the bureau, in full</div>
+        <pre class="bm-text">@Message</pre>
+    </div>
+}
+
+<style>
+    .bm-box { margin-top: var(--space-3); border-radius: var(--radius-lg); border: 1px solid; padding: var(--space-3); text-align: left; }
+    .bm-error { background: #fef2f2; border-color: #fecaca; }
+    .bm-warn { background: #fffbeb; border-color: #fde68a; }
+    .bm-info { background: var(--gray-50); border-color: var(--gray-200); }
+    .bm-head { display: flex; gap: var(--space-2); align-items: flex-start; }
+    .bm-icon { font-size: 20px; flex-shrink: 0; }
+    .bm-error .bm-icon, .bm-error .bm-title { color: #b91c1c; }
+    .bm-warn .bm-icon, .bm-warn .bm-title { color: #975a16; }
+    .bm-info .bm-icon, .bm-info .bm-title { color: var(--gray-700); }
+    .bm-title { font-weight: 600; font-size: var(--text-sm); }
+    .bm-hint { font-size: var(--text-xs); color: var(--gray-600); margin-top: 2px; }
+    .bm-copy { margin-left: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--gray-300, #cbd5e0); background: #fff; border-radius: var(--radius-md); font-size: 11px; padding: 2px 8px; cursor: pointer; color: var(--gray-600); }
+    .bm-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-500); margin: var(--space-2) 0 4px; }
+    .bm-text { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); font-size: 12px; line-height: 1.45; color: var(--gray-800); background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 8px 10px; max-height: 220px; overflow: auto; }
+</style>
+
+@code {
+    /// <summary>The bureau's message as stored on the report.</summary>
+    [Parameter] public string? Message { get; set; }
+    /// <summary>The report's status: Failed is shown as an error, NotFound and a missing score as notes.</summary>
+    [Parameter] public string? Status { get; set; }
+
+    private bool copied;
+
+    private string Tone => Status switch
+    {
+        "Failed" or "ConsentRequired" => "error",
+        "NotFound" => "info",
+        _ => BureauErrors.IsWalletShortfall(Message) ? "error" : "warn",
+    };
+
+    private async Task CopyAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", Message);
+            copied = true;
+        }
+        catch (JSException) { copied = false; }
+    }
+}

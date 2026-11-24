@@ -1412,6 +1412,10 @@ else
                     {
                         <span style="font-size: 0.8rem; color: var(--danger-600);">@bureauRecheckError</span>
                     }
+                    @if (!string.IsNullOrEmpty(bureauRecheckMessage))
+                    {
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">@bureauRecheckMessage</span>
+                    }
                     <button class="btn btn-outline-secondary btn-sm" @onclick="RunBureauRecheck" disabled="@bureauRechecking">
                         @if (bureauRechecking)
                         {
@@ -1485,8 +1489,19 @@ else
                                             <span class="namp-bureau-stat-label">Score Grade</span>
                                             @if (r.ScoreGrade != null)
                                             {
-                                                var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
-                                                <span class="badge @gc">@r.ScoreGrade</span>
+                                                @if (r.ScoreGrade is "UNAVAILABLE")
+                                                {
+                                                    <span class="badge badge-gray" title="The bureau's score could not be fetched; the reason is shown on the card.">No bureau score</span>
+                                                }
+                                                else if (r.ScoreGrade is "DERIVED")
+                                                {
+                                                    <span class="badge badge-warning" title="An old stand-in of 600 set by the CRMS, not the bureau's score. Recheck to fetch the bureau's own score.">Estimated (not the bureau's)</span>
+                                                }
+                                                else
+                                                {
+                                                    var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
+                                                    <span class="badge @gc">@r.ScoreGrade</span>
+                                                }
                                             }
                                             else { <span class="namp-bureau-stat-value">—</span> }
                                         </div>
@@ -1522,18 +1537,14 @@ else
                                     @if (r.Status == "Completed")
                                     { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> <BureauSourceTag Provider="@r.Provider" Status="@r.Status" /> }
                                     else if (r.Status == "Failed")
-                                    { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
+                                    { <span class="badge badge-danger"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
                                     { <span class="badge" style="background:var(--warning-100,#fef3c7);color:var(--warning-700,#b45309);border:1px solid var(--warning-200,#fde68a);"><span class="material-symbols-outlined" style="font-size:13px;">info</span> No Credit File</span> }
                                     else
                                     { <span class="badge badge-warning">@r.Status</span> }
                                     @if (!string.IsNullOrEmpty(r.ErrorMessage))
                                     {
-                                        var readableErr = ExtractReadableError(r.ErrorMessage);
-                                        <span style="font-size: var(--text-xs); color: var(--danger-600); margin-left: 0.5rem;" title="@r.ErrorMessage">
-                                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">info</span>
-                                            @(readableErr.Length > 80 ? readableErr[..77] + "…" : readableErr)
-                                        </span>
+                                        <div style="flex-basis: 100%; width: 100%;"><BureauMessage Message="@r.ErrorMessage" Status="@r.Status" /></div>
                                     }
                                 </div>
                             </div>
@@ -1597,18 +1608,14 @@ else
                                     @if (r.Status == "Completed")
                                     { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> <BureauSourceTag Provider="@r.Provider" Status="@r.Status" /> }
                                     else if (r.Status == "Failed")
-                                    { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
+                                    { <span class="badge badge-danger"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
                                     { <span class="badge" style="background:var(--warning-100,#fef3c7);color:var(--warning-700,#b45309);border:1px solid var(--warning-200,#fde68a);"><span class="material-symbols-outlined" style="font-size:13px;">info</span> No Credit File</span> }
                                     else
                                     { <span class="badge badge-warning">@r.Status</span> }
                                     @if (!string.IsNullOrEmpty(r.ErrorMessage))
                                     {
-                                        var readableErr = ExtractReadableError(r.ErrorMessage);
-                                        <span style="font-size: var(--text-xs); color: var(--danger-600); margin-left: 0.5rem;" title="@r.ErrorMessage">
-                                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">info</span>
-                                            @(readableErr.Length > 80 ? readableErr[..77] + "…" : readableErr)
-                                        </span>
+                                        <div style="flex-basis: 100%; width: 100%;"><BureauMessage Message="@r.ErrorMessage" Status="@r.Status" /></div>
                                     }
                                 </div>
                             </div>
@@ -1662,8 +1669,19 @@ else
                                             <span class="namp-bureau-stat-label">Score Grade</span>
                                             @if (r.ScoreGrade != null)
                                             {
-                                                var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
-                                                <span class="badge @gc">@r.ScoreGrade</span>
+                                                @if (r.ScoreGrade is "UNAVAILABLE")
+                                                {
+                                                    <span class="badge badge-gray" title="The bureau's score could not be fetched; the reason is shown on the card.">No bureau score</span>
+                                                }
+                                                else if (r.ScoreGrade is "DERIVED")
+                                                {
+                                                    <span class="badge badge-warning" title="An old stand-in of 600 set by the CRMS, not the bureau's score. Recheck to fetch the bureau's own score.">Estimated (not the bureau's)</span>
+                                                }
+                                                else
+                                                {
+                                                    var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
+                                                    <span class="badge @gc">@r.ScoreGrade</span>
+                                                }
                                             }
                                             else { <span class="namp-bureau-stat-value">—</span> }
                                         </div>
@@ -1699,18 +1717,14 @@ else
                                     @if (r.Status == "Completed")
                                     { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> <BureauSourceTag Provider="@r.Provider" Status="@r.Status" /> }
                                     else if (r.Status == "Failed")
-                                    { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
+                                    { <span class="badge badge-danger"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
                                     { <span class="badge" style="background:var(--warning-100,#fef3c7);color:var(--warning-700,#b45309);border:1px solid var(--warning-200,#fde68a);"><span class="material-symbols-outlined" style="font-size:13px;">info</span> No Credit File</span> }
                                     else
                                     { <span class="badge badge-warning">@r.Status</span> }
                                     @if (!string.IsNullOrEmpty(r.ErrorMessage))
                                     {
-                                        var readableErr = ExtractReadableError(r.ErrorMessage);
-                                        <span style="font-size: var(--text-xs); color: var(--danger-600); margin-left: 0.5rem;" title="@r.ErrorMessage">
-                                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">info</span>
-                                            @(readableErr.Length > 80 ? readableErr[..77] + "…" : readableErr)
-                                        </span>
+                                        <div style="flex-basis: 100%; width: 100%;"><BureauMessage Message="@r.ErrorMessage" Status="@r.Status" /></div>
                                     }
                                 </div>
                             </div>
@@ -1764,8 +1778,19 @@ else
                                             <span class="namp-bureau-stat-label">Score Grade</span>
                                             @if (r.ScoreGrade != null)
                                             {
-                                                var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
-                                                <span class="badge @gc">@r.ScoreGrade</span>
+                                                @if (r.ScoreGrade is "UNAVAILABLE")
+                                                {
+                                                    <span class="badge badge-gray" title="The bureau's score could not be fetched; the reason is shown on the card.">No bureau score</span>
+                                                }
+                                                else if (r.ScoreGrade is "DERIVED")
+                                                {
+                                                    <span class="badge badge-warning" title="An old stand-in of 600 set by the CRMS, not the bureau's score. Recheck to fetch the bureau's own score.">Estimated (not the bureau's)</span>
+                                                }
+                                                else
+                                                {
+                                                    var gc = r.ScoreGrade is "A+" or "A" ? "badge-success" : r.ScoreGrade is "B" or "C" ? "badge-warning" : "badge-danger";
+                                                    <span class="badge @gc">@r.ScoreGrade</span>
+                                                }
                                             }
                                             else { <span class="namp-bureau-stat-value">—</span> }
                                         </div>
@@ -1801,18 +1826,14 @@ else
                                     @if (r.Status == "Completed")
                                     { <span class="badge badge-success"><span class="material-symbols-outlined" style="font-size: 13px;">check_circle</span> Completed</span> <BureauSourceTag Provider="@r.Provider" Status="@r.Status" /> }
                                     else if (r.Status == "Failed")
-                                    { <span class="badge badge-danger" title="@r.ErrorMessage"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
+                                    { <span class="badge badge-danger"><span class="material-symbols-outlined" style="font-size: 13px;">error</span> Failed</span> }
                                     else if (r.Status == "NotFound")
                                     { <span class="badge" style="background:var(--warning-100,#fef3c7);color:var(--warning-700,#b45309);border:1px solid var(--warning-200,#fde68a);"><span class="material-symbols-outlined" style="font-size:13px;">info</span> No Credit File</span> }
                                     else
                                     { <span class="badge badge-warning">@r.Status</span> }
                                     @if (!string.IsNullOrEmpty(r.ErrorMessage))
                                     {
-                                        var readableErr = ExtractReadableError(r.ErrorMessage);
-                                        <span style="font-size: var(--text-xs); color: var(--danger-600); margin-left: 0.5rem;" title="@r.ErrorMessage">
-                                            <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">info</span>
-                                            @(readableErr.Length > 80 ? readableErr[..77] + "…" : readableErr)
-                                        </span>
+                                        <div style="flex-basis: 100%; width: 100%;"><BureauMessage Message="@r.ErrorMessage" Status="@r.Status" /></div>
                                     }
                                 </div>
                             </div>
@@ -4437,6 +4458,7 @@ else
         font-weight: 500;
         font-size: 0.875rem;
     }
+    .namp-bureau-card-footer { flex-wrap: wrap; }
     .namp-bureau-card-footer {
         display: flex;
         align-items: center;
@@ -4559,6 +4581,7 @@ else
     // Bureau recheck
     private bool bureauRechecking;
     private string? bureauRecheckError;
+    private string? bureauRecheckMessage;
 
     // Portal document retry
     private bool docRetrying;
@@ -5190,9 +5213,13 @@ else
         bureauRecheckError = null;
         try
         {
+            bureauRecheckMessage = null;
             var result = await AppService.RunNampCreditChecksAsync(Id, User.Id);
             if (result.Success)
+            {
+                bureauRecheckMessage = result.Message;
                 await Load();
+            }
             else
                 bureauRecheckError = result.Error ?? "Bureau recheck failed";
         }

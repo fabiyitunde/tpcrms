@@ -182,8 +182,10 @@ public static class DependencyInjection
                 .AddHttpMessageHandler<ThirdPartyApiLoggingHandler>()
                 .AddPolicyHandler(GetSmartComplyRetryPolicy())
                 .AddPolicyHandler(GetSmartComplyCircuitBreakerPolicy());
+            services.AddSingleton<SmartComplyWalletAlert>();
             services.AddScoped<ISmartComplyProvider>(sp => new Services.Billing.BilledSmartComplyProvider(
-                sp.GetRequiredService<SmartComplyProvider>(), sp.GetRequiredService<Application.Billing.IBillingLedger>()));
+                sp.GetRequiredService<SmartComplyProvider>(), sp.GetRequiredService<Application.Billing.IBillingLedger>(),
+                sp.GetRequiredService<SmartComplyWalletAlert>()));
         }
         else
         {

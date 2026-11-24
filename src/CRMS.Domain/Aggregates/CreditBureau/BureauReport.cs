@@ -164,17 +164,46 @@ public class BureauReport : AggregateRoot
         AddDomainEvent(new BureauReportCompletedEvent(Id, Provider, SubjectName, creditScore));
     }
 
+    /// <summary>The longest bureau answer kept, so an oversized reply (an HTML error page, say)
+    /// cannot stop the report itself from being saved.</summary>
+    public const int MaxErrorMessageLength = 4000;
+
     public void MarkFailed(string errorMessage)
     {
         Status = BureauReportStatus.Failed;
-        ErrorMessage = errorMessage;
+        ErrorMessage = Cap(errorMessage);
         CompletedAt = DateTime.UtcNow;
     }
 
-    public void MarkNotFound()
+    private static string? Cap(string? text) =>
+        text is null || text.Length <= MaxErrorMessageLength ? text : text[..(MaxErrorMessageLength - 1)] + "…";
+
+    /// <summary>No bureau holds a file. <paramref name="detail"/> keeps what the bureaus actually
+    /// answered, so staff can tell a genuine "no record" from a check that only looked like one.</summary>
+    public void MarkNotFound(string? detail = null)
     {
         Status = BureauReportStatus.NotFound;
+        ErrorMessage = Cap(detail);
         CompletedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>The grade written on a completed individual report whose bureau score could not be
+    /// had. The score itself is left empty: the CRMS no longer makes one up.</summary>
+    public const string ScoreUnavailableGrade = "UNAVAILABLE";
+
+    /// <summary>The grade older reports carry, from when a missing score was replaced by an estimate.</summary>
+    public const string LegacyDerivedGrade = "DERIVED";
+
+    /// <summary>A completed individual report without a real bureau score: the report is kept, the
+    /// score is fetched again on the next run of the checks.</summary>
+    public bool IsScoreMissing =>
+        Status == BureauReportStatus.Completed && SubjectType == SubjectType.Individual
+        && ScoreGrade is ScoreUnavailableGrade or LegacyDerivedGrade;
+
+    /// <summary>Why a completed report has no score, in the bureau's own words. Shown on the card.</summary>
+    public void NoteScoreUnavailable(string reason)
+    {
+        ErrorMessage = Cap(reason);
     }
 
     public void AddAccount(BureauAccount account)

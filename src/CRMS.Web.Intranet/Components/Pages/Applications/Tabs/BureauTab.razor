@@ -60,7 +60,11 @@
                                         </div>
                                         @if (report.IsScoreDerived)
                                         {
-                                            <span class="badge badge-warning" style="font-size: 10px; padding: 2px 6px;" title="Score calculated internally — bureau score endpoint unavailable or not subscribed">Derived</span>
+                                            <span class="badge badge-warning" style="font-size: 10px; padding: 2px 6px;" title="An old estimate made by the CRMS, not the bureau's score. Re-run the checks to fetch the bureau's own score.">Estimated</span>
+                                        }
+                                        else if (report.IsScoreUnavailable)
+                                        {
+                                            <span class="badge badge-gray" style="font-size: 10px; padding: 2px 6px;" title="The bureau's score could not be fetched; the reason is shown on the card.">No bureau score</span>
                                         }
                                     </div>
                                 </div>
@@ -111,6 +115,12 @@
                                         </div>
                                     }
                                 </div>
+                                @if (!string.IsNullOrWhiteSpace(report.ErrorMessage))
+                                {
+                                    <div style="padding: 0 var(--space-4) var(--space-3);">
+                                        <BureauMessage Message="@report.ErrorMessage" Status="@report.Status" />
+                                    </div>
+                                }
                                 <div class="bureau-card-footer">
                                     @if (report.HasLegalIssues)
                                     {
@@ -128,22 +138,22 @@
                                     }
                                     @if (report.Status == "Failed")
                                     {
-                                        <span class="badge badge-danger" title="@report.ErrorMessage">
+                                        <span class="badge badge-danger">
                                             <span class="material-symbols-outlined" style="font-size: 14px;">error</span>
                                             Check Failed
                                         </span>
                                     }
                                     @if (report.Status == "NotFound")
                                     {
-                                        <span class="badge badge-gray" title="Subject not found in bureau database">
+                                        <span class="badge badge-gray">
                                             <span class="material-symbols-outlined" style="font-size: 14px;">search_off</span>
                                             Not Found
                                         </span>
                                     }
                                     <span style="margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-2);">
                                         <BureauSourceTag Provider="@report.Provider" Status="@report.Status" />
-                                        <span style="font-size: var(--text-xs); color: var(--gray-500);" title="@(report.IsScoreDerived ? "The bureau returned no score, so the CRMS calculated one from the report" : null)">
-                                            @(report.IsScoreDerived ? "Score calculated internally | " : "")@report.ReportDate.ToString("MMM dd, yyyy")
+                                        <span style="font-size: var(--text-xs); color: var(--gray-500);">
+                                            @(report.IsScoreDerived ? "Score estimated by the CRMS | " : report.IsScoreUnavailable ? "No bureau score | " : "")@report.ReportDate.ToString("MMM dd, yyyy")
                                         </span>
                                     </span>
                                     <button class="btn btn-ghost btn-sm" style="margin-left: var(--space-2);" @onclick="() => OnViewReport.InvokeAsync(report.Id)" title="View Details">
@@ -186,7 +196,11 @@
                                         </div>
                                         @if (report.IsScoreDerived)
                                         {
-                                            <span class="badge badge-warning" style="font-size: 10px; padding: 2px 6px;" title="Score calculated internally — bureau score endpoint unavailable or not subscribed">Derived</span>
+                                            <span class="badge badge-warning" style="font-size: 10px; padding: 2px 6px;" title="An old estimate made by the CRMS, not the bureau's score. Re-run the checks to fetch the bureau's own score.">Estimated</span>
+                                        }
+                                        else if (report.IsScoreUnavailable)
+                                        {
+                                            <span class="badge badge-gray" style="font-size: 10px; padding: 2px 6px;" title="The bureau's score could not be fetched; the reason is shown on the card.">No bureau score</span>
                                         }
                                     </div>
                                 </div>
@@ -221,6 +235,12 @@
                                         </div>
                                     }
                                 </div>
+                                @if (!string.IsNullOrWhiteSpace(report.ErrorMessage))
+                                {
+                                    <div style="padding: 0 var(--space-4) var(--space-3);">
+                                        <BureauMessage Message="@report.ErrorMessage" Status="@report.Status" />
+                                    </div>
+                                }
                                 <div class="bureau-card-footer">
                                     @if (report.HasLegalIssues)
                                     {
@@ -238,22 +258,22 @@
                                     }
                                     @if (report.Status == "Failed")
                                     {
-                                        <span class="badge badge-danger" title="@report.ErrorMessage">
+                                        <span class="badge badge-danger">
                                             <span class="material-symbols-outlined" style="font-size: 14px;">error</span>
                                             Check Failed
                                         </span>
                                     }
                                     @if (report.Status == "NotFound")
                                     {
-                                        <span class="badge badge-gray" title="Subject not found in bureau database">
+                                        <span class="badge badge-gray">
                                             <span class="material-symbols-outlined" style="font-size: 14px;">search_off</span>
                                             Not Found
                                         </span>
                                     }
                                     <span style="margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-2);">
                                         <BureauSourceTag Provider="@report.Provider" Status="@report.Status" />
-                                        <span style="font-size: var(--text-xs); color: var(--gray-500);" title="@(report.IsScoreDerived ? "The bureau returned no score, so the CRMS calculated one from the report" : null)">
-                                            @(report.IsScoreDerived ? "Score calculated internally | " : "")@report.ReportDate.ToString("MMM dd, yyyy")
+                                        <span style="font-size: var(--text-xs); color: var(--gray-500);">
+                                            @(report.IsScoreDerived ? "Score estimated by the CRMS | " : report.IsScoreUnavailable ? "No bureau score | " : "")@report.ReportDate.ToString("MMM dd, yyyy")
                                         </span>
                                     </span>
                                     <button class="btn btn-ghost btn-sm" style="margin-left: var(--space-2);" @onclick="() => OnViewReport.InvokeAsync(report.Id)" title="View Details">

@@ -331,7 +331,7 @@ else
                 OnAdd="OpenAddGuarantorModal" OnEdit="OpenEditGuarantorModal" OnRemove="RemoveGuarantor" />
             break;
         case "bureau":
-            <BureauTab Reports="bureauReports" CanRecheck="CanRunBureauChecks" RecheckError="@bureauError" />
+            <BureauTab Reports="bureauReports" CanRecheck="CanRunBureauChecks" RecheckError="@bureauError" RecheckMessage="@bureauMessage" />
             break;
         case "collateral":
             <CollateralTab Records="collateralRecords" CanUpload="CanClearLegally" LegalClearance="currentLegalClearance"
@@ -1152,13 +1152,18 @@ else
     {
         isRunningBureauChecks = true;
         bureauError = null;
-        // Force refresh: the button is an explicit "run these again" action, so completed reports
-        // should be re-pulled rather than skipped as they are on the automatic path.
-        var result = await AppService.RunRhshfCreditChecksAsync(Reference, CurrentUserId, forceRefresh: true);
+        bureauMessage = null;
+        // Not a force refresh: failed, not-found, stuck and score-less reports are run again and
+        // good ones are kept. Forcing deleted every report before re-pulling, so a re-run while
+        // SmartComply was failing left the case with no reports at all.
+        var result = await AppService.RunRhshfCreditChecksAsync(Reference, CurrentUserId, forceRefresh: false);
         isRunningBureauChecks = false;
         if (!result.Success) { bureauError = result.Error; return; }
+        bureauMessage = result.Message;
         await LoadAllAsync();
     }
+
+    private string? bureauMessage;
 
     private CRMS.Application.Rhshf.Queries.RhshfBoaAccountSnapshotDto? boaAccountSnapshot;
 

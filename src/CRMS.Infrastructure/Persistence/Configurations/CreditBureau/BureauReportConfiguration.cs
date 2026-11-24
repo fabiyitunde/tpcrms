@@ -65,7 +65,7 @@ public class BureauReportConfiguration : IEntityTypeConfiguration<BureauReport>
         builder.HasIndex(x => x.RequestReference);
 
         builder.Property(x => x.ErrorMessage)
-            .HasMaxLength(1000);
+            .HasMaxLength(BureauReport.MaxErrorMessageLength);
 
         // Fraud check fields (SmartComply integration)
         builder.Property(x => x.FraudRecommendation)
@@ -98,6 +98,7 @@ public class BureauReportConfiguration : IEntityTypeConfiguration<BureauReport>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Ignore(x => x.DomainEvents);
+        builder.Ignore(x => x.IsScoreMissing);
     }
 }
 

@@ -245,7 +245,10 @@ public class BureauReportInfo
     public string Status { get; set; } = string.Empty;
     public int? CreditScore { get; set; }
     public string Rating { get; set; } = string.Empty;
+    /// <summary>An old report whose score the CRMS estimated (grade DERIVED), not the bureau's.</summary>
     public bool IsScoreDerived { get; set; }
+    /// <summary>A report received without the bureau's score (grade UNAVAILABLE); the reason is in ErrorMessage.</summary>
+    public bool IsScoreUnavailable { get; set; }
     public int TotalLoans { get; set; }
     public int ActiveLoans { get; set; }
     public int PerformingLoans { get; set; }

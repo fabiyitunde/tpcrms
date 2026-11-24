@@ -145,7 +145,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
             return ApplicationResult<CreditCheckBatchResultDto>.Failure($"Loan must be in BranchApproved, CreditAnalysis, or CreditReview status to run credit checks. Current: {loanApp.Status}");
 
         // Idempotency check: If all credit checks are already completed with no retryable or missing reports, return early.
-        // Retryable = Failed, ConsentRequired, Completed-with-DERIVED-score, or NotFound.
+        // Retryable = Failed, ConsentRequired, Completed without a bureau score (IsScoreMissing), or NotFound.
         // NotFound is retryable because the BVN may have been corrected since the last run.
         // Missing = a party with a BVN has no bureau report at all (e.g. skipped due to duplicate BVN on the original run,
         //           then BVN corrected in DB), or a business with an RC number has no business report.
@@ -157,7 +157,8 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 r.Status == BureauReportStatus.Failed ||
                 r.Status == BureauReportStatus.ConsentRequired ||
                 r.Status == BureauReportStatus.NotFound ||
-                (r.Status == BureauReportStatus.Completed && r.ScoreGrade == "DERIVED"));
+                IsStuck(r) ||
+                r.IsScoreMissing);
 
             // Also detect parties whose bureau report is completely absent (no record at all in the DB).
             // This handles the case where a party was silently skipped on the original run (e.g. duplicate BVN)
@@ -170,7 +171,12 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 .Where(p => !string.IsNullOrEmpty(p.BVN))
                 .Select(p => p.BVN!)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
-            var hasMissingIndividualReport = uniquePartyBvns.Any(bvn => !reportedBvns.Contains(bvn));
+            // Guarantors count too: one added after the first run, with no report yet, used to be
+            // missed here, so the button returned at once and did nothing.
+            var guarantorBvns = (await _guarantorRepository.GetByLoanApplicationIdAsync(request.LoanApplicationId, ct))
+                .Where(gr => !string.IsNullOrEmpty(gr.BVN) && gr.Status != GuarantorStatus.Rejected)
+                .Select(gr => gr.BVN!);
+            var hasMissingIndividualReport = uniquePartyBvns.Concat(guarantorBvns).Any(bvn => !reportedBvns.Contains(bvn));
             var hasMissingBusinessReport = !string.IsNullOrEmpty(loanApp.RegistrationNumber) &&
                 !existingReports.Any(r => r.SubjectType == SubjectType.Business);
 
@@ -198,7 +204,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
 
         // Get existing bureau reports to avoid duplicates.
         // Only Completed-with-real-score reports are terminal (kept and skipped).
-        // Failed, ConsentRequired, NotFound, and DERIVED-Completed reports are retryable:
+        // Failed, ConsentRequired, NotFound, and Completed-without-a-score reports are retryable:
         //   we delete them before processing so the retry creates a fresh record without duplicates.
         //   RecordCreditCheckCompleted was already called for them in the original run, so we track
         //   their BVNs in alreadyCountedBvns to avoid double-incrementing on retry.
@@ -235,7 +241,8 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                     r.Status == BureauReportStatus.Failed ||
                     r.Status == BureauReportStatus.ConsentRequired ||
                     r.Status == BureauReportStatus.NotFound ||
-                    (r.Status == BureauReportStatus.Completed && r.ScoreGrade == "DERIVED")))
+                    IsStuck(r) ||
+                    r.IsScoreMissing))
                 .Select(r => r.BVN!)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             alreadyCountedBusiness = existingBureauReports
@@ -243,33 +250,35 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                     r.Status == BureauReportStatus.Failed ||
                     r.Status == BureauReportStatus.ConsentRequired ||
                     r.Status == BureauReportStatus.NotFound ||
-                    (r.Status == BureauReportStatus.Completed && r.ScoreGrade == "DERIVED")));
+                    IsStuck(r) ||
+                    r.IsScoreMissing));
 
-            // Delete retryable reports: Failed, ConsentRequired, NotFound, and Completed-with-DERIVED-score.
+            // Delete retryable reports: Failed, ConsentRequired, NotFound, and Completed without a bureau score.
             // NotFound is retryable — the party's BVN may have been corrected since the last run.
-            // DERIVED means the CRC summary was fetched but the FICO score endpoint failed on that run.
+            // A missing score means the report was fetched but the score call failed or returned 0 on that run.
             // Completed reports with a real score are kept — no need to re-call the API.
             foreach (var retryableReport in existingBureauReports.Where(r =>
                 r.Status == BureauReportStatus.Failed ||
                 r.Status == BureauReportStatus.ConsentRequired ||
                 r.Status == BureauReportStatus.NotFound ||
-                (r.Status == BureauReportStatus.Completed && r.ScoreGrade == "DERIVED")))
+                IsStuck(r) ||
+                r.IsScoreMissing))
                 _bureauReportRepository.Delete(retryableReport);
         }
 
-        // "Done" BVNs are only those with a real (non-DERIVED) score — these are kept and skipped.
+        // "Done" BVNs are only those with a real bureau score — these are kept and skipped.
         // NotFound reports are now retryable (deleted above) so their BVNs are NOT added to this skip set,
         // ensuring the party is re-processed with whatever BVN the guarantor record currently holds.
         var existingBvns = request.ForceRefresh
             ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             : existingBureauReports
                 .Where(r => !string.IsNullOrEmpty(r.BVN) &&
-                            r.Status == BureauReportStatus.Completed && r.ScoreGrade != "DERIVED")
+                            r.Status == BureauReportStatus.Completed && !r.IsScoreMissing)
                 .Select(r => r.BVN!)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var hasExistingBusinessReport = !request.ForceRefresh && existingBureauReports.Any(r =>
             r.SubjectType == SubjectType.Business &&
-            r.Status == BureauReportStatus.Completed && r.ScoreGrade != "DERIVED");
+            r.Status == BureauReportStatus.Completed && !r.IsScoreMissing);
 
         // Get all parties (directors, signatories) from loan application.
         // Deduplicate by BVN — a person can appear as both Director and Signatory (same BVN),
@@ -592,7 +601,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                     : $"Credit report retrieval failed: {reportResult.Error}";
                 
                 if (isNotFound)
-                    bureauReport.MarkNotFound();
+                    bureauReport.MarkNotFound(reportResult.Error);
                 else
                     bureauReport.MarkFailed(errorMessage);
                 
@@ -609,26 +618,26 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
             bureauReport.RecordProvider(pull.Bureau);
             var bureauLabel = BureauFallback.Label(pull.Bureau);
 
-            // Fetch actual bureau credit score (preferred over derived score for regulatory defensibility)
-            int creditScore;
+            // The bureau's own score, from the bureau that answered. When it cannot be had, the score
+            // is left empty and the reason kept on the report: the CRMS does not estimate one, and the
+            // next run of the checks fetches it again.
+            int? creditScore = null;
             string scoreGrade;
+            string? scoreUnavailable = null;
             var scoreResult = await BureauFallback.GetScoreAsync(_smartComplyProvider, pull.Bureau, bvn, ct);
             if (scoreResult.IsSuccess && scoreResult.Value.Score > 0)
             {
                 creditScore = scoreResult.Value.Score;
-                scoreGrade = scoreResult.Value.Grade ?? GetScoreGrade(creditScore);
+                scoreGrade = scoreResult.Value.Grade ?? GetScoreGrade(scoreResult.Value.Score);
             }
             else
             {
-                // Fall back to derived score if bureau score fetch fails OR returns 0 (BVN has no FICO score)
-                if (scoreResult.IsFailure)
-                    _logger.LogWarning("Failed to fetch {Bureau} score for BVN {BvnSuffix}, using derived score: {Error}",
-                        bureauLabel, bvn.Length >= 4 ? $"****{bvn[^4..]}" : "****", scoreResult.Error);
-                else
-                    _logger.LogInformation("{Bureau} score endpoint returned 0 for BVN {BvnSuffix} — no score on file, using derived score",
-                        bureauLabel, bvn.Length >= 4 ? $"****{bvn[^4..]}" : "****");
-                creditScore = CalculateCreditScoreFromReport(summary);
-                scoreGrade = "DERIVED"; // Sentinel value — UI shows a warning badge when this is set
+                scoreGrade = BureauReport.ScoreUnavailableGrade;
+                scoreUnavailable = scoreResult.IsFailure
+                    ? $"{bureauLabel} score unavailable: {scoreResult.Error}"
+                    : $"{bureauLabel} returned no credit score for this person (score 0).";
+                _logger.LogWarning("No {Bureau} score for BVN {BvnSuffix}: {Reason}",
+                    bureauLabel, bvn.Length >= 4 ? $"****{bvn[^4..]}" : "****", scoreUnavailable);
             }
             
             // Determine if there are credit issues
@@ -654,6 +663,8 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                 summary.MaxNoOfDays,
                 false // SmartComply doesn't return legal actions in this endpoint
             );
+            if (scoreUnavailable is not null)
+                bureauReport.NoteScoreUnavailable(scoreUnavailable);
 
             AddLoanAccounts(bureauReport, report.LoanPerformance);
 
@@ -769,6 +780,9 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
             Guid? auditReportId = null;
             if (auditReport.IsSuccess)
             {
+                // Recorded as failed with the error, so the card says what happened and the next
+                // run of the checks retries it (a report left Pending was never retried).
+                auditReport.Value.MarkFailed(errorMsg);
                 await _bureauReportRepository.AddAsync(auditReport.Value, ct);
                 auditReportId = auditReport.Value.Id;
             }
@@ -830,7 +844,7 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
                     : $"Business credit report retrieval failed: {reportResult.Error}";
                 
                 if (isNotFound)
-                    bureauReport.MarkNotFound();
+                    bureauReport.MarkNotFound(reportResult.Error);
                 else
                     bureauReport.MarkFailed(errorMessage);
                 
@@ -961,6 +975,9 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
             Guid? auditReportId = null;
             if (auditReport.IsSuccess)
             {
+                // Recorded as failed with the error, so the card says what happened and the next
+                // run of the checks retries it (a report left Pending was never retried).
+                auditReport.Value.MarkFailed(errorMsg);
                 await _bureauReportRepository.AddAsync(auditReport.Value, ct);
                 auditReportId = auditReport.Value.Id;
             }
@@ -1003,30 +1020,9 @@ public class ProcessLoanCreditChecksHandler : IRequestHandler<ProcessLoanCreditC
         }
     }
 
-    private static int CalculateCreditScoreFromReport(SmartComplyCreditSummary summary)
-    {
-        // Base score calculation based on SmartComply data
-        var baseScore = 600;
-
-        // Positive factors
-        if (summary.TotalNoOfClosedLoans > 5) baseScore += 30;
-        if (summary.TotalNoOfPerformingLoans == summary.TotalNoOfLoans && summary.TotalNoOfLoans > 0) baseScore += 50;
-        if (summary.TotalOverdue == 0) baseScore += 40;
-
-        // Negative factors
-        baseScore -= summary.TotalNoOfDelinquentFacilities * 30;
-        baseScore -= Math.Min(summary.MaxNoOfDays / 10, 50);
-        
-        if (summary.TotalOverdue > 0)
-        {
-            var overdueRatio = summary.TotalOutstanding > 0 
-                ? (double)summary.TotalOverdue / (double)summary.TotalOutstanding 
-                : 0;
-            baseScore -= (int)(overdueRatio * 100);
-        }
-
-        return Math.Clamp(baseScore, 300, 850);
-    }
+    /// <summary>A report left Pending or Processing for more than ten minutes: its run never finished.</summary>
+    private static bool IsStuck(BureauReport r) =>
+        r.Status is BureauReportStatus.Pending or BureauReportStatus.Processing && r.CreatedAt < DateTime.UtcNow.AddMinutes(-10);
 
     private static string GetScoreGrade(int score) => score switch
     {

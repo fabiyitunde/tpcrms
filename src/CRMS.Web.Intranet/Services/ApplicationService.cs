@@ -89,7 +89,8 @@ public partial class ApplicationService
                 Status = r.Status,
                 CreditScore = r.CreditScore,
                 Rating = GetScoreGrade(r.CreditScore),
-                IsScoreDerived = r.ScoreGrade == "DERIVED",
+                IsScoreDerived = r.ScoreGrade == CRMS.Domain.Aggregates.CreditBureau.BureauReport.LegacyDerivedGrade,
+                IsScoreUnavailable = r.ScoreGrade == CRMS.Domain.Aggregates.CreditBureau.BureauReport.ScoreUnavailableGrade,
                 TotalLoans = r.TotalAccounts,
                 ActiveLoans = r.ActiveLoans,
                 PerformingLoans = r.PerformingAccounts,
@@ -114,14 +115,26 @@ public partial class ApplicationService
         }
     }
 
+    /// <summary>What a run of the bureau checks came to, in one line for the case page.</summary>
+    public static string BureauRunSummary(int completed, int notFound, int failed)
+    {
+        var parts = new List<string>();
+        if (completed > 0) parts.Add($"{completed} with a report");
+        if (notFound > 0) parts.Add($"{notFound} with no bureau file");
+        if (failed > 0) parts.Add($"{failed} failed");
+        return parts.Count == 0
+            ? "Credit checks ran, but there was nothing to check."
+            : $"Credit checks done: {string.Join(", ", parts)}." + (failed > 0 ? " Each failed card shows the bureau's message." : "");
+    }
+
     public async Task<ApiResponse> RequestBureauChecksAsync(Guid applicationId, Guid userId)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.CreditBureau.Commands.ProcessLoanCreditChecksHandler>();
             var result = await handler.Handle(new CRMS.Application.CreditBureau.Commands.ProcessLoanCreditChecksCommand(applicationId, userId), CancellationToken.None);
-            return result.IsSuccess
-                ? ApiResponse.Ok()
+            return result.IsSuccess && result.Data is { } run
+                ? ApiResponse.Ok(BureauRunSummary(run.Successful, run.NotFound, run.Failed))
                 : ApiResponse.Fail(result.Error ?? "Failed to run credit checks");
         }
         catch (Exception ex)
@@ -5500,7 +5513,8 @@ public partial class ApplicationService
                 Status = r.Status,
                 CreditScore = r.CreditScore,
                 Rating = GetScoreGrade(r.CreditScore),
-                IsScoreDerived = r.ScoreGrade == "DERIVED",
+                IsScoreDerived = r.ScoreGrade == CRMS.Domain.Aggregates.CreditBureau.BureauReport.LegacyDerivedGrade,
+                IsScoreUnavailable = r.ScoreGrade == CRMS.Domain.Aggregates.CreditBureau.BureauReport.ScoreUnavailableGrade,
                 TotalLoans = r.TotalAccounts,
                 ActiveLoans = r.ActiveLoans,
                 PerformingLoans = r.PerformingAccounts,
@@ -7341,7 +7355,10 @@ public partial class ApplicationService
             var result = await handler.Handle(
                 new CRMS.Application.CreditBureau.Commands.ProcessNampCreditChecksCommand(nampApplicationId, userId, ForceRefresh: false),
                 CancellationToken.None);
-            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Credit check failed");
+            if (!result.IsSuccess || result.Data is not { } run)
+                return ApiResponse.Fail(result.Error ?? "Credit check failed");
+            var notFound = run.Results.Count(r => !r.Success && r.ErrorMessage?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true);
+            return ApiResponse.Ok(BureauRunSummary(run.Successful, notFound, run.Failed - notFound));
         }
         catch (Exception ex)
         {
@@ -8818,7 +8835,15 @@ public partial class ApplicationService
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.ProcessRhshfCreditChecksHandler>();
             var result = await handler.Handle(
                 new CRMS.Application.Rhshf.Commands.ProcessRhshfCreditChecksCommand(reference, userId, forceRefresh), CancellationToken.None);
-            return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Credit checks failed");
+            if (!result.IsSuccess || result.Data is not { } run)
+                return ApiResponse.Fail(result.Error ?? "Credit checks failed");
+            if (run.Requested == 0)
+                return ApiResponse.Ok("Nothing to check: the case has no RC number and no director or guarantor with a BVN.");
+            var parts = new List<string>();
+            if (run.Successful > 0) parts.Add($"{run.Successful} with a new report");
+            if (run.Failed > 0) parts.Add($"{run.Failed} failed or with no bureau file");
+            if (run.Skipped > 0) parts.Add($"{run.Skipped} already done and kept");
+            return ApiResponse.Ok($"Credit checks done: {string.Join(", ", parts)}." + (run.Failed > 0 ? " Each card shows the bureau's message." : ""));
         }
         catch (Exception ex)
         {

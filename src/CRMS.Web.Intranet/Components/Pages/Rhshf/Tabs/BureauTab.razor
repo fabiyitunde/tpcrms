@@ -17,6 +17,12 @@
                 <div class="alert alert-danger" style="margin: 0;">@RecheckError</div>
             </div>
         }
+        @if (!string.IsNullOrEmpty(RecheckMessage))
+        {
+            <div class="card-body" style="padding-bottom: 0;">
+                <div class="alert alert-info" style="margin: 0;">@RecheckMessage</div>
+            </div>
+        }
 
         @if (Reports.Count == 0)
         {
@@ -86,6 +92,8 @@
     [Parameter, EditorRequired] public List<RhshfBureauReportDto> Reports { get; set; } = [];
     [Parameter] public bool CanRecheck { get; set; }
     [Parameter] public string? RecheckError { get; set; }
+    /// <summary>What the last run of the checks came to.</summary>
+    [Parameter] public string? RecheckMessage { get; set; }
 
     private List<RhshfBureauReportDto> CompanyReports => Reports.Where(r => r.SubjectType == "RhshfCompany").ToList();
     private List<RhshfBureauReportDto> GuarantorReports => Reports.Where(r => r.SubjectType == "RhshfGuarantor").ToList();
@@ -134,7 +142,11 @@
                     {
                         <div class="bureau-stat">
                             <span class="bureau-stat-label">Score Grade</span>
-                            @if (!string.IsNullOrEmpty(r.ScoreGrade))
+                            @if (r.ScoreGrade is "UNAVAILABLE")
+                            {
+                                <span class="badge badge-gray" title="The bureau's score could not be fetched; the reason is shown on the card.">No bureau score</span>
+                            }
+                            else if (!string.IsNullOrEmpty(r.ScoreGrade))
                             {
                                 <span class="badge @GradeBadgeClass(r.ScoreGrade)">@r.ScoreGrade</span>
                             }
@@ -214,7 +226,7 @@
                         <BureauSourceTag Provider="@r.Provider" Status="@r.Status" />
                         break;
                     case "Failed":
-                        <span class="badge badge-danger" title="@r.ErrorMessage">
+                        <span class="badge badge-danger">
                             <span class="material-symbols-outlined" style="font-size: 13px; vertical-align: middle;">error</span> Failed
                         </span>
                         break;
@@ -227,13 +239,11 @@
                         <span class="badge badge-warning">@r.Status</span>
                         break;
                 }
-                @if (!string.IsNullOrEmpty(r.ErrorMessage))
-                {
-                    <span style="font-size: 0.75rem; color: var(--danger-600); margin-left: 0.5rem;" title="@r.ErrorMessage">
-                        @Truncate(ReadableError(r.ErrorMessage), 80)
-                    </span>
-                }
             </div>
+            @if (!string.IsNullOrEmpty(r.ErrorMessage))
+            {
+                <div style="padding: 0 1rem 0.75rem;"><BureauMessage Message="@r.ErrorMessage" Status="@r.Status" /></div>
+            }
         </div>
     };
 
@@ -263,24 +273,4 @@
         _ => value.ToString("N0"),
     };
 
-    private static string Truncate(string s, int max) => s.Length > max ? s[..(max - 1)] + "…" : s;
-
-    /// <summary>Bureau errors often arrive as a JSON envelope; surface the human part when we can.</summary>
-    private static string ReadableError(string raw)
-    {
-        try
-        {
-            using var doc = System.Text.Json.JsonDocument.Parse(raw);
-            foreach (var key in new[] { "message", "error", "description", "detail", "msg" })
-            {
-                if (doc.RootElement.TryGetProperty(key, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String)
-                    return v.GetString() ?? raw;
-            }
-            return "An error occurred during the credit check. See tooltip for details.";
-        }
-        catch
-        {
-            return raw;
-        }
-    }
 }

@@ -90,13 +90,25 @@ public class ProcessNampCreditChecksHandler
         // Idempotency: load existing reports
         var existingReports = (await _bureauRepo.GetByNampApplicationIdAsync(request.NampApplicationId, ct)).ToList();
 
-        // On force refresh, delete all existing reports so we get fresh data
-        if (request.ForceRefresh && existingReports.Count > 0)
+        // On force refresh, delete all existing reports so we get fresh data. Otherwise only the
+        // reports worth trying again go: failed, not found, awaiting consent, a run that never
+        // finished, or a completed one without a bureau score. Before, they were left in place and
+        // a new report was added beside each one on every run.
+        var stale = request.ForceRefresh
+            ? existingReports.ToList()
+            : existingReports.Where(r =>
+                r.Status is BureauReportStatus.Failed or BureauReportStatus.NotFound or BureauReportStatus.ConsentRequired
+                // A run still in progress elsewhere is left alone; one stuck for over ten minutes never finished.
+                || (r.Status is BureauReportStatus.Processing or BureauReportStatus.Pending && r.CreatedAt < DateTime.UtcNow.AddMinutes(-10))
+                || r.IsScoreMissing).ToList();
+        if (stale.Count > 0)
         {
-            foreach (var stale in existingReports)
-                _bureauRepo.Delete(stale);
+            foreach (var report in stale)
+            {
+                _bureauRepo.Delete(report);
+                existingReports.Remove(report);
+            }
             await _uow.SaveChangesAsync(ct);
-            existingReports.Clear();
         }
 
         var results = new List<IndividualCreditCheckResultDto>();
@@ -122,6 +134,7 @@ public class ProcessNampCreditChecksHandler
                 continue;
             }
 
+            BureauReport? started = null;
             try
             {
                 var reportResult = BureauReport.Create(
@@ -145,6 +158,7 @@ public class ProcessNampCreditChecksHandler
                 }
 
                 var bureauReport = reportResult.Value;
+                started = bureauReport;
                 bureauReport.MarkProcessing();
                 await _bureauRepo.AddAsync(bureauReport, ct);
                 await _uow.SaveChangesAsync(ct);
@@ -158,19 +172,23 @@ public class ProcessNampCreditChecksHandler
                     var summary = report.Summary;
                     bureauReport.RecordProvider(pull.Bureau);
 
-                    // Fetch bureau score from the bureau that answered
-                    int creditScore;
+                    // The bureau's own score, from the bureau that answered. When it cannot be had,
+                    // the score stays empty and the reason is kept: no stand-in figure is made up.
+                    int? creditScore = null;
                     string scoreGrade;
+                    string? scoreUnavailable = null;
                     var scoreResult = await BureauFallback.GetScoreAsync(_smartComply, pull.Bureau, bvn, ct);
                     if (scoreResult.IsSuccess && scoreResult.Value.Score > 0)
                     {
                         creditScore = scoreResult.Value.Score;
-                        scoreGrade = scoreResult.Value.Grade ?? GetScoreGrade(creditScore);
+                        scoreGrade = scoreResult.Value.Grade ?? GetScoreGrade(scoreResult.Value.Score);
                     }
                     else
                     {
-                        creditScore = 600; // default derived
-                        scoreGrade = "DERIVED";
+                        scoreGrade = BureauReport.ScoreUnavailableGrade;
+                        scoreUnavailable = scoreResult.IsFailure
+                            ? $"{BureauFallback.Label(pull.Bureau)} score unavailable: {scoreResult.Error}"
+                            : $"{BureauFallback.Label(pull.Bureau)} returned no credit score for this person (score 0).";
                     }
 
                     bureauReport.CompleteWithData(
@@ -190,6 +208,8 @@ public class ProcessNampCreditChecksHandler
                         summary.HighestLoanAmount,
                         summary.MaxNoOfDays,
                         false);
+                    if (scoreUnavailable is not null)
+                        bureauReport.NoteScoreUnavailable(scoreUnavailable);
 
                     successful++;
                     results.Add(new IndividualCreditCheckResultDto(
@@ -201,7 +221,7 @@ public class ProcessNampCreditChecksHandler
                 {
                     var isNotFound = checkResult.Error?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true;
                     if (isNotFound)
-                        bureauReport.MarkNotFound();
+                        bureauReport.MarkNotFound(checkResult.Error);
                     else
                         bureauReport.MarkFailed(checkResult.Error ?? "Unknown error");
                     failed++;
@@ -215,6 +235,7 @@ public class ProcessNampCreditChecksHandler
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error running credit check for NAMP subject {Name} ({BVN})", name, bvn);
+                await FailStartedAsync(started, ex, ct);
                 results.Add(new IndividualCreditCheckResultDto(
                     partyId ?? Guid.Empty, name, roleLabel,
                     bvn, false, null, null, null, false, null, null, ex.Message));
@@ -242,6 +263,7 @@ public class ProcessNampCreditChecksHandler
             }
             else
             {
+                BureauReport? started = null;
                 try
                 {
                     var reportResult = BureauReport.Create(
@@ -266,6 +288,7 @@ public class ProcessNampCreditChecksHandler
                     else
                     {
                         var bureauReport = reportResult.Value;
+                        started = bureauReport;
                         bureauReport.MarkProcessing();
                         await _bureauRepo.AddAsync(bureauReport, ct);
                         await _uow.SaveChangesAsync(ct);
@@ -302,7 +325,7 @@ public class ProcessNampCreditChecksHandler
                         else
                         {
                             var isNotFound = checkResult.Error?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true;
-                            if (isNotFound) bureauReport.MarkNotFound();
+                            if (isNotFound) bureauReport.MarkNotFound(checkResult.Error);
                             else bureauReport.MarkFailed(checkResult.Error ?? "Unknown error");
                             failed++;
                             results.Add(new IndividualCreditCheckResultDto(
@@ -315,6 +338,7 @@ public class ProcessNampCreditChecksHandler
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error running business credit check for NAMP company {Rc}", rcNumber);
+                    await FailStartedAsync(started, ex, ct);
                     results.Add(new IndividualCreditCheckResultDto(
                         Guid.Empty, businessName, "Company", rcNumber, false, null,
                         null, null, false, null, null, ex.Message));
@@ -326,6 +350,23 @@ public class ProcessNampCreditChecksHandler
         var totalChecks = subjects.Count + (runBusinessCheck ? 1 : 0);
         return ApplicationResult<NampCreditCheckBatchResultDto>.Success(
             new NampCreditCheckBatchResultDto(request.NampApplicationId, totalChecks, successful, failed, results));
+    }
+
+    /// <summary>A run that threw after its report was saved leaves that report failed, with the
+    /// error, instead of Processing for ever.</summary>
+    private async Task FailStartedAsync(BureauReport? started, Exception ex, CancellationToken ct)
+    {
+        if (started is null || started.Status is not (BureauReportStatus.Processing or BureauReportStatus.Pending))
+            return;
+        try
+        {
+            started.MarkFailed($"Unexpected error: {ex.Message}");
+            await _uow.SaveChangesAsync(ct);
+        }
+        catch (Exception saveError)
+        {
+            _logger.LogError(saveError, "The failed NAMP bureau report {Id} could not be saved.", started.Id);
+        }
     }
 
     private static string RoleLabel(string partyType) => partyType switch

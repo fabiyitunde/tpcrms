@@ -2030,8 +2030,8 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("ErrorMessage")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("varchar(4000)");
 
                     b.Property<string>("FraudCheckRawJson")
                         .HasColumnType("LONGTEXT");

@@ -340,6 +340,17 @@ else
         <div class="tab @(activeTab == "workflow" ? "active" : "")" @onclick='() => activeTab = "workflow"'>Workflow</div>
     </div>
 
+    @if (bureauRunMessage != null)
+    {
+        <div class="alert alert-info" style="margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-2);">
+            <span class="material-symbols-outlined" style="font-size: 18px;">fact_check</span>
+            @bureauRunMessage
+            <button type="button" style="margin-left: auto; background: none; border: none; cursor: pointer;" @onclick="() => bureauRunMessage = null">
+                <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+            </button>
+        </div>
+    }
+
     @if (inlineActionError != null)
     {
         <div class="alert alert-danger" id="inline-action-error" style="margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-2);">
@@ -2465,28 +2476,11 @@ else
             if (application?.Status is not (AppStatus.CreditAnalysis or AppStatus.CreditReview)) return false;
             if (!(AuthService.CurrentUser?.HasRole("CreditOfficer") ?? false)) return false;
 
-            var reports = application!.BureauReports;
-
-            // Existing reports in a retryable state
-            if (reports.Any(r =>
-                r.Status == "Failed" ||
-                r.Status == "ConsentRequired" ||
-                r.Status == "NotFound" ||
-                (r.Status == "Completed" && r.IsScoreDerived)))
-                return true;
-
-            // Directors with a BVN that have no bureau report yet (e.g. skipped due to duplicate BVN)
-            if (application.Directors.Any(d =>
-                !string.IsNullOrEmpty(d.RawBVN) &&
-                !reports.Any(r => r.PartyId == d.Id)))
-                return true;
-
-            // No completed non-derived business report exists (only relevant when the application has an RC number)
-            if (!string.IsNullOrEmpty(application.Customer.RegistrationNumber) &&
-                !reports.Any(r => r.SubjectType == "Business" && r.Status == "Completed" && !r.IsScoreDerived))
-                return true;
-
-            return false;
+            // Always offered at a credit stage. The run decides what needs doing (failed, not found,
+            // stuck, without a bureau score, or never checked, guarantors included) and keeps every
+            // good report, then says what it did. Guessing here hid the button in cases the run
+            // would have fixed, such as a guarantor added later or a report left in progress.
+            return true;
         }
     }
 
@@ -3336,16 +3330,23 @@ else
     private async Task RequestBureauCheck(Guid _ = default)
     {
         inlineActionError = null;
+        bureauRunMessage = null;
+        if (!EnsureAuthenticated(out var userId)) return;
         isRunningBureauChecks = true;
         StateHasChanged();
-        if (!EnsureAuthenticated(out var userId)) return;
         var result = await AppService.RequestBureauChecksAsync(Id, userId);
         isRunningBureauChecks = false;
         if (result.Success)
+        {
+            bureauRunMessage = result.Message;
             await LoadApplication();
+        }
         else
             inlineActionError = result.Error ?? "Failed to run credit checks.";
     }
+
+    /// <summary>What the last run of the credit checks came to, shown above the tabs.</summary>
+    private string? bureauRunMessage;
 
     private bool isGeneratingAdvisory;
     private bool isSavingCreditAppraisal;

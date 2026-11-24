@@ -41,13 +41,68 @@ public static class BureauFallback
             _ => smartComply.GetCRCScoreAsync(bvn, ct)
         };
 
-    public static Task<BureauPull<SmartComplyBusinessCreditReport>> GetBusinessReportAsync(
-        ISmartComplyProvider smartComply, string rcNumber, CancellationToken ct) =>
-        PullAsync(
+    public static async Task<BureauPull<SmartComplyBusinessCreditReport>> GetBusinessReportAsync(
+        ISmartComplyProvider smartComply, string rcNumber, CancellationToken ct)
+    {
+        // A number no bureau will accept is refused here, before any billed call, with the reason
+        // in plain words instead of the bureau's generic "could not be completed".
+        if (InvalidRegistrationNumber(rcNumber) is { } invalid)
+            return new(Result.Failure<SmartComplyBusinessCreditReport>(invalid), CreditBureauProvider.CRC);
+
+        var pull = await PullAsync(
         [
             (CreditBureauProvider.CRC, () => smartComply.GetCRCBusinessHistoryAsync(rcNumber, ct)),
             (CreditBureauProvider.FirstCentral, () => smartComply.GetFirstCentralBusinessAsync(rcNumber, ct)),
         ]);
+        return pull with { Result = CrcCouldNotCompleteButNoRecord(pull.Result) };
+    }
+
+    /// <summary>
+    /// Why a registration number cannot be sent to the bureaus, or null when it can. CRC takes the
+    /// prefix (RC, BN or IT) and 1 to 8 digits; a number without a prefix is sent as RC. Anything
+    /// else is answered by CRC with a vague 400, so the case is told the real reason instead.
+    /// </summary>
+    public static string? InvalidRegistrationNumber(string? rcNumber)
+    {
+        var text = (rcNumber ?? string.Empty).Trim();
+        if (text.Length == 0)
+            return "Invalid registration number: the case has no RC number.";
+        var rest = text;
+        foreach (var prefix in new[] { "RC", "BN", "IT" })
+            if (rest.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                rest = rest[prefix.Length..];
+                break;
+            }
+        var digits = new string(rest.Where(c => !char.IsWhiteSpace(c) && c is not ('-' or '/' or '.' or ':')).ToArray());
+        if (digits.Length == 0 || !digits.All(char.IsAsciiDigit))
+            return $"Invalid registration number \"{text}\": it should be RC, BN or IT followed by digits only. Correct it on the case and run the check again.";
+        if (digits.Length > 8)
+            return $"Invalid registration number \"{text}\": it has {digits.Length} digits, but CAC registration numbers have 1 to 8. Correct it on the case and run the check again.";
+        return null;
+    }
+
+    private const string CrcCouldNotComplete = "Credit check could not be completed";
+
+    /// <summary>
+    /// CRC answers some companies with HTTP 400 "Credit check could not be completed" where it would
+    /// otherwise say it holds no file. When First Central then says it has no record either, that is
+    /// read as "not found" rather than a failed check. Both bureaus' own words are kept in the message,
+    /// so the case shows exactly what each answered.
+    /// </summary>
+    private static Result<SmartComplyBusinessCreditReport> CrcCouldNotCompleteButNoRecord(Result<SmartComplyBusinessCreditReport> result)
+    {
+        if (result.IsSuccess || result.Error is not { } error || IsNotFound(error))
+            return result;
+        var parts = error.Split("; ", StringSplitOptions.RemoveEmptyEntries);
+        var crcCouldNotComplete = parts.Any(p => p.StartsWith("CRC:", StringComparison.Ordinal)
+            && p.Contains(CrcCouldNotComplete, StringComparison.OrdinalIgnoreCase));
+        var othersNoRecord = parts.Where(p => !p.StartsWith("CRC:", StringComparison.Ordinal))
+            .All(p => p.EndsWith(": no record", StringComparison.Ordinal));
+        return crcCouldNotComplete && othersNoRecord && parts.Length > 1
+            ? Result.Failure<SmartComplyBusinessCreditReport>($"{NotFound}. {error}")
+            : result;
+    }
 
     public static string Label(CreditBureauProvider bureau) => bureau switch
     {

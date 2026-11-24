@@ -61,12 +61,20 @@ public class ProcessRhshfCreditChecksHandler
 
         var existing = await _bureauRepo.GetByRhshfCreditProfileIdAsync(profile.Id, ct);
 
-        if (request.ForceRefresh)
+        // Force refresh starts every check again. Otherwise only the reports worth trying again are
+        // removed (failed, not found, a run that never finished, a person without a bureau score)
+        // and completed ones are kept, so a re-run never throws away a good report because SmartComply
+        // happens to be failing at that moment. Before, the button always forced, and old reports that
+        // were not removed sat beside each new one.
+        var retry = request.ForceRefresh
+            ? existing.ToList()
+            : existing.Where(ShouldRetry).ToList();
+        if (retry.Count > 0)
         {
-            foreach (var report in existing)
+            foreach (var report in retry)
                 _bureauRepo.Delete(report);
             await _uow.SaveChangesAsync(ct);
-            existing = [];
+            existing = existing.Except(retry).ToList();
         }
 
         // Individual subjects: directors + individual guarantors with a BVN, deduped by BVN (the same
@@ -132,6 +140,7 @@ public class ProcessRhshfCreditChecksHandler
             }
             else
             {
+                BureauReport? started = null;
                 try
                 {
                     var reportResult = BureauReport.Create(
@@ -146,6 +155,7 @@ public class ProcessRhshfCreditChecksHandler
                     else
                     {
                         var bureauReport = reportResult.Value;
+                        started = bureauReport;
                         bureauReport.MarkProcessing();
                         await _bureauRepo.AddAsync(bureauReport, ct);
                         await _uow.SaveChangesAsync(ct);
@@ -196,6 +206,7 @@ public class ProcessRhshfCreditChecksHandler
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error running RH-SHF business credit check for {Rc}", rcNumber);
+                    await FailStartedAsync(started, ex, ct);
                     failed++;
                 }
             }
@@ -217,6 +228,7 @@ public class ProcessRhshfCreditChecksHandler
                               && r.Status == BureauReportStatus.Completed))
             return CheckOutcome.Skipped;
 
+        BureauReport? started = null;
         try
         {
             var reportResult = BureauReport.Create(
@@ -227,6 +239,7 @@ public class ProcessRhshfCreditChecksHandler
             if (reportResult.IsFailure) return CheckOutcome.Failed;
 
             var bureauReport = reportResult.Value;
+            started = bureauReport;
             bureauReport.MarkProcessing();
             await _bureauRepo.AddAsync(bureauReport, ct);
             await _uow.SaveChangesAsync(ct);
@@ -239,15 +252,21 @@ public class ProcessRhshfCreditChecksHandler
                 var summary = report.Summary;
                 bureauReport.RecordProvider(pull.Bureau);
 
-                // Score is best-effort, from the bureau that answered; an unavailable score stays null rather than invented.
+                // Score is best-effort, from the bureau that answered; an unavailable score stays null
+                // rather than invented, with the bureau's reason kept so the card can show it.
                 int? creditScore = null;
-                string? scoreGrade = null;
+                string scoreGrade = BureauReport.ScoreUnavailableGrade;
+                string? scoreUnavailable = null;
                 var scoreResult = await BureauFallback.GetScoreAsync(_smartComply, pull.Bureau, bvn, ct);
                 if (scoreResult.IsSuccess && scoreResult.Value.Score > 0)
                 {
                     creditScore = scoreResult.Value.Score;
                     scoreGrade = scoreResult.Value.Grade ?? GetScoreGrade(scoreResult.Value.Score);
                 }
+                else
+                    scoreUnavailable = scoreResult.IsFailure
+                        ? $"{BureauFallback.Label(pull.Bureau)} score unavailable: {scoreResult.Error}"
+                        : $"{BureauFallback.Label(pull.Bureau)} returned no credit score for this person (score 0).";
 
                 bureauReport.CompleteWithData(
                     report.Id ?? bvn, creditScore, scoreGrade,
@@ -257,6 +276,8 @@ public class ProcessRhshfCreditChecksHandler
                     summary.TotalNoOfDelinquentFacilities, summary.TotalNoOfClosedLoans,
                     summary.TotalOutstanding, summary.TotalOverdue, summary.HighestLoanAmount,
                     summary.MaxNoOfDays, false);
+                if (scoreUnavailable is not null)
+                    bureauReport.NoteScoreUnavailable(scoreUnavailable);
                 await _uow.SaveChangesAsync(ct);
                 return CheckOutcome.Success;
             }
@@ -268,6 +289,7 @@ public class ProcessRhshfCreditChecksHandler
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error running RH-SHF credit check for {Name} ({BVN})", name, bvn);
+            await FailStartedAsync(started, ex, ct);
             return CheckOutcome.Failed;
         }
     }
@@ -282,6 +304,7 @@ public class ProcessRhshfCreditChecksHandler
                               && r.Status == BureauReportStatus.Completed))
             return CheckOutcome.Skipped;
 
+        BureauReport? started = null;
         try
         {
             var reportResult = BureauReport.Create(
@@ -292,6 +315,7 @@ public class ProcessRhshfCreditChecksHandler
             if (reportResult.IsFailure) return CheckOutcome.Failed;
 
             var bureauReport = reportResult.Value;
+            started = bureauReport;
             bureauReport.MarkProcessing();
             await _bureauRepo.AddAsync(bureauReport, ct);
             await _uow.SaveChangesAsync(ct);
@@ -321,6 +345,7 @@ public class ProcessRhshfCreditChecksHandler
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error running RH-SHF guarantor business check for {Name} ({Rc})", name, rc);
+            await FailStartedAsync(started, ex, ct);
             return CheckOutcome.Failed;
         }
     }
@@ -330,9 +355,35 @@ public class ProcessRhshfCreditChecksHandler
     private static void MarkOutcome(BureauReport report, string? error)
     {
         if (error?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
-            report.MarkNotFound();
+            report.MarkNotFound(error);
         else
             report.MarkFailed(error ?? "Unknown error");
+    }
+
+    /// <summary>Worth running again: failed, not found, awaiting consent, a run that has sat
+    /// unfinished for ten minutes, or a person whose report came without a bureau score (null-grade
+    /// reports are from before the reason was kept).</summary>
+    private static bool ShouldRetry(BureauReport r) =>
+        r.Status is BureauReportStatus.Failed or BureauReportStatus.NotFound or BureauReportStatus.ConsentRequired
+        || (r.Status is BureauReportStatus.Pending or BureauReportStatus.Processing && r.CreatedAt < DateTime.UtcNow.AddMinutes(-10))
+        || r.IsScoreMissing
+        || (r.Status == BureauReportStatus.Completed && r.SubjectType == SubjectType.Individual && r.CreditScore is null);
+
+    /// <summary>A run that threw after its report was saved leaves that report failed, with the
+    /// error, instead of Processing for ever.</summary>
+    private async Task FailStartedAsync(BureauReport? started, Exception ex, CancellationToken ct)
+    {
+        if (started is null || started.Status is not (BureauReportStatus.Processing or BureauReportStatus.Pending))
+            return;
+        try
+        {
+            started.MarkFailed($"Unexpected error: {ex.Message}");
+            await _uow.SaveChangesAsync(ct);
+        }
+        catch (Exception saveError)
+        {
+            _logger.LogError(saveError, "The failed RH-SHF bureau report {Id} could not be saved.", started.Id);
+        }
     }
 
     /// <summary>Single source of truth for score banding, shared with the UI's score-circle colours.
