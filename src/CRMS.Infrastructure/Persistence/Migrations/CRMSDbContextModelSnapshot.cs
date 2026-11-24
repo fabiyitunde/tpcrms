@@ -8096,7 +8096,6 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("varchar(20)");
 
                     b.Property<string>("SupplierAccountNumber")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 

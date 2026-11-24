@@ -172,7 +172,7 @@ public class RhshfCreditProfilePreDeploymentAndMonitoringTests
         var item = profile.PreDeploymentChecklist.Single();
         profile.ConfirmPreDeploymentChecklistItem(item.Id, Guid.NewGuid(), true, null);
         profile.CompletePreDeploymentVerification(Guid.NewGuid(), null);
-        profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
+        profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
 
         var result = profile.MarkClosed(Guid.NewGuid());
 

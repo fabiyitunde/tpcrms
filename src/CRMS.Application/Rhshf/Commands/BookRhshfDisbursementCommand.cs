@@ -12,12 +12,12 @@ namespace CRMS.Application.Rhshf.Commands;
 /// NAMP's own booking command/handler classes. Interest rate and tenor are always pulled live from
 /// the Fineract product at booking time, never entered manually here, so the figures actually
 /// booked can never drift from what core banking has configured (no "approved rate" captured
-/// earlier in this pipeline, unlike NAMP's ratification-time capture). Loan proceeds go to a
-/// supplier/vendor account (DisburseToSavings=false) rather than the FAC's own savings — the FAC's
-/// BoaAccountNumber is only ever used for repayment collection.
+/// earlier in this pipeline, unlike NAMP's ratification-time capture). The loan is disbursed with
+/// no destination (DisburseToSavings=false): core banking credits the product's settlement account
+/// and the bank pays each supplier from there itself, outside the CRMS. The FAC's BoaAccountNumber
+/// is only ever used for repayment collection.
 /// </summary>
-public record BookRhshfDisbursementCommand(
-    string Reference, Guid DisbursementOfficerId, string SupplierAccountNumber, string? SupplierName) : IRequest<ApplicationResult>;
+public record BookRhshfDisbursementCommand(string Reference, Guid DisbursementOfficerId) : IRequest<ApplicationResult>;
 
 public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursementCommand, ApplicationResult>
 {
@@ -37,9 +37,6 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
 
     public async Task<ApplicationResult> Handle(BookRhshfDisbursementCommand request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.SupplierAccountNumber))
-            return ApplicationResult.Failure("The input-supplier account number is required to book a disbursement.");
-
         var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
         if (profile is null)
             return ApplicationResult.Failure("Case not found.");
@@ -123,8 +120,7 @@ public class BookRhshfDisbursementHandler : IRequestHandler<BookRhshfDisbursemen
         failureReason = Sanitize(failureReason);
         var status = failureReason is null ? RhshfDisbursementStatus.Booked : RhshfDisbursementStatus.Failed;
         var result = profile.RecordDisbursementAttempt(
-            request.DisbursementOfficerId, profile.ApprovedAmount!.Value, request.SupplierAccountNumber, request.SupplierName,
-            status, fineractLoanId, fineractLoanAccountNumber, failureReason);
+            request.DisbursementOfficerId, profile.ApprovedAmount!.Value, status, fineractLoanId, fineractLoanAccountNumber, failureReason);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

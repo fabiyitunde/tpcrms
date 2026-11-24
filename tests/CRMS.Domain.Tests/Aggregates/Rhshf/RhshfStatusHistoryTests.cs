@@ -92,7 +92,7 @@ public class RhshfStatusHistoryTests
         profile.SeedPreDeploymentChecklist([]);
         CompleteVerification(profile, disbursementOfficer);
         profile.RecordDisbursementAttempt(
-            disbursementOfficer, Eop, "0011223344", "AgroInputs Ltd",
+            disbursementOfficer, Eop,
             RhshfDisbursementStatus.Booked, 900123L, "000000900123", null);
 
         var staffEntries = profile.StatusHistory.Where(e => e.CycleNumber == 1 && e.InternalStage is not null).ToList();
@@ -227,7 +227,7 @@ public class RhshfStatusHistoryTests
         var profile = AtDisbursement(out var officer);
 
         profile.RecordDisbursementAttempt(
-            officer, Eop, "0011223344", "AgroInputs Ltd",
+            officer, Eop,
             RhshfDisbursementStatus.Failed, null, null, "Fineract rejected: client not found");
 
         var entry = profile.StatusHistory.Last();
@@ -269,7 +269,7 @@ public class RhshfStatusHistoryTests
     {
         var profile = AtDisbursement(out var officer);
         profile.RecordDisbursementAttempt(
-            officer, Eop, "0011223344", null, RhshfDisbursementStatus.Booked, 1L, "0001", null);
+            officer, Eop, RhshfDisbursementStatus.Booked, 1L, "0001", null);
 
         profile.MarkClosed(officer);
 

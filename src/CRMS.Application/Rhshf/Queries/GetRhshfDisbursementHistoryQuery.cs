@@ -8,7 +8,7 @@ public record GetRhshfDisbursementHistoryQuery(string Reference) : IRequest<Appl
 
 public record RhshfDisbursementDto(
     int CycleNumber, Guid DisbursementOfficerId, string DisbursementOfficerName, DateTime BookedAt, decimal DisbursedAmount,
-    string SupplierAccountNumber, string? SupplierName, RhshfDisbursementStatus Status,
+    string? SupplierAccountNumber, string? SupplierName, RhshfDisbursementStatus Status,
     string? FineractLoanAccountNumber, string? FailureReason);
 
 public class GetRhshfDisbursementHistoryHandler : IRequestHandler<GetRhshfDisbursementHistoryQuery, ApplicationResult<List<RhshfDisbursementDto>>>

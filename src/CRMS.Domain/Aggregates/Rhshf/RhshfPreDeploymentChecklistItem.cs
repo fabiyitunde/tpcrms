@@ -76,6 +76,14 @@ public class RhshfPreDeploymentChecklistItem : Entity
     /// align an in-flight item with its template's kind. Not used in the normal lifecycle.</summary>
     public void ApplyKind(RhshfPreDeploymentVerificationKind kind) => Kind = kind;
 
+    /// <summary>One-time backfill that corrects a default item's wording on an in-flight case. Not used
+    /// in the normal lifecycle; items otherwise keep the wording they were seeded with.</summary>
+    public void ApplyWording(string title, string? description)
+    {
+        Title = title;
+        Description = description;
+    }
+
     public void SetConfirmation(Guid userId, bool? isConfirmed, string? notes)
     {
         IsConfirmed = isConfirmed;

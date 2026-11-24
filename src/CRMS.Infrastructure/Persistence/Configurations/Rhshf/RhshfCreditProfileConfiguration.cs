@@ -200,7 +200,7 @@ public class RhshfDisbursementConfiguration : IEntityTypeConfiguration<RhshfDisb
 
         builder.Property(x => x.FineractLoanAccountNumber).HasMaxLength(50);
         builder.Property(x => x.DisbursedAmount).IsRequired().HasColumnType("decimal(18,2)");
-        builder.Property(x => x.SupplierAccountNumber).IsRequired().HasMaxLength(50);
+        builder.Property(x => x.SupplierAccountNumber).HasMaxLength(50);
         builder.Property(x => x.SupplierName).HasMaxLength(200);
         builder.Property(x => x.Status).IsRequired().HasConversion<string>().HasMaxLength(20);
         builder.Property(x => x.FailureReason).HasColumnType("longtext");

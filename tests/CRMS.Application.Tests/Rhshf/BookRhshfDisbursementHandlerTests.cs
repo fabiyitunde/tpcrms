@@ -11,8 +11,6 @@ namespace CRMS.Application.Tests.Rhshf;
 public class BookRhshfDisbursementHandlerTests
 {
     private const decimal TotalEopValue = 51_500_000.00m;
-    private const string SupplierAccountNumber = "0987654321";
-    private const string SupplierName = "Agro Inputs Ltd";
 
     private static RhshfCreditProfile MakeProfileAtDisbursement()
     {
@@ -90,7 +88,7 @@ public class BookRhshfDisbursementHandlerTests
         var handler = new BookRhshfDisbursementHandler(
             new FakeProfileRepository(profile), new FakeLoanProductRepository(product), fineract, new FakeUnitOfWork());
 
-        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid()));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfInternalStage.Active, profile.InternalStage);
@@ -117,7 +115,7 @@ public class BookRhshfDisbursementHandlerTests
         var handler = new BookRhshfDisbursementHandler(
             new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
 
-        await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+        await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid()));
 
         Assert.Equal($"{profile.Reference}-C{profile.CurrentCycleNumber}", fineract.LastBookingRequest!.ExternalId);
     }
@@ -139,7 +137,7 @@ public class BookRhshfDisbursementHandlerTests
         var handler = new BookRhshfDisbursementHandler(
             new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
 
-        await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+        await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid()));
 
         Assert.Empty(fineract.LastBookingRequest!.ExcludedChargeIds!);
     }
@@ -158,7 +156,7 @@ public class BookRhshfDisbursementHandlerTests
         var handler = new BookRhshfDisbursementHandler(
             new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
 
-        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid()));
 
         Assert.False(result.IsSuccess);
         Assert.Equal(RhshfInternalStage.Disbursement, profile.InternalStage);
@@ -168,21 +166,6 @@ public class BookRhshfDisbursementHandlerTests
         Assert.Equal(9001, attempt.FineractLoanId);
         Assert.Contains("did not disburse", attempt.FailureReason);
         Assert.DoesNotContain("ineract", attempt.FailureReason!);
-    }
-
-    [Fact]
-    public async Task Book_WithoutSupplierAccount_Fails_DoesNotCallFineract()
-    {
-        var profile = MakeProfileAtDisbursement();
-        var fineract = new FakeFineractDirectService { ClientId = 555, Products = [MakeFineractProduct(77, 9.5m, 1)] };
-        var handler = new BookRhshfDisbursementHandler(
-            new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
-
-        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), "  ", null));
-
-        Assert.False(result.IsSuccess);
-        Assert.Null(fineract.LastBookingRequest);
-        Assert.Empty(profile.Disbursements);
     }
 
     [Fact]
@@ -198,7 +181,7 @@ public class BookRhshfDisbursementHandlerTests
         var handler = new BookRhshfDisbursementHandler(
             new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
 
-        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid()));
 
         Assert.False(result.IsSuccess);
         Assert.Contains("single payment", result.Error);
@@ -215,7 +198,7 @@ public class BookRhshfDisbursementHandlerTests
         var handler = new BookRhshfDisbursementHandler(
             new FakeProfileRepository(profile), new FakeLoanProductRepository(null), fineract, new FakeUnitOfWork());
 
-        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid()));
 
         Assert.False(result.IsSuccess);
         Assert.Null(fineract.LastBookingRequest);
@@ -235,7 +218,7 @@ public class BookRhshfDisbursementHandlerTests
         var handler = new BookRhshfDisbursementHandler(
             new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
 
-        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid()));
 
         Assert.False(result.IsSuccess);
         Assert.Equal(RhshfInternalStage.Disbursement, profile.InternalStage);
@@ -252,7 +235,7 @@ public class BookRhshfDisbursementHandlerTests
         var handler = new BookRhshfDisbursementHandler(
             new FakeProfileRepository(profile), new FakeLoanProductRepository(MakeRhshfProduct(77)), fineract, new FakeUnitOfWork());
 
-        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid(), SupplierAccountNumber, SupplierName));
+        var result = await handler.Handle(new BookRhshfDisbursementCommand(profile.Reference, Guid.NewGuid()));
 
         Assert.False(result.IsSuccess);
         Assert.Equal(RhshfInternalStage.Disbursement, profile.InternalStage);

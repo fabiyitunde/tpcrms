@@ -303,9 +303,10 @@ public class RhshfOfferDocumentDataBuilder
     /// <summary>
     /// The implementation plan rows: the portal's itemised inputs and charges where they exist,
     /// otherwise the crop-level lines plus one balancing row so the plan still foots to the approved
-    /// amount.
+    /// amount. Public because the disbursement form shows the bank the same plan to pay suppliers
+    /// from; one routine keeps the form and the letter's Schedule B identical.
     /// </summary>
-    private static List<RhshfOfferPlanRow> BuildPlanRows(RhshfCreditProfile profile, decimal approvedAmount)
+    public static List<RhshfOfferPlanRow> BuildPlanRows(RhshfCreditProfile profile, decimal approvedAmount)
     {
         if (profile.HasItemisedFinancing)
         {

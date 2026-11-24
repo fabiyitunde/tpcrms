@@ -7908,14 +7908,28 @@ public partial class ApplicationService
 
     // ── RH-SHF Disbursement (Phase 9) ──────────────────────────────────────
 
-    public async Task<ApiResponse> BookRhshfDisbursementAsync(
-        string reference, Guid disbursementOfficerId, string supplierAccountNumber, string? supplierName)
+    public async Task<List<CRMS.Application.Rhshf.Interfaces.RhshfOfferPlanRow>> GetRhshfDisbursementPlanAsync(string reference)
+    {
+        try
+        {
+            var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.GetRhshfDisbursementPlanHandler>();
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.GetRhshfDisbursementPlanQuery(reference), CancellationToken.None);
+            return result.IsSuccess ? result.Data! : [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading the RH-SHF disbursement plan for {Reference}", reference);
+            return [];
+        }
+    }
+
+    public async Task<ApiResponse> BookRhshfDisbursementAsync(string reference, Guid disbursementOfficerId)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Commands.BookRhshfDisbursementHandler>();
             var result = await handler.Handle(
-                new CRMS.Application.Rhshf.Commands.BookRhshfDisbursementCommand(reference, disbursementOfficerId, supplierAccountNumber, supplierName),
+                new CRMS.Application.Rhshf.Commands.BookRhshfDisbursementCommand(reference, disbursementOfficerId),
                 CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Disbursement booking failed");
         }

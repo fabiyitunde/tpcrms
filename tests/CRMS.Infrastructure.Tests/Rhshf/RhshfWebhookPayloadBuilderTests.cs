@@ -51,7 +51,7 @@ public class RhshfWebhookPayloadBuilderTests
         var item = profile.PreDeploymentChecklist.Single(i => i.CycleNumber == profile.CurrentCycleNumber);
         profile.ConfirmPreDeploymentChecklistItem(item.Id, Guid.NewGuid(), true, null);
         profile.CompletePreDeploymentVerification(Guid.NewGuid(), null);
-        profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 9001L, "LN-009001", null);
+        profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, RhshfDisbursementStatus.Booked, 9001L, "LN-009001", null);
 
         var eventId = "evt_test123";
         var occurredAt = DateTime.UtcNow;

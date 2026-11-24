@@ -1,5 +1,5 @@
 <div class="modal-backdrop show" @onclick="() => OnClose.InvokeAsync()">
-    <div class="modal" style="max-width: 520px;" @onclick:stopPropagation>
+    <div class="modal" style="max-width: 640px;" @onclick:stopPropagation>
         <div class="modal-header">
             <h3 class="modal-title"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">account_balance</span>Book Disbursement</h3>
             <button class="modal-close" @onclick="() => OnClose.InvokeAsync()"><span class="material-symbols-outlined">close</span></button>
@@ -28,50 +28,50 @@
                 <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-200);">
                     <div style="color: var(--gray-600); font-size: 0.78rem;">Amount to disburse</div>
                     <div style="font-size: 1.35rem; font-weight: 700; color: var(--primary, #14532d);">@Currency @AmountToDisburse.ToString("N2")</div>
-                    <div style="color: var(--gray-500); font-size: 0.74rem;">Disbursed in kind to the input supplier below — not as cash to the borrower.</div>
                 </div>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Input-supplier account number (required)</label>
-                <input class="form-control" value="@supplierAccountNumber" @oninput="OnAccountInput"
-                       maxlength="10" inputmode="numeric" placeholder="10-digit NUBAN" autocomplete="off" />
-                @if (isLookingUp)
-                {
-                    <div style="font-size: 0.8rem; color: var(--gray-500); margin-top: 4px;">
-                        <span class="spinner" style="width: 12px; height: 12px; vertical-align: middle;"></span> Checking account with Core Banking…
-                    </div>
-                }
-                else if (accountLookup is not null)
-                {
-                    @if (accountLookup.Found)
-                    {
-                        <div style="font-size: 0.82rem; color: var(--primary, #14532d); margin-top: 4px;">
-                            <span class="material-symbols-outlined" style="font-size: 15px; vertical-align: middle;">check_circle</span>
-                            <strong>@accountLookup.AccountName</strong>@(string.IsNullOrEmpty(accountLookup.Status) ? "" : $" · {accountLookup.Status}")
-                        </div>
-                    }
-                    else
-                    {
-                        <div style="font-size: 0.82rem; color: #b45309; margin-top: 4px;">
-                            <span class="material-symbols-outlined" style="font-size: 15px; vertical-align: middle;">warning</span>
-                            @accountLookup.Error
-                        </div>
-                    }
-                }
-            </div>
-            <div class="form-group">
-                <label class="form-label">Supplier name (optional)</label>
-                <input class="form-control" @bind="supplierName" />
-            </div>
-            @if (!string.IsNullOrEmpty(ErrorMessage) || !string.IsNullOrEmpty(clientError))
+            @* The approved plan the bank pays from — the offer letter's Schedule B. The CRMS sends no
+               supplier details to core banking; the bank pays each supplier from the disbursement. *@
+            <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.4rem;">Payment plan</div>
+            @if (PaymentPlan.Count == 0)
             {
-                <div class="alert alert-danger">@(ErrorMessage ?? clientError)</div>
+                <div class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">The payment plan could not be loaded. It is on the offer letter's Schedule B.</div>
+            }
+            else
+            {
+                <div class="table-wrapper" style="margin-bottom: 0.5rem;">
+                    <table class="table" style="font-size: 0.82rem;">
+                        <thead><tr><th>Supplier</th><th>Item</th><th style="text-align: right;">Amount</th></tr></thead>
+                        <tbody>
+                            @foreach (var row in PaymentPlan)
+                            {
+                                <tr>
+                                    <td>@(row.IsCharge ? "—" : row.Supplier ?? "—")</td>
+                                    <td>@row.Description</td>
+                                    <td style="text-align: right;">@row.Amount.ToString("N2")</td>
+                                </tr>
+                            }
+                            <tr style="font-weight: 600;">
+                                <td colspan="2">Total</td>
+                                <td style="text-align: right;">@PaymentPlan.Sum(r => r.Amount).ToString("N2")</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            }
+            <div style="color: var(--gray-600); font-size: 0.8rem;">
+                The CRMS books the loan only. The bank pays each supplier from the disbursement in core banking.
+            </div>
+
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="alert alert-danger" style="margin-top: 0.75rem;">@ErrorMessage</div>
             }
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" @onclick="() => OnClose.InvokeAsync()">Cancel</button>
-            <button class="btn btn-success" disabled="@IsSubmitting" @onclick="Confirm">
+            <button class="btn btn-success" disabled="@IsSubmitting" @onclick="() => OnConfirm.InvokeAsync()">
                 @if (IsSubmitting) { <span class="spinner" style="width: 14px; height: 14px;"></span> }
                 Book Disbursement
             </button>
@@ -81,15 +81,9 @@
 
 @code {
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback<(string SupplierAccountNumber, string? SupplierName)> OnConfirm { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
-    /// <summary>Name-enquiry against Core Banking for a 10-digit NUBAN (returns the resolved account).</summary>
-    [Parameter] public Func<string, Task<CRMS.Application.Rhshf.Queries.CoreBankingAccountLookupDto?>>? OnLookupAccount { get; set; }
-
-    private CRMS.Application.Rhshf.Queries.CoreBankingAccountLookupDto? accountLookup;
-    private bool isLookingUp;
-    private string? lastLookedUp;
 
     // Read-only context so the officer sees what they're about to disburse.
     [Parameter] public string CompanyName { get; set; } = "";
@@ -99,44 +93,5 @@
     [Parameter] public decimal? InterestRatePercent { get; set; }
     [Parameter] public int? CycleMonths { get; set; }
     [Parameter] public decimal? AmountDueAtHarvest { get; set; }
-
-    private string supplierAccountNumber = string.Empty;
-    private string supplierName = string.Empty;
-    private string? clientError;
-
-    private async Task OnAccountInput(ChangeEventArgs e)
-    {
-        supplierAccountNumber = (e.Value?.ToString() ?? string.Empty).Trim();
-        clientError = null;
-
-        var digits = new string(supplierAccountNumber.Where(char.IsDigit).ToArray());
-        if (digits.Length != 10)
-        {
-            accountLookup = null;
-            lastLookedUp = null;
-            return;
-        }
-        if (digits == lastLookedUp || OnLookupAccount is null) return;
-
-        lastLookedUp = digits;
-        isLookingUp = true;
-        accountLookup = null;
-        accountLookup = await OnLookupAccount(digits);
-        isLookingUp = false;
-
-        // Convenience: pre-fill the supplier name from the enquiry when the officer hasn't typed one.
-        if (accountLookup?.Found == true && string.IsNullOrWhiteSpace(supplierName))
-            supplierName = accountLookup.AccountName ?? string.Empty;
-    }
-
-    private async Task Confirm()
-    {
-        if (string.IsNullOrWhiteSpace(supplierAccountNumber))
-        {
-            clientError = "The input-supplier account number is required.";
-            return;
-        }
-        clientError = null;
-        await OnConfirm.InvokeAsync((supplierAccountNumber, string.IsNullOrWhiteSpace(supplierName) ? null : supplierName));
-    }
+    [Parameter] public List<CRMS.Application.Rhshf.Interfaces.RhshfOfferPlanRow> PaymentPlan { get; set; } = [];
 }

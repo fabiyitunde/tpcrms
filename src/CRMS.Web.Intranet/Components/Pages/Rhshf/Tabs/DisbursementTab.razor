@@ -32,10 +32,14 @@
                             <div class="field-chip-label">Disbursed Amount</div>
                             <div class="field-chip-value">@d.DisbursedAmount.ToString("N2")</div>
                         </div>
-                        <div class="field-chip">
-                            <div class="field-chip-label">Supplier Account</div>
-                            <div class="field-chip-value">@d.SupplierAccountNumber</div>
-                        </div>
+                        @* Only on attempts from before the bank took over paying suppliers directly. *@
+                        @if (!string.IsNullOrEmpty(d.SupplierAccountNumber))
+                        {
+                            <div class="field-chip">
+                                <div class="field-chip-label">Supplier Account</div>
+                                <div class="field-chip-value">@d.SupplierAccountNumber</div>
+                            </div>
+                        }
                         @if (!string.IsNullOrEmpty(d.SupplierName))
                         {
                             <div class="field-chip">

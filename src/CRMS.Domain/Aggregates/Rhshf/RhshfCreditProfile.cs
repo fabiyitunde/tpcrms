@@ -1154,18 +1154,16 @@ public class RhshfCreditProfile : AggregateRoot
     /// could still have killed the case). On Failed: recorded for audit/retry, no state change — the
     /// case stays at Disbursement, not regressed to an earlier stage.</summary>
     public Result RecordDisbursementAttempt(
-        Guid disbursementOfficerId, decimal disbursedAmount, string supplierAccountNumber, string? supplierName,
+        Guid disbursementOfficerId, decimal disbursedAmount,
         RhshfDisbursementStatus status, long? fineractLoanId, string? fineractLoanAccountNumber, string? failureReason)
     {
         if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.Disbursement)
             return Result.Failure("Case is not at the disbursement stage.");
         if (disbursedAmount != ApprovedAmount)
             return Result.Failure("Disbursed amount must equal the ratified approved amount.");
-        if (string.IsNullOrWhiteSpace(supplierAccountNumber))
-            return Result.Failure("The input-supplier account number is required to record a disbursement.");
 
         _disbursements.Add(new RhshfDisbursement(
-            Id, CurrentCycleNumber, disbursementOfficerId, disbursedAmount, supplierAccountNumber, supplierName,
+            Id, CurrentCycleNumber, disbursementOfficerId, disbursedAmount,
             status, fineractLoanId, fineractLoanAccountNumber, failureReason));
 
         if (status == RhshfDisbursementStatus.Booked)

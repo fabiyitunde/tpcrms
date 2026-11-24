@@ -128,7 +128,7 @@ else
             }
             @if (CanBookDisbursement && workspace.InternalStage == RhshfInternalStage.Disbursement && !disbursementHistory.Any(d => d.Status == RhshfDisbursementStatus.Booked))
             {
-                <button class="btn btn-success" @onclick='() => openModal = "disbursement"'>
+                <button class="btn btn-success" @onclick="OpenDisbursement">
                     <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">account_balance</span> Book Disbursement
                 </button>
             }
@@ -396,7 +396,7 @@ else
             Currency="@(string.IsNullOrWhiteSpace(offer?.Currency) ? workspace.Currency : offer!.Currency)"
             AmountToDisburse="@(workspace.ApprovedAmount ?? offer?.ApprovedAmount ?? workspace.TotalEopValue)"
             InterestRatePercent="offer?.InterestRatePercent" CycleMonths="offer?.CycleMonths" AmountDueAtHarvest="offer?.AmountDueAtHarvest"
-            OnLookupAccount="AppService.LookupCoreBankingAccountAsync" />
+            PaymentPlan="disbursementPlan" />
     }
     @if (openModal == "appraisal")
     {
@@ -998,11 +998,21 @@ else
         await LoadAllAsync();
     }
 
-    private async Task SubmitDisbursement((string SupplierAccountNumber, string? SupplierName) input)
+    private List<CRMS.Application.Rhshf.Interfaces.RhshfOfferPlanRow> disbursementPlan = [];
+
+    // Loaded when the form opens, not with the page, so it reflects the case as it stands now.
+    private async Task OpenDisbursement()
+    {
+        modalError = null;
+        disbursementPlan = await AppService.GetRhshfDisbursementPlanAsync(Reference);
+        openModal = "disbursement";
+    }
+
+    private async Task SubmitDisbursement()
     {
         isSubmitting = true;
         modalError = null;
-        var result = await AppService.BookRhshfDisbursementAsync(Reference, CurrentUserId, input.SupplierAccountNumber, input.SupplierName);
+        var result = await AppService.BookRhshfDisbursementAsync(Reference, CurrentUserId);
         isSubmitting = false;
         if (!result.Success) { modalError = result.Error; return; }
         CloseModal();

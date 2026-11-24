@@ -15,6 +15,7 @@ public static class RhshfWorkflowSeeder
         await SeedRoutingConfigAsync(context, logger);
         await SeedPreDeploymentChecklistAsync(context, logger);
         await BackfillPreDeploymentKindsAsync(context, logger);
+        await BackfillRepaymentAccountWordingAsync(context, logger);
         await SeedAppraisalThresholdsAsync(context, logger);
         await SeedDocumentRequirementsAsync(context, logger);
         await BackfillDocumentFormatRulesAsync(context, logger);
@@ -208,6 +209,7 @@ public static class RhshfWorkflowSeeder
         {
             ["Disbursement Account Verified"] = RhshfPreDeploymentVerificationKind.AccountConfirmation,
             ["BOA Disbursement Account Verified"] = RhshfPreDeploymentVerificationKind.AccountConfirmation,
+            [RepaymentAccountTitle] = RhshfPreDeploymentVerificationKind.AccountConfirmation,
             ["Collateral Perfected"] = RhshfPreDeploymentVerificationKind.CollateralReview,
             ["Collateral Reviewed & Documents on File"] = RhshfPreDeploymentVerificationKind.CollateralReview,
             ["Signed Offer Letter Countersigned"] = RhshfPreDeploymentVerificationKind.OfferDocuments,
@@ -250,6 +252,63 @@ public static class RhshfWorkflowSeeder
                 "Backfilled verification kind on {Templates} RH-SHF templates and {Items} in-flight items.",
                 changed, itemsChanged);
         }
+    }
+
+    // The account check shows the FAC's own BOA account, which is where repayments are collected
+    // from. Its earlier wording called it the input supplier's or the disbursement account, but the
+    // CRMS sends no destination when it disburses: the bank pays suppliers itself.
+    internal const string RepaymentAccountTitle = "FAC Repayment Account Verified";
+    internal const string RepaymentAccountDescription =
+        "Confirm the FAC's BOA account pulled from core banking is active and in the FAC's name. " +
+        "Loan repayments are collected from this account.";
+
+    /// <summary>The account check's earlier default wordings. Only an exact match is replaced, so
+    /// anything an administrator has reworded is left as it is.</summary>
+    internal static readonly (string Title, string Description)[] OldAccountCheckWordings =
+    [
+        ("Disbursement Account Verified",
+            "Confirm the input-supplier account number and name have been verified and match the offer."),
+        ("BOA Disbursement Account Verified",
+            "Review the BOA account details pulled from Core Banking and confirm the account name/number match the offer."),
+    ];
+
+    /// <summary>
+    /// Idempotent: rewords the account check where it still carries an old default wording — the
+    /// template, and the items of cases still at the pre-deployment gate. Completed cases are history
+    /// and keep the wording they were checked against.
+    /// </summary>
+    internal static async Task BackfillRepaymentAccountWordingAsync(CRMSDbContext context, ILogger logger)
+    {
+        static bool IsOld(string title, string? description) =>
+            OldAccountCheckWordings.Any(w => w.Title == title && w.Description == description);
+
+        var templates = (await context.RhshfPreDeploymentChecklistTemplates.ToListAsync())
+            .Where(t => IsOld(t.Title, t.Description))
+            .ToList();
+        foreach (var t in templates)
+        {
+            t.Update(RepaymentAccountTitle, RepaymentAccountDescription, t.IsMandatory, t.SortOrder, t.Kind);
+            t.SetAuditInfo("System Seeder", isNew: false);
+        }
+
+        var inFlight = await context.RhshfCreditProfiles
+            .Include(p => p.PreDeploymentChecklist)
+            .Where(p => p.InternalStage == RhshfInternalStage.PreDeploymentVerification)
+            .ToListAsync();
+        var items = inFlight
+            .SelectMany(p => p.PreDeploymentChecklist)
+            .Where(i => IsOld(i.Title, i.Description))
+            .ToList();
+        foreach (var item in items)
+            item.ApplyWording(RepaymentAccountTitle, RepaymentAccountDescription);
+
+        if (templates.Count == 0 && items.Count == 0)
+            return;
+
+        await context.SaveChangesAsync();
+        logger.LogInformation(
+            "Reworded the RH-SHF account check on {Templates} template(s) and {Items} in-flight item(s).",
+            templates.Count, items.Count);
     }
 
     // ── Required documents for FAC profiling ───────────────────────────────
@@ -454,8 +513,7 @@ public static class RhshfWorkflowSeeder
         var items = new[]
         {
             Checklist(
-                "BOA Disbursement Account Verified",
-                "Review the BOA account details pulled from Core Banking and confirm the account name/number match the offer.",
+                RepaymentAccountTitle, RepaymentAccountDescription,
                 isMandatory: true, sortOrder: 10, kind: RhshfPreDeploymentVerificationKind.AccountConfirmation),
             Checklist(
                 "Collateral Reviewed & Documents on File",

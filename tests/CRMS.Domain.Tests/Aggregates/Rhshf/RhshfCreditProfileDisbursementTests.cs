@@ -55,7 +55,7 @@ public class RhshfCreditProfileDisbursementTests
         var profile = CreateProfileAtDisbursement();
 
         var result = profile.RecordDisbursementAttempt(
-            Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
+            Guid.NewGuid(), TotalEopValue, RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfInternalStage.Active, profile.InternalStage);
@@ -72,23 +72,24 @@ public class RhshfCreditProfileDisbursementTests
         var profile = CreateProfileAtDisbursement();
 
         var result = profile.RecordDisbursementAttempt(
-            Guid.NewGuid(), TotalEopValue - 1, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
+            Guid.NewGuid(), TotalEopValue - 1, RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
 
         Assert.True(result.IsFailure);
         Assert.Empty(profile.Disbursements);
         Assert.Equal(RhshfInternalStage.Disbursement, profile.InternalStage);
     }
 
+    /// <summary>The bank pays suppliers itself from core banking, so no supplier account is recorded.</summary>
     [Fact]
-    public void RecordDisbursementAttempt_MissingSupplierAccount_Fails()
+    public void RecordDisbursementAttempt_RecordsNoSupplierAccount()
     {
         var profile = CreateProfileAtDisbursement();
 
         var result = profile.RecordDisbursementAttempt(
-            Guid.NewGuid(), TotalEopValue, "  ", null, RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
+            Guid.NewGuid(), TotalEopValue, RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
 
-        Assert.True(result.IsFailure);
-        Assert.Empty(profile.Disbursements);
+        Assert.True(result.IsSuccess);
+        Assert.Null(Assert.Single(profile.Disbursements).SupplierAccountNumber);
     }
 
     [Fact]
@@ -97,7 +98,7 @@ public class RhshfCreditProfileDisbursementTests
         var profile = CreateProfileAtDisbursement();
 
         var result = profile.RecordDisbursementAttempt(
-            Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Failed, null, null, "Fineract timeout");
+            Guid.NewGuid(), TotalEopValue, RhshfDisbursementStatus.Failed, null, null, "Fineract timeout");
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfInternalStage.Disbursement, profile.InternalStage);
@@ -112,10 +113,10 @@ public class RhshfCreditProfileDisbursementTests
     public void RecordDisbursementAttempt_FailedThenBooked_Succeeds_PreservesHistory()
     {
         var profile = CreateProfileAtDisbursement();
-        profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Failed, null, null, "Fineract timeout");
+        profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, RhshfDisbursementStatus.Failed, null, null, "Fineract timeout");
 
         var result = profile.RecordDisbursementAttempt(
-            Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
+            Guid.NewGuid(), TotalEopValue, RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RhshfInternalStage.Active, profile.InternalStage);
@@ -127,9 +128,9 @@ public class RhshfCreditProfileDisbursementTests
     public void RecordDisbursementAttempt_WhenNotAtDisbursementStage_Fails()
     {
         var profile = CreateProfileAtDisbursement();
-        profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
+        profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, RhshfDisbursementStatus.Booked, 12345L, "LN-000123", null);
 
-        var result = profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, "0987654321", "Agro Inputs Ltd", RhshfDisbursementStatus.Booked, 12346L, "LN-000124", null);
+        var result = profile.RecordDisbursementAttempt(Guid.NewGuid(), TotalEopValue, RhshfDisbursementStatus.Booked, 12346L, "LN-000124", null);
 
         Assert.True(result.IsFailure);
     }

@@ -380,13 +380,15 @@ public class RhshfLoanPackPdfGenerator : IRhshfLoanPackGenerator
         col.Item().Table(table =>
         {
             table.ColumnsDefinition(c => { c.RelativeColumn(2); c.RelativeColumn(2); c.RelativeColumn(2); c.RelativeColumn(2); c.RelativeColumn(2); });
-            Th(table, "Booked", true); Th(table, "Officer", true); Th(table, "Amount"); Th(table, "Supplier", true); Th(table, "Status", true);
+            // Suppliers are paid by the bank from core banking, not recorded per attempt, so the
+            // column names the core banking loan the attempt produced.
+            Th(table, "Booked", true); Th(table, "Officer", true); Th(table, "Amount"); Th(table, "Core banking loan", true); Th(table, "Status", true);
             foreach (var d in ds.OrderBy(d => d.BookedAt))
             {
                 Td(table, d.BookedAt.ToLocalTime().ToString("dd MMM yyyy"), true);
                 Td(table, d.DisbursementOfficerName, true);
                 Td(table, $"{ccy} {d.DisbursedAmount:N2}");
-                Td(table, d.SupplierName ?? d.SupplierAccountNumber, true);
+                Td(table, d.FineractLoanAccountNumber ?? "—", true);
                 Td(table, d.Status.ToString() + (string.IsNullOrWhiteSpace(d.FailureReason) ? "" : $" — {d.FailureReason}"), true);
             }
         });
